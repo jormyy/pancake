@@ -5,6 +5,7 @@ import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatPoints } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
+import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { Badge } from '@/components/Badge'
@@ -24,7 +25,6 @@ function PlayerSearchItemImpl({
     waiverClearsAt = null,
     claimPending = false,
     isAdding,
-    addToIR = false,
     addDisabled = false,
     showStats = false,
     showCompactStats = true,
@@ -106,25 +106,6 @@ function PlayerSearchItemImpl({
 
     const content = (
         <>
-            <View style={styles.addCol}>
-                {canAdd ? (
-                    <MotionPressable
-                        style={styles.addTarget}
-                        onPress={() => onAdd(item)}
-                        disabled={isAdding || addDisabled}
-                        accessibilityRole="button"
-                        accessibilityLabel={claimPending ? `Claim pending for ${item.display_name}, view claims` : `${isWaiver ? 'Claim' : addToIR ? 'Add to IR' : 'Add'} ${item.display_name}`}
-                        {...blockedActionProps(blockedReason, isAdding || addDisabled)}
-                        hitSlop={8}
-                        pressedScale={0.88}
-                    >
-                        <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
-                            {claimPending ? <MaterialIcons name="schedule" size={20} color={uiColors.waiverText} /> : <Text style={[styles.addBtnText, isWaiver && styles.addBtnTextWaiver, blockedReason ? styles.addBtnTextBlocked : null]} numberOfLines={1}>{isWaiver ? 'Claim' : addToIR ? 'Add to IR' : 'Add'}</Text>}
-                        </View>
-                    </MotionPressable>
-                ) : null}
-            </View>
-
             <Pressable
                 style={[styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense]}
                 onPress={() => onPress(item)}
@@ -150,9 +131,9 @@ function PlayerSearchItemImpl({
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
-                        {item.years_exp === 0 && (
-                            <Text style={[styles.experienceText, item.years_exp === 0 && { color: colors.success }]}>
-                                Rookie
+                        {playerYearsExperienceLabel(item.years_exp) && (
+                            <Text style={styles.experienceText}>
+                                {playerYearsExperienceLabel(item.years_exp)}
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -165,7 +146,7 @@ function PlayerSearchItemImpl({
                         {denseProjectionRow && projectionGame ? (
                             <Text style={styles.playerMeta} numberOfLines={1}>{projectionGame}</Text>
                         ) : null}
-                        {denseProjectionRow ? statusBadge : null}
+                        {!showStats ? statusBadge : null}
                     </View>
                     {!showStats && showCompactStats ? (
                         <View style={styles.compactStats}>
@@ -187,7 +168,6 @@ function PlayerSearchItemImpl({
                     <View style={styles.fpCol}>
                         <Text style={styles.fpValue} numberOfLines={1}>{formatPoints(stats[0]?.value)}</Text>
                         <Text style={[styles.fpLabel, item.playing_now && styles.liveLabel]}>{item.playing_now ? 'LIVE' : 'FP'}</Text>
-                        {statusBadge}
                     </View>
                 ) : null}
 
@@ -204,6 +184,26 @@ function PlayerSearchItemImpl({
                     </View>
                 ) : null}
             </Pressable>
+            <View style={styles.addCol}>
+                {canAdd ? (
+                    <MotionPressable
+                        style={styles.addTarget}
+                        onPress={() => onAdd(item)}
+                        disabled={isAdding || addDisabled}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
+                        {...blockedActionProps(blockedReason, isAdding || addDisabled)}
+                    >
+                        <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
+                            <MaterialIcons
+                                name={claimPending || isAdding || isWaiver ? 'schedule' : 'add'}
+                                size={controlSize.icon.md}
+                                color={blockedReason ? colors.textPlaceholder : isWaiver ? uiColors.waiverText : colors.primaryDark}
+                            />
+                        </View>
+                    </MotionPressable>
+                ) : null}
+            </View>
         </>
     )
 
@@ -269,7 +269,7 @@ function StatCell({
     )
 }
 
-const ADD_COL_W = controlSize.minTouch + spacing['4xl']
+const ADD_COL_W = controlSize.minTouch
 const HEADSHOT = spacing['4xl'] + spacing.xs
 
 /** Geometry the stat-table header mirrors so its columns line up with rows. */
@@ -284,28 +284,26 @@ const styles = StyleSheet.create({
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingLeft: spacing.sm,
+        paddingHorizontal: spacing.sm,
         minHeight: table.rowHeight,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.separator,
     },
     addCol: { width: ADD_COL_W, alignItems: 'center' },
-    // The 44px target wraps a smaller circle so rows stay short.
     addTarget: { width: ADD_COL_W, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
-        width: ADD_COL_W - spacing.xs,
-        height: HEADSHOT,
+        width: spacing['4xl'],
+        height: spacing['4xl'],
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: colors.primaryBorder,
         alignItems: 'center',
         justifyContent: 'center',
     },
     addBtnWaiver: { backgroundColor: colors.infoLight, borderColor: colors.info, borderWidth: 1 },
-    addBtnTextWaiver: { color: uiColors.waiverText },
-    addBtnText: { color: colors.primaryDark, fontSize: fontSize.xs, fontWeight: fontWeight.bold, lineHeight: 18 },
     addBtnBlocked: { backgroundColor: colors.bgMuted, borderColor: colors.borderLight },
-    addBtnTextBlocked: { color: colors.textPlaceholder },
     playerCard: {
         flex: 1,
         flexDirection: 'row',
@@ -315,8 +313,8 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.sm,
         gap: spacing.md,
     },
-    playerCardNarrow: { paddingRight: spacing.lg },
-    playerCardDense: { paddingVertical: spacing.sm, gap: spacing.md },
+    playerCardNarrow: { paddingRight: spacing.xs },
+    playerCardDense: { paddingVertical: spacing.sm, paddingRight: spacing.xs, gap: spacing.md },
     playerInfo: { flex: 1, minWidth: 0 },
     playerName: { ...textStyles.rowTitle },
     playerNameDense: { flexShrink: 1 },
@@ -351,7 +349,7 @@ const styles = StyleSheet.create({
         fontVariant: ['tabular-nums'],
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
-    experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
+    experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.success },
     fpCol: { alignItems: 'flex-end', width: spacing['4xl'] * 2, gap: spacing.xxs },
     fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     fpLabel: { ...textStyles.tableHeader, width: '100%', textAlign: 'right', marginTop: -spacing.xxs },
@@ -381,7 +379,7 @@ const styles = StyleSheet.create({
         width: 90,
         alignItems: 'center',
     },
-    statusBadgeNarrow: { width: 'auto', minWidth: 40 },
+    statusBadgeNarrow: { width: 'auto', minWidth: spacing['5xl'] },
     statusBadgeMe: { backgroundColor: colors.successLight },
     statusBadgeWaiver: { backgroundColor: colors.infoLight },
     statusBadgeFA: { backgroundColor: colors.bgMuted },

@@ -153,7 +153,7 @@ export function IRResolutionModal({
                                     <Button
                                         title="Drop"
                                         size="sm"
-                                        variant="danger"
+                                        variant="outline"
                                         onPress={() => handleDropAndActivate(rp)}
                                         disabled={loadingId !== null}
                                         loading={loadingId === rp.id}

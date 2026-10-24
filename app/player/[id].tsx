@@ -9,7 +9,7 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
 import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
@@ -24,7 +24,6 @@ import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -220,12 +219,6 @@ export default function PlayerDetailScreen() {
             onSelect={handleSeasonSelect}
         />
     ) : null
-    const dropControl = rosterStatus?.status === 'mine' ? (
-        <Pressable style={styles.dropButton} onPress={handleDrop} disabled={!actionsReady || dropping}
-            accessibilityRole="button" accessibilityLabel={`Drop ${player.display_name}`}>
-            <Text style={styles.dropText}>Drop</Text>
-        </Pressable>
-    ) : null
     const profile = (
         <>
                 <StatsOverview
@@ -237,7 +230,6 @@ export default function PlayerDetailScreen() {
                     seasonControl={seasonControl}
                     loading={seasonLoading}
                     includesLive={includesLive}
-                    actions={dropControl}
                 />
             <NextProjectionCard projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
                 liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
@@ -246,6 +238,7 @@ export default function PlayerDetailScreen() {
     const gameLogSection = (
         <GameLogTable
             games={gameLog}
+            compact={!twoColumn}
             loading={seasonLoading}
             fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
             hasMore={hasMoreGames}
@@ -273,6 +266,9 @@ export default function PlayerDetailScreen() {
                         rosterStatus={rosterStatus}
                         leagueActive={!!current || !membershipValidated}
                         action={action}
+                        onDrop={handleDrop}
+                        actionsReady={actionsReady}
+                        dropDisabled={dropping}
                         backControl={<BackButton onPress={goBack} />}
                         compact={usableWidth < 600}
                     />
@@ -336,8 +332,6 @@ const styles = StyleSheet.create({
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
-    dropButton: { minHeight: controlSize.minTouch, justifyContent: 'center', alignItems: 'center' },
-    dropText: { ...textStyles.meta, color: colors.dangerDark },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 })

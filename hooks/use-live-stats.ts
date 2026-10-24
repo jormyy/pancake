@@ -293,7 +293,11 @@ export function readCachedLiveTeams(leagueId: string): Set<string> | null {
         const snapshot = snapshots.get(key)!
         if (!latest || snapshot.fetchedAt > latest.fetchedAt) latest = snapshot
     }
-    return latest ? new Set(latest.todaysGames.filter(game => game.status === 'InProgress').flatMap(game => [game.home_team, game.away_team])) : null
+    if (!latest) return null
+    const { todaysGames, startedTeams } = latest
+    return new Set(todaysGames.filter(game => game.status === 'InProgress'
+        || game.status === 'Scheduled' && startedTeams.has(game.home_team))
+        .flatMap(game => [game.home_team, game.away_team]))
 }
 
 export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {

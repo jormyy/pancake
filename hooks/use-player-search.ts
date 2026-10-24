@@ -45,6 +45,15 @@ const EMPTY_TEAMS: string[] = []
 
 const playerSearchCacheKey = (key: string) => `${PLAYER_SEARCH_CACHE_PREFIX}${key}`
 
+function playerScoringSettings(value: unknown): ScoringSettings | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const scoring: ScoringSettings = {}
+    for (const [key, coefficient] of Object.entries(value)) {
+        if (typeof coefficient === 'number' && Number.isFinite(coefficient)) scoring[key] = coefficient
+    }
+    return scoring
+}
+
 export function useWeeklyAvailability(enabled: boolean, active = true) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
 
@@ -100,9 +109,11 @@ export function usePlayerSearch(
     ownedMap: Map<string, OwnedEntry>,
     waiverIds: Set<string>,
     currentMemberId?: string,
-    options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string; admitted?: boolean } = {},
+    options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string; admitted?: boolean; initialLiveStats?: boolean; scoringSettings?: unknown } = {},
 ) {
     const enabled = options.enabled ?? true
+    const initialLiveStats = options.initialLiveStats ?? false
+    const scoring = useMemo(() => playerScoringSettings(options.scoringSettings), [options.scoringSettings])
     const admitted = options.admitted ?? true
     const online = options.online ?? true
     const panelActive = usePanelActivity()
@@ -210,7 +221,7 @@ export function usePlayerSearch(
         sortDir,
         seasonYear,
     ])
-    const searchParamsKey = JSON.stringify([todayET(), options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate)])
+    const searchParamsKey = JSON.stringify([todayET(), options.ownerId ?? null, currentMemberId ?? null, playerSearchParamsKey(paramsCandidate), ...(initialLiveStats ? ['live-totals'] : [])])
     // Support refreshes can replace Maps without changing the actual search.
     // Only semantic query or identity changes start a different request.
     const stableParamsRef = useRef({ key: searchParamsKey, params: paramsCandidate })
@@ -225,8 +236,8 @@ export function usePlayerSearch(
     if (lastActivity.current !== readActivity) { lastActivity.current = readActivity; activityEpoch.current += 1 }
     activeRef.current = admitted && readActivity
 
-    const fetchPage = useCallback((params: PlayerSearchParams, offset: number) =>
-        searchPlayers(
+    const fetchPage = useCallback(async (params: PlayerSearchParams, offset: number, canRead?: () => boolean) => {
+        const players = await searchPlayers(
             params.query,
             params.position,
             params.selectedTeams,
@@ -241,10 +252,20 @@ export function usePlayerSearch(
                 excludedTeams: params.excludedTeams,
             },
             { sortMode: params.sortBy, sortDir: params.sortDir, seasonYear: params.seasonYear },
-        ), [])
+        )
+        if (canRead && !canRead()) throw new Error('Search read is no longer active')
+        if (!initialLiveStats || !params.leagueId || players.length === 0) return players
+        const totals = await getVisiblePlayerTotals(params.leagueId, players.map(player => player.id), params.seasonYear ?? currentSeasonYear())
+        if (canRead && !canRead()) throw new Error('Search read is no longer active')
+        const totalsByPlayer = new Map(totals.map(row => [row.player_id, row]))
+        return players.map(player => {
+            const row = totalsByPlayer.get(player.id)
+            return row ? applyVisiblePlayerTotals(player, row, scoring) : player
+        })
+    }, [initialLiveStats, scoring])
 
     const fetchCompleteResults = useCallback(async (params: PlayerSearchParams, canRead: () => boolean) => {
-        const firstPage = await fetchPage(params, 0)
+        const firstPage = await fetchPage(params, 0, canRead)
         if (!canRead()) throw new Error('Search read is no longer active')
         return firstPage
     }, [fetchPage])
@@ -372,7 +393,7 @@ export function usePlayerSearch(
         const requestId = ++loadMoreSeqRef.current
         setLoadingMore(true)
         try {
-            const results = await fetchPage(params, nextOffset)
+            const results = await fetchPage(params, nextOffset, () => loadMoreSeqRef.current === requestId && renderedKeyRef.current === paramsKey && activeRef.current)
             if (loadMoreSeqRef.current !== requestId || renderedKeyRef.current !== paramsKey || !activeRef.current) return
             if (results.length > 0) {
                 offsetRef.current = nextOffset
@@ -459,14 +480,7 @@ export function usePlayerSearch(
 
 export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | null, seasonYear: number | null, scoringSettings: unknown,
     options: { enabled: boolean; ownerKey: string }) {
-    const scoring = useMemo(() => {
-        if (!scoringSettings || typeof scoringSettings !== 'object' || Array.isArray(scoringSettings)) return null
-        const parsed: ScoringSettings = {}
-        for (const [key, value] of Object.entries(scoringSettings)) {
-            if (typeof value === 'number' && Number.isFinite(value)) parsed[key] = value
-        }
-        return parsed
-    }, [scoringSettings])
+    const scoring = useMemo(() => playerScoringSettings(scoringSettings), [scoringSettings])
     const { active: browserActive, revision: activityRevision, isCurrent: isActivityCurrent } = useBrowserReadActivity()
     const [appActive, setAppActive] = useState(AppState.currentState === 'active')
     useEffect(() => {

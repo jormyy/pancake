@@ -18,7 +18,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+          "selector": "[aria-label^='Add ']"
         }
       }
     ]
@@ -102,7 +102,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "select[aria-label='Season']"
+          "selector": "[data-testid='recent-games-table']"
         }
       }
     ]
@@ -134,7 +134,7 @@
         },
         "expected": {
           "route": "/player/{{rosterPlayer.id}}",
-          "selector": "select[aria-label='Season']"
+          "selector": "[data-testid='player-action-slot'] [aria-label='Drop {{rosterPlayer.display_name}}']"
         },
         "name": "page"
       }
@@ -169,7 +169,8 @@
             "selector": "select[aria-label='Season']",
             "equals": "2026"
           },
-          "text": "Recent games"
+          "text": "Recent games",
+          "selector": "[data-testid='recent-games-table']"
         }
       }
     ]
@@ -301,7 +302,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+          "selector": "[aria-label^='Add ']"
         }
       }
     ]
@@ -385,7 +386,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "select[aria-label='Season']"
+          "selector": "[data-testid='recent-games-table']"
         }
       }
     ]
@@ -417,7 +418,7 @@
         },
         "expected": {
           "route": "/player/{{rosterPlayer.id}}",
-          "selector": "select[aria-label='Season']"
+          "selector": "[data-testid='player-action-slot'] [aria-label='Drop {{rosterPlayer.display_name}}']"
         },
         "name": "page"
       }
@@ -452,7 +453,8 @@
             "selector": "select[aria-label='Season']",
             "equals": "2026"
           },
-          "text": "Recent games"
+          "text": "Recent games",
+          "selector": "[data-testid='recent-games-table']"
         }
       }
     ]
