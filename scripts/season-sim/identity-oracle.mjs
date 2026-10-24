@@ -24,9 +24,10 @@ export function checkIdentityGame({ expected, players, stats, fantasy, lineups, 
   assert.equal(points.length, 1, 'Every real rookie game has a fantasy-points row')
   assert.equal(Number(points[0].fantasy_points), rawFantasy(expected.raw, settings), 'Rookie/traded-player points equal the independent raw box oracle')
   if (expected.starter != null) {
-    const lineup = lineups.filter(row => row.player_id === player.id && row.game_date === expected.date && row.member_id === expected.owner)
-    assert.equal(lineup.length, 1, 'Intended rookie starter/bench preference persists')
-    assert.equal(!['BE','IR'].includes(lineup[0].slot_type), expected.starter, 'Rookie start/bench action reaches the locked lineup')
+    const lineup = lineups.filter(row => row.player_id === player.id && row.game_date === expected.date)
+    assert.ok(lineup.length <= 1, 'A rookie has at most one lineup row for the date')
+    assert.ok(lineup.every(row => row.member_id === expected.owner), 'Rookie lineup retains the intended owner')
+    assert.equal(lineup.some(row => !['BE','IR'].includes(row.slot_type)), expected.starter, 'Rookie start/bench action reaches the locked lineup')
   }
   return { passed: true, playerId: player.id, nbaId: expected.nbaId, gameId: expected.gameId, date:expected.date, owner: expected.owner ?? null, started: expected.starter ?? null, points: Number(points[0].fantasy_points) }
 }

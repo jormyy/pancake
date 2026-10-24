@@ -22,3 +22,12 @@ test('NBA team changes cannot change fantasy identity or owner and must retain l
   assert.ok(checkContinuity({...expected,to:'CLE'},[{...input.players[0],nba_team:'CLE'}],roster,1).passed)
   assert.throws(()=>checkContinuity({...expected,to:'CLE'},[{...input.players[0],nba_team:'LAC'}],roster,1))
 })
+
+test('a manual bench has no lineup row and cannot hide a starter, duplicate or wrong owner', () => {
+  const bench = { ...input, expected: { ...input.expected, starter: false }, lineups: [] }
+  assert.ok(checkIdentityGame(bench).passed)
+  assert.throws(() => checkIdentityGame({ ...bench, lineups: input.lineups }))
+  assert.throws(() => checkIdentityGame({ ...bench, lineups: [{ ...input.lineups[0], member_id: 'b', slot_type: 'BE' }] }))
+  assert.throws(() => checkIdentityGame({ ...bench, lineups: [0, 1].map(() => ({ ...input.lineups[0], slot_type: 'BE' })) }))
+  assert.throws(() => checkIdentityGame({ ...input, lineups: [] }))
+})

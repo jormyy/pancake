@@ -576,6 +576,9 @@ The migration keeps each drafted row and moves the duplicate's history through t
 It rebuilds the name index and rejects conflicting candidates.
 
 Started and benched rookie preferences must reach locked lineups.
+Manual bench moves remove the lineup row.
+The identity oracle accepts that absence only for an intended bench.
+It still rejects a missing starter, another owner, duplicate rows or a starter assigned to the intended bench.
 A genuine midseason fantasy trade must produce later nonzero starter points for the new owner.
 A genuine drop and waiver re-add must keep the player identity.
 Missing rookie games are failed assertions, never successful or unmeasured coverage.
