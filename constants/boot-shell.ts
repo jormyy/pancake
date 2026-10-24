@@ -1,17 +1,19 @@
 import {
     brand,
     breakpoints,
+    controlSize,
     fontSize,
     layout,
     palette,
     radii,
     spacing,
+    textStyles,
     webBackgrounds,
     webOverlays,
     themeVariablesCss,
 } from './tokens'
 import { inspectSession } from '@/lib/auth-session'
-import { SHELL_SECTION_CHILDREN } from './navigation'
+import { SHELL_BACK_HEADER_ROUTES, SHELL_SECTION_CHILDREN } from './navigation'
 
 // The instant boot shell.
 //
@@ -38,7 +40,7 @@ export const BOOT_SHELL_MARK = 'pancake-boot-shell'
 export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
 const SIDEBAR_WIDTH = layout.sidebarWidth
-const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
+const MOBILE_TOPBAR_HEIGHT = controlSize.minTouch
 const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
 const SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
@@ -85,33 +87,31 @@ ${themeVariablesCss()}
 .pbs-side{position:fixed;left:0;top:0;bottom:0;width:${SIDEBAR_WIDTH}px;
   display:flex;flex-direction:column;
   background-color:${brand.surface};background-image:${webBackgrounds.sidebar};
-  border-right:1px solid ${brand.divider};padding-bottom:14px;}
-.pbs-side-scroll{flex:1;min-height:0;overflow-y:auto;padding:20px 16px 0;
+  border-right:1px solid ${brand.divider};padding-bottom:${spacing.lg}px;}
+.pbs-side-scroll{flex:1;min-height:0;overflow-y:auto;padding:${spacing['2xl']}px ${spacing.xl}px 0;
   display:flex;flex-direction:column;gap:${spacing.md}px;}
-.pbs-brand{display:flex;align-items:center;gap:11px;padding:6px 10px 16px;}
-.pbs-brand img{width:42px;height:42px;object-fit:contain;}
-.pbs-brand-title{font-size:21px;font-weight:800;color:${brand.on};line-height:1.15;}
-.pbs-league{min-height:58px;display:flex;align-items:center;gap:${spacing.lg}px;
+.pbs-brand{display:flex;align-items:center;gap:${spacing.lg}px;padding:${spacing.sm}px ${spacing.md}px ${spacing.xl}px;}
+.pbs-brand img{width:${controlSize.minTouch}px;height:${controlSize.minTouch}px;object-fit:contain;}
+.pbs-brand-title{font-size:${fontSize.xl}px;font-weight:800;color:${brand.on};line-height:1.15;}
+.pbs-league{height:${layout.shell.leagueHeight}px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:${spacing.md}px ${spacing.lg}px;border-radius:${radii.lg}px;
   background:${brand.overlay};border:1px solid ${brand.borderSubtle};margin-bottom:${spacing.md}px;}
-.pbs-crest{width:34px;height:34px;border-radius:${radii.lg}px;background:${palette.maple500};
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
-  color:${palette.white};font-weight:800;font-size:${fontSize.sm}px;}
 .pbs-league-text{min-width:0;flex:1;}
-.pbs-league-name{color:${brand.onStrong};font-weight:700;font-size:${fontSize.md}px;
+#${BOOT_SHELL_ID}[data-single-league="1"] .pbs-league{background:transparent;border-color:transparent;padding-left:0;padding-right:0;}
+.pbs-league-name{color:${brand.onStrong};font-weight:700;font-size:${fontSize.md}px;line-height:${textStyles.rowTitle.lineHeight}px;
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-.pbs-league-meta{color:${brand.onSubtle};font-size:${fontSize.xs}px;
+.pbs-league-meta{color:${brand.onSubtle};font-size:${fontSize.xs}px;line-height:${textStyles.sectionLabel.lineHeight}px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .pbs-navgroup{display:flex;flex-direction:column;gap:${spacing.xs}px;}
 .pbs-navitem{display:flex;align-items:center;gap:${spacing.lg}px;height:44px;flex-shrink:0;
   padding:0 ${spacing.lg}px;border-radius:${radii.lg}px;color:${brand.onStrong};
   font-size:${fontSize.md}px;font-weight:600;}
-.pbs-navitem svg{width:19px;height:19px;flex-shrink:0;fill:${brand.onStrong};}
+.pbs-navitem svg{width:${controlSize.icon.md}px;height:${controlSize.icon.md}px;flex-shrink:0;fill:${brand.onStrong};}
 .pbs-navitem[aria-current="page"]{background:${palette.maple500};color:${brand.on};}
 .pbs-navitem[aria-current="page"] svg{fill:${palette.white};}
 .pbs-section{height:1px;margin:${spacing.sm}px ${spacing.lg}px;background:${brand.borderSubtle};}
-.pbs-side-foot{flex-shrink:0;padding:${spacing.md}px 14px 0;border-top:1px solid ${brand.borderSubtle};}
-.pbs-userchip{min-height:50px;display:flex;align-items:center;gap:${spacing.lg}px;
+.pbs-side-foot{flex-shrink:0;padding:${spacing.md}px ${spacing.lg}px 0;border-top:1px solid ${brand.borderSubtle};}
+.pbs-userchip{min-height:${controlSize.button.lg.height}px;display:flex;align-items:center;gap:${spacing.lg}px;
   padding:0 ${spacing.md}px;border-radius:${radii.md}px;}
 .pbs-avatar{width:34px;height:34px;border-radius:9999px;background:${palette.maple500};
   display:flex;align-items:center;justify-content:center;color:${palette.white};font-weight:800;flex-shrink:0;}
@@ -126,7 +126,7 @@ ${themeVariablesCss()}
   .pbs-content{left:0;top:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
     bottom:calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom,0px));}
   .pbs-topbar{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;
-    gap:${spacing.lg}px;padding:0 ${spacing.xl}px;
+    gap:${spacing.md}px;padding:0 ${spacing.lg}px;
     height:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
     padding-top:env(safe-area-inset-top,0px);background:${webOverlays.mobileTopbar};
     -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
@@ -135,12 +135,16 @@ ${themeVariablesCss()}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
     background:var(--pancake-bg-muted);border:1px solid var(--pancake-border-light);}
-  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.sm}px;
+  .pbs-topbar-league .pbs-league-name{color:var(--pancake-text-primary);font-size:${fontSize.lg}px;line-height:${textStyles.body.lineHeight}px;
     display:block;white-space:nowrap;text-overflow:ellipsis;}
-  .pbs-chevron{width:18px;height:18px;flex-shrink:0;fill:var(--pancake-text-muted);}
+  .pbs-chevron{width:${controlSize.icon.md}px;height:${controlSize.icon.md}px;flex-shrink:0;fill:var(--pancake-text-muted);}
+  #${BOOT_SHELL_ID}:not([data-multiple-leagues="1"]) .pbs-topbar-league .pbs-chevron{display:none;}
+  #${BOOT_SHELL_ID}[data-single-league="1"] .pbs-topbar-league{background:transparent;border-color:transparent;padding-left:0;padding-right:0;}
+  #${BOOT_SHELL_ID}[data-back-header="1"] .pbs-topbar{display:none;}
+  #${BOOT_SHELL_ID}[data-back-header="1"] .pbs-content{top:env(safe-area-inset-top,0px);}
   .pbs-menu{width:44px;height:44px;border-radius:${radii.lg}px;background:var(--pancake-bg-muted);
     display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .pbs-menu svg{width:22px;height:22px;fill:var(--pancake-text-primary);}
+  .pbs-menu svg{width:${controlSize.icon.lg}px;height:${controlSize.icon.lg}px;fill:var(--pancake-text-primary);}
   .pbs-bottomnav{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;
     align-items:center;justify-content:space-around;
     height:calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom,0px));
@@ -148,7 +152,7 @@ ${themeVariablesCss()}
     background:${webOverlays.mobileBottomNav};border-top:1px solid var(--pancake-border-light);}
   .pbs-bottomitem{flex:1;min-height:44px;height:54px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:${spacing.xs}px;color:var(--pancake-text-muted);}
-  .pbs-bottomitem svg{width:22px;height:22px;fill:var(--pancake-text-muted);}
+  .pbs-bottomitem svg{width:${controlSize.icon.lg}px;height:${controlSize.icon.lg}px;fill:var(--pancake-text-muted);}
   .pbs-bottomitem[aria-current="page"]{color:var(--pancake-primary-dark);}
   .pbs-bottomitem[aria-current="page"] svg{fill:var(--pancake-primary-dark);}
   .pbs-bottomlabel{width:100%;text-align:center;font-size:${fontSize['2xs']}px;font-weight:700;}
@@ -179,7 +183,6 @@ export const BOOT_SHELL_HTML = `
         <div class="pbs-brand-title">Pancake</div>
       </div>
       <div class="pbs-league">
-        <div class="pbs-crest" data-pbs="crest">P</div>
         <div class="pbs-league-text">
           <div class="pbs-league-name" data-pbs="league">League unavailable</div>
           <div class="pbs-league-meta" data-pbs="team">Waiting for league access</div>
@@ -206,7 +209,7 @@ export const BOOT_SHELL_HTML = `
   </nav>
   <div class="pbs-topbar">
     <img src="/boot-logo.png" alt="" />
-    <div class="pbs-topbar-league"><div class="pbs-crest" data-pbs="crest">P</div>
+    <div class="pbs-topbar-league">
       <div class="pbs-league-text"><div class="pbs-league-name" data-pbs="league-compact">League unavailable</div></div>
       ${CHEVRON_ICON}</div>
     <div class="pbs-menu" aria-hidden="true">${MENU_ICON}</div>
@@ -291,6 +294,12 @@ export const BOOT_SHELL_SCRIPT = `
     if (membership.id === selectedId) { current = membership; break }
   }
 
+  if (current && memberships.length === 1) el.setAttribute('data-single-league', '1');
+  if (current && memberships.length > 1) el.setAttribute('data-multiple-leagues', '1');
+  if (${JSON.stringify(SHELL_BACK_HEADER_ROUTES)}.some(function (route) {
+    return route.slice(-1) === '/' ? path.indexOf(route) === 0 : path === route || path.indexOf(route + '/') === 0;
+  })) el.setAttribute('data-back-header', '1');
+
   var setText = function (name, value) {
     var nodes = el.querySelectorAll('[data-pbs="' + name + '"]');
     for (var i = 0; i < nodes.length; i++) nodes[i].textContent = value;
@@ -314,7 +323,6 @@ export const BOOT_SHELL_SCRIPT = `
     setText('league-compact', leagueName);
     setText('team', teamName);
     setText('profile', teamName);
-    setText('crest', (teamName.trim()[0] || 'P').toUpperCase());
     setText('initials', initials(teamName));
     if (current.role === 'commissioner' || current.role === 'co_commissioner') {
       var commissioner = el.querySelector('[data-pbs="commissioner"]');

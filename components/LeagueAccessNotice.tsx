@@ -10,7 +10,7 @@ export function LeagueAccessNotice() {
         <View style={[styles.overlay, Platform.OS === 'web' && styles.webOverlay]} pointerEvents="box-none" role="status" aria-live="polite" accessibilityLiveRegion="polite">
             {online ? <ErrorBanner message="League access could not be checked. Tap to retry." onRetry={() => { void refresh() }} /> : (
                 <View style={styles.notice}>
-                    <Text style={styles.text}>Offline · League access is unverified.</Text>
+                    <Text style={styles.text}>Offline · showing saved data</Text>
                 </View>
             )}
         </View>

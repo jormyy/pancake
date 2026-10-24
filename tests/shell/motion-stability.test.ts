@@ -59,3 +59,18 @@ it('presents installed web sheets in their final position on the first frame', a
     })
     expect(screen.root.findByType('Modal' as React.ElementType).props.animationType).toBe('none')
 })
+
+it('keeps a titleless menu named and dismissible without a header row', async () => {
+    const onClose = vi.fn()
+    const props = { visible: true, accessibilityLabel: 'Menu', onClose, children: 'Profile' }
+    await act(async () => {
+        screen = create(React.createElement(Sheet, props))
+    })
+    const modal = screen.root.findByType('Modal' as React.ElementType)
+    expect(modal.props['aria-label']).toBe('Menu')
+    expect(screen.root.findAllByType('Text' as React.ElementType)).toHaveLength(0)
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Close' }).props.onPress())
+    expect(onClose).toHaveBeenCalledOnce()
+    await act(async () => modal.props.onRequestClose())
+    expect(onClose).toHaveBeenCalledTimes(2)
+})

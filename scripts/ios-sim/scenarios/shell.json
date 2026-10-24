@@ -33,6 +33,25 @@
         }
       },
       {
+        "name": "filters",
+        "action": {
+          "tap": "Show filters"
+        },
+        "expected": {
+          "dialog": "Filters"
+        }
+      },
+      {
+        "name": "close-filters",
+        "action": {
+          "tap": "Show 20 players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      },
+      {
         "name": "trades",
         "action": {
           "tapPrefix": "Trades"
@@ -116,7 +135,16 @@
           "tap": "Open menu"
         },
         "expected": {
-          "selector": "[role='dialog'] [aria-label='Profile & settings']"
+          "selector": "[role='dialog']:not(:has([aria-label='Playoffs'])) [aria-label='Profile & settings']"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "body:not(:has([role='dialog'])) [aria-label='Open menu']"
         }
       }
     ]
@@ -128,10 +156,11 @@
     "steps": [
       {
         "action": {
-          "tap": "Switch league"
+          "open": "/"
         },
         "expected": {
-          "selector": "[aria-label^='Switch to ']"
+          "route": "/",
+          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
         }
       }
     ]
@@ -147,7 +176,7 @@
         },
         "expected": {
           "route": "/change-password",
-          "text": "Current password"
+          "selector": "body:not(:has([aria-label='Open menu'])) [aria-label='Current password']"
         }
       }
     ]
@@ -258,7 +287,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline \u00b7 League access is unverified."
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ]
@@ -290,6 +319,25 @@
         "name": "players",
         "action": {
           "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      },
+      {
+        "name": "filters",
+        "action": {
+          "tap": "Show filters"
+        },
+        "expected": {
+          "dialog": "Filters"
+        }
+      },
+      {
+        "name": "close-filters",
+        "action": {
+          "tap": "Show 20 players"
         },
         "expected": {
           "route": "/players",
@@ -380,7 +428,16 @@
           "tap": "Open menu"
         },
         "expected": {
-          "selector": "[role='dialog'] [aria-label='Profile & settings']"
+          "selector": "[role='dialog']:not(:has([aria-label='Playoffs'])) [aria-label='Profile & settings']"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "body:not(:has([role='dialog'])) [aria-label='Open menu']"
         }
       }
     ]
@@ -392,10 +449,11 @@
     "steps": [
       {
         "action": {
-          "tap": "Switch league"
+          "open": "/"
         },
         "expected": {
-          "selector": "[aria-label^='Switch to ']"
+          "route": "/",
+          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
         }
       }
     ]
@@ -411,7 +469,7 @@
         },
         "expected": {
           "route": "/change-password",
-          "text": "Current password"
+          "selector": "body:not(:has([aria-label='Open menu'])) [aria-label='Current password']"
         }
       }
     ]
@@ -522,7 +580,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline \u00b7 League access is unverified."
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ]
