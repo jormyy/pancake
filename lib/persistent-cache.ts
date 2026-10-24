@@ -113,14 +113,13 @@ function pruneMemoryCache(): void {
 }
 
 export function readPersistentCache<T>(key: string): T | null {
-    const storage = localStorageForCache()
-    if (!storage) {
-        const cached = memoryCache.get(key) as CacheEnvelope<T> | undefined
-        if (!cached) return null
+    const cached = memoryCache.get(key) as CacheEnvelope<T> | undefined
+    if (cached) {
         if (cached.version === 1 && isFresh(cached.savedAt, maxAgeForKey(key))) return cached.value
         memoryCache.delete(key)
-        return null
     }
+    const storage = localStorageForCache()
+    if (!storage) return null
 
     try {
         const raw = storage.getItem(key)
@@ -140,13 +139,16 @@ export function writePersistentCache<T>(key: string, value: T): void {
     // already discarded at the request boundary (lib/session-fetch.ts).
     if (sessionOwner() === null) return
     const envelope: CacheEnvelope<T> = { version: 1, savedAt: Date.now(), value }
-    memoryCache.set(key, envelope)
-    pruneMemoryCache()
     const storage = localStorageForCache()
-    if (!storage) return
+    if (!storage) {
+        memoryCache.set(key, envelope)
+        pruneMemoryCache()
+        return
+    }
 
     try {
         storage.setItem(key, JSON.stringify(envelope))
+        memoryCache.delete(key)
         savedAtIndex.set(key, envelope.savedAt)
         pruneStorage(storage)
     } catch {
@@ -157,9 +159,12 @@ export function writePersistentCache<T>(key: string, value: T): void {
             )[0]
             if (oldest) removeStorageKey(storage, oldest)
             storage.setItem(key, JSON.stringify(envelope))
+            memoryCache.delete(key)
             savedAtIndex.set(key, envelope.savedAt)
         } catch {
-            // Storage/private-mode failures should never block rendering.
+            removeStorageKey(storage, key)
+            memoryCache.set(key, envelope)
+            pruneMemoryCache()
         }
     }
 }

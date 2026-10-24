@@ -48,10 +48,11 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
       notice.appendChild(button);
       document.body.appendChild(notice);
     };
-    var tryReload = function (manual) {
+    var tryReload = function (manual, leaving) {
       if (!pendingVersion || reloaded) return;
       if (!workerReconciled || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
-          document.visibilityState === 'hidden' || navigator.onLine === false) {
+          (!manual && !leaving && document.visibilityState !== 'hidden') ||
+          (manual && document.visibilityState === 'hidden') || navigator.onLine === false) {
         if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
         return;
       }
@@ -118,8 +119,10 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     });
     window.addEventListener('online', function () { checkForUpdate(false); tryReload(false); });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') { checkForUpdate(false); tryReload(false); }
+      if (document.visibilityState === 'visible') checkForUpdate(false);
+      else tryReload(false);
     });
+    window.addEventListener('pagehide', function () { tryReload(false, true); });
     var failedChunk = function (event) {
       var message = String(event.reason?.message || event.message || '');
       if (/Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed/.test(message)) checkForUpdate(true);

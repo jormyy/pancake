@@ -393,6 +393,7 @@ describe('release reconciliation', () => {
         const source = readFileSync('app/+html.tsx', 'utf8')
         const script = source.split("const SW_REGISTER = process.env.NODE_ENV === 'production' ? `")[1].split('` : `')[0]
         const windowEvents = new Map<string, () => void>()
+        const documentEvents = new Map<string, () => void>()
         const workerEvents = new Map<string, () => void>()
         const ports: { onmessage: ((event: unknown) => void) | null; close: () => void }[] = []
         const timers: { callback: () => void; delay: number }[] = []
@@ -400,32 +401,44 @@ describe('release reconciliation', () => {
         const worker = { postMessage: vi.fn() }
         const reload = vi.fn()
         const holds = new Map(held ? [[1, 'pending bid']] : [])
+        const buttons: Map<string, () => void>[] = []
         const document = {
             readyState: loading ? 'loading' : 'complete', visibilityState: 'visible',
-            querySelector: () => ({ content: documentVersion }), addEventListener: vi.fn(),
+            querySelector: () => ({ content: documentVersion }),
+            addEventListener: (name: string, callback: () => void) => documentEvents.set(name, callback),
             getElementById: () => null,
-            createElement: () => ({ setAttribute: vi.fn(), style: {}, appendChild: vi.fn(), addEventListener: vi.fn() }),
+            createElement: (tag: string) => {
+                const events = new Map<string, () => void>()
+                if (tag === 'button') buttons.push(events)
+                return { setAttribute: vi.fn(), style: {}, appendChild: vi.fn(), addEventListener: (name: string, callback: () => void) => events.set(name, callback) }
+            },
             body: { appendChild: vi.fn() },
         }
+        const navigator = { onLine: true, serviceWorker: { controller: worker,
+            register: async () => ({ active: worker, update: async () => {} }),
+            addEventListener: (name: string, callback: () => void) => workerEvents.set(name, callback) } }
         runInNewContext(script, {
             window: { __pancakePwaHolds: holds, isSecureContext: true,
                 addEventListener: (name: string, callback: () => void) => windowEvents.set(name, callback),
                 location: { reload, pathname: '/players' } },
             document,
-            navigator: { onLine: true, serviceWorker: { controller: worker,
-                register: async () => ({ active: worker, update: async () => {} }),
-                addEventListener: (name: string, callback: () => void) => workerEvents.set(name, callback) } },
+            navigator,
             sessionStorage: { getItem: (key: string) => storage.get(key) ?? null,
                 setItem: (key: string, value: string) => storage.set(key, value) },
             MessageChannel: class { port1 = { onmessage: null, close: vi.fn() }; port2 = {}; constructor() { ports.push(this.port1) } },
             setInterval: vi.fn(), clearTimeout: vi.fn(),
             setTimeout: (callback: () => void, delay: number) => { timers.push({ callback, delay }); return timers.length },
         })
-        return { reload, holds, timers, storage,
+        return { reload, holds, timers, storage, navigator,
             reply: (version: string) => { expect(ports.length).toBeGreaterThan(0); ports.at(-1)!.onmessage?.({ data: { version } }) },
             load: async () => { document.readyState = 'complete'; windowEvents.get('load')?.(); await Promise.resolve() },
             release: () => { holds.clear(); windowEvents.get('pancake-pwa-hold-change')?.() },
             change: () => workerEvents.get('controllerchange')?.(),
+            hide: () => { document.visibilityState = 'hidden'; documentEvents.get('visibilitychange')?.() },
+            show: () => { document.visibilityState = 'visible'; documentEvents.get('visibilitychange')?.() },
+            pagehide: () => windowEvents.get('pagehide')?.(),
+            online: () => windowEvents.get('online')?.(),
+            clickReload: () => buttons.at(-1)?.get('click')?.(),
         }
     }
 
@@ -435,6 +448,8 @@ describe('release reconciliation', () => {
         page.reply('next')
         expect(page.reload).not.toHaveBeenCalled()
         await page.load()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.hide()
         expect(page.reload).toHaveBeenCalledOnce()
     })
 
@@ -449,7 +464,7 @@ describe('release reconciliation', () => {
         expect(page.reload).not.toHaveBeenCalled()
     })
 
-    it('holds an update through a pending bid and the notice deadline, then reloads after release', async () => {
+    it('holds an update through a pending bid and its release, then reloads when hidden', async () => {
         const page = await updatePage({ held: true, previous: 'old' })
         await page.load()
         page.change()
@@ -458,8 +473,72 @@ describe('release reconciliation', () => {
         for (const timer of page.timers.filter(timer => timer.delay === 60000)) timer.callback()
         expect(page.reload).not.toHaveBeenCalled()
         page.release()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.hide()
         expect(page.reload).toHaveBeenCalledOnce()
         page.release()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('keeps a visible page through controller changes, reconnect, and foreground checks', async () => {
+        const page = await updatePage()
+        await page.load()
+        page.change()
+        page.reply('next')
+        page.online()
+        page.show()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.hide()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('applies an update on pagehide even before visibility changes', async () => {
+        const page = await updatePage()
+        await page.load()
+        page.change()
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        page.pagehide()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('keeps offline and held updates pending while hidden', async () => {
+        const page = await updatePage({ held: true })
+        await page.load()
+        page.change()
+        page.reply('next')
+        page.hide()
+        page.pagehide()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.navigator.onLine = false
+        page.release()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.navigator.onLine = true
+        page.online()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the once-per-release guard when hidden', async () => {
+        const page = await updatePage()
+        page.storage.set('pancake-update-reload:/players', 'next')
+        await page.load()
+        page.change()
+        page.reply('next')
+        page.hide()
+        page.pagehide()
+        expect(page.reload).not.toHaveBeenCalled()
+    })
+
+    it('lets the user reload a visible page after the notice appears', async () => {
+        const page = await updatePage({ held: true })
+        await page.load()
+        page.change()
+        page.reply('next')
+        for (const timer of page.timers.filter(timer => timer.delay === 60000)) timer.callback()
+        page.clickReload()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.release()
+        page.clickReload()
         expect(page.reload).toHaveBeenCalledOnce()
     })
 })

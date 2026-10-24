@@ -232,18 +232,111 @@ describe('installed PWA restoration', () => {
         expect(snapshots.at(-1)?.user).toBeNull()
     })
 
-    it('keeps a selected league through a valid online session expiry and fences old data requests', async () => {
+    it('keeps the published user, league, and cache generation during an online token refresh', async () => {
         seedSession()
         seedCache(selectionKey(), selected.id)
         seedCache(membershipKey(), [first, selected])
         await mount()
         const generation = sessionGeneration()
         await act(async () => { await vi.advanceTimersByTimeAsync(3600_000) })
-        expect(snapshots.at(-1)?.user).toBeNull()
-        expect(snapshots.at(-1)?.loading).toBe(true)
-        expect(sessionGeneration()).toBeGreaterThan(generation)
+        expect(snapshots.at(-1)?.user).toBe('owner')
+        expect(snapshots.at(-1)?.loading).toBe(false)
+        expect(snapshots.at(-1)?.league).toBe(selected.id)
+        expect(sessionGeneration()).toBe(generation)
         expect(readPersistentCache(selectionKey())).toBe(selected.id)
         expect(mocks.replace).not.toHaveBeenCalled()
+    })
+
+    it('keeps the user and private data across repeated expired-token resume events', async () => {
+        const saved = seedSession()
+        seedCache(selectionKey(), selected.id)
+        seedCache(membershipKey(), [first, selected])
+        seedCache('pancake:trade-draft:owner', 'unsent offer')
+        const refresh = pending<{ data: { session: unknown }; error: null }>()
+        mocks.getSession.mockResolvedValueOnce({ data: { session: saved }, error: null })
+            .mockReturnValue(refresh.promise)
+        await mount()
+        const generation = sessionGeneration()
+        vi.setSystemTime(Date.now() + 3600_001)
+        snapshots = []
+        await act(async () => { window.dispatchEvent(new Event('focus')) })
+        await act(async () => { window.dispatchEvent(new Event('pageshow')) })
+        await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+        expect(sessionGeneration()).toBe(generation)
+        expect(snapshots.every(value => value.user === 'owner' && !value.loading && value.league === selected.id)).toBe(true)
+        expect(readPersistentCache('pancake:trade-draft:owner')).toBe('unsent offer')
+        await act(async () => { refresh.resolve({ data: { session: seedSession() }, error: null }) })
+        expect(snapshots.at(-1)?.user).toBe('owner')
+        expect(snapshots.at(-1)?.league).toBe(selected.id)
+        expect(sessionGeneration()).toBe(generation)
+        expect(mocks.replace).not.toHaveBeenCalled()
+    })
+
+    it('publishes sign-out when a resumed expired-token refresh is rejected', async () => {
+        const saved = seedSession()
+        seedCache(selectionKey(), selected.id)
+        seedCache(membershipKey(), [first, selected])
+        const refresh = pending<{ data: { session: null }; error: AuthApiError }>()
+        mocks.getSession.mockResolvedValueOnce({ data: { session: saved }, error: null })
+            .mockReturnValue(refresh.promise)
+        await mount()
+        vi.setSystemTime(Date.now() + 3600_001)
+        await act(async () => { window.dispatchEvent(new Event('focus')) })
+        await act(async () => {
+            window.localStorage.removeItem(authStorageKey(fixtureProject))
+            mocks.callback?.('SIGNED_OUT', null)
+            refresh.resolve({ data: { session: null }, error: new AuthApiError('Refresh rejected', 400, 'refresh_token_not_found') })
+        })
+        expect(snapshots.at(-1)?.user).toBeNull()
+        expect(snapshots.at(-1)?.loading).toBe(false)
+        expect(readPersistentCache(selectionKey())).toBeNull()
+        expect(mocks.replace).toHaveBeenCalledWith('/sign-in')
+    })
+
+    it('clears an expired user and private data when the device goes offline during refresh', async () => {
+        const saved = seedSession()
+        seedCache(selectionKey(), selected.id)
+        mocks.getSession.mockResolvedValueOnce({ data: { session: saved }, error: null })
+        await mount()
+        vi.setSystemTime(Date.now() + 3600_001)
+        await act(async () => { window.dispatchEvent(new Event('focus')) })
+        vi.stubGlobal('navigator', { onLine: false })
+        await act(async () => { window.dispatchEvent(new Event('offline')) })
+        expect(snapshots.at(-1)?.user).toBeNull()
+        expect(snapshots.at(-1)?.loading).toBe(false)
+        expect(readPersistentCache(selectionKey())).toBeNull()
+    })
+
+    it('keeps the same user object across unchanged resume and restore events', async () => {
+        const saved = seedSession()
+        mocks.getSession.mockImplementation(async () => ({ data: { session: JSON.parse(JSON.stringify(saved)) }, error: null }))
+        const users: unknown[] = []
+        function IdentityProbe() {
+            const { user } = useAuth()
+            React.useEffect(() => { users.push(user) }, [user])
+            return null
+        }
+        const { AuthProvider } = await import('@/hooks/use-auth')
+        await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(IdentityProbe))) })
+        for (const event of ['focus', 'pageshow', 'online']) {
+            await act(async () => { window.dispatchEvent(new Event(event)) })
+        }
+        await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+        expect(users).toHaveLength(1)
+        vi.setSystemTime(Date.now() + 1000)
+        const changed = seedSession()
+        mocks.getSession.mockResolvedValue({ data: { session: changed }, error: null })
+        await act(async () => { mocks.callback?.('TOKEN_REFRESHED', changed) })
+        expect(users).toHaveLength(2)
+    })
+
+    it('does not reread auth storage or publish auth state when visibility becomes hidden', async () => {
+        seedSession()
+        await mount()
+        const read = vi.spyOn(window.localStorage, 'getItem')
+        Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+        await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+        expect(read).not.toHaveBeenCalled()
     })
 
     it('restores the latest expired owner after a resume supersedes an in-flight refresh', async () => {

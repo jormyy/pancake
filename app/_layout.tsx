@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useState } from 'react'
-import { Platform, View } from 'react-native'
+import { View } from 'react-native'
 
 import { colors } from '@/constants/tokens'
 import { criticalFonts } from '@/constants/fonts'
@@ -24,7 +24,7 @@ export default function RootLayout() {
 
     // Navigation chrome (stack headers, card backgrounds) uses the app's own
     // tokens. On web those are CSS variables, so headers follow the system
-    // theme with the rest of the page. Native ships light only.
+    // theme with the rest of the page.
     //
     // The default theme's background is a neutral grey, and the static export
     // prerenders it into the root element — so a signed-out launch flashed grey
@@ -48,7 +48,7 @@ export default function RootLayout() {
                     <RootContent />
                 </AuthProvider>
             </FeedbackProvider>
-            <StatusBar style={Platform.OS === 'web' ? 'dark' : 'auto'} />
+            <StatusBar style="dark" />
         </ThemeProvider>
     )
 }
@@ -73,12 +73,6 @@ function RootContent() {
         }
     }, [session, loading, inAuthGroup, router, navigationMounted])
 
-    // On web, mount the persistent app-shell (sidebar / mobile nav) at the root
-    // so it wraps EVERY authenticated route — tabs, former modals, and player
-    // detail alike. The chrome never disappears mid-flow. The shell stays mounted
-    // for all web routes (chrome toggles off for auth/loading) so an auth-state
-    // change never remounts the route tree. Native keeps its own bottom-tab
-    // shell + platform stack modals.
     const webChrome = !!session && !inAuthGroup
 
     const stack = (
@@ -99,13 +93,11 @@ function RootContent() {
 
     return (
         <LeagueProvider>
-            {Platform.OS === 'web' ? (
-                <WebAppShell chrome={webChrome}>
-                    <AuthHydrationFrame route={inAuthGroup ? segments[segments.length - 1] : null}>
-                        {stack}
-                    </AuthHydrationFrame>
-                </WebAppShell>
-            ) : stack}
+            <WebAppShell chrome={webChrome}>
+                <AuthHydrationFrame route={inAuthGroup ? segments[segments.length - 1] : null}>
+                    {stack}
+                </AuthHydrationFrame>
+            </WebAppShell>
         </LeagueProvider>
     )
 }
