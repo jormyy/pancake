@@ -26,7 +26,7 @@ let screen: ReactTestRenderer
 const flatten = (style: unknown): Record<string, unknown> => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
-it('reserves the player action column before roster status arrives and keeps actions mounted while disabled', async () => {
+it('reserves one player action row before roster status arrives and keeps disabled actions mounted', async () => {
     const props = {
         player: { display_name: 'Player', nba_team: 'BOS', position: 'PG', eligible_positions: ['PG'],
             jersey_number: null, injury_status: null, dynasty_rank: 1, headshot_url: null, nba_id: null, years_exp: 1 },
@@ -38,8 +38,8 @@ it('reserves the player action column before roster status arrives and keeps act
         .find(node => node.props['aria-busy'] === true)
     expect(actionColumn()).toBeDefined()
     const reserved = flatten(actionColumn()?.props.style)
-    expect(reserved.width).toBeGreaterThanOrEqual(76)
-    expect(reserved.minHeight).toBeGreaterThanOrEqual(88)
+    expect(reserved.minWidth).toBeGreaterThanOrEqual(76)
+    expect(reserved.minHeight).toBe(44)
     await act(async () => screen.update(React.createElement(PlayerHeader, { ...props, rosterStatus: { status: 'mine' } as never })))
     expect(flatten(actionColumn()?.props.style)).toEqual(reserved)
     expect(screen.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(2)
