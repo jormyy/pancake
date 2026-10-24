@@ -7,7 +7,7 @@ import { subscribeToTableChanges } from '@/lib/realtime'
 import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
-import { showAlert } from '@/lib/alert'
+import { confirmAction, showAlert } from '@/lib/alert'
 
 type ListProps = {
     data: unknown[]
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
         refresh: vi.fn(),
     },
     push: vi.fn(),
+    online: true,
     league: { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' },
 }))
 
@@ -54,7 +55,7 @@ vi.mock('@/contexts/league-context', () => ({
         membershipStatus: 'available',
     }),
 }))
-vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => mocks.online }))
 vi.mock('@/hooks/use-focus-async-data', () => ({ useFocusAsyncData: () => mocks.focusData }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/roster', () => ({
@@ -126,6 +127,7 @@ describe('roster empty slots', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
+        mocks.online = true
         vi.mocked(getRosterStatusChangeLockMessage).mockResolvedValue(null)
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
@@ -173,7 +175,16 @@ describe('roster empty slots', () => {
         expect(picker().props.pending).toEqual({ rosterPlayerId: 'reserve', source })
         expect(picker().props.myLineup.bench.map((player: { rosterPlayerId: string }) => player.rosterPlayerId)).toEqual(['active'])
         expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        vi.mocked(getRosterStatusChangeLockMessage).mockClear()
         await act(async () => picker().props[action === 'drop' ? 'onDrop' : 'onMoveToIR']('active'))
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        expect(confirmAction).toHaveBeenCalledOnce()
+        const confirmation = vi.mocked(confirmAction).mock.calls[0]
+        expect(confirmation[1]).toContain('Active')
+        expect(confirmation[1]).toContain('Reserve')
+        if (source === 'taxi') expect(confirmation[1]).toContain('cannot return to your team’s taxi')
+        await act(async () => confirmation[2]())
+        expect(getRosterStatusChangeLockMessage).toHaveBeenCalledExactlyOnceWith(active)
         expect(activateRosterPlayerWithOverflow).toHaveBeenCalledExactlyOnceWith('reserve', source, 'active', action)
         expect(toggleIR).not.toHaveBeenCalled()
         expect(toggleTaxi).not.toHaveBeenCalled()
@@ -194,6 +205,7 @@ describe('roster empty slots', () => {
         vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(async item => item?.id === 'active' ? 'The game has started.' : null)
         const picker = () => screen.root.findByType('ActivationOverflowModal' as React.ElementType)
         await act(async () => picker().props.onDrop('active'))
+        await act(async () => vi.mocked(confirmAction).mock.calls[0]?.[2]())
         expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
         expect(showAlert).toHaveBeenCalledWith('Roster locked', 'The game has started.')
         expect(picker().props.pending).not.toBeNull()
@@ -216,8 +228,27 @@ describe('roster empty slots', () => {
             ? new Promise<null>(resolve => { release = resolve }) : null)
         const picker = screen.root.findByType('ActivationOverflowModal' as React.ElementType)
         await act(async () => picker.props.onDrop('active'))
+        await act(async () => { void vi.mocked(confirmAction).mock.calls[0]?.[2]() })
         await act(async () => screen.unmount())
         await act(async () => release(null))
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+    })
+
+    it('reports an offline overflow choice without sending or opening confirmation', async () => {
+        mocks.league.roster_size = 1
+        const reserve = { id: 'reserve', is_on_ir: true, is_on_taxi: false,
+            players: { id: 'reserve-player', display_name: 'Reserve', eligible_positions: ['PG'] } } as RosterPlayer
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([active, reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const row = screen.root.findAllByType('RosterPlayerItem' as React.ElementType).find(node => node.props.item.id === 'reserve')!
+        await act(async () => row.props.onToggleIR(reserve))
+        mocks.online = false
+        await act(async () => screen.update(React.createElement(RosterScreen)))
+        await act(async () => screen.root.findByType('ActivationOverflowModal' as React.ElementType).props.onDrop('active'))
+        expect(showAlert).toHaveBeenCalledWith('Offline', expect.stringContaining('connection'))
+        expect(confirmAction).not.toHaveBeenCalled()
         expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
     })
 

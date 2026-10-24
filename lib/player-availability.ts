@@ -1,7 +1,7 @@
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { getCurrentSeasonId, getLatestSeasonId } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
-import { getOwnedPlayerMapForSeason, type RosterOccupancy, type OwnedEntry } from '@/lib/roster'
+import { getOwnedPlayerMapForSeason, type OwnedEntry } from '@/lib/roster'
 import { getWaiverClearsAtForSeason, getPendingWaiverPlayerIdsForSeason } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
 
@@ -15,7 +15,7 @@ type PlayerAvailabilitySnapshot = {
     waiverClearsAt: Map<string, string>
     pendingClaimIds: Set<string>
 }
-export type PlayerSupport = PlayerAvailabilitySnapshot & { transactionState: MemberTransactionState | null; roster?: RosterOccupancy[] }
+export type PlayerSupport = PlayerAvailabilitySnapshot & { transactionState: MemberTransactionState | null }
 export type PlayerSupportResource = 'ownership' | 'waivers' | 'claims' | 'transactions'
 
 export async function loadPlayerSupport(
@@ -40,8 +40,5 @@ export async function loadPlayerSupport(
         needs('claims') ? (currentSeasonId && memberId ? getPendingWaiverPlayerIdsForSeason(memberId, currentSeasonId) : new Set<string>()) : previous!.pendingClaimIds,
         needs('transactions') ? (memberId ? getMemberTransactionState(memberId, leagueId) : null) : previous!.transactionState,
     ])
-    const roster = needs('ownership')
-        ? [...ownedMap.values()].filter(entry => entry.memberId === memberId).map(entry => ({ is_on_ir: entry.isOnIR ?? false }))
-        : previous?.roster ?? []
-    return { leagueId, seasonId, memberId: memberId ?? null, day, ownedMap, waiverIds: new Set(waiverClearsAt.keys()), waiverClearsAt, pendingClaimIds, transactionState, roster }
+    return { leagueId, seasonId, memberId: memberId ?? null, day, ownedMap, waiverIds: new Set(waiverClearsAt.keys()), waiverClearsAt, pendingClaimIds, transactionState }
 }

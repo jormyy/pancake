@@ -86,9 +86,7 @@ describe('screen request budgets', () => {
         const result = await measure(async () => {
             const support = await loadPlayerSupport('member', 'league')
             expect([...support.ownedMap.keys()]).toEqual(['p-1', 'p-2'])
-            expect(support.roster).toEqual([{ is_on_ir: true }])
-            expect(canAddToIR('Out', support.roster ?? [], 1)).toBe(false)
-            expect(canAddToIR('Out', support.roster ?? [], 2)).toBe(true)
+            expect(support.ownedMap.get('p-1')).toMatchObject({ memberId: 'member', isOnIR: true })
         })
         expect(result).toEqual({
             requests: 5,

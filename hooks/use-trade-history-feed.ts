@@ -65,8 +65,6 @@ export function useTradeHistoryFeed(memberId: string, leagueId: string, enabled:
     }, [resourceKey])
 
     useEffect(() => {
-        if (!enabled) return
-        void refresh()
         return () => { sequence.current += 1 }
     }, [enabled, refresh])
 

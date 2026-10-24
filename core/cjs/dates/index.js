@@ -1,16 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.todayDateString = todayDateString;
 exports.toETDate = toETDate;
 exports.todayET = todayET;
 exports.endOfETDayUTC = endOfETDayUTC;
-function todayDateString() {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-}
 function toETDate(date) {
     return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
 }

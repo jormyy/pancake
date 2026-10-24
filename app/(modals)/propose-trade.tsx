@@ -84,7 +84,7 @@ export default function ProposeTradeScreen() {
     const [expirationDays, setExpirationDays] = useState('3')
     const [loading, setLoading] = useState(true)
     const [membersError, setMembersError] = useState<string | null>(null)
-    const [rosterPlan, setRosterPlan] = useState<TradeRosterPlan>({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
+    const [rosterPlanDraft, setRosterPlan] = useState<TradeRosterPlan>({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
     const [analyzing, setAnalyzing] = useState(false)
@@ -234,6 +234,7 @@ export default function ProposeTradeScreen() {
             setSelectedRecipientId(draft.selectedRecipientId)
             setNotes(draft.notes)
             setExpirationDays(draft.expirationDays)
+            setRosterPlan(draft.rosterPlan)
             prefillFromItems(draft.participantIds, draft.items)
             // The requested asset was already applied before the reload; the user may have removed it since.
             routePrefillKeyRef.current = `${draft.selectedRecipientId}:${params.requestPlayerId ?? ''}:${params.requestPickId ?? ''}`
@@ -312,6 +313,16 @@ export default function ProposeTradeScreen() {
     }, [mode, multiTeamMode, toggleParticipant])
 
     const items = useMemo(() => buildMultiTeamItems(), [buildMultiTeamItems])
+    const rosterPlan = useMemo(() => {
+        const incoming = new Set(items.flatMap(item => item.kind === 'player' && item.toMemberId === myMemberId ? [item.playerId] : []))
+        const offered = new Set(items.flatMap(item => item.kind === 'player' ? [item.playerId] : []))
+        const ownPlayers = new Set((composer.participantRosters[myMemberId] ?? []).map(row => row.players.id))
+        return {
+            taxiPlayerIds: rosterPlanDraft.taxiPlayerIds.filter(id => incoming.has(id)),
+            irPlayerIds: rosterPlanDraft.irPlayerIds.filter(id => incoming.has(id)),
+            dropPlayerIds: rosterPlanDraft.dropPlayerIds.filter(id => ownPlayers.has(id) && !offered.has(id)),
+        }
+    }, [items, myMemberId, composer.participantRosters, rosterPlanDraft])
     // Leaving drops a built trade, so ask first once anything is selected.
     const leave = () => {
         if (items.length === 0) back()

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getTradesForScreen, type Trade, type TradePageCursor, type TradeRosterPlan } from '@/lib/trades'
-import { isTradeParticipant, isVetoableTradeForMember } from '@/lib/trade-perspective'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -8,11 +7,6 @@ const TRADES_CACHE_PREFIX = 'pancake:trades:v2:'
 const TRADES_PAGE_SIZE = 40
 const tradesCacheKey = (memberId: string, leagueId: string) => `${TRADES_CACHE_PREFIX}${leagueId}:${memberId}`
 type TradesResource = { key: string | null; trades: Trade[] }
-
-function hasVisibleOffers(trades: Trade[], memberId: string) {
-    return trades.some((trade) => trade.status === 'pending' && isTradeParticipant(trade, memberId) ||
-        isVetoableTradeForMember(trade, memberId))
-}
 
 export function useTradesFeed(memberId: string, leagueId: string, online = true, options: { autoLoad?: boolean } = {}) {
     const autoLoad = options.autoLoad ?? true
@@ -63,7 +57,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
             setResource({ key: resourceKey, trades: result.trades })
             setSettledKey(resourceKey)
             setValidatedKey(resourceKey)
-            setHasMore(result.hasMore && hasVisibleOffers(result.trades, memberId))
+            setHasMore(result.hasMore)
             writePersistentCache(tradesCacheKey(memberId, leagueId), result.trades)
             return true
         } catch (cause) {
@@ -126,7 +120,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
                 return { key: resourceKey, trades: next }
             })
             nextCursor.current = result.nextCursor
-            setHasMore(result.hasMore && hasVisibleOffers(added, memberId))
+            setHasMore(result.hasMore)
             if (loadSequence.current === requestId) setLoadMoreError(null)
         } catch (cause) {
             if (loadSequence.current === requestId) {

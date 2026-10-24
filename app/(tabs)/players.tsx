@@ -88,7 +88,7 @@ const STAT_LABELS: Record<string, string> = {
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 
-type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day' | 'roster'> & {
+type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day'> & {
     ownedEntries: [string, OwnedEntry][]
     waiverIds: string[]
     waiverClearsAtEntries: [string, string][]
@@ -172,7 +172,6 @@ function PlayerSearchSection() {
             waiverClearsAt: new Map(value.waiverClearsAtEntries),
             pendingClaimIds: new Set(value.pendingClaimIds),
             transactionState: value.transactionState,
-            roster: value.roster,
         } }
     }, [current?.id, leagueId, snapshotScope])
 
@@ -221,7 +220,6 @@ function PlayerSearchSection() {
                     waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
                     pendingClaimIds: Array.from(support.pendingClaimIds),
                     transactionState: support.transactionState,
-                    roster: support.roster,
                 })
             }
         },

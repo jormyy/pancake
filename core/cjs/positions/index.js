@@ -2,7 +2,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LINEUP_SLOT_TYPES = exports.SLOT_TYPES = exports.LINEUP_SLOT_ALLOWED_POSITIONS = void 0;
 exports.canPlayLineupSlot = canPlayLineupSlot;
-exports.canOccupyRosterSlot = canOccupyRosterSlot;
 const enums_1 = require("../types/enums");
 const lineupSlots_1 = require("./lineupSlots");
 var lineupSlots_2 = require("./lineupSlots");
@@ -21,9 +20,4 @@ function canPlayLineupSlot(position, eligiblePositions, slotType) {
         return false;
     const allowedPositions = lineupSlots_1.LINEUP_SLOT_ALLOWED_POSITIONS[slotType];
     return allPositions.some((position) => allowedPositions.includes(position));
-}
-function canOccupyRosterSlot(position, eligiblePositions, slotType) {
-    if (slotType === 'IR')
-        return true;
-    return canPlayLineupSlot(position, eligiblePositions, slotType);
 }

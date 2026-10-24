@@ -252,6 +252,8 @@ function RosterTablePlayerItem({
 
 export default function RosterScreen() {
     const online = useOnlineStatus()
+    const onlineRef = useRef(online)
+    onlineRef.current = online
     const { push, setParams } = useRouter()
     const { claims: claimsParam } = useLocalSearchParams<{ claims?: string }>()
     const { padX, usableWidth } = usePageMetrics()
@@ -550,33 +552,52 @@ export default function RosterScreen() {
         })
     }, [ownerIdentity, currentLeague, roster, load, isCurrentAction])
 
-    async function resolveActivationOverflow(freeRosterPlayerId: string, freeAction: 'drop' | 'ir') {
+    function resolveActivationOverflow(freeRosterPlayerId: string, freeAction: 'drop' | 'ir') {
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
-        if (!online || !identity || !activationPending || !isCurrentAction(generation, identity)) return
+        if (!identity || !activationPending || !isCurrentAction(generation, identity)) return
+        if (!onlineRef.current) {
+            showAlert('Offline', 'Check your connection before changing your roster.')
+            return
+        }
         const reserve = roster.find(item => item.id === activationPending.rosterPlayerId)
         const chosen = active.find(item => item.id === freeRosterPlayerId)
         if (!reserve || !chosen) return
-        await rosterRecoveryRunnerRef.current(async () => {
-            setActivationSaving(true)
-            try {
-                const locks = await Promise.all([reserve, chosen].map(getRosterStatusChangeLockMessage))
-                if (!isCurrentAction(generation, identity)) return
-                const lockMessage = locks.find(Boolean)
-                if (lockMessage) {
-                    showAlert('Roster locked', lockMessage)
-                    return
-                }
-                await activateRosterPlayerWithOverflow(reserve.id, activationPending.source, chosen.id, freeAction)
-                if (!isCurrentAction(generation, identity)) return
-                setActivationPending(null)
-                await load()
-            } catch (error) {
-                if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(error))
-            } finally {
-                if (isCurrentAction(generation, identity)) setActivationSaving(false)
+        const chosenName = chosen.players.display_name
+        const reserveName = reserve.players.display_name
+        const taxiNotice = activationPending.source === 'taxi'
+            ? ' They cannot return to your team’s taxi, even after reacquisition or a season change. Another team can still acquire them into taxi if eligible.'
+            : ''
+        const title = freeAction === 'drop' ? `Drop ${chosenName}?` : `Move ${chosenName} to IR?`
+        const message = freeAction === 'drop'
+            ? `Drop ${chosenName} to activate ${reserveName}?${taxiNotice}`
+            : `Move ${chosenName} to IR to activate ${reserveName}?${taxiNotice}`
+        confirmAction(title, message, async () => {
+            if (!isCurrentAction(generation, identity)) return
+            if (!onlineRef.current) {
+                showAlert('Offline', 'Check your connection before changing your roster.')
+                return
             }
-        })
+            await rosterRecoveryRunnerRef.current(async () => {
+                setActivationSaving(true)
+                try {
+                    const lockMessage = await getRosterStatusChangeLockMessage(chosen)
+                    if (!isCurrentAction(generation, identity)) return
+                    if (lockMessage) {
+                        showAlert('Roster locked', lockMessage)
+                        return
+                    }
+                    await activateRosterPlayerWithOverflow(reserve.id, activationPending.source, chosen.id, freeAction)
+                    if (!isCurrentAction(generation, identity)) return
+                    setActivationPending(null)
+                    await load()
+                } catch (error) {
+                    if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(error))
+                } finally {
+                    if (isCurrentAction(generation, identity)) setActivationSaving(false)
+                }
+            })
+        }, freeAction === 'drop' ? 'Drop and activate' : 'Move and activate', freeAction === 'drop' || activationPending.source === 'taxi')
     }
 
     async function runAutoSet(mode: 'today' | 'week' | 'season') {
@@ -1050,9 +1071,10 @@ export default function RosterScreen() {
             <ActivationOverflowModal
                 pending={activationPending}
                 myLineup={activationRoster}
+                irSlots={irSlots}
                 saving={activationSaving}
-                onDrop={id => { void resolveActivationOverflow(id, 'drop') }}
-                onMoveToIR={id => { void resolveActivationOverflow(id, 'ir') }}
+                onDrop={id => resolveActivationOverflow(id, 'drop')}
+                onMoveToIR={id => resolveActivationOverflow(id, 'ir')}
                 onCancel={() => { if (!activationSaving) setActivationPending(null) }}
             />
         </Page>

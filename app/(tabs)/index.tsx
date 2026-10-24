@@ -280,8 +280,6 @@ export default function HomeScreen() {
                         onAction={() => { void openDraftRoom() }}
                     />
                 </View>
-            ) : homeSurface === 'loading' ? (
-                <View style={styles.playSurface} />
             ) : homeSurface === 'error' ? (
                 // A failed load is not an empty week: never tell the manager no
                 // matchup exists when the request simply failed (offline, cold cache).
@@ -307,6 +305,7 @@ export default function HomeScreen() {
             <ActivationOverflowModal
                 pending={activationOverflowPending}
                 myLineup={myLineup}
+                irSlots={league?.ir_slots ?? 2}
                 saving={activationOverflowSaving}
                 onDrop={handleOverflowDrop}
                 onMoveToIR={handleOverflowMoveToIR}
