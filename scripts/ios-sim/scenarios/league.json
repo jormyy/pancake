@@ -42,7 +42,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "text": "Added"
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
     ]
@@ -182,7 +182,7 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=72c445c3-4547-4a0e-8278-9e78eaf018d6"
+          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
         },
         "expected": {
           "text": "E2E Team 1",
@@ -206,7 +206,7 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=9f9547b4-1d83-4efa-bd81-66666a630823"
+          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
@@ -376,7 +376,7 @@
         },
         "expected": {
           "route": "/join-league",
-          "selector": "[aria-label='Invite code']"
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
     ]
@@ -400,7 +400,7 @@
         },
         "expected": {
           "route": "/change-password",
-          "selector": "[aria-label='Current password']"
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
     ]
@@ -472,7 +472,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "text": "Added"
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
     ]
@@ -612,7 +612,7 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=72c445c3-4547-4a0e-8278-9e78eaf018d6"
+          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
         },
         "expected": {
           "text": "E2E Team 1",
@@ -636,7 +636,7 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=9f9547b4-1d83-4efa-bd81-66666a630823"
+          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
@@ -806,7 +806,7 @@
         },
         "expected": {
           "route": "/join-league",
-          "selector": "[aria-label='Invite code']"
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
     ]
@@ -830,7 +830,7 @@
         },
         "expected": {
           "route": "/change-password",
-          "selector": "[aria-label='Current password']"
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
     ]

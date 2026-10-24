@@ -115,6 +115,29 @@ afterEach(() => {
 })
 
 describe('auction draft resource identity', () => {
+    it('shows the cached minimum on every initial render and retains a higher typed bid on refresh', async () => {
+        const cached = liveState('draft-a')
+        cached.openNomination!.currentBidAmount = 20
+        screenCache.set('pancake:auction-room:v1:draft-test-user:member:draft-a', { state: cached })
+        let resolve!: (value: DraftState) => void
+        mocks.getDraftState.mockReturnValue(new Promise<DraftState>(done => { resolve = done }))
+        const values: string[] = []
+        let latest!: ReturnType<typeof useAuctionDraftRoomController>
+        const Probe = () => {
+            latest = useAuctionDraftRoomController({ draftId: 'draft-a', memberId: 'member' })
+            values.push(latest.bidText)
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        try {
+            await act(async () => { renderer = create(React.createElement(Probe)) })
+            expect(new Set(values)).toEqual(new Set(['21']))
+            await act(async () => { latest.setBidText('30') })
+            await act(async () => { resolve(cached) })
+            expect(latest.bidText).toBe('30')
+        } finally { await act(async () => renderer?.unmount()) }
+    })
+
     it('fails closed until subscription and authoritative recovery both finish', async () => {
         mocks.getDraftState.mockResolvedValue(state('draft-a'))
         let latest!: ReturnType<typeof useAuctionDraftRoomController>

@@ -40,6 +40,7 @@ export function AuctionLivePanel({
     const remainingBudget = budget?.remaining ?? Infinity
     const bidValue = parseInt(controller.bidText, 10)
     const bidValid = Number.isFinite(bidValue) && bidValue >= minimumBid && bidValue <= remainingBudget
+    const bidReady = controller.actionsReady && controller.realtimeConnected && !controller.bidding
 
     return <>
         <View style={[styles.card, compact && styles.cardCompact, urgent && styles.cardUrgent]}>
@@ -80,20 +81,20 @@ export function AuctionLivePanel({
                         onChange={controller.setBidToTaxi} disabled={controller.bidding || paused}
                         label="Receive this auction player into taxi" /> : null}
                     {leading && nomination.currentBidToTaxi ? <Text style={textStyles.meta}>Winning destination: Taxi squad</Text> : null}
-                    {!leading && (budget?.remaining ?? 0) >= 1 && !paused && controller.realtimeConnected ? <View style={styles.bidInputRow}>
+                    {!leading && (budget?.remaining ?? 0) >= 1 && !paused ? <View style={styles.bidInputRow}>
                         <View style={styles.bidStepGroup}>
                             <MotionPressable style={styles.bidStep}
                                 onPress={() => controller.setBidText((value) => String(Math.max(minimumBid, (parseInt(value, 10) || minimumBid) - 1)))}
-                                accessibilityRole="button" accessibilityLabel="Decrease bid" hitSlop={8} pressedScale={0.88}>
+                                disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Decrease bid" hitSlop={8} pressedScale={0.88}>
                                 <Text style={styles.bidStepText}>−</Text>
                             </MotionPressable>
                             <TextInput style={[styles.bidAmountInput, compact && styles.bidAmountInputCompact]}
                                 value={controller.bidText} onChangeText={(value) => controller.setBidText(value.replace(/[^0-9]/g, ''))}
-                                keyboardType="number-pad" selectTextOnFocus accessibilityLabel="Bid amount" />
+                                editable={bidReady} keyboardType="number-pad" selectTextOnFocus accessibilityLabel="Bid amount" />
                             <MotionPressable style={styles.bidStep}
                                 onPress={() => controller.setBidText((value) => String(Math.min(
                                     remainingBudget, (parseInt(value, 10) || minimumBid - 1) + 1,
-                                )))} accessibilityRole="button" accessibilityLabel="Increase bid" hitSlop={8} pressedScale={0.88}>
+                                )))} disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Increase bid" hitSlop={8} pressedScale={0.88}>
                                 <Text style={styles.bidStepText}>+</Text>
                             </MotionPressable>
                         </View>
@@ -101,12 +102,11 @@ export function AuctionLivePanel({
                             (controller.bidding || !bidValid) && styles.bidButtonDisabled]}
                             onPress={controller.handleBid} accessibilityRole="button"
                             accessibilityLabel={`Bid $${(bidValid ? bidValue : minimumBid).toLocaleString()}`}
-                            disabled={controller.bidding || !bidValid || leading || controller.timeLeft === 0} pressedScale={0.965}>
+                            accessibilityHint="Bidding requires a live draft connection."
+                            disabled={!bidReady || !bidValid || leading || controller.timeLeft === 0} pressedScale={0.965}>
                             <Text style={styles.bidButtonText}>Bid ${(bidValid ? bidValue : minimumBid).toLocaleString()}</Text>
                         </MotionPressable>
-                    </View> : !paused && !controller.realtimeConnected ? (
-                        <Text style={styles.presencePending}>Bidding unlocks after the live connection recovers.</Text>
-                    ) : null}
+                    </View> : null}
                 </View>
             </View>
             {nomination.nominatingMemberId === memberId && !paused && nomination.currentBidderId == null ?
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     card: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: 1,
         borderColor: colors.borderLight, padding: spacing.xl, gap: spacing.md },
     cardCompact: { padding: spacing.md, gap: spacing.sm },
-    cardUrgent: { borderColor: colors.danger, borderWidth: 1.5, boxShadow: `0 0 0 3px ${tints.dangerFocusRing}` },
+    cardUrgent: { borderColor: colors.danger, boxShadow: `0 0 0 3px ${tints.dangerFocusRing}` },
     cardLabel: { ...textStyles.sectionLabel },
     liveLayout: { gap: spacing.md },
     liveLayoutCompact: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
@@ -164,10 +164,13 @@ const styles = StyleSheet.create({
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
     bidLeaderLeading: { color: colors.successDark, fontWeight: fontWeight.bold, backgroundColor: colors.successLight,
         paddingHorizontal: spacing.md, paddingVertical: spacing.xxs, borderRadius: radii.full, overflow: 'hidden', alignSelf: 'flex-start' },
-    countdown: { minWidth: 60, height: 60, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+    countdown: { width: controlSize.button.lg.height + spacing['2xl'], height: controlSize.button.lg.height + spacing.md,
+        flexShrink: 0, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+        borderWidth: 2, borderColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
-    countdownUrgent: { backgroundColor: colors.dangerLight, borderWidth: 2, borderColor: colors.danger },
-    countdownText: { fontSize: fontSize['2lg'], fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    countdownUrgent: { backgroundColor: colors.dangerLight, borderColor: colors.danger },
+    countdownText: { fontSize: fontSize['2lg'], fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.textSecondary,
+        width: '100%', textAlign: 'center', fontVariant: textStyles.stat.fontVariant },
     countdownTextPaused: { fontSize: fontSize.sm },
     countdownTextUrgent: { color: colors.dangerDark },
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
@@ -183,7 +186,6 @@ const styles = StyleSheet.create({
     bidButtonCompact: { minWidth: 96 },
     bidButtonDisabled: { opacity: 0.5 },
     bidButtonText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
-    presencePending: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
     withdrawButton: { minHeight: controlSize.minTouch, marginTop: spacing.md, alignItems: 'center', justifyContent: 'center',
         paddingVertical: spacing.sm, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border },
     withdrawButtonText: { fontSize: fontSize.md, color: colors.textMuted, fontWeight: fontWeight.semibold },

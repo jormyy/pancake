@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     replace: vi.fn(), drop: vi.fn(), trim: vi.fn(),
     refresh: vi.fn(), hasState: true, loading: false, loadError: null as string | null,
     prospectsLoadError: null as string | null,
+    nextMember: null as string | null,
     overflow: null as { newPlayerName: string } | null,
     trimOverflow: null as { excess: number; dropList: never[] } | null,
 }))
@@ -22,7 +23,9 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: false,
 }) }))
 vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomController: () => ({
-    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow ? 'in_progress' : 'completed', isMock: false }, picks: [], orders: [], nextPick: null } : null,
+    state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: false }, picks: [], orders: [],
+        nextPick: mocks.nextMember ? { memberId: mocks.nextMember, teamName: 'Team on the clock', round: 1 } : null } : null,
+    actionsReady: true,
     loading: mocks.loading, loadError: mocks.loadError, prospectsLoadError: mocks.prospectsLoadError,
     query: '', setQuery: vi.fn(), prospects: [], prospectsLoading: false, picking: false,
     draftToTaxi: false, setDraftToTaxi: vi.fn(), activeTab: 'prospects', setActiveTab: vi.fn(), secondsLeft: 0,
@@ -45,10 +48,27 @@ vi.mock('@/lib/format', () => ({ countLabel: (count: number, word: string) => `$
 
 let screen: ReactTestRenderer
 beforeEach(() => {
-    vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null
+    vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.nextMember = null
     mocks.hasState = true; mocks.loading = false; mocks.loadError = null; mocks.prospectsLoadError = null
 })
 afterEach(async () => { await act(async () => screen?.unmount()) })
+
+it.each(['member', 'other'])('only offers a pick when the manager owns the turn: %s', async (nextMember) => {
+    mocks.nextMember = nextMember
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    const prospect = screen.root.findByType('FlashList' as React.ElementType).props.renderItem({
+        item: { id: 'prospect', display_name: 'A rookie', nba_team: 'LAL', position: 'SG', nba_draft_number: 1 },
+    })
+    let row!: ReactTestRenderer
+    await act(async () => { row = create(prospect) })
+    try {
+        const action = row.root.findByType('MotionPressable' as React.ElementType)
+        expect(action.props.disabled).toBe(nextMember !== 'member')
+        expect(action.props.accessibilityRole).toBe(nextMember === 'member' ? 'button' : 'text')
+        expect(action.props.accessibilityLabel).toBe(nextMember === 'member' ? 'Pick A rookie' : 'A rookie')
+        expect(row.root.findAll((node) => node.props.children === 'Pick')).toHaveLength(nextMember === 'member' ? 1 : 0)
+    } finally { await act(async () => row.unmount()) }
+})
 
 it.each(['overflow', 'trim'] as const)('leaves the %s dialog without changing the required roster correction', async (kind) => {
     if (kind === 'overflow') mocks.overflow = { newPlayerName: 'Drafted Rookie' }
