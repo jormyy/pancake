@@ -13,6 +13,7 @@ export async function syncSleeperProjections(client: SupabaseClient<Database>, c
   }).select('id').single()
   if (runError) throw new Error(runError.message)
   let httpStatus: number | null = null
+  let completionRecorded = false
   let parseMetadata: { inputRowCount: number; rejectedRowCount: number } | undefined
   try {
     const response = await fetcher(url, { signal: AbortSignal.timeout(30000) })
@@ -36,8 +37,14 @@ export async function syncSleeperProjections(client: SupabaseClient<Database>, c
       p_metadata: { ...parseMetadata, seenSourceKeys: sourceKeys, unmatchedIds: payload.unmatchedIds, weekStart: context.weekStart, weekEnd: context.weekEnd },
     })
     if (error) throw new Error(error.message)
+    completionRecorded = true
+    const { data: completion, error: completionError } = await client.from('projection_sync_runs')
+      .select('status,error_message').eq('id', run.id).single()
+    if (completionError) throw new Error(completionError.message)
+    if (completion.status === 'failed') throw new Error(completion.error_message ?? 'Sleeper projection completion failed')
     return { rows: payload.matched, unmatched: payload.unmatched, rejected: rejectedRowCount }
   } catch (error) {
+    if (completionRecorded) throw error
     if (error instanceof SleeperProjectionParseError) parseMetadata = { inputRowCount: error.inputRowCount, rejectedRowCount: error.rejectedRowCount }
     const message = error instanceof Error ? error.message : String(error)
     const { error: finishError } = await client.from('projection_sync_runs').update({

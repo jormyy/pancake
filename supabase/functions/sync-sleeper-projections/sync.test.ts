@@ -22,7 +22,7 @@ Deno.test('records HTTP, shape, and storage failures while preserving the last s
     }
     if (url.pathname.endsWith('/projection_sync_runs')) {
       if (init?.method === 'PATCH') { failures.push(body); return new Response(null, { status: 204 }) }
-      return Response.json({ id: '00000000-0000-0000-0000-000000000010' })
+      return Response.json(init?.method === 'POST' ? { id: '00000000-0000-0000-0000-000000000010' } : { status: 'success', error_message: null })
     }
     throw new Error(`Unexpected database request: ${url}`)
   } } })
@@ -48,4 +48,23 @@ Deno.test('records HTTP, shape, and storage failures while preserving the last s
   rejectStorage = false
   await good()
   assert.equal(writes.length, 3)
+})
+
+Deno.test('surfaces a committed coverage failure without overwriting its diagnostics', async () => {
+  const reason = 'Sleeper coverage below 70% (1 matched upcoming player-games, 2 stored)'
+  let completion = false
+  const failures: unknown[] = []
+  const client = createClient<Database>('http://127.0.0.1:1', 'fixture-only', { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input))
+    if (url.pathname.endsWith('/players')) return Response.json([{ id: '00000000-0000-0000-0000-000000000001', sleeper_id: fixture[0].player_id, display_name: null, nba_team: null }])
+    if (url.pathname.endsWith('/complete_sleeper_projection_sync')) { completion = true; return Response.json(1) }
+    if (url.pathname.endsWith('/projection_sync_runs')) {
+      if (init?.method === 'PATCH') { failures.push(init.body); return new Response(null, { status: 204 }) }
+      return Response.json(init?.method === 'POST' ? { id: '00000000-0000-0000-0000-000000000010' } : { status: 'failed', error_message: reason })
+    }
+    throw new Error(`Unexpected database request: ${url}`)
+  } } })
+  await assert.rejects(() => syncSleeperProjections(client, context, () => Promise.resolve(Response.json([fixture[0]]))), { message: reason })
+  assert.equal(completion, true)
+  assert.equal(failures.length, 0)
 })
