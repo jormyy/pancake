@@ -39,6 +39,8 @@ type CachedPage = {
     offset: number
     savedAt?: number
 }
+type TimedPlayerTotals = { row: VisiblePlayerTotals | null; readAt: number }
+type PlayerTotalsSnapshot = { key: string; rows: Map<string, TimedPlayerTotals> }
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
 const MAX_MEMORY_PAGES = 12
 const EMPTY_TEAMS: string[] = []
@@ -161,6 +163,7 @@ export function usePlayerSearch(
     const loadMoreSeqRef = useRef(0)
     const playersRef = useRef<PlayerRow[]>([])
     const pageCacheRef = useRef(new Map<string, CachedPage>())
+    const totalsSnapshot = useRef<PlayerTotalsSnapshot | null>(null)
     const debouncedQuery = useDebouncedValue(query, 300)
 
     const cachePage = useCallback((key: string, page: CachedPage) => {
@@ -255,14 +258,24 @@ export function usePlayerSearch(
         )
         if (canRead && !canRead()) throw new Error('Search read is no longer active')
         if (!initialLiveStats || !params.leagueId || players.length === 0) return players
-        const totals = await getVisiblePlayerTotals(params.leagueId, players.map(player => player.id), params.seasonYear ?? currentSeasonYear())
+        const year = params.seasonYear ?? currentSeasonYear()
+        const totals = await getVisiblePlayerTotals(params.leagueId, players.map(player => player.id), year)
         if (canRead && !canRead()) throw new Error('Search read is no longer active')
         const totalsByPlayer = new Map(totals.map(row => [row.player_id, row]))
+        const key = JSON.stringify([JSON.stringify([options.ownerId, currentMemberId, params.leagueId]), params.leagueId, year])
+        const rows = new Map(totalsSnapshot.current?.key === key ? totalsSnapshot.current.rows : [])
+        const readAt = Date.now()
+        for (const player of players) {
+            rows.delete(player.id)
+            rows.set(player.id, { row: totalsByPlayer.get(player.id) ?? null, readAt })
+        }
+        while (rows.size > 100) rows.delete(rows.keys().next().value!)
+        totalsSnapshot.current = { key, rows }
         return players.map(player => {
             const row = totalsByPlayer.get(player.id)
             return row ? applyVisiblePlayerTotals(player, row, scoring) : player
         })
-    }, [initialLiveStats, scoring])
+    }, [initialLiveStats, scoring, options.ownerId, currentMemberId])
 
     const fetchCompleteResults = useCallback(async (params: PlayerSearchParams, canRead: () => boolean) => {
         const firstPage = await fetchPage(params, 0, canRead)
@@ -472,14 +485,14 @@ export function usePlayerSearch(
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
         season: { value: seasonYear, setValue: setSeasonYear },
-        results: { players: enabled ? dataKey === searchParamsKey ? players : returningPage?.players ?? [] : [], loading: loading || Boolean(enabled && dataKey !== searchParamsKey && !returningPage), refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
+        results: { players: enabled ? dataKey === searchParamsKey ? players : returningPage?.players ?? [] : [], totalsSnapshot: totalsSnapshot.current, loading: loading || Boolean(enabled && dataKey !== searchParamsKey && !returningPage), refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
         activeFilterCount,
         clearAllFilters,
     }
 }
 
 export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | null, seasonYear: number | null, scoringSettings: unknown,
-    options: { enabled: boolean; ownerKey: string }) {
+    options: { enabled: boolean; ownerKey: string; initialTotals?: PlayerTotalsSnapshot | null }) {
     const scoring = useMemo(() => playerScoringSettings(scoringSettings), [scoringSettings])
     const { active: browserActive, revision: activityRevision, isCurrent: isActivityCurrent } = useBrowserReadActivity()
     const [appActive, setAppActive] = useState(AppState.currentState === 'active')
@@ -495,12 +508,23 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
     const ids = visibleIds.filter(id => players.some(player => player.id === id)).join(',')
     const year = seasonYear ?? currentSeasonYear()
     const key = JSON.stringify([options.ownerKey, leagueId, year])
-    const [snapshot, setSnapshot] = useState<{ key: string; rows: Map<string, VisiblePlayerTotals> }>({ key, rows: new Map() })
+    const [snapshot, setSnapshot] = useState<PlayerTotalsSnapshot>({ key, rows: new Map() })
+    const initialTotals = options.initialTotals
+    const mergedSnapshot = useMemo(() => {
+        const rows = new Map(snapshot.key === key ? snapshot.rows : [])
+        if (initialTotals?.key === key) {
+            for (const [id, entry] of initialTotals.rows) {
+                if ((rows.get(id)?.readAt ?? 0) <= entry.readAt) rows.set(id, entry)
+            }
+        }
+        return rows
+    }, [snapshot, initialTotals, key])
+    const latestSnapshot = useRef(mergedSnapshot)
+    latestSnapshot.current = mergedSnapshot
     const [now, setNow] = useState(Date.now)
     const active = options.enabled && browserActive && appActive
     const current = useRef({ key, ids, active })
     current.current = { key, ids, active }
-    const lastRead = useRef(0)
     useEffect(() => {
         if (!active || !leagueId || !ids) return
         let disposed = false
@@ -509,22 +533,30 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
         let timer: ReturnType<typeof setTimeout> | null = null
         const isCurrent = () => !disposed && current.current.active && current.current.key === key && current.current.ids === ids
             && isActivityCurrent(activityRevision)
+        const playerIds = ids.split(',')
+        const oldestRead = () => Math.min(...playerIds.map(id => latestSnapshot.current.get(id)?.readAt ?? 0))
+        let lastRead = oldestRead()
         const schedule = () => {
             pending = true
             if (timer || running || !isCurrent()) return
-            timer = setTimeout(() => { timer = null; void read() }, Math.max(300, lastRead.current + 10_000 - Date.now()))
+            timer = setTimeout(() => { timer = null; void read() }, Math.max(300, lastRead + 10_000 - Date.now()))
         }
         const read = async () => {
             if (!isCurrent()) return
             running = true
             pending = false
-            lastRead.current = Date.now()
+            lastRead = Date.now()
             try {
-                const rows = await getVisiblePlayerTotals(leagueId, ids.split(','), year)
+                const rows = await getVisiblePlayerTotals(leagueId, playerIds, year)
                 if (!isCurrent()) return
+                const totalsByPlayer = new Map(rows.map(row => [row.player_id, row]))
+                const readAt = Date.now()
                 setSnapshot(previous => {
                     const merged = new Map(previous.key === key ? previous.rows : [])
-                    for (const row of rows) merged.set(row.player_id, row)
+                    for (const id of playerIds) {
+                        merged.delete(id)
+                        merged.set(id, { row: totalsByPlayer.get(id) ?? null, readAt })
+                    }
                     while (merged.size > 100) merged.delete(merged.keys().next().value!)
                     return { key, rows: merged }
                 })
@@ -536,27 +568,31 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
                 if (pending) schedule()
             }
         }
+        let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
+            if (registering && change.topic === 'catchup') return
             if (['player_stats', 'game', 'catchup'].includes(change.topic)) schedule()
         })
-        schedule()
+        registering = false
+        if (Date.now() - oldestRead() >= 10_000) schedule()
         return () => { disposed = true; stop(); if (timer) clearTimeout(timer) }
-    }, [active, leagueId, ids, key, year, activityRevision, isActivityCurrent])
+    }, [active, leagueId, ids, key, year, activityRevision, isActivityCurrent, initialTotals])
     useEffect(() => {
-        if (!active || snapshot.key !== key) return
-        const nextTipoff = [...snapshot.rows.values()].filter(row => row.game_status?.toLowerCase() === 'scheduled')
+        if (!active) return
+        const nextTipoff = [...mergedSnapshot.values()].map(entry => entry.row)
+            .filter((row): row is VisiblePlayerTotals => row != null && row.game_status?.toLowerCase() === 'scheduled')
             .map(row => Date.parse(row.started_at ?? row.game_time ?? '')).filter(time => time > Date.now()).sort((a, b) => a - b)[0]
         if (nextTipoff == null) return
         const timer = setTimeout(() => setNow(Date.now()), Math.min(nextTipoff - Date.now() + 100, 2_147_483_647))
         return () => clearTimeout(timer)
-    }, [active, snapshot, key, now])
+    }, [active, mergedSnapshot, now])
     const rows = useMemo(() => {
         const knownLiveTeams = leagueId ? readCachedLiveTeams(leagueId) : null
         return players.map(player => {
-            const row = snapshot.key === key ? snapshot.rows.get(player.id) : null
+            const row = mergedSnapshot.get(player.id)?.row
             if (row) return applyVisiblePlayerTotals(player, row, scoring, now)
             return knownLiveTeams && player.nba_team ? { ...player, playing_now: knownLiveTeams.has(player.nba_team) } : player
         })
-    }, [snapshot, key, players, scoring, now, leagueId])
+    }, [mergedSnapshot, players, scoring, now, leagueId])
     return { rows, onViewableItemsChanged }
 }

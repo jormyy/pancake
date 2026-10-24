@@ -5,7 +5,12 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 
 const mocks = vi.hoisted(() => ({
     readPersistentCache: vi.fn(),
+    generation: 1,
     pending: new Promise<never>(() => undefined),
+}))
+vi.mock('@/lib/session-cache-registry', async importOriginal => ({
+    ...await importOriginal<typeof import('@/lib/session-cache-registry')>(),
+    sessionGeneration: () => mocks.generation, sessionOwner: () => 'owner',
 }))
 
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
@@ -15,6 +20,10 @@ vi.mock('@/lib/players', () => ({
     getPlayerTransactionHistory: vi.fn(() => mocks.pending),
 }))
 vi.mock('@/lib/projections', () => ({ getPlayerProjection: vi.fn(() => mocks.pending) }))
+vi.mock('@/components/player/season-data', async importOriginal => ({
+    ...await importOriginal<typeof import('@/components/player/season-data')>(),
+    getPlayerSeasonLines: () => mocks.pending, getPlayerScoringSettings: () => mocks.pending,
+}))
 vi.mock('@/lib/persistent-cache', () => ({
     readPersistentCache: mocks.readPersistentCache,
     writePersistentCache: vi.fn(),
@@ -36,11 +45,41 @@ vi.mock('@/lib/supabase', () => ({
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 describe('player screen resource identity', () => {
+    it('restores the same owner snapshot after a session generation change while rejecting old reads', async () => {
+        const saved = { today: '2026-07-09', player: { id: 'player-a', display_name: 'Saved', nba_team: 'LAL' },
+            selectedSeason: 2025, seasons: [], transactions: [] }
+        const entries = new Map<string, typeof saved>()
+        mocks.readPersistentCache.mockImplementation((key: string) => entries.get(key))
+        let latest!: ReturnType<typeof usePlayerScreenData>
+        const Probe = ({ owner = 'owner' }: { owner?: string }) => {
+            latest = usePlayerScreenData('player-a', 'league', { ownerKey: owner })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        mocks.generation = 1
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        const originalEpoch = latest.readEpoch
+        expect(latest.isCurrentRead(originalEpoch)).toBe(true)
+        const cacheKey = mocks.readPersistentCache.mock.calls.at(-1)![0] as string
+        entries.set(cacheKey, saved)
+        await act(async () => renderer.unmount())
+        mocks.generation = 2
+        expect(latest.isCurrentRead(originalEpoch)).toBe(false)
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.player?.display_name).toBe('Saved')
+        expect(latest.selectedSeason).toBe(2025)
+        expect(mocks.readPersistentCache.mock.calls.at(-1)![0]).toBe(cacheKey)
+        expect(latest.readEpoch).not.toBe(originalEpoch)
+        expect(latest.isCurrentRead(originalEpoch)).toBe(false)
+        await act(async () => renderer.update(React.createElement(Probe, { owner: 'someone-else' })))
+        expect(latest.player).toBeNull()
+        await act(async () => renderer.unmount())
+    })
+
     it('hides cached player state on the first render for a new player key', async () => {
         mocks.readPersistentCache.mockImplementation((key: string) => key.endsWith(':player-a') ? {
             today: '2026-07-09',
             player: { id: 'player-a', display_name: 'Player A', nba_team: 'LAL' },
-            playedToday: true,
             availableSeasons: [2026],
             selectedSeason: 2026,
             seasons: [],

@@ -6,6 +6,8 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { headerPlayer, memberTransactionState } from '@/tests/helpers/fixtures'
+import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
+import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const state = vi.hoisted(() => ({
     params: { id: 'player', playerHeader: undefined as string | undefined },
@@ -19,7 +21,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => state.params, useRouter: () => ({ push: state.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league', scoring_settings: { points: 1 } }, membershipValidated: true }) }))
-vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: () => state.data }))
+vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: vi.fn(() => state.data) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/hooks/use-quick-add', () => ({ useQuickAdd: (options: { onChanged: () => Promise<void> }) => {
     state.refresh = options.onChanged
@@ -56,6 +58,16 @@ beforeEach(() => {
     state.roster.mockResolvedValue({ status: { status: 'free_agent' }, transactionState: memberTransactionState(), claimPending: false })
 })
 afterEach(async () => { await act(async () => { screen?.unmount() }); screen = undefined })
+
+it('keeps the persistent player owner stable after a new session for the same member', async () => {
+    setSessionOwner('user')
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const firstOwner = vi.mocked(usePlayerScreenData).mock.calls.at(-1)![2]!.ownerKey
+    setSessionOwner(null)
+    setSessionOwner('user')
+    await act(async () => screen!.update(React.createElement(PlayerDetailScreen)))
+    expect(vi.mocked(usePlayerScreenData).mock.calls.at(-1)![2]!.ownerKey).toBe(firstOwner)
+})
 
 it('reveals one complete initial view and keeps it visible while other resources refresh', async () => {
     state.data.initialSettled = false

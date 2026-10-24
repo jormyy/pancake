@@ -2,16 +2,12 @@ import { assertReadActive } from '@/lib/shared/read-admission'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
-import { isDTD, isIREligible, isTaxiEligible as isEligibleForTaxi } from '@pancake/core'
+import { isDTD, isIREligible } from '@pancake/core'
 import { apiPost } from '@/lib/shared/api'
 import { rpcError } from '@/lib/shared/errors'
 import type { RosterSlotType } from '@/types/database'
 
 export { isIREligible, isDTD }
-
-export function isTaxiEligible(player: RosterPlayer['players'], extended = false): boolean {
-    return isEligibleForTaxi(player.nba_draft_number, player.years_exp, player.career_regular_season_games ?? null, extended)
-}
 
 export type RosterPlayer = {
     id: string

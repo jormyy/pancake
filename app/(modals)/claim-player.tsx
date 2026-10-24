@@ -161,19 +161,22 @@ export default function ClaimPlayerScreen() {
         && canAddToIR(player.injury_status, myRoster, currentLeague?.ir_slots ?? 2)
     const toIr = irEligible && (irChoice?.owner === ownerKey ? irChoice.value : true)
     const needsDrop = rosterFull && !toIr
+    const faab = currentLeague?.waiver_mode === 'faab'
+    const balanceUnknown = faab && transactionState == null
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
         if (!canAct() || submittingRef.current === ownerRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
+        if (balanceUnknown) return
         if (explainBlock()) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
         }
         const bidAmount = Math.max(0, parseInt(bidInput || '0', 10) || 0)
-        if (transactionState?.waiverMode === 'faab' && bidAmount > transactionState.faabBalance) {
+        if (faab && transactionState && bidAmount > transactionState.faabBalance) {
             showAlert('Invalid Bid', 'Your bid cannot exceed your available FAAB balance.')
             return
         }
@@ -213,9 +216,8 @@ export default function ClaimPlayerScreen() {
 
     const processDateStr = claimProcessDateLabel(clearsAt)
     const claimReady = canAct() && !loading && !!player
-    const submitDisabled = !online || submitting || !claimReady || (needsDrop && !selectedDrop)
+    const submitDisabled = !online || submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
-    const faab = transactionState?.waiverMode === 'faab'
     // Wide screens put the claim beside the drop list instead of stacking them.
     const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
     const claimFacts = [
@@ -319,7 +321,7 @@ export default function ClaimPlayerScreen() {
                                 accessibilityLabel="FAAB bid amount"
                             />
                         </View>
-                        <Text style={styles.bidBalance}>of ${transactionState?.faabBalance ?? 0}</Text>
+                        <Text style={styles.bidBalance}>{transactionState ? `of $${transactionState.faabBalance}` : 'Balance unavailable'}</Text>
                     </View>
                 ) : null}
             </View>
@@ -448,6 +450,11 @@ export default function ClaimPlayerScreen() {
                 {loadError ? (
                     <Pressable onPress={() => setLoadAttempt(value => value + 1)} accessibilityRole="button" accessibilityLabel="Retry waiver claim load" style={{ padding: spacing.lg }}>
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>{loadError} Tap to retry.</Text>
+                    </Pressable>
+                ) : null}
+                {balanceUnknown && !loading ? (
+                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={{ padding: spacing.lg }}>
+                        <Text accessibilityRole="alert" style={{ color: colors.danger }}>Could not load your FAAB balance. Tap to retry.</Text>
                     </Pressable>
                 ) : null}
                 {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}

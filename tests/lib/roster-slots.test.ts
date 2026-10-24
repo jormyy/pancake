@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { arrangeActiveRoster, rosterSlotLabel } from '@/lib/roster-slots'
+import { arrangeActiveRoster, compareRosterBySlot, rosterSlotLabel } from '@/lib/roster-slots'
+import type { RosterPlayer } from '@/lib/roster'
 
 const player = (id: string) => ({ players: { id } })
 const rows = (result: ReturnType<typeof arrangeActiveRoster<{ players: { id: string } }>>) => ({
     starters: result.starters.map((row) => [row.slotType, row.player?.players.id ?? null]),
     bench: result.bench.map((row) => row.player?.players.id ?? null),
+})
+
+it('sorts roster players by eligible role, name, primary fallback, then unknown role', () => {
+    const rosterPlayer = (name: string, eligible: string[], position: string | null = null) => ({
+        players: { display_name: name, eligible_positions: eligible, position },
+    }) as RosterPlayer
+    const players = [
+        rosterPlayer('Unknown', []), rosterPlayer('Center', ['C']), rosterPlayer('Guard Z', ['SG', 'PG']),
+        rosterPlayer('Guard A', [], 'PG'), rosterPlayer('Forward', ['F', 'PF']),
+    ]
+    expect(players.sort(compareRosterBySlot).map(player => player.players.display_name)).toEqual([
+        'Guard A', 'Guard Z', 'Forward', 'Center', 'Unknown',
+    ])
 })
 
 describe('arrangeActiveRoster', () => {

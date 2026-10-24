@@ -35,38 +35,23 @@ type Props = {
     rosterStatus: PlayerRosterStatus | null
     action?: PlayerHeaderAction | null
     backControl?: ReactNode
-    claimPending?: boolean
     leagueActive: boolean
     actionsReady?: boolean
-    actionLoading?: boolean
     dropDisabled?: boolean
-    playedToday?: boolean
-    addBlockedReason?: string | null
-    addBlockedCaption?: string | null
-    onAdd?: () => void
     onDrop?: () => void
-    onClaim?: () => void
-    onSetLineup?: () => void
     compact?: boolean
 }
 
-export function PlayerHeader({ player, rosterStatus, action, backControl, claimPending = false,
-    leagueActive, actionsReady = true, actionLoading = false, dropDisabled = false,
-    addBlockedReason = null, addBlockedCaption = null, onAdd, onDrop, onClaim, onSetLineup, compact = false }: Props) {
+export function PlayerHeader({ player, rosterStatus, action, backControl,
+    leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
     const headshotSize = compact ? spacing['5xl'] : spacing['4xl'] * 2
     const eligiblePositions = getEligiblePositions(player)
-    const fallback = rosterStatus?.status === 'free_agent' && onAdd ? { label: 'Add', onPress: onAdd, blockedReason: addBlockedReason }
-        : rosterStatus?.status === 'on_waivers' && onClaim ? { label: claimPending ? 'Claim pending' : 'Claim', onPress: onClaim,
-            accessibilityLabel: claimPending ? `Claim pending for ${player.display_name}, view claims` : `Claim ${player.display_name}` }
-        : rosterStatus?.status === 'mine' && onSetLineup ? { label: 'Lineup', onPress: onSetLineup, accessibilityLabel: `Move ${player.display_name} in lineup` }
-        : null
-    const primary = action === undefined && fallback ? { disabled: !actionsReady, busy: actionLoading, ...fallback } : action
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? 'On your roster'
         : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : ' '
     const showDrop = rosterStatus?.status === 'mine' && onDrop != null
-    const busy = primary?.busy || (!rosterStatus && leagueActive) || !actionsReady
+    const busy = action?.busy || (!rosterStatus && leagueActive) || !actionsReady
     return (
         <View style={styles.header}>
             <View style={styles.identity}>
@@ -76,18 +61,18 @@ export function PlayerHeader({ player, rosterStatus, action, backControl, claimP
                 </View>
                 <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
-                    {primary ? (
-                        <Pressable style={[styles.action, showDrop && styles.rosterPrimary, primary.blockedReason && styles.pickupBlocked]}
-                            onPress={primary.onPress} disabled={primary.disabled || primary.busy}
-                            accessibilityRole="button" accessibilityLabel={primary.accessibilityLabel ?? `${primary.label} ${player.display_name}`}
-                            {...blockedActionProps(primary.blockedReason ?? null, primary.disabled || primary.busy)}>
-                            <Text style={[styles.actionText, primary.blockedReason && styles.pickupBlockedText]} numberOfLines={1}>{primary.label}</Text>
+                    {action ? (
+                        <Pressable style={[styles.action, showDrop && styles.rosterPrimary, action.blockedReason && styles.pickupBlocked]}
+                            onPress={action.onPress} disabled={action.disabled || action.busy}
+                            accessibilityRole="button" accessibilityLabel={action.accessibilityLabel ?? `${action.label} ${player.display_name}`}
+                            {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)}>
+                            <Text style={[styles.actionText, action.blockedReason && styles.pickupBlockedText]} numberOfLines={1}>{action.label}</Text>
                         </Pressable>
                     ) : <View style={[styles.action, showDrop && styles.rosterPrimary, styles.placeholder]} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
                     {showDrop ? (
-                        <Pressable style={styles.dropButton} onPress={onDrop} disabled={actionLoading || dropDisabled || !actionsReady}
+                        <Pressable style={styles.dropButton} onPress={onDrop} disabled={action?.busy || dropDisabled || !actionsReady}
                             accessibilityRole="button" accessibilityLabel={`Drop ${player.display_name}`}
-                            accessibilityState={{ disabled: actionLoading || dropDisabled || !actionsReady }}>
+                            accessibilityState={{ disabled: action?.busy || dropDisabled || !actionsReady }}>
                             <Text style={styles.dropText}>Drop</Text>
                         </Pressable>
                     ) : null}
@@ -101,7 +86,6 @@ export function PlayerHeader({ player, rosterStatus, action, backControl, claimP
                 {player.years_exp != null ? <Badge label={player.years_exp <= 0 ? 'Rookie' : `Yr ${player.years_exp + 1}`} color={colors.textMuted} textColor={colors.textMuted} variant="soft" /> : null}
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>
-            {addBlockedReason && addBlockedCaption && rosterStatus?.status === 'free_agent' ? <Text style={styles.pickupCaption} numberOfLines={2}>{addBlockedCaption}</Text> : null}
         </View>
     )
 }
@@ -121,7 +105,6 @@ const styles = StyleSheet.create({
     placeholder: { backgroundColor: colors.bgMuted },
     pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     pickupBlockedText: { color: colors.textPlaceholder },
-    pickupCaption: { ...textStyles.meta, minHeight: spacing['4xl'] },
     rosterPrimary: { width: 'auto', flex: 1, paddingHorizontal: spacing.xs },
     dropButton: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, paddingHorizontal: spacing.xs, borderWidth: 1, borderColor: colors.primaryBorder, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center' },
     dropText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },

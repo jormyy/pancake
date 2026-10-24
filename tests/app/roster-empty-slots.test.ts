@@ -5,6 +5,9 @@ import RosterScreen from '@/app/(tabs)/roster'
 import type { RosterPlayer } from '@/lib/roster'
 import { subscribeToTableChanges } from '@/lib/realtime'
 import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
+import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
+import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
+import { showAlert } from '@/lib/alert'
 
 type ListProps = {
     data: unknown[]
@@ -56,6 +59,7 @@ vi.mock('@/hooks/use-focus-async-data', () => ({ useFocusAsyncData: () => mocks.
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/roster', () => ({
     getRoster: vi.fn(), toggleIR: vi.fn(), toggleTaxi: vi.fn(), dropPlayer: vi.fn(), isIREligible: () => false,
+    activateRosterPlayerWithOverflow: vi.fn(),
 }))
 vi.mock('@/lib/trades', () => ({ getPicksForMember: vi.fn() }))
 vi.mock('@/lib/waivers', () => ({
@@ -92,6 +96,7 @@ vi.mock('@/components/roster/RosterItems', () => ({
 vi.mock('@/components/roster/RosterPlayerSheet', () => ({ RosterPlayerSheet: 'RosterPlayerSheet' }))
 vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'RosterTrimBanner' }))
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
+vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 
@@ -120,6 +125,10 @@ describe('roster empty slots', () => {
     let screen: ReactTestRenderer
 
     beforeEach(() => {
+        vi.clearAllMocks()
+        vi.mocked(getRosterStatusChangeLockMessage).mockResolvedValue(null)
+        vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
+        vi.mocked(subscribeToTableChanges).mockClear()
         mocks.focusData.refresh.mockReset()
         mocks.league.roster_size = 20
         mocks.league.ir_slots = 2
@@ -145,6 +154,71 @@ describe('roster empty slots', () => {
         expect(prompt.props).toMatchObject({ message: 'Your roster is empty', actionLabel: 'Browse Players' })
         act(() => prompt.props.onAction())
         expect(mocks.push).toHaveBeenCalledWith('/players')
+    })
+
+    it.each([
+        ['ir', 'drop'], ['ir', 'ir'], ['taxi', 'drop'], ['taxi', 'ir'],
+    ] as const)('activates from %s by making room with %s in one roster change', async (source, action) => {
+        mocks.league.roster_size = 1
+        const reserve = { id: 'reserve', is_on_ir: source === 'ir', is_on_taxi: source === 'taxi',
+            players: { id: 'reserve-player', display_name: 'Reserve', eligible_positions: ['PG'] } } as RosterPlayer
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([active, reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const row = screen.root.findAllByType((source === 'ir' ? 'RosterPlayerItem' : 'TaxiPlayerItem') as React.ElementType)
+            .find(node => node.props.item.id === 'reserve')!
+        await act(async () => row.props[source === 'ir' ? 'onToggleIR' : 'onToggleTaxi'](reserve))
+        const picker = () => screen.root.findByType('ActivationOverflowModal' as React.ElementType)
+        expect(picker().props.pending).toEqual({ rosterPlayerId: 'reserve', source })
+        expect(picker().props.myLineup.bench.map((player: { rosterPlayerId: string }) => player.rosterPlayerId)).toEqual(['active'])
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        await act(async () => picker().props[action === 'drop' ? 'onDrop' : 'onMoveToIR']('active'))
+        expect(activateRosterPlayerWithOverflow).toHaveBeenCalledExactlyOnceWith('reserve', source, 'active', action)
+        expect(toggleIR).not.toHaveBeenCalled()
+        expect(toggleTaxi).not.toHaveBeenCalled()
+        expect(mocks.focusData.refresh).toHaveBeenCalledOnce()
+        expect(picker().props.pending).toBeNull()
+    })
+
+    it('keeps the activation choice open if a selected player becomes locked', async () => {
+        mocks.league.roster_size = 1
+        const reserve = { id: 'reserve', is_on_ir: true, is_on_taxi: false,
+            players: { id: 'reserve-player', display_name: 'Reserve', eligible_positions: ['PG'] } } as RosterPlayer
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([active, reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const row = screen.root.findAllByType('RosterPlayerItem' as React.ElementType).find(node => node.props.item.id === 'reserve')!
+        await act(async () => row.props.onToggleIR(reserve))
+        vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(async item => item?.id === 'active' ? 'The game has started.' : null)
+        const picker = () => screen.root.findByType('ActivationOverflowModal' as React.ElementType)
+        await act(async () => picker().props.onDrop('active'))
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
+        expect(showAlert).toHaveBeenCalledWith('Roster locked', 'The game has started.')
+        expect(picker().props.pending).not.toBeNull()
+        await act(async () => picker().props.onCancel())
+        expect(picker().props.pending).toBeNull()
+    })
+
+    it('does not activate after leaving the roster during the final lock check', async () => {
+        mocks.league.roster_size = 1
+        const reserve = { id: 'reserve', is_on_ir: true, is_on_taxi: false,
+            players: { id: 'reserve-player', display_name: 'Reserve', eligible_positions: ['PG'] } } as RosterPlayer
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([active, reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const row = screen.root.findAllByType('RosterPlayerItem' as React.ElementType).find(node => node.props.item.id === 'reserve')!
+        await act(async () => row.props.onToggleIR(reserve))
+        let release!: (value: null) => void
+        vi.mocked(getRosterStatusChangeLockMessage).mockImplementation(async item => item?.id === 'active'
+            ? new Promise<null>(resolve => { release = resolve }) : null)
+        const picker = screen.root.findByType('ActivationOverflowModal' as React.ElementType)
+        await act(async () => picker.props.onDrop('active'))
+        await act(async () => screen.unmount())
+        await act(async () => release(null))
+        expect(activateRosterPlayerWithOverflow).not.toHaveBeenCalled()
     })
 
     it('labels starters by their lineup slot and keeps unassigned players on the bench', () => {
@@ -187,6 +261,7 @@ describe('roster empty slots', () => {
         mocks.focusData.refresh.mockResolvedValue(true)
         setLeagueChangesConnected('league-a', true)
         act(() => { screen = create(React.createElement(RosterScreen)) })
+        expect(subscribeToTableChanges).not.toHaveBeenCalled()
         await act(async () => { await vi.advanceTimersByTimeAsync(300) })
         expect(mocks.focusData.refresh).not.toHaveBeenCalled()
         act(() => {
@@ -197,9 +272,6 @@ describe('roster empty slots', () => {
         await act(async () => { await vi.advanceTimersByTimeAsync(300) })
         expect(mocks.focusData.refresh).not.toHaveBeenCalled()
         act(() => {
-            const subscription = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1]
-            if (subscription.mode === 'fallback') subscription.onChange()
-            subscription.onReconnect?.()
             notifyLeagueChange('league-a', { topic: 'roster', scopes: [
                 { season_id: 'season', member_id: 'other-member' }, { season_id: 'season', member_id: 'member-a' },
             ] })

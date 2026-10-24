@@ -116,7 +116,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         return () => { stop(); refresh.cancel() }
     }, [leagueId, resourceKey, authorized, canRead])
     useEffect(() => () => { if (leagueId) releaseLeagueDailyPending(leagueId) }, [leagueId, readEpoch])
-    const cacheKey = `${PLAYER_SCREEN_CACHE_PREFIX}${generation}:${owner}:${leagueId ?? 'no-league'}:${playerId}`
+    const cacheKey = `${PLAYER_SCREEN_CACHE_PREFIX}${owner}:${leagueId ?? 'no-league'}:${playerId}`
     const cache = useMemo(() => {
         const saved = readPersistentCache<PlayerScreenCache>(cacheKey)
         return saved?.today === todayET() ? saved : undefined
@@ -177,11 +177,10 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         canRead, readEpoch, isCurrentRead, rosterRevision: refreshes.roster,
         initialSettled: player.settled && seasons.settled && lines.settled && scoringSettings.settled && projection.settled && history.settled,
         player: player.value ?? null, loading: !player.settled, playerError: player.error,
-        playedToday: summary.games.some(game => game.gameDate === todayET() && !game.didNotPlay),
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages: summary.averages, seasonLoading: !lines.settled, seasonError: lines.error ?? scoringSettings.error,
         includesLive: summary.includesLive, liveGame: summary.games.find(game => game.live && !game.didNotPlay) ?? null,
-        gameLog, hasMoreGames: summary.games.length > count, gameLogLoading: false, loadMoreGames, gameLogError: null,
+        gameLog, hasMoreGames: summary.games.length > count, loadMoreGames,
         fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: summary.avgFantasyPoints,
         nextProjection: projection.value ?? null, projectionError: projection.error, projectionSettled: projection.settled,
         transactions: history.value ?? EMPTY_TRANSACTIONS, transactionsError: history.error, transactionsSettled: history.settled,

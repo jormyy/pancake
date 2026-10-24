@@ -56,8 +56,6 @@ export type PlayerRow = {
 }
 
 type PlayerTableRow = Database['public']['Tables']['players']['Row']
-type PlayerGameStatsRow = Database['public']['Tables']['player_game_stats']['Row']
-type NbaGameRow = Database['public']['Tables']['nba_games']['Row']
 type RosterTransactionRow = Database['public']['Tables']['roster_transactions']['Row']
 type SearchPlayersRow = Database['public']['Functions']['search_players']['Returns'][number]
 
@@ -81,33 +79,6 @@ type PlayerDetailSourceRow = Pick<
 
 export type PlayerDetailRow = PlayerDetailSourceRow & {
     display_name: string
-}
-
-type PlayerGameLogRow = Pick<
-    PlayerGameStatsRow,
-    | 'id'
-    | 'points'
-    | 'rebounds'
-    | 'offensive_rebounds'
-    | 'defensive_rebounds'
-    | 'assists'
-    | 'steals'
-    | 'blocks'
-    | 'turnovers'
-    | 'personal_fouls'
-    | 'field_goals_made'
-    | 'field_goals_attempted'
-    | 'three_pointers_made'
-    | 'three_pointers_attempted'
-    | 'free_throws_made'
-    | 'free_throws_attempted'
-    | 'plus_minus'
-    | 'double_double'
-    | 'triple_double'
-    | 'did_not_play'
-    | 'minutes_played'
-> & {
-    nba_games: Pick<NbaGameRow, 'id' | 'nba_game_id' | 'game_date' | 'home_team' | 'away_team'> | null
 }
 
 type TransactionHistoryRow = Pick<
@@ -282,74 +253,6 @@ export async function getAvailableSeasons(playerId: string): Promise<number[]> {
     if (!data || data.length === 0) return [currentSeasonYear()]
 
     return data.map((r) => r.season_year).filter((year): year is number => year != null)
-}
-
-export async function getPlayerGameLog(
-    playerId: string,
-    playerTeam: string | null,
-    seasonYear: number,
-    limit = 15,
-    offset = 0,
-): Promise<{ games: GameLogEntry[]; hasMore: boolean }> {
-    const fetchLimit = limit + 1
-
-    const { data, error } = await supabase
-        .from('player_game_stats')
-        .select(`
-            id,
-            points, rebounds, offensive_rebounds, defensive_rebounds,
-            assists, steals, blocks, turnovers, personal_fouls,
-            field_goals_made, field_goals_attempted,
-            three_pointers_made, three_pointers_attempted,
-            free_throws_made, free_throws_attempted,
-            plus_minus, double_double, triple_double,
-            did_not_play, minutes_played,
-            nba_games!inner ( id, nba_game_id, game_date, home_team, away_team )
-        `)
-        .eq('player_id', playerId)
-        .eq('season_year', seasonYear)
-        .like('nba_games.nba_game_id', '002%')
-        .order('game_date', { ascending: false })
-        .range(offset, offset + fetchLimit - 1)
-
-    if (error) throw error
-
-    const rows = (data ?? []) as PlayerGameLogRow[]
-    const hasMore = rows.length > limit
-    const games = rows.slice(0, limit).map((g): GameLogEntry => {
-        const game = g.nba_games
-        const isHome = playerTeam ? game?.home_team === playerTeam : false
-        const opponent = isHome
-            ? `vs ${game?.away_team ?? '?'}`
-            : `@ ${game?.home_team ?? '?'}`
-
-        return {
-            gameId: g.id,
-            gameDate: game?.game_date ?? '',
-            opponent,
-            isHome,
-            didNotPlay: g.did_not_play ?? false,
-            minutes: Number(g.minutes_played) || 0,
-            points: g.points ?? 0,
-            rebounds: g.rebounds ?? 0,
-            assists: g.assists ?? 0,
-            steals: g.steals ?? 0,
-            blocks: g.blocks ?? 0,
-            turnovers: g.turnovers ?? 0,
-            personalFouls: g.personal_fouls ?? 0,
-            fgMade: g.field_goals_made ?? 0,
-            fgAttempted: g.field_goals_attempted ?? 0,
-            threeMade: g.three_pointers_made ?? 0,
-            threeAttempted: g.three_pointers_attempted ?? 0,
-            ftMade: g.free_throws_made ?? 0,
-            ftAttempted: g.free_throws_attempted ?? 0,
-            plusMinus: g.plus_minus ?? 0,
-            doubleDouble: g.double_double ?? false,
-            tripleDouble: g.triple_double ?? false,
-        }
-    })
-
-    return { games, hasMore }
 }
 
 export async function getPlayerTransactionHistory(

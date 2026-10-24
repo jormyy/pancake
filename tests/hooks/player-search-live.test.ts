@@ -1,25 +1,34 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { useVisiblePlayerRows } from '@/hooks/use-player-search'
+import { usePlayerSearch, useVisiblePlayerRows } from '@/hooks/use-player-search'
 import { notifyLeagueChange, leagueChangeReceiver } from '@/lib/league-changes'
 import { playerRow } from '../helpers/fixtures'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), teams: null as Set<string> | null, native: null as ((value: string) => void) | null }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), search: vi.fn(), teams: null as Set<string> | null, native: null as ((value: string) => void) | null }))
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: (_: string, listener: (value: string) => void) => { mocks.native = listener; return { remove: vi.fn() } } } }))
 vi.mock('@shopify/flash-list', () => ({}))
 vi.mock('@/hooks/use-live-stats', () => ({ readCachedLiveTeams: () => mocks.teams }))
-vi.mock('@/lib/players', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/players')>(), getVisiblePlayerTotals: mocks.read }))
+vi.mock('@/lib/players', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/players')>(), getVisiblePlayerTotals: mocks.read, searchPlayers: mocks.search }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
-vi.mock('@/lib/lineup', () => ({}))
-vi.mock('@/lib/shared/week', () => ({}))
-vi.mock('@/lib/persistent-cache', () => ({}))
+vi.mock('@/lib/lineup', () => ({ getWeekDays: async () => [] }))
+vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: async () => 1 }))
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 let latest: ReturnType<typeof useVisiblePlayerRows>
 let doc: EventTarget & { visibilityState: string }
 const players = [playerRow({ id: 'a' }), playerRow({ id: 'b' }), playerRow({ id: 'offscreen' })]
 const scoring = { points: 1 }
+const owned = new Map()
+const waivers = new Set<string>()
+const SearchProbe = () => {
+    const search = usePlayerSearch('league', owned, waivers, 'member', { ownerId: 'one', initialLiveStats: true, scoringSettings: scoring })
+    latest = useVisiblePlayerRows(search.results.players, 'league', search.season.value, scoring, {
+        enabled: true, ownerKey: JSON.stringify(['one', 'member', 'league']), initialTotals: search.results.totalsSnapshot,
+    })
+    return null
+}
 const Probe = ({ owner = 'one', enabled = true }: { owner?: string; enabled?: boolean }) => {
     latest = useVisiblePlayerRows(players, 'league', 2027, scoring, { enabled, ownerKey: owner })
     return null
@@ -31,11 +40,40 @@ beforeEach(async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z'))
     doc = Object.assign(new EventTarget(), { visibilityState: 'visible' })
     vi.stubGlobal('document', doc)
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { callback(0); return 1 })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    mocks.search.mockReset().mockResolvedValue(players)
     mocks.teams = null
     mocks.read.mockReset().mockResolvedValue([{ player_id: 'a', totals: { points: 22, points_count: 2, games_played: 2 }, rounded_fantasy_average: null, game_status: 'Final', game_time: null, started_at: null }])
     await act(async () => { screen = create(React.createElement(Probe)) })
 })
 afterEach(async () => { await act(async () => screen.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
+it('uses page totals without a second visible read until a later change hint', async () => {
+    await act(async () => { screen.unmount(); screen = create(React.createElement(SearchProbe)) })
+    expect(mocks.read).toHaveBeenCalledOnce()
+    expect(latest.rows[0].avg_fantasy_points).toBe(11)
+    await visible()
+    await tick(500)
+    await act(async () => latest.onViewableItemsChanged({ viewableItems: [{ item: players[2], isViewable: true }] }))
+    await tick(60_000)
+    expect(mocks.read).toHaveBeenCalledOnce()
+    hint()
+    await tick(300)
+    expect(mocks.read).toHaveBeenCalledTimes(2)
+    expect(mocks.read).toHaveBeenLastCalledWith('league', ['offscreen'], expect.any(Number))
+})
+
+it('throttles a stats hint from the page read and refreshes only the current visible players', async () => {
+    await act(async () => { screen.unmount(); screen = create(React.createElement(SearchProbe)) })
+    await visible()
+    hint()
+    await tick(9999)
+    expect(mocks.read).toHaveBeenCalledOnce()
+    await tick(1)
+    expect(mocks.read).toHaveBeenCalledTimes(2)
+    expect(mocks.read).toHaveBeenLastCalledWith('league', ['a', 'b'], expect.any(Number))
+})
+
 it('debounces bursts, reads only visible IDs and keeps their order', async () => {
     await visible()
     hint(); hint(); hint()

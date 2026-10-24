@@ -3,13 +3,14 @@ import React from 'react'
 import {act,create,type ReactTestRenderer} from 'react-test-renderer'
 import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import ClaimPlayerScreen from '@/app/(modals)/claim-player'
+import { memberTransactionState } from '@/tests/helpers/fixtures'
 
-const state=vi.hoisted(()=>({owner:'a',claim:vi.fn(),success:vi.fn(),report:vi.fn(),back:vi.fn(),player:vi.fn(),members:vi.fn()}))
+const state=vi.hoisted(()=>({owner:'a',waiverMode:'rolling',balance:vi.fn(),claim:vi.fn(),success:vi.fn(),report:vi.fn(),back:vi.fn(),player:vi.fn(),members:vi.fn()}))
 vi.mock('react-native',()=>({View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',ScrollView:'ScrollView',Platform:{OS:'web'},StyleSheet:{create:(styles:unknown)=>styles},useWindowDimensions:()=>({width:1280,height:900})}))
 vi.mock('@expo/vector-icons/MaterialIcons',()=>({default:'Icon'}))
 vi.mock('expo-router',()=>({Stack:{Screen:()=>null},useLocalSearchParams:()=>({playerId:'target'}),useRouter:()=>({push:vi.fn()})}))
 vi.mock('@/hooks/use-auth',()=>({useAuth:()=>({user:{id:state.owner}})}))
-vi.mock('@/contexts/league-context',()=>({useLeagueContext:()=>({current:{id:'member-'+state.owner},currentLeague:{id:'league-'+state.owner,roster_size:20}})}))
+vi.mock('@/contexts/league-context',()=>({useLeagueContext:()=>({current:{id:'member-'+state.owner},currentLeague:{id:'league-'+state.owner,roster_size:20,waiver_mode:state.waiverMode}})}))
 vi.mock('@/hooks/use-online-status',()=>({useOnlineStatus:()=>true}))
 vi.mock('@/components/ui/useGoBack',()=>({useGoBack:()=>state.back}))
 vi.mock('@/components/ui',()=>({LoadingState:'LoadingState',usePageMetrics:()=>({padX:16,usableWidth:1200}),PageHeader:({actions}:{actions:React.ReactNode})=>React.createElement('Header',null,actions)}))
@@ -20,7 +21,7 @@ vi.mock('@/lib/league',()=>({getLeagueMembers:state.members}))
 vi.mock('@/lib/roster',()=>({getRoster:async()=>[]}))
 vi.mock('@/lib/players',()=>({getPlayer:state.player}))
 vi.mock('@/lib/waivers',()=>({claimProcessDateLabel:()=> 'Tomorrow',claimProcessTimeLabel:()=> 'tomorrow',getMyWaiverPriority:async()=>1,getWaiverClearsAt:async()=>null,submitWaiverClaim:state.claim}))
-vi.mock('@/lib/roster-add-flow',()=>({loadAddLimitState:async()=>({weeklyAddCount:0,weeklyAddLimit:7,waiverMode:'rolling'})}))
+vi.mock('@/lib/roster-add-flow',()=>({loadAddLimitState:state.balance}))
 vi.mock('@/lib/format',()=>({isIneligibleIR:()=>false,playerHeadshotUrl:()=>null}))
 vi.mock('@/lib/pickup',()=>({addLimitSummary:()=>'',reportPickupError:state.report}))
 vi.mock('@/hooks/use-add-limit-gate',()=>({useAddLimitGate:()=>({addBlockedReason:null,explainBlock:()=>false})}))
@@ -29,8 +30,28 @@ vi.mock('@/lib/alert',()=>({showAlert:vi.fn(),showSuccess:state.success}))
 const render=()=>React.createElement(React.StrictMode,null,React.createElement(ClaimPlayerScreen))
 let screen:ReactTestRenderer
 const submit=()=>screen.root.findAllByType('Pressable' as React.ElementType).find(node=>node.props.accessibilityLabel==='Submit waiver claim')!
-beforeEach(async()=>{activity.active=true;activity.epoch=0;clearPersistentCaches();vi.clearAllMocks();state.owner='a';state.members.mockImplementation(async()=>[{id:'member-'+state.owner,user_id:state.owner}]);state.player.mockResolvedValue({id:'target',display_name:'Claim target',nba_team:'BOS',eligible_positions:['PG']});state.claim.mockResolvedValue(undefined);await act(async()=>{screen=create(render())})})
+beforeEach(async()=>{activity.active=true;activity.epoch=0;clearPersistentCaches();vi.clearAllMocks();state.owner='a';state.waiverMode='rolling';state.balance.mockResolvedValue(memberTransactionState());state.members.mockImplementation(async()=>[{id:'member-'+state.owner,user_id:state.owner}]);state.player.mockResolvedValue({id:'target',display_name:'Claim target',nba_team:'BOS',eligible_positions:['PG']});state.claim.mockResolvedValue(undefined);await act(async()=>{screen=create(render())})})
 afterEach(async()=>{await act(async()=>screen?.unmount())})
+it('keeps FAAB bidding visible and blocks claims until the balance retry succeeds', async () => {
+    await act(async () => screen.unmount())
+    clearPersistentCaches()
+    state.waiverMode = 'faab'
+    state.balance.mockResolvedValue(null)
+    await act(async () => { screen = create(render()) })
+    const bid = () => screen.root.findByProps({ accessibilityLabel: 'FAAB bid amount' })
+    expect(bid()).toBeDefined()
+    expect(submit().props.disabled).toBe(true)
+    await act(async () => submit().props.onPress())
+    expect(state.claim).not.toHaveBeenCalled()
+    expect(screen.root.findAllByType('Text' as React.ElementType).flatMap(node => node.props.children).join(' ')).not.toContain('of $0')
+    const retry = screen.root.findByProps({ accessibilityLabel: 'Retry FAAB balance' })
+    state.balance.mockResolvedValue(memberTransactionState({ waiverMode: 'faab', faabBalance: 17 }))
+    await act(async () => retry.props.onPress())
+    expect(submit().props.disabled).toBe(false)
+    await act(async () => bid().props.onChangeText('8'))
+    await act(async () => submit().props.onPress())
+    expect(state.claim).toHaveBeenCalledWith('member-a', 'league-a', 'target', undefined, { bidAmount: 8 })
+})
 it('keeps ordinary successful claims and same-owner failures actionable',async()=>{
  state.claim.mockRejectedValueOnce(new Error('Claim failed'))
  await act(async()=>submit().props.onPress())
