@@ -507,3 +507,28 @@ it('caps retry frequency without permanently latching a very fast device clock',
     expect(boundary.expire.mock.calls.length).toBeLessThanOrEqual(7)
     expect(latest.state?.nextPick?.overallPick).toBe(2)
 })
+
+it('loads initial prospects beside the board without another request', async () => {
+    boundary.stateDelay = 200
+    await act(async () => { renderer = create(tree()) })
+    await advance(60)
+    expect(boundary.prospects).toHaveBeenCalledOnce()
+    expect(latest.prospects.map(player => player.id)).toEqual(['a', 'b'])
+    await advance(150)
+    expect(latest.state?.draft.id).toBe('draft')
+    expect(latest.actionsReady).toBe(true)
+    expect(boundary.state).toHaveBeenCalledOnce()
+    expect(boundary.prospects).toHaveBeenCalledOnce()
+})
+
+it('shows the first board and prospects together when the prospect read finishes last', async () => {
+    boundary.prospectDelay = 200
+    await act(async () => { renderer = create(tree()) })
+    await advance(60)
+    expect(latest.state).toBeNull()
+    expect(latest.loading).toBe(true)
+    await advance(150)
+    expect(latest.state?.draft.id).toBe('draft')
+    expect(latest.prospects.map(player => player.id)).toEqual(['a', 'b'])
+    expect(latest.actionsReady).toBe(true)
+})

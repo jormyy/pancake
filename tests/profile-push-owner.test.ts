@@ -151,3 +151,19 @@ it('keeps the local-only logout warning after the initiating account signs out',
     await act(async () => { await vi.mocked(confirmAction).mock.calls.at(-1)![2]() })
     expect(showAlert).toHaveBeenCalledWith('Signed out on this device', expect.stringContaining('Other sessions may still be signed in'))
 })
+
+it('reveals profile content with its device controls and keeps it visible during later status changes', async () => {
+    const pending = deferred<'off'>()
+    vi.mocked(getWebPushStatus).mockReturnValueOnce(pending.promise)
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    const content = () => renderer.root.findByType('ScrollView' as React.ElementType)
+    expect(content().props['aria-hidden']).toBe(true)
+    expect(content().props.pointerEvents).toBe('none')
+    await act(async () => { pending.resolve('off') })
+    expect(content().props['aria-hidden']).toBe(false)
+    expect(button(renderer, 'Turn on')).toBeDefined()
+    vi.mocked(enableWebPush).mockResolvedValueOnce('on')
+    await act(async () => { button(renderer, 'Turn on').props.onPress() })
+    expect(content().props['aria-hidden']).toBe(false)
+})

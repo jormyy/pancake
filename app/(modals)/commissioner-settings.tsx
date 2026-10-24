@@ -125,7 +125,6 @@ export default function CommissionerSettingsScreen() {
                     <View style={[styles.lifecycleCard, compactLandscape && styles.lifecycleCardCompact]}>
                         <View style={styles.lifecycleCopy}>
                             <Text style={styles.lifecycleTitle}>{lifecycle.label}</Text>
-                            <Text style={styles.lifecycleDetail}>{lifecycle.detail}</Text>
                         </View>
                         <View style={[styles.lifecycleActions, compactLandscape && styles.lifecycleActionsCompact]}>
                             {lifecycle.actions.map((action) => renderAction(action, true))}
@@ -145,6 +144,7 @@ export default function CommissionerSettingsScreen() {
                                 <Text style={styles.rowLabel}>{label}</Text>
                                 <TextInput
                                     style={styles.scoreInput}
+                                    accessibilityLabel={`${label} weight`}
                                     value={scoring[key] ?? ''}
                                     onChangeText={(v) => {
                                         if (/^-?\d*\.?\d*$/.test(v) || v === '-') {
@@ -220,6 +220,7 @@ export default function CommissionerSettingsScreen() {
                                 <Text style={styles.rowLabel}>{label}</Text>
                                 <TextInput
                                     style={styles.scoreInput}
+                                    accessibilityLabel={label}
                                     value={value}
                                     onChangeText={set}
                                     keyboardType="numeric"

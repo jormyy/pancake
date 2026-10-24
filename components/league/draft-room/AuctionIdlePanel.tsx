@@ -1,4 +1,5 @@
 import { FlashList } from '@shopify/flash-list'
+import { useRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
@@ -42,7 +43,7 @@ export function AuctionIdlePanel({
         </View>
     } else if (!isMyTurn) {
         content = <View style={styles.waitingRow}>
-            <ConnectionHint connected={controller.realtimeConnected} text="Waiting for" fallback="Reconnecting live draft"
+            <ConnectionHint connected={controller.realtimeConnected} failed={Boolean(controller.loadError)} text="Waiting for" fallback="Reconnecting live draft"
                 textStyle={styles.waitingText} height={textStyles.body.lineHeight} />
             <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
             <Text style={styles.waitingText}>to nominate</Text>
@@ -50,7 +51,7 @@ export function AuctionIdlePanel({
     } else {
         content = <>
             <Text style={styles.yourTurnBanner}>Your turn to nominate</Text>
-            <ConnectionHint connected={controller.realtimeConnected}
+            <ConnectionHint connected={controller.realtimeConnected} failed={Boolean(controller.loadError)}
                 text={`Nomination order: ${NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}`}
                 fallback="Reconnecting live draft. Nominations stay disabled."
                 textStyle={styles.nominationModeHint} height={textStyles.meta.lineHeight * 2} />
@@ -94,11 +95,14 @@ export function AuctionIdlePanel({
     return <View style={[styles.card, compact && styles.cardCompact]}>{content}</View>
 }
 
-function ConnectionHint({ connected, text, fallback, textStyle, height }: {
-    connected: boolean; text: string; fallback: string; textStyle: TextStyle; height: number
+function ConnectionHint({ connected, failed, text, fallback, textStyle, height }: {
+    connected: boolean; failed: boolean; text: string; fallback: string; textStyle: TextStyle; height: number
 }) {
+    const hasConnected = useRef(connected)
+    if (connected) hasConnected.current = true
+    const reconnecting = !connected && (hasConnected.current || failed)
     return <Text style={[textStyle, { height, width: '100%', textAlign: 'left' }]}
-        numberOfLines={2} accessibilityLiveRegion="polite">{connected ? text : fallback}</Text>
+        numberOfLines={2} accessibilityLiveRegion="polite">{reconnecting ? fallback : text}</Text>
 }
 
 const styles = StyleSheet.create({

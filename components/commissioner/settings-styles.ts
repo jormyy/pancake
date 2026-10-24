@@ -31,8 +31,8 @@ export const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.borderLight,
-        padding: spacing.xl,
-        gap: spacing.lg,
+        padding: spacing.lg,
+        gap: spacing.md,
     },
     lifecycleCardCompact: {
         padding: spacing.md,
@@ -41,12 +41,7 @@ export const styles = StyleSheet.create({
     lifecycleCopy: {
         gap: spacing.xs,
     },
-    lifecycleTitle: {
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.bold,
-        color: colors.textPrimary,
-    },
-    lifecycleDetail: { ...textStyles.meta },
+    lifecycleTitle: { ...textStyles.sectionLabel },
     lifecycleActions: {
         flexDirection: 'row',
         flexWrap: 'wrap',

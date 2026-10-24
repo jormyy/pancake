@@ -303,9 +303,10 @@ export function useAuctionDraftRoomController({
     // Countdown tick
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
-        if (!countdownNomination) return
+        if (!countdownNomination || !canRead()) return
 
         const computeDiff = () => {
+            if (!canRead()) return
             const exp = countdownNomination.countdownExpiresAt
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
@@ -333,14 +334,14 @@ export function useAuctionDraftRoomController({
                 .finally(() => { attempt.inFlight = false })
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
-        // (<=10s) styling for the first 500ms while timeLeft is still 0.
+        // (<=10s) styling for the first second while timeLeft is still 0.
         computeDiff()
-        timerRef.current = setInterval(computeDiff, 500)
+        timerRef.current = setInterval(computeDiff, 1_000)
 
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [countdownNomination, draftId, load, canAct])
+    }, [countdownNomination, draftId, load, canAct, canRead, epoch])
 
     // Player search
     useEffect(() => {

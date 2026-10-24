@@ -234,6 +234,11 @@ export default function ProfileScreen() {
         }
     }
     const showTeamSection = Boolean(current) || leagueLoading
+    const revealedOwnerRef = useRef<string | null>(null)
+    const contentReady = (profileLoaded || Boolean(profileError))
+        && (Platform.OS !== 'web' || webPushState?.owner === pushOwner)
+    if (contentReady) revealedOwnerRef.current = pushOwner
+    const contentVisible = revealedOwnerRef.current === pushOwner
 
     const notificationRows: [keyof NotificationPreferences, string][] = [
         ['tradeEnabled', 'Trades'],
@@ -266,7 +271,7 @@ export default function ProfileScreen() {
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView aria-busy={!profileLoaded} accessibilityState={{ busy: !profileLoaded }} style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
+            <ScrollView aria-busy={!contentVisible} aria-hidden={!contentVisible} pointerEvents={contentVisible ? 'auto' : 'none'} accessibilityState={{ busy: !contentVisible }} style={[styles.scroll, !contentVisible && styles.pendingContent]} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
                 <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
@@ -306,7 +311,6 @@ export default function ProfileScreen() {
                                 style={styles.input}
                                 value={displayName}
                                 onChangeText={setDisplayName}
-                                autoFocus
                                 returnKeyType="next"
                                 accessibilityLabel="Display name"
                             />
@@ -356,7 +360,7 @@ export default function ProfileScreen() {
 
                 {/* Native screens are light only, so Appearance is a web setting. */}
                 {Platform.OS === 'web' ? (
-                    <SettingsGroup title="Appearance" footer="Auto matches your device's light or dark setting.">
+                    <SettingsGroup title="Appearance">
                         <View style={styles.themeRow}>
                             <SegmentedControl<ThemePreference>
                                 options={THEME_OPTIONS}
@@ -385,7 +389,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     formColumn: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     scroll: { flex: 1 },
-    scrollContent: { paddingTop: spacing.xl, paddingBottom: spacing['4xl'], gap: spacing.xl },
+    pendingContent: { opacity: 0 },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: spacing['3xl'], gap: spacing.lg },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
     themeRow: { padding: spacing.md },

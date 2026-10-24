@@ -192,13 +192,13 @@ it('rechecks activity and the captured owner after a confirmation closes', async
     }
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe, { canAct: oldOwner })) })
-    await act(async () => { latest.handlePauseDraft() })
+    await act(async () => { latest.handleResetDraft() })
     const confirm = mocks.confirmAction.mock.calls.at(-1)![2] as () => void
     allowed = false
     await act(async () => { renderer.update(React.createElement(Probe, { canAct: () => true })); confirm() })
-    expect(mocks.pauseDraft).not.toHaveBeenCalled()
-    await act(async () => { latest.handlePauseDraft() })
+    expect(mocks.resetDraft).not.toHaveBeenCalled()
+    await act(async () => { latest.handleResetDraft() })
     await act(async () => { (mocks.confirmAction.mock.calls.at(-1)![2] as () => void)() })
-    expect(mocks.pauseDraft).toHaveBeenCalledExactlyOnceWith('draft')
+    expect(mocks.resetDraft).toHaveBeenCalledExactlyOnceWith('draft')
     await act(async () => { renderer.unmount() })
 })
