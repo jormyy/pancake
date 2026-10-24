@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { useFocusEffect } from '@react-navigation/native'
+import { useIsFocused } from '@react-navigation/native'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
 import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
@@ -67,17 +67,16 @@ function useScreenResource<Value>(key: string, readEpoch: string, refresh: numbe
 
 export function usePlayerScreenData(playerId: string, leagueId: string | null, options: { ownerKey?: string; authorized?: boolean; scoringSettings?: unknown } = {}) {
     const activity = useBrowserReadActivity()
-    const [routeActivity, setRouteActivity] = useState({ focused: false, revision: 0 })
-    useFocusEffect(useCallback(() => {
-        setRouteActivity(previous => ({ focused: true, revision: previous.revision + 1 }))
-        return () => setRouteActivity(previous => ({ focused: false, revision: previous.revision + 1 }))
-    }, []))
-    const focused = routeActivity.focused
+    const focused = useIsFocused()
+    const routeActivity = useRef({ focused, revision: 0 })
+    if (routeActivity.current.focused !== focused) {
+        routeActivity.current = { focused, revision: routeActivity.current.revision + 1 }
+    }
     const owner = options.ownerKey ?? sessionOwner() ?? 'anonymous'
     const generation = sessionGeneration()
     const resourceKey = JSON.stringify([owner, generation, leagueId, playerId])
     const authorized = options.authorized !== false
-    const readEpoch = JSON.stringify([resourceKey, routeActivity.revision, activity.revision, authorized])
+    const readEpoch = JSON.stringify([resourceKey, routeActivity.current.revision, activity.revision, authorized])
     const admission = useRef<() => boolean>(() => false)
     admission.current = () => focused && authorized && sessionGeneration() === generation && activity.isCurrent(activity.revision)
     const epochRef = useRef(readEpoch)
@@ -130,7 +129,10 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const readPlayer = useCallback(() => getPlayer(playerId), [playerId])
     const readSeasons = useCallback(() => getAvailableSeasons(playerId), [playerId])
     const readLines = useCallback(() => getPlayerSeasonLines(playerId, selectedSeason), [playerId, selectedSeason])
-    const readScoring = useCallback(() => leagueId ? getPlayerScoringSettings(leagueId) : Promise.resolve(null), [leagueId])
+    const suppliedScoringKey = JSON.stringify(options.scoringSettings ?? null)
+    const readScoring = useCallback(() => suppliedScoringKey !== 'null' && refreshes.scoring === 0
+        ? Promise.resolve(JSON.parse(suppliedScoringKey) as unknown)
+        : leagueId ? getPlayerScoringSettings(leagueId) : Promise.resolve(null), [leagueId, suppliedScoringKey, refreshes.scoring])
     const readProjection = useCallback(() => leagueId ? getPlayerProjection(playerId, leagueId) : Promise.resolve(null), [playerId, leagueId])
     const readTransactions = useCallback(() => leagueId ? getPlayerTransactionHistory(playerId, leagueId) : Promise.resolve(EMPTY_TRANSACTIONS), [playerId, leagueId])
     const player = useScreenResource(resourceKey, readEpoch, refreshes.profile, cache?.player, readPlayer, canRead)
@@ -173,6 +175,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const handleSeasonSelect = useCallback((year: number) => setSelection({ key: resourceKey, year }), [resourceKey])
     return {
         canRead, readEpoch, isCurrentRead, rosterRevision: refreshes.roster,
+        initialSettled: player.settled && seasons.settled && lines.settled && scoringSettings.settled && projection.settled && history.settled,
         player: player.value ?? null, loading: !player.settled, playerError: player.error,
         playedToday: summary.games.some(game => game.gameDate === todayET() && !game.didNotPlay),
         availableSeasons, selectedSeason, handleSeasonSelect,

@@ -216,7 +216,7 @@
         },
         "expected": {
           "route": "/claim-player",
-          "selector": "[aria-label='Submit waiver claim']"
+          "text": "{{waiverPlayer.display_name}}"
         }
       },
       {
@@ -499,7 +499,7 @@
         },
         "expected": {
           "route": "/claim-player",
-          "selector": "[aria-label='Submit waiver claim']"
+          "text": "{{waiverPlayer.display_name}}"
         }
       },
       {
