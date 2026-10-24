@@ -6,6 +6,7 @@ RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
+SET lock_timeout = '2s'
 AS $$
 DECLARE v_run public.projection_sync_runs%ROWTYPE; v_count integer;
 BEGIN
@@ -20,6 +21,21 @@ BEGIN
     WHERE r.season_year IS DISTINCT FROM v_run.season_year OR r.week_number IS DISTINCT FROM v_run.week_number) THEN
     RAISE EXCEPTION 'Sleeper rows do not match their run';
   END IF;
+  PERFORM pg_advisory_xact_lock(hashtextextended('sleeper-projections:'||v_run.season_year||':'||v_run.week_number,0));
+  IF EXISTS (SELECT 1 FROM public.projection_sync_runs newer
+    WHERE newer.source='sleeper' AND newer.projection_type=v_run.projection_type
+      AND newer.season_year=v_run.season_year AND newer.week_number=v_run.week_number
+      AND newer.status='success' AND newer.completed_at IS NOT NULL AND newer.started_at>v_run.started_at) THEN
+    UPDATE public.projection_sync_runs SET status='skipped',completed_at=now(),row_count=p_row_count,
+      matched_count=jsonb_array_length(p_rows),unmatched_count=p_unmatched_count,http_status=p_http_status,
+      source_metadata=p_metadata||'{"supersededSnapshot":true}'::jsonb WHERE id=p_run_id;
+    RETURN 0;
+  END IF;
+  DELETE FROM public.sleeper_projection_rows stored
+  WHERE stored.season_year=v_run.season_year AND stored.week_number=v_run.week_number
+    AND stored.game_date>=(now() AT TIME ZONE 'America/New_York')::date
+    AND NOT EXISTS (SELECT 1 FROM jsonb_to_recordset(p_rows) incoming(player_id uuid,source_game_id text)
+      WHERE incoming.player_id=stored.player_id AND incoming.source_game_id=stored.source_game_id);
   INSERT INTO public.sleeper_projection_rows AS stored (player_id, source_game_id, sleeper_id, season_year, week_number, game_date, team, opponent, points, rebounds, assists, steals, blocks, three_pointers_made, turnovers, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, three_pointers_attempted, minutes, double_doubles, triple_doubles, last_modified)
   SELECT player_id, source_game_id, sleeper_id, season_year, week_number, game_date, team, opponent, points, rebounds, assists, steals, blocks, three_pointers_made, turnovers, field_goals_made, field_goals_attempted, free_throws_made, free_throws_attempted, three_pointers_attempted, minutes, double_doubles, triple_doubles, last_modified FROM jsonb_populate_recordset(NULL::public.sleeper_projection_rows,p_rows)
   ON CONFLICT (player_id, source_game_id) DO UPDATE SET

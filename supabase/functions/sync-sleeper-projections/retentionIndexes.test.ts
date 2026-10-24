@@ -13,6 +13,11 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   plans.push(`SELECT pg_temp.check_plan('SELECT id FROM public.sleeper_projection_rows WHERE game_date<current_date-7 ORDER BY game_date,id LIMIT 10000','sleeper_projection_rows_date');`)
   plans.push(`SELECT pg_temp.check_plan('SELECT id FROM public.fantasypros_projection_rows WHERE run_id=''11111111-0000-0000-0000-000000000001'' ORDER BY id LIMIT 500 FOR UPDATE SKIP LOCKED','fantasypros_projection_rows_run');`)
   plans.push(`SELECT pg_temp.check_plan('SELECT id FROM public.projection_sync_runs WHERE projection_period_end<current_date-7 ORDER BY projection_period_end,id LIMIT 200','projection_sync_runs_retention_period');`)
+  const completion = await Deno.readTextFile(new URL('../../sql/functions/by-name/public/complete_sleeper_projection_sync.sql', import.meta.url))
+  const snapshotDelete = completion.match(/DELETE FROM public\.sleeper_projection_rows stored[\s\S]*?;/)?.[0]
+  assert.ok(snapshotDelete)
+  const scopedDelete = snapshotDelete.replaceAll('v_run.season_year', '2097').replaceAll('v_run.week_number', '2').replaceAll('p_rows', "'[]'::jsonb")
+  plans.push(`SELECT pg_temp.check_plan(${quoted(scopedDelete)},'sleeper_projection_rows_week');`)
   const sql = `BEGIN;
   SET LOCAL statement_timeout='30s';
   CREATE TEMP TABLE retention_plans(plan jsonb);
@@ -40,13 +45,16 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   SELECT 'index-fixture-'||(n%100),now()-interval '40 days',now()-interval '40 days',
     CASE WHEN n%2=0 THEN 200 ELSE 500 END,CASE WHEN n%2=0 THEN NULL ELSE 'fixture' END
   FROM generate_series(1,400) n;
+  INSERT INTO public.edge_invocations(function_name,queued_at,reconciled_at,status_code,worker_status,worker_started_at)
+  SELECT 'index-fixture-'||(n%100),now()-interval '40 days',now()-interval '40 days',200,'failed',now()-interval '40 days'
+  FROM generate_series(1,400) n;
   INSERT INTO cron.job_run_details(jobid,runid,status,start_time,end_time)
   SELECT 9999999,2000000000+n,'succeeded',now()-interval '1 hour',now()-interval '1 hour' FROM generate_series(1,10000) n;
   INSERT INTO public.players(id,first_name,last_name,position) VALUES('11111111-0000-0000-0000-000000000002','Index','Fixture','PG');
   INSERT INTO public.sleeper_projection_rows(player_id,source_game_id,sleeper_id,season_year,week_number,game_date,team,opponent,
     points,rebounds,assists,steals,blocks,three_pointers_made,turnovers,field_goals_made,field_goals_attempted,
     free_throws_made,free_throws_attempted,three_pointers_attempted,minutes,last_modified)
-  SELECT '11111111-0000-0000-0000-000000000002',n::text,'index-fixture',2097,1,
+  SELECT '11111111-0000-0000-0000-000000000002',n::text,'index-fixture',2097,CASE WHEN n>9980 THEN 2 ELSE 1 END,
     CASE WHEN n<=20 THEN current_date-14 ELSE current_date END,'BOS','NYK',0,0,0,0,0,0,0,0,0,0,0,0,0,1
   FROM generate_series(1,10000) n;
   INSERT INTO public.projection_sync_runs(id,projection_type,source_url,projection_date)

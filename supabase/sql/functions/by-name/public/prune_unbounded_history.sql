@@ -57,9 +57,9 @@ BEGIN
   LOOP
     WITH victims AS (
       SELECT r.id FROM public.edge_invocations r
-      WHERE (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299 OR error_message IS NOT NULL OR worker_status='failed') AND reconciled_at IS NOT NULL AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL) AND worker_status IS DISTINCT FROM 'running' AND reconciled_at<now()-interval '30 days'
+      WHERE (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299 OR error_message IS NOT NULL OR worker_status='failed') AND reconciled_at IS NOT NULL AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL OR worker_status='failed') AND worker_status IS DISTINCT FROM 'running' AND reconciled_at<now()-interval '30 days'
         AND r.id<>(SELECT newest.id FROM public.edge_invocations newest
-          WHERE newest.function_name=r.function_name AND (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299 OR error_message IS NOT NULL OR worker_status='failed') AND reconciled_at IS NOT NULL AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL) AND worker_status IS DISTINCT FROM 'running'
+          WHERE newest.function_name=r.function_name AND (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299 OR error_message IS NOT NULL OR worker_status='failed') AND reconciled_at IS NOT NULL AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL OR worker_status='failed') AND worker_status IS DISTINCT FROM 'running'
           ORDER BY newest.queued_at DESC,newest.id DESC LIMIT 1)
       ORDER BY reconciled_at,r.id LIMIT 500 FOR UPDATE SKIP LOCKED
     ) DELETE FROM public.edge_invocations r USING victims v WHERE r.id=v.id;

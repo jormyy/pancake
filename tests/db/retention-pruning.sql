@@ -149,6 +149,14 @@ INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,recon
 OVERRIDING SYSTEM VALUE VALUES
   (986080009,'unknown-new-source',now()-interval '121 days',200,NULL,NULL,NULL,NULL),
   (986080010,'unknown-new-source',now()-interval '121 days',200,now()-interval '121 days',now()-interval '121 days',NULL,'running');
+INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,reconciled_at,worker_started_at,worker_status)
+OVERRIDING SYSTEM VALUE VALUES
+  (986080011,'crashed-worker',now()-interval '61 days',200,now()-interval '61 days',now()-interval '61 days','failed'),
+  (986080012,'crashed-worker',now()-interval '60 days',200,now()-interval '60 days',now()-interval '60 days','failed'),
+  (986080013,'crashed-worker-boundary',now()-interval '31 days',200,now()-interval '31 days',now()-interval '31 days','failed'),
+  (986080014,'crashed-worker-boundary',now()-interval '30 days',200,now()-interval '30 days',now()-interval '30 days','failed'),
+  (986080015,'crashed-worker-boundary',now()-interval '29 days',200,now()-interval '29 days',now()-interval '29 days','failed'),
+  (986080016,'crashed-worker',now()-interval '120 days',200,NULL,now()-interval '120 days','failed');
 CREATE TEMP TABLE retention_before AS SELECT
   (SELECT count(*) FROM public.sync_runs) AS sync_runs,
   (SELECT count(*) FROM public.edge_invocations) AS edge_invocations,
@@ -196,6 +204,10 @@ SELECT pg_temp.check_history((SELECT count(*)=8 FROM public.sync_runs WHERE func
   'every function retains its newest success and failure even when both are old');
 SELECT pg_temp.check_history((SELECT count(*)=10 FROM public.edge_invocations WHERE function_name IN('nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source')),
   'every invocation source retains newest outcomes and pending reconciliation work');
+SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id IN(986080011,986080013)),
+  'reconciled crashed workers expire after thirty days without a finish time');
+SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.edge_invocations WHERE id IN(986080012,986080014,986080015,986080016)),
+  'newest crashed failure, cutoff boundary, recent failure, and unreconciled crash survive');
 SELECT pg_temp.check_history((SELECT bool_and((:'prune_result'::jsonb->>entry.key)::bigint=entry.before_count-entry.after_count)
   FROM retention_before b CROSS JOIN LATERAL (VALUES
     ('sync_runs',b.sync_runs,(SELECT count(*) FROM public.sync_runs)),

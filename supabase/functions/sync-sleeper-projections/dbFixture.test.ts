@@ -20,6 +20,7 @@ Deno.test({ name: 'recorded Sleeper pulls update in place and preserve rows on f
   const league = crypto.randomUUID()
   let user: string | null = null
   const runs: string[] = []
+  const games: string[] = []
   const query = async <T>(operation: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> => {
     const { data, error } = await operation
     if (error) throw new Error(error.message)
@@ -42,6 +43,14 @@ Deno.test({ name: 'recorded Sleeper pulls update in place and preserve rows on f
     await query(client.from('players').insert(fixture.map((r: { player_id: string; player: { first_name: string; last_name: string }; team: string }, i: number): Database['public']['Tables']['players']['Insert'] => ({
       id: ids[i], sleeper_id: r.player_id, first_name: r.player.first_name, last_name: r.player.last_name, nba_team: r.team, position: 'PG',
     }))))
+    const pairs = new Map<string, { date: string; team: string; opponent: string }>()
+    for (const row of fixture) pairs.set(`${row.date}:${[row.team, row.opponent].sort().join(':')}`, row)
+    for (const [i, row] of [...pairs.values()].entries()) {
+      const game = `0029709${String(i).padStart(3, '0')}`
+      await query(client.from('nba_games').insert({ nba_game_id: game, season_year: 2027, week_number: 1, game_date: row.date,
+        game_time: `${row.date}T23:00:00Z`, home_team: row.team, away_team: row.opponent, status: 'Scheduled' }))
+      games.push(game)
+    }
     const backup = crypto.randomUUID()
     runs.push(backup)
     await query(client.from('projection_sync_runs').insert({ id: backup, source: 'fantasypros', projection_type: 'daily', source_url: 'https://www.fantasypros.com/nba/projections/daily-overall.php', season_year: 2027, projection_date: '2026-10-20' }))
@@ -79,6 +88,7 @@ Deno.test({ name: 'recorded Sleeper pulls update in place and preserve rows on f
     if (runs.length) await query(client.from('projection_sync_runs').delete().in('id', runs))
     await query(client.from('leagues').delete().eq('id', league))
     await query(client.from('players').delete().in('id', ids))
+    if (games.length) await query(client.from('nba_games').delete().in('nba_game_id', games))
     if (user) { const { error } = await client.auth.admin.deleteUser(user); if (error) throw error }
   }
 } })

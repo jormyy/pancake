@@ -57,7 +57,8 @@ Inspect table size, dead tuples, and reconciliation time when reviewing its freq
 Weekly cleanup covers every cron job and function name, including deleted cron jobs.
 Successful records expire after seven days. Failed records expire after thirty days.
 Each function keeps its newest success and failure, even when both are older.
-Unreconciled and unfinished invocations remain protected.
+Unreconciled and running invocations remain protected.
+A reconciled failed worker is terminal, even when its finish time is absent.
 League history, NBA stats, games, and news remain unchanged.
 
 ## External failure alerts
@@ -124,6 +125,8 @@ FantasyPros refreshes at 08:00 and 15:00 Pacific.
 
 Sleeper stores one row per matched player and source game.
 A pull updates that row only when its source revision is at least as new.
+Each weekly snapshot removes absent rows for today and later dates in the same transaction.
+Earlier dates remain until weekly cleanup. A late older snapshot cannot replace a newer successful snapshot.
 Player matching uses Sleeper IDs first, then a unique normalized name and team when the player lacks an ID.
 Runs record parsed, matched, and unmatched counts. Metadata includes input and rejected row counts.
 Up to thirty unmatched identities aid diagnosis.
@@ -136,6 +139,7 @@ Recorded fixtures retain both complete public weeks fetched on 2026-10-23.
 Tests make no live provider requests.
 
 Readers prefer Sleeper for each game, including the player screen's next game.
+A Sleeper row must match the player's current team and a regular scheduled matchup.
 Weekly totals sum game lines. Weekly averages divide by the number of covered games.
 Missing games use FantasyPros, then the existing internal and season-average fallbacks.
 FantasyPros totals divide by their reported game count before filling a missing game.

@@ -115,7 +115,7 @@ The fixture test pulls four recorded rows twice and verifies stable IDs, updated
 The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
 Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
 Retention checks protect all league and NBA tables with write-rejecting triggers.
-Index checks run the actual log deletion statements against 50,400-row fixtures and inspect their execution plans.
+Index checks run actual log and snapshot deletion statements against populated fixtures and inspect their execution plans.
 They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
 All fixture writes use the isolated local project. SQL checks roll back.
 
@@ -124,9 +124,9 @@ All fixture writes use the isolated local project. SQL checks roll back.
 A fresh isolated install applies 428 migrations through `20261020000004`.
 `npm run test:db` passes all 144 commands with the database job's settings from `.github/workflows/test.yml`.
 The focused projection, schedule, fixture, index, and concurrency commands also pass after that run.
-Projection SQL verifies 24 cases. Scheduling verifies 18, including recovery without stored rows after Monday retries fail.
+The initial projection SQL verifies 24 cases. Scheduling verifies 18, including recovery without stored rows after Monday retries fail.
 The fixture keeps four player-game rows after a second pull and returns zero for a sit despite a FantasyPros projection of 100.
-The index check verifies eight execution plans. Concurrency checks confirm cleanup skips locked rows while new writes continue.
+The initial index check verifies eight execution plans. Concurrency checks confirm cleanup skips locked rows while new writes continue.
 The lifecycle catalog and resource-hint checks verify service-role compaction permissions.
 
 The parser accepts all 2,330 recorded rows from two full weeks without rejection.
@@ -137,6 +137,15 @@ Source recovery passes 58 tests across seven configured sources. Selected Vitest
 `security:audit` passes after lockfile updates and removal of the stale braces exception.
 The original parser, refresh gate, trigger permissions, and audit state reproduce their reported failures before repair.
 
-The test selector leaves SQL unmapped. The focused SQL commands and full database run cover those changes.
+The snapshot correction applies migration `20261020000005` to that isolated install.
+The nine focused database commands pass, including 35 projection cases, 22 retention cases, and nine indexed plans.
+Tests reproduce both reported failures before repair.
+Snapshot tests cover team changes, absent upcoming games, retained past dates, late completions, reader filters, hints, and optimizer inputs.
+Retention tests cover crashed workers, the thirty-day boundary, newest-failure protection, and unreconciled work.
+Release and catalog contracts pass 103 tests. Edge checks pass 252 tests.
+The required source, catalog, type, Edge, and quality checks pass after the correction.
+The full database suite is not repeated for this focused correction.
+
+The test selector leaves SQL unmapped. Focused SQL commands cover the correction; the full database run covers preceding migrations.
 The full frontend suite and release build remain for integration.
 No production operation runs. The isolated stack stops, and the normal project ID and ports are restored.

@@ -534,12 +534,12 @@ sleeper_games AS (
   JOIN league l ON true
   CROSS JOIN args
   LEFT JOIN week_ctx wc ON true
-  WHERE r.season_year = p_season_year
+  WHERE r.season_year = p_season_year AND r.team = bp.nba_team
+    AND EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year=p_season_year
+      AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
+      AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent))
     AND (args.view_name = 'today' AND r.game_date = COALESCE(ng.next_game_date,args.game_date)
-      OR args.view_name <> 'today' AND r.week_number = wc.week_number
-        AND EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year=p_season_year
-          AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
-          AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent)))
+      OR args.view_name <> 'today' AND r.week_number = wc.week_number)
 ),
 sleeper_totals AS (
   SELECT player_id, count(*)::integer AS games, sum(fantasy_points) AS fantasy_points,
