@@ -41,7 +41,7 @@ A catalog pass does not waive compatibility, artifact, source-health, or release
 
 ## Sleeper projection contract
 
-Migrations `20261020000001` through `20261020000006` retain existing projection read signatures and result columns.
+Migrations `20261020000001` through `20261020000007` retain existing projection read signatures and result columns.
 Authenticated clients can read `sleeper_projection_rows`; only the backend can call `complete_sleeper_projection_sync`.
 Private cleanup helpers retain restricted access.
 The canonical function catalog records current definitions, owners, and grants.

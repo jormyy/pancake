@@ -107,7 +107,7 @@ Local recovery evidence does not establish production lock availability or devic
 
 ## Candidate migrations
 
-Migrations `20261020000001` through `20261020000006` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
+Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
 They do not extend the historical alias attestations or approved release range above.
 The release-history and database catalog attestations require review for all later migrations before production release.
 The canonical function catalog records current completion and cleanup helpers separately.
@@ -120,6 +120,7 @@ The canonical function catalog records current completion and cleanup helpers se
 | `20261020000004` | Keeps game-day recovery independent of Monday; fixes compaction trigger permissions |
 | `20261020000005` | Replaces absent upcoming snapshot games; excludes old-team lines; expires reconciled worker crashes |
 | `20261020000006` | Preserves filtered source rows and prior-team games; returns projection freshness |
+| `20261020000007` | Guards snapshot replacement below 70% upcoming coverage; retains accepted updates and records failure |
 
 Apply the schema before deploying `sync-sleeper-projections`.
 The scheduler retains dispatch claims and invocation reconciliation.

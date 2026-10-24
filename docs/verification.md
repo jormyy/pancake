@@ -127,6 +127,8 @@ They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.
 All fixture writes use the isolated local project. SQL checks roll back.
 
 The fixture checks also cover rejected and unmatched source rows, absent-game removal, and historical games after team changes.
+Coverage checks verify updates without deletion below 70%, retained projected sits, failed-run diagnostics, and recovery.
+SQL cases check the 70% boundary, an empty upcoming store, and exclusion of past games and other weeks.
 Freshness cases cover the 36-hour boundary, source precedence, and returned timestamps.
 Concurrency checks hold row locks while cleanup and new writes run together.
 Keep generated results with the release evidence; rerun checks for the candidate under review.

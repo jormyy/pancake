@@ -83,7 +83,7 @@ The stamper gives that entry a digest-based URL so returning browsers load the m
 
 The configured Edge inventory includes `sync-sleeper-projections`.
 Include it in the stamped Edge artifact with the other functions.
-Apply migrations `20261020000001` through `20261020000006` before deploying that artifact.
+Apply migrations `20261020000001` through `20261020000007` before deploying that artifact.
 Projection read RPC shapes remain compatible with the existing frontend.
 Source-health evidence covers active Sleeper projections and the separate dormant Sleeper player fallback.
 The [release gates](verification.md#release-gates) require reviewed attestations before this migration range can reach production.

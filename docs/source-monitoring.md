@@ -57,7 +57,7 @@ The game-day gate needs a known future first tipoff.
 `sleeper_projection_rows` holds the newest projection per `(player_id, source_game_id)`.
 It stores no revision history.
 `projection_sync_runs` records attempts, counts, HTTP status, and parser metadata.
-`complete_sleeper_projection_sync` commits a valid snapshot and its success record together.
+`complete_sleeper_projection_sync` commits row changes and their completion record together.
 Only the backend can call it. Authenticated clients can read stored projections.
 
 Completion serializes writes within the season and week.
@@ -65,7 +65,16 @@ A row update requires an equal or newer provider `last_modified` value.
 A snapshot that starts before a newer successful snapshot cannot replace it.
 Such a completion records a skipped, superseded snapshot.
 
-A valid snapshot removes absent source games dated today or later in Eastern Time within the same season and week.
+Completion compares incoming matched player-games with stored player-games dated today or later in Eastern Time for the same season and week.
+Below 70% of the stored upcoming count, the pull inserts or updates received rows and deletes nothing.
+The provider revision rule still applies to each update.
+The run records failure with its row counts and coverage diagnostics.
+`source_metadata.coverageGuard` records `storedUpcoming`, `matchedUpcoming`, `minimumPercent`, and `degraded`.
+The worker reports this failure without overwriting the completion diagnostics.
+Past games and other weeks do not affect the coverage comparison.
+
+At 70% or more, or with no stored upcoming games, normal snapshot replacement runs.
+It removes absent source games dated today or later in Eastern Time within the same season and week.
 This removes stale future games when a team change produces different source game keys.
 Source keys still present in the response protect stored rows rejected during parsing or matching.
 Earlier dates remain until weekly cleanup.
@@ -217,7 +226,8 @@ Completed backfill jobs do not automatically replay. Derived averages follow the
 5. Run recorded recovery checks and one healthy local sync.
 6. Confirm a newer success and complete row counts.
 
-Failures preserve the last good stored data.
+Fetch and parse failures preserve stored data.
+Coverage failures preserve omitted games while applying accepted row updates.
 Notification failures retain retry and dead-letter state.
 Queryable failures do not establish an external alert destination.
 The owner selects a destination and authorizes its delivery integration.
