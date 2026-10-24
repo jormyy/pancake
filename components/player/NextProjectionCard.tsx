@@ -12,7 +12,6 @@ export function NextProjectionCard({ projection }: { projection: LeagueProjectio
         projection_date: projection.next_game_date ?? projection.projection_date,
         projection_source_label: [projection.projection_source_label, projection.projection_is_fresh === false ? 'Outdated' : null].filter(Boolean).join(' · '),
         projection_view: '',
-        projection_fetched_at: null,
         projection_minutes: null,
         projection_points: null,
         projection_rebounds: null,

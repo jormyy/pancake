@@ -175,6 +175,18 @@ describe('player decision summary', () => {
         expect(text()).toContain('Tipoff')
     })
 
+    it.each([true, false])('shows old projection age with backend freshness %s', async fresh => {
+        const projection = {
+            next_game_date: '2026-10-24', next_game_opponent: 'vs BOS', projection_fantasy_points: 32,
+            projection_source_label: 'Sleeper', projection_is_fresh: fresh,
+            projection_fetched_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
+        } as LeagueProjectionRow
+        await render(React.createElement(NextProjectionCard, { projection }))
+        expect(text()).toContain('3d')
+        if (fresh) expect(text()).not.toContain('Outdated')
+        else expect(text()).toContain('Outdated')
+    })
+
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {
         await render(React.createElement(StatsOverview, {
             averages, seasonYear: 2027, avgFantasyPoints: 42.3, columns: 5,
