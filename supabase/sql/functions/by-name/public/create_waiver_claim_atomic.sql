@@ -114,7 +114,7 @@ BEGIN
   IF v_league.waiver_mode = 'rolling' THEN
     v_bid_amount := 0;
   ELSE
-    v_balance := private.ensure_faab_balance(p_league_id, v_season_id, p_member_id);
+    v_balance := private.available_faab_balance(p_league_id, v_season_id, p_member_id);
     IF v_bid_amount > v_balance THEN
       RAISE EXCEPTION 'FAAB bid exceeds your available balance.'
         USING ERRCODE = 'P0001';

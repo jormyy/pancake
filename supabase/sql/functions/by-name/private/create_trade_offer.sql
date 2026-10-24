@@ -241,7 +241,7 @@ BEGIN
   END IF;
 
   IF v_offer_faab_amount > 0 THEN
-    v_balance := private.ensure_faab_balance(p_league_id, p_league_season_id, p_proposer_member_id);
+    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, p_proposer_member_id);
     IF v_balance < v_offer_faab_amount THEN
       RAISE EXCEPTION 'Offered FAAB exceeds the proposer''s available balance.'
         USING ERRCODE = 'P0001';
@@ -249,7 +249,7 @@ BEGIN
   END IF;
 
   IF v_request_faab_amount > 0 THEN
-    v_balance := private.ensure_faab_balance(p_league_id, p_league_season_id, p_recipient_member_id);
+    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, p_recipient_member_id);
     IF v_balance < v_request_faab_amount THEN
       RAISE EXCEPTION 'Requested FAAB exceeds the recipient''s available balance.'
         USING ERRCODE = 'P0001';

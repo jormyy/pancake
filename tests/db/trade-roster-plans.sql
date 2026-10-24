@@ -132,7 +132,7 @@ BEGIN
   PERFORM complete_accepted_trade_atomic(trade);
   PERFORM pg_temp.check_plan((SELECT member_id=members[2] AND is_on_taxi AND taxi_start_season_year=8299 FROM roster_players WHERE league_season_id=season AND player_id=v_players[1]),'completion transfers taxi with unchanged tenure');
   PERFORM pg_temp.check_plan((SELECT member_id=members[1] AND is_on_ir FROM roster_players WHERE league_season_id=season AND player_id=v_players[2]),'IR asset trades straight into receiver IR');
-  PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=season AND player_id=v_players[4]) AND EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_season_id=season AND player_id=v_players[4] AND clears_at BETWEEN now()+interval '47 hours' AND now()+interval '49 hours'),'planned drop executes only at completion into48hour waivers');
+  PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=season AND player_id=v_players[4]) AND EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_season_id=season AND player_id=v_players[4] AND clears_at >= placed_on_waivers_at+interval '48 hours' AND clears_at < placed_on_waivers_at+interval '73 hours' AND (clears_at AT TIME ZONE 'America/New_York')::time = '03:00'::time),'planned drop enters waivers at the first eligible 3 AM ET run');
   PERFORM pg_temp.check_plan((SELECT trades.status='expired' AND completion_failure_reason IS NOT NULL FROM trades WHERE id=other_trade),'overlapping pending trade invalidated with explicit reason');
   PERFORM pg_temp.check_plan((SELECT status='pending' FROM waiver_claims WHERE id=claim),'unaffected waiver claim survives unrelated trade');
   PERFORM cancel_waiver_claim_atomic(claim,members[1],users[1]);

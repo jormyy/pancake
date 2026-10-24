@@ -160,7 +160,7 @@ export default function PlayerDetailScreen() {
         const requestedOwner = ownerIdentity
         confirmAction(
             `Drop ${player.display_name}?`,
-            'They will be placed on waivers for 48 hours.',
+            'They will stay on waivers until the first 3 AM ET run after 48 hours.',
             async () => {
                 if (!isCurrent(generation, requestedOwner)) return
                 setDropping(true)

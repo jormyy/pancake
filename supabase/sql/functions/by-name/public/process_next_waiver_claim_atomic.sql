@@ -230,7 +230,7 @@ BEGIN
       END;
 
       IF v_league.waiver_mode = 'faab' THEN
-        v_faab_balance := private.ensure_faab_balance(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
+        v_faab_balance := private.available_faab_balance(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
         IF v_faab_balance < v_claim.bid_amount THEN
           v_failure := 'Insufficient FAAB budget for this bid.';
           RETURN QUERY SELECT * FROM private.fail_waiver_claim(

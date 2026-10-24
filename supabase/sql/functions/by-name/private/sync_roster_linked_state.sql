@@ -40,23 +40,34 @@ BEGIN
   IF v_left_roster THEN
     v_cancel_claims := private.trade_lifecycle_write_active()
       AND EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades);
-    WITH changed_claims AS (UPDATE waiver_claims
-       SET status = CASE WHEN v_cancel_claims THEN 'cancelled'::waiver_claim_status ELSE status END,
-           failure_reason = CASE WHEN v_cancel_claims THEN 'The selected drop player left this roster in another transaction.' ELSE failure_reason END,
-           processed_at = CASE WHEN v_cancel_claims THEN now() ELSE processed_at END,
-           drop_player_id = NULL
-     WHERE status = 'pending'::waiver_claim_status
-       AND league_id = OLD.league_id
-       AND league_season_id = OLD.league_season_id
-       AND member_id = OLD.member_id
-       AND drop_player_id = OLD.player_id
-     RETURNING id,member_id,failure_reason,status)
-    INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category)
-    SELECT 'trade_claim_cancelled:'||id,id_member,'trade_claim_cancelled','Waiver claim cancelled',failure_reason,
-      jsonb_build_object('claimId',id),'trade'
-    FROM (SELECT id,member_id AS id_member,failure_reason FROM changed_claims WHERE status='cancelled') cancelled
-    WHERE private.trade_lifecycle_write_active()
-    ON CONFLICT (dedupe_key) DO NOTHING;
+    IF v_cancel_claims THEN
+      WITH changed_claims AS (
+        UPDATE waiver_claims
+           SET status = 'cancelled',
+               failure_reason = 'The selected drop player left this roster in another transaction.',
+               processed_at = now(),
+               drop_player_id = NULL
+         WHERE status = 'pending'
+           AND league_id = OLD.league_id
+           AND league_season_id = OLD.league_season_id
+           AND member_id = OLD.member_id
+           AND drop_player_id = OLD.player_id
+         RETURNING id, member_id, failure_reason
+      )
+      INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category)
+      SELECT 'trade_claim_cancelled:'||id,member_id,'trade_claim_cancelled','Waiver claim cancelled',failure_reason,
+        jsonb_build_object('claimId',id),'trade'
+      FROM changed_claims
+      ON CONFLICT (dedupe_key) DO NOTHING;
+    ELSE
+      UPDATE waiver_claims
+         SET drop_player_id = NULL
+       WHERE status = 'pending'
+         AND league_id = OLD.league_id
+         AND league_season_id = OLD.league_season_id
+         AND member_id = OLD.member_id
+         AND drop_player_id = OLD.player_id;
+    END IF;
 
     PERFORM private.expire_pending_trades_for_lost_asset(
       OLD.league_id,

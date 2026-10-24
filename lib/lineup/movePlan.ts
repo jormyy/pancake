@@ -25,7 +25,7 @@ type LineupMovePlan =
           activateRosterPlayerId: string
           activateSource: ActivationSource
           freeRosterPlayerId: string | null
-          freeAction: 'ir' | 'taxi' | null
+          freeAction: 'drop' | 'ir' | null
           slotType: string | null
       }
     | { kind: 'toggle-ir'; rosterPlayerId: string }

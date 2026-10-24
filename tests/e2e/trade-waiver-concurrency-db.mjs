@@ -109,7 +109,7 @@ DO $g$ BEGIN EXECUTE format('GRANT USAGE ON SCHEMA %I TO service_role',
   (SELECT nspname FROM pg_namespace WHERE oid=pg_my_temp_schema())); END $g$;`
 
 async function fixture(control) {
-  const f={control,league:randomUUID(),season:randomUUID(),users:Array.from({length:3},()=>randomUUID()),
+  const f={control,cancelClaims:control==='inactive-trades-positive',league:randomUUID(),season:randomUUID(),users:Array.from({length:3},()=>randomUUID()),
     members:Array.from({length:3},()=>randomUUID()),players:Array.from({length:3},()=>randomUUID()),
     rosters:Array.from({length:3},()=>randomUUID()),claims:[],claim:null,trade:null,wire:null,mayClean:false,
     processDate:'1900-01-03'}
@@ -130,9 +130,9 @@ async function fixture(control) {
       SELECT id,'authenticated','authenticated',id||'@example.test','x',now(),'{}','{}',now(),now()
       FROM unnest(ARRAY[${list(f.users)}]::uuid[]) id;
     INSERT INTO public.leagues(id,name,slug,commissioner_id,status,waiver_mode,trade_deadline,
-      trade_veto_mode,trade_veto_window_hours,roster_size,weekly_add_limit)
+      trade_veto_mode,trade_veto_window_hours,roster_size,weekly_add_limit,allow_inactive_trades)
       VALUES(${quote(f.league)},'Owned trade waiver overlap',${quote(f.league)},${quote(f.users[0])},
-        'active','faab',NULL,'member_vote',24,20,NULL);
+        'active','faab',NULL,'member_vote',24,20,NULL,${f.cancelClaims});
     INSERT INTO public.league_members(id,league_id,user_id,role,team_name)
       SELECT m,${quote(f.league)},u,(CASE WHEN n=1 THEN 'commissioner' ELSE 'manager' END)::public.league_member_role,
         'Owned '||n FROM unnest(ARRAY[${list(f.members)}]::uuid[],ARRAY[${list(f.users)}]::uuid[])
@@ -245,10 +245,11 @@ async function waitOn(pid,blocker,f,settled=()=>false) {
 async function retryWaiver(f) {
   const w=open(f.control+'-retry-waiver'); await w.query(helpers)
   try {
-    await prepareWaiver(w,f,[f.lower])
-    const r=parse(await w.query(waiverCall(f,[f.lower])))
+    const remaining=f.cancelClaims?[f.lower]:[f.claim,f.lower]
+    await prepareWaiver(w,f,remaining)
+    const r=parse(await w.query(waiverCall(f,remaining)))
     assert.equal(r.ok,true); assert.equal(r.rows.length,1)
-    assert.equal(r.rows[0].claim_id,f.lower)
+    assert.equal(r.rows[0].claim_id,f.cancelClaims?f.lower:f.claim)
     assert.equal(r.rows[0].status,'succeeded')
     return r
   } finally {await w.close()}
@@ -261,7 +262,7 @@ function assertComplete(s,f) {
 
 try {
   bindSource(); await root.query(helpers)
-  for(const control of ['completion-waiver-overlap','waiting-waiver-rolls-back','uncontended-positive']) {
+  for(const control of ['completion-waiver-overlap','waiting-waiver-rolls-back','uncontended-positive','inactive-trades-positive']) {
     const f=await fixture(control),c=open(control+'-completion'),w=open(control+'-waiver'),barrier=open(control+'-roster-barrier')
     await c.query(helpers); await w.query(helpers)
     const cPid=Number(await c.query('SELECT pg_backend_pid();')),wPid=Number(await w.query('SELECT pg_backend_pid();'))
@@ -269,12 +270,13 @@ try {
     const before=parse(await root.query(stateSql(f)))
     let pendingC,pendingW,resultC,resultW,wSettled=false
     try {
-      if(control==='uncontended-positive') {
+      if(control.endsWith('positive')) {
         resultC=parse(await c.query(`BEGIN; SET LOCAL ROLE service_role;
           SELECT pg_temp.capture_complete(${quote(f.trade)}); COMMIT;`))
         assert.equal(resultC.ok,true)
         const completed=parse(await root.query(stateSql(f))); assertComplete(completed,f)
         assert.equal(completed.claims.find((r)=>r.id===f.claim).drop_player_id,null)
+        assert.equal(completed.claims.find((r)=>r.id===f.claim).status,f.cancelClaims?'cancelled':'pending')
         resultW=await retryWaiver(f)
       } else {
         assert.equal(await barrier.query(`BEGIN; SELECT id FROM public.roster_players
@@ -314,6 +316,7 @@ try {
           resultC=parse(done.output); assert.equal(resultC.ok,true)
           const completed=parse(await root.query(stateSql(f))); assertComplete(completed,f)
           assert.equal(completed.claims.find((r)=>r.id===f.claim).drop_player_id,null)
+          assert.equal(completed.claims.find((r)=>r.id===f.claim).status,f.cancelClaims?'cancelled':'pending')
           resultW=await retryWaiver(f)
           print('actual-waiver-rollback-control',{resultC,resultW,ownCancellation:!waiverWait.settled,
             earlyBusyDeferral:Boolean(waiverWait.settled)})
@@ -334,7 +337,7 @@ try {
             if(resultW.rows.length===0) assert.equal(expected,'repaired','Only repaired busy deferral may return no claim')
             else {
               assert.equal(resultW.rows.length,1)
-              assert.equal(resultW.rows[0].claim_id,f.lower)
+              assert.equal(resultW.rows[0].claim_id,f.cancelClaims?f.lower:f.claim)
               assert.equal(resultW.rows[0].status,'succeeded')
             }
           }
@@ -342,7 +345,7 @@ try {
           if(!resultW.ok || resultW.rows.length===0) {
             if(!resultW.ok) assert(['40P01','40001'].includes(resultW.sqlstate))
             const completed=parse(await root.query(stateSql(f))); assertComplete(completed,f)
-            assert.equal(completed.claims.find((r)=>r.id===f.claim).status,'cancelled')
+            assert.equal(completed.claims.find((r)=>r.id===f.claim).status,f.cancelClaims?'cancelled':'pending')
             assert.equal(completed.claims.find((r)=>r.id===f.claim).drop_player_id,null)
             resultW=await retryWaiver(f)
           }
@@ -350,17 +353,19 @@ try {
       }
       const after=parse(await root.query(stateSql(f))); assertComplete(after,f)
       const finalClaim=after.claims.find((r)=>r.id===f.claim)
-      assert.equal(finalClaim.status,'cancelled')
+      const winner=f.cancelClaims?f.lower:f.claim
+      assert.equal(finalClaim.status,f.cancelClaims?'cancelled':'succeeded')
       assert.ok(finalClaim.processed_at)
-      assert.match(finalClaim.failure_reason,/selected drop player left/); assert.equal(finalClaim.drop_player_id,null)
-      assert.equal(after.claims.find((r)=>r.id===f.lower).status,'succeeded',
-        'Only the remaining eligible claim wins after settlement cancels the traded drop')
+      if(f.cancelClaims) assert.match(finalClaim.failure_reason,/selected drop player left/)
+      else assert.equal(finalClaim.failure_reason,null)
+      assert.equal(finalClaim.drop_player_id,null)
+      assert.equal(after.claims.find((r)=>r.id===f.lower).status,f.cancelClaims?'succeeded':'failed_priority')
       assert.equal(after.rosters.length,3)
-      assert.equal(after.rosters.find((r)=>r.player_id===f.players[2]).member_id,f.members[2])
+      assert.equal(after.rosters.find((r)=>r.player_id===f.players[2]).member_id,f.cancelClaims?f.members[2]:f.members[0])
       assert(after.rosters.every((r)=>!r.is_on_ir && !r.is_on_taxi))
       assert(after.balances.every((r)=>r.balance===100))
       assert.ok(after.wire.find((r)=>r.id===f.wire).cleared_at)
-      assert.equal(after.wire.find((r)=>r.id===f.wire).claimed_by_claim_id,f.lower)
+      assert.equal(after.wire.find((r)=>r.id===f.wire).claimed_by_claim_id,winner)
       assert.equal(after.transactions,6,'One actual initial drop, four trade rows, one waiver add')
       print('actual-trade-waiver-final',{expected,control,after})
     } finally {

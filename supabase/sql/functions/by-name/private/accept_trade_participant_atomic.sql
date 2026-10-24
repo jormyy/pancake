@@ -162,7 +162,7 @@ BEGIN
        AND item.faab_amount > 0
      GROUP BY 1
   LOOP
-    v_balance := private.ensure_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member);
+    v_balance := private.available_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member, p_trade_id);
     IF v_balance < v_item_faab_amount THEN
       RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.';
     END IF;

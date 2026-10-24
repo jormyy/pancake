@@ -239,7 +239,7 @@ BEGIN
      WHERE faab_amount > 0
      GROUP BY from_member_id
   LOOP
-    v_balance := private.ensure_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
+    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
     IF v_balance < v_faab.amount THEN
       RAISE EXCEPTION 'Offered FAAB exceeds a participant''s available balance.'
         USING ERRCODE = 'P0001';

@@ -107,7 +107,7 @@ BEGIN
     LEFT JOIN players AS player ON player.id = activity.related_player_id
     WHERE activity.league_id = p_league_id
       AND activity.event_type NOT IN ('trade_block_updated', 'free_agent_added')
-      AND (activity.event_type NOT IN ('trade_offered', 'trade_countered', 'trade_edited')
+      AND (activity.event_type NOT IN ('trade_offered', 'trade_countered', 'trade_edited', 'trade_expired')
         OR private.can_read_trade(activity.related_trade_id))
   )
   SELECT
