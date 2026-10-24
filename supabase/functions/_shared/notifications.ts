@@ -5,8 +5,6 @@ import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
 export type { NotificationMessage, NotifyMembers } from './notificationDelivery.ts'
 
-const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
-
 /** VAPID credentials for PWA push; null (web push disabled) until all three secrets are set. */
 export function webPushVapidKeys(): VapidKeys | null {
   const publicKey = Deno.env.get('WEB_PUSH_VAPID_PUBLIC_KEY')?.trim()
@@ -56,16 +54,6 @@ export const notifyMember = createNotifyMember({
       .maybeSingle()
     return { data, error }
   },
-  profile: async (userId) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('push_token')
-      .eq('id', userId)
-      .single()
-    return { data, error }
-  },
-  send: (url, init) => fetch(url, init),
-  pushUrl: EXPO_PUSH_URL,
   webPush: webPushFanout,
 })
 
@@ -84,21 +72,5 @@ export const notifyMembers = createNotifyMembers({
       .in('user_id', userIds)
     return { data, error }
   },
-  profiles: async (userIds) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, push_token')
-      .in('id', userIds)
-    return { data, error }
-  },
-  invalidateToken: async (userId, token) => {
-    const { data, error } = await supabase.rpc('clear_push_token_for_user_atomic', {
-      p_user_id: userId,
-      p_token: token,
-    })
-    return { data: data ?? false, error }
-  },
-  send: (url, init) => fetch(url, init),
-  pushUrl: EXPO_PUSH_URL,
   webPush: webPushFanout,
 })

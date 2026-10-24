@@ -3,11 +3,7 @@ import { assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
-import {
-  loadCdnPlayerResolver,
-  resolveCdnPlayers,
-  type CdnPlayerResolver,
-} from './playerResolver.ts'
+import { resolveCdnPlayers } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
 import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
@@ -17,14 +13,6 @@ export type StatsSyncGame = Pick<
   'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
 >
 
-// How long a Final game's synced stats stay fresh before we re-fetch its box
-// score. Live-poll calls syncStatsForDates every minute during live windows;
-// without this fence every already-Final game (all of yesterday's plus today's
-// finished games) got a CDN box-score fetch and a full player_game_stats
-// read/diff per tick. A 30-minute recheck cadence still catches NBA stat
-// corrections promptly, and the daily/weekly correction paths
-// (syncStatsForCompletedWeeks' 4-day window) flow through the same query, so
-// corrections keep propagating — just at most twice an hour per game.
 const FINAL_STATS_RECHECK_MS = 30 * 60 * 1000
 const FINAL_NUMERIC_STATS = [
   'assists', 'blocks', 'fieldGoalsAttempted', 'fieldGoalsMade', 'foulsPersonal',
@@ -41,10 +29,7 @@ function toETDate(date: Date): string {
   return date.toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
-export async function syncStatsByDate(
-  date: Date,
-  sharedResolver?: CdnPlayerResolver,
-): Promise<number> {
+export async function syncStatsByDate(date: Date): Promise<number> {
   const dateStr = toETDate(date)
   console.log(`[sync-stats] Fetching stats for ${dateStr}...`)
 
@@ -56,12 +41,11 @@ export async function syncStatsByDate(
   }
 
   let statCount = 0
-  const resolver = sharedResolver ?? (await loadCdnPlayerResolver())
   const syncFailures: string[] = []
 
   for (const game of games) {
     try {
-      statCount += await syncStatsGameWithResolver(game, resolver, isPast)
+      statCount += await syncGameBoxScore(game, isPast)
     } catch (e) {
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
       syncFailures.push(`${game.nba_game_id}: ${errorMessage(e)}`)
@@ -76,20 +60,17 @@ export async function syncStatsByDate(
   return statCount
 }
 
-// Syncs several dates on one shared player resolver. Loading it per date costs a
-// full paginated players scan each time, which dominates a multi-date re-sync.
 export async function syncStatsForDates(
   dateKeys: string[],
   onDateError?: (dateKey: string, error: unknown) => void,
 ): Promise<number> {
   if (dateKeys.length === 0) return 0
 
-  const resolver = await loadCdnPlayerResolver()
   let statCount = 0
   const failures: unknown[] = []
   for (const dateKey of dateKeys) {
     try {
-      statCount += await syncStatsByDate(dateFromETDate(dateKey), resolver)
+      statCount += await syncStatsByDate(dateFromETDate(dateKey))
     } catch (error) {
       if (onDateError) onDateError(dateKey, error)
       else failures.push(error)
@@ -105,9 +86,7 @@ export async function findNextStatsGame(dateStr: string, afterGameId?: string): 
 }
 
 export async function syncStatsGame(game: StatsSyncGame): Promise<number> {
-  const resolver = await loadCdnPlayerResolver()
-  const statLines = await syncStatsGameWithResolver(game, resolver, true)
-  return statLines
+  return syncGameBoxScore(game, true)
 }
 
 async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: number): Promise<StatsSyncGame[]> {
@@ -129,9 +108,8 @@ async function statsGamesForDate(dateStr: string, afterGameId?: string, limit?: 
   return data ?? []
 }
 
-async function syncStatsGameWithResolver(
+async function syncGameBoxScore(
   game: StatsSyncGame,
-  resolver: Awaited<ReturnType<typeof loadCdnPlayerResolver>>,
   skipScheduled: boolean,
   persist: (write: () => Promise<number>) => Promise<number> = write => write(),
 ): Promise<number> {
@@ -145,7 +123,7 @@ async function syncStatsGameWithResolver(
 
   return await persist(() => retrySourceContention(async () => {
     await assertGameUnambiguous(game.id)
-    const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, resolver)
+    const resolved = await resolveBoxScorePlayers(boxScore, providerGameId)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
     const changed = await saveGameStats(game.id, providerGameId, stats, boxScore.gameStatus === 3, boxScore.gameStatus === 3 ? undefined : gameElapsedSeconds(boxScore))
@@ -193,11 +171,10 @@ export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameI
 export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
-  resolver: CdnPlayerResolver,
 ): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
   const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
-  const playerIds = await resolveCdnPlayers(resolver, allPlayers.map(player => ({
+  const playerIds = await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
   })))
   for (const [index, player] of allPlayers.entries()) {
@@ -287,7 +264,6 @@ export function buildStatRow(
 export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ statLines: number; failures: unknown[] }> {
   let statLines = 0
   const failures: unknown[] = []
-  const resolver: CdnPlayerResolver = { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
   let writes: Promise<number> = Promise.resolve(0)
   const persist = (write: () => Promise<number>) => {
     const pending = writes.then(write, write)
@@ -296,7 +272,7 @@ export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ stat
   }
   await runBounded(games.map(game => async () => {
     try {
-      const lines = await syncStatsGameWithResolver(game, resolver, true, persist)
+      const lines = await syncGameBoxScore(game, true, persist)
       statLines += lines
     } catch (error) {
       failures.push(error)

@@ -1,6 +1,5 @@
 import type { Json } from '../_shared/database.ts'
 import type { NotificationMessage, NotifyMembers } from '../_shared/notifications.ts'
-import { notificationFailureDisposition } from '../_shared/notificationDelivery.ts'
 import { runBounded } from '../_shared/runBounded.ts'
 
 export const OUTBOX_CLAIM_LIMIT = 10
@@ -19,16 +18,15 @@ export type TradeNotificationOutboxRow = {
   category: string
 }
 
-type DeliveryCounts = { ticketed: number; failed: number; discarded: number; deadLettered: number }
+type DeliveryCounts = { delivered: number; failed: number; discarded: number; deadLettered: number }
 type Complete = (row: TradeNotificationOutboxRow) => Promise<void>
 type Fail = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
 type DeadLetter = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
-type RecordTicket = (row: TradeNotificationOutboxRow, ticketId: string, pushToken: string) => Promise<void>
 
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
-  if (row.category !== 'trade' && row.category !== 'activity') throw new Error(`Unsupported notification outbox category: ${row.category}`)
+  if (row.category !== 'trade' && row.category !== 'activity' && row.category !== 'waiver' && row.category !== 'draft') throw new Error(`Unsupported notification outbox category: ${row.category}`)
   const data = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
     ? row.data as Record<string, unknown>
     : {}
@@ -44,45 +42,37 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
 export async function deliverTradeNotificationOutbox(
   rows: TradeNotificationOutboxRow[],
   notify: NotifyMembers,
-  recordTicket: RecordTicket,
   complete: Complete,
   fail: Fail,
   deadLetter: DeadLetter,
 ): Promise<DeliveryCounts> {
-  if (rows.length === 0) return { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
+  if (rows.length === 0) return { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
-  let ticketed = 0
+  let delivered = 0
   let failed = 0
   let discarded = 0
   let deadLettered = 0
   await runBounded(rows.map((row) => async () => {
     try {
       const [result] = await notify([messageFor(row)])
-      if (result?.status === 'skipped') {
+      if (result?.status === 'sent') {
+        await complete(row)
+        delivered += 1
+      } else if (result?.status === 'skipped') {
         await complete(row)
         discarded += 1
-        return
-      }
-      if (result?.status !== 'sent' || !result.ticketId || !result.pushToken) {
-        throw new Error('Expo push delivery did not return durable ticket evidence')
-      }
-      await recordTicket(row, result.ticketId, result.pushToken)
-      ticketed += 1
-    } catch (error) {
-      const disposition = notificationFailureDisposition(error)
-      if (disposition === 'discard') {
-        await complete(row)
-        discarded += 1
-      } else if (disposition === 'dead_letter') {
-        await deadLetter(row, errorMessage(error))
+      } else if (result?.status === 'failed' && !result.retryable) {
+        await deadLetter(row, result.error)
         deadLettered += 1
       } else {
-        await fail(row, errorMessage(error))
-        failed += 1
+        throw new Error(result?.status === 'failed' ? result.error : 'Web push delivery returned no outcome')
       }
+    } catch (error) {
+      await fail(row, errorMessage(error))
+      failed += 1
     }
   }), OUTBOX_MUTATION_CONCURRENCY)
-  return { ticketed, failed, discarded, deadLettered }
+  return { delivered, failed, discarded, deadLettered }
 }
 
 // One claim per cron run left a burst of trade notifications waiting a full
@@ -94,12 +84,12 @@ export async function drainTradeNotificationOutbox(
   deliver: (rows: TradeNotificationOutboxRow[]) => Promise<DeliveryCounts>,
   now: () => number = Date.now,
 ): Promise<DeliveryCounts> {
-  const totals: DeliveryCounts = { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
+  const totals: DeliveryCounts = { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }
   const startedAt = now()
   for (let claims = 0; claims < OUTBOX_MAX_CLAIMS_PER_RUN; claims += 1) {
     const rows = await claim()
     const result = await deliver(rows)
-    totals.ticketed += result.ticketed
+    totals.delivered += result.delivered
     totals.failed += result.failed
     totals.discarded += result.discarded
     totals.deadLettered += result.deadLettered
