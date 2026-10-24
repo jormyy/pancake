@@ -205,7 +205,7 @@ const eligibleSql=(f)=>`SELECT c.id FROM public.waiver_claims c
   JOIN public.leagues l ON l.id=c.league_id AND l.status IN ('active','playoffs','offseason')
   JOIN public.league_seasons s ON s.id=c.league_season_id AND s.is_current=true
   WHERE c.status='pending' AND c.process_date<=${quote(f.processDate)}::date`
-async function prepareWaiver(w,f) {
+async function prepareWaiver(w,f,claimIds=[f.claim,f.lower]) {
   const found=parse(await w.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
     DO $own$ BEGIN
       IF NOT pg_try_advisory_xact_lock(hashtext(${quote(f.league)}),hashtext(${quote(f.season)})) THEN
@@ -213,12 +213,12 @@ async function prepareWaiver(w,f) {
       END IF;
     END $own$;
     SELECT COALESCE(jsonb_agg(DISTINCT id ORDER BY id),'[]') FROM (${eligibleSql(f)}) eligible;`))
-  assert.deepEqual(found,[f.claim,f.lower].sort(),'Abort: every eligible global claim must be an own pending claim')
+  assert.deepEqual(found,[...claimIds].sort(),'Abort: every eligible global claim must be an own pending claim')
   print('exact-own-waiver-candidates',{control:f.control,ids:found})
 }
-const waiverCall=(f)=>`DO $guard$ DECLARE got uuid[]; BEGIN
+const waiverCall=(f,claimIds=[f.claim,f.lower])=>`DO $guard$ DECLARE got uuid[]; BEGIN
   SELECT array_agg(DISTINCT id ORDER BY id) INTO got FROM (${eligibleSql(f)}) eligible;
-  IF got IS DISTINCT FROM ARRAY[${list([f.claim,f.lower].sort())}]::uuid[] THEN
+  IF got IS DISTINCT FROM ARRAY[${list([...claimIds].sort())}]::uuid[] THEN
     RAISE EXCEPTION 'Abort: global waiver candidates changed outside owned claim';
   END IF;
 END $guard$;
@@ -245,11 +245,11 @@ async function waitOn(pid,blocker,f,settled=()=>false) {
 async function retryWaiver(f) {
   const w=open(f.control+'-retry-waiver'); await w.query(helpers)
   try {
-    await prepareWaiver(w,f)
-    const r=parse(await w.query(waiverCall(f)))
-    assert.equal(r.ok,true); assert.equal(r.rows.length,2)
-    assert.equal(r.rows.find((row)=>row.claim_id===f.claim).status,'succeeded')
-    assert.equal(r.rows.find((row)=>row.claim_id===f.lower).status,'failed_priority')
+    await prepareWaiver(w,f,[f.lower])
+    const r=parse(await w.query(waiverCall(f,[f.lower])))
+    assert.equal(r.ok,true); assert.equal(r.rows.length,1)
+    assert.equal(r.rows[0].claim_id,f.lower)
+    assert.equal(r.rows[0].status,'succeeded')
     return r
   } finally {await w.close()}
 }
@@ -333,21 +333,16 @@ try {
           if(resultW.ok) {
             if(resultW.rows.length===0) assert.equal(expected,'repaired','Only repaired busy deferral may return no claim')
             else {
-              const head=resultW.rows.find((row)=>row.claim_id===f.claim)
-              assert.ok(head); assert(['succeeded','failed_roster'].includes(head.status))
-              if(head.status==='succeeded') {
-                assert.equal(resultW.rows.length,2)
-                assert.equal(resultW.rows.find((row)=>row.claim_id===f.lower).status,'failed_priority')
-              } else assert.equal(resultW.rows.length,1)
-              if(expected==='repaired') assert.equal(head.status,'succeeded',
-                'Repaired processor refreshes cleared drop selection after locking the member')
+              assert.equal(resultW.rows.length,1)
+              assert.equal(resultW.rows[0].claim_id,f.lower)
+              assert.equal(resultW.rows[0].status,'succeeded')
             }
           }
           print('actual-trade-waiver-result',{expected,resultC,resultW})
           if(!resultW.ok || resultW.rows.length===0) {
             if(!resultW.ok) assert(['40P01','40001'].includes(resultW.sqlstate))
             const completed=parse(await root.query(stateSql(f))); assertComplete(completed,f)
-            assert.equal(completed.claims.find((r)=>r.id===f.claim).status,'pending')
+            assert.equal(completed.claims.find((r)=>r.id===f.claim).status,'cancelled')
             assert.equal(completed.claims.find((r)=>r.id===f.claim).drop_player_id,null)
             resultW=await retryWaiver(f)
           }
@@ -355,15 +350,17 @@ try {
       }
       const after=parse(await root.query(stateSql(f))); assertComplete(after,f)
       const finalClaim=after.claims.find((r)=>r.id===f.claim)
-      assert.equal(finalClaim.status,'succeeded'); assert.equal(finalClaim.drop_player_id,null)
-      assert.equal(after.claims.find((r)=>r.id===f.lower).status,'failed_priority',
-        'Busy league retry preserves the higher-priority team instead of awarding the lower claim')
+      assert.equal(finalClaim.status,'cancelled')
+      assert.ok(finalClaim.processed_at)
+      assert.match(finalClaim.failure_reason,/selected drop player left/); assert.equal(finalClaim.drop_player_id,null)
+      assert.equal(after.claims.find((r)=>r.id===f.lower).status,'succeeded',
+        'Only the remaining eligible claim wins after settlement cancels the traded drop')
       assert.equal(after.rosters.length,3)
-      assert.equal(after.rosters.find((r)=>r.player_id===f.players[2]).member_id,f.members[0])
+      assert.equal(after.rosters.find((r)=>r.player_id===f.players[2]).member_id,f.members[2])
       assert(after.rosters.every((r)=>!r.is_on_ir && !r.is_on_taxi))
       assert(after.balances.every((r)=>r.balance===100))
       assert.ok(after.wire.find((r)=>r.id===f.wire).cleared_at)
-      assert.equal(after.wire.find((r)=>r.id===f.wire).claimed_by_claim_id,f.claim)
+      assert.equal(after.wire.find((r)=>r.id===f.wire).claimed_by_claim_id,f.lower)
       assert.equal(after.transactions,6,'One actual initial drop, four trade rows, one waiver add')
       print('actual-trade-waiver-final',{expected,control,after})
     } finally {

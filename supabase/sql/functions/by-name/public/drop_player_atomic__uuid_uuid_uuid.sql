@@ -17,6 +17,7 @@ DECLARE
   v_member_id uuid;
   v_clears_at timestamptz := now() + interval '48 hours';
   v_rows int;
+  v_rookie_draft_id uuid;
 BEGIN
   SELECT league_id, player_id, member_id
     INTO v_league_id, v_player_id, v_member_id
@@ -26,6 +27,18 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Could not drop player - you may not have permission or they are no longer on your roster.'
       USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT draft.id INTO v_rookie_draft_id
+    FROM drafts AS draft
+    JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
+    JOIN leagues AS league ON league.id = draft.league_id AND league.status = 'drafting'
+   WHERE draft.league_id = v_league_id
+     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status = 'completed'
+   ORDER BY draft.created_at DESC LIMIT 1;
+  IF v_rookie_draft_id IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);
+    PERFORM 1 FROM drafts WHERE id = v_rookie_draft_id FOR UPDATE;
   END IF;
 
   PERFORM pg_advisory_xact_lock(
@@ -151,5 +164,8 @@ BEGIN
     v_rp.player_id,
     'fa_drop'
   );
+  IF v_rookie_draft_id IS NOT NULL THEN
+    PERFORM private.activate_rookie_draft_league_if_ready(v_rookie_draft_id);
+  END IF;
 END;
 $function$;

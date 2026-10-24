@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { getPlayerRosterContext, getPlayerRosterStatus } from '@/lib/roster'
+import { getPlayerRosterContext } from '@/lib/roster'
 
 const state = vi.hoisted(() => ({ from: vi.fn(), season: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: state.from } }))
@@ -53,14 +53,6 @@ it('keeps waiver status and own occupancy in the same snapshot', async () => {
     ])
     expect(waiverQuery.is).toHaveBeenCalledWith('cleared_at', null)
     expect(waiverQuery.gt).toHaveBeenCalledWith('clears_at', expect.any(String))
-})
-
-it('keeps standalone status reads limited to the target player', async () => {
-    const rosterQuery = query([otherRow])
-    state.from.mockReturnValue(rosterQuery)
-    await expect(getPlayerRosterStatus('other', 'member', 'league')).resolves.toEqual({ status: 'taken', ownerTeamName: 'Theirs' })
-    expect(rosterQuery.eq).toHaveBeenCalledWith('player_id', 'other')
-    expect(rosterQuery.or).not.toHaveBeenCalled()
 })
 
 it('rejects a failed occupancy read instead of reporting an empty IR', async () => {

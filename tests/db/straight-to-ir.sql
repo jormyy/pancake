@@ -32,6 +32,13 @@ END;
 $$;
 SELECT pg_temp.ir_add(2);
 DO $$ BEGIN
+  IF (SELECT count(*) FROM public.get_league_activity_feed('da000000-0000-4000-8000-000000000002',50,0)
+    WHERE player_id='da100000-0000-4000-8000-000000000002' AND transaction_type IN ('fa_add','free_agent_added'))<>1 THEN
+    RAISE EXCEPTION 'One straight-to-IR add produces duplicate activity rows';
+  END IF;
+END $$;
+
+DO $$ BEGIN
   IF NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id='da100000-0000-4000-8000-000000000002' AND is_on_ir AND NOT is_on_taxi)
     OR (SELECT sum(add_count) FROM weekly_add_counts WHERE member_id='da000000-0000-4000-8000-000000000003')<>1
     OR (SELECT count(*) FROM roster_transactions WHERE member_id='da000000-0000-4000-8000-000000000003' AND transaction_type='fa_add')<>1 THEN

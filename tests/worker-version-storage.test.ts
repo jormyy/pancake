@@ -14,11 +14,11 @@ async function fixture(failure?: 'getter' | 'read' | 'write', previous: string |
     const denied = () => { throw new DOMException('Storage denied', 'SecurityError') }
     const storage = {
         getItem: vi.fn(() => failure === 'read' ? denied() : previous),
-        setItem: vi.fn(() => { if (failure === 'write') denied() }),
+        setItem: vi.fn((_key: string, _value: string) => { if (failure === 'write') denied() }),
     }
     const worker = { postMessage: vi.fn() }
     const scope = {
-        window: { isSecureContext: true, addEventListener: (name: string, fn: () => void) => windowEvents.set(name, fn), location: { reload } },
+        window: { isSecureContext: true, addEventListener: (name: string, fn: () => void) => windowEvents.set(name, fn), location: { pathname: '/', reload } },
         document: { visibilityState: 'visible', addEventListener: vi.fn() },
         navigator: { serviceWorker: { controller: worker, register: async () => ({ active: worker, update: async () => {} }), addEventListener: (name: string, fn: () => void) => workerEvents.set(name, fn) } },
         MessageChannel: class {
@@ -27,13 +27,13 @@ async function fixture(failure?: 'getter' | 'read' | 'write', previous: string |
             constructor() { ports.push(this.port1) }
         },
         setInterval: vi.fn(),
-        setTimeout: (fn: () => void, delay: number) => { expect(delay).toBe(10000); timers.push(fn) },
+        setTimeout: (fn: () => void, delay: number) => { expect([10000, 60000]).toContain(delay); timers.push(fn) },
     }
     Object.defineProperty(scope, 'sessionStorage', { get: () => failure === 'getter' ? denied() : storage })
     runInNewContext(script, scope)
     windowEvents.get('load')?.()
     await Promise.resolve()
-    return { ports, timers, reload, storage, worker, controllerChange: () => workerEvents.get('controllerchange')?.(), reply: (version: string, index = 0) => ports[index].onmessage?.({ data: { version } }) }
+    return { ports, timers, reload, storage, worker, pagehide: () => windowEvents.get('pagehide')?.(), controllerChange: () => workerEvents.get('controllerchange')?.(), reply: (version: string, index = 0) => ports[index].onmessage?.({ data: { version } }) }
 }
 
 describe('worker release version storage', () => {
@@ -60,8 +60,11 @@ describe('worker release version storage', () => {
         f.reply('next')
         f.controllerChange()
         f.reply('newer', 1)
+        expect(f.reload).not.toHaveBeenCalled()
+        f.pagehide()
         expect(f.reload).toHaveBeenCalledOnce()
-        expect(f.storage.setItem).toHaveBeenCalledTimes(2)
+        expect(f.storage.setItem.mock.calls.filter(([key]) => key === 'pancake-sw-worker-version')).toHaveLength(2)
+        expect(f.storage.setItem).toHaveBeenCalledWith('pancake-update-reload:/', 'newer')
         expect(f.worker.postMessage.mock.calls[0][0]).toEqual({ type: 'PANCAKE_WORKER_VERSION' })
         expect(Array.isArray(f.worker.postMessage.mock.calls[0][1])).toBe(true)
         expect(f.worker.postMessage.mock.calls[0][1]).toHaveLength(1)

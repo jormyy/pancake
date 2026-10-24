@@ -1,11 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import type { Database } from '../_shared/database.ts'
-import { notifyMember } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
-import { runBounded, type AsyncJob } from '../_shared/runBounded.ts'
 import { drainDueClaims, PROCESS_BATCH_LIMIT } from './drain.ts'
-
-const NOTIFICATION_CONCURRENCY = 10
 
 type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
 
@@ -34,39 +30,33 @@ async function playerNames(playerIds: string[]): Promise<Map<string, string>> {
   return names
 }
 
-function notificationJob(row: WaiverProcessRow, names: Map<string, string>): AsyncJob | null {
-  if (!row.member_id || !row.player_id || !row.status) return null
-  const memberId = row.member_id
-  const playerId = row.player_id
-  const name = names.get(playerId) ?? 'Unknown'
-
-  if (row.status === 'succeeded') {
-    return async () => {
-      await notifyMember(memberId, 'Waiver Claim Succeeded', `${name} has been added to your roster.`, undefined, 'waiver')
-    }
-  }
-
-  if (row.status !== 'failed_priority' && row.status !== 'failed_roster') {
-    return null
-  }
-
-  const reason = row.failure_reason ?? 'The claim could not be completed.'
-  return async () => {
-    await notifyMember(memberId, 'Waiver Claim Failed', `Your claim for ${name} failed: ${reason}`, undefined, 'waiver')
+function notificationRow(row: WaiverProcessRow, names: Map<string, string>): Database['public']['Tables']['notification_outbox']['Insert'] | null {
+  if (!row.claim_id || !row.member_id || !row.player_id) return null
+  if (row.status !== 'succeeded' && row.status !== 'failed_priority' && row.status !== 'failed_roster') return null
+  const name = names.get(row.player_id) ?? 'Unknown'
+  const succeeded = row.status === 'succeeded'
+  return {
+    dedupe_key: `waiver_result:${row.claim_id}`,
+    member_id: row.member_id,
+    event_type: succeeded ? 'waiver_claim_succeeded' : 'waiver_claim_failed',
+    title: succeeded ? 'Waiver Claim Succeeded' : 'Waiver Claim Failed',
+    body: succeeded ? `${name} has been added to your roster.`
+      : `Your claim for ${name} failed: ${row.failure_reason ?? 'The claim could not be completed.'}`,
+    data: { claimId: row.claim_id, playerId: row.player_id },
+    category: 'waiver',
   }
 }
 
 async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {
-  const playerIds = rows.flatMap((row) => row.player_id ? [row.player_id] : [])
-  const names = await playerNames(playerIds)
-  const jobs = rows.flatMap((row) => {
-    const job = notificationJob(row, names)
-    return job ? [job] : []
+  const names = await playerNames(rows.flatMap(row => row.player_id ? [row.player_id] : []))
+  const notifications = rows.flatMap(row => {
+    const notification = notificationRow(row, names)
+    return notification ? [notification] : []
   })
-  if (jobs.length > 0) {
-    await runBounded(jobs, NOTIFICATION_CONCURRENCY)
-      .catch((error) => console.error('[process-waivers] notification failed', error))
-  }
+  if (notifications.length === 0) return
+  const { error } = await supabase.from('notification_outbox')
+    .upsert(notifications, { onConflict: 'dedupe_key', ignoreDuplicates: true })
+  if (error) throw error
 }
 
 async function processWaiverClaims(): Promise<number> {

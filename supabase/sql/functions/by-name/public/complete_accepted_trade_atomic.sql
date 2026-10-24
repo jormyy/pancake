@@ -246,7 +246,9 @@ BEGIN
           RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PT002';
         END IF;
         -- A changed destination precondition expires this trade, not the whole queue.
-        RAISE EXCEPTION 'Player acquisition failed: %', SQLERRM USING ERRCODE='PT001';
+        RAISE EXCEPTION '% acquisition failed: %',
+          CASE WHEN v_item.to_taxi THEN 'Taxi' WHEN v_item.to_ir THEN 'IR' ELSE 'Player' END,
+          SQLERRM USING ERRCODE='PT001';
       END;
 
       INSERT INTO roster_transactions (

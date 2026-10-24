@@ -9,7 +9,7 @@ describe('commissioner scoring fields', () => {
         const baseline: CommissionerSettingsDraft = {
             scoring: Object.fromEntries(keys.map((key) => [key, weights[key] ?? '0'])),
             slots: {}, rosterSize: '20', irSlots: '2', taxiSlots: '0', auctionBudget: '200',
-            playoffWeek: '17', playoffTotalWeeks: '2', playoffRoundWeeks: ['1', '1'],
+            playoffWeek: '17', playoffEntrants: '4', playoffRoundCount: '2', playoffRoundWeeks: ['1', '1'],
             weeklyAddLimit: '0', waiverMode: 'faab', faabBudget: '100', tradeVetoMode: 'member_vote',
             tradeVetoWindowHours: '24', tradeVetoThresholdPercent: '50', tradeDeadline: '',
         }

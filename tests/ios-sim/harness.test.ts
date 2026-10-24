@@ -428,12 +428,53 @@ test('a late native password prompt is dismissed before retrying the intended ta
   assert.deepEqual(clicks, ['Missing'])
 })
 
-test('native picker options can use their labels while prefix taps wait for the full DOM label', async () => {
-  const native = { execute: async () => null }
-  assert.equal(await runner.visibleTapLabel(native, '2025–26'), null)
+test('native picker options stay native while web taps wait for the full DOM label', async () => {
+  const calls: string[] = []
+  const native = { native: async () => { calls.push('native') }, click: async (label: string) => { calls.push(label) }, optional: async (label: string) => { calls.push(label) } }
+  await runner.selectNativeOption(native, '2025–26')
+  assert.deepEqual(calls, ['native', '2025–26', 'Done'])
   const labels = [null, 'Monday, October 19']
   let reads = 0
   const web = { execute: async () => labels[reads++] }
   assert.equal(await runner.visibleTapLabel(web, 'Monday, ', true), 'Monday, October 19')
+  assert.equal(reads, 2)
+}, 1000)
+
+test('preparing the same route waits for its new document before allowing a tap', async () => {
+  const page = { timeOrigin: 1, route: '/', ready: 'complete', text: 'Previous ready matchup content' }
+  let navigating = false, checks = 0
+  const driver = {
+    web: async () => {},
+    execute(source: string, route: string, previousDocument: number) {
+      if (navigating) {
+        checks++
+        if (checks === 2) Object.assign(page, { timeOrigin: 2, ready: 'loading', text: '' })
+        if (checks === 3) Object.assign(page, { ready: 'complete', text: 'New matchup ready for input' })
+      }
+      return vm.runInNewContext(`(function () { ${source} }).apply(null, args)`, {
+        args: [route, previousDocument], URL, performance: { timeOrigin: page.timeOrigin },
+        location: { href: 'http://127.0.0.1:58241/', pathname: page.route, search: '' },
+        document: { readyState: page.ready, getElementById: () => ({ innerText: page.text }) },
+      })
+    },
+  }
+  const server = { network() {}, prepare() { navigating = true } }
+  await runner.prepareScenarioPage(server, driver, 'http://127.0.0.1:58241', '/', true)
+  assert.equal(page.timeOrigin, 2)
+  assert.equal(page.ready, 'complete')
+  assert.equal(page.text, 'New matchup ready for input')
+})
+
+test('a capture can select its own local stack without changing the shared stack', () => {
+  const options = resolveOptions(['--device', 'own-device', '--port', '58243', '--manager', '2', '--stack-dir', '/private/tmp/own-stack'])
+  assert.ok('stack-dir' in options)
+  assert.equal(options['stack-dir'], '/private/tmp/own-stack')
+})
+
+test('an exact web tap waits for its control instead of falling through to an early native tap', async () => {
+  const labels = [null, 'Open menu']
+  let reads = 0
+  const driver = { execute: async () => labels[reads++] }
+  assert.equal(await runner.visibleTapLabel(driver, 'Open menu'), 'Open menu')
   assert.equal(reads, 2)
 }, 1000)

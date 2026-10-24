@@ -8,7 +8,7 @@ import BracketScreen from '@/app/(modals)/bracket'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const state = vi.hoisted(() => ({
-    user: { id: 'actor' }, member: { id: 'member' }, league: { id: 'league', roster_size: 1 },
+    user: { id: 'actor' }, member: { id: 'member' }, league: { id: 'league', roster_size: 1, waiver_mode: 'faab' },
     visible: true, online: true,
     player: vi.fn(), roster: vi.fn(), members: vi.fn(), claim: vi.fn(), bracket: vi.fn(),
     back: vi.fn(), replace: vi.fn(),
@@ -93,7 +93,7 @@ describe('mounted route resource ownership', () => {
         setSessionOwner('actor')
         state.user = { id: 'actor' }
         state.member = { id: 'member' }
-        state.league = { id: 'league', roster_size: 1 }
+        state.league = { id: 'league', roster_size: 1, waiver_mode: 'faab' }
         state.visible = true
         state.online = true
         const page = new EventTarget()

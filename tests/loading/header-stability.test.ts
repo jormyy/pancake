@@ -30,8 +30,8 @@ it('reserves one player action row before roster status arrives and keeps disabl
     const props = {
         player: { display_name: 'Player', nba_team: 'BOS', position: 'PG', eligible_positions: ['PG'],
             jersey_number: null, injury_status: null, dynasty_rank: 1, headshot_url: null, nba_id: null, years_exp: 1 },
-        rosterStatus: null, leagueActive: true, actionLoading: false, actionsReady: false,
-        onAdd: vi.fn(), onDrop: vi.fn(), onClaim: vi.fn(), onSetLineup: vi.fn(), compact: true,
+        rosterStatus: null, leagueActive: true, actionsReady: false,
+        onDrop: vi.fn(), compact: true,
     }
     await act(async () => { screen = create(React.createElement(PlayerHeader, props)) })
     const actionColumn = () => screen.root.findAllByType('View' as React.ElementType)
@@ -40,7 +40,8 @@ it('reserves one player action row before roster status arrives and keeps disabl
     const reserved = flatten(actionColumn()?.props.style)
     expect(reserved.minWidth).toBeGreaterThanOrEqual(76)
     expect(reserved.minHeight).toBe(44)
-    await act(async () => screen.update(React.createElement(PlayerHeader, { ...props, rosterStatus: { status: 'mine' } as never })))
+    await act(async () => screen.update(React.createElement(PlayerHeader, { ...props, rosterStatus: { status: 'mine' as const, rosterPlayerId: 'roster' },
+        action: { label: 'Set lineup', onPress: vi.fn(), disabled: true, busy: false } })))
     expect(flatten(actionColumn()?.props.style)).toEqual(reserved)
     expect(screen.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(2)
     expect(screen.root.findAllByType('Pressable' as React.ElementType).every(node => node.props.disabled)).toBe(true)

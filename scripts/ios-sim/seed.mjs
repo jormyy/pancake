@@ -203,7 +203,7 @@ export async function withDraftRoom(admin, { draftId, draftType, leagueId, seaso
 export async function withScenarioFixtures(stack, scenarios, action) {
   const types = [...new Set(scenarios.map(scenario => scenario.setup?.draftRoom).filter(Boolean))]
   if (!types.length) return action({})
-  localUrl(stack.url, 57121)
+  localUrl(stack.url)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
   const createRoom = async (index, drafts) => {
@@ -217,11 +217,81 @@ export async function withScenarioFixtures(stack, scenarios, action) {
   return createRoom(0, {})
 }
 
+async function captureData(operation) {
+  const { data, error } = await operation
+  if (error) throw new Error(`iOS capture fixture: ${error.message}`)
+  return data
+}
+
+export async function withOutPlayer(admin, playerId, action) {
+  const player = await captureData(admin.from('players').select('injury_status').eq('id', playerId).single())
+  try {
+    await captureData(admin.from('players').update({ injury_status: 'Out' }).eq('id', playerId))
+    return await action()
+  } finally {
+    await captureData(admin.from('players').update({ injury_status: player.injury_status }).eq('id', playerId))
+  }
+}
+
+export async function withWaiverIRPlayer(admin, { leagueId, seasonId, playerId }, action) {
+  const logs = await captureData(admin.from('waiver_wire_log').select('id,clears_at')
+    .eq('league_id', leagueId).eq('league_season_id', seasonId).eq('player_id', playerId).is('cleared_at', null))
+  const previous = logs[0]
+  let created
+  return withOutPlayer(admin, playerId, async () => {
+    try {
+      const clears_at = new Date(Date.now() + 86400000).toISOString()
+      if (previous) await captureData(admin.from('waiver_wire_log').update({ clears_at }).eq('id', previous.id))
+      else created = await captureData(admin.from('waiver_wire_log').insert({
+        league_id: leagueId, league_season_id: seasonId, player_id: playerId, clears_at,
+      }).select('id').single())
+      return await action()
+    } finally {
+      if (previous) await captureData(admin.from('waiver_wire_log').update({ clears_at: previous.clears_at }).eq('id', previous.id))
+      if (created) await captureData(admin.from('waiver_wire_log').delete().eq('id', created.id))
+    }
+  })
+}
+
+export async function withWeekOffLeague(admin, { memberId, seasonYear, today, name }, action) {
+  const member = await captureData(admin.from('league_members').select('user_id,team_name').eq('id', memberId).single())
+  const week = await captureData(admin.from('season_weeks').select('week_number').eq('season_year', seasonYear)
+    .lte('week_start', today).gte('week_end', today).single())
+  const leagueId = randomUUID()
+  await captureData(admin.from('leagues').insert({
+    id: leagueId, name, slug: leagueId, commissioner_id: member.user_id, status: 'active',
+  }))
+  try {
+    await captureData(admin.from('league_seasons').insert({
+      id: randomUUID(), league_id: leagueId, season_year: seasonYear, is_current: true, skipped_weeks: [week.week_number],
+    }))
+    await captureData(admin.from('league_members').insert({
+      id: randomUUID(), league_id: leagueId, user_id: member.user_id, role: 'commissioner', team_name: member.team_name,
+    }))
+    return await action()
+  } finally {
+    await captureData(admin.from('leagues').delete().eq('id', leagueId))
+  }
+}
+
 export async function withScenarioSetup(stack, setup, action) {
   if (!setup) return action()
-  localUrl(stack.url, 57121)
+  localUrl(stack.url)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (setup.waiverIRPlayer || setup.irShortcutPlayer) {
+    const playerId = setup.waiverIRPlayer ?? setup.irShortcutPlayer
+    assert.ok(stack.fixture.players.some(player => player.id === playerId), 'Unknown IR capture player')
+    return setup.waiverIRPlayer
+      ? withWaiverIRPlayer(admin, { leagueId: stack.fixture.leagueId, seasonId: stack.fixture.seasonId, playerId }, action)
+      : withOutPlayer(admin, playerId, action)
+  }
+  if (setup.weekOffMember) {
+    assert.ok(stack.fixture.members.some(member => member.id === setup.weekOffMember), 'Unknown week-off capture manager')
+    return withWeekOffLeague(admin, {
+      memberId: setup.weekOffMember, seasonYear: stack.fixture.seasonYear, today: stack.fixture.today, name: setup.weekOffName,
+    }, action)
+  }
   if (setup.healthyIRMember) {
     assert.ok(stack.fixture.members.some(member => member.id === setup.healthyIRMember), 'Unknown IR capture manager')
     return withHealthyIRPlayer(admin, { memberId: setup.healthyIRMember, seasonId: stack.fixture.seasonId }, action)

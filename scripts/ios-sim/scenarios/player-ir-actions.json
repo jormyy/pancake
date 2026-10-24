@@ -39,7 +39,10 @@
           "text": "Place on IR. No drop required."
         }
       }
-    ]
+    ],
+    "setup": {
+      "waiverIRPlayer": "{{waiverPlayer.id}}"
+    }
   },
   {
     "name": "player-claim-ir-dark",
@@ -81,7 +84,10 @@
           "text": "Place on IR. No drop required."
         }
       }
-    ]
+    ],
+    "setup": {
+      "waiverIRPlayer": "{{waiverPlayer.id}}"
+    }
   },
   {
     "name": "player-ir-shortcut-light",
@@ -101,10 +107,13 @@
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label=\"Move Jalen Murray 61 to IR and add player\"]"
+          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "irShortcutPlayer": "{{rosterPlayer.id}}"
+    }
   },
   {
     "name": "player-ir-shortcut-dark",
@@ -124,10 +133,13 @@
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label=\"Move Jalen Murray 61 to IR and add player\"]"
+          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "irShortcutPlayer": "{{rosterPlayer.id}}"
+    }
   },
   {
     "name": "player-straight-to-ir",

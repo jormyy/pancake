@@ -99,8 +99,6 @@ JWT routes also apply the actor, league, draft, or trade checks in their handler
 | `/profile/web-push/config` | [profile](../supabase/functions/api/profile.ts) | Public; VAPID public key or null |
 | `/profile/web-push/subscribe`, `/profile/web-push/unsubscribe` | profile | JWT; `register_web_push_atomic`, `clear_web_push_for_user_atomic` |
 | `/profile/web-push/test` | profile | JWT; sends to caller's own subscriptions |
-| `/profile/push-token` | profile | JWT; `register_push_token_atomic` or `clear_push_token_for_user_atomic` |
-| `/profile/push-token/revoke` | profile | Token-specific revocation credential; `revoke_push_token_atomic` |
 | `/league/roster/ir`, `/league/roster/taxi` | [league](../supabase/functions/api/league.ts) | JWT and roster ownership; `toggle_ir_atomic`, `toggle_taxi_atomic` |
 | `/league/advance-season` | league | Commissioner; `advance_season_atomic` |
 | `/league/lineup/auto-set-season` | league | Own member in league; internal `lineup-optimizer` |
