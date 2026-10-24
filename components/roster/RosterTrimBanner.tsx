@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
-import { colors, fontSize, fontWeight, radii, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
+import { Button } from '@/components/ui/Button'
+import { colors, fontSize, fontWeight, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
@@ -40,7 +41,7 @@ export function RosterTrimBanner({
                                 name={player.players.display_name}
                                 uri={playerHeadshotUrl(player.players.nba_id) ?? undefined}
                                 color={colors.bgMuted}
-                                size={34}
+                                size={36}
                             />
                             <View style={styles.identity}>
                                 <Text style={styles.name} numberOfLines={1}>{player.players.display_name}</Text>
@@ -50,28 +51,24 @@ export function RosterTrimBanner({
                             </View>
                             <View style={styles.actions}>
                                 {irAvailable && isIREligible(player.players.injury_status) ? (
-                                    <Pressable
-                                        style={[styles.action, styles.reserveAction]}
+                                    <Button
+                                        title="IR"
+                                        size="sm"
+                                        variant="outline"
                                         onPress={() => onMoveToIR(player)}
                                         disabled={busy}
-                                        accessibilityRole="button"
                                         accessibilityLabel={`Move ${player.players.display_name} to IR`}
-                                        accessibilityState={{ disabled: busy }}
-                                    >
-                                        <Text style={styles.reserveText}>IR</Text>
-                                    </Pressable>
+                                    />
                                 ) : null}
 
-                                <Pressable
-                                    style={[styles.action, styles.dropAction, dropDisabled && { opacity: 0.5 }]}
+                                <Button
+                                    title="Drop"
+                                    size="sm"
+                                    variant="outline"
                                     onPress={() => onDrop(player)}
                                     disabled={busy || dropDisabled}
-                                    accessibilityRole="button"
                                     accessibilityLabel={`Drop ${player.players.display_name}`}
-                                    accessibilityState={{ disabled: busy || dropDisabled }}
-                                >
-                                    <Text style={styles.dropText}>Drop</Text>
-                                </Pressable>
+                                />
                             </View>
                         </View>
                     )
@@ -102,21 +99,8 @@ const styles = StyleSheet.create({
         borderTopColor: uiColors.dangerBorder,
         paddingVertical: spacing.xs,
     },
-    identity: { flex: 1, minWidth: 100 },
+    identity: { flex: 1, minWidth: 0 },
     name: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
     meta: { fontSize: fontSize.xs, color: colors.textMuted },
     actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.xs },
-    action: {
-        minHeight: 44,
-        minWidth: 48,
-        paddingHorizontal: spacing.sm,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderWidth: 1,
-    },
-    reserveAction: { backgroundColor: colors.bgScreen, borderColor: colors.primaryBorder },
-    reserveText: { color: colors.primaryDark, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-    dropAction: { backgroundColor: colors.danger, borderColor: colors.danger },
-    dropText: { color: colors.onAccent, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 })

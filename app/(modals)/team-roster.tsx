@@ -17,7 +17,7 @@ import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage,
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
-import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
 
 const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     },
     rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     emptySlot: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.lg,
     },
