@@ -128,7 +128,7 @@ export async function replay(options = {}) {
     if (options.resume && name === options.segment) return
     const preparation = await waitForSnapshotWorkers({ advance: move })
     runtime.origin.flushCoverage()
-    const cursor = { date, clock, verifiedWeeks, actions: report.actions, evidence: { offseasonTrade: report.offseasonTrade }, context: Object.fromEntries(Object.entries(context).filter(([, value]) => typeof value !== 'function')), options: { start: date, days } }
+    const cursor = { date, clock, verifiedWeeks, actions: report.actions, evidence: Object.fromEntries([['offseasonTrade', report.offseasonTrade]]), context: Object.fromEntries(Object.entries(context).filter(([, value]) => typeof value !== 'function')), options: { start: date, days } }
     if (name === 'post-draft' || realPlan && (name === 'next-season-start' || name.startsWith('real-second-'))) {
       cursor.stage = name.startsWith('real-second-') ? 'real-second-season' : name
       cursor.guard = await sql(postDraftStateQuery())

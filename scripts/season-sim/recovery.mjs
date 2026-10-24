@@ -60,9 +60,9 @@ export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null)
   assert.equal(receipt.leagueId, cursor.context.leagueId)
   if (!transition) assert.equal(receipt.leagueSeasonId, cursor.context.leagueSeasonId)
   const before = row => Date.parse(row.businessAt) <= cursor.clock
-  return {
-    ...Object.fromEntries(['firstCalendar', 'champion', 'pendingWaiversAtChampion', 'tradingReopened', 'rolloverRecovery', 'rolloverHistory', 'waiverRollover', 'sourceUnavailable'].filter(key => receipt[key] !== undefined).map(key => [key, receipt[key]])),
-    ...(transition ? Object.fromEntries((realSecond?realSecondRecoveryFields:opening?openingRecoveryFields:draftRecoveryFields).map(key => [key, cursor.evidence[key]])) : {}),
+  const retained = Object.fromEntries(['firstCalendar', 'champion', 'pendingWaiversAtChampion', 'tradingReopened', 'rolloverRecovery', 'rolloverHistory', 'waiverRollover', 'sourceUnavailable'].filter(key => receipt[key] !== undefined).map(key => [key, receipt[key]]))
+  if (transition) Object.assign(retained, Object.fromEntries((realSecond?realSecondRecoveryFields:opening?openingRecoveryFields:draftRecoveryFields).map(key => [key, cursor.evidence[key]])))
+  return Object.assign(retained, {
     ...(opening||realSecond?{interruptions:[...(receipt.interruptions??[]),{phase:receipt.phase,failure:receipt.failure??null,failures:receipt.failures??[],source:receipt.source?.application,dumpSha256:snapshot.dumpSha256}]}:{}),
     featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(row=>before(row)&&(!opening||row.year<nextProfile.year)),
     playersEvidence: (receipt.playersEvidence ?? []).filter(before),
@@ -73,7 +73,7 @@ export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null)
     realtime: receipt.realtime,
     retainedRealtime: !!receipt.realtime,
     recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0)+(realSecond?cursor.evidence.realSecondProgress.days.reduce((sum,day)=>sum+day.finals.games,0):0), retainedSecondDates: realSecond?cursor.evidence.realSecondProgress.days.length:0, retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: transition ? cursor.guard : null, ...(opening?{interruptedFeatureCheckpoints:(receipt.featureCheckpoints??[]).filter(row=>row.year===nextProfile.year)}:{}) },
-  }
+  })
 }
 
 export function postDraftStateQuery() {

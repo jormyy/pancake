@@ -39,8 +39,9 @@ if (values['refresh-players']) {
     const outcomes = await dispatch("SELECT public.invoke_edge_function('sync-players')")
     const after = await sql(recoveryHistoryQuery(snapshot.cursor.date))
     assert.equal(after, before, 'Recovery player refresh preserves settled scoring history')
-    evidence.recovery.playerRefresh = { at: new Date(snapshot.cursor.clock).toISOString(), before: JSON.parse(before), after: JSON.parse(after), outcomes, scope: 'Explicit product importer refresh before replay; dated fixture rosters; separate from scheduled cadence' }
-    await writeJson(path.join(miniRoot, 'evidence/recovery-player-refresh.json'), evidence.recovery.playerRefresh)
+    const playerRefresh = { at: new Date(snapshot.cursor.clock).toISOString(), before: JSON.parse(before), after: JSON.parse(after), outcomes, scope: 'Explicit product importer refresh before replay; dated fixture rosters; separate from scheduled cadence' }
+    Object.assign(evidence.recovery, { playerRefresh })
+    await writeJson(path.join(miniRoot, 'evidence/recovery-player-refresh.json'), playerRefresh)
   } finally { await runtime.close() }
 }
 const result = await replay({ resume: snapshot.cursor, recoveryEvidence: evidence, segment: snapshot.cursor.stage ?? snapshot.name, days: values.days, secondSeasonThrough: through })

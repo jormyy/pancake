@@ -77,7 +77,7 @@ for (let index = 0; index < 4; index++) {
   const login = await fetch(`${api}/auth/v1/token?grant_type=password`, { method: 'POST', headers: { apikey: anon, 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }), redirect: 'error' })
   assert.ok(login.ok, `Local auth login: ${login.status}`)
   const session = await login.json()
-  users.push({ id: session.user.id, token: session.access_token })
+  users.push({ id: session.user.id, token: session.access_token, memberId: null })
 }
 const league = await rpc(users[0], 'create_league', { p_name: `January adds ${run}`, p_team_name: 'Synthetic home', p_auction_budget: 20 })
 for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })

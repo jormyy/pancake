@@ -31,8 +31,7 @@ test('a completed draft resumes after all settled dates and retains its selected
   const clock = Date.parse('2025-07-05T01:54:00Z')
   const rookies = Array.from({ length: 8 }, (_, id) => ({ playerId: `p${id}`, owner: `m${id % 4}` }))
   const context = { leagueId: 'l', previousSeasonId: 'old', leagueSeasonId: 'new', seasonYear: 2026, users: Array(4).fill({}), draftedRookies: rookies }
-  const evidence = Object.fromEntries(['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'offseasonTrade', 'realRookieActivation'].map(key => [key, { passed: true }]))
-  evidence.realRookieActivation.rookies = rookies
+  const evidence = Object.assign(Object.fromEntries(['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'offseasonTrade'].map(key => [key, { passed: true }])), { realRookieActivation: { passed: true, rookies } })
   const snapshot = { clock: { rate: 0, simMs: clock }, quiescence: { polls: 1 }, cursor: { date: '2025-04-14', clock, stage: 'post-draft', context, evidence, guard: JSON.stringify({ clock, unfinishedWorkers: 0, cronActive: 'off', cronJobs: 0 }) } }
   const receipt = { leagueId: 'l', leagueSeasonId: 'old', days: dates(profile.start, profile.end).map(date => ({ date, finals: { passed: true, games: 8 } })), champion: { passed: true }, realtime: { passed: true } }
   const recovered = recoveryEvidence(snapshot, receipt, profile)
@@ -64,10 +63,7 @@ test('opening recovery retains season one and skips completed preseason work', (
   const clock=Date.parse('2025-10-21T14:00:11.267Z')
   const rookies=Array.from({length:8},(_,id)=>({playerId:`p${id}`,owner:`m${id%4}`}))
   const context={leagueId:'l',leagueSeasonId:'new',previousSeasonId:'old',seasonYear:2026,firstDate:next.start,users:Array(4).fill({}),draftedRookies:rookies,skippedWeeks:[1]}
-  const evidence=Object.fromEntries(['seasonEnd','realDraftBoard','rookieAutoPick','offseasonTrade','realRookieActivation','secondCalendar'].map(key=>[key,{passed:true}]))
-  evidence.realRookieActivation.rookies=rookies
-  evidence.realSeasonActivation={at:'2025-08-16T14:00:00Z'}
-  evidence.skippedWeekSettings={weeks:[1]}
+  const evidence=Object.assign(Object.fromEntries(['seasonEnd','realDraftBoard','rookieAutoPick','offseasonTrade','secondCalendar'].map(key=>[key,{passed:true}])),{realRookieActivation:{passed:true,rookies},realSeasonActivation:{at:'2025-08-16T14:00:00Z'},skippedWeekSettings:{weeks:[1]},realSecondProgress:{days:[],checked:[]}})
   const snapshot={name:'next-season-start',clock:{rate:0,simMs:clock},quiescence:{polls:1},cursor:{stage:'next-season-start',date:next.start,clock,context,evidence,guard:JSON.stringify({clock,unfinishedWorkers:0,cronActive:'off',cronJobs:0})}}
   const receipt={leagueId:'l',leagueSeasonId:'new',days:[],recovery:{retainedReceipts:dates(profile.start,profile.end).map(date=>({date,finals:{passed:true,games:8}}))},failure:{message:'Replay cannot rewind business time'},failures:[{area:'matchup-order'}],featureCheckpoints:[{year:2025,businessAt:'2025-04-14T14:00Z',f1:{passed:true}},{year:2026,businessAt:'2025-10-21T14:00Z',f1:{status:'FAILED'}}],playersEvidence:[{year:2026,businessAt:'2025-08-16T14:00Z',passed:true}],realtime:{passed:true}}
   const recovered=recoveryEvidence(snapshot,receipt,profile,next)
