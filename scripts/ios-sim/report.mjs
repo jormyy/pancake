@@ -6,7 +6,9 @@ export function failures(report) {
   const result = []
   if (report.error) result.push(report.error)
   if (!report.metrics) result.push('No paint recording arrived')
+  else if (report.metrics.missingObservation) result.push(report.metrics.observationError)
   else {
+    if (report.metrics.observationError) result.push(report.metrics.observationError)
     if (!report.metrics.standalone) result.push('The page is not an installed Home Screen app')
     if (report.metrics.firstContentMs === null) result.push('Expected real content did not appear')
     if (!report.metrics.settled) result.push('The screen did not settle within the observation window')
@@ -29,6 +31,7 @@ export async function writeReport(directory, report) {
   const lines = [
     '# iPhone Safari Home Screen report', '',
     `Source: ${report.head}. Device: ${report.device?.name ?? 'not started'}.`,
+    `Build: ${report.build ?? 'unknown'}. Source fingerprint: ${report.sourceFingerprint ?? 'unknown'}.`,
     `Completed steps: ${report.steps.length}. Passed: ${report.passed}. Failed: ${report.failed}.`,
     'Request counts include page-initiated fetch, XHR, and resource loads. Harness traffic is excluded. Cache hits can be included.',
     'The first expected content defines the first meaningful paint. Every sampled visible DOM change after that paint appears below.',
