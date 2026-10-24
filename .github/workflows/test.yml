@@ -60,6 +60,12 @@ jobs:
       - name: Check Edge functions
         run: npm run check:edge-functions
 
+      - name: Check season simulation guards
+        run: node --test scripts/season-sim/*.test.mjs
+
+      - name: Check benchmark guards and oracle
+        run: deno test --no-lock --node-modules-dir=none scripts/bench/profile.test.ts scripts/bench/oracle.test.ts
+
   test-database:
     name: Supabase migration and trade integration
     runs-on: ubuntu-latest

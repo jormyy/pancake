@@ -21,7 +21,7 @@ function installRecorder() {
   const requestUrl = input => {
     try { const url = new URL(typeof input === 'string' ? input : input.url, location.href); return `${url.origin}${url.pathname}` } catch { return String(input) }
   }
-  const harnessRequest = url => /\/__ios\/(?:control|report|ack|recorder\.js)(?:\?|$)/.test(url)
+  const harnessRequest = url => /\/__ios\/(?:control|report|ack)(?:\?|$)|\/assets\/ios-recorder\.[a-f0-9]+\.js$/.test(url)
   window.fetch = function (input, init) {
     const url = requestUrl(input)
     if (!harnessRequest(url)) requests.push({ time: Date.now(), url, kind: 'fetch' })
@@ -115,7 +115,8 @@ function installRecorder() {
     return result
   }
   const begin = spec => {
-    if (active?.id === spec.id) { originalFetch(`/__ios/ack?id=${encodeURIComponent(spec.id)}`, { method: 'POST' }).catch(() => {}); return }
+    const acknowledge = () => originalFetch(`/__ios/ack?id=${encodeURIComponent(spec.id)}&worker=${encodeURIComponent(navigator.serviceWorker?.controller?.scriptURL ?? '')}`, { method: 'POST' }).catch(() => {})
+    if (active?.id === spec.id) { acknowledge(); return }
     if (active) finish(false)
     active = { ...spec, triggered: spec.immediate === true, startedAt: spec.startedAt ?? Date.now(), firstContentMs: null, firstPaintAt: null, lastChange: Date.now(), events: [], samples: 0, samplingMs: 0, quietMs: spec.quietMs ?? 1200, minimumMs: spec.minimumMs ?? 3500, maximumMs: spec.maximumMs ?? 12000 }
     const prior = JSON.parse(sessionStorage.getItem('__ios_step') || 'null')
@@ -123,7 +124,7 @@ function installRecorder() {
     previous = new Map()
     dirty = true
     frame = requestAnimationFrame(sample)
-    originalFetch(`/__ios/ack?id=${encodeURIComponent(spec.id)}`, { method: 'POST' }).catch(() => {})
+    acknowledge()
   }
   const mutations = new MutationObserver(() => { dirty = true })
   mutations.observe(document.documentElement, { attributes: true, characterData: true, childList: true, subtree: true })

@@ -1,6 +1,30 @@
 import assert from 'node:assert/strict'
-import { test } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import { test, vi } from 'vitest'
 import * as fixture from '../../scripts/ios-sim/seed.mjs'
+
+test.each(['2026-10-23', undefined])('seed reuse rejects a stale or missing Eastern date: %s', async today => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-seed-date-'))
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-25T02:00:00Z'))
+  try {
+    await writeFile(path.join(directory, 'complete.json'), JSON.stringify({ today, rosterPlanTrade: { id: 'trade' } }))
+    await assert.rejects(fixture.seed({ stack: { url: 'http://127.0.0.1:57121' }, snapshot: directory, directory }), /run start --reset/)
+  } finally { vi.useRealTimers(); await rm(directory, { recursive: true, force: true }) }
+})
+
+test('seed reuse uses the Eastern day across UTC midnight', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-seed-current-'))
+  const complete = { today: '2026-10-24', rosterPlanTrade: { id: 'trade' } }
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-25T02:00:00Z'))
+  try {
+    await writeFile(path.join(directory, 'complete.json'), JSON.stringify(complete))
+    assert.deepEqual(await fixture.seed({ stack: { url: 'http://127.0.0.1:57121' }, snapshot: directory, directory }), complete)
+  } finally { vi.useRealTimers(); await rm(directory, { recursive: true, force: true }) }
+})
 
 function database() {
   const settings: Record<string, unknown> = {}

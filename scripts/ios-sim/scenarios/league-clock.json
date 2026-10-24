@@ -38,14 +38,19 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "text": "You're leading"
         },
         "note": "The display clock changes once per second. Its text box must not resize."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    }
   },
   {
     "name": "league-auction-pause-light",
@@ -56,7 +61,7 @@
         "tap": "Light"
       },
       {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        "open": "/draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
@@ -79,7 +84,12 @@
         },
         "note": "One user tap resumes the server clock."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    }
   },
   {
     "name": "league-rookie-pause-light",
@@ -90,7 +100,7 @@
         "tap": "Light"
       },
       {
-        "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+        "open": "/rookie-draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
@@ -113,7 +123,11 @@
         },
         "note": "One user tap resumes the server clock."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-commissioner-tools-light",
@@ -177,14 +191,19 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "text": "You're leading"
         },
         "note": "The display clock changes once per second. Its text box must not resize."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    }
   },
   {
     "name": "league-auction-pause-dark",
@@ -195,7 +214,7 @@
         "tap": "Dark"
       },
       {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        "open": "/draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
@@ -218,7 +237,12 @@
         },
         "note": "One user tap resumes the server clock."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    }
   },
   {
     "name": "league-rookie-pause-dark",
@@ -229,7 +253,7 @@
         "tap": "Dark"
       },
       {
-        "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+        "open": "/rookie-draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
@@ -252,7 +276,11 @@
         },
         "note": "One user tap resumes the server clock."
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-commissioner-tools-dark",

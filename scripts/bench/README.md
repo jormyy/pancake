@@ -124,7 +124,7 @@ See [measurement limits](../../docs/supabase-performance-capacity.md).
 ```sh
 npm run test:bench:profile
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:56322/postgres npm run test:db:skipped-week-certificates
-deno test --no-lock --node-modules-dir=none -A scripts/bench/profile-span-certificates.ts --before ../before --out ../evidence/span-certificates.json
+deno test --no-lock --node-modules-dir=none -A scripts/bench/profile-span-certificates.ts -- --before ../before --out ../evidence/span-certificates.json
 ```
 
 The database command requires the isolated migrated stack.

@@ -1,6 +1,6 @@
 [
   {
-    "name": "home-light-day-timing-1",
+    "name": "home-light-day-timing",
     "group": "home-timing",
     "from": "/profile",
     "prepare": [
@@ -23,110 +23,7 @@
           "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
         }
       }
-    ]
-  },
-  {
-    "name": "home-light-day-timing-2",
-    "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "tap": "Matchup"
-      },
-      {
-        "tapPrefix": "Monday, "
-      }
     ],
-    "steps": [
-      {
-        "action": {
-          "tapPrefix": "Tuesday, "
-        },
-        "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
-        }
-      }
-    ]
-  },
-  {
-    "name": "home-light-day-timing-3",
-    "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "tap": "Matchup"
-      },
-      {
-        "tapPrefix": "Monday, "
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "tapPrefix": "Tuesday, "
-        },
-        "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
-        }
-      }
-    ]
-  },
-  {
-    "name": "home-light-day-timing-4",
-    "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "tap": "Matchup"
-      },
-      {
-        "tapPrefix": "Monday, "
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "tapPrefix": "Tuesday, "
-        },
-        "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
-        }
-      }
-    ]
-  },
-  {
-    "name": "home-light-day-timing-5",
-    "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "tap": "Matchup"
-      },
-      {
-        "tapPrefix": "Monday, "
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "tapPrefix": "Tuesday, "
-        },
-        "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
-        }
-      }
-    ]
+    "repeat": 5
   }
 ]

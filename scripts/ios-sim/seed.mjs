@@ -6,11 +6,20 @@ import path from 'node:path'
 import process from 'node:process'
 import { json, localUrl, project, readJson, run } from './common.mjs'
 
+function easternDate() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+}
+
+export function requireCurrentSeed(fixture) {
+  assert.equal(fixture.today, easternDate(), 'The fixture date differs from today in Eastern time; run start --reset after other captures stop')
+}
+
 export async function seed({ stack, snapshot, directory }) {
   localUrl(stack.url)
   const stackProject = stack.project ?? project
   assert.match(stackProject, /^[a-zA-Z0-9_-]+$/)
   const complete = await readJson(path.join(directory, 'complete.json'))
+  if (complete) requireCurrentSeed(complete)
   if (complete?.rosterPlanTrade) return complete
   const { createClient } = createRequire(path.join(snapshot, 'package.json'))('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
@@ -39,7 +48,7 @@ export async function seed({ stack, snapshot, directory }) {
   const season = await db(admin.from('league_seasons').select('id,season_year').eq('league_id', state.leagueId).eq('is_current', true).single())
   await db(admin.from('league_seasons').update({ season_year: 2027 }).eq('id', season.id))
   await db(admin.from('leagues').update({ name: 'iPhone Dynasty 2027', status: 'active', roster_size: 20, ir_slots: 2, taxi_slots: 3 }).eq('id', state.leagueId))
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const today = easternDate()
   const date = offset => new Date(Date.parse(`${today}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
   const weekday = new Date(`${today}T12:00:00Z`).getUTCDay()
   const monday = weekday === 0 ? -6 : 1 - weekday

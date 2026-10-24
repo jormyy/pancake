@@ -4,6 +4,8 @@ import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { apiUrl, digest, home, json, localUrl, lock, readJson, repo, run } from './common.mjs'
+import { stampReleaseProvenance } from '../stamp-release-provenance.mjs'
+import { recorderSource } from './recorder.mjs'
 
 async function sourceFiles() {
   return [...new Set((await run('git', ['ls-files', '-c', '--others', '--exclude-standard', '-z'])).split('\0'))].filter(file => file && !file.split('/').some(part => part.startsWith('.env') || ['.git', '.temp'].includes(part))).sort()
@@ -52,24 +54,40 @@ export async function sourceSnapshot(action = source => source) {
 export async function exportWeb(stack, force = false) {
   assert.equal(stack.url, apiUrl)
   return sourceSnapshot(async source => {
-    const hash = digest(`isolated-cache-v4:${source.hash}:${stack.url}:${stack.anonKey}`)
+    const hash = digest(`stamped-export-v1:${source.hash}:${stack.url}:${stack.anonKey}:${recorderSource}`)
     const root = path.join(home, 'exports', force ? `${hash}-${randomUUID()}` : hash)
     if (force || !(await readJson(path.join(root, 'ios-build.json')))) {
       process.stdout.write('Exporting the current worktree for the local stack.\n')
       const cache = path.join(home, 'metro-cache')
       await mkdir(cache, { recursive: true })
-      await run('node', ['node_modules/expo/bin/cli', 'export', '--platform', 'web', '--clear', '--output-dir', root], {
+      const dist = path.join(source.snapshot, 'dist')
+      await rm(dist, { recursive: true, force: true })
+      await run('node', ['node_modules/expo/bin/cli', 'export', '--platform', 'web', '--clear', '--output-dir', dist], {
         cwd: source.snapshot,
         env: { ...process.env, TMPDIR: cache, CI: '1', EXPO_NO_DOTENV: '1', EXPO_PUBLIC_SUPABASE_URL: stack.url, EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: stack.anonKey, EXPO_PUBLIC_API_URL: `${stack.url}/functions/v1/api` },
       })
-      const scriptRoot = path.join(root, '_expo/static/js/web')
+      const scriptRoot = path.join(dist, '_expo/static/js/web')
       const scripts = (await Promise.all((await readdir(scriptRoot)).filter(file => file.endsWith('.js')).map(file => readFile(path.join(scriptRoot, file), 'utf8')))).join('\n')
       assert.ok(scripts.includes(stack.url) && scripts.includes(stack.anonKey), 'Export does not contain the requested local stack values')
-      await cp(path.join(source.snapshot, 'public'), root, { recursive: true })
-      const worker = path.join(root, 'sw.js')
-      const workerSource = await readFile(worker, 'utf8').catch(error => { if (error.code !== 'ENOENT') throw error; return null })
-      if (workerSource !== null) await writeFile(worker, workerSource.replace("const VERSION = 'pancake-dev'", `const VERSION = 'pancake-ios-${hash}'`))
-      await json(path.join(root, 'ios-build.json'), { hash, source: source.hash, head: await run('git', ['rev-parse', 'HEAD']), stackUrl: stack.url })
+      await cp(path.join(source.snapshot, 'public'), dist, { recursive: true })
+      const recorder = `/assets/ios-recorder.${digest(recorderSource)}.js`
+      await mkdir(path.join(dist, 'assets'), { recursive: true })
+      await writeFile(path.join(dist, recorder), recorderSource)
+      const instrument = async directory => {
+        for (const entry of await readdir(directory, { withFileTypes: true })) {
+          const file = path.join(directory, entry.name)
+          if (entry.isDirectory()) await instrument(file)
+          else if (entry.name.endsWith('.html')) {
+            const html = await readFile(file, 'utf8')
+            await writeFile(file, html.replace('<head>', `<head><meta name="ios-source-fingerprint" content="${source.hash}"><script src="${recorder}"></script>`))
+          }
+        }
+      }
+      await instrument(dist)
+      const head = await run('git', ['rev-parse', 'HEAD'])
+      await json(path.join(dist, 'ios-build.json'), { hash, source: source.hash, head, stackUrl: stack.url })
+      await stampReleaseProvenance({ root: source.snapshot, commitSha: head })
+      await cp(dist, root, { recursive: true })
     }
     return { ...source, sourceFingerprint: source.hash, root, hash }
   })
