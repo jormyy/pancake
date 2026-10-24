@@ -179,13 +179,17 @@ describe('boot shell', () => {
         expect(activeFor('/players')).toEqual(['/players'])
         // A route outside the nav highlights nothing, as in the component.
         expect(activeFor('/profile')).toEqual([])
-        expect(activeFor('/player/abc')).toEqual([])
+        expect(activeFor('/player/abc')).toEqual(['/players'])
+        expect(activeFor('/lineup')).toEqual(['/roster'])
+        expect(activeFor('/claim-player')).toEqual(['/players'])
+        expect(activeFor('/propose-trade')).toEqual(['/trades'])
+        expect(activeFor('/team-roster')).toEqual(['/league'])
     })
 
-    it('compacts the mobile league label the way compactHeaderLabel does', () => {
+    it('keeps the full mobile league label through the app handoff', () => {
         const long = runBootScript('/', membershipStorage({ leagueName: 'Pancake E2E 20260827175814' })).texts
         expect(long.league).toBe('Pancake E2E 20260827175814')
-        expect(long['league-compact']).toBe('Pancake E2E')
+        expect(long['league-compact']).toBe(long.league)
         const short = runBootScript('/', membershipStorage({ leagueName: 'Sunday Dynasty' })).texts
         expect(short['league-compact']).toBe('Sunday Dynasty')
     })
