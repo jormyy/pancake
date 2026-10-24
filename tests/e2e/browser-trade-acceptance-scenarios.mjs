@@ -244,8 +244,7 @@ export async function runBrowserTradeFuturePickScenario({
       session,
       [
         'Propose Trade',
-        'DEAL SUMMARY',
-        'EDIT ASSETS SENT BY',
+        'Review',
         'DRAFT PICKS',
         String(fixture.targetFuturePickYear),
         fixture.proposerFuturePick.originalTeamName,

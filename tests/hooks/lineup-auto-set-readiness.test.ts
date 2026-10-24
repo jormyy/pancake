@@ -39,7 +39,7 @@ const Probe = ({ authorized }: { authorized: boolean }) => {
 
 afterEach(() => vi.clearAllMocks())
 
-it('keeps all optimization choices disabled and the sheet open during an authority refresh', async () => {
+it('keeps choices disabled during an authority refresh and permits sheet dismissal', async () => {
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe, { authorized: true })) })
     try {
@@ -49,11 +49,15 @@ it('keeps all optimization choices disabled and the sheet open during an authori
         for (const name of ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season']) {
             expect(renderer.root.findByProps({ accessibilityLabel: name }).props.disabled).toBe(true)
         }
-        expect(renderer.root.findByProps({ accessibilityLabel: 'Cancel auto-set' }).props.disabled).not.toBe(true)
         await act(async () => { await actions.doAutoSet(null) })
         expect(mocks.autoSetLineup).not.toHaveBeenCalled()
         expect(actions.autoSetModalVisible).toBe(true)
+        await act(async () => { renderer.root.findByProps({ title: 'Auto-set lineup' }).props.onClose() })
+        expect(actions.autoSetModalVisible).toBe(false)
+        expect(mocks.autoSetLineup).not.toHaveBeenCalled()
         await act(async () => { renderer.update(React.createElement(Probe, { authorized: true })) })
+        expect(actions.autoSetModalVisible).toBe(false)
+        await act(async () => { actions.handleAutoSet() })
         for (const name of ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season']) {
             expect(renderer.root.findByProps({ accessibilityLabel: name }).props.disabled).toBe(false)
         }

@@ -496,8 +496,8 @@ const dispatchDomClick = async (session, name, label) => {
 }
 
 const waitForAutoSetOptions = (session) => browser(session, ['wait', '--fn', `(() => {
-  return ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season', 'Cancel auto-set'].every((label) => {
-    const node = document.querySelector('[aria-label="' + label + '"]');
+  return ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season', 'Close'].every((label) => {
+    const node = document.querySelector('[role="dialog"] [aria-label="' + label + '"]');
     return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
   });
 })()`])
@@ -551,14 +551,14 @@ export const checkAutoSetRefreshReadiness = async (session, record, refresh) => 
     state = parseEvalJson(await browser(session, ['eval', `(() => {
       const labels = ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season'];
       const choices = labels.map((label) => {
-        const node = document.querySelector('[aria-label="' + label + '"]');
+        const node = document.querySelector('[role="dialog"] [aria-label="' + label + '"]');
         return { label, visible: Boolean(node?.getClientRects().length), disabled: node?.getAttribute('aria-disabled') === 'true' };
       });
-      const cancel = document.querySelector('[aria-label="Cancel auto-set"]');
-      return JSON.stringify({ choices, cancelAvailable: Boolean(cancel?.getClientRects().length) && cancel.getAttribute('aria-disabled') !== 'true' });
+      const close = document.querySelector('[role="dialog"] [aria-label="Close"]');
+      return JSON.stringify({ choices, closeAvailable: Boolean(close?.getClientRects().length) && close.getAttribute('aria-disabled') !== 'true' });
     })()`]))
     record({ refreshReadiness: state })
-    if (!state.choices.every((choice) => choice.visible && choice.disabled) || !state.cancelAvailable) {
+    if (!state.choices.every((choice) => choice.visible && choice.disabled) || !state.closeAvailable) {
       throw new Error(`Auto-set choices must wait for refresh without closing the sheet: ${JSON.stringify(state)}`)
     }
   } finally {

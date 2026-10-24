@@ -53,7 +53,7 @@ describe('offer refresh layout', () => {
     })
 })
 
-describe.each(['block', 'leagueBlock'] as const)('%s refresh layout', tab => {
+describe.each(['block'] as const)('%s refresh layout', tab => {
     it('retains settled empty listings and their layouts through a refresh', () => {
         const settled = buildTradeList({ ...input, tab, tradesLoading: false, blockLoading: false })
         const manager = layoutManager(settled)

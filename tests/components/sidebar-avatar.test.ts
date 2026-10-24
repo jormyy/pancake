@@ -7,7 +7,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-    userId: 'owner-a', width: 1440, read: vi.fn(), eq: vi.fn(), renders: [] as { owner: string; uri: unknown }[],
+    userId: 'owner-a', width: 1440, pathname: '/profile', read: vi.fn(), eq: vi.fn(), renders: [] as { owner: string; uri: unknown }[],
     league: { current: null, currentLeague: null, memberships: [], isCommissioner: false } as Record<string, unknown>,
 }))
 vi.mock('react-native', () => ({
@@ -16,7 +16,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
-vi.mock('expo-router', () => ({ Link: 'Link', Navigator: {}, usePathname: () => '/profile', useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('expo-router', () => ({ Link: 'Link', Navigator: {}, usePathname: () => mocks.pathname, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.league }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('@/hooks/use-pending-trade-count', () => ({ usePendingTradeCount: () => 0 }))
@@ -49,6 +49,7 @@ beforeEach(() => {
         ? 1 : originalLoad.call(moduleLoader, name, ...args))
     mocks.userId = 'owner-a'
     mocks.width = 1440
+    mocks.pathname = '/profile'
     mocks.renders = []
     mocks.league = { current: null, currentLeague: null, memberships: [], isCommissioner: false }
     mocks.read.mockResolvedValue({ avatar_url: 'a.png' })
@@ -57,6 +58,7 @@ beforeEach(() => {
 
 it.each([1440, 390])('reserves the league switch geometry before identity resolves at width %s', async width => {
     mocks.width = width
+    mocks.pathname = '/'
     await mount()
     const placeholder = screen.root.findAllByType('Text' as React.ElementType).find(node => node.props.children === 'League unavailable')!
     const beforeSwitch = placeholder.parent!.parent!
@@ -69,10 +71,22 @@ it.each([1440, 390])('reserves the league switch geometry before identity resolv
         currentLeague: { id: 'league' }, memberships: [], isCommissioner: true,
     }
     await act(async () => screen.update(React.createElement(WebAppShell, null, null)))
-    const trigger = screen.root.findByProps({ accessibilityLabel: 'Switch league' })
-    expect(flatten(trigger.props.style({})).height).toBe(before.height)
-    expect(flatten(trigger.parent!.props.style)).toEqual(wrapper)
+    const title = screen.root.findByProps({ children: 'A long league name that fills both lines' })
+    const titleBox = title.parent!.parent!
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Switch league' })).toHaveLength(0)
+    expect(flatten(titleBox.props.style).height).toBe(before.height)
+    expect(flatten(titleBox.parent!.props.style)).toEqual(wrapper)
     expect(before.height).toBe(width === 390 ? 44 : 68)
+})
+it.each(['/profile', '/player/player-a', '/propose-trade'])('hides the global top bar on the pushed route %s', async pathname => {
+    mocks.width = 390
+    mocks.pathname = '/'
+    await mount()
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open menu' })).toHaveLength(1)
+    mocks.pathname = pathname
+    await act(async () => screen.update(React.createElement(WebAppShell, null, null)))
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open menu' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ 'aria-label': 'Primary' })).toHaveLength(1)
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.restoreAllMocks() })
 

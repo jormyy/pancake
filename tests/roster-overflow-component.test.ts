@@ -39,21 +39,23 @@ const player = (id: string): RosterPlayer => ({
 describe('roster overflow recovery ownership', () => {
     it('disables every recovery action while any roster mutation is in flight', async () => {
         let renderer!: ReactTestRenderer
+        const onDrop = vi.fn()
+        const props = { players: [player('one'), player('two')], excess: 1, irAvailable: false,
+            busyId: 'roster-one', onDrop, onMoveToIR: vi.fn() }
         await act(async () => {
-            renderer = create(React.createElement(RosterTrimBanner, {
-                players: [player('one'), player('two')],
-                excess: 1,
-                irAvailable: false,
-                busyId: 'roster-one',
-                onDrop: vi.fn(),
-                onMoveToIR: vi.fn(),
-            }))
+            renderer = create(React.createElement(RosterTrimBanner, props))
         })
         const dropActions = renderer.root.findAll((node) =>
-            typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Drop '))
+            node.type === ('Pressable' as React.ElementType) && typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Drop '))
 
         expect(dropActions).toHaveLength(2)
         expect(dropActions.every((node) => node.props.disabled === true)).toBe(true)
+        await act(async () => { renderer.update(React.createElement(RosterTrimBanner, { ...props, busyId: null })) })
+        const ready = renderer.root.findAllByType('Pressable' as React.ElementType)
+        expect(ready).toHaveLength(2)
+        expect(ready.every(node => node.props.disabled === false)).toBe(true)
+        await act(async () => { ready[1].props.onPress() })
+        expect(onDrop).toHaveBeenCalledWith(props.players[1])
         await act(async () => { renderer.unmount() })
     })
 })

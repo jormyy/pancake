@@ -56,7 +56,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     it('opens the claim list for an already pending claim', async () => {
         const onAdd = vi.fn()
         const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), claimPending: true, onAdd })
-        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim pending for Player A, view claims' })
+        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(pending.findByProps({ name: 'schedule' }).props).toMatchObject({ name: 'schedule', color: uiColors.waiverText })
         await act(async () => { pending.props.onPress() })
         expect(onAdd).toHaveBeenCalledWith(playerRow())
@@ -124,12 +124,12 @@ describe('pickup entry points when the weekly add limit is reached', () => {
 
 })
 
-it('labels an IR add and keeps its label during a pending write', async () => {
+it('keeps the add icon accessible and disables it during a pending write', async () => {
     const props = { item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, addToIR: true, animate: false, onAdd: vi.fn(), onPress: vi.fn() }
     const tree = await renderSearchItem(props)
-    const button = tree.root.findByProps({ accessibilityLabel: 'Add to IR Player A' })
-    expect(button.findByProps({ children: 'Add to IR' })).toBeDefined()
+    const button = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+    expect(button.findByProps({ name: 'add' })).toBeDefined()
     await act(async () => tree.update(React.createElement(PlayerSearchItem, { ...props, isAdding: true })))
-    expect(tree.root.findByProps({ accessibilityLabel: 'Add to IR Player A' }).props.disabled).toBe(true)
-    expect(tree.root.findByProps({ children: 'Add to IR' })).toBeDefined()
+    expect(tree.root.findByProps({ accessibilityLabel: 'Add Player A' }).props.disabled).toBe(true)
+    expect(tree.root.findByProps({ name: 'schedule' })).toBeDefined()
 })
