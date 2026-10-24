@@ -1,0 +1,423 @@
+[
+  {
+    "name": "matchup",
+    "group": "tabs",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "tap": "Matchup"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "roster",
+    "group": "tabs",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "players",
+    "group": "tabs",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades",
+    "group": "tabs",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "text": "{{otherTeam}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "league",
+    "group": "tabs",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "League"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "draft",
+    "group": "tabs",
+    "from": "/",
+    "prepare": [
+      {
+        "tap": "Open menu"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Draft Room"
+        },
+        "expected": {
+          "route": "/draft-room",
+          "text": "E2E Team 1"
+        }
+      }
+    ]
+  },
+  {
+    "name": "dynasty",
+    "group": "tabs",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "open": "/dynasty"
+        },
+        "expected": {
+          "route": "/players?section=rankings",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        },
+        "note": "The baseline has no Dynasty tab. The legacy bookmark redirects to Players rankings."
+      }
+    ]
+  },
+  {
+    "name": "profile",
+    "group": "tabs",
+    "from": "/",
+    "prepare": [
+      {
+        "tap": "Open menu"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Profile & settings"
+        },
+        "expected": {
+          "route": "/profile",
+          "text": "{{displayName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-from-players",
+    "group": "interactions",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{freeAgent.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-from-roster",
+    "group": "interactions",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
+        }
+      },
+      {
+        "name": "page",
+        "action": {
+          "tap": "View {{rosterPlayer.display_name}} player page"
+        },
+        "expected": {
+          "route": "/player/{{rosterPlayer.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "season-change",
+    "group": "interactions",
+    "from": "/player/{{rosterPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "select": "Season",
+          "value": "2026",
+          "option": "2025\u201326"
+        },
+        "expected": {
+          "value": {
+            "selector": "select[aria-label='Season']",
+            "equals": "2026"
+          },
+          "text": "Recent games"
+        }
+      }
+    ]
+  },
+  {
+    "name": "free-agent-add-drop-picker",
+    "group": "interactions",
+    "from": "/player/{{freeAgent.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "text": "Your roster is full. Pick someone to release."
+        }
+      }
+    ]
+  },
+  {
+    "name": "waiver-claim",
+    "group": "interactions",
+    "from": "/player/{{waiverPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Submit waiver claim']"
+        }
+      },
+      {
+        "name": "choose-drop",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} to drop"
+        },
+        "expected": {
+          "selector": "[aria-label='Submit waiver claim']:not([aria-disabled='true'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "lineup",
+    "group": "interactions",
+    "from": "/player/{{rosterPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Move {{rosterPlayer.display_name}} in lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "text": "Starters"
+        }
+      },
+      {
+        "name": "move",
+        "action": {
+          "tap": "Bench {{benchPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{benchPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trade-composer",
+    "group": "interactions",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "text": "{{otherTeam}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "profile-edit",
+    "group": "interactions",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Edit"
+        },
+        "expected": {
+          "selector": "[aria-label='Display name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "change-password",
+    "group": "interactions",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Change password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "text": "Current password"
+        }
+      }
+    ]
+  },
+  {
+    "name": "lineup-options",
+    "group": "interactions",
+    "from": "/lineup",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open auto-set lineup options"
+        },
+        "expected": {
+          "selector": "[role='dialog']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-filter-settings",
+    "group": "interactions",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "tap": "Show filters"
+        },
+        "expected": {
+          "dialog": "Filters"
+        }
+      },
+      {
+        "name": "season",
+        "action": {
+          "tapPrefix": "Season:"
+        },
+        "expected": {
+          "dialog": "Season"
+        }
+      }
+    ]
+  },
+  {
+    "name": "pull-to-refresh",
+    "group": "lifecycle",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "refresh": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "return-to-app",
+    "group": "lifecycle",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "offline-banner",
+    "group": "lifecycle",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "text": "Offline"
+        }
+      }
+    ]
+  }
+]
