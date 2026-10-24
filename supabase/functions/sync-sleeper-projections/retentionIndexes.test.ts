@@ -17,6 +17,10 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   const snapshotDelete = completion.match(/DELETE FROM public\.sleeper_projection_rows stored[\s\S]*?;/)?.[0]
   assert.ok(snapshotDelete)
   const scopedDelete = snapshotDelete.replaceAll('v_run.season_year', '2097').replaceAll('v_run.week_number', '2').replaceAll('p_rows', "'[]'::jsonb").replaceAll('v_source_keys', "'[]'::jsonb")
+  const coverageCount = completion.match(/SELECT count\(\*\) INTO v_stored_upcoming FROM public\.sleeper_projection_rows[\s\S]*?;/)?.[0]
+  assert.ok(coverageCount)
+  const scopedCount = coverageCount.replace(' INTO v_stored_upcoming', '').replaceAll('v_run.season_year', '2097').replaceAll('v_run.week_number', '2')
+  plans.push(`SELECT pg_temp.check_plan(${quoted(scopedCount)},'sleeper_projection_rows_week');`)
   plans.push(`SELECT pg_temp.check_plan(${quoted(scopedDelete)},'sleeper_projection_rows_week');`)
   const sql = `BEGIN;
   SET LOCAL statement_timeout='30s';

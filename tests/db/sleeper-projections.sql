@@ -148,7 +148,7 @@ DECLARE
   u uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); member uuid:=gen_random_uuid();
   p uuid:=gen_random_uuid(); run_a uuid:=gen_random_uuid(); run_b uuid:=gen_random_uuid(); stale uuid:=gen_random_uuid();
   d date:=(now() AT TIME ZONE 'America/New_York')::date; row_data jsonb; new_row jsonb; result record;
-  fingerprint text; v_revision bigint;
+  fingerprint text; v_revision bigint; stable uuid[]; stable_rows jsonb;
 BEGIN
   INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(u,u::text||'@example.test',jsonb_build_object('username',u::text));
   INSERT INTO public.leagues(id,name,slug,commissioner_id,status,scoring_settings)
@@ -173,12 +173,17 @@ BEGIN
     'rebounds',0,'assists',0,'steals',0,'blocks',0,'three_pointers_made',0,'turnovers',0,
     'field_goals_made',0,'field_goals_attempted',0,'free_throws_made',0,'free_throws_attempted',0,
     'three_pointers_attempted',0,'minutes',30,'last_modified',1);
+  SELECT array_agg(gen_random_uuid()) INTO stable FROM generate_series(1,5);
+  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,nba_team)
+    SELECT id,'Stable','Fixture'||ordinality,'PG',ARRAY['PG']::public.nba_position[],'BOS' FROM unnest(stable) WITH ORDINALITY p(id,ordinality);
+  SELECT jsonb_agg(row_data||jsonb_build_object('player_id',id,'source_game_id','stable-game','sleeper_id','stable-'||ordinality))
+    INTO stable_rows FROM unnest(stable) WITH ORDINALITY p(id,ordinality);
   PERFORM public.complete_sleeper_projection_sync(run_a,jsonb_build_array(row_data,
     row_data||jsonb_build_object('source_game_id','snapshot-past','game_date',d-1),
-    row_data||jsonb_build_object('source_game_id','snapshot-future','game_date',d+1)),3,0,200);
+    row_data||jsonb_build_object('source_game_id','snapshot-future','game_date',d+1))||stable_rows,8,0,200);
   UPDATE public.players SET nba_team='LAL' WHERE id=p;
   new_row:=row_data||'{"source_game_id":"snapshot-new","team":"LAL","opponent":"PHX","points":35,"last_modified":2}'::jsonb;
-  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row),1,0,200);
+  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row)||stable_rows,6,0,200);
   SELECT * INTO result FROM public.get_league_projection_rows(l,2095,d,'today',ARRAY[p],1,0);
   PERFORM pg_temp.check_sleeper(result.projection_points=35 AND result.projection_fantasy_points=35,
     'team-change snapshot returns 35 today instead of 65');
@@ -208,13 +213,13 @@ BEGIN
   INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,week_number)
     VALUES('sleeper','weekly_total','https://api.sleeper.app/projections/nba/2094/1',2095,1) RETURNING id INTO run_b;
   SELECT h.revision INTO v_revision FROM public.league_change_hints h WHERE league_id=l AND topic='resources';
-  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row),1,0,200);
+  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row)||stable_rows,6,0,200);
   PERFORM pg_temp.check_sleeper((SELECT h.revision=v_revision+1 FROM public.league_change_hints h WHERE league_id=l AND topic='resources'),
     'snapshot removals emit one hint per league rather than one per deleted row');
   INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,week_number)
     VALUES('sleeper','weekly_total','https://api.sleeper.app/projections/nba/2094/1',2095,1) RETURNING id INTO run_b;
   SELECT h.revision INTO v_revision FROM public.league_change_hints h WHERE league_id=l AND topic='resources';
-  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row),1,0,200);
+  PERFORM public.complete_sleeper_projection_sync(run_b,jsonb_build_array(new_row)||stable_rows,6,0,200);
   PERFORM pg_temp.check_sleeper((SELECT h.revision=v_revision FROM public.league_change_hints h WHERE league_id=l AND topic='resources'),
     'unchanged complete snapshot emits no hints');
 END;
@@ -286,6 +291,101 @@ BEGIN
   PERFORM pg_temp.check_sleeper(historical.projection_fantasy_points=36.67 AND historical.projection_games_played=3,
     'mixed-source weekly average includes the completed game and missing-game fallback');
 
+END;
+$$;
+CREATE FUNCTION pg_temp.complete_coverage(rows jsonb) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE run uuid;
+BEGIN
+  INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,week_number)
+    VALUES('sleeper','weekly_total','https://api.sleeper.app/projections/nba/2090/1',2091,1) RETURNING id INTO run;
+  PERFORM public.complete_sleeper_projection_sync(run,rows,jsonb_array_length(rows),0,200);
+  RETURN run;
+END;
+$$;
+DO $$
+DECLARE
+  u uuid:=gen_random_uuid(); l uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); member uuid:=gen_random_uuid();
+  players uuid[]; base_rows jsonb; incoming jsonb; historical jsonb; run uuid; backup uuid;
+  d date:=(now() AT TIME ZONE 'America/New_York')::date; result record; fingerprint text; v_revision bigint; size integer;
+BEGIN
+  INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(u,u::text||'@example.test',jsonb_build_object('username',u::text));
+  INSERT INTO public.leagues(id,name,slug,commissioner_id,status,scoring_settings)
+    VALUES(l,'Sleeper coverage',l::text,u,'active','{"points":1}');
+  INSERT INTO public.league_seasons(id,league_id,season_year,is_current) VALUES(season,l,2091,true);
+  INSERT INTO public.league_members(id,league_id,user_id,role) VALUES(member,l,u,'commissioner');
+  INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(2091,1,d,d+6);
+  SELECT array_agg(gen_random_uuid()) INTO players FROM generate_series(1,10);
+  INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,nba_team)
+    SELECT id,'Coverage','Fixture'||ordinality,'PG',ARRAY['PG']::public.nba_position[],'BOS' FROM unnest(players) WITH ORDINALITY p(id,ordinality);
+  INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(l,season,member,players[2],'draft');
+  INSERT INTO public.lineup_optimizer_settings(league_id,league_season_id,member_id,enabled) VALUES(l,season,member,true)
+    ON CONFLICT(league_id,league_season_id,member_id) DO UPDATE SET enabled=true;
+  INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+    VALUES('0029110001',2091,1,d,now()+interval '2 hours','BOS','NYK','Scheduled');
+  INSERT INTO public.projection_sync_runs(source,projection_type,source_url,season_year,projection_date,status,started_at,completed_at)
+    VALUES('fantasypros','daily','https://www.fantasypros.com/nba/projections/daily-overall.php',2091,d,'success',now()+interval '10 seconds',now()) RETURNING id INTO backup;
+  INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,season_year,projection_date,
+    fetched_at,source_player_name,normalized_player_name,player_id,match_status,points)
+    VALUES(backup,'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',1,2091,d,now(),'Coverage Fixture2','coverage fixture2',players[2],'matched',100);
+  SELECT * INTO result FROM public.get_league_projection_rows(l,2091,d,'today',ARRAY[players[2]],1,0);
+  PERFORM pg_temp.check_sleeper(result.projection_source='fantasypros_daily' AND result.projection_points=100,'coverage fixture has a live nonzero backup');
+  SELECT jsonb_agg(jsonb_build_object('player_id',id,'source_game_id','coverage-game','sleeper_id',ordinality::text,
+    'season_year',2091,'week_number',1,'game_date',d,'team','BOS','opponent','NYK',
+    'points',CASE WHEN ordinality=2 THEN 0 ELSE 20 END,'rebounds',0,'assists',0,'steals',0,'blocks',0,'three_pointers_made',0,'turnovers',0,
+    'field_goals_made',0,'field_goals_attempted',0,'free_throws_made',0,'free_throws_attempted',0,
+    'three_pointers_attempted',0,'minutes',0,'last_modified',1) ORDER BY ordinality)
+    INTO base_rows FROM unnest(players) WITH ORDINALITY p(id,ordinality);
+  run:=pg_temp.complete_coverage(jsonb_build_array(base_rows->0,base_rows->1));
+  PERFORM pg_temp.check_sleeper((SELECT status='success' FROM public.projection_sync_runs WHERE id=run),'first small snapshot succeeds without stored upcoming rows');
+  fingerprint:=private.pre_tipoff_input_fingerprint(d);
+  SELECT h.revision INTO v_revision FROM public.league_change_hints h WHERE league_id=l AND topic='resources';
+  run:=pg_temp.complete_coverage(jsonb_build_array((base_rows->0)||'{"points":25,"last_modified":2}'::jsonb));
+  PERFORM pg_temp.check_sleeper((SELECT count(*)=2 FROM public.sleeper_projection_rows WHERE player_id=ANY(players)),
+    'two-to-one valid HTTP 200 response preserves the omitted projected sit');
+  PERFORM pg_temp.check_sleeper((SELECT status='failed' AND http_status=200 AND matched_count=1 AND row_count=1
+    AND completed_at IS NOT NULL AND error_message LIKE 'Sleeper coverage below 70%' FROM public.projection_sync_runs WHERE id=run),
+    'partial HTTP 200 records a failed run with its coverage reason');
+  PERFORM pg_temp.check_sleeper((SELECT source_metadata->'coverageGuard'='{"storedUpcoming":2,"matchedUpcoming":1,"minimumPercent":70,"degraded":true}'::jsonb
+    FROM public.projection_sync_runs WHERE id=run),'coverage diagnostics retain the compared upcoming counts');
+  PERFORM pg_temp.check_sleeper((SELECT points=25 FROM public.sleeper_projection_rows WHERE player_id=players[1]),'degraded pull still upserts accepted projections');
+  SELECT * INTO result FROM public.get_league_projection_rows(l,2091,d,'today',ARRAY[players[2]],1,0);
+  PERFORM pg_temp.check_sleeper(result.projection_source='sleeper' AND result.projection_points=0,'retained sit prevents a switch to the nonzero backup');
+  PERFORM pg_temp.check_sleeper(fingerprint=private.pre_tipoff_input_fingerprint(d),'missing sit cannot change automatic lineup inputs');
+  PERFORM pg_temp.check_sleeper((SELECT h.revision=v_revision+1 FROM public.league_change_hints h WHERE league_id=l AND topic='resources'),
+    'degraded pull emits only the changed row hint without deletion hints');
+  run:=pg_temp.complete_coverage(jsonb_build_array(base_rows->0,base_rows->1));
+  PERFORM pg_temp.check_sleeper((SELECT status='success' AND error_message IS NULL FROM public.projection_sync_runs WHERE id=run),'full coverage recovers after a degraded pull');
+  FOREACH size IN ARRAY ARRAY[6,7,8] LOOP
+    DELETE FROM public.sleeper_projection_rows WHERE player_id=ANY(players);
+    PERFORM pg_temp.complete_coverage(base_rows);
+    SELECT jsonb_agg(row ORDER BY ordinal) INTO incoming FROM jsonb_array_elements(base_rows) WITH ORDINALITY r(row,ordinal) WHERE ordinal<=size;
+    run:=pg_temp.complete_coverage(incoming);
+    PERFORM pg_temp.check_sleeper((SELECT status=CASE WHEN size<7 THEN 'failed' ELSE 'success' END FROM public.projection_sync_runs WHERE id=run)
+      AND (SELECT count(*)=CASE WHEN size<7 THEN 10 ELSE size END FROM public.sleeper_projection_rows WHERE player_id=ANY(players)),
+      'coverage threshold '||size||' of ten upcoming rows');
+  END LOOP;
+  DELETE FROM public.sleeper_projection_rows WHERE player_id=ANY(players);
+  PERFORM pg_temp.complete_coverage(base_rows);
+  SELECT jsonb_agg(row||jsonb_build_object('source_game_id','past-coverage-game','game_date',d-1)) INTO historical FROM jsonb_array_elements(base_rows) row;
+  SELECT jsonb_agg(row ORDER BY ordinal) INTO incoming FROM jsonb_array_elements(base_rows) WITH ORDINALITY r(row,ordinal) WHERE ordinal<=6;
+  run:=pg_temp.complete_coverage(incoming||historical);
+  PERFORM pg_temp.check_sleeper((SELECT status='failed' AND matched_count=16 AND source_metadata->'coverageGuard'->>'matchedUpcoming'='6'
+    FROM public.projection_sync_runs WHERE id=run) AND (SELECT count(*)=10 FROM public.sleeper_projection_rows WHERE player_id=ANY(players) AND game_date>=d),
+    'past matched rows cannot inflate upcoming coverage');
+  run:=pg_temp.complete_coverage(historical);
+  PERFORM pg_temp.check_sleeper((SELECT status='failed' FROM public.projection_sync_runs WHERE id=run)
+    AND (SELECT count(*)=10 FROM public.sleeper_projection_rows WHERE player_id=ANY(players) AND game_date>=d),'zero upcoming matches cannot erase the stored upcoming span');
+  DELETE FROM public.sleeper_projection_rows WHERE player_id=ANY(players);
+  PERFORM pg_temp.complete_coverage(historical);
+  run:=pg_temp.complete_coverage(jsonb_build_array(base_rows->0));
+  PERFORM pg_temp.check_sleeper((SELECT status='success' FROM public.projection_sync_runs WHERE id=run)
+    AND (SELECT count(*)=11 FROM public.sleeper_projection_rows WHERE player_id=ANY(players)),'stored past games do not block the first upcoming snapshot');
+  DELETE FROM public.sleeper_projection_rows WHERE player_id=ANY(players);
+  INSERT INTO public.sleeper_projection_rows SELECT (jsonb_populate_record(NULL::public.sleeper_projection_rows,
+    row||jsonb_build_object('id',gen_random_uuid(),'fetched_at',now(),'week_number',2,'source_game_id','other-week-game','game_date',d+7))).* FROM jsonb_array_elements(base_rows) row;
+  run:=pg_temp.complete_coverage(jsonb_build_array(base_rows->0));
+  PERFORM pg_temp.check_sleeper((SELECT status='success' FROM public.projection_sync_runs WHERE id=run)
+    AND (SELECT count(*)=10 FROM public.sleeper_projection_rows WHERE player_id=ANY(players) AND week_number=2),'another week does not affect coverage or replacement');
 END;
 $$;
 SELECT count(*) AS passed FROM sleeper_checks;

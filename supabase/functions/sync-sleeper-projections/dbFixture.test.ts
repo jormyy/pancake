@@ -111,7 +111,7 @@ Deno.test({ name: 'partial snapshots preserve seen rejected and unmatched player
   sunday.setUTCDate(sunday.getUTCDate() + 6)
   const context = { seasonYear: 2094, weekNumber: 1, sleeperWeek: 1, weekStart: monday.toISOString().slice(0, 10), weekEnd: sunday.toISOString().slice(0, 10) }
   const sample = JSON.parse(await Deno.readTextFile(new URL('./fixtures/matched-sample.json', import.meta.url)))[0]
-  const ids = Array.from({ length: 5 }, () => crypto.randomUUID())
+  const ids: string[] = Array.from({ length: 5 }, () => crypto.randomUUID())
   const rows = ids.map((_, i) => ({ ...structuredClone(sample), player_id: String(9800100 + i), game_id: String(9800200 + i), date: day,
     season: '2093', player: { first_name: 'Filtered', last_name: `Fixture${i}` }, stats: { gp: 1, pts: 20 } }))
   const pull = (body: unknown) => syncSleeperProjections(client, context, () => Promise.resolve(Response.json(body)))
@@ -139,6 +139,21 @@ Deno.test({ name: 'partial snapshots preserve seen rejected and unmatched player
     await pull(rows.slice(1))
     assert.equal((await query(client.from('sleeper_projection_rows').select('id').in('player_id', ids)))?.length, 4)
     assert.equal((await query(client.from('sleeper_projection_rows').select('id').eq('player_id', ids[0])))?.length, 0)
+    const truncated = rows.slice(1, 3).map((row) => ({ ...row, stats: { gp: 1, pts: 25 }, last_modified: row.last_modified + 1000 }))
+    await assert.rejects(() => pull(truncated), /Sleeper coverage below 70%/)
+    const preserved = await query(client.from('sleeper_projection_rows').select('id,player_id,points').in('player_id', ids))
+    assert.ok(preserved)
+    assert.equal(preserved.length, 4)
+    assert.ok(preserved.filter((row) => ids.slice(1, 3).includes(row.player_id)).every((row) => row.points === 25))
+    assert.ok(preserved.filter((row) => ids.slice(3).includes(row.player_id)).every((row) => row.points === 20))
+    const failed = await query(client.from('projection_sync_runs').select('status,error_message,matched_count,source_metadata').eq('source', 'sleeper').eq('season_year', 2094).eq('status', 'failed').single())
+    assert.equal(failed?.matched_count, 2)
+    assert.match(failed?.error_message ?? '', /Sleeper coverage below 70%/)
+    assert.deepEqual((failed?.source_metadata as Record<string, unknown>).coverageGuard, { storedUpcoming: 4, matchedUpcoming: 2, minimumPercent: 70, degraded: true })
+    await pull(rows.slice(1).map((row) => ({ ...row, last_modified: row.last_modified + 2000 })))
+    const latest = await query(client.from('projection_sync_runs').select('status,error_message').eq('source', 'sleeper').eq('season_year', 2094).order('started_at', { ascending: false }).limit(1).single())
+    assert.equal(latest?.status, 'success')
+    assert.equal(latest?.error_message, null)
     console.log(JSON.stringify({ sourceRows: 5, afterRejectedRow: retained.length, afterUnmatchedRow: 5, afterOmittedRow: 4, externalRequests: 0 }))
   } finally {
     await query(client.from('projection_sync_runs').delete().eq('source', 'sleeper').eq('season_year', 2094))
