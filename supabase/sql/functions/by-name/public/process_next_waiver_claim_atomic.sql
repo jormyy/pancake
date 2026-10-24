@@ -301,7 +301,6 @@ BEGIN
           WHEN NOT COALESCE(v_ir_eligible, false) THEN 'Player is no longer IR eligible.'
           WHEN v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN 'Your IR slots are full.'
           WHEN v_league.status = 'offseason'::league_status THEN 'IR moves are unavailable in the offseason.'
-          WHEN private.roster_status_game_started(v_claim.player_id) THEN 'This player''s game has already started.'
           ELSE NULL
         END;
         v_to_ir := v_ir_failure IS NULL;

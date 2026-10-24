@@ -101,10 +101,6 @@ BEGIN
       RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
         USING ERRCODE = 'P0001';
     END IF;
-    IF private.roster_status_game_started(p_player_id) THEN
-      RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
-        USING ERRCODE = 'P0001';
-    END IF;
     SELECT injury_status INTO v_injury FROM players WHERE id = p_player_id FOR SHARE;
     IF NOT private.is_ir_designation(v_injury) THEN
       RAISE EXCEPTION 'Only players with Out or IR designations can be placed on IR.'
