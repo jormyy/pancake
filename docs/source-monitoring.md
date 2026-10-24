@@ -8,6 +8,7 @@ Every enabled source records its latest attempt and result. The health report ne
 | --- | --- | --- | --- | --- |
 | NBA CDN | Schedule, scoreboard, stats, and player sync runs | Games, weeks, final-game stats, and NBA IDs | `sync_runs` keeps the error | Cron retries the next poll |
 | ESPN public JSON | Player sync run and latest news date | ESPN IDs and news rows | Any player, injury, or news error fails the run | Daily sync retries every component |
+| Sleeper (RotoWire) | Current-week successful run within eight days | At least 300 matched players in season | Strict shape checks record failed runs | Last good player-game rows stay available |
 | FantasyPros | One run per projection type | Rows and player matches | Failed or skipped runs keep the reason | Internal averages remain available |
 | Hashtag Basketball | Ranking sync run and fetch date | A view must meet its row floor | Changed views fail before replacement | The next weekly run retries |
 | NBA draft order | Draft sync run | At least 50 verified picks | Incomplete boards keep prior data | Each window day retries |
@@ -53,8 +54,12 @@ The response-table maintenance job uses ordinary vacuum to reclaim expired respo
 It preserves live responses and requires no table rewrite.
 Inspect table size, dead tuples, and reconciliation time when reviewing its frequency.
 
-Successful high-frequency operational records retain seven days under the existing retention policy.
-Failures, important daily or weekly results, player stats, game records, and league history remain protected.
+Weekly cleanup covers every cron job and function name, including deleted cron jobs.
+Successful records expire after seven days. Failed records expire after thirty days.
+Each function keeps its newest success and failure, even when both are older.
+Unreconciled and running invocations remain protected.
+A reconciled failed worker is terminal, even when its finish time is absent.
+League history, NBA stats, games, and news remain unchanged.
 
 ## External failure alerts
 
@@ -80,7 +85,7 @@ FantasyPros can publish no projections during the offseason. The report marks an
 
 The scoreboard can return zero games. A successful empty response differs from a failed request.
 
-Sleeper remains dormant. Its data does not count toward active-source health.
+Sleeper projections are active. The separate Sleeper player import remains a dormant fallback.
 
 ## Player sources
 
@@ -103,3 +108,70 @@ Missing or invalid flags use parsed minutes; missing or malformed minutes indica
 Raw stat fields remain stored. Scoring applies the DNP exclusion.
 Eligible syncs can correct existing rows. Completed backfill jobs do not automatically replay.
 Derived averages follow their own refresh schedule.
+
+## Projection refresh and storage
+
+Sleeper supplies RotoWire per-game lines from its public NBA projection endpoint.
+Pancake season 2027 maps to Sleeper season 2026.
+The first season week starts with the first regular-season game and ends Sunday.
+Later weeks run Monday through Sunday.
+
+The due-work gate checks every fifteen minutes.
+It claims each Pacific week from Monday at 00:00, including a late first deployment.
+Game-day refreshes run at 08:00, 12:00, and 15:00 Pacific before the first tipoff, even when Monday fails.
+A late check catches the latest elapsed window. Pacific dates handle daylight saving changes.
+The existing dispatch reconciler retries failed claims, with its existing three-attempt limit.
+FantasyPros refreshes at 08:00 and 15:00 Pacific.
+
+Sleeper stores one row per matched player and source game.
+A pull updates that row only when its source revision is at least as new.
+Each weekly snapshot removes truly absent rows for today and later dates in the same transaction.
+Rows rejected during parsing or matching retain their stored values when their source player-game key remains present.
+Earlier dates remain until weekly cleanup. A late older snapshot cannot replace a newer successful snapshot.
+Player matching uses Sleeper IDs first, then a unique normalized name and team when the player lacks an ID.
+Runs record parsed, matched, and unmatched counts. Metadata includes input and rejected row counts.
+Up to thirty unmatched identities aid diagnosis.
+Missing stats become zero. Projected sits store zero lines and suppress backup projections.
+Rounding raises attempts to makes. Unused stats do not affect validation.
+Malformed rows are skipped and counted in run metadata. More than 20% rejected rows fails the pull.
+Invalid bodies, zero valid rows, and failed HTTP responses preserve the last good rows.
+All writes from a valid pull commit together.
+Recorded fixtures retain both complete public weeks fetched on 2026-10-23.
+Tests make no live provider requests.
+
+Readers prefer Sleeper for each game, including the player screen's next game.
+Every Sleeper row must match a regular scheduled matchup.
+Today and future rows must also match the player's current team. Earlier games remain eligible after a team change.
+Projections older than 36 hours return a false freshness flag and their recorded fetch time.
+Weekly totals sum game lines. Weekly averages divide by the number of covered games.
+Missing games use FantasyPros, then the existing internal and season-average fallbacks.
+FantasyPros totals divide by their reported game count before filling a missing game.
+A mixed week's source label names Sleeper. Its missing games can include backup values.
+Sleeper makes and attempts use the existing league scoring function.
+Sleeper percentages use total makes divided by total attempts, multiplied by 100.
+Mixed percentages weight the available provider percentages by game count because FantasyPros omits attempts.
+Failed backup pulls preserve the newest successful FantasyPros run.
+A new successful backup pull removes superseded runs and rows within the cleanup budget.
+
+## Cleanup bounds
+
+The existing Sunday 10:00 UTC retention job removes projections from completed weeks.
+It retains current and future weeks. FantasyPros dates before the current Pacific Monday expire.
+Each run stores its period end when its scope changes. An index selects expired periods without scanning source rows.
+The cleanup flag suppresses projection deletion hints within the transaction.
+It restores the previous flag before returning. Visible new projections still send resource hints.
+The optimizer fingerprint includes effective scored inputs and omits fetch timestamps.
+Unchanged pulls and hidden-history cleanup therefore do not trigger another optimizer pass.
+
+Each log deletion selects at most 500 unlocked rows through a retention index.
+Each outcome deletes at most 20,000 sync rows and 20,000 invocation rows per call.
+Health indexes find the newest outcome for each function.
+Cron cleanup scans at most 200,000 records in primary-key pages of 1,000.
+It uses the existing primary index because managed Supabase owns the cron table.
+Projection cleanup selects at most 10,000 Sleeper rows and 200 run locks per call.
+FantasyPros row deletions use batches of 500.
+Weekly cleanup deletes at most 10,000 child rows. Successful-run compaction allows 100,000 to clear the initial hourly backlog.
+Run deletion waits until its child rows are gone, so cascades cannot bypass that budget.
+Locked rows remain for a later call. A large existing backlog can need additional calls.
+Counts in the result include only actual deletions from each table.
+Deletes free reusable database space; they do not shrink relation files immediately.

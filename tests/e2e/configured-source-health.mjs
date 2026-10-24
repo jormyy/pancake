@@ -29,6 +29,17 @@ const projectionRows = querySupabaseDb('local', 'FantasyPros source runs', `
    ORDER BY projection_type, started_at DESC
 `)
 
+const sleeperRows = querySupabaseDb('local', 'Sleeper projection runs', `
+  SELECT status, started_at, completed_at, row_count, matched_count, unmatched_count, error_message
+  FROM public.projection_sync_runs WHERE source='sleeper' ORDER BY started_at DESC LIMIT 1
+`)
+const [sleeperCoverage] = querySupabaseDb('local', 'Sleeper current week coverage', `
+  SELECT count(*) AS rows, count(DISTINCT player_id) AS players, max(fetched_at) AS fetched_at
+  FROM public.sleeper_projection_rows
+  WHERE game_date>=date_trunc('week',timezone('America/Los_Angeles',now()))::date
+    AND game_date<date_trunc('week',timezone('America/Los_Angeles',now()))::date+7
+`)
+
 const [metrics] = querySupabaseDb('local', 'configured source completeness', `
   WITH published_season AS (
     SELECT season_year
@@ -137,6 +148,16 @@ const observations = [
         ? 'A live 403 failure was recorded, the endpoint changed, and the next local run succeeded.'
         : 'No confirmed failed-then-successful local run exists.',
     ),
+  },
+  {
+    id: 'sleeper-projections',
+    freshness: dimension(offseason ? 'expected-unavailable' : sleeperRows[0]?.status === 'success' && ageHours(sleeperRows[0].completed_at) <= 8 * 24 ? 'pass' : 'fail',
+      `Latest Sleeper attempt=${sleeperRows[0]?.status ?? 'missing'}, fetched=${sleeperCoverage.fetched_at ?? 'never'}.`),
+    completeness: dimension(offseason ? 'expected-unavailable' : Number(sleeperCoverage.players) >= 300 ? 'pass' : 'fail',
+      `${sleeperCoverage.players} players and ${sleeperCoverage.rows} player-games in the current week.`),
+    failures: dimension(offseason || sleeperRows[0]?.status === 'success' ? 'pass' : 'fail',
+      sleeperRows[0]?.error_message ?? 'Last good player-game rows survive failed attempts.'),
+    recovery: recoveryGate('Recorded Sleeper fixtures prove strict shape checks, matching, HTTP failures, and recovery without live requests.'),
   },
   {
     id: 'fantasypros',

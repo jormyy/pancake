@@ -10,6 +10,7 @@ const ARTIFACT_PATH = path.join(ROOT, 'tests/artifacts/source-failure-recovery.j
 export const CONFIGURED_SOURCE_SUITES = Object.freeze([
   { id: 'nba-cdn', files: ['supabase/functions/_shared/nbaCdnDegraded.test.ts'] },
   { id: 'espn-public-json', files: ['supabase/functions/_shared/playerSource.test.ts'] },
+  { id: 'sleeper-projections', files: ['supabase/functions/sync-sleeper-projections/parser.test.ts', 'supabase/functions/sync-sleeper-projections/match.test.ts', 'supabase/functions/sync-sleeper-projections/sync.test.ts'] },
   {
     id: 'fantasypros',
     files: [
