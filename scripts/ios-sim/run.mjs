@@ -36,6 +36,23 @@ function substitute(value, context) {
   })
 }
 
+export function expandScenarios(scenarios) {
+  const names = new Set()
+  const expanded = scenarios.flatMap(scenario => {
+    assert.ok(!names.has(scenario.name), `Duplicate scenario ${scenario.name}`)
+    names.add(scenario.name)
+    const { repeat = 1, ...template } = scenario
+    assert.ok(Number.isInteger(repeat) && repeat > 0, `Invalid repeat for ${scenario.name}`)
+    return Array.from({ length: repeat }, (_, index) => ({ ...template, name: repeat === 1 ? template.name : `${template.name}-repeat-${index + 1}` }))
+  })
+  names.clear()
+  for (const scenario of expanded) {
+    assert.ok(!names.has(scenario.name), `Duplicate scenario ${scenario.name}`)
+    names.add(scenario.name)
+  }
+  return expanded
+}
+
 async function waitFor(check, timeout = 20000) {
   const started = Date.now()
   while (Date.now() - started < timeout) { if (await check()) return; await pause(200) }
@@ -160,7 +177,7 @@ async function runSuite(options) {
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
     const context = { memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
     const scenarios = JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8'))
-    const selected = scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario)
+    const selected = expandScenarios(scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario))
     assert.ok(selected.length, `Unknown scenario ${options.scenario}`)
     const action = async spec => {
       if (spec.sequence) { for (const item of spec.sequence) await action(item); return }
@@ -199,7 +216,7 @@ async function runSuite(options) {
               const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
               const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
               try {
-                server.arm({ id, expected: step.expected, quietMs: step.quietMs, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
+                server.arm({ id, expected: step.expected, quietMs: step.quietMs, requireWorker: Boolean(step.action.background || step.action.offline), immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
                 await server.armed(id)
                 await action(step.action)
                 result.metrics = await server.result(id)

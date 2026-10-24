@@ -44,7 +44,9 @@ Concurrent callers wait for the first caller.
 If a runner crashes, a stale lock produces an error.
 Remove that named lock only after confirming its owner has stopped.
 Startup reuses completed seed data.
-Startup adds the roster-plan fixture to older seed data without a reset.
+Startup adds the roster-plan fixture to older seed data from the same Eastern date.
+Startup and captures reject old dates with `run start --reset`.
+Only the shared service owner resets data after other captures stop.
 It never resets that data without `--reset`.
 It refuses a different migration set on an existing shared service.
 Database cron jobs stay disabled.
@@ -109,7 +111,7 @@ node scripts/ios-sim/run.mjs \
   --scenario all
 ```
 
-This command starts or reuses the shared service.
+This command connects to the shared service.
 It exports the current worktree against that local service.
 One lock covers the source copy, dependency setup, export, and public files.
 Other checkouts wait until the export finishes.
@@ -119,8 +121,9 @@ Each export records its source fingerprint in `ios-build.json`.
 The runner checks the served fingerprint against the requesting checkout before it starts the device.
 It also checks the installed page fingerprint before sign-in.
 Sign-in clears old worker registrations and build caches.
-Each exported worker uses its own build version.
-Each export also uses separate asset URLs to prevent Safari from mixing old and new scripts.
+Release stamping gives each worker a version and a verified boot manifest.
+Content hashes keep asset URLs tied to their exported bytes.
+The runner requires a controlling worker before background and offline steps.
 A forced rebuild uses a new directory to protect exports that other runs serve.
 It serves the export on the requested loopback port.
 It creates the named simulator when needed.
@@ -165,7 +168,7 @@ Useful options:
 | `--scenario all` | Run every supplied scenario |
 | `--scenario tabs` | Open each main screen |
 | `--scenario interactions` | Open player pages, pickers, forms, and lineup controls |
-| `--scenario lifecycle` | Refresh, background, return, and show offline state |
+| `--scenario lifecycle` | Background, return, and show offline state |
 | `--scenario player-from-players` | Run one named scenario |
 | `--output /private/tmp/my-report` | Choose an external report directory |
 | `--scenarios /path/to/scenarios.json` | Use a custom scenario list |
@@ -173,7 +176,21 @@ Useful options:
 | `--native` | Check native controls and video analysis without Appium web commands |
 
 The default scenario list lives in `scripts/ios-sim/scenarios.json`.
-The baseline has no separate Dynasty tab.
+It contains 21 scenarios and 26 measured steps, plus sign-in.
+The lifecycle group contains two measured steps.
+Surface files live in `scripts/ios-sim/scenarios/`.
+These files replace the removed subsets:
+
+| Removed files | Replacement |
+| --- | --- |
+| `home-final.json`, `home-manual.json`, `home-timing.json`, `home-optimizer-state.json`, `home-week-off.json` | `home.json` |
+| `player-claim-ir.json` | `player-ir-actions.json` |
+| `player-resolution.json` | `player-controls.json` |
+| `player-lists.json` | `players.json` |
+
+Shared trade scenarios live in `trades.json`.
+`trade-review.json` and `trade-wave2.json` keep their unique cases.
+The default list has no separate Dynasty tab.
 Its Dynasty scenario follows the legacy bookmark into Players rankings.
 Settings scenarios cover profile editing, password changes, lineup options, and player filters.
 
@@ -181,6 +198,9 @@ Settings scenarios cover profile editing, password changes, lineup options, and 
 
 Add a JSON row with a unique name, starting route, and measured steps.
 Use `prepare` for setup actions that you do not want to measure.
+Use `repeat` with a positive integer to repeat a scenario, including preparation.
+Repeated report names end in `-repeat-1`, `-repeat-2`, and so on.
+Keep each scenario name unique across the surface files.
 Use a specific real-content marker in `expected`.
 Do not use a spinner, page title, or persistent navigation button as the marker.
 
@@ -205,15 +225,13 @@ Do not use a spinner, page title, or persistent navigation button as the marker.
 ```
 
 Fixture names include `rosterPlayer`, `benchPlayer`, `freeAgent`, `waiverPlayer`, `outPlayer`, `lineupSlot`, `teamName`, `displayName`, and `otherTeam`.
-Actions include `tap`, `tapPrefix`, `fill`, `select`, `sequence`, `open`, `refresh`, `background`, and `offline`.
+Actions include `tap`, `tapPrefix`, `fill`, `select`, `sequence`, `open`, `background`, and `offline`.
 `open` measures a full document navigation for bookmarks without an app control.
 Other navigation actions use native taps.
 
 The offline action blocks this page's fetch calls and changes its online signal.
 It does not change the MacBook's network or another simulator's network.
 This tests the app's offline response, rather than an iPhone radio failure.
-The refresh action performs a native downward drag.
-Its report does not claim that a refresh request occurs unless the recording shows one.
 
 ## Read the report
 
@@ -266,8 +284,8 @@ They can include cache hits.
 They do not count WebSocket messages as HTTP requests.
 The report stores each request's path and start time without query values.
 
-The server inserts the recorder into the served HTML before app scripts.
-It does not change the saved export or repository files.
+The exporter inserts the recorder before app scripts, then stamps the release.
+The server serves those exact bytes, so worker hash checks cover the measured pages.
 This also allows measurements when Appium cannot inspect the web view.
 That fallback adds ffmpeg frame differences from the recorded video.
 Pixel differences cannot identify element roles or explain why pixels change.
@@ -287,63 +305,3 @@ node --input-type=module -e 'import {sourceSnapshot} from "./scripts/ios-sim/bui
 
 The source copy contains the current tracked files and unignored additions.
 The quality checks do not need a production connection.
-
-## Baseline on origin/main
-
-The baseline uses commit `8a33034cdfcec1d32dc5a76ffb130ae7a205dd5f`.
-Both full runs pass 28 measured steps.
-Their measured activity overlaps for 185 seconds.
-The forced native run passes two steps and records 102 video change regions.
-The final recorder check passes all nine sign-in and tab steps.
-
-[Primary report](/private/tmp/claude-501/pancake-ios-sim/origin-main-before-a/report.md) lists every recorded event.
-[Parallel report](/private/tmp/claude-501/pancake-ios-sim/origin-main-before-b/report.md) contains the second device's measurements.
-[Native fallback report](/private/tmp/claude-501/pancake-ios-sim/native-verified/report.md) contains the video check.
-
-The primary run records 2,598 rectangle changes, 31 content changes, 442 appearances, and 122 disappearances.
-Sheet animations contribute many of these events.
-These counts describe observations, rather than confirmed app defects.
-
-Matchup labels change from `DEN OFF` to a game line after its first meaningful paint.
-The player page changes `Roster status` to `Free agent` after its first meaningful paint.
-Lineup labels change from `No game` to scheduled opponents after its first meaningful paint.
-The full report includes times and rectangles for these changes.
-
-| Screen or action | First content (ms) | Requests | Visible changes |
-| --- | ---: | ---: | ---: |
-| sign-in | 942 | 35 | 97 |
-| matchup | 557 | 30 | 101 |
-| roster | 471 | 21 | 37 |
-| players | 437 | 28 | 109 |
-| trades | 514 | 9 | 0 |
-| league | 585 | 5 | 0 |
-| draft | 479 | 6 | 0 |
-| dynasty | 1081 | 32 | 6 |
-| profile | 398 | 5 | 5 |
-| player-from-players | 446 | 15 | 3 |
-| player-from-roster | 164 | 1 | 647 |
-| player-from-roster-page | 448 | 13 | 0 |
-| season-change | 496 | 4 | 22 |
-| free-agent-add-drop-picker | 165 | 12 | 1733 |
-| waiver-claim | 390 | 17 | 102 |
-| waiver-claim-choose-drop | 98 | 0 | 0 |
-| lineup | 450 | 20 | 161 |
-| lineup-move | 165 | 19 | 15 |
-| lineup-restore | 666 | 18 | 30 |
-| trade-composer | 431 | 3 | 0 |
-| profile-edit | 88 | 0 | 125 |
-| change-password | 387 | 3 | 0 |
-| lineup-options | 348 | 0 | 0 |
-| player-filter-settings | 347 | 0 | 0 |
-| player-filter-settings-season | 381 | 0 | 0 |
-| pull-to-refresh | 1 | 0 | 0 |
-| return-to-app | 1 | 0 | 0 |
-| offline-banner | 13 | 0 | 0 |
-
-Pull-to-refresh keeps existing content visible and makes zero new requests in this baseline.
-Returning to the app also keeps existing content visible.
-Those two timings measure retained content, rather than a fresh download.
-
-Artifacts stay outside the repository under the report directories above.
-The shared service is stopped after verification.
-Run the shared start command before using it again.

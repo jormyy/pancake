@@ -1,6 +1,6 @@
 [
   {
-    "name": "league-cached-bid-light-1",
+    "name": "league-cached-bid-light",
     "group": "league-cached-bid",
     "from": "/profile",
     "prepare": [
@@ -8,47 +8,29 @@
         "tap": "Light"
       },
       {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        "open": "/draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='Bid amount']"
         },
         "note": "The cached room opens with the current minimum bid. Only clock digits may change."
       }
-    ]
-  },
-  {
-    "name": "league-cached-bid-light-2",
-    "group": "league-cached-bid",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
-      }
     ],
-    "steps": [
-      {
-        "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
-        },
-        "expected": {
-          "selector": "[aria-label='Bid amount']"
-        },
-        "note": "The cached room opens with the current minimum bid. Only clock digits may change."
-      }
-    ]
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "repeat": 2
   },
   {
-    "name": "league-cached-bid-dark-1",
+    "name": "league-cached-bid-dark",
     "group": "league-cached-bid",
     "from": "/profile",
     "prepare": [
@@ -56,43 +38,25 @@
         "tap": "Dark"
       },
       {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+        "open": "/draft-room?draftId={{draftId}}"
       }
     ],
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='Bid amount']"
         },
         "note": "The cached room opens with the current minimum bid. Only clock digits may change."
       }
-    ]
-  },
-  {
-    "name": "league-cached-bid-dark-2",
-    "group": "league-cached-bid",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
-      }
     ],
-    "steps": [
-      {
-        "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
-        },
-        "expected": {
-          "selector": "[aria-label='Bid amount']"
-        },
-        "note": "The cached room opens with the current minimum bid. Only clock digits may change."
-      }
-    ]
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "repeat": 2
   }
 ]

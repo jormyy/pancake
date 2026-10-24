@@ -155,7 +155,7 @@ jobs:
         run: npm ci
 
       - name: Rebuild intended frontend release
-        if: github.event_name != 'workflow_call' || inputs.rebuild_frontend
+        if: ${{ !inputs.database_phase || inputs.rebuild_frontend }}
         shell: bash
         run: |
           EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release
@@ -166,7 +166,7 @@ jobs:
           }
 
       - name: Rebuild intended Edge artifact provenance
-        if: github.event_name != 'workflow_call' || inputs.rebuild_edge
+        if: ${{ !inputs.database_phase || inputs.rebuild_edge }}
         shell: bash
         run: |
           marker="$(PANCAKE_RELEASE_SHA="$E2E_EXPECTED_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"

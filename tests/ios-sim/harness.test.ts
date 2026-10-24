@@ -174,7 +174,7 @@ test('stack configuration keeps all service ports separate and disables automati
   assert.doesNotMatch(config, /5432[012]/)
 })
 
-test('export server resolves player templates, injects the recorder, and blocks traversal', async () => {
+test('export server resolves player templates, preserves their bytes, and blocks traversal', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'ios-server-test-'))
   let server: Awaited<ReturnType<typeof serve>> | undefined
   try {
@@ -187,8 +187,7 @@ test('export server resolves player templates, injects the recorder, and blocks 
     const address = server.server.address()
     assert.ok(address && typeof address !== 'string')
     const response = await fetch(`http://127.0.0.1:${address.port}/player/fixture`)
-    assert.match(await response.text(), /<head><script src="\/__ios\/recorder.js"><\/script>/)
-    assert.equal((await readFile(path.join(root, 'player/[id].html'), 'utf8')).includes('__ios'), false)
+    assert.equal(await response.text(), await readFile(path.join(root, 'player/[id].html'), 'utf8'))
   } finally { await server?.close(); await rm(root, { recursive: true, force: true }) }
 })
 
@@ -215,8 +214,9 @@ test('the source lock covers snapshot through export across two checkouts', asyn
     assert.equal((await readFile(path.join(one.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-a:lane-a:core-lane-a')
     assert.equal((await readFile(path.join(two.root, '_expo/static/js/web/app.js'), 'utf8')).split('\n').slice(0, 3).join(':'), 'lane-b:lane-b:core-lane-b')
     assert.notEqual(one.hash, two.hash)
-    assert.ok((await readFile(path.join(one.root, 'sw.js'), 'utf8')).includes(one.hash))
-    assert.ok((await readFile(path.join(two.root, 'sw.js'), 'utf8')).includes(two.hash))
+    const firstWorker = await readFile(path.join(one.root, 'sw.js'), 'utf8')
+    const secondWorker = await readFile(path.join(two.root, 'sw.js'), 'utf8')
+    assert.notEqual(firstWorker.match(/const VERSION = '[^']*'/)?.[0], secondWorker.match(/const VERSION = '[^']*'/)?.[0])
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
@@ -346,12 +346,9 @@ test('only the installed page with the requested source fingerprint can measure 
     assert.equal(server.connected(), 1)
     assert.equal(server.verified(), 0)
     const html = await (await fetch(origin)).text()
-    assert.match(html, /name="ios-source-fingerprint" content="current-source"/)
-    assert.match(html, /name="pancake-release" content="pancake-ios-fixture-build"/)
-    const prefix = `/__ios/build/${path.basename(root)}`
-    assert.ok(html.includes(`${prefix}/_expo/static/js/web/entry.js`))
-    const script = await (await fetch(`${origin}${prefix}/_expo/static/js/web/entry.js`)).text()
-    assert.ok(script.includes(`${prefix}/_expo/static/js/web/league.js`))
+    assert.equal(html, await readFile(path.join(root, 'index.html'), 'utf8'))
+    const script = await (await fetch(`${origin}/_expo/static/js/web/entry.js`)).text()
+    assert.equal(script, await readFile(path.join(root, '_expo/static/js/web/entry.js'), 'utf8'))
     assert.ok(script.includes('https://example.invalid/assets/photo.png'))
     assert.equal((await fetch(`${origin}/__ios/build/foreign/_expo/static/js/web/entry.js`)).status, 404)
     const rejected = await fetch(`${origin}/__ios/report`, { method: 'POST', body: JSON.stringify({ id: 'stale', sourceFingerprint: 'old-source' }) })

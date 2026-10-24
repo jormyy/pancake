@@ -6,7 +6,7 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { sourceSnapshot } from './build.mjs'
 import { apiUrl, args, digest, home, internalToken, json, localUrl, lock, pause, project, readJson, ready, repo, run } from './common.mjs'
-import { seed } from './seed.mjs'
+import { requireCurrentSeed, seed } from './seed.mjs'
 
 const stackRoot = path.join(home, 'stack')
 const statePath = path.join(stackRoot, 'local-stack.json')
@@ -17,6 +17,7 @@ export async function connectStack() {
   localUrl(state.url, 57121)
   const fixture = await readJson(path.join(stackRoot, 'seed/complete.json'))
   assert.ok(fixture?.rosterPlanTrade, 'The shared local stack needs its complete fixture')
+  requireCurrentSeed(fixture)
   await ready(`${state.url}/auth/v1/health`)
   return { ...state, fixture }
 }
