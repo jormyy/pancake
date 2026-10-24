@@ -101,7 +101,7 @@
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
+          "selector": "[aria-label=\"Move Jalen Murray 61 to IR and add player\"]"
         }
       }
     ]
@@ -124,7 +124,7 @@
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
+          "selector": "[aria-label=\"Move Jalen Murray 61 to IR and add player\"]"
         }
       }
     ]

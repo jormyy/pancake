@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
+import { memo } from 'react'
 import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
@@ -35,7 +36,7 @@ function fmtPM(val: number, dnp: boolean): string {
     return String(val)
 }
 
-export function GameLogTable({
+export const GameLogTable = memo(function GameLogTable({
     games,
     fantasyPointsMap,
     hasMore,
@@ -125,7 +126,7 @@ export function GameLogTable({
             )}
         </View>
     )
-}
+})
 
 const styles = StyleSheet.create({
     section: { gap: spacing.md },

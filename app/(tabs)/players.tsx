@@ -251,7 +251,7 @@ function PlayerSearchSection() {
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id })
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
-            enabled: focused && online && membershipValidated,
+            enabled: focused && online && membershipValidated && !filtersOpen,
             ownerKey: JSON.stringify([user?.id, current?.id, leagueId]),
         })
     const retrySearch = search.results.retry
@@ -302,8 +302,11 @@ function PlayerSearchSection() {
         else void quickAddHandleAdd(player)
     }, [online, availabilityUpdating, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
-        push(playerDetailRoute(player))
-    }, [push])
+        push(playerDetailRoute(player, !ownedMap.has(player.id)))
+    }, [push, ownedMap])
+    const handlePreparePlayer = useCallback(() => {
+        if (browserReadsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
+    }, [])
     const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
         <PlayerSearchItem
             item={item}
@@ -321,8 +324,9 @@ function PlayerSearchSection() {
             addBlockedReason={addBlockedReason}
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
+            onPrepare={handlePreparePlayer}
         />
-    ), [currentLeague?.status, currentLeague?.ir_slots, playerSupportForLeague?.roster, current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [currentLeague?.status, currentLeague?.ir_slots, playerSupportForLeague?.roster, current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -428,6 +432,7 @@ function PlayerSearchSection() {
                         <Pressable
                             style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
                             onPress={() => setFiltersOpen(true)}
+                            onPressIn={() => setFiltersOpen(true)}
                             accessibilityRole="button"
                             accessibilityLabel="Show filters"
                         >
@@ -620,7 +625,7 @@ function PlayersScreen() {
                         value={section}
                         onChange={openSection}
                         options={[
-                            { label: 'Players', value: 'players' },
+                            { label: 'Players', value: 'players', accessibilityLabel: 'Show player search' },
                             { label: 'Rankings', value: 'rankings' },
                             { label: 'News', value: 'news' },
                         ]}

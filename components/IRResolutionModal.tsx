@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
+import { orderRosterOptions } from '@/lib/player-roster-options'
 import { colors, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { Button } from '@/components/ui/Button'
@@ -51,6 +52,8 @@ export function IRResolutionModal({
     const [phase, setPhase] = useState<Phase>('ineligible')
     const [activatingPlayer, setActivatingPlayer] = useState<RosterPlayer | null>(null)
     const [loadingId, setLoadingId] = useState<string | null>(null)
+    const irOptions = useMemo(() => orderRosterOptions(ineligibleIR), [ineligibleIR])
+    const dropOptions = useMemo(() => orderRosterOptions(activeRoster), [activeRoster])
 
     const activeCount = activeRoster.length
     const hasRoom = activeCount < rosterSize
@@ -117,7 +120,7 @@ export function IRResolutionModal({
                         <Text style={styles.playerName}>{pendingPlayerName}</Text>.
                     </Text>
                     <View style={styles.list}>
-                        {ineligibleIR.map((rp) => (
+                        {irOptions.map((rp) => (
                             <PlayerLine
                                 key={rp.id}
                                 player={rp}
@@ -142,7 +145,7 @@ export function IRResolutionModal({
                         <Text style={styles.playerName}>{activatingPlayer?.players.display_name}</Text> from IR.
                     </Text>
                     <View style={styles.list}>
-                        {activeRoster.map((rp) => (
+                        {dropOptions.map((rp) => (
                             <PlayerLine
                                 key={rp.id}
                                 player={rp}

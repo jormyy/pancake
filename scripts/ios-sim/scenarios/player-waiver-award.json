@@ -1,0 +1,44 @@
+[
+  {
+    "name": "player-waiver-ir-submit",
+    "group": "player-waiver-award",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{waiverPlayer.id}}"
+      },
+      {
+        "tap": "Claim {{waiverPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Submit waiver claim"
+        },
+        "expected": {
+          "text": "Claim Submitted"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-waiver-healthy-award",
+    "group": "player-waiver-award",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label=\"Move {{waiverPlayer.display_name}} in lineup\"]"
+        },
+        "note": "The local setup makes room, clears the injury, and processes only this due claim. Move in lineup is available only for an active roster player."
+      }
+    ]
+  }
+]

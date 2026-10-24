@@ -1,6 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { useMemo } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
+import { orderRosterOptions } from '@/lib/player-roster-options'
 import { colors, spacing, table, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { PosTag } from '@/components/PosTag'
@@ -20,6 +22,8 @@ type Props = {
 }
 
 export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR }: Props) {
+    const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
+    const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
         if (dropping === null) onCancel()
     }
@@ -28,7 +32,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             {irMoveCandidates.length > 0 && onMoveToIR ? (
                 <View style={styles.list}>
-                    {irMoveCandidates.map(rp => (
+                    {irOptions.map(rp => (
                         <View key={rp.id} style={styles.row}>
                             <Text style={[textStyles.rowTitle, styles.info]} numberOfLines={1}>{rp.players.display_name}</Text>
                             <Button title="Move to IR" size="sm" onPress={() => onMoveToIR(rp)}
@@ -39,7 +43,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                 </View>
             ) : null}
             <View style={styles.list}>
-                {roster.map((rp) => {
+                {dropOptions.map((rp) => {
                     const p = rp.players
                     const ep = getEligiblePositions(p)
                     return (

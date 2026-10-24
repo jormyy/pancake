@@ -1,0 +1,180 @@
+[
+  {
+    "name": "player-trade-entry-light",
+    "group": "player-trade-entry",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      },
+      {
+        "fill": "Search players",
+        "value": "Cameron Murray 67"
+      },
+      {
+        "tap": "Open Cameron Murray 67"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade Cameron Murray 67"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label=\"Trade with {{otherTeam}}\"]"
+        }
+      },
+      {
+        "name": "choose-owner",
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=\"2 teams and 1 routed assets.\"]"
+        }
+      },
+      {
+        "name": "verify-player",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tap": "Remove Cameron Murray 67 for trade"
+            },
+            {
+              "tap": "Select Cameron Murray 67 for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Remove Cameron Murray 67 for trade\"]"
+        },
+        "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Trade Cameron Murray 67\"]"
+        },
+        "note": "Close the draft through the app before the next theme starts."
+      }
+    ]
+  },
+  {
+    "name": "player-trade-entry-dark",
+    "group": "player-trade-entry",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      },
+      {
+        "fill": "Search players",
+        "value": "Cameron Murray 67"
+      },
+      {
+        "tap": "Open Cameron Murray 67"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade Cameron Murray 67"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label=\"Trade with {{otherTeam}}\"]"
+        }
+      },
+      {
+        "name": "choose-owner",
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=\"2 teams and 1 routed assets.\"]"
+        }
+      },
+      {
+        "name": "verify-player",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tap": "Remove Cameron Murray 67 for trade"
+            },
+            {
+              "tap": "Select Cameron Murray 67 for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Remove Cameron Murray 67 for trade\"]"
+        },
+        "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Trade Cameron Murray 67\"]"
+        },
+        "note": "Close the draft through the app before the next theme starts."
+      }
+    ]
+  }
+]

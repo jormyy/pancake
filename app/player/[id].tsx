@@ -37,7 +37,7 @@ const TWO_COLUMN_MIN = breakpoints.desktop
 const SIDE_COLUMN_WIDTH = layout.railWidth
 
 export default function PlayerDetailScreen() {
-    const { id, playerHeader } = useLocalSearchParams<{ id: string; playerHeader?: string }>()
+    const { id, playerHeader, pickupHint } = useLocalSearchParams<{ id: string; playerHeader?: string; pickupHint?: string }>()
     const tappedPlayer = useMemo(() => readPlayerHeader(id, playerHeader), [id, playerHeader])
     const { current, currentLeague, membershipValidated } = useLeagueContext()
     const online = useOnlineStatus()
@@ -63,6 +63,7 @@ export default function PlayerDetailScreen() {
     const {
         player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
         playerError,
+        initialSettled,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading, seasonError,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
@@ -110,7 +111,7 @@ export default function PlayerDetailScreen() {
         const request = { epoch: readEpoch, queued: false }
         statusRequest.current = request
         try {
-            const { status, transactionState, claimPending, roster } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
+            const { status, transactionState, claimPending, roster } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner), pickupHint === '1')
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
                 setPickupStateResource({ ownerIdentity: requestedOwner, transactionState, roster })
@@ -127,7 +128,7 @@ export default function PlayerDetailScreen() {
                 if (request.queued && isCurrent(generation, requestedOwner)) void readStatus()
             }
         }
-    }, [memberId, id, leagueId, ownerIdentity, canRead, readEpoch, isCurrent])
+    }, [memberId, id, leagueId, ownerIdentity, canRead, readEpoch, isCurrent, pickupHint])
 
     useEffect(() => {
         if (!canRead()) return
@@ -137,6 +138,10 @@ export default function PlayerDetailScreen() {
         void loadRosterStatus()
     }, [loadRosterStatus, rosterRevision, canRead, ownerIdentity, rosterStatus])
     const actionsReady = membershipValidated && online && rosterStatus !== null && canRead()
+    const revealedOwner = useRef<string | null>(null)
+    const screenReady = revealedOwner.current === ownerIdentity && ownerIdentity !== null
+        || initialSettled && (rosterStatus !== null || rosterStatusError !== null || !leagueId)
+    if (screenReady) revealedOwner.current = ownerIdentity
 
     const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
     const quickAdd = useQuickAdd({
@@ -223,9 +228,6 @@ export default function PlayerDetailScreen() {
     ) : null
     const profile = (
         <>
-            <DeferredContent ready={!seasonLoading} key={`${id}:${selectedSeason}`} style={styles.seasonSlot}
-                fallback={<StatsOverview averages={seasonAverages} seasonYear={selectedSeason} avgFantasyPoints={seasonAverages && fantasyPointsMap ? avgFantasyPoints : null} showFantasy={showFantasy}
-                    columns={statColumns} seasonControl={seasonControl} actions={dropControl} loading />}>
                 <StatsOverview
                     averages={seasonAverages}
                     seasonYear={selectedSeason}
@@ -237,7 +239,6 @@ export default function PlayerDetailScreen() {
                     includesLive={includesLive}
                     actions={dropControl}
                 />
-            </DeferredContent>
             <NextProjectionCard projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
                 liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
         </>
@@ -265,6 +266,7 @@ export default function PlayerDetailScreen() {
         <>
             <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
             <Page title={player.display_name}>
+                <DeferredContent ready={screenReady} key={ownerIdentity} style={styles.initialSlot}>
                 <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
                     <PlayerHeader
                         player={player}
@@ -296,6 +298,7 @@ export default function PlayerDetailScreen() {
                         {!loadedPlayer && !loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
                     </View>
                 </ScrollView>
+                </DeferredContent>
             </Page>
 
             <DropPlayerPickerModal
@@ -329,7 +332,7 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const styles = StyleSheet.create({
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.lg },
     body: { gap: spacing.lg },
-    seasonSlot: { flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0 },
+    initialSlot: { minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },

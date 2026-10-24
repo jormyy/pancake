@@ -6,13 +6,7 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { seasonLine } from '@/tests/components/player/season-fixtures'
 
 const state = vi.hoisted(() => ({ focused: true, player: vi.fn(), seasons: vi.fn(), lines: vi.fn(), scoring: vi.fn(), transactions: vi.fn(), projection: vi.fn(), write: vi.fn() }))
-vi.mock('@react-navigation/native', async () => {
-    const { useEffect } = await import('react')
-    return { useFocusEffect: (callback: React.EffectCallback) => {
-        const focused = state.focused
-        useEffect(() => focused ? callback() : undefined, [callback, focused])
-    } }
-})
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
 vi.mock('@/lib/players', () => ({ getPlayer: state.player, getAvailableSeasons: state.seasons, getPlayerTransactionHistory: state.transactions }))
 vi.mock('@/components/player/season-data', async importOriginal => ({ ...await importOriginal<typeof import('@/components/player/season-data')>(), getPlayerSeasonLines: state.lines, getPlayerScoringSettings: state.scoring }))
 vi.mock('@/lib/projections', () => ({ getPlayerProjection: state.projection }))
@@ -186,4 +180,40 @@ it('keeps the prior season and expanded log visible until the selected season ar
     expect(latest.seasonLoading).toBe(false)
     expect(latest.gameLog.map(game => game.gameId)).toEqual(['past'])
     expect(latest.seasonAverages?.avgPoints).toBe(10)
+})
+
+it('uses the known scoring rules without another read until a scoring change arrives', async () => {
+    vi.useFakeTimers()
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(state.scoring).not.toHaveBeenCalled()
+    expect(latest.initialSettled).toBe(true)
+    state.scoring.mockResolvedValue({ points: 2 })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'resources', scopes: null, details: [{ resource: 'scoring', season_id: 'season' }] })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.scoring).toHaveBeenCalledOnce()
+    expect(latest.avgFantasyPoints).toBe(48)
+})
+
+it('starts reads in the first focused render and waits for every initial resource', async () => {
+    let firstEpoch: string | undefined
+    let requestedEpoch: string | undefined
+    let release!: (value: null) => void
+    state.player.mockImplementation(async () => {
+        requestedEpoch = latest.readEpoch
+        return { id: 'player', display_name: 'Current', nba_team: 'LAL' }
+    })
+    state.projection.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    const First = () => {
+        latest = usePlayerScreenData('player', 'league', { scoringSettings: { points: 1 } })
+        firstEpoch ??= latest.readEpoch
+        return null
+    }
+    await act(async () => { renderer = create(React.createElement(First)) })
+    expect(requestedEpoch).toBe(firstEpoch)
+    expect(latest.initialSettled).toBe(false)
+    expect(latest.seasonLoading).toBe(false)
+    await act(async () => { release(null) })
+    expect(latest.initialSettled).toBe(true)
 })

@@ -40,3 +40,8 @@ it('carries the tapped identity into the first detail render without sending lis
     })
     expect(JSON.parse(route.params.playerHeader)).not.toHaveProperty('avg_fantasy_points')
 })
+
+it('carries a pickup read hint only when the list identifies an available player', () => {
+    expect(playerDetailRoute(playerRow(), true).params.pickupHint).toBe('1')
+    expect(playerDetailRoute(playerRow()).params.pickupHint).toBeUndefined()
+})

@@ -51,22 +51,26 @@ beforeEach(() => {
         readEpoch: 'first', isCurrentRead: state.isCurrent, rosterRevision: 0,
         availableSeasons: [2026, 2025], selectedSeason: 2026, seasonAverages: null, seasonLoading: true,
         gameLog: [], fantasyPointsMap: new Map(), avgFantasyPoints: 0,
-        nextProjection: null, projectionSettled: false, transactions: [],
+        nextProjection: null, projectionSettled: false, transactions: [], initialSettled: true,
     }
     state.roster.mockResolvedValue({ status: { status: 'free_agent' }, transactionState: memberTransactionState(), claimPending: false })
 })
 afterEach(async () => { await act(async () => { screen?.unmount() }); screen = undefined })
 
-it('paints the header and independent card placeholders while every detail read is pending', async () => {
-    state.data.player = null
-    state.data.loading = true
-    state.roster.mockReturnValue(new Promise(() => {}))
+it('reveals one complete initial view and keeps it visible while other resources refresh', async () => {
+    state.data.initialSettled = false
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
-    expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player')
-    expect(screen!.root.findByType(StatsOverview).props.loading).toBe(true)
-    expect(screen!.root.findByType(NextProjectionCard).props.loading).toBe(true)
-    expect(screen!.root.findByProps({ testID: 'player-action-slot' })).toBeDefined()
-    expect(JSON.stringify(screen!.toJSON())).toContain('Loading recent games')
+    expect(screen!.root.findAllByType(PlayerHeader)).toHaveLength(0)
+    expect(screen!.root.findAllByType(StatsOverview)).toHaveLength(0)
+    expect(screen!.root.findAllByType(NextProjectionCard)).toHaveLength(0)
+    state.data = { ...state.data, initialSettled: true, seasonLoading: false, projectionSettled: true }
+    await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
+    const header = screen!.root.findByType(PlayerHeader)
+    expect(button().props.disabled).toBe(false)
+    state.data = { ...state.data, initialSettled: false, seasonLoading: true }
+    await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findByType(PlayerHeader)).toBe(header)
+    expect(button().props.disabled).toBe(false)
 })
 
 it('never removes, relabels or disables Add during status refresh, failure, or unrelated stats updates', async () => {
@@ -104,11 +108,10 @@ it('reads known roster status only for roster signals and exposes retry after a 
     expect(state.roster).toHaveBeenCalledTimes(3)
 })
 
-it('shows the tapped player header before any read settles and replaces it with fresh player details', async () => {
+it('uses the tapped identity when fresh player details are unavailable', async () => {
     state.params.playerHeader = JSON.stringify({ ...headerPlayer({ nba_team: 'BOS' }), id: 'player' })
     state.data.player = null
     state.data.loading = true
-    state.roster.mockReturnValue(new Promise(() => {}))
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     const header = () => screen!.root.findByType(PlayerHeader).props.player
     expect(header().display_name).toBe('Player A')
@@ -128,7 +131,6 @@ it.each([
 ])('ignores invalid or mismatched navigation data: %s', async playerHeader => {
     state.params.playerHeader = playerHeader
     state.data.player = null
-    state.roster.mockReturnValue(new Promise(() => {}))
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player')
 })

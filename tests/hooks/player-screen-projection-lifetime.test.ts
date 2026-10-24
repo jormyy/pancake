@@ -5,13 +5,7 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { setLeagueChangesConnected } from '@/lib/league-changes'
 
 const state = vi.hoisted(() => ({ focused: true, rpc: vi.fn() }))
-vi.mock('@react-navigation/native', async () => {
-    const { useEffect } = await import('react')
-    return { useFocusEffect: (callback: React.EffectCallback) => {
-        const focused = state.focused
-        useEffect(() => focused ? callback() : undefined, [callback, focused])
-    } }
-})
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
 vi.mock('@/lib/players', () => ({
     getPlayer: async () => ({ id: 'player', nba_team: 'LAL' }), getAvailableSeasons: async () => [2026],
     getPlayerTransactionHistory: async () => [],

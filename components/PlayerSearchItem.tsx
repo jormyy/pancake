@@ -33,6 +33,7 @@ function PlayerSearchItemImpl({
     addBlockedReason = null,
     onAdd,
     onPress,
+    onPrepare,
 }: {
     item: PlayerRow
     currentMemberId: string | undefined
@@ -51,6 +52,7 @@ function PlayerSearchItemImpl({
     addBlockedReason?: string | null
     onAdd: (player: PlayerRow) => void
     onPress: (player: PlayerRow) => void
+    onPrepare?: (player: PlayerRow) => void
 }) {
     const owned = ownedMap.get(item.id)
     const isMe = owned?.memberId === currentMemberId
@@ -126,6 +128,7 @@ function PlayerSearchItemImpl({
             <Pressable
                 style={[styles.playerCard, !showStats && styles.playerCardNarrow, denseProjectionRow && styles.playerCardDense]}
                 onPress={() => onPress(item)}
+                onTouchStart={onPrepare ? () => onPrepare(item) : undefined}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >

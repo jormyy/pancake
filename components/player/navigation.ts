@@ -26,11 +26,12 @@ export function readPlayerHeader(playerId: string, encoded: string | undefined):
     }
 }
 
-export function playerDetailRoute(player: PlayerRow) {
+export function playerDetailRoute(player: PlayerRow, pickupPossible = false) {
     return {
         pathname: '/player/[id]' as const,
         params: {
             id: player.id,
+            ...(pickupPossible ? { pickupHint: '1' } : {}),
             playerHeader: JSON.stringify({
                 id: player.id, display_name: player.display_name, nba_team: player.nba_team,
                 position: player.position, eligible_positions: player.eligible_positions,

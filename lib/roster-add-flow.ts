@@ -44,13 +44,15 @@ export async function loadPickupState(
     memberId: string,
     leagueId: string,
     canRead?: () => boolean,
+    pickupHint = false,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
+    const knownPickupState = pickupHint ? loadAddLimitState(memberId, leagueId) : null
     const { status, roster } = await getPlayerRosterContext(playerId, memberId, leagueId, canRead)
     assertReadActive(canRead)
     const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
     const [transactionState, pendingIds] = await Promise.all([
-        pickupPossible ? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
+        pickupPossible ? knownPickupState ?? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
         status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => {
             assertReadActive(canRead)
             return seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()
