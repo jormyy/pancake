@@ -14,7 +14,7 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
@@ -23,7 +23,9 @@
       }
     ],
     "setup": {
-      "auctionNomination": "f3660351-112e-4931-8ece-ea2f33cbdb54"
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
     }
   },
   {
@@ -41,13 +43,17 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+          "open": "/rookie-draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='E2E Player001']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-commissioner-denied-light",
@@ -110,7 +116,7 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
@@ -119,7 +125,9 @@
       }
     ],
     "setup": {
-      "auctionNomination": "f3660351-112e-4931-8ece-ea2f33cbdb54"
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
     }
   },
   {
@@ -137,13 +145,17 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+          "open": "/rookie-draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='E2E Player001']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-commissioner-denied-dark",

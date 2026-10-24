@@ -260,14 +260,38 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "text": "E2E Team 1",
           "route": "/draft-room"
         }
+      },
+      {
+        "name": "missing",
+        "action": {
+          "open": "/draft-room?draftId=00000000-0000-4000-8000-000000000000"
+        },
+        "expected": {
+          "text": "This draft is no longer available.",
+          "selector": "[aria-label='Back to League']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to League"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-rookie-room-light",
@@ -284,13 +308,37 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+          "open": "/rookie-draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
         }
+      },
+      {
+        "name": "missing",
+        "action": {
+          "open": "/rookie-draft-room?draftId=00000000-0000-4000-8000-000000000000"
+        },
+        "expected": {
+          "text": "This draft is no longer available.",
+          "selector": "[aria-label='Back to League']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to League"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-dynasty-light",
@@ -768,14 +816,38 @@
     "steps": [
       {
         "action": {
-          "open": "/draft-room?draftId=f3660351-112e-4931-8ece-ea2f33cbdb54"
+          "open": "/draft-room?draftId={{draftId}}"
         },
         "expected": {
           "text": "E2E Team 1",
           "route": "/draft-room"
         }
+      },
+      {
+        "name": "missing",
+        "action": {
+          "open": "/draft-room?draftId=00000000-0000-4000-8000-000000000000"
+        },
+        "expected": {
+          "text": "This draft is no longer available.",
+          "selector": "[aria-label='Back to League']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to League"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-rookie-room-dark",
@@ -792,13 +864,37 @@
     "steps": [
       {
         "action": {
-          "open": "/rookie-draft-room?draftId=73eacd5a-3d26-464a-8c96-e7c61102118b"
+          "open": "/rookie-draft-room?draftId={{draftId}}"
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
         }
+      },
+      {
+        "name": "missing",
+        "action": {
+          "open": "/rookie-draft-room?draftId=00000000-0000-4000-8000-000000000000"
+        },
+        "expected": {
+          "text": "This draft is no longer available.",
+          "selector": "[aria-label='Back to League']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to League"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
       }
-    ]
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    }
   },
   {
     "name": "league-dynasty-dark",

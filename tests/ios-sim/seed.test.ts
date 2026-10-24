@@ -128,3 +128,49 @@ test.each([false, true])('an IR capture restores injuries after success or failu
   else assert.equal(await capture(), 'captured')
   assert.equal(JSON.stringify(players), before)
 })
+
+test.each(['auction', 'snake'])('a %s room capture builds its own draft and removes it after failure', async draftType => {
+  const tables = new Map<string, any[]>()
+  const deleted: string[] = []
+  const admin = {
+    from(table: string) {
+      let row: any, removing = false
+      const query = {
+        insert(value: any) { row = value; return query },
+        delete() { removing = true; return query },
+        eq(key: string, value: string) {
+          assert.equal(table, 'drafts'); assert.equal(key, 'id'); assert.equal(value, 'capture')
+          deleted.push(value)
+          return query
+        },
+        then(resolve: (value: object) => void) {
+          if (!removing) tables.set(table, Array.isArray(row) ? row : [row])
+          resolve({ data: null, error: null })
+        },
+      }
+      return query
+    },
+  }
+  const members = Array.from({ length: 10 }, (_, index) => ({ id: `member-${index}` }))
+  await assert.rejects(fixture.withDraftRoom(admin, { draftId: 'capture', draftType, leagueId: 'league', seasonId: 'season', members }, async () => {
+    const draft = tables.get('drafts')![0]
+    assert.equal(draft.league_id, 'league')
+    assert.equal(draft.league_season_id, 'season')
+    assert.equal(draft.draft_type, draftType)
+    assert.equal(draft.status, 'in_progress')
+    assert.equal(draft.is_mock, true)
+    assert.deepEqual(tables.get('draft_room_members')!.map(row => row.member_id), members.map(member => member.id))
+    assert.equal(tables.get('draft_orders')!.length, 10)
+    if (draftType === 'auction') {
+      assert.equal(tables.get('draft_budgets')!.length, 10)
+      assert.ok(tables.get('draft_budgets')!.every(row => row.remaining === 200 && row.draft_id === 'capture'))
+    } else {
+      const picks = tables.get('snake_draft_picks')!
+      assert.equal(picks.length, 30)
+      assert.deepEqual(picks.filter(row => row.round === 2).map(row => row.member_id), [...members].reverse().map(member => member.id))
+      assert.ok(picks.every((row, index) => row.overall_pick === index + 1 && row.draft_id === 'capture'))
+    }
+    throw new Error('Capture failed')
+  }), /Capture failed/)
+  assert.deepEqual(deleted, ['capture'])
+})

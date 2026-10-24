@@ -17,6 +17,7 @@ export const SHELL_BACK_HEADER_ROUTES = [
     '/create-league',
     '/join-league',
     '/bracket',
+    '/draft',
     '/draft-room',
     '/rookie-draft-room',
 ] as const

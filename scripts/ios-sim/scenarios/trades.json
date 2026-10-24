@@ -281,19 +281,25 @@
       },
       {
         "open": "/propose-trade"
-      },
-      {
-        "tap": "Use multi-team trade mode"
       }
     ],
     "steps": [
+      {
+        "action": {
+          "tap": "Use multi-team trade mode"
+        },
+        "expected": {
+          "text": "Choose two or more teams."
+        }
+      },
       {
         "action": {
           "tap": "Trade with {{otherTeam}}"
         },
         "expected": {
           "selector": "[aria-label$=' for trade']"
-        }
+        },
+        "name": "team"
       },
       {
         "name": "third-team",
@@ -664,19 +670,25 @@
       },
       {
         "open": "/propose-trade"
-      },
-      {
-        "tap": "Use multi-team trade mode"
       }
     ],
     "steps": [
+      {
+        "action": {
+          "tap": "Use multi-team trade mode"
+        },
+        "expected": {
+          "text": "Choose two or more teams."
+        }
+      },
       {
         "action": {
           "tap": "Trade with {{otherTeam}}"
         },
         "expected": {
           "selector": "[aria-label$=' for trade']"
-        }
+        },
+        "name": "team"
       },
       {
         "name": "third-team",
