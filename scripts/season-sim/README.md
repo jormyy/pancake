@@ -30,6 +30,8 @@ It disables cron launch before applying migrations.
 It saves the installed cron catalog before unscheduling jobs.
 The task supplies native PostgreSQL 17 clients and the guarded Docker socket.
 Local credentials come only from the configured stack's `supabase status -o env`.
+Real opening recovery uses a guarded `next-season-start` snapshot and preserves completed preseason work.
+Keep failed feature exports and their source receipt before revalidating the repaired opening state.
 
 ## Fixture collection
 

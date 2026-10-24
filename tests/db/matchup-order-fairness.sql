@@ -60,6 +60,39 @@ BEGIN
       IF EXISTS(WITH ordered AS (SELECT r->>'home_member_id' home,lag(r->>'home_member_id') OVER(PARTITION BY LEAST(r->>'home_member_id',r->>'away_member_id'),GREATEST(r->>'home_member_id',r->>'away_member_id') ORDER BY (r->>'week_number')::int) previous FROM jsonb_array_elements(payload) r) SELECT 1 FROM ordered WHERE home=previous) THEN RAISE EXCEPTION 'Repeated pair does not alternate home'; END IF;
       other:=private.regular_season_matchup_payload(league,next_season,19);
       IF (SELECT jsonb_agg(r-'league_season_id') FROM jsonb_array_elements(payload) r)=(SELECT jsonb_agg(r-'league_season_id') FROM jsonb_array_elements(other) r) THEN RAISE EXCEPTION 'Next season repeats schedule'; END IF;
+      IF n=4 AND skipped THEN
+        INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
+          SELECT 9324,w,date '9323-10-18'+(w-1)*7,date '9323-10-24'+(w-1)*7 FROM generate_series(1,26)w
+          ON CONFLICT (season_year,week_number) DO NOTHING;
+        UPDATE leagues SET playoff_start_week=22 WHERE id=league;
+        UPDATE league_seasons SET skipped_weeks='{}' WHERE id=season;
+        PERFORM replace_regular_season_matchups_atomic(league,season);
+        SELECT jsonb_agg(to_jsonb(m) ORDER BY id) INTO saved FROM matchups m WHERE league_season_id=season AND week_number=1;
+        PERFORM set_config('request.jwt.claim.sub',users[1]::text,true);
+        PERFORM update_league_settings_atomic(league,'{"skipped_weeks":[1]}'::jsonb);
+        FOR i IN 1..n LOOP
+          SELECT count(*) FILTER(WHERE home_member_id=members[i]),count(*) FILTER(WHERE away_member_id=members[i])
+            INTO home_count,away_count FROM matchups WHERE league_season_id=season AND NOT is_voided;
+          IF home_count<>10 OR away_count<>10 THEN RAISE EXCEPTION 'Late preseason skip leaves an unbalanced schedule: %/%',home_count,away_count; END IF;
+        END LOOP;
+        IF (SELECT jsonb_agg(to_jsonb(m)-'is_voided'-'home_points'-'away_points' ORDER BY id) FROM matchups m WHERE league_season_id=season AND week_number=1)
+          IS DISTINCT FROM (SELECT jsonb_agg(value-'is_voided'-'home_points'-'away_points' ORDER BY value->>'id') FROM jsonb_array_elements(saved)) THEN
+          RAISE EXCEPTION 'Preseason skip changes voided week history';
+        END IF;
+        SELECT jsonb_agg(to_jsonb(m) ORDER BY id) INTO saved FROM matchups m WHERE league_season_id=season;
+        PERFORM replace_regular_season_matchups_atomic(league,season,true);
+        PERFORM update_league_settings_atomic(league,'{"skipped_weeks":[1]}'::jsonb);
+        IF saved IS DISTINCT FROM (SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season) THEN
+          RAISE EXCEPTION 'The corrected delayed schedule changes on retry';
+        END IF;
+        UPDATE season_weeks SET week_start=(now() AT TIME ZONE 'America/New_York')::date WHERE season_year=9324 AND week_number=1;
+        SELECT jsonb_agg(to_jsonb(m) ORDER BY id) INTO saved FROM matchups m WHERE league_season_id=season AND week_number>2;
+        PERFORM update_league_settings_atomic(league,'{"skipped_weeks":[1,2]}'::jsonb);
+        IF saved IS DISTINCT FROM (SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season AND week_number>2) THEN
+          RAISE EXCEPTION 'A started calendar reshuffles later pairings';
+        END IF;
+        UPDATE season_weeks SET week_start=date '9323-10-18' WHERE season_year=9324 AND week_number=1;
+      END IF;
       IF n=2 AND skipped THEN
         UPDATE league_seasons SET skipped_weeks='{}' WHERE id=season;
         PERFORM replace_regular_season_matchups_atomic(league,season);
@@ -71,7 +104,7 @@ BEGIN
           = (SELECT jsonb_agg(jsonb_build_array((r->>'week_number')::int,r->>'home_member_id',r->>'away_member_id') ORDER BY (r->>'week_number')::int,r->>'home_member_id',r->>'away_member_id') FROM jsonb_array_elements(other)r) THEN RAISE EXCEPTION 'Next season repeats live order when prior skipped-week history remains'; END IF;
       END IF;
       IF n=10 AND skipped THEN
-        INSERT INTO season_weeks(season_year,week_number,week_start,week_end) SELECT 9324,w,date '9323-10-18'+(w-1)*7,date '9323-10-24'+(w-1)*7 FROM generate_series(1,26)w;
+        INSERT INTO season_weeks(season_year,week_number,week_start,week_end) SELECT 9324,w,date '9323-10-18'+(w-1)*7,date '9323-10-24'+(w-1)*7 FROM generate_series(1,26)w ON CONFLICT (season_year,week_number) DO NOTHING;
         PERFORM replace_regular_season_matchups_atomic(league,season);
         PERFORM set_config('request.jwt.claim.sub',users[1]::text,true);
         PERFORM update_league_settings_atomic(league,'{"playoff_start_week":19}'::jsonb);

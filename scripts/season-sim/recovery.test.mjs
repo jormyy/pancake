@@ -57,3 +57,31 @@ test('a completed draft resumes after all settled dates and retains its selected
   activated.clock.simMs = activated.cursor.clock
   assert.throws(() => recoveryEvidence(activated, receipt, profile), /precedes next-season activation/)
 })
+
+test('opening recovery retains season one and skips completed preseason work', () => {
+  const profile={year:2025,start:'2025-04-12',end:'2025-04-13'}
+  const next={year:2026,start:'2025-10-21'}
+  const clock=Date.parse('2025-10-21T14:00:11.267Z')
+  const rookies=Array.from({length:8},(_,id)=>({playerId:`p${id}`,owner:`m${id%4}`}))
+  const context={leagueId:'l',leagueSeasonId:'new',previousSeasonId:'old',seasonYear:2026,firstDate:next.start,users:Array(4).fill({}),draftedRookies:rookies,skippedWeeks:[1]}
+  const evidence=Object.fromEntries(['seasonEnd','realDraftBoard','rookieAutoPick','offseasonTrade','realRookieActivation','secondCalendar'].map(key=>[key,{passed:true}]))
+  evidence.realRookieActivation.rookies=rookies
+  evidence.realSeasonActivation={at:'2025-08-16T14:00:00Z'}
+  evidence.skippedWeekSettings={weeks:[1]}
+  const snapshot={name:'next-season-start',clock:{rate:0,simMs:clock},quiescence:{polls:1},cursor:{stage:'next-season-start',date:next.start,clock,context,evidence,guard:JSON.stringify({clock,unfinishedWorkers:0,cronActive:'off',cronJobs:0})}}
+  const receipt={leagueId:'l',leagueSeasonId:'new',days:[],recovery:{retainedReceipts:dates(profile.start,profile.end).map(date=>({date,finals:{passed:true,games:8}}))},failure:{message:'Replay cannot rewind business time'},failures:[{area:'matchup-order'}],featureCheckpoints:[{year:2025,businessAt:'2025-04-14T14:00Z',f1:{passed:true}},{year:2026,businessAt:'2025-10-21T14:00Z',f1:{status:'FAILED'}}],playersEvidence:[{year:2026,businessAt:'2025-08-16T14:00Z',passed:true}],realtime:{passed:true}}
+  const recovered=recoveryEvidence(snapshot,receipt,profile,next)
+  assert.equal(recovered.recovery.retainedDates,2)
+  assert.equal(recovered.recovery.retainedGames,16)
+  assert.equal(recovered.recovery.stage,'next-season-start')
+  assert.equal(recovered.realSeasonActivation,evidence.realSeasonActivation)
+  assert.equal(recovered.featureCheckpoints.length,1)
+  assert.equal(recovered.playersEvidence.length,1)
+  assert.equal(recovered.recovery.interruptedFeatureCheckpoints.length,1)
+  assert.equal(recovered.interruptions.at(-1).failure.message,receipt.failure.message)
+  const bad=change=>{const candidate=structuredClone(snapshot);change(candidate.cursor);return candidate}
+  assert.throws(()=>recoveryEvidence(bad(c=>{delete c.guard}),receipt,profile,next))
+  assert.throws(()=>recoveryEvidence(bad(c=>{c.evidence.secondCalendar.passed=false}),receipt,profile,next))
+  assert.throws(()=>recoveryEvidence(bad(c=>{c.context.skippedWeeks=[]}),receipt,profile,next))
+  assert.throws(()=>recoveryEvidence(snapshot,{...receipt,recovery:{retainedReceipts:[]}},profile,next),/preceding date/)
+})

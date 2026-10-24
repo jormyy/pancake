@@ -70,6 +70,13 @@ All first-season receipts remain retained. Fresh next-season Realtime proof stay
 After a host interruption, preserve the run and reconcile stored draft records before selecting this stage.
 The last checkpoint label can precede completed actions while business time advances.
 
+The real `next-season-start` stage retains the completed draft, preseason activation and opening calendar checks.
+It requires the same paused state guard and all settled first-season receipts.
+It resumes the real schedule at the drained opening clock and keeps interrupted feature failures as retained evidence.
+The first morning keeps any seconds advanced while snapshot workers drain.
+Preseason skipped-week changes rebuild unplayed eligible pairings with the saved season seed.
+Voided history remains intact. A started calendar keeps its existing pairings.
+
 ```sh
 node scripts/season-sim/recovery-run.mjs \
   --snapshot "$SEASON_SIM_ROOT/source-snapshots/pre-playoffs" \

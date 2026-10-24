@@ -3,17 +3,30 @@ import { dates } from './common.mjs'
 import { shiftDay } from './season-model.mjs'
 
 export const draftRecoveryFields = ['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'rookiePause', 'draftPushes', 'pickAllocation', 'offseasonTrade', 'previousChampion', 'realRookieActivation']
+export const openingRecoveryFields = [...draftRecoveryFields,'realSeasonActivation','skippedWeekSettings','secondCalendar']
 
-export function recoveryEvidence(snapshot, receipt, profile) {
+export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null) {
   const cursor = snapshot.cursor
   const postDraft = cursor.stage === 'post-draft'
+  const opening = cursor.stage === 'next-season-start'
+  const transition = postDraft || opening
   assert.equal(snapshot.clock.rate, 0, 'Recovery requires a paused checkpoint')
   assert.equal(snapshot.quiescence.workers?.length ?? 0, 0)
   assert.equal(snapshot.quiescence.polls > 0, true, 'Recovery requires an observed worker drain')
   assert.equal(cursor.clock, snapshot.clock.simMs ?? snapshot.clock.sim_ms)
-  if (postDraft) {
-    assert.equal(cursor.date, shiftDay(profile.end, 1), 'Post-draft recovery retains the entire settled first season')
-    assert.ok(cursor.clock >= Date.parse(`${cursor.date}T00:00:00Z`) && cursor.clock < Date.parse(`${profile.year}-08-16T14:00:00Z`), 'Post-draft recovery precedes next-season activation')
+  if (transition) {
+    if (opening) {
+      assert.equal(cursor.date,nextProfile?.start,'Opening recovery starts on the next real opening date')
+      assert.equal(cursor.context.firstDate,nextProfile.start)
+      assert.ok(cursor.clock>=Date.parse(`${cursor.date}T14:00:00Z`)&&cursor.clock<Date.parse(`${cursor.date}T14:02:00Z`),'Opening recovery stays inside the drained morning boundary')
+      assert.equal(cursor.evidence?.secondCalendar?.passed,true)
+      assert.ok(cursor.evidence?.realSeasonActivation?.at)
+      assert.deepEqual(cursor.context.skippedWeeks,[1])
+      assert.deepEqual(cursor.evidence.skippedWeekSettings?.weeks,[1])
+    } else {
+      assert.equal(cursor.date, shiftDay(profile.end, 1), 'Post-draft recovery retains the entire settled first season')
+      assert.ok(cursor.clock >= Date.parse(`${cursor.date}T00:00:00Z`) && cursor.clock < Date.parse(`${profile.year}-08-16T14:00:00Z`), 'Post-draft recovery precedes next-season activation')
+    }
     assert.ok([cursor.context.previousSeasonId, cursor.context.leagueSeasonId].includes(receipt.leagueSeasonId), 'Post-draft receipt belongs to the same season transition')
     assert.notEqual(cursor.context.leagueSeasonId, cursor.context.previousSeasonId)
     assert.equal(cursor.context.seasonYear, profile.year + 1)
@@ -29,16 +42,18 @@ export function recoveryEvidence(snapshot, receipt, profile) {
     assert.ok(cursor.date >= profile.start && cursor.date <= profile.end)
     assert.ok(cursor.clock < Date.parse(`${cursor.date}T23:59:59Z`), 'Recovery cursor cannot pass its first date')
   }
-  const days = [...(receipt.recovery?.retainedReceipts ?? []), ...receipt.days].filter(day => day.date < cursor.date)
-  assert.deepEqual(days.map(day => day.date), dates(profile.start, cursor.date).slice(0, -1), 'Recovery requires every preceding date receipt')
+  const retainedEnd=opening?shiftDay(profile.end,1):cursor.date
+  const days = [...(receipt.recovery?.retainedReceipts ?? []), ...receipt.days].filter(day => day.date < retainedEnd)
+  assert.deepEqual(days.map(day => day.date), dates(profile.start, retainedEnd).slice(0, -1), 'Recovery requires every preceding date receipt')
   assert.ok(days.every(day => day.finals.passed || day.finals.games === 0), 'Recovery requires verified preceding finals')
   assert.equal(receipt.leagueId, cursor.context.leagueId)
-  if (!postDraft) assert.equal(receipt.leagueSeasonId, cursor.context.leagueSeasonId)
+  if (!transition) assert.equal(receipt.leagueSeasonId, cursor.context.leagueSeasonId)
   const before = row => Date.parse(row.businessAt) <= cursor.clock
   return {
     ...Object.fromEntries(['firstCalendar', 'champion', 'pendingWaiversAtChampion', 'tradingReopened', 'rolloverRecovery', 'rolloverHistory', 'waiverRollover', 'sourceUnavailable'].filter(key => receipt[key] !== undefined).map(key => [key, receipt[key]])),
-    ...(postDraft ? Object.fromEntries(draftRecoveryFields.map(key => [key, cursor.evidence[key]])) : {}),
-    featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(before),
+    ...(transition ? Object.fromEntries((opening?openingRecoveryFields:draftRecoveryFields).map(key => [key, cursor.evidence[key]])) : {}),
+    ...(opening?{interruptions:[...(receipt.interruptions??[]),{phase:receipt.phase,failure:receipt.failure??null,failures:receipt.failures??[],source:receipt.source?.application,dumpSha256:snapshot.dumpSha256}]}:{}),
+    featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(row=>before(row)&&(!opening||row.year<nextProfile.year)),
     playersEvidence: (receipt.playersEvidence ?? []).filter(before),
     realInputChecks: (receipt.realInputChecks ?? []).filter(row => row.date < cursor.date),
     nbaTrades: (receipt.nbaTrades ?? []).filter(row => row.firstAfter < cursor.date),
@@ -46,7 +61,7 @@ export function recoveryEvidence(snapshot, receipt, profile) {
     allStarLimits: (receipt.allStarLimits ?? []).filter(row => row.checked < cursor.date),
     realtime: receipt.realtime,
     retainedRealtime: !!receipt.realtime,
-    recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: postDraft ? cursor.guard : null },
+    recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: transition ? cursor.guard : null, ...(opening?{interruptedFeatureCheckpoints:(receipt.featureCheckpoints??[]).filter(row=>row.year===nextProfile.year)}:{}) },
   }
 }
 

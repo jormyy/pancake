@@ -42,7 +42,11 @@ export function realSeasonDay(profile,date,today){
   return week
 }
 
-export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe, { afterRookieActivation = false } = {}) {
+export async function realSeasonMorning(move,date,current){
+  await move(Math.max(Date.parse(`${date}T14:00:00Z`),current))
+}
+
+export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe, { afterRookieActivation = false, afterOpening = false } = {}) {
   const profile = plan.seasons[1], oldSeason = c.previousSeasonId
   const through=report.secondSeasonThrough??profile.end
   assert.ok(through>=profile.start&&through<=profile.end,'The cutoff belongs to the real season')
@@ -56,32 +60,41 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
   }
   const digest = () => sql(`SELECT json_build_object('stats',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id WHERE g.season_year=${plan.seasons[0].year}),'matchups',(SELECT md5(string_agg(row_to_json(m)::text,'' ORDER BY m.id)) FROM matchups m WHERE league_season_id='${oldSeason}'),'standings',(SELECT md5(string_agg(row_to_json(s)::text,'' ORDER BY s.id)) FROM standings s WHERE league_season_id='${oldSeason}'),'usedPicks',(SELECT md5(string_agg(row_to_json(p)::text,'' ORDER BY p.id)) FROM draft_picks p WHERE league_id='${c.leagueId}' AND is_used))`)
   const before = await digest()
-  if (afterRookieActivation) {
-    assert.equal(report.realRookieActivation?.passed, true, 'Preseason recovery requires verified rookie activation')
-    assert.deepEqual(c.draftedRookies, report.realRookieActivation.rookies, 'Preseason recovery keeps the observed rookie owners')
-  } else await activateRealRookies(c, plan, report)
-  await checkpoint('next-season-preseason')
-  await snapshot('post-draft', shiftDay(plan.seasons[0].end,1),1)
-  await move(`${profile.startYear}-08-16T14:00:00Z`)
-  await c.rpc(c.users[0], 'update_league_configuration_atomic', { p_league_id: c.leagueId, p_settings: { skipped_weeks: [1], playoff_start_week: profile.playoffStart } })
-  const activation = await c.api(c.users[0],`/draft/${report.rookieAutoPick.draftId}/activate-rookie-league`,{})
-  assert.ok(activation.activated || await sql(`SELECT status FROM leagues WHERE id='${c.leagueId}'`)==='active','A real commissioner activates the completed rookie league')
-  report.realSeasonActivation = { route:'/draft/:id/activate-rookie-league',at:`${profile.startYear}-08-16T14:00:00Z` }
-  c.skippedWeeks = [1]
-  c.seasonYear = profile.year
-  c.firstDate = profile.start
-  c.seasonEnd = profile.end
-  await capturePlayers(c,'preseason',report)
-  report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', weeks: [1], at: `${profile.startYear}-08-16T14:00:00Z` }
-  const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
-  assert.equal(standings.length, 0, 'The real second season starts without prior standings')
-  await move(`${profile.start}T14:00:00Z`)
-  await c.api(c.users[0], '/sync/matchups', { leagueId: c.leagueId })
-  report.secondCalendar = await assertTwoCalendar(c, profile)
-  await captureSeasonFeatures(c,profile,'week-1',report)
-  await capturePlayers(c,'opening-before-played',report)
-  await changeProbe()
-  await snapshot('next-season-start', profile.start, dates(profile.start,profile.end).length)
+  if (!afterOpening) {
+    if (afterRookieActivation) {
+      assert.equal(report.realRookieActivation?.passed, true, 'Preseason recovery requires verified rookie activation')
+      assert.deepEqual(c.draftedRookies, report.realRookieActivation.rookies, 'Preseason recovery keeps the observed rookie owners')
+    } else await activateRealRookies(c, plan, report)
+    await checkpoint('next-season-preseason')
+    await snapshot('post-draft', shiftDay(plan.seasons[0].end,1),1)
+    await move(`${profile.startYear}-08-16T14:00:00Z`)
+    await c.rpc(c.users[0], 'update_league_configuration_atomic', { p_league_id: c.leagueId, p_settings: { skipped_weeks: [1], playoff_start_week: profile.playoffStart } })
+    const activation = await c.api(c.users[0],`/draft/${report.rookieAutoPick.draftId}/activate-rookie-league`,{})
+    assert.ok(activation.activated || await sql(`SELECT status FROM leagues WHERE id='${c.leagueId}'`)==='active','A real commissioner activates the completed rookie league')
+    report.realSeasonActivation = { route:'/draft/:id/activate-rookie-league',at:`${profile.startYear}-08-16T14:00:00Z` }
+    c.skippedWeeks = [1]
+    c.seasonYear = profile.year
+    c.firstDate = profile.start
+    c.seasonEnd = profile.end
+    await capturePlayers(c,'preseason',report)
+    report.skippedWeekSettings = { route: '/rest/v1/rpc/update_league_configuration_atomic', weeks: [1], at: `${profile.startYear}-08-16T14:00:00Z` }
+    const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
+    assert.equal(standings.length, 0, 'The real second season starts without prior standings')
+    await move(`${profile.start}T14:00:00Z`)
+    await c.api(c.users[0], '/sync/matchups', { leagueId: c.leagueId })
+    report.secondCalendar = await assertTwoCalendar(c, profile)
+    await captureSeasonFeatures(c,profile,'week-1',report)
+    await capturePlayers(c,'opening-before-played',report)
+    await changeProbe()
+    await snapshot('next-season-start', profile.start, dates(profile.start,profile.end).length)
+  } else {
+    assert.equal(c.seasonYear,profile.year)
+    assert.equal(c.firstDate,profile.start)
+    assert.equal(report.secondCalendar.passed,true)
+    report.secondCalendar=await assertTwoCalendar(c,profile)
+    await captureSeasonFeatures(c,profile,'opening-recovery',report)
+    await capturePlayers(c,'opening-recovery-before-played',report)
+  }
   const store = await fixtureStore(fixtureDirectory), games = JSON.parse(await readFile(path.join(fixtureDirectory,'games.json'),'utf8')).games
   const days = [], checked = [], began = Date.now()
   report.rookieNbaMoves = rookieMoves(plan.draft.rookies, await rookieListings(plan.draft.rookies, games.filter(row => row.id.startsWith(profile.prefix)), id => store.json(`boxscore-${id}`)), profile.year)
@@ -90,7 +103,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     const dayBegan = Date.now(), today = games.filter(row => row.date === date), week = realSeasonDay(profile,date,today)
     const day = { date, provenance: { finals:'REAL-RAW',live:'REAL-DERIVED',actions:'SYNTHETIC',postponementAvailability:'SYNTHETIC' } }, skipped = c.skippedWeeks.includes(week?.week_number)
     await checkpoint(`${date}:real-second-season-morning`)
-    await move(`${date}T14:00:00Z`)
+    await realSeasonMorning(move,date,Number(await sql('SELECT extract(epoch FROM now())*1000')))
     await verifyWaivers(c,report)
     if (date === profile.start) await beginWaivers(c,'skipped-week-rolling',report)
     if (week&&!skipped && date === week.week_start) {

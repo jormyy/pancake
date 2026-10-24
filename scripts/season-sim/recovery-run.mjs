@@ -24,12 +24,12 @@ const plan = await twoPlan()
 const through=values.through??plan.seasons[1].calendar.weeks.find(row=>row.week_number===3).week_end
 assert.match(through,/^\d{4}-\d{2}-\d{2}$/)
 assert.ok(through>=plan.seasons[1].start&&through<=plan.seasons[1].end)
-const evidence = recoveryEvidence(snapshot, receipt, plan.seasons[0])
+const evidence = recoveryEvidence(snapshot, receipt, plan.seasons[0], plan.seasons[1])
 assert.equal((await sourceEvidence()).committedHarness, true, 'Recovery requires committed harness source')
 process.env.SUPABASE_DB_URL = localKeys().DB_URL
-if (snapshot.cursor.stage === 'post-draft') {
+if (['post-draft','next-season-start'].includes(snapshot.cursor.stage)) {
   assert.ok(!values['refresh-players'], 'A completed draft recovery cannot repeat player setup')
-  assert.equal(await sql(postDraftStateQuery()), snapshot.cursor.guard, 'Stored post-draft state must match the verified recovery snapshot')
+  assert.equal(await sql(postDraftStateQuery()), snapshot.cursor.guard, 'Stored transition state must match the verified recovery snapshot')
 }
 if (values['refresh-players']) {
   assert.notEqual(process.env.SEASON_SIM_PRODUCTION_ONLY, '1', 'Recovery setup precedes the production replay')

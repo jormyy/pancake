@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {checkRealCoverage,realSeasonDay} from './real-season.mjs'
+import * as realSeason from './real-season.mjs'
+const {checkRealCoverage,realSeasonDay}=realSeason
+
+test('the first real morning preserves the clock advanced by snapshot workers', async () => {
+  let clock=Date.parse('2025-10-21T14:00:11.267Z')
+  const visited=[]
+  const move=async at=>{assert.ok(at>=clock,'Replay cannot rewind business time');clock=at;visited.push(at)}
+  await realSeason.realSeasonMorning(move,'2025-10-21',clock)
+  assert.equal(clock,Date.parse('2025-10-21T14:00:11.267Z'))
+  await realSeason.realSeasonMorning(move,'2025-10-22',clock)
+  assert.equal(clock,Date.parse('2025-10-22T14:00:00Z'))
+  assert.equal(visited.length,2)
+})
 
 test('a bounded season checks only its dates and raw rookie appearances', () => {
   const profile = { start: '2025-10-21', end: '2025-11-10', prefix: '00225', games: 3, playoffStart: 25, calendar: { weeks: [{ week_number: 1, week_end: '2025-10-26' }, { week_number: 2, week_end: '2025-11-02' }, { week_number: 3, week_end: '2025-11-09' }, { week_number: 4, week_end: '2025-11-16' }] } }
