@@ -21,7 +21,7 @@ const Probe = ({ authorized }: { authorized: boolean }) => {
     actions = useLineupActions({
         actionContext: authorized ? owner : null,
         actionOwner: owner,
-        myLineup: { starters: [], bench: [] },
+        myLineup: React.useMemo(() => ({ starters: [], bench: [] }), []),
         league: { roster_size: 10 },
         selectedDate: '2026-10-16',
         startedTeams: new Set(),

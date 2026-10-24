@@ -1,0 +1,11 @@
+export const LINEUP_SLOT_ALLOWED_POSITIONS = {
+    PG: ['PG'],
+    SG: ['SG'],
+    SF: ['SF'],
+    PF: ['PF'],
+    C: ['C'],
+    G: ['PG', 'SG', 'G'],
+    F: ['SF', 'PF', 'F'],
+    UTIL: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
+    BE: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'],
+} as const

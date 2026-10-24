@@ -45,12 +45,14 @@ const Probe = ({ owner }: { owner: string }) => {
 }
 
 beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-16T12:00:00Z'))
     clearSessionCaches()
     vi.clearAllMocks()
     mocks.cache.mockImplementation((key: string) => caches[key.endsWith('member-b') ? 'b' : 'a'])
     mocks.lineup.mockResolvedValue(lineup('fresh'))
 })
-afterEach(async () => { if (renderer) await act(async () => { renderer.unmount() }); vi.restoreAllMocks() })
+afterEach(async () => { if (renderer) await act(async () => { renderer.unmount() }); vi.restoreAllMocks(); vi.useRealTimers() })
 
 it('handles a failed background read, keeps the last lineup, and clears the retry state on recovery', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {})

@@ -1,7 +1,8 @@
+import { notifyLeagueChange } from '@/lib/league-changes'
 import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import type { Matchup } from '@/lib/scoring'
@@ -9,7 +10,7 @@ import type { LineupSlot } from '@/lib/lineup'
 
 const {
     getLeagueWeekMatchups, getMyMatchup, getWeekDays, getWeeklyLineup, readPersistentCache,
-    invalidateSeasonCache, invalidateWeekNumberCache, online, write,
+    invalidateSeasonCache, invalidateWeekNumberCache, online, write, clock, cacheWrite,
 } = vi.hoisted(() => ({
     getLeagueWeekMatchups: vi.fn(),
     getMyMatchup: vi.fn(),
@@ -19,6 +20,8 @@ const {
     invalidateSeasonCache: vi.fn(),
     invalidateWeekNumberCache: vi.fn(),
     online: { value: true },
+    clock: { today: '2026-07-09' },
+    cacheWrite: vi.fn(),
     write: vi.fn(),
 }))
 
@@ -33,10 +36,10 @@ vi.mock('@/lib/lineup', async () => ({
 }))
 vi.mock('@/lib/roster', () => ({ activateRosterPlayerWithLineup: vi.fn(), toggleIR: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: vi.fn(), confirmAction: vi.fn() }))
-vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-07-09' }))
+vi.mock('@/lib/shared/dates', () => ({ todayET: () => clock.today }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache }))
 vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache }))
-vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentCache: vi.fn() }))
+vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache, writePersistentCache: cacheWrite }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => online.value }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
@@ -74,7 +77,12 @@ beforeEach(() => {
     getLeagueWeekMatchups.mockResolvedValue([])
     getWeekDays.mockResolvedValue([{ date: '2026-07-09' }])
     online.value = true
+    clock.today = '2026-07-09'
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-09T12:00:00Z'))
 })
+
+afterEach(() => vi.useRealTimers())
 
 describe('useMatchupData date ownership', () => {
     it.each([undefined, -1, 0.5])('refreshes an old saved lineup with unknown bench capacity %s', async (benchSlots) => {
@@ -367,4 +375,134 @@ it('starts the lineup read while the matchup names and records are still pending
     expect(latest.myLineup?.bench[0].playerId).toBe('prepared')
     expect(getWeeklyLineup).toHaveBeenCalledTimes(2)
     await act(async () => { renderer.unmount() })
+})
+
+it.each(['refresh', 'silent', 'focus', 'visibility', 'online'] as const)('rolls a retained Home selection to the new ET day on %s', async (trigger) => {
+    const browser = new EventTarget()
+    const page = new EventTarget()
+    vi.stubGlobal('window', browser)
+    vi.stubGlobal('document', page)
+    readPersistentCache.mockReturnValue({ today: clock.today, selectedDate: '2026-07-10', matchup,
+        weekDays: [], leagueMatchups: [], myLineup: lineup('old'), oppLineup: lineup('old') })
+    getMyMatchup.mockResolvedValue(matchup)
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }, { date: '2026-07-10' }, { date: '2026-07-11' }])
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => Promise.resolve(lineup(date)))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        if (trigger === 'online') {
+            online.value = false
+            await act(async () => { renderer.update(React.createElement(Probe)) })
+        }
+        clock.today = '2026-07-11'
+        vi.setSystemTime(new Date('2026-07-11T12:00:00Z'))
+        await act(async () => {
+            if (trigger === 'refresh') await latest.refresh()
+            else if (trigger === 'silent') await latest.refreshSilently()
+            else if (trigger === 'online') { online.value = true; renderer.update(React.createElement(Probe)) }
+            else (trigger === 'focus' ? browser : page).dispatchEvent(new Event(trigger === 'focus' ? 'focus' : 'visibilitychange'))
+        })
+        expect(latest.selectedDate).toBe('2026-07-11')
+        expect(latest.myLineup?.bench[0].playerId).toBe('2026-07-11')
+        expect(cacheWrite).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ today: '2026-07-11', selectedDate: '2026-07-11' }))
+    } finally {
+        await act(async () => { renderer.unmount() })
+        vi.unstubAllGlobals()
+    }
+})
+
+it('rolls Home over at ET midnight without a browser event and repeats the next night', async () => {
+    vi.setSystemTime(new Date('2026-07-10T03:59:59.900Z'))
+    getMyMatchup.mockResolvedValue(matchup)
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }, { date: '2026-07-10' }, { date: '2026-07-11' }])
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => Promise.resolve(lineup(date)))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await latest.refresh() })
+        clock.today = '2026-07-10'
+        await act(async () => { await vi.advanceTimersByTimeAsync(101) })
+        expect(latest.selectedDate).toBe('2026-07-10')
+        expect(latest.myLineup?.bench[0].playerId).toBe('2026-07-10')
+        clock.today = '2026-07-11'
+        await act(async () => { await vi.advanceTimersByTimeAsync(86_400_000) })
+        expect(latest.selectedDate).toBe('2026-07-11')
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('rereads today when an old-day read crosses midnight before saving the cache', async () => {
+    getMyMatchup.mockResolvedValue(matchup)
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }, { date: '2026-07-10' }])
+    const oldRead = deferred<ReturnType<typeof lineup>>()
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => date === '2026-07-09' ? oldRead.promise : Promise.resolve(lineup(date)))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.refresh() })
+        clock.today = '2026-07-10'
+        await act(async () => { oldRead.resolve(lineup('yesterday')); await pending })
+        expect(latest.selectedDate).toBe('2026-07-10')
+        expect(latest.myLineup?.bench[0].playerId).toBe('2026-07-10')
+        expect(cacheWrite).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({ today: '2026-07-10', selectedDate: '2026-07-10' }))
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('keeps refresh authority stable when user and member objects have the same IDs', async () => {
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        const refresh = latest.refresh
+        await act(async () => { renderer.update(React.createElement(Probe)) })
+        expect(latest.refresh).toBe(refresh)
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('rolls over when a change hint names the new day instead of the old selection', async () => {
+    readPersistentCache.mockReturnValue({ today: clock.today, selectedDate: clock.today, matchup,
+        weekDays: [], leagueMatchups: [], myLineup: lineup('yesterday'), oppLineup: lineup('yesterday') })
+    getMyMatchup.mockResolvedValue(matchup)
+    getWeekDays.mockResolvedValue([{ date: '2026-07-09' }, { date: '2026-07-10' }])
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => Promise.resolve(lineup(date)))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        clock.today = '2026-07-10'
+        await act(async () => {
+            notifyLeagueChange('league', { topic: 'lineup', scopes: [{ season_id: 'season', member_id: 'member-a', date: clock.today }] })
+            await vi.advanceTimersByTimeAsync(200)
+        })
+        expect(latest.selectedDate).toBe('2026-07-10')
+        expect(latest.myLineup?.bench[0].playerId).toBe('2026-07-10')
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('never stamps the previous week as today when a matchup read crosses midnight', async () => {
+    getMyMatchup.mockResolvedValueOnce(matchup).mockResolvedValue({ ...matchup, id: 'next-matchup', weekNumber: 2 })
+    getWeekDays.mockImplementation((week: number) => Promise.resolve([{ date: week === 1 ? '2026-07-09' : '2026-07-10' }]))
+    const oldRead = deferred<ReturnType<typeof lineup>>()
+    getWeeklyLineup.mockImplementation((_member, _league, _season, _week, date) => date === '2026-07-09' ? oldRead.promise : Promise.resolve(lineup(date)))
+    let latest!: ReturnType<typeof useMatchupData>
+    const Probe = () => { latest = useMatchupData({ id: 'member-a' }, { id: 'user' }, { id: 'league' }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        let pending!: Promise<void>
+        await act(async () => { pending = latest.refresh() })
+        clock.today = '2026-07-10'
+        await act(async () => { oldRead.resolve(lineup('yesterday')); await pending })
+        expect(cacheWrite.mock.calls.every(([, value]) => value.today !== '2026-07-10' || value.selectedDate === '2026-07-10')).toBe(true)
+        expect(latest.matchup?.id).toBe('next-matchup')
+        expect(latest.selectedDate).toBe('2026-07-10')
+    } finally { await act(async () => { renderer.unmount() }) }
 })

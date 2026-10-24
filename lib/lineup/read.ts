@@ -41,14 +41,6 @@ export type WeekDay = {
     playingTeams: string[]
 }
 
-/**
- * Default day for a week view: today when it falls inside the week, otherwise
- * the nearest edge of the week. Without the clamp, viewing a week that does
- * not contain today (offseason, pre-season, catching up on a past week)
- * selects a date with no lineup rows and every slot renders as an em-dash.
- */
-export { clampDateToWeek } from './date'
-
 // Returns the set of NBA team abbreviations whose game has already started on the given date.
 /** The one client reading of "this game has started" (the server's is private.lineup_game_started). */
 export function gameHasStarted(game: { status: string | null; game_time: string | null; started_at: string | null }, now: string): boolean {
@@ -180,6 +172,7 @@ async function fetchRosterPlayers(memberId: string, leagueId: string, seasonId: 
         .eq('member_id', memberId)
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
+        .order('player_id', { ascending: true })
     if (error) throw error
     return data ?? []
 }
@@ -234,7 +227,8 @@ export async function getWeeklyLineup(
     // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
     // Compare against todayET so non-ET clients don't misclassify the current
     // slate as "past" (or vice versa) during the 0–3h skew.
-    const isPastDate = gameDate < todayET()
+    const today = todayET()
+    const isPastDate = gameDate < today
     const allowCached = options.allowCachedStatics ?? false
 
     const [templates, roster, assignmentsResult] = await Promise.all([
@@ -248,7 +242,8 @@ export async function getWeeklyLineup(
             .eq('member_id', memberId)
             .eq('league_id', leagueId)
             .eq('league_season_id', seasonId)
-            .eq('game_date', gameDate),
+            .eq('game_date', gameDate)
+            .order('player_id', { ascending: true }),
     ])
     if (assignmentsResult.error) throw assignmentsResult.error
 
@@ -258,13 +253,7 @@ export async function getWeeklyLineup(
         assignments.map((a) => [a.player_id, a.slot_type]),
     )
 
-    const irPlayerIds = new Set<string>(
-        roster.filter((r) => r.is_on_ir).map((r) => r.player_id),
-    )
-    const taxiPlayerIds = new Set<string>(
-        roster.filter((r) => r.is_on_taxi).map((r) => r.player_id),
-    )
-
+    const reservePlayerIds = new Set(roster.filter(row => row.is_on_ir || row.is_on_taxi).map(row => row.player_id))
     const rosterByPlayerId = new Map<string, LineupPlayer>()
     for (const r of roster) {
         // Supabase types `players` as a possible array | object | null depending on relationship inference.
@@ -335,7 +324,7 @@ export async function getWeeklyLineup(
 
     const slotGroups: Record<string, string[]> = {}
     for (const [playerId, slotType] of assignmentMap.entries()) {
-        if (slotType !== 'BE' && !irPlayerIds.has(playerId) && !taxiPlayerIds.has(playerId)) {
+        if (slotType !== 'BE' && slotType !== 'IR' && (gameDate <= today || !reservePlayerIds.has(playerId))) {
             if (!slotGroups[slotType]) slotGroups[slotType] = []
             slotGroups[slotType].push(playerId)
         }
@@ -362,12 +351,12 @@ export async function getWeeklyLineup(
         .filter(Boolean)
 
     const ir: LineupPlayer[] = roster
-        .filter((r) => r.is_on_ir)
+        .filter((r) => r.is_on_ir && !starterPlayerIds.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 
     const taxi: LineupPlayer[] = roster
-        .filter((r) => r.is_on_taxi)
+        .filter((r) => r.is_on_taxi && !starterPlayerIds.has(r.player_id))
         .map((r) => rosterByPlayerId.get(r.player_id)!)
         .filter(Boolean)
 

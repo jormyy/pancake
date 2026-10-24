@@ -10,12 +10,13 @@ const state = vi.hoisted(() => ({
     benchSlots: 3,
     assignments: [] as Record<string, unknown>[],
     players: [] as Record<string, unknown>[],
+    roster: [] as Record<string, unknown>[],
 }))
 
 vi.mock('@/lib/supabase', async () => {
     const fixtures = {
         lineup_slot_templates: [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }],
-        roster_players: [],
+        roster_players: state.roster,
         weekly_lineups: state.assignments,
         players: state.players,
     }
@@ -54,6 +55,7 @@ beforeEach(() => {
     state.benchSlots = 3
     state.assignments.length = 0
     state.players.length = 0
+    state.roster.length = 0
 })
 
 describe('lineup read caches', () => {
@@ -116,4 +118,24 @@ describe('lineup read caches', () => {
 it.each([0, 3])('returns the configured BE capacity of %s even with empty starters', async (slots) => {
     state.benchSlots = slots
     expect(await read()).toMatchObject({ benchSlots: slots })
+})
+
+it.each([['ir', '2098-12-31'], ['taxi', '2098-12-31'], ['ir', '2099-01-01'], ['taxi', '2099-01-01']] as const)('keeps retained starters visible after a current move to %s on %s', async (reserve, date) => {
+    state.roster.push({ id: 'roster', player_id: 'player', is_on_ir: reserve === 'ir', is_on_taxi: reserve === 'taxi',
+        players: { display_name: 'Historical starter', position: 'PG', eligible_positions: ['PG'] } })
+    state.assignments.push({ player_id: 'player', slot_type: 'PG' })
+    const lineup = await getWeeklyLineup('member', 'league', 'season', 3, date)
+    expect(lineup.starters[0].player?.playerId).toBe('player')
+    expect(lineup.ir).toEqual([])
+    expect(lineup.taxi).toEqual([])
+    expect(lineup.bench).toEqual([])
+})
+
+it.each(['ir', 'taxi'] as const)('excludes a current %s player from an unlocked future lineup', async (reserve) => {
+    state.roster.push({ id: 'roster', player_id: 'player', is_on_ir: reserve === 'ir', is_on_taxi: reserve === 'taxi',
+        players: { display_name: 'Reserve player', position: 'PG', eligible_positions: ['PG'] } })
+    state.assignments.push({ player_id: 'player', slot_type: 'PG' })
+    const lineup = await getWeeklyLineup('member', 'league', 'season', 3, '2099-01-02')
+    expect(lineup.starters[0].player).toBeNull()
+    expect(lineup[reserve].map(player => player.playerId)).toEqual(['player'])
 })

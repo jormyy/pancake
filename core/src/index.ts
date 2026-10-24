@@ -109,3 +109,6 @@ export type {
     RosterSlotType,
     NBAPosition,
 } from './types/enums'
+
+export { chooseBestAssignments } from './lineup/assignments'
+export type { AssignablePlayer } from './lineup/assignments'

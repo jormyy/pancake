@@ -12,7 +12,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: {
     from: (table: string) => {
         state.counts.set(table, (state.counts.get(table) ?? 0) + 1)
         const query = {
-            select: () => query, eq: () => query,
+            select: () => query, eq: () => query, order: () => query,
             then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
                 const rows = table === 'lineup_slot_templates'
                     ? [{ slot_type: 'PG', slot_count: 1 }, { slot_type: 'BE', slot_count: 2 }]

@@ -7,7 +7,8 @@ import HomeScreen from '@/app/(tabs)/index'
 const mocks = vi.hoisted(() => ({
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
-    setSelected: vi.fn(),
+    setSelected: vi.fn(), doAutoSet: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
+    selectedDate: '2026-10-11', lineupError: false,
     saved: undefined as unknown,
     freshness: 'fresh',
     games: [] as { home_team: string; away_team: string; status: string }[],
@@ -25,10 +26,12 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' }, loading: false }) }))
 vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
-    leagueMatchups: [], weekDays: [], selectedDate: '2026-10-11', myLineup: mocks.lineup, oppLineup: mocks.lineup,
+    leagueMatchups: [], weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
+    myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
+    setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
-vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected }) }))
+vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, doAutoSet: mocks.doAutoSet }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
@@ -51,6 +54,9 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 
 let screen: ReactTestRenderer
 beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.selectedDate = '2026-10-11'
+    mocks.lineupError = false
     mocks.saved = undefined
     mocks.freshness = 'fresh'
     mocks.games = []
@@ -140,4 +146,29 @@ it('shows a recent complete game display during the initial live refresh', async
     await act(async () => screen.update(React.createElement(HomeScreen)))
     expect(rows('PG')).toHaveLength(1)
     expect(rows('PG')[0].props.liveTeams.size).toBe(0)
+})
+
+it('auto-sets today when the manager views another date', async () => {
+    mocks.selectedDate = '2026-10-12'
+    await mount()
+    screen.root.findByType('AutoSetModal' as React.ElementType).props.onToday()
+    expect(mocks.doAutoSet).toHaveBeenCalledWith('2026-10-11')
+})
+
+it('replaces old rows with one error and leaves the day selector active', async () => {
+    populatedStarters()
+    await mount()
+    expect(rows('PG')).toHaveLength(1)
+    mocks.lineupError = true
+    mocks.selectedDate = '2026-10-12'
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')).toHaveLength(0)
+    expect(screen.root.findAllByType('ErrorBanner' as React.ElementType)).toHaveLength(1)
+    const selector = screen.root.findByType('DaySelector' as React.ElementType)
+    expect(selector.props.selectedDate).toBe('2026-10-12')
+    const boundary = screen.root.findAllByType('View' as React.ElementType).find(node => 'inert' in node.props)
+    expect(boundary?.props.inert).toBe(false)
+    await act(async () => { await selector.props.onSelect('2026-10-11') })
+    expect(mocks.setSelectedDate).toHaveBeenCalledWith('2026-10-11')
+    expect(mocks.loadLineups).toHaveBeenCalledWith({ id: 'matchup' }, '2026-10-11')
 })

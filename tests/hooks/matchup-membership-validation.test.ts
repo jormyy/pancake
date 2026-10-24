@@ -1,7 +1,7 @@
 import { clearSessionCaches } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import { resolveHomeSurface } from '@/lib/home-surface'
 import type { Matchup } from '@/lib/scoring'
@@ -20,12 +20,16 @@ vi.mock('@/lib/realtime', () => ({ debounceRealtimeRefresh: () => ({ trigger: vi
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-14T12:00:00Z'))
     clearSessionCaches()
     vi.clearAllMocks()
     mocks.readPersistentCache.mockReturnValue(undefined)
     mocks.getMyMatchup.mockResolvedValue(null)
     mocks.getWeekDays.mockResolvedValue([])
 })
+
+afterEach(() => vi.useRealTimers())
 
 const current = { id: 'member' }
 const user = { id: 'user' }

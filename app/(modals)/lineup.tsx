@@ -817,7 +817,7 @@ function LineupScreen() {
                 visible={autoSetModalVisible}
                 disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(selectedDate) }}
+                onToday={() => { void doAutoSet(todayET()) }}
                 onWholeWeek={() => { void doAutoSet(null) }}
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
             />

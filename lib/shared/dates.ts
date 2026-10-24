@@ -1,1 +1,1 @@
-export { endOfETDayUTC, todayDateString, todayET } from '@pancake/core'
+export { endOfETDayUTC, todayET } from '@pancake/core'

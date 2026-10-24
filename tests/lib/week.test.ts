@@ -1,3 +1,4 @@
+import { calculateWeekNumberFromDate } from '@pancake/core'
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
@@ -5,7 +6,7 @@ vi.mock('@/lib/shared/dates', () => ({ todayET: vi.fn().mockReturnValue('2026-04
 
 import { supabase } from '@/lib/supabase'
 import { todayET } from '@/lib/shared/dates'
-import { calculateWeekNumberFromDate, getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
 
 const WEEK1_START = '2025-10-21'
 const WEEK1_END = '2025-10-26'
