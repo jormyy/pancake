@@ -1,13 +1,7 @@
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
-
-function compactOwnerRecord(username: string | null | undefined, wins: number, losses: number): string {
-    const firstName = username?.trim().split(/\s+/)[0]
-    const owner = firstName ? firstName.slice(0, 6) : null
-    return [owner, `${wins}-${losses}`].filter(Boolean).join(' ')
-}
 
 export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
     const myPts = matchup.myPoints ?? 0
@@ -21,8 +15,6 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
         ? 'Tied'
         : `${iWinning ? matchup.myTeamName : matchup.opponentTeamName} +${formatPoints(margin)}`
     const compactEdgeLabel = margin === 0 ? 'Tied' : `${iWinning ? 'You' : 'Opp'} +${formatPoints(margin)}`
-    const myCompactMeta = compactOwnerRecord(matchup.myUsername, matchup.myWins, matchup.myLosses)
-    const opponentCompactMeta = compactOwnerRecord(matchup.opponentUsername, matchup.opponentWins, matchup.opponentLosses)
 
     let statusLabel = 'In Progress'
     let statusTint: string = uiColors.brandAccent
@@ -67,16 +59,11 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
 
             <View style={[styles.scores, compact && styles.scoresCompact]}>
                 <View style={styles.side}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1} ellipsizeMode="clip">{matchup.myTeamName}</Text>
-                    {compact ? (
-                        <Text style={styles.compactMeta} numberOfLines={1} ellipsizeMode="clip">{myCompactMeta}</Text>
-                    ) : matchup.myUsername ? (
-                        <Text style={styles.username} numberOfLines={1} ellipsizeMode="clip">{matchup.myUsername}</Text>
-                    ) : null}
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact]}>{matchup.myTeamName}</Text>
+                    <Text style={[styles.record, compact && styles.compactMeta]}>{matchup.myWins}–{matchup.myLosses}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.myPoints)}
                     </Text>
-                    {!compact ? <Text style={styles.record}>{matchup.myWins}–{matchup.myLosses}</Text> : null}
                 </View>
 
                 <View style={styles.vsDivider}>
@@ -84,20 +71,11 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                 </View>
 
                 <View style={[styles.side, styles.sideRight]}>
-                    <Text style={[styles.teamName, compact && styles.teamNameCompact]} numberOfLines={1} ellipsizeMode="clip">{matchup.opponentTeamName}</Text>
-                    {compact ? (
-                        <Text style={[styles.compactMeta, styles.compactMetaRight]} numberOfLines={1} ellipsizeMode="clip">{opponentCompactMeta}</Text>
-                    ) : matchup.opponentUsername ? (
-                        <Text style={[styles.username, { textAlign: 'right' }]} numberOfLines={1} ellipsizeMode="clip">
-                            {matchup.opponentUsername}
-                        </Text>
-                    ) : null}
+                    <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
+                    <Text style={[styles.record, compact && styles.compactMeta, styles.textRight]}>{matchup.opponentWins}–{matchup.opponentLosses}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.opponentPoints)}
                     </Text>
-                    {!compact ? <Text style={[styles.record, { textAlign: 'right' }]}>
-                        {matchup.opponentWins}–{matchup.opponentLosses}
-                    </Text> : null}
                 </View>
             </View>
 
@@ -119,7 +97,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgCard,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        borderWidth: 1.5,
+        borderWidth: borderWidth.medium,
         borderColor: colors.borderLight,
         overflow: 'hidden' as const,
         ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
@@ -133,45 +111,45 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 18,
-        paddingTop: 8,
-        paddingBottom: 7,
-        gap: 10,
-        borderBottomWidth: 1,
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
+        gap: spacing.md,
+        borderBottomWidth: borderWidth.thin,
         borderBottomColor: colors.separator,
         backgroundColor: colors.bgSubtle,
     },
     headerCompact: {
-        paddingHorizontal: 14,
-        paddingTop: 5,
-        paddingBottom: 5,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.xs,
     },
     week: {
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.primaryDark,
-        letterSpacing: 1.1,
+        letterSpacing: textStyles.sectionLabel.letterSpacing,
     },
     headerRule: {
         flex: 1,
-        height: 1,
+        height: borderWidth.thin,
         backgroundColor: colors.separator,
     },
     statusBadge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 20,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.xs,
+        borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
-        borderWidth: 1,
+        borderWidth: borderWidth.thin,
     },
     statusBadgeCompact: {
-        paddingHorizontal: 9,
-        paddingVertical: 2,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xxs,
     },
     statusText: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,
-        letterSpacing: 0.2,
+        letterSpacing: textStyles.tableHeader.letterSpacing,
     },
     statusTextCompact: {
         fontSize: fontSize['2xs'],
@@ -179,52 +157,45 @@ const styles = StyleSheet.create({
 
     scores: {
         flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 18,
-        paddingTop: 10,
-        paddingBottom: 7,
+        alignItems: 'stretch',
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
     },
     scoresCompact: {
-        paddingHorizontal: 14,
-        paddingTop: 6,
-        paddingBottom: 3,
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xxs,
     },
-    side: { flex: 1, gap: 2 },
+    side: { flex: 1, minWidth: 0, gap: spacing.xxs },
     sideRight: { alignItems: 'flex-end' },
     teamName: {
+        flexGrow: 1,
+        width: '100%',
         fontSize: fontSize['2sm'],
         color: colors.textMuted,
         fontWeight: fontWeight.semibold,
     },
     teamNameCompact: {
         fontSize: fontSize.xs,
-        lineHeight: 14,
+        lineHeight: textStyles.sectionLabel.lineHeight,
     },
-    username: {
-        fontSize: fontSize['2xs'],
-        color: colors.textPlaceholder,
-        fontWeight: fontWeight.regular,
-    },
+    teamNameRight: { textAlign: 'right' },
     compactMeta: {
         fontSize: fontSize['2xs'],
-        lineHeight: 12,
+        lineHeight: textStyles.tableHeader.lineHeight,
         color: colors.textPlaceholder,
         fontWeight: fontWeight.semibold,
     },
-    compactMetaRight: {
-        textAlign: 'right',
-    },
+    textRight: { textAlign: 'right' },
     record: {
         fontSize: fontSize.xs,
         color: colors.textPlaceholder,
         fontWeight: fontWeight.semibold,
-        marginTop: 2,
+        marginTop: spacing.xxs,
     },
     score: { ...textStyles.hero },
-    scoreCompact: {
-        fontSize: fontSize['3xl'],
-        lineHeight: 32,
-    },
+    scoreCompact: { ...textStyles.compactScore },
     scoreWin: {
         color: colors.textPrimary,
     },
@@ -235,36 +206,36 @@ const styles = StyleSheet.create({
     vsDivider: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingHorizontal: 12,
+        paddingHorizontal: spacing.lg,
         alignSelf: 'center',
     },
     vs: {
         fontSize: fontSize['2xs'],
         color: colors.textPlaceholder,
         fontWeight: fontWeight.extrabold,
-        letterSpacing: 1,
+        letterSpacing: textStyles.sectionLabel.letterSpacing,
     },
     edgeWrap: {
-        paddingHorizontal: 18,
-        paddingBottom: 9,
-        gap: 6,
+        paddingHorizontal: spacing.xl,
+        paddingBottom: spacing.md,
+        gap: spacing.sm,
     },
     edgeWrapCompact: {
-        paddingHorizontal: 14,
-        paddingBottom: 7,
-        gap: 3,
+        paddingHorizontal: spacing.lg,
+        paddingBottom: spacing.sm,
+        gap: spacing.xxs,
     },
     edgeTrack: {
-        height: 6,
+        height: spacing.sm,
         flexDirection: 'row',
         overflow: 'hidden' as const,
-        borderRadius: 999,
+        borderRadius: radii.full,
         backgroundColor: colors.bgMuted,
-        borderWidth: 1,
+        borderWidth: borderWidth.thin,
         borderColor: colors.borderLight,
     },
     edgeTrackCompact: {
-        height: 5,
+        height: spacing.xs,
     },
     edgeMine: {
         height: '100%',

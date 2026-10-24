@@ -44,7 +44,6 @@ export function AutoSetModal({
                         fullWidth
                     />
                 ) : null}
-                <Button title="Cancel" variant="ghost" onPress={onClose} accessibilityLabel="Cancel auto-set" fullWidth />
             </View>
         </Sheet>
     )

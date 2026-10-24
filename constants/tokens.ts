@@ -268,6 +268,13 @@ export const spacing = {
 
 // ── Border radii ────────────────────────────────────────────────
 
+export const borderWidth = {
+    thin: 1,
+    medium: 1.5,
+    strong: 2,
+    accent: 3,
+} as const
+
 export const radii = {
     xs: unit(1),
     sm: halfUnit(3),
@@ -337,6 +344,7 @@ const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
 // the same everywhere: hero number > page title > row title > body > meta > label.
 export const textStyles = {
     hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 40, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    compactScore: { fontFamily: fontFamily.display, fontSize: fontSize['3xl'], lineHeight: unit(8), fontWeight: fontWeight.black, fontVariant: tabularNums },
     pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.textPrimary },
     rowTitle: { fontSize: fontSize.md, lineHeight: 18, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     body: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
@@ -354,12 +362,14 @@ export const table = {
     rowHeight: 52,
     rowHeightCompact: 44,
     statColWidth: 44,
+    scoreBreakdownRowHeight: unit(10),
     cellPadX: spacing.sm,
 } as const
 
 export const controlSize = {
     minTouch: foundation.minTouch,
     icon: { sm: unit(4), md: unit(5), lg: unit(6) },
+    avatar: { md: unit(10) },
     button: {
         sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
         md: { height: unit(12), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
@@ -578,6 +588,7 @@ export const layout = {
         crestSize: halfUnit(17),
     },
     auth: { maxWidth: unit(112), markSize: foundation.minTouch, heroMarkSize: unit(24) },
+    gameCard: { width: unit(24), compactWidth: unit(22), scoreWidth: unit(6) },
     sheet: { maxWidth: unit(140), headerHeight: unit(13), grabberWidth: unit(9), grabberHeight: unit(1) },
 } as const
 

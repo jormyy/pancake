@@ -88,7 +88,7 @@ export async function getWeekDays(weekNumber: number, seasonYear: number): Promi
     const dates = await getSeasonWeekDates(seasonYear, weekNumber)
 
     const today = todayET()
-    const DAY_CHARS = ['S', 'M', 'T', 'W', 'R', 'F', 'S']
+    const DAY_CHARS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
     const result: WeekDay[] = []
 
     const dateTeams = new Map<string, string[]>()
