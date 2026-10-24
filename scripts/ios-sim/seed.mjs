@@ -3,12 +3,22 @@ import { mkdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
-import { apiUrl, json, project, readJson, run } from './common.mjs'
+import { json, localUrl, project, readJson, run } from './common.mjs'
 
 export async function seed({ stack, snapshot, directory }) {
-  assert.equal(stack.url, apiUrl)
+  localUrl(stack.url)
+  const stackProject = stack.project ?? project
+  assert.match(stackProject, /^[a-zA-Z0-9_-]+$/)
   const complete = await readJson(path.join(directory, 'complete.json'))
-  if (complete) return complete
+  if (complete?.rosterPlanTrade) return complete
+  const { createClient } = createRequire(path.join(snapshot, 'package.json'))('@supabase/supabase-js')
+  const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (complete) {
+    const rosterPlanTrade = await seedRosterPlanTrade(admin, { leagueId: complete.leagueId, seasonId: complete.seasonId, members: complete.members, players: complete.players })
+    const upgraded = { ...complete, rosterPlanTrade }
+    await json(path.join(directory, 'complete.json'), upgraded)
+    return upgraded
+  }
   await mkdir(path.join(directory, 'tests'), { recursive: true })
   let state = await readJson(path.join(directory, 'tests/e2e-state.json'))
   if (!state) {
@@ -18,8 +28,6 @@ export async function seed({ stack, snapshot, directory }) {
     })
     state = await readJson(path.join(directory, 'tests/e2e-state.json'))
   }
-  const { createClient } = createRequire(path.join(snapshot, 'package.json'))('@supabase/supabase-js')
-  const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
   const db = async operation => {
     const { data, error } = await operation
     if (error) throw new Error(`iOS seed: ${error.message}`)
@@ -50,7 +58,7 @@ export async function seed({ stack, snapshot, directory }) {
   const drafts = await db(admin.from('drafts').select('id,draft_type').eq('league_id', state.leagueId))
   const rookieDraft = drafts.find(draft => draft.draft_type === 'snake')
   const uuid = value => { assert.match(value, /^[a-f0-9-]{36}$/); return `'${value}'` }
-  const sql = statement => run('docker', ['exec', `supabase_db_${project}`, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '--set', 'ON_ERROR_STOP=1', '-c', statement])
+  const sql = statement => run('docker', ['exec', `supabase_db_${stackProject}`, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '--set', 'ON_ERROR_STOP=1', '-c', statement])
   for (const [memberIndex, member] of members.entries()) {
     const assigned = players.slice(memberIndex * 22, memberIndex * 22 + 22)
     const existing = await db(admin.from('roster_players').select('player_id').eq('member_id', member.id).eq('league_season_id', season.id))
@@ -88,8 +96,30 @@ export async function seed({ stack, snapshot, directory }) {
   if (!transactions.length) await db(admin.from('roster_transactions').insert(members.flatMap((member, index) => players.slice(index * 22, index * 22 + 4).map(player => ({ league_id: state.leagueId, league_season_id: season.id, member_id: member.id, player_id: player.id, transaction_type: 'fa_add', occurred_at: new Date(Date.now() - 86400000).toISOString() })))))
   const trades = await db(admin.from('trades').select('id').eq('league_id', state.leagueId).limit(1))
   if (!trades.length) for (let index = 0; index < 10; index += 2) await db(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: members[index].id, p_recipient_member_id: members[index + 1].id, p_offer_player_ids: [players[index * 22].id], p_request_player_ids: [players[(index + 1) * 22].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
+  const rosterPlanTrade = await seedRosterPlanTrade(admin, { leagueId: state.leagueId, seasonId: season.id, members, players })
   await db(admin.rpc('refresh_player_search_caches'))
-  const result = { ...state, members, seasonId: season.id, seasonYear: 2027, today, players, drafts, counts: { teams: 10, players: 340, rostered: 220, games: games.length, gameLines, projections: projections.length } }
+  const result = { ...state, members, rosterPlanTrade, seasonId: season.id, seasonYear: 2027, today, players, drafts, counts: { teams: 10, players: 340, rostered: 220, games: games.length, gameLines, projections: projections.length } }
   await json(path.join(directory, 'complete.json'), result)
   return result
+}
+
+export async function seedRosterPlanTrade(admin, { leagueId, seasonId, members, players }) {
+  const db = async operation => {
+    const { data, error } = await operation
+    if (error) throw new Error(`iOS roster-plan seed: ${error.message}`)
+    return data
+  }
+  await db(admin.from('leagues').update({ allow_inactive_trades: true }).eq('id', leagueId))
+  const notes = 'iPhone roster-plan fixture: choose a drop and receive the rookie into taxi.'
+  const existing = await db(admin.from('trades').select('id').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('notes', notes).eq('status', 'pending').maybeSingle())
+  const manager = 1
+  const rookiePlayerId = players[21].id
+  const id = existing?.id ?? await db(admin.rpc('propose_trade_atomic', {
+    p_league_id: leagueId, p_league_season_id: seasonId,
+    p_proposer_member_id: members[0].id, p_recipient_member_id: members[manager].id,
+    p_offer_player_ids: [players[18].id, players[19].id, rookiePlayerId],
+    p_request_player_ids: [players[manager * 22 + 19].id],
+    p_offer_pick_ids: [], p_request_pick_ids: [], p_notes: notes,
+  }))
+  return { id, manager, rookiePlayerId, dropPlayerId: players[manager * 22 + 18].id }
 }
