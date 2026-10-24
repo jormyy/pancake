@@ -19,7 +19,7 @@ import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible,  RosterPlaye
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
-import { colors, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
@@ -261,7 +261,7 @@ function RosterTablePlayerItem({
                     accessibilityLabel={`More actions for ${item.players.display_name}`}
                     accessibilityState={{ disabled: isBusy }}
                 >
-                    <MaterialIcons name="more-horiz" size={20} color={colors.textSecondary} />
+                    <MaterialIcons name="more-horiz" size={controlSize.icon.md} color={colors.textSecondary} />
                 </Pressable>
             </View>
         </View>
@@ -758,7 +758,7 @@ export default function RosterScreen() {
                 )
             }
             if (item._section === 'taxi') {
-                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>{taxi.length}/{taxiSlots} · off roster limit</Text>} />
+                return <RosterSectionBand label="Taxi squad" tone="taxi" detail={<Text style={styles.bandHint}>{taxi.length}/{taxiSlots}</Text>} />
             }
             if (item._section === 'ir') {
                 return <RosterSectionBand label="Injured reserve" detail={<Text style={styles.bandHint}>{ir.length}/{irSlots}</Text>} />
@@ -1047,7 +1047,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
 
     summary: {
-        minHeight: 48,
+        minHeight: controlSize.button.md.height,
         flexDirection: 'row',
         flexWrap: 'wrap',
         alignItems: 'center',
@@ -1057,7 +1057,7 @@ const styles = StyleSheet.create({
     },
     summaryText: { ...textStyles.meta, fontWeight: fontWeight.semibold, fontVariant: ['tabular-nums'] as const },
     claimsChip: {
-        minHeight: 32,
+        minHeight: table.headerHeight,
         justifyContent: 'center',
         paddingHorizontal: spacing.md,
         borderRadius: radii.full,
@@ -1146,7 +1146,7 @@ const styles = StyleSheet.create({
     },
     tableActionButton: {
         minWidth: 52,
-        minHeight: 32,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
@@ -1157,15 +1157,15 @@ const styles = StyleSheet.create({
     },
     tableActionText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
     moreButton: {
-        width: 36,
-        height: 36,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
     },
 
     emptySlot: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
@@ -1173,7 +1173,7 @@ const styles = StyleSheet.create({
     },
     emptySlotText: { ...textStyles.meta, color: colors.textPlaceholder, fontStyle: 'italic' },
     taxiEmpty: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.lg,
     },

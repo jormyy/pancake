@@ -1,6 +1,6 @@
 import { memo, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -9,7 +9,7 @@ import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
 import { Avatar } from '@/components/Avatar'
-import { Badge, InjuryBadge } from '@/components/Badge'
+import { InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -62,15 +62,17 @@ function PlayerMetaLine({
     avgMinutes?: number | null
     extra?: string | null
 }) {
-    const averages = [
-        avgFpts != null ? `${formatPoints(avgFpts)} FP` : null,
-        avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null,
-    ].filter(Boolean).join(' · ')
     return (
         <View style={styles.metaRow}>
             {team ? <Text style={styles.meta}>{team}</Text> : null}
             {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-            {averages ? <Text style={styles.averages}>{averages}</Text> : null}
+            {avgFpts != null || avgMinutes != null ? (
+                <Text style={styles.averages}>
+                    {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
+                    {avgFpts != null && avgMinutes != null ? ' · ' : ''}
+                    {avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null}
+                </Text>
+            ) : null}
             {extra ? <Text style={styles.meta}>{extra}</Text> : null}
         </View>
     )
@@ -138,7 +140,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                         style={styles.actionButton}
                         onPress={() => onCancel(claim.id)}
                         disabled={cancellingId === claim.id}
-                        pressedScale={0.92}
                         accessibilityRole="button"
                         accessibilityLabel={`Cancel claim for ${claim.playerName}`}
                     >
@@ -162,7 +163,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     <MotionPressable
                         style={styles.miniButton}
                         onPress={() => onReorder(claim.id, 'up')}
-                        pressedScale={0.92}
                         accessibilityRole="button"
                         accessibilityLabel={`Move ${claim.playerName} claim up`}
                     >
@@ -171,7 +171,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     <MotionPressable
                         style={styles.miniButton}
                         onPress={() => onReorder(claim.id, 'down')}
-                        pressedScale={0.92}
                         accessibilityRole="button"
                         accessibilityLabel={`Move ${claim.playerName} claim down`}
                     >
@@ -181,7 +180,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                         <MotionPressable
                             style={styles.miniButton}
                             onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
-                            pressedScale={0.92}
                             accessibilityRole="button"
                             accessibilityLabel={`Save bid for ${claim.playerName}`}
                         >
@@ -257,7 +255,6 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 onPress={() => onPress(item)}
                 onLongPress={() => onLongPress(item)}
                 delayLongPress={400}
-                pressedScale={0.985}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
             >
@@ -279,13 +276,12 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 </View>
             </MotionPressable>
 
-            <View style={styles.rowActions}>
-                {(item.is_on_ir || isIREligible(player.injury_status)) ? (
+            {(item.is_on_ir || isIREligible(player.injury_status)) ? (
+                <View style={styles.rowActions}>
                     <MotionPressable
                         style={[styles.actionButton, item.is_on_ir && styles.irButtonActive]}
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy}
-                        pressedScale={0.92}
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
@@ -293,9 +289,8 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                             {item.is_on_ir ? 'Activate' : 'IR'}
                         </Text>
                     </MotionPressable>
-                ) : null}
-
-            </View>
+                </View>
+            ) : null}
         </View>
     )
 })
@@ -314,14 +309,12 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
-    const yearsLabel = playerYearsExperienceLabel(player.years_exp)
-    const hasStats = avgFpts != null || avgMinutes != null
+    const yearsLabel = player.years_exp != null && player.years_exp <= 0 ? playerYearsExperienceLabel(player.years_exp) : null
 
     return (
         <MotionPressable
             style={styles.row}
             onPress={onPress}
-            pressedScale={0.985}
             accessibilityRole="button"
             accessibilityLabel={`Open ${player.display_name}`}
         >
@@ -337,15 +330,13 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
                 <View style={styles.nameRow}>
                     <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
                     <InjuryBadge status={player.injury_status} />
-                    {item.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
-                    {item.is_on_taxi ? <Badge label="TX" color={colors.textMuted} variant="soft" /> : null}
                 </View>
                 <PlayerMetaLine
                     team={player.nba_team}
                     positions={positions}
                     avgFpts={avgFpts}
                     avgMinutes={avgMinutes}
-                    extra={hasStats ? yearsLabel : [yearsLabel, 'No season stats'].filter(Boolean).join(' · ')}
+                    extra={yearsLabel}
                 />
             </View>
             <Text style={styles.chevron} aria-hidden>›</Text>
@@ -376,7 +367,6 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             <MotionPressable
                 style={styles.rowMain}
                 onPress={() => onPress(item)}
-                pressedScale={0.985}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
             >
@@ -399,7 +389,6 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 style={[styles.actionButton, styles.taxiButtonActive]}
                 onPress={() => onToggleTaxi(item)}
                 disabled={taxiingId === item.id}
-                pressedScale={0.92}
                 accessibilityRole="button"
                 accessibilityLabel={`Activate ${player.display_name}`}
                 accessibilityState={{ disabled: taxiingId === item.id }}
@@ -415,7 +404,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        minHeight: 36,
+        minHeight: table.headerHeight,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.xs,
         backgroundColor: colors.bgSubtle,
@@ -441,7 +430,7 @@ const styles = StyleSheet.create({
     slotTagBench: { borderColor: colors.border, borderStyle: 'dashed' as const },
     slotTagIR: { backgroundColor: colors.dangerLight, borderColor: uiColors.dangerBorder },
     slotTagTaxi: { backgroundColor: colors.infoLight, borderColor: colors.info },
-    slotTagText: { fontSize: 10, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
+    slotTagText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
     slotTagTextStarter: { color: colors.primaryDark },
     slotTagTextBench: { color: colors.textSecondary },
     slotTagTextIR: { color: colors.dangerDark },
@@ -450,24 +439,25 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 52,
+        minHeight: table.rowHeight,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.xs,
         gap: spacing.md,
     },
-    rowMain: { flex: 1, minWidth: 0, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 },
     name: { ...textStyles.rowTitle, flexShrink: 1 },
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
-    meta: { ...textStyles.meta },
-    averages: { ...textStyles.meta, fontWeight: fontWeight.bold, color: colors.primaryDark, fontVariant: ['tabular-nums'] as const },
+    meta: { ...textStyles.meta, color: colors.textSecondary },
+    averages: { ...textStyles.stat },
+    fantasyPoints: { fontWeight: fontWeight.bold, color: colors.primaryDark },
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 
     actionButton: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         minWidth: 52,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
@@ -496,12 +486,12 @@ const styles = StyleSheet.create({
     pickCircleText: { color: colors.onAccent, fontWeight: fontWeight.bold, fontSize: fontSize['2sm'] },
 
     claimRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
-    claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: 44, gap: spacing.md },
+    claimTop: { flexDirection: 'row', alignItems: 'center', minHeight: controlSize.minTouch, gap: spacing.md },
     claimEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // 16px text keeps iOS Safari from zooming the page when the field focuses.
     claimBidInput: {
         width: 64,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.borderLight,
         borderRadius: radii.md,
@@ -513,8 +503,8 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgInput,
     },
     miniButton: {
-        minHeight: 44,
-        minWidth: 44,
+        minHeight: controlSize.minTouch,
+        minWidth: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,

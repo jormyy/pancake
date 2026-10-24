@@ -5,7 +5,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { Sheet } from '@/components/ui/Sheet'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import type { RosterPlayer } from '@/lib/roster'
@@ -118,13 +118,13 @@ export function RosterPlayerSheet({
                             >
                                 <MaterialIcons
                                     name={action.icon}
-                                    size={20}
+                                    size={controlSize.icon.md}
                                     color={action.tone === 'danger' ? colors.dangerDark : colors.textSecondary}
                                 />
                                 <Text style={[styles.actionLabel, action.tone === 'danger' && styles.actionLabelDanger]}>
                                     {action.label}
                                 </Text>
-                                <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
+                                <MaterialIcons name="chevron-right" size={controlSize.icon.md} color={colors.textPlaceholder} />
                             </Pressable>
                         ))}
                     </View>
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        minHeight: 48,
+        minHeight: controlSize.button.md.height,
         paddingHorizontal: spacing.lg,
         backgroundColor: colors.bgCard,
     },

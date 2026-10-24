@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, spacing, textStyles } from '@/constants/tokens'
+import { colors, spacing, table, textStyles } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -32,7 +32,6 @@ export function ActivationOverflowModal({
         ...myLineup.bench,
     ]
 
-
     return (
         <Sheet visible onClose={onCancel} title="Active roster full">
             <Text style={styles.sub}>Drop a player or move an eligible player to IR to make room.</Text>
@@ -57,7 +56,7 @@ export function ActivationOverflowModal({
                                 <Button
                                     title="IR"
                                     size="sm"
-                                    variant="secondary"
+                                    variant="outline"
                                     onPress={() => onMoveToIR(p.rosterPlayerId)}
                                     disabled={saving}
                                     accessibilityLabel={`Move ${p.displayName} to IR`}
@@ -67,7 +66,7 @@ export function ActivationOverflowModal({
                             <Button
                                 title="Drop"
                                 size="sm"
-                                variant="danger"
+                                variant="outline"
                                 onPress={() => onDrop(p.rosterPlayerId)}
                                 disabled={saving}
                                 accessibilityLabel={`Drop ${p.displayName}`}
@@ -87,7 +86,7 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 56,
+        minHeight: table.rowHeight,
         paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,

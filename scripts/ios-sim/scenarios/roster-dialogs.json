@@ -31,6 +31,9 @@
         "open": "/"
       },
       {
+        "tapPrefix": "Sunday,"
+      },
+      {
         "tapPrefix": "Select TX slot,"
       }
     ],
@@ -40,8 +43,9 @@
           "tapPrefix": "Select empty SG slot"
         },
         "expected": {
-          "selector": "[aria-label^='Drop ']"
-        }
+          "dialog": "Active roster full"
+        },
+        "note": "Use the last day of the week so started games do not lock the taxi player."
       }
     ]
   },
@@ -101,6 +105,9 @@
         "open": "/"
       },
       {
+        "tapPrefix": "Sunday,"
+      },
+      {
         "tapPrefix": "Select TX slot,"
       }
     ],
@@ -110,8 +117,9 @@
           "tapPrefix": "Select empty SG slot"
         },
         "expected": {
-          "selector": "[aria-label^='Drop ']"
-        }
+          "dialog": "Active roster full"
+        },
+        "note": "Use the last day of the week so started games do not lock the taxi player."
       }
     ]
   },
