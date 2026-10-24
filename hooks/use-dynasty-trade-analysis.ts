@@ -77,6 +77,7 @@ export function useDynastyTradeAnalysis(input: Input): {
             } catch (cause) {
                 if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
                 setSeasonYear(null)
+                setResultScope(scopeKey)
                 setError(cause instanceof Error ? cause.message : 'Could not load trade values.')
             } finally {
                 if (activeScopeRef.current === scopeKey && sequence.current === requestId) setLoading(false)
@@ -163,5 +164,10 @@ export function useDynastyTradeAnalysis(input: Input): {
     }, [input.enabled, input.faabBudget, input.items, input.leagueId, input.participants,
         input.scoringSettings, input.teams, rows, seasonYear, resultScope, scopeKey, loading, error])
 
-    return { analysis: result.analysis, seasonYear: resultScope === scopeKey ? seasonYear : null, loading, error: error ?? result.error }
+    return {
+        analysis: result.analysis,
+        seasonYear: resultScope === scopeKey ? seasonYear : null,
+        loading: Boolean(input.enabled && input.leagueId && input.memberId && (loading || resultScope !== scopeKey)),
+        error: resultScope === scopeKey ? error ?? result.error : null,
+    }
 }

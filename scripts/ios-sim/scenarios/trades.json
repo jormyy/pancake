@@ -1,0 +1,896 @@
+[
+  {
+    "name": "trades-offers-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-details-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Show details of trade with "
+        },
+        "expected": {
+          "text": "{{rosterPlayer.display_name}}",
+          "selector": "[aria-label='Analyze this trade in the analyzer']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-history-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "History"
+        },
+        "expected": {
+          "text": "No completed trades yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-league-block-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "League trade block"
+        },
+        "expected": {
+          "text": "No league listings yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-my-block-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Your trade block"
+        },
+        "expected": {
+          "selector": "[aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-picks-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Picks"
+        },
+        "expected": {
+          "text": "2028"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-composer-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label^='Trade with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "analysis"
+      },
+      {
+        "name": "request",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label^='Remove '][aria-label$=' for trade']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "text": "Gets"
+        },
+        "name": "review"
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-multi-team-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/propose-trade"
+      },
+      {
+        "tap": "Use multi-team trade mode"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-analyzer-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Analyzer"
+        },
+        "expected": {
+          "selector": "[aria-label^='Analyze with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Analyze with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "result"
+      },
+      {
+        "name": "analysis",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-offers-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-details-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Show details of trade with "
+        },
+        "expected": {
+          "text": "{{rosterPlayer.display_name}}",
+          "selector": "[aria-label='Analyze this trade in the analyzer']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-history-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "History"
+        },
+        "expected": {
+          "text": "No completed trades yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-league-block-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "League trade block"
+        },
+        "expected": {
+          "text": "No league listings yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-my-block-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Your trade block"
+        },
+        "expected": {
+          "selector": "[aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-picks-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Picks"
+        },
+        "expected": {
+          "text": "2028"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-composer-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label^='Trade with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "analysis"
+      },
+      {
+        "name": "request",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label^='Remove '][aria-label$=' for trade']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "text": "Gets"
+        },
+        "name": "review"
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-multi-team-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/propose-trade"
+      },
+      {
+        "tap": "Use multi-team trade mode"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-analyzer-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Analyzer"
+        },
+        "expected": {
+          "selector": "[aria-label^='Analyze with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Analyze with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "result"
+      },
+      {
+        "name": "analysis",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-block-note-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      },
+      {
+        "tap": "Your trade block"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "List {{rosterPlayer.display_name}} on trade block"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
+            },
+            {
+              "fill": "Trade block note for {{rosterPlayer.display_name}}",
+              "value": "Looking for young guards"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "save",
+        "action": {
+          "tap": "Save note"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "remove",
+        "action": {
+          "tap": "Remove {{rosterPlayer.display_name}} from trade block"
+        },
+        "expected": {
+          "text": "No listings yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-block-note-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      },
+      {
+        "tap": "Your trade block"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "List {{rosterPlayer.display_name}} on trade block"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
+            },
+            {
+              "fill": "Trade block note for {{rosterPlayer.display_name}}",
+              "value": "Looking for young guards"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "save",
+        "action": {
+          "tap": "Save note"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "remove",
+        "action": {
+          "tap": "Remove {{rosterPlayer.display_name}} from trade block"
+        },
+        "expected": {
+          "text": "No listings yet."
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-refresh-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "refresh": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-return-light",
+    "group": "trades-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-refresh-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "refresh": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "trades-return-dark",
+    "group": "trades-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ]
+  }
+]

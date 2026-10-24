@@ -1,6 +1,6 @@
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
-import { StyleSheet, Text, View } from 'react-native'
+import { ScrollView as NativeScrollView, StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { useRouter } from 'expo-router'
 import { useIsFocused } from '@react-navigation/native'
@@ -15,7 +15,6 @@ import {
 } from '@/lib/trades'
 import { colors, fontSize, spacing, textStyles } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
-import { Sheet } from '@/components/ui/Sheet'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { PicksTable } from '@/components/trades/PicksTable'
@@ -132,6 +131,8 @@ function TradesScreen() {
     const {
         items: blockItems,
         hasData: blockHasData,
+        displayReady: blockDisplayReady,
+        listingsDisplayReady: blockListingsDisplayReady,
         roster: blockRoster,
         avgMap: blockAvgMap,
         avgStatsMap: blockAvgStatsMap,
@@ -143,6 +144,7 @@ function TradesScreen() {
         addPlayer: handleListPlayer,
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
+        setNote: handleSaveBlockNote,
     } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && (tab === 'block' || tab === 'leagueBlock') })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
@@ -216,7 +218,7 @@ function TradesScreen() {
                 return null
             case 'blockItem':
                 return <TradeBlockListingRow item={item} myMemberId={myMemberId} tab={tab}
-                    blockBusyId={blockBusyId} disabled={!online} tile={gridColumns > 1} onRemove={handleRemoveBlockItem} />
+                    blockBusyId={blockBusyId} disabled={!online} tile={gridColumns > 1} onRemove={handleRemoveBlockItem} onSaveNote={handleSaveBlockNote} />
             case 'blockPlayer': {
                 const playerId = item.player.players.id
                 return <TradeBlockPlayerRow item={item} listed={listedPlayerIds.has(playerId)}
@@ -237,14 +239,14 @@ function TradesScreen() {
                     onOpen={openTradeDetails} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, online, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
-        handleRemoveBlockItem, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
+        handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
         openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
         tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'picks' ? picksLoading && picksList.length === 0
         : tab === 'analyzer' ? false
-        : tab === 'block' ? blockLoading && !blockHasData
-            : tab === 'leagueBlock' ? blockLoading && !blockHasData
+        : tab === 'block' ? !blockDisplayReady
+            : tab === 'leagueBlock' ? !blockListingsDisplayReady
                 : tab === 'history' ? historyLoading && !historyHasData
                     : loading && !offersHaveData
     // Ordered by how often a manager needs each one: respond to offers, scout
@@ -341,6 +343,25 @@ function TradesScreen() {
             onEndReachedThreshold={0.4} />
     )
 
+    const resourceStatus = <ScreenStatusOverlay>
+        {activeError ? <ErrorBanner message={hasSavedData
+            ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
+            : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
+            onRetry={() => { if (online) void retryActiveResource() }} />
+            : hasSavedData && isSnapshot && !online ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
+                {`Offline. Showing a saved ${resourceLabel} snapshot.`}
+            </Text> : null}
+    </ScreenStatusOverlay>
+
+    if (!split && tradeContext && detailActions) return <Page title="Trade details">
+        <PageHeader title={tradeCardModel(tradeContext).opponentName} onBack={() => setOpenTradeId(null)} backLabel="Back to trades" />
+        <ScrollView contentContainerStyle={styles.tradeDetails}>
+            <TradeDetailsPanel context={tradeContext} actions={detailActions} showHeader={false}
+                onAnalyze={() => { setOpenTradeId(null); openAnalyzer(tradeContext.trade) }} />
+        </ScrollView>
+        {resourceStatus}
+    </Page>
+
     return <Page title="Trades">
         {header(!online || tradingClosed, () => push('/(modals)/propose-trade'))}
         {!activeError && activeActionError ? <ErrorBanner message={`${activeActionError.replace(/[.!]?\s*$/, '.')} Tap to refresh.`}
@@ -371,39 +392,33 @@ function TradesScreen() {
                             </ScrollView>
                         </View>
                     )
-                    : list}
+                    : gridColumns === 1 && (tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
+                        <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
+                            {listData.map((item, index) => <View key={tradeListKey(item, index)}>
+                                {index > 0 ? <ItemSeparator /> : null}
+                                {renderItem({ item })}
+                            </View>)}
+                        </ScrollView>
+                    ) : list}
         </DeferredContent>
-        <ScreenStatusOverlay>
-            {activeError ? <ErrorBanner message={hasSavedData
-                ? `${resourceLabel[0].toUpperCase() + resourceLabel.slice(1)} refresh failed. Showing a saved snapshot.${online ? ' Tap to retry.' : ' Reconnect to update.'}`
-                : `${online ? 'Could not load' : 'Offline. No saved'} ${resourceLabel}.${online ? ' Tap to retry.' : ' Reconnect to load.'}`}
-                onRetry={() => { if (online) void retryActiveResource() }} />
-                : hasSavedData && isSnapshot && !online ? <Text style={styles.freshness} accessibilityLiveRegion="polite">
-                    {`Offline. Showing a saved ${resourceLabel} snapshot.`}
-                </Text> : null}
-        </ScreenStatusOverlay>
-        {!split && tradeContext && detailActions ? (
-            <Sheet
-                visible={openTradeId != null}
-                title={tradeCardModel(tradeContext).opponentName}
-                onClose={() => setOpenTradeId(null)}
-            >
-                <TradeDetailsPanel context={tradeContext} actions={detailActions} showHeader={false}
-                    onAnalyze={() => { setOpenTradeId(null); openAnalyzer(tradeContext.trade) }} />
-            </Sheet>
-        ) : null}
+        {resourceStatus}
     </Page>
 }
 
 function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
-    return <SegmentedControl variant="tabs" options={options} value={tab} onChange={setTab}
-        idBase="trade-section" scrollable accessibilityLabel="Trade sections" />
+    return <NativeScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabTrack}>
+        <SegmentedControl variant="tabs" options={options} value={tab} onChange={setTab}
+            idBase="trade-section" style={styles.tabOptions} accessibilityLabel="Trade sections" />
+    </NativeScrollView>
 }
 
 const styles = StyleSheet.create({
     freshness: { color: colors.textSecondary, fontSize: fontSize.sm, paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+    tabTrack: { width: '100%', flexGrow: 0 },
+    tabOptions: { flexWrap: 'nowrap' },
     cardGap: { height: spacing.md },
     picks: { paddingTop: spacing.lg, paddingBottom: spacing['3xl'] },
+    tradeDetails: { padding: spacing.lg, paddingBottom: spacing['3xl'] },
     split: { flex: 1, minHeight: 0, flexDirection: 'row' },
     splitList: { width: SPLIT_LIST_WIDTH, flexShrink: 0 },
     splitDetail: { flex: 1, borderLeftWidth: 1, borderLeftColor: colors.borderLight },

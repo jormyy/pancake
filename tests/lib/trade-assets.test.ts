@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isTradeableRosterPlayer } from '@/lib/trade-assets'
+import { isTradeableRosterPlayer, isTradeTaxiEligible } from '@/lib/trade-assets'
 import type { RosterPlayer } from '@/lib/roster'
 
 function rosterPlayer(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
@@ -24,6 +24,16 @@ function rosterPlayer(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
 }
 
 describe('tradeable roster assets', () => {
+    it('uses the league taxi rule and the same player fields as the server', () => {
+        const player = { kind: 'player' as const, playerId: 'player', playerName: 'Player', nbaTeam: null, position: 'PG',
+            yearsExp: 2, nbaDraftNumber: 12, careerGames: 64 }
+        expect(isTradeTaxiEligible(player)).toBe(false)
+        expect(isTradeTaxiEligible(player, true)).toBe(true)
+        expect(isTradeTaxiEligible({ ...player, careerGames: 65 }, true)).toBe(false)
+        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null }, true)).toBe(true)
+        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(false)
+    })
+
     it('excludes IR and taxi players from trade selection', () => {
         expect(isTradeableRosterPlayer(rosterPlayer())).toBe(true)
         expect(isTradeableRosterPlayer(rosterPlayer({ is_on_ir: true }))).toBe(false)

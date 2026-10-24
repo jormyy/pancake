@@ -5,6 +5,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { TradeCard } from '@/components/trades/TradeCard'
+import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import { colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, textStyles } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -37,6 +38,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     disabled = false,
     tile = false,
     onRemove,
+    onSaveNote,
 }: {
     item: ItemOf<'blockItem'>
     myMemberId: string
@@ -45,6 +47,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     blockBusyId: string | null
     tile?: boolean
     onRemove: (item: TradeBlockItem) => void | Promise<void>
+    onSaveNote: (item: TradeBlockItem, note: string) => Promise<boolean | undefined>
 }) {
     const { push } = useRouter()
     const block = item.item
@@ -77,7 +80,9 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                         <Text style={styles.blockContext} numberOfLines={1}>{playerSeasonContextText(block.asset)}</Text>
                     </>
                 ) : <Text style={styles.blockMeta}>{block.teamName}</Text>}
-                {block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
+                {mine && tab === 'block' ? <TradeBlockNoteEditor item={block} label={label}
+                    disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
+                    : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
             </View>
             {mine && tab === 'leagueBlock' ? (
                 <View style={[styles.blockAction, styles.blockActionDisabled]} accessibilityLabel={`${label} is your listing`} accessibilityRole="text">

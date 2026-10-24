@@ -2,7 +2,7 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { uuid } from 'expo-modules-core'
@@ -13,7 +13,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -119,9 +119,11 @@ export default function ProposeTradeScreen() {
         members,
         faabEnabled,
         allowInactiveTrades: currentLeague?.allow_inactive_trades,
+        recipientMemberId: !multiTeamMode ? selectedRecipientId ?? undefined : undefined,
     })
     const {
         loadedParticipantKey,
+        buildMultiTeamItems,
         participantIds,
         participantViews,
         prefillFromTrade,
@@ -306,7 +308,7 @@ export default function ProposeTradeScreen() {
         else setSelectedRecipientId(memberId)
     }, [multiTeamMode, toggleParticipant])
 
-    const items = composer.buildMultiTeamItems()
+    const items = useMemo(() => buildMultiTeamItems(), [buildMultiTeamItems])
     // Leaving drops a built trade, so ask first once anything is selected.
     const leave = () => {
         if (items.length === 0) back()
@@ -498,7 +500,7 @@ export default function ProposeTradeScreen() {
         expirationDays,
         expirationError,
         rosterError: composer.rosterError,
-        rosterLoading: !composer.assetsLoaded && !composer.rosterError,
+        rosterLoading: !composer.displayReady && !composer.rosterError,
         avgMap: composer.avgMap,
         avgStatsMap: composer.avgStatsMap,
         participantName: composer.participantName,
@@ -531,6 +533,7 @@ export default function ProposeTradeScreen() {
         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
+    const reviewReady = !tradeAnalysis.loading
 
     // Review replaces the editor inside the same page, like any pushed screen,
     // instead of covering the whole window.
@@ -544,20 +547,21 @@ export default function ProposeTradeScreen() {
                     actions={(
                         <Pressable
                             onPress={handleSubmit}
-                            style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
-                            disabled={!canSubmit}
+                            style={[styles.submitButton, (!canSubmit || !reviewReady) && styles.submitButtonDisabled]}
+                            disabled={!canSubmit || !reviewReady}
                             accessibilityRole="button"
-                            accessibilityState={{ disabled: !canSubmit }}
+                            accessibilityState={{ disabled: !canSubmit || !reviewReady }}
                             accessibilityLabel="Confirm and send trade"
                             testID="trade-confirm-submit"
                             id="trade-confirm-submit"
                         >
-                            <Text style={[styles.submitText, !canSubmit && styles.submitTextDisabled]}>Send</Text>
+                            <Text style={[styles.submitText, (!canSubmit || !reviewReady) && styles.submitTextDisabled]}>Send</Text>
                         </Pressable>
                     )}
                 />
                 {/* Its own key, so review opens at the top instead of the editor's scroll position. */}
                 <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                    <DeferredContent ready={reviewReady}>
                     <View style={styles.reviewColumn}>
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
@@ -565,13 +569,15 @@ export default function ProposeTradeScreen() {
                             incoming={items.flatMap((item) => {
                                 if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
                                 const player = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)?.players
-                                return [{ ...item, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status }]
+                                return [{ ...item, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
                             })}
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
-                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} /> : null}
+                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'} /> : null}
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
+                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
                     </View>
+                    </DeferredContent>
                 </ScrollView>
             </PageFrame>
         )
@@ -628,14 +634,14 @@ export default function ProposeTradeScreen() {
                         <Text style={styles.lockBannerText}>{participantLimitMessage}</Text>
                     </View>
                 ) : null}
-                <Text style={styles.sectionLabel}>Trade with</Text>
                 {canUseMultiTeamMode ? (
                     <View style={styles.modeSwitch}>
                         <ModeButton label="2-Team" active={!multiTeamMode} onPress={() => setMode(false)} />
                         <ModeButton label="Multi-Team" active={multiTeamMode} onPress={() => setMode(true)} />
                     </View>
                 ) : null}
-                <View style={[styles.teamChips, { minHeight: 44 }]} aria-busy={loading} accessibilityState={{ busy: loading }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.teamChips}
+                    style={styles.teamTrack} aria-busy={loading} accessibilityState={{ busy: loading }}>
                     {members.map((member) => {
                         const active = multiTeamMode
                             ? composer.selectedParticipantIds.has(member.id)
@@ -655,13 +661,13 @@ export default function ProposeTradeScreen() {
                                 testID={`trade-participant-${member.id}`}
                                 id={`trade-participant-${member.id}`}
                             >
-                                <Text style={[styles.teamChipText, active && styles.teamChipTextActive]} numberOfLines={2}>
+                                <Text style={[styles.teamChipText, active && styles.teamChipTextActive]} numberOfLines={1}>
                                     {member.team_name ?? 'Unnamed'}
                                 </Text>
                             </Pressable>
                         )
                     })}
-                </View>
+                </ScrollView>
                 {membersError ? (
                     <>
                         <ErrorBanner message={membersError} onRetry={() => setMembersAttempt(value => value + 1)} />
@@ -672,18 +678,8 @@ export default function ProposeTradeScreen() {
                 ) : composer.participantViews.length >= 2 ? (
                     <MultiTeamTradeBuilder {...multiTeamBuilderProps} />
                 ) : !loading ? (
-                    <EmptyState
-                        icon={multiTeamMode ? 'group-add' : 'swap-horiz'}
-                        message={multiTeamMode ? 'Pick at least two more teams' : 'Pick a team to trade with'}
-                        description={multiTeamMode
-                            ? 'Choose teams above, then select the assets each team sends.'
-                            : 'Choose a team above, then build both sides of the offer.'
-                        }
-                        fullScreen={false}
-                        framed
-                    />
+                    <Text style={styles.emptyPrompt}>{multiTeamMode ? 'Choose two or more teams.' : 'Choose a team.'}</Text>
                 ) : null}
-                {sideBySide ? null : verdict}
                 <View style={styles.bottomSpace} />
               </View>
               {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
@@ -738,13 +734,7 @@ const styles = StyleSheet.create({
     submitButtonDisabled: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight, opacity: 0.55 },
     submitText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
     submitTextDisabled: { color: colors.textPlaceholder },
-    sectionLabel: {
-        ...textStyles.sectionLabel,
-        paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
-        paddingBottom: spacing.md,
-    },
-    modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
+    modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
     modeButton: {
         minHeight: 44,
         paddingHorizontal: spacing.lg,
@@ -759,12 +749,13 @@ const styles = StyleSheet.create({
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     modeButtonText: { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.bold },
     modeButtonTextActive: { color: colors.textWhite },
-    teamChips: { paddingHorizontal: spacing.xl, paddingVertical: spacing.xs, gap: spacing.md, flexDirection: 'row', flexWrap: 'wrap' },
+    teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
+    teamChips: { paddingHorizontal: spacing.lg, paddingVertical: spacing.xs, gap: spacing.sm, flexDirection: 'row' },
+    emptyPrompt: { ...textStyles.meta, padding: spacing.lg },
     teamChip: {
         paddingHorizontal: spacing.lg,
-        minHeight: 44,
-        maxWidth: '100%',
-        flexShrink: 1,
+        minHeight: foundation.minTouch,
+        flexShrink: 0,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,

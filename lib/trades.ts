@@ -21,6 +21,8 @@ type TradePlayerItem = {
     nbaId?: string | null
     injuryStatus?: string | null
     yearsExp?: number | null
+    nbaDraftNumber?: number | null
+    careerGames?: number | null
     avgFantasyPoints?: number | null
     avgMinutesPlayed?: number | null
     fromMemberId?: string | null
@@ -134,6 +136,8 @@ type TradePlayerQueryRow = {
     nba_id: string | null
     injury_status: string | null
     years_exp: number | null
+    nba_draft_number: number | null
+    career_regular_season_games: number | null
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -468,7 +472,7 @@ const TRADE_SELECT = `
                 from_member_id,
                 to_member_id,
                 faab_amount,
-                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
+                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
                 draft_picks (
                     season_year,
                     round,
@@ -498,6 +502,8 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 nbaId: item.players?.nba_id ?? null,
                 injuryStatus: item.players?.injury_status ?? null,
                 yearsExp: item.players?.years_exp ?? null,
+                nbaDraftNumber: item.players?.nba_draft_number ?? null,
+                careerGames: item.players?.career_regular_season_games ?? null,
                 fromMemberId,
                 toMemberId,
             } satisfies RoutedTradeItem
@@ -762,7 +768,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
+            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
             draft_picks (
                 season_year,
                 round,
@@ -792,6 +798,8 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
                     nbaId: row.players.nba_id ?? null,
                     injuryStatus: row.players.injury_status ?? null,
                     yearsExp: row.players.years_exp ?? null,
+                    nbaDraftNumber: row.players.nba_draft_number ?? null,
+                    careerGames: row.players.career_regular_season_games ?? null,
                 },
             }]
         }

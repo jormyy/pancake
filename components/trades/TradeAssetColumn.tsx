@@ -4,7 +4,7 @@ import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors, INJURY_COLORS } from '@/constants/tokens'
-import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
@@ -51,7 +51,6 @@ function PlayerRow({
         >
             <Avatar
                 name={p.display_name}
-                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                 color={selected ? colors.primary : colors.bgMuted}
                 textColor={selected ? colors.textWhite : colors.textSecondary}
                 size={36}
