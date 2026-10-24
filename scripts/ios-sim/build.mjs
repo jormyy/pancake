@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { apiUrl, digest, home, json, localUrl, lock, readJson, repo, run } from './common.mjs'
+import { digest, home, json, localUrl, lock, readJson, repo, run } from './common.mjs'
 import { stampReleaseProvenance } from '../stamp-release-provenance.mjs'
 import { recorderSource } from './recorder.mjs'
 
@@ -52,7 +52,7 @@ export async function sourceSnapshot(action = source => source) {
 }
 
 export async function exportWeb(stack, force = false) {
-  assert.equal(stack.url, apiUrl)
+  localUrl(stack.url)
   return sourceSnapshot(async source => {
     const hash = digest(`stamped-export-v1:${source.hash}:${stack.url}:${stack.anonKey}:${recorderSource}`)
     const root = path.join(home, 'exports', force ? `${hash}-${randomUUID()}` : hash)
@@ -89,7 +89,7 @@ export async function exportWeb(stack, force = false) {
       await stampReleaseProvenance({ root: source.snapshot, commitSha: head })
       await cp(dist, root, { recursive: true })
     }
-    return { ...source, sourceFingerprint: source.hash, root, hash }
+    return { ...source, sourceFingerprint: source.hash, root, hash, stackUrl: stack.url }
   })
 }
 
@@ -100,7 +100,7 @@ export async function verifyBuild(origin, build) {
   const served = await response.json()
   assert.equal(served.hash, build.hash, 'Served build fingerprint differs from the requested export')
   assert.equal(served.source, build.sourceFingerprint, 'Served source fingerprint differs from the requested export')
-  assert.equal(served.stackUrl, apiUrl, 'Served build targets a different stack')
+  assert.equal(served.stackUrl, build.stackUrl, 'Served build targets a different stack')
   assert.equal(served.source, await sourceFingerprint(), 'Served build does not match the requesting checkout')
   return served
 }

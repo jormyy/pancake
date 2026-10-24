@@ -10,6 +10,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_left_roster boolean := TG_OP = 'DELETE' OR OLD.member_id IS DISTINCT FROM NEW.member_id;
+  v_cancel_claims boolean;
   v_became_inactive boolean := TG_OP = 'UPDATE'
     AND (NEW.is_on_ir = true OR NEW.is_on_taxi = true)
     AND (OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi);
@@ -37,10 +38,12 @@ BEGIN
      AND player_id = OLD.player_id;
 
   IF v_left_roster THEN
+    v_cancel_claims := private.trade_lifecycle_write_active()
+      AND EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades);
     WITH changed_claims AS (UPDATE waiver_claims
-       SET status = CASE WHEN EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades) THEN 'cancelled'::waiver_claim_status ELSE status END,
-           failure_reason = CASE WHEN EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades) THEN 'The selected drop player left this roster in another transaction.' ELSE failure_reason END,
-           processed_at = CASE WHEN EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades) THEN now() ELSE processed_at END,
+       SET status = CASE WHEN v_cancel_claims THEN 'cancelled'::waiver_claim_status ELSE status END,
+           failure_reason = CASE WHEN v_cancel_claims THEN 'The selected drop player left this roster in another transaction.' ELSE failure_reason END,
+           processed_at = CASE WHEN v_cancel_claims THEN now() ELSE processed_at END,
            drop_player_id = NULL
      WHERE status = 'pending'::waiver_claim_status
        AND league_id = OLD.league_id

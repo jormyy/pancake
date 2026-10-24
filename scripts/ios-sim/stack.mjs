@@ -11,7 +11,20 @@ import { requireCurrentSeed, seed } from './seed.mjs'
 const stackRoot = path.join(home, 'stack')
 const statePath = path.join(stackRoot, 'local-stack.json')
 
-export async function connectStack() {
+export async function connectStack(workdir) {
+  if (workdir) {
+    const directory = path.resolve(workdir)
+    const config = await readFile(path.join(directory, 'supabase/config.toml'), 'utf8')
+    const targetProject = /^project_id = "([a-zA-Z0-9_-]+)"/m.exec(config)?.[1]
+    assert.ok(targetProject, 'The requested local stack has no project ID')
+    const status = JSON.parse(await run('supabase', ['status', '--workdir', directory, '-o', 'json']))
+    localUrl(status.API_URL)
+    const stack = { project: targetProject, url: status.API_URL,
+      anonKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY, serviceKey: status.SECRET_KEY ?? status.SERVICE_ROLE_KEY }
+    await ready(`${stack.url}/auth/v1/health`)
+    const fixture = await seed({ stack, snapshot: repo, directory: path.join(home, 'private-seeds', digest(directory)) })
+    return { ...stack, fixture }
+  }
   const state = await readJson(statePath)
   assert.equal(state?.project, project, 'Start the shared local stack before capturing')
   localUrl(state.url, 57121)

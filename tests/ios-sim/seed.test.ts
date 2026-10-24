@@ -198,3 +198,90 @@ test.each(['auction', 'snake'])('a %s room capture builds its own draft and remo
   }), /Capture failed/)
   assert.deepEqual(deleted, ['capture'])
 })
+
+function captureDatabase(initial: Record<string, any[]>) {
+  const tables = structuredClone(initial)
+  let sequence = 0
+  const admin = {
+    from(table: string) {
+      const filters: ((row: any) => boolean)[] = []
+      let update: object | null = null, insert: any[] | null = null, removing = false
+      const result = () => {
+        tables[table] ??= []
+        if (insert) tables[table].push(...insert.map(row => ({ id: `capture-${++sequence}`, ...row })))
+        const rows = tables[table].filter(row => filters.every(filter => filter(row)))
+        if (update) for (const row of rows) Object.assign(row, update)
+        if (removing) {
+          tables[table] = tables[table].filter(row => !rows.includes(row))
+          if (table === 'leagues') for (const child of ['league_members', 'league_seasons']) {
+            tables[child] = (tables[child] ?? []).filter(row => !rows.some(league => league.id === row.league_id))
+          }
+        }
+        return structuredClone(rows)
+      }
+      const query = {
+        select() { return query },
+        eq(key: string, value: unknown) { filters.push(row => row[key] === value); return query },
+        is(key: string, value: unknown) { return query.eq(key, value) },
+        lte(key: string, value: any) { filters.push(row => row[key] <= value); return query },
+        gte(key: string, value: any) { filters.push(row => row[key] >= value); return query },
+        update(value: object) { update = value; return query },
+        insert(value: any) { insert = Array.isArray(value) ? value : [value]; return query },
+        delete() { removing = true; return query },
+        single: async () => ({ data: result()[0], error: null }),
+        maybeSingle: async () => ({ data: result()[0] ?? null, error: null }),
+        then(resolve: (value: object) => void) { resolve({ data: result(), error: null }) },
+      }
+      return query
+    },
+  }
+  return { admin, tables }
+}
+
+test.each([false, true])('IR claim setup creates its own Out waiver and restores after capture failure: %s', async fail => {
+  const { admin, tables } = captureDatabase({ players: [{ id: 'target', injury_status: null }], waiver_wire_log: [] })
+  const capture = () => fixture.withWaiverIRPlayer(admin, { leagueId: 'league', seasonId: 'season', playerId: 'target' }, async () => {
+    assert.equal(tables.players[0].injury_status, 'Out')
+    assert.equal(tables.waiver_wire_log.length, 1)
+    assert.equal(tables.waiver_wire_log[0].player_id, 'target')
+    assert.equal(tables.waiver_wire_log[0].league_season_id, 'season')
+    assert.ok(Date.parse(tables.waiver_wire_log[0].clears_at) > Date.now())
+    if (fail) throw new Error('Capture failed')
+    return 'captured'
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else assert.equal(await capture(), 'captured')
+  assert.equal(tables.players[0].injury_status, null)
+  assert.equal(tables.waiver_wire_log.length, 0)
+})
+
+test('IR shortcut setup restores the selected active player without changing another injury', async () => {
+  const { admin, tables } = captureDatabase({ players: [{ id: 'active', injury_status: 'Doubtful' }, { id: 'other', injury_status: null }] })
+  await assert.rejects(fixture.withOutPlayer(admin, 'active', async () => {
+    assert.equal(tables.players[0].injury_status, 'Out')
+    assert.equal(tables.players[1].injury_status, null)
+    throw new Error('Capture failed')
+  }), /Capture failed/)
+  assert.equal(tables.players[0].injury_status, 'Doubtful')
+})
+
+test.each([false, true])('week-off setup owns its skipped-week league and removes it after failure: %s', async fail => {
+  const { admin, tables } = captureDatabase({
+    leagues: [{ id: 'original', name: 'Original' }],
+    league_members: [{ id: 'member', league_id: 'original', user_id: 'user', team_name: 'Manager' }],
+    league_seasons: [], season_weeks: [{ season_year: 2027, week_number: 3, week_start: '2026-10-19', week_end: '2026-10-25' }],
+  })
+  const before = structuredClone(tables)
+  const capture = () => fixture.withWeekOffLeague(admin, { memberId: 'member', seasonYear: 2027, today: '2026-10-24', name: 'Week off fixture' }, async () => {
+    const league = tables.leagues.find(row => row.id !== 'original')!
+    assert.equal(league.name, 'Week off fixture')
+    assert.equal(league.status, 'active')
+    assert.equal(tables.league_members.find(row => row.league_id === league.id)?.user_id, 'user')
+    assert.deepEqual(tables.league_seasons.find(row => row.league_id === league.id)?.skipped_weeks, [3])
+    if (fail) throw new Error('Capture failed')
+    return 'captured'
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else assert.equal(await capture(), 'captured')
+  assert.deepEqual(tables, before)
+})

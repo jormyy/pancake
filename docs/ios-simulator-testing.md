@@ -173,6 +173,7 @@ Useful options:
 | `--output /private/tmp/my-report` | Choose an external report directory |
 | `--scenarios /path/to/scenarios.json` | Use a custom scenario list |
 | `--rebuild` | Force a new export |
+| `--stack-dir /path/to/local-stack` | Seed and use a separate local Supabase stack |
 | `--native` | Check native controls and video analysis without Appium web commands |
 
 The default scenario list lives in `scripts/ios-sim/scenarios.json`.

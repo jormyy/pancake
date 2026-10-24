@@ -121,7 +121,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
     ]
@@ -279,7 +279,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
     ]
@@ -593,7 +593,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Switch to Home week-off"
+          "tap": "Switch to {{weekOffLeagueName}}"
         },
         "expected": {
           "text": "Browse Players"
@@ -615,7 +615,11 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "setup": {
+      "weekOffMember": "{{memberId}}",
+      "weekOffName": "{{weekOffLeagueName}}"
+    }
   },
   {
     "name": "home-dark-week-off",
@@ -635,7 +639,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Switch to Home week-off"
+          "tap": "Switch to {{weekOffLeagueName}}"
         },
         "expected": {
           "text": "Browse Players"
@@ -657,7 +661,11 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "setup": {
+      "weekOffMember": "{{memberId}}",
+      "weekOffName": "{{weekOffLeagueName}}"
+    }
   },
   {
     "name": "home-light-timing",

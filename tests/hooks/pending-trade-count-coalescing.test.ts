@@ -2,6 +2,8 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
+import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { sessionOwner, setSessionOwner } from '@/lib/session-cache-registry'
 
 type Owner = 'a' | 'b' | null
 type CountArgs = { p_member_id: string; p_league_id: string }
@@ -12,7 +14,9 @@ const boundary = vi.hoisted(() => ({
     subscriptions: [] as Subscription[], unsubscribe: vi.fn(), delay: 50, failures: 0,
     active: 0, maxActive: 0, events: { trades: 0, trade_participants: 0 },
 }))
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
 vi.mock('expo-router', () => ({ usePathname: () => boundary.path }))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: boundary.owner ? { id: `user-${boundary.owner}` } : null }) }))
 vi.mock('@/contexts/league-context', () => ({
     useLeagueContext: () => ({
         current: boundary.owner ? { id: `member-${boundary.owner}` } : null,
@@ -35,6 +39,8 @@ let browser: EventTarget
 let latest: number
 let snapshots: { at: number; owner: Owner; count: number }[]
 const Probe = ({ owner, path }: { owner: Owner; path: string }) => {
+    const userId = owner ? `user-${owner}` : null
+    if (sessionOwner() !== userId) { clearPersistentCaches(); setSessionOwner(userId) }
     boundary.owner = owner
     boundary.path = path
     latest = usePendingTradeCount()
@@ -83,6 +89,8 @@ const report = (workload: string, signalAt: number, count: number, owner: Owner 
 }
 
 beforeEach(() => {
+    setSessionOwner('user-a')
+    clearPersistentCaches()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-13T12:00:00Z'))
     vi.spyOn(console, 'error').mockImplementation(() => {})

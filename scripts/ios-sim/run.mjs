@@ -13,7 +13,7 @@ import { withScenarioFixtures, withScenarioSetup } from './seed.mjs'
 import { connectStack } from './stack.mjs'
 
 export function resolveOptions(values) {
-  const options = args(values, ['device', 'port', 'appium-port', 'manager', 'scenario', 'scenarios', 'output', 'rebuild', 'native', 'help'])
+  const options = args(values, ['device', 'port', 'appium-port', 'manager', 'scenario', 'scenarios', 'output', 'rebuild', 'native', 'stack-dir', 'help'])
   if (options.help) return { help: true }
   assert.ok(typeof options.device === 'string' && options.device.trim(), '--device is required')
   const port = Number(options.port), appiumPort = Number(options['appium-port'] ?? 40000 + (port % 5000) * 4), manager = Number(options.manager ?? 0)
@@ -68,7 +68,7 @@ export async function visibleTapLabel(driver, label, prefix = false) {
   let target
   await waitFor(async () => {
     target = await driver.execute(`const label = arguments[0], prefix = arguments[1]; const visible = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); const match = [...document.querySelectorAll('[aria-label],button,a,[role="button"],select')].find(e => visible(e) && (prefix ? (e.getAttribute('aria-label') || '').startsWith(label) : e.getAttribute('aria-label') === label || e.textContent?.trim() === label)); if (match) match.scrollIntoView({block:'nearest'}); return match ? match.getAttribute('aria-label') || label : null`, label, prefix)
-    return target !== null || !prefix
+    return target !== null
   })
   return target
 }
@@ -83,6 +83,12 @@ export async function clickThroughPasswordPrompt(driver, label) {
   }
 }
 
+export async function selectNativeOption(driver, label) {
+  await driver.native()
+  await clickThroughPasswordPrompt(driver, label)
+  await driver.optional('Done')
+}
+
 export async function waitForNativeTransition(driver) {
   await driver.native()
   const settings = await driver.request('GET', '/appium/settings')
@@ -92,6 +98,20 @@ export async function waitForNativeTransition(driver) {
   } finally {
     await driver.request('POST', '/appium/settings', { settings: { waitForIdleTimeout: settings.waitForIdleTimeout } })
   }
+}
+
+export async function prepareScenarioPage(server, driver, origin, route, web) {
+  server.network(false)
+  let previousDocument
+  if (web) {
+    await driver.web(origin, true)
+    previousDocument = await driver.execute('return performance.timeOrigin')
+  }
+  server.prepare(`${origin}${route}`)
+  if (web) {
+    await driver.web(origin, true)
+    await waitFor(async () => driver.execute('const target = new URL(arguments[0], location.href); return performance.timeOrigin !== arguments[1] && location.pathname === target.pathname && location.search === target.search && document.readyState === "complete" && (document.getElementById("root")?.innerText.trim().length || 0) > 20', route, previousDocument))
+  } else await pause(2500)
 }
 
 async function runSuite(options) {
@@ -104,7 +124,7 @@ async function runSuite(options) {
   process.once('SIGTERM', signals)
   try {
     await freePort(options.port)
-    const stack = await connectStack()
+    const stack = await connectStack(options['stack-dir'])
     const build = await exportWeb(stack, options.rebuild === true)
     report.build = build.hash
     report.sourceFingerprint = build.sourceFingerprint
@@ -146,15 +166,7 @@ async function runSuite(options) {
       server.blur()
       await pause(500)
     }
-    const prepare = async route => {
-      server.network(false)
-      server.prepare(`${origin}${route}`)
-      await pause(500)
-      if (web) {
-        await driver.web(origin, true)
-        await waitFor(async () => driver.execute('const target = new URL(arguments[0], location.href); return location.pathname === target.pathname && location.search === target.search && document.readyState === "complete" && (document.getElementById("root")?.innerText.trim().length || 0) > 20', route))
-      } else await pause(2000)
-    }
+    const prepare = route => prepareScenarioPage(server, driver, origin, route, web)
     await waitFor(() => server.connected() > 0)
     server.resetAuth(`${origin}/sign-in`)
     await waitFor(() => server.verified() > 0)
@@ -175,7 +187,7 @@ async function runSuite(options) {
     requireContent(report.steps[0])
     const index = options.manager * 22
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
-    const context = { memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
+    const context = { weekOffLeagueName: `Home week-off ${stack.fixture.members[options.manager].id.slice(0, 8)}`, memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
     const scenarios = JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8'))
     const selected = expandScenarios(scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario))
     assert.ok(selected.length, `Unknown scenario ${options.scenario}`)
@@ -185,7 +197,7 @@ async function runSuite(options) {
       if (spec.tapPrefix) return tap(spec.tapPrefix, true)
       if (spec.fill) { await fill(spec.fill, spec.value); await pause(800); return }
       if (spec.open) { server.navigate(`${origin}${spec.open}`); return }
-      if (spec.select) { await tap(spec.select); await tap(spec.option); await driver.optional('Done'); return }
+      if (spec.select) { await tap(spec.select); await selectNativeOption(driver, spec.option); return }
       if (spec.offline) { server.network(true); return }
       if (spec.background) {
         await driver.native()
