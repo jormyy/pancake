@@ -65,6 +65,48 @@
     ]
   },
   {
+    "name": "shell-light-boot",
+    "group": "shell-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-settings",
+    "group": "shell-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "route": "/league?tab=settings",
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
     "name": "shell-light-menu",
     "group": "shell-light",
     "from": "/",
@@ -287,6 +329,48 @@
     ]
   },
   {
+    "name": "shell-dark-boot",
+    "group": "shell-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-dark-settings",
+    "group": "shell-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "route": "/league?tab=settings",
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ]
+  },
+  {
     "name": "shell-dark-menu",
     "group": "shell-dark",
     "from": "/",
@@ -466,6 +550,74 @@
   },
   {
     "name": "shell-auth-sign-up",
+    "group": "shell-auth",
+    "from": "/sign-in",
+    "steps": [
+      {
+        "action": {
+          "tap": "New to Pancake? Create an account"
+        },
+        "expected": {
+          "route": "/sign-up",
+          "selector": "input[aria-label='Display name']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-auth-return-sign-in",
+    "group": "shell-auth",
+    "from": "/sign-up",
+    "prepare": [
+      {
+        "tap": "Already have an account? Sign in"
+      },
+      {
+        "fill": "Email",
+        "value": "pancake-e2e-iossim2027-10@example.com"
+      },
+      {
+        "fill": "Password",
+        "value": "Pancake-e2e-iossim2027!"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Sign In"
+        },
+        "expected": {
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-auth-sign-out",
+    "group": "shell-auth",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Sign out"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Sign out"
+        },
+        "expected": {
+          "route": "/sign-in",
+          "selector": "input[aria-label='Email']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "shell-light-auth-sign-up",
     "group": "shell-auth",
     "from": "/sign-in",
     "steps": [
