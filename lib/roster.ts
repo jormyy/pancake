@@ -85,17 +85,19 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
     await apiPost('/league/roster/taxi', { rosterPlayerId, isOnTaxi })
 }
 
-export type OwnedEntry = { teamName: string; memberId: string }
+export type RosterOccupancy = Pick<RosterPlayer, 'is_on_ir'>
+export type OwnedEntry = { teamName: string; memberId: string; isOnIR?: boolean }
 type OwnedPlayerRow = {
     player_id: string
     member_id: string
+    is_on_ir: boolean
     league_members: { team_name: string | null } | null
 }
 
 export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: string): Promise<Map<string, OwnedEntry>> {
     const { data, error } = await supabase
         .from('roster_players')
-        .select('player_id, member_id, league_members(team_name)')
+        .select('player_id, member_id, is_on_ir, league_members(team_name)')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
 
@@ -105,6 +107,7 @@ export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: str
         map.set(r.player_id, {
             teamName: r.league_members?.team_name ?? 'Team',
             memberId: r.member_id,
+            isOnIR: r.is_on_ir,
         })
     }
     return map
@@ -116,23 +119,47 @@ export async function getPlayerRosterStatus(
     leagueId: string,
     canRead?: () => boolean,
 ): Promise<PlayerRosterStatus> {
+    return (await readPlayerRosterContext(playerId, memberId, leagueId, false, canRead)).status
+}
+
+export async function getPlayerRosterContext(
+    playerId: string,
+    memberId: string,
+    leagueId: string,
+    canRead?: () => boolean,
+): Promise<{ status: PlayerRosterStatus; roster: RosterOccupancy[] }> {
+    return readPlayerRosterContext(playerId, memberId, leagueId, true, canRead)
+}
+
+async function readPlayerRosterContext(
+    playerId: string,
+    memberId: string,
+    leagueId: string,
+    includeOwnRoster: boolean,
+    canRead?: () => boolean,
+): Promise<{ status: PlayerRosterStatus; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
     const seasonId = await getActiveSeasonId(leagueId)
     assertReadActive(canRead)
-    if (!seasonId) return { status: 'free_agent' }
+    if (!seasonId) return { status: { status: 'free_agent' }, roster: [] }
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('roster_players')
-        .select('id, member_id, league_members ( team_name )')
-        .eq('player_id', playerId)
+        .select('id, player_id, member_id, is_on_ir, league_members ( team_name )')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
-        .maybeSingle()
-
+    query = includeOwnRoster
+        ? query.or(`player_id.eq.${playerId},member_id.eq.${memberId}`)
+        : query.eq('player_id', playerId)
+    const { data, error } = await query
     if (error) throw error
-    if (data) {
-        if (data.member_id === memberId) return { status: 'mine', rosterPlayerId: data.id }
-        return { status: 'taken', ownerTeamName: data.league_members?.team_name ?? 'Another team' }
+    const roster = (data ?? []).filter(row => row.member_id === memberId).map(row => ({ is_on_ir: row.is_on_ir }))
+    const owned = data?.find(row => row.player_id === playerId)
+    if (owned) {
+        const status: PlayerRosterStatus = owned.member_id === memberId
+            ? { status: 'mine', rosterPlayerId: owned.id }
+            : { status: 'taken', ownerTeamName: owned.league_members?.team_name ?? 'Another team' }
+        return { status, roster }
     }
 
     assertReadActive(canRead)
@@ -151,10 +178,10 @@ export async function getPlayerRosterStatus(
     if (waiverLogError) throw waiverLogError
 
     if (waiverLog) {
-        return { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }
+        return { status: { status: 'on_waivers', logId: waiverLog.id, clearsAt: waiverLog.clears_at }, roster }
     }
 
-    return { status: 'free_agent' }
+    return { status: { status: 'free_agent' }, roster }
 }
 
 export async function addFreeAgent(

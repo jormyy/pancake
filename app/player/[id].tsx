@@ -89,7 +89,7 @@ export default function PlayerDetailScreen() {
     const [pickupStateResource, setPickupStateResource] = useState<{
         ownerIdentity: string | null
         transactionState: MemberTransactionState | null
-        roster?: RosterPlayer[]
+        roster?: Pick<RosterPlayer, 'is_on_ir'>[]
     }>({ ownerIdentity, transactionState: null })
     const pickupState = pickupStateResource.ownerIdentity === ownerIdentity ? pickupStateResource.transactionState : null
     const [dropping, setDropping] = useState(false)

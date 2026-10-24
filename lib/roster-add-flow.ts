@@ -3,10 +3,11 @@ import { isIneligibleIR } from '@/lib/format'
 import {
     activateRosterPlayerWithOverflow,
     addFreeAgent,
-    getPlayerRosterStatus,
+    getPlayerRosterContext,
     getRoster,
     toggleIR,
     type PlayerRosterStatus,
+    type RosterOccupancy,
     type RosterPlayer,
 } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
@@ -43,18 +44,17 @@ export async function loadPickupState(
     memberId: string,
     leagueId: string,
     canRead?: () => boolean,
-): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterPlayer[] }> {
+): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
-    const status = await getPlayerRosterStatus(playerId, memberId, leagueId, canRead)
+    const { status, roster } = await getPlayerRosterContext(playerId, memberId, leagueId, canRead)
     assertReadActive(canRead)
     const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
-    const [transactionState, pendingIds, roster] = await Promise.all([
+    const [transactionState, pendingIds] = await Promise.all([
         pickupPossible ? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
         status.status === 'on_waivers' ? getCurrentSeasonId(leagueId).then((seasonId) => {
             assertReadActive(canRead)
             return seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()
         }) : Promise.resolve(new Set<string>()),
-        pickupPossible ? getRoster(memberId, leagueId) : Promise.resolve([]),
     ])
     return { status, transactionState, claimPending: pendingIds.has(playerId), roster }
 }
