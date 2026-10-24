@@ -1,3 +1,4 @@
+import { calculateFantasyPoints, snakeToStatLine, roundFantasyPoints, type ScoringSettings } from '@pancake/core'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
 import { currentSeasonYear } from '@/lib/shared/season'
@@ -24,6 +25,7 @@ export type PlayerRow = {
     headshot_url: string | null
     nba_id: string | null
     years_exp: number | null
+    playing_now?: boolean
     avg_fantasy_points?: number | null
     avg_points?: number | null
     avg_rebounds?: number | null
@@ -379,4 +381,44 @@ export async function getPlayerTransactionHistory(
         teamName: row.league_members?.team_name ?? 'Unknown',
         occurredAt: row.occurred_at,
     }))
+}
+
+type VisiblePlayerTotalsRow = Database['public']['Functions']['get_visible_player_totals']['Returns'][number]
+export type VisiblePlayerTotals = Omit<VisiblePlayerTotalsRow, 'rounded_fantasy_average' | 'game_status' | 'game_time' | 'started_at'> & {
+    rounded_fantasy_average: number | null
+    game_status: string | null
+    game_time: string | null
+    started_at: string | null
+}
+
+export async function getVisiblePlayerTotals(leagueId: string, playerIds: string[], seasonYear: number): Promise<VisiblePlayerTotals[]> {
+    if (!playerIds.length) return []
+    if (playerIds.length > 50) throw new Error('Choose at most 50 visible players.')
+    const { data, error } = await supabase.rpc('get_visible_player_totals', {
+        p_league_id: leagueId, p_player_ids: playerIds, p_season_year: seasonYear,
+    })
+    if (error) throw error
+    return data ?? []
+}
+
+export function applyVisiblePlayerTotals(player: PlayerRow, row: VisiblePlayerTotals, scoring: ScoringSettings | null, now = Date.now()): PlayerRow {
+    const totals = row.totals
+    if (!totals || typeof totals !== 'object' || Array.isArray(totals)) return player
+    const value = (key: string) => Number(totals[key]) || 0
+    const games = value('games_played')
+    const average = (key: string) => value(`${key}_count`) ? value(key) / value(`${key}_count`) : null
+    const line = Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, Number(value) || 0]))
+    const totalFP = scoring ? roundFantasyPoints(calculateFantasyPoints(snakeToStatLine({ ...line, double_double: false, triple_double: false }), scoring)
+        + value('double_double') * (scoring.double_double ?? 0) + value('triple_double') * (scoring.triple_double ?? 0)) : null
+    const status = row.game_status?.toLowerCase().replaceAll('_', '')
+    const tipoff = row.started_at ?? row.game_time
+    return {
+        ...player,
+        games_played: games,
+        avg_fantasy_points: row.rounded_fantasy_average ?? (totalFP != null && games ? roundFantasyPoints(totalFP / games) : null),
+        avg_points: average('points'), avg_rebounds: average('rebounds'), avg_assists: average('assists'),
+        avg_steals: average('steals'), avg_blocks: average('blocks'), avg_turnovers: average('turnovers'),
+        avg_three_pointers_made: average('three_pointers_made'), avg_minutes_played: average('minutes_played'),
+        playing_now: status === 'inprogress' || (status === 'scheduled' && tipoff != null && Date.parse(tipoff) <= now),
+    }
 }

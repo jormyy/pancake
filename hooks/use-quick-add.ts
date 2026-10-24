@@ -2,17 +2,19 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { PlayerRow } from '@/lib/players'
 import {
     dropAndAddFreeAgent,
+    toggleIR,
     RosterPlayer,
 } from '@/lib/roster'
 import { addFreeAgentOrRequestDrop, loadRosterAddGate, resolveRosterAddIRConflict } from '@/lib/roster-add-flow'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
-import { reportPickupError } from '@/lib/pickup'
+import { isIREligible } from '@pancake/core'
+import { canAddToIR, hasOpenIRSlot, reportPickupError } from '@/lib/pickup'
 import { showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import type { MemberTransactionState } from '@/lib/league'
 
 /** What a pickup needs to know about its player. */
-type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'>
+type QuickAddPlayer = Pick<PlayerRow, 'id' | 'display_name'> & { injury_status?: string | null }
 
 type PickupAction = 'add' | 'claim'
 
@@ -25,6 +27,8 @@ type IRModalState = {
 } | null
 
 type QuickAddOptions = {
+    irSlots?: number
+    allowIR?: boolean
     memberId: string | undefined
     leagueId: string | null
     /** Reloads whatever the screen shows about ownership and the weekly add state, after a change or a block. */
@@ -37,6 +41,8 @@ type QuickAddOptions = {
 export function useQuickAdd({
     memberId,
     leagueId,
+    irSlots = 2,
+    allowIR = true,
     onChanged,
     transactionState,
     onClaimInstead,
@@ -44,6 +50,7 @@ export function useQuickAdd({
     const [adding, setAdding] = useState<string | null>(null)
     const [dropPickerPlayer, setDropPickerPlayer] = useState<QuickAddPlayer | null>(null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>([])
+    const [openIR, setOpenIR] = useState(false)
     const [dropping, setDropping] = useState<string | null>(null)
     const [irModal, setIrModal] = useState<IRModalState>(null)
     const ownerIdentity = memberId && leagueId ? `${memberId}:${leagueId}` : null
@@ -122,21 +129,23 @@ export function useQuickAdd({
         const identity = ownerIdentity
         setAdding(player.id)
         try {
-            const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id, roster)
+            const toIr = allowIR && canAddToIR(player.injury_status, roster, irSlots)
+            const result = await addFreeAgentOrRequestDrop(memberId, lid, player.id, roster, toIr)
             if (!isCurrent(generation, identity)) return
             if (result.status === 'roster_full') {
+                setOpenIR(allowIR && hasOpenIRSlot(roster, irSlots))
                 setMyRoster(result.activeRoster)
                 setDropPickerPlayer(player)
                 return
             }
-            showSuccess('Added', `${player.display_name} added to your roster.`)
+            showSuccess('Added', `${player.display_name} added to ${toIr ? 'IR' : 'your roster'}.`)
             onChanged()
         } catch (e) {
             if (isCurrent(generation, identity)) report(e, player)
         } finally {
             if (isCurrent(generation, identity)) setAdding((current) => current === player.id ? null : current)
         }
-    }, [memberId, ownerIdentity, onChanged, isCurrent, report])
+    }, [memberId, ownerIdentity, onChanged, isCurrent, report, allowIR, irSlots])
 
     const continueAfterIRResolution = useCallback(async (lid: string, roster: RosterPlayer[], remaining: RosterPlayer[]) => {
         if (remaining.length > 0) {
@@ -205,6 +214,29 @@ export function useQuickAdd({
         }
     }, [memberId, leagueId, ownerIdentity, dropPickerPlayer, checkIR, onChanged, isCurrent, explainBlock, report])
 
+    const handleMoveToIRAndAdd = useCallback(async (rosterPlayer: RosterPlayer) => {
+        if (!memberId || !leagueId || !dropPickerPlayer || pendingDropAndAdd.current || !ownsState || activeOwnerRef.current !== ownerIdentity) return
+        if (explainBlock()) return
+        const generation = generationRef.current
+        const identity = ownerIdentity
+        const token = Symbol('pending-ir-and-add')
+        pendingDropAndAdd.current = token
+        setDropping(rosterPlayer.id)
+        try {
+            await toggleIR(rosterPlayer.id, true)
+            if (!isCurrent(generation, identity)) return
+            setDropPickerPlayer(null)
+            onChanged()
+            const roster = await checkIR(dropPickerPlayer, leagueId, 'add')
+            if (roster) await addFreeAgent(dropPickerPlayer, leagueId, roster)
+        } catch (error) {
+            if (isCurrent(generation, identity)) report(error, dropPickerPlayer)
+        } finally {
+            if (pendingDropAndAdd.current === token) pendingDropAndAdd.current = null
+            if (isCurrent(generation, identity)) setDropping(null)
+        }
+    }, [memberId, leagueId, dropPickerPlayer, ownsState, explainBlock, ownerIdentity, isCurrent, onChanged, checkIR, addFreeAgent, report])
+
     const handleIRActivate = useCallback(async (rp: RosterPlayer) => {
         if (!memberId || !leagueId) return
         const generation = generationRef.current
@@ -249,10 +281,12 @@ export function useQuickAdd({
         handleAdd,
         handleClaim,
         handleDropAndAdd,
+        handleMoveToIRAndAdd,
+        irMoveCandidates: ownsState && openIR ? myRoster.filter(player => isIREligible(player.players.injury_status)) : [],
         handleIRActivate,
         handleDropAndIRActivate,
     }), [
-        ownsState, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
-        handleAdd, handleClaim, handleDropAndAdd, handleIRActivate, handleDropAndIRActivate,
+        ownsState, openIR, adding, dropPickerPlayer, myRoster, dropping, irModal, addBlockedReason,
+        handleAdd, handleClaim, handleDropAndAdd, handleMoveToIRAndAdd, handleIRActivate, handleDropAndIRActivate,
     ])
 }

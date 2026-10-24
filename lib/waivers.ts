@@ -18,6 +18,7 @@ export type WaiverClaim = {
     bidAmount: number
     claimOrder: number
     clearsAt?: string | null
+    toIr?: boolean
     failureReason: string | null
 }
 
@@ -30,6 +31,7 @@ type PlayerSummaryRow = {
 } | null
 type WaiverPlayerIdRow = { player_id: string; clears_at: string }
 type WaiverClaimQueryRow = {
+    to_ir: boolean
     id: string
     player_id: string
     drop_player_id: string | null
@@ -87,7 +89,7 @@ export async function submitWaiverClaim(
     leagueId: string,
     playerId: string,
     dropPlayerId?: string,
-    options: { bidAmount?: number; claimOrder?: number | null } = {},
+    options: { bidAmount?: number; claimOrder?: number | null; toIr?: boolean } = {},
 ): Promise<void> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         throw new Error('Connect to the internet to submit a waiver claim.')
@@ -99,6 +101,7 @@ export async function submitWaiverClaim(
         dropPlayerId: dropPlayerId ?? null,
         bidAmount: options.bidAmount ?? 0,
         claimOrder: options.claimOrder ?? null,
+        toIr: options.toIr ?? false,
     })
 }
 
@@ -112,13 +115,21 @@ export async function editWaiverClaim(
     // dropPlayerId is required (null clears it): edit_waiver_claim_atomic writes
     // whatever it receives, so an omitted field would silently drop the drop
     // player and turn a valid claim into one that fails "roster full".
-    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null },
+    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean },
 ): Promise<void> {
+    let toIr = updates.toIr
+    if (toIr === undefined) {
+        const { data, error } = await supabase.from('waiver_claims').select('to_ir')
+            .eq('id', claimId).eq('member_id', memberId).single()
+        if (error) throw error
+        toIr = data.to_ir
+    }
     await apiPost(`/waivers/claims/${claimId}/edit`, {
         memberId,
         dropPlayerId: updates.dropPlayerId,
         bidAmount: updates.bidAmount ?? 0,
         claimOrder: updates.claimOrder ?? null,
+        toIr,
     })
 }
 
@@ -153,6 +164,7 @@ export async function getMyWaiverClaims(
             priority_at_submission,
             bid_amount,
             claim_order,
+            to_ir,
             failure_reason,
             claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id ),
             drop_player:players!waiver_claims_drop_player_id_fkey ( display_name, nba_id )
@@ -183,6 +195,7 @@ export async function getMyWaiverClaims(
         priorityAtSubmission: row.priority_at_submission,
         bidAmount: row.bid_amount ?? 0,
         claimOrder: row.claim_order ?? 1,
+        toIr: row.to_ir,
         failureReason: row.failure_reason ?? null,
     }))
 }

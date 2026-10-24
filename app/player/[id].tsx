@@ -1,3 +1,4 @@
+import { canAddToIR } from '@/lib/pickup'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -15,7 +16,7 @@ import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
-import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
+import { dropPlayer, type RosterPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { loadPickupState } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -88,6 +89,7 @@ export default function PlayerDetailScreen() {
     const [pickupStateResource, setPickupStateResource] = useState<{
         ownerIdentity: string | null
         transactionState: MemberTransactionState | null
+        roster?: RosterPlayer[]
     }>({ ownerIdentity, transactionState: null })
     const pickupState = pickupStateResource.ownerIdentity === ownerIdentity ? pickupStateResource.transactionState : null
     const [dropping, setDropping] = useState(false)
@@ -108,10 +110,10 @@ export default function PlayerDetailScreen() {
         const request = { epoch: readEpoch, queued: false }
         statusRequest.current = request
         try {
-            const { status, transactionState, claimPending } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
+            const { status, transactionState, claimPending, roster } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
-                setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
+                setPickupStateResource({ ownerIdentity: requestedOwner, transactionState, roster })
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
@@ -142,6 +144,8 @@ export default function PlayerDetailScreen() {
         leagueId,
         onChanged: loadRosterStatus,
         transactionState: pickupState,
+        irSlots: currentLeague?.ir_slots ?? 2,
+        allowIR: currentLeague?.status !== 'offseason',
         onClaimInstead: openClaim,
     })
 
@@ -180,7 +184,8 @@ export default function PlayerDetailScreen() {
     const action: PlayerHeaderAction | null = !rosterStatus && rosterStatusError ? {
         label: 'Retry', onPress: () => { void loadRosterStatus() }, disabled: !membershipValidated || !online, busy: false,
     } : rosterStatus?.status === 'free_agent' ? {
-        label: 'Add', onPress: () => { if (actionsReady) void quickAdd.handleAdd({ id, display_name: player.display_name }) },
+        label: currentLeague?.status !== 'offseason' && canAddToIR(player.injury_status, ownsRosterStatus ? pickupStateResource.roster ?? [] : [], currentLeague?.ir_slots ?? 2) ? 'Add to IR' : 'Add',
+        onPress: () => { if (actionsReady) void quickAdd.handleAdd({ id, display_name: player.display_name, injury_status: player.injury_status }) },
         disabled: !actionsReady, busy: quickAdd.adding === id, blockedReason: quickAdd.addBlockedReason,
     } : rosterStatus?.status === 'on_waivers' ? {
         label: rosterStatusResource.claimPending ? 'View claim' : 'Claim',
@@ -292,11 +297,13 @@ export default function PlayerDetailScreen() {
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
-                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
-                subtitle="Your roster is full. Pick someone to release."
+                title={`Make room for\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
+                subtitle={quickAdd.irMoveCandidates.length ? "Move an Out player to IR or select a drop." : "Your roster is full. Select a player to drop."}
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping}
                 onDrop={quickAdd.handleDropAndAdd}
+                irMoveCandidates={quickAdd.irMoveCandidates}
+                onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 

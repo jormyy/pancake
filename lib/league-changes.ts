@@ -1,11 +1,11 @@
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
-type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'inventory' | 'resources'
+type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
 type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
 type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null }
 type Listener = (change: LeagueChange) => void
-const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory', 'resources'])
+const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
