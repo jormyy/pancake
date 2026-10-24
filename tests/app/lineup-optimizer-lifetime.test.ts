@@ -5,7 +5,7 @@ import LineupScreen from '@/app/(modals)/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
-    enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
+    savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
@@ -23,7 +23,7 @@ vi.mock('@/lib/lineup', () => ({
     getWeeklyLineup: async () => ({ starters: [], bench: [] }), getLineupMoveTargetState: () => null,
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
-vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn() }))
+vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: mocks.savePreference }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
@@ -90,6 +90,7 @@ it('updates the current setting without changing manual lineups', async () => {
     await act(async () => { await toggle().props.onValueChange(true) })
     expect(toggle().props.value).toBe(true)
     expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
+    expect(mocks.savePreference).toHaveBeenCalledWith({ ownerId: 'user', memberId: 'member-a', leagueId: 'league-a', day: '2026-10-11' }, 1, 'season-league-a', true)
     expect(mocks.autoSet).not.toHaveBeenCalled()
 })
 

@@ -6,7 +6,7 @@ vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: state.
 } : null }) }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => state.owner, sessionGeneration: () => state.generation, clearSessionCaches: () => {} }))
 import { clearPersistentCaches, readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot } from '@/lib/lineup/snapshot'
+import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot } from '@/lib/lineup/snapshot'
 
 const scope = { ownerId: 'owner', memberId: 'member', leagueId: 'league', day: '2026-10-08' }
 const player = { rosterPlayerId: 'roster', playerId: 'player', displayName: 'Saved player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'ATL', injuryStatus: null, nbaId: null }
@@ -68,6 +68,21 @@ describe('private matching-day Lineup snapshots', () => {
         saveLineupSnapshot(scope, 1, value)
         writePersistentCache(key, { ...readPersistentCache<object>(key), ...change })
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
+    })
+    it('restores the committed optimizer choice on every saved date', () => {
+        const days = [value.days[0], { ...value.days[0], date: '2026-10-09' }]
+        saveLineupSnapshot(scope, 1, { ...value, days })
+        saveLineupSnapshot(scope, 1, { ...value, days, date: '2026-10-09' })
+        updateLineupOptimizerSnapshot(scope, 1, 'season', false)
+        expect(readLineupSnapshot(scope, scope.day)?.optimizerEnabled).toBe(false)
+        expect(readLineupSnapshot(scope, '2026-10-09')?.optimizerEnabled).toBe(false)
+    })
+    it('ignores optimizer replies from an old session or a different season', () => {
+        saveLineupSnapshot(scope, 1, value)
+        updateLineupOptimizerSnapshot(scope, 0, 'season', false)
+        expect(readLineupSnapshot(scope, scope.day)?.optimizerEnabled).toBe(true)
+        updateLineupOptimizerSnapshot(scope, 1, 'other-season', false)
+        expect(readLineupSnapshot(scope, scope.day)?.optimizerEnabled).toBe(true)
     })
     it('caps the family at four entries and rejects oversized payloads', () => {
         for (let i = 0; i < 5; i++) {

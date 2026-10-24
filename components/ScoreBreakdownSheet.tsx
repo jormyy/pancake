@@ -38,7 +38,7 @@ function PlayerHead({ side, total, align }: { side: Side; total: number | null; 
             {side.player ? (
                 <Avatar
                     name={side.player.displayName}
-                    uri={playerHeadshotUrl(side.player.nbaId) ?? undefined}
+                    uri={playerHeadshotUrl(side.player.nbaId && /^\d+$/.test(side.player.nbaId) ? side.player.nbaId : null) ?? undefined}
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
                     size={40}

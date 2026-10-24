@@ -109,7 +109,9 @@ export type LeagueWeekMatchup = {
     isMine: boolean
 }
 
-export async function getMyMatchup(memberId: string, leagueId: string): Promise<Matchup | null> {
+export type MatchupContext = Pick<Matchup, 'id' | 'seasonId' | 'seasonYear' | 'weekNumber' | 'myMemberId' | 'opponentMemberId'>
+
+export async function getMyMatchup(memberId: string, leagueId: string, onContext?: (context: MatchupContext) => void): Promise<Matchup | null> {
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
 
@@ -133,6 +135,7 @@ export async function getMyMatchup(memberId: string, leagueId: string): Promise<
 
     // Fetch both members' team names + usernames
     const opponentId = data.home_member_id === memberId ? data.away_member_id : data.home_member_id
+    onContext?.({ id: data.id, seasonId: season.id, seasonYear: season.seasonYear, weekNumber, myMemberId: memberId, opponentMemberId: opponentId })
     const [{ data: members, error: membersError }, { data: allMatchups, error: recordsError }] = await Promise.all([
         supabase
             .from('league_members')

@@ -4,7 +4,7 @@ import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
@@ -39,7 +39,7 @@ function emptySlotLabel(slotType: string): string {
 }
 
 function compactLineupName(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean)
+    const parts = name.trim().split(/\s+/).filter(part => part && !/^(?:jr\.?|sr\.?|ii|iii|iv|\d+)$/i.test(part))
     const last = parts.at(-1) ?? name
     return last.split('-')[0]
 }
@@ -64,7 +64,7 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
         <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
                 name={player.displayName}
-                uri={playerHeadshotUrl(player.nbaId) ?? undefined}
+                uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
                 color={colors.bgMuted}
                 textColor={colors.textSecondary}
                 size={size}
@@ -281,7 +281,7 @@ function PlayerSide({
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"
-                                style={[styles.sideMeta, styles.detailText, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
+                                style={[styles.sideMeta, styles.detailText, { textAlign: left ? 'right' : 'left' }, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     rowSideCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xs },
     playerBlock: { flex: 1, minWidth: 0, minHeight: 48, justifyContent: 'center', gap: spacing.xxs },
-    playerBlockCompact: { minHeight: 44 },
+    playerBlockCompact: { minHeight: controlSize.minTouch },
     playerBlockDense: { minHeight: 28 },
     fptsNum: {
         fontSize: fontSize.xl,
@@ -516,9 +516,9 @@ const styles = StyleSheet.create({
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textDisabled },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    detailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 16, maxWidth: '100%' },
+    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 16, maxWidth: '100%' },
     sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
-    detailText: { flexShrink: 1, minWidth: 0 },
+    detailText: { flex: 1, minWidth: 0 },
     detailTextStats: { color: colors.textMuted },
     lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
@@ -535,8 +535,8 @@ const styles = StyleSheet.create({
     // Phone chips are the tap target for lineup moves, so they stay near 44px,
     // even on the shortest phones.
     slotChipCenterCompact: {
-        width: 42,
-        height: 40,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.md,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },

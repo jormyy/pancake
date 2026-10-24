@@ -32,12 +32,12 @@ import { lineupStatColumns, type StatColumn } from '@/lib/score-breakdown'
 import { LeagueSwitcher } from '@/components/LeagueSwitcher'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
-import { resolveHomeSurface } from '@/lib/home-surface'
+import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { countLabel, formatPoints } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
-import { MotionPressable, MotionView } from '@/components/Motion'
+import { MotionPressable } from '@/components/Motion'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 function shouldShowScoreboard(selectedDate: string, today: string): boolean {
@@ -103,14 +103,23 @@ export default function HomeScreen() {
         ...lineup.ir.map(player => player.playerId),
         ...lineup.taxi.map(player => player.playerId),
     ] : []), [myLineup, oppLineup])
-    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, {
+    const gameScope = JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id])
+    const gamePlayers = useMemo(() => JSON.stringify([...new Set(livePlayerIds)].sort()), [livePlayerIds])
+    const { todaysGames: gameRows = [], liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups, freshness = 'fresh' } = useLiveStats(selectedDate, {
         enabled: Boolean(matchup && league?.id),
-        scope: JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id]),
+        scope: gameScope,
         playerIds: livePlayerIds,
         leagueId: league?.id,
         seasonId: matchup?.seasonId,
         onSilentRefresh: refreshSilently,
     })
+    const gameSnapshot = useMemo(() => ({ todaysGames: gameRows, liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups }), [gameRows, gameStats, gameStartedTeams, gameMatchups])
+    const savedGames = useMemo(() => matchup ? readHomeGameDisplay(gameScope, selectedDate, gamePlayers) : null, [matchup, gameScope, selectedDate, gamePlayers])
+    const { todaysGames = [], liveStats, startedTeams, teamMatchups } = !gameRows.length && freshness !== 'fresh' && savedGames ? savedGames : gameSnapshot
+    useEffect(() => {
+        if (matchup?.id && freshness === 'fresh') saveHomeGameDisplay(gameScope, selectedDate, gamePlayers, gameSnapshot)
+    }, [matchup?.id, freshness, gameScope, selectedDate, gamePlayers, gameSnapshot])
+    const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
     const actionContext = useMemo(() => matchup && league ? {
         memberId: matchup.myMemberId,
         leagueId: league.id,
@@ -165,17 +174,6 @@ export default function HomeScreen() {
             ),
         [myLineup],
     )
-
-    const selectedPlayer = useMemo(() => {
-        if (!myLineup || !selected) return null
-        return selected.kind === 'starter'
-            ? myLineup.starters[selected.index]?.player
-            : selected.kind === 'bench'
-              ? myLineup.bench[selected.index]
-              : selected.kind === 'ir'
-                ? myLineup.ir[selected.index]
-                : myLineup.taxi[selected.index]
-    }, [myLineup, selected])
 
     const getTargetState = useCallback((to: Sel): LineupMoveTargetState =>
         myLineup && league
@@ -256,7 +254,7 @@ export default function HomeScreen() {
             {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
 
             {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
-            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || Boolean(myLineup && oppLineup))} busy={matchupRefreshing || lineupLoading}>
+            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || Boolean(myLineup && oppLineup && gamesReady))} busy={matchupRefreshing || lineupLoading}>
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
@@ -301,18 +299,6 @@ export default function HomeScreen() {
                                     <Text style={styles.autoSetText}>AUTO</Text>
                                 </MotionPressable>
                             }
-                            hint={selected ? (
-                                <MotionView style={styles.hint} preset="slide-left">
-                                    <Text style={styles.hintText} numberOfLines={1}>
-                                        {selectedPlayer
-                                            ? `${selectedPlayer.displayName} selected — tap another slot`
-                                            : `Empty slot selected — tap a player's slot`}
-                                    </Text>
-                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Cancel lineup move">
-                                        <Text style={styles.hintCancel}>Cancel</Text>
-                                    </MotionPressable>
-                                </MotionView>
-                            ) : null}
                             footer={twoPane ? null : sideInfo}
                         />
                     ) : matchupLoading || lineupLoading ? (
@@ -410,6 +396,7 @@ export default function HomeScreen() {
                 onToday={() => { void doAutoSet(selectedDate) }}
                 onWholeWeek={() => { void doAutoSet(null) }}
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
+                onEditManually={() => { setAutoSetModalVisible(false); router.push('/lineup') }}
             />
         </Page>
     )
@@ -510,7 +497,6 @@ function MatchupLineupView({
     dense,
     daySelector,
     autoSetControl,
-    hint,
     footer,
 }: {
     myLineup: LineupData
@@ -532,7 +518,6 @@ function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
-    hint?: ReactNode
     footer?: ReactNode
 }) {
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
@@ -614,7 +599,6 @@ function MatchupLineupView({
         <View style={styles.lineupContainer}>
             <LineupHeading />
             {daySelector}
-            {hint}
 
             <ScrollView
                 style={styles.lineupRows}
@@ -761,21 +745,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
-
-    hint: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.primaryLight,
-        borderWidth: 1,
-        borderColor: colors.primaryBorder,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        marginTop: spacing.md,
-    },
-    hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
-    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: spacing.lg, paddingVertical: spacing.md },
 
     lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },

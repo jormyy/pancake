@@ -7,9 +7,10 @@ import type { LineupPlayer } from '@/lib/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
-    lineup: { starters: [] as { slotType: string; player: null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
+    lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     invalidate: vi.fn(),
     readLineup: vi.fn(), readContext: vi.fn(), hidden: false,
+    freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
@@ -20,7 +21,7 @@ vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
     selected: null, setSelected: vi.fn(), saving: false, autoSetting: false, autoSetModalVisible: true,
     setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), doAutoSet: mocks.autoSet, handleAutoSet: vi.fn(),
 }) }))
-vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
+vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: mocks.startedTeams, liveTeams: new Set<string>(), todaysGames: mocks.games, freshness: mocks.freshness, teamMatchups: new Map() }) }))
 vi.mock('@/lib/lineup', () => ({
     clampDateToWeek: (date: string) => date,
     getLineupContext: mocks.readContext,
@@ -29,7 +30,7 @@ vi.mock('@/lib/lineup', () => ({
     getWeeklyLineup: mocks.readLineup, getLineupMoveTargetState: () => null,
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
-vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn() }))
+vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11', endOfETDayUTC: () => '2026-10-12T04:00:00Z' }))
@@ -55,6 +56,7 @@ beforeEach(() => {
     const page = new EventTarget()
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
     vi.stubGlobal('document', page)
+    mocks.freshness = 'fresh'; mocks.games = []; mocks.startedTeams = new Set()
     mocks.hidden = false
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
     mocks.context.membershipValidated = false; mocks.context.membershipError = null
@@ -267,4 +269,24 @@ it('keeps a loaded lineup when membership validation alone changes', async () =>
     mocks.context.membershipValidated = true
     await act(async () => screen.update(React.createElement(LineupScreen)))
     expect(mocks.readLineup).toHaveBeenCalledTimes(reads)
+})
+
+it('shows the first lineup only after game data is ready', async () => {
+    mocks.freshness = 'refreshing'
+    await mount()
+    expect(emptyRows()).toHaveLength(0)
+    mocks.freshness = 'fresh'
+    await act(async () => screen.update(React.createElement(LineupScreen)))
+    expect(emptyRows()).toHaveLength(3)
+})
+
+it('keeps final-game players locked after their live label ends', async () => {
+    const player = { playerId: 'player', rosterPlayerId: 'roster-player', displayName: 'Locked Player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'DEN', nbaId: null, injuryStatus: null }
+    mocks.lineup.starters = [{ slotType: 'PG', player }]
+    mocks.startedTeams = new Set(['DEN'])
+    mocks.games = [{ home_team: 'DEN', away_team: 'LAL', status: 'Final' }]
+    await mount()
+    const row = screen.root.findByProps({ accessibilityLabel: 'PG Locked Player' })
+    expect(row.props.disabled).toBe(true)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'LOCK')).toBe(true)
 })

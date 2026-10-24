@@ -37,7 +37,7 @@ export function AutoSetModal({
                 />
                 {onEditManually ? (
                     <Button
-                        title="Edit manually instead"
+                        title="Edit lineup"
                         variant="ghost"
                         onPress={onEditManually}
                         accessibilityLabel="Edit lineup manually"

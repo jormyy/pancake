@@ -1,7 +1,7 @@
 import type { LeagueInfo } from '@/types/app'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect, useIsFocused } from '@react-navigation/native'
-import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup } from '@/lib/scoring'
+import { getLeagueWeekMatchups, getMyMatchup, LeagueWeekMatchup, Matchup, type MatchupContext } from '@/lib/scoring'
 import { clampDateToWeek, getWeekDays, getWeeklyLineup, invalidateCachedRoster, LineupSlot, LineupPlayer, WeekDay } from '@/lib/lineup'
 import { deferLeagueRefresh, leagueChangeAffects, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
 import { todayET } from '@/lib/shared/dates'
@@ -46,7 +46,7 @@ onSessionCachesCleared(() => matchupReadReceipts.clear())
 
 const MATCHUP_CACHE_PREFIX = 'pancake:home-matchup:v1:'
 
-function lineupScope(matchup: Matchup | null | undefined, date: string): string | null {
+function lineupScope(matchup: MatchupContext | null | undefined, date: string): string | null {
     return matchup ? `${matchup.seasonId}:${matchup.id}:${matchup.weekNumber}:${date}` : null
 }
 
@@ -219,10 +219,10 @@ export function useMatchupData(
     }, [membershipValidated, membershipError, resourceKey, confirmEmpty])
 
     const fetchLineups = useCallback(
-        async (m: Matchup, date: string, currentLeagueId: string): Promise<LineupPair> => {
+        async (m: MatchupContext, date: string, currentLeagueId: string, allowCachedStatics = false): Promise<LineupPair> => {
             const promise = Promise.all([
-                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
-                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date),
+                getWeeklyLineup(m.myMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics }),
+                getWeeklyLineup(m.opponentMemberId, currentLeagueId, m.seasonId, m.weekNumber, date, { allowCachedStatics }),
             ]).then(([mine, opp]) => ({ mine, opp }))
             lineupReadRef.current = { scope: lineupScope(m, date), revision: leagueSnapshotRevision(currentLeagueId, 'lineup'), promise }
             return promise
@@ -241,7 +241,7 @@ export function useMatchupData(
             const stillCurrent = () => seq === lineupSeqRef.current && generation === sessionGeneration() &&
                 activeResourceKeyRef.current === capturedResourceKey && canRead() && date === selectedDateRef.current && matchupRef.current?.id === m.id
             try {
-                const lineups = await fetchLineups(m, date, currentLeagueId)
+                const lineups = await fetchLineups(m, date, currentLeagueId, true)
                 if (!stillCurrent()) return null
                 matchupReadReceipts.delete(capturedResourceKey)
                 setMyLineup(lineups.mine)
@@ -333,41 +333,49 @@ export function useMatchupData(
         }
         try {
             setError(null)
-            const m = await getMyMatchup(current.id, leagueId)
+            const readSelection = async (m: MatchupContext, boundaries: { date: string }[]) => {
+                while (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey && canRead()) {
+                    const requested = selectedDateRef.current
+                    const selected = clampDateToWeek(requested, boundaries)
+                    try {
+                        return { requested, selected, lineups: await fetchLineups(m, selected, leagueId) }
+                    } catch (error) {
+                        if (requested === selectedDateRef.current) throw error
+                    }
+                }
+                throw new Error('Matchup read superseded')
+            }
+            const prepare = (m: MatchupContext) => {
+                const daysPromise = getWeekDays(m.weekNumber, m.seasonYear)
+                const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
+                    await waitForLeagueChanges(leagueId)
+                    if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) throw new Error('Matchup read superseded')
+                    const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
+                    return { boundaries, ...await readSelection(m, boundaries) }
+                })
+                const promise = Promise.all([
+                    daysPromise,
+                    getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
+                    lineupsPromise,
+                ])
+                void promise.catch(() => {})
+                return promise
+            }
+            let prepared: ReturnType<typeof prepare> | undefined
+            const m = await getMyMatchup(current.id, leagueId, context => {
+                if (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey && canRead()) prepared = prepare(context)
+            })
             if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
             if (m) {
                 confirmedEmptyKeyRef.current = null
                 setEmptyConfirmed(false)
                 setMatchup(m)
                 matchupRef.current = m
-                const daysPromise = getWeekDays(m.weekNumber, m.seasonYear)
-                const readSelection = async (boundaries: { date: string }[]) => {
-                    while (seq === loadSeqRef.current && generation === sessionGeneration() && activeResourceKeyRef.current === capturedResourceKey && canRead()) {
-                        const requested = selectedDateRef.current
-                        const selected = clampDateToWeek(requested, boundaries)
-                        try {
-                            return { requested, selected, lineups: await fetchLineups(m, selected, leagueId) }
-                        } catch (error) {
-                            if (requested === selectedDateRef.current) throw error
-                        }
-                    }
-                    throw new Error('Matchup read superseded')
-                }
-                const lineupsPromise = getSeasonWeekDates(m.seasonYear, m.weekNumber).then(async (dates) => {
-                    await waitForLeagueChanges(leagueId)
-                    if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) throw new Error('Matchup read superseded')
-                    const boundaries = dates.length > 0 ? dates.map((date) => ({ date })) : await daysPromise
-                    return { boundaries, ...await readSelection(boundaries) }
-                })
-                const [days, weekMatchups, initial] = await Promise.all([
-                    daysPromise,
-                    getLeagueWeekMatchups(leagueId, m.seasonId, m.weekNumber, m.myMemberId),
-                    lineupsPromise,
-                ])
+                const [days, weekMatchups, initial] = await (prepared ?? prepare(m))
                 if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
                 let selection = initial
                 while (selection.requested !== selectedDateRef.current) {
-                    selection = { ...initial, ...await readSelection(initial.boundaries) }
+                    selection = { ...initial, ...await readSelection(m, initial.boundaries) }
                     if (seq !== loadSeqRef.current || generation !== sessionGeneration() || activeResourceKeyRef.current !== capturedResourceKey || !canRead()) return
                 }
                 const { selected, lineups } = selection
