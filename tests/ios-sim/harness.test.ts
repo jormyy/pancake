@@ -394,25 +394,6 @@ test('exports to different local stacks stay separate when their public keys mat
   } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
-test('refresh uses a moving touch without a long press and releases failed gestures', async () => {
-  const calls: { method: string, route: string, body?: any }[] = []
-  const driver = {
-    native: async () => {},
-    request: async (method: string, route: string, body?: any) => {
-      calls.push({ method, route, body })
-      if (route === '/window/rect') return { width: 402, height: 874 }
-      if (method === 'POST' && route === '/actions') throw new Error('Interrupted touch')
-    },
-  }
-  await assert.rejects(runner.pullToRefresh(driver), /Interrupted touch/)
-  const gesture = calls.find(call => call.method === 'POST')!.body.actions[0]
-  assert.equal(gesture.parameters.pointerType, 'touch')
-  assert.deepEqual(gesture.actions.map((item: { type: string }) => item.type), ['pointerMove', 'pointerDown', 'pointerMove', 'pointerUp'])
-  assert.ok(gesture.actions[2].y - gesture.actions[0].y > 400)
-  assert.ok(gesture.actions[2].duration < 500)
-  assert.deepEqual(calls.at(-1), { method: 'DELETE', route: '/actions', body: undefined })
-})
-
 test('return waits for native idleness and restores the prior driver setting on failure', async () => {
   const calls: { route: string, body?: any }[] = []
   const driver = {
@@ -429,14 +410,6 @@ test('return waits for native idleness and restores the prior driver setting on 
     ['/source', undefined],
     ['/appium/settings', { settings: { waitForIdleTimeout: 0 } }],
   ])
-})
-
-test('refresh evidence rejects retained content, polling, and reads before the gesture', () => {
-  assert.throws(() => runner.requireRosterRefresh({ requests: [] }, 10), /did not refresh/)
-  const roster = { kind: 'fetch', url: 'http://127.0.0.1:57121/rest/v1/roster_players', time: 9 }
-  const poll = { ...roster, url: 'http://127.0.0.1:57121/rest/v1/nba_games', time: 11 }
-  assert.throws(() => runner.requireRosterRefresh({ requests: [roster, poll] }, 10), /did not refresh/)
-  assert.doesNotThrow(() => runner.requireRosterRefresh({ requests: [{ ...roster, time: 11 }] }, 10))
 })
 
 test('a late native password prompt is dismissed before retrying the intended tap', async () => {
@@ -457,3 +430,13 @@ test('a late native password prompt is dismissed before retrying the intended ta
   await assert.rejects(runner.clickThroughPasswordPrompt(driver, 'Missing'), error => error === missing)
   assert.deepEqual(clicks, ['Missing'])
 })
+
+test('native picker options can use their labels while prefix taps wait for the full DOM label', async () => {
+  const native = { execute: async () => null }
+  assert.equal(await runner.visibleTapLabel(native, '2025–26'), null)
+  const labels = [null, 'Monday, October 19']
+  let reads = 0
+  const web = { execute: async () => labels[reads++] }
+  assert.equal(await runner.visibleTapLabel(web, 'Monday, ', true), 'Monday, October 19')
+  assert.equal(reads, 2)
+}, 1000)

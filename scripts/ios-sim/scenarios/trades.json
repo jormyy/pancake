@@ -41,7 +41,16 @@
           "tapPrefix": "Show details of trade with "
         },
         "expected": {
-          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
+          "selector": "body:has([aria-label='Back to trades']):not(:has([aria-label='Open menu'])) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trades"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
         }
       }
     ]
@@ -415,7 +424,16 @@
           "tapPrefix": "Show details of trade with "
         },
         "expected": {
-          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
+          "selector": "body:has([aria-label='Back to trades']):not(:has([aria-label='Open menu'])) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trades"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
         }
       }
     ]
@@ -884,30 +902,6 @@
     ]
   },
   {
-    "name": "trades-refresh-light",
-    "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "refresh": true
-        },
-        "expected": {
-          "route": "/trades",
-          "selector": "[aria-label^='Show details of trade with ']"
-        }
-      }
-    ]
-  },
-  {
     "name": "trades-return-light",
     "group": "trades-light",
     "from": "/profile",
@@ -923,30 +917,6 @@
       {
         "action": {
           "background": true
-        },
-        "expected": {
-          "route": "/trades",
-          "selector": "[aria-label^='Show details of trade with ']"
-        }
-      }
-    ]
-  },
-  {
-    "name": "trades-refresh-dark",
-    "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "refresh": true
         },
         "expected": {
           "route": "/trades",

@@ -65,7 +65,7 @@
           "tapPrefix": "Score breakdown for "
         },
         "expected": {
-          "selector": "body:has([aria-label='Points by stat']):not(:has([data-testid='score-breakdown-total']))"
+          "selector": "body:has([aria-label='Scoring rules']):not(:has([role='columnheader'])):not(:has([data-testid='score-breakdown-total']))"
         }
       }
     ]
@@ -223,7 +223,7 @@
           "tapPrefix": "Score breakdown for "
         },
         "expected": {
-          "selector": "body:has([aria-label='Points by stat']):not(:has([data-testid='score-breakdown-total']))"
+          "selector": "body:has([aria-label='Scoring rules']):not(:has([role='columnheader'])):not(:has([data-testid='score-breakdown-total']))"
         }
       }
     ]

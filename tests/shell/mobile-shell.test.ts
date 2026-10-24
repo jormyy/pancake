@@ -7,7 +7,7 @@ import { WebAppShell } from '@/components/navigation/WebTabShell'
 const state = vi.hoisted(() => {
     const current = { id: 'member-1', team_name: 'Team One', leagues: { id: 'league-1', name: 'Sunday Dynasty' } }
     return {
-        pathname: '/', current, memberships: [current], setCurrent: vi.fn(),
+        pathname: '/', params: {} as { tradeId?: string }, current, memberships: [current], setCurrent: vi.fn(),
         draft: null as { id: string } | null, draftChecked: false, draftError: null as string | null,
         openDraftRoom: vi.fn(), push: vi.fn(),
     }
@@ -21,7 +21,7 @@ vi.mock('react-native', () => ({
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
 vi.mock('expo-router', () => ({
-    usePathname: () => state.pathname, useRouter: () => ({ push: state.push }), Link: 'Link', Navigator: 'Navigator',
+    usePathname: () => state.pathname, useGlobalSearchParams: () => state.params, useRouter: () => ({ push: state.push }), Link: 'Link', Navigator: 'Navigator',
 }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ ...state, currentLeague: state.current.leagues, membershipStatus: 'ready', isCommissioner: false }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
@@ -46,6 +46,7 @@ const controls = (label: string) => screen.root.findAll(node => node.type === ('
 
 beforeEach(() => {
     state.pathname = '/'
+    state.params = {}
     state.memberships = [state.current]
     state.draftChecked = false
     state.draft = null
@@ -84,6 +85,22 @@ it.each([
 it.each(['/', '/roster', '/players', '/trades', '/league'])('keeps the league header on %s', async pathname => {
     state.pathname = pathname
     await render()
+    expect(controls('Open menu')).toHaveLength(1)
+})
+
+it('opens a trade with one header and restores the list header without remounting content', async () => {
+    state.pathname = '/trades'
+    state.params = { tradeId: 'incoming-trade' }
+    await render()
+    const content = screen.root.findByType('Content' as React.ElementType)
+    expect(controls('Open menu')).toHaveLength(0)
+    state.params = {}
+    await act(async () => screen.update(React.createElement(WebAppShell, {}, React.createElement('Content'))))
+    expect(controls('Open menu')).toHaveLength(1)
+    expect(screen.root.findByType('Content' as React.ElementType)).toBe(content)
+    state.pathname = '/players'
+    state.params = { tradeId: 'incoming-trade' }
+    await act(async () => screen.update(React.createElement(WebAppShell)))
     expect(controls('Open menu')).toHaveLength(1)
 })
 

@@ -142,12 +142,35 @@ export async function withAuctionNomination(admin, { draftId, memberId, playerId
   finally { await db(admin.from('nominations').delete().eq('id', nomination.id)) }
 }
 
+export async function withHealthyIRPlayer(admin, { memberId, seasonId }, action) {
+  const db = async operation => {
+    const { data, error } = await operation
+    if (error) throw new Error(`iOS IR fixture: ${error.message}`)
+    return data
+  }
+  const roster = await db(admin.from('roster_players').select('player_id').eq('member_id', memberId).eq('league_season_id', seasonId).eq('is_on_ir', true))
+  assert.ok(roster.length, 'The capture manager needs a player on IR')
+  const players = await db(admin.from('players').select('id,injury_status').in('id', roster.map(row => row.player_id)))
+  assert.equal(players.length, roster.length, 'An IR player is missing')
+  try {
+    await db(admin.from('players').update({ injury_status: null }).in('id', players.map(player => player.id)))
+    return await action()
+  } finally {
+    for (const player of players) await db(admin.from('players').update({ injury_status: player.injury_status }).eq('id', player.id))
+  }
+}
+
 export async function withScenarioSetup(stack, setup, action) {
   if (!setup) return action()
-  const draftId = setup.auctionNomination
-  assert.ok(stack.fixture.drafts.some(draft => draft.id === draftId && draft.draft_type === 'auction'), 'Unknown auction fixture')
+  localUrl(stack.url, 57121)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (setup.healthyIRMember) {
+    assert.ok(stack.fixture.members.some(member => member.id === setup.healthyIRMember), 'Unknown IR capture manager')
+    return withHealthyIRPlayer(admin, { memberId: setup.healthyIRMember, seasonId: stack.fixture.seasonId }, action)
+  }
+  const draftId = setup.auctionNomination
+  assert.ok(stack.fixture.drafts.some(draft => draft.id === draftId && draft.draft_type === 'auction'), 'Unknown auction fixture')
   return withAuctionNomination(admin, {
     draftId, memberId: stack.fixture.members[0].id, playerId: stack.fixture.players[220].id,
   }, action)

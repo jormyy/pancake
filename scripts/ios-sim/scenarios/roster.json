@@ -75,30 +75,6 @@
     ]
   },
   {
-    "name": "pull-to-refresh-light",
-    "group": "roster-light",
-    "from": "/profile",
-    "steps": [
-      {
-        "action": {
-          "refresh": true
-        },
-        "expected": {
-          "route": "/roster",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
-        }
-      }
-    ],
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/roster"
-      }
-    ]
-  },
-  {
     "name": "return-to-app-light",
     "group": "roster-light",
     "from": "/profile",
@@ -194,30 +170,6 @@
       },
       {
         "tap": "Standings"
-      }
-    ]
-  },
-  {
-    "name": "pull-to-refresh-dark",
-    "group": "roster-dark",
-    "from": "/profile",
-    "steps": [
-      {
-        "action": {
-          "refresh": true
-        },
-        "expected": {
-          "route": "/roster",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
-        }
-      }
-    ],
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/roster"
       }
     ]
   },

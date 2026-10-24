@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useIsFocused } from '@react-navigation/native'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
@@ -69,7 +69,7 @@ function CardGap() {
 function TradesScreen() {
     const statusScroll = useScreenStatusScroll()
     const { push, setParams } = useRouter()
-    const params = useLocalSearchParams<{ tab?: string | string[] }>()
+    const params = useLocalSearchParams<{ tab?: string | string[]; tradeId?: string | string[] }>()
     const { user } = useAuth()
     const { current, currentLeague, memberships, loading: leagueLoading, isCommissioner, online } = useLeagueContext()
     const focused = useIsFocused()
@@ -86,7 +86,8 @@ function TradesScreen() {
     )
     const { padX, usableWidth } = usePageMetrics()
     const tab = normalizeTradeTab(params.tab)
-    const [openTradeId, setOpenTradeId] = useState<string | null>(null)
+    const openTradeId = Array.isArray(params.tradeId) ? params.tradeId[0] : params.tradeId
+    const setOpenTradeId = useCallback((tradeId: string | null) => setParams({ tradeId: tradeId ?? undefined }), [setParams])
     const [analyzerTrade, setAnalyzerTrade] = useState<{
         trade: Trade
         userId: string | undefined
@@ -99,7 +100,6 @@ function TradesScreen() {
     useEffect(() => { setAnalyzerTrade(null) }, [leagueId, myMemberId, user?.id])
     useEffect(() => {
         const next = normalizeTradeTab(params.tab)
-        setOpenTradeId(null)
         setAnalyzerTrade(null)
         if (params.tab && params.tab !== next) setParams({ tab: next })
     }, [params.tab, setParams])
@@ -212,7 +212,7 @@ function TradesScreen() {
     const staticTradeList = tradeTab && listTrades.length <= STATIC_TRADE_LIMIT && !(tab === 'offers' ? offersHaveMore : historyHasMore)
     const openTrade = (openTradeId ? listTrades.find((trade) => trade.id === openTradeId) : null)
         ?? (split ? listTrades[0] ?? null : null)
-    const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [])
+    const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [setOpenTradeId])
     const renderItem = useCallback(({ item }: { item: TradeListItem }) => {
         switch (item._type) {
             case 'header':
@@ -258,6 +258,10 @@ function TradesScreen() {
     const activeError = activeResource === 'block' ? blockError || picksError
             : activeResource === 'history' ? historyError
                 : tradesError
+    useLayoutEffect(() => {
+        const listReady = tab === 'history' ? historyHasData : tab === 'offers' && offersHaveData
+        if (listReady && openTradeId && !split && !activeTabLoading && !activeError && !openTrade) setOpenTradeId(null)
+    }, [activeError, activeTabLoading, historyHasData, offersHaveData, openTrade, openTradeId, setOpenTradeId, split, tab])
     // A failed add/remove or a failed load-more is reported, but it is not a
     // failed load: the list (and its empty rows) stays as it is.
     const activeActionError = activeResource === 'block' ? blockActionError
@@ -272,8 +276,7 @@ function TradesScreen() {
                 : load
 
     const changeTab = (next: TradeTabKey) => {
-        setParams({ tab: next })
-        setOpenTradeId(null)
+        setParams({ tab: next, tradeId: undefined })
     }
     const header = (disabled: boolean, onPropose: () => void) => (
         <PageHeader

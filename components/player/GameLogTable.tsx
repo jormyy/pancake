@@ -83,7 +83,7 @@ export const GameLogTable = memo(function GameLogTable({
                 const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
                 return (
                     <View
-                        key={g.gameId}
+                        key={'nbaGameId' in g && typeof g.nbaGameId === 'string' ? g.nbaGameId : g.gameId}
                         style={[styles.row, i < games.length - 1 && styles.rowDivider]}
                     >
                         <Text style={dateCell}>{fmtDate(g.gameDate)}</Text>

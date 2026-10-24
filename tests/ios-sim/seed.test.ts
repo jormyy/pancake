@@ -86,3 +86,45 @@ test('an auction capture removes its nomination when the check fails', async () 
   }), /Missing bid control/)
   assert.equal(JSON.stringify(nominations), before)
 })
+
+test.each([false, true])('an IR capture restores injuries after success or failure: %s', async fail => {
+  const players = [{ id: 'ir-player', injury_status: 'Out' as string | null }, { id: 'other-player', injury_status: 'Doubtful' as string | null }]
+  const before = JSON.stringify(players)
+  const admin = {
+    from(table: string) {
+      const filters = new Map<string, unknown>()
+      let update: { injury_status: string | null } | undefined
+      const query = {
+        select() { return query },
+        eq(key: string, value: unknown) { filters.set(key, value); return query },
+        in(key: string, value: unknown[]) { filters.set(key, value); return query },
+        update(value: { injury_status: string | null }) { update = value; return query },
+        then(resolve: (value: object) => void) {
+          if (table === 'roster_players') {
+            assert.equal(filters.get('member_id'), 'manager')
+            assert.equal(filters.get('league_season_id'), 'season')
+            assert.equal(filters.get('is_on_ir'), true)
+            resolve({ data: [{ player_id: 'ir-player' }], error: null })
+          } else {
+            assert.equal(table, 'players')
+            const ids = filters.get('id')
+            const matching = players.filter(player => Array.isArray(ids) ? ids.includes(player.id) : player.id === ids)
+            const data = matching.map(player => ({ ...player }))
+            if (update) for (const player of matching) Object.assign(player, update)
+            resolve({ data, error: null })
+          }
+        },
+      }
+      return query
+    },
+  }
+  const capture = () => fixture.withHealthyIRPlayer(admin, { memberId: 'manager', seasonId: 'season' }, async () => {
+    assert.equal(players[0].injury_status, null)
+    assert.equal(players[1].injury_status, 'Doubtful')
+    if (fail) throw new Error('Capture failed')
+    return 'captured'
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else assert.equal(await capture(), 'captured')
+  assert.equal(JSON.stringify(players), before)
+})

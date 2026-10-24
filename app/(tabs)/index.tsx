@@ -546,7 +546,8 @@ function MatchupLineupView({
                 key: 'bench' as const,
                 label: 'Bench',
                 count: maxBench,
-                used: `${myLineup.bench.length}/${capacity.bench}`,
+                used: myLineup.starters.some(slot => slot.player) && myLineup.bench.length <= capacity.bench
+                    ? `${myLineup.bench.length}/${capacity.bench}` : null,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxBench }, (_, i) => ({
                     key: `b${i}`,
@@ -618,9 +619,9 @@ function MatchupLineupView({
                             >
                                 {section.label}
                             </Text>
-                            {section.key === 'starters' && autoSetControl ? autoSetControl : (
+                            {section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null ? (
                                 <Text style={styles.lineupSectionCount}>{section.used}</Text>
-                            )}
+                            ) : null}
                         </View>
                         {section.key === 'starters' && noStarters ? (
                             <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>

@@ -11,6 +11,16 @@ import { seed } from './seed.mjs'
 const stackRoot = path.join(home, 'stack')
 const statePath = path.join(stackRoot, 'local-stack.json')
 
+export async function connectStack() {
+  const state = await readJson(statePath)
+  assert.equal(state?.project, project, 'Start the shared local stack before capturing')
+  localUrl(state.url, 57121)
+  const fixture = await readJson(path.join(stackRoot, 'seed/complete.json'))
+  assert.ok(fixture?.rosterPlanTrade, 'The shared local stack needs its complete fixture')
+  await ready(`${state.url}/auth/v1/health`)
+  return { ...state, fixture }
+}
+
 export function stackConfig(source) {
   return source.replace(/^project_id = .*$/m, `project_id = "${project}"`)
     .replace(/\b543(\d\d)\b/g, '571$1')
@@ -34,7 +44,7 @@ async function stopFunctions(state) {
   }
 }
 
-export async function startStack({ reset = false } = {}) {
+async function startStack({ reset = false } = {}) {
   return lock(path.join(home, 'stack.lock'), async () => {
     await mkdir(path.join(stackRoot, 'supabase'), { recursive: true })
     let state = await readJson(statePath)
