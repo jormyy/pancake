@@ -79,7 +79,7 @@ export default function RookieDraftRoomScreen() {
             canAct,
             draftId,
             refresh,
-            onStopped: () => navigateBackToDraftList(state?.draft.isMock),
+            onStopped: () => navigateBackToDraftList(),
             onReset: () => showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.'),
             confirmCopy: {
                 stop: 'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
@@ -89,8 +89,8 @@ export default function RookieDraftRoomScreen() {
             },
         })
 
-    function navigateBackToDraftList(isMock = false) {
-        router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
+    function navigateBackToDraftList() {
+        router.replace('/league?tab=draft')
     }
 
     if (!state) {
@@ -111,7 +111,7 @@ export default function RookieDraftRoomScreen() {
 
     if (state.draft.leagueId !== currentLeague?.id) {
         return <ScreenFrame style={styles.container}>
-            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList(state.draft.isMock)} />
+            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
             <View style={styles.center}>
                 <Text style={styles.emptyText}>This draft belongs to another league. Select its league to continue.</Text>
             </View>
@@ -141,7 +141,7 @@ export default function RookieDraftRoomScreen() {
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
             <Modal visible={!!rosterOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList(draft.isMock) }}>
+                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Roster Full</Text>
@@ -152,7 +152,7 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
                             accessibilityLabel="Back to League" disabled={resolvingOverflow}
-                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            onPress={() => navigateBackToDraftList()}>
                             <Text style={styles.overflowExitText}>Back to League</Text>
                         </MotionPressable>
                         {rosterForDrop.length > 0 && (
@@ -165,7 +165,6 @@ export default function RookieDraftRoomScreen() {
                                             style={styles.overflowDropRow}
                                             onPress={() => resolveByDrop(rp.id)}
                                             disabled={resolvingOverflow || !actionsReady}
-                                            pressedScale={0.975}
                                         >
                                             <Avatar
                                                 name={rp.players?.display_name ?? 'Player'}
@@ -192,7 +191,7 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <Modal visible={!!trimOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList(draft.isMock) }}>
+                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
@@ -203,7 +202,7 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
                             accessibilityLabel="Back to League" disabled={!!trimmingId}
-                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            onPress={() => navigateBackToDraftList()}>
                             <Text style={styles.overflowExitText}>Back to League</Text>
                         </MotionPressable>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
@@ -214,7 +213,6 @@ export default function RookieDraftRoomScreen() {
                                     style={styles.overflowDropRow}
                                     onPress={() => handleTrimDrop(rp.id)}
                                     disabled={!!trimmingId || !actionsReady}
-                                    pressedScale={0.975}
                                 >
                                     <Avatar
                                         name={rp.players?.display_name ?? 'Player'}
@@ -239,7 +237,7 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <ScreenFrame style={styles.container} edges={['bottom']}>
-                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
                     {isCommissioner && !isDone && isDesktop ? (
                         <DraftAdminBar
                             disabled={adminBusy || !actionsReady}
@@ -358,7 +356,6 @@ export default function RookieDraftRoomScreen() {
                         <MotionPressable
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
                             onPress={() => setActiveTab('prospects')}
-                            pressedScale={0.96}
                             accessibilityRole="button"
                             accessibilityLabel="Show prospects"
                         >
@@ -369,7 +366,6 @@ export default function RookieDraftRoomScreen() {
                         <MotionPressable
                             style={[styles.tab, activeTab === 'board' && styles.tabActive]}
                             onPress={() => setActiveTab('board')}
-                            pressedScale={0.96}
                             accessibilityRole="button"
                             accessibilityLabel="Show pick board"
                         >
@@ -467,7 +463,6 @@ function ProspectRow({
             style={styles.resultRow}
             onPress={!canPick || picking ? undefined : () => onPick(player)}
             disabled={!canPick || picking}
-            pressedScale={0.985}
             accessibilityRole={canPick ? 'button' : 'text'}
             accessibilityLabel={canPick ? `${actionLabel} ${player.display_name}` : player.display_name}
         >
@@ -648,7 +643,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     searchContainerCompact: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         marginHorizontal: spacing.xs,
         marginTop: spacing.xxs,
         marginBottom: 0,

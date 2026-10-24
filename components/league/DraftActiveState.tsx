@@ -1,8 +1,7 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { Draft } from '@/lib/draft'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { panelStyles } from '@/components/league/draftPanelStyles'
-import type { LeagueStatus } from '@/types/database'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
 
@@ -127,81 +126,6 @@ export function ActiveDraftErrorNotice({ activeDraftError, onRetryActiveDraft }:
     )
 }
 
-export function DraftPrepNotice({
-    kind,
-    status,
-    compact = false,
-    onOpenDraftBoard,
-}: {
-    kind: 'auction' | 'rookie'
-    status?: LeagueStatus
-    compact?: boolean
-    onOpenDraftBoard?: () => void
-}) {
-    const auctionFinished = kind === 'auction' && (status === 'active' || status === 'playoffs')
-    const title = kind === 'rookie'
-        ? 'Rookie draft prep'
-        : auctionFinished ? 'Auction complete' : 'Startup auction'
-    const body = (() => {
-        if (status === 'drafting') {
-            return kind === 'auction'
-                ? 'Drafting now. Join from the live draft card.'
-                : 'Draft in progress. Pick ownership is below.'
-        }
-        if (status === 'active' || status === 'playoffs') {
-            return kind === 'auction'
-                ? "Results are on each team's roster."
-                : 'Future picks stay tradable all season.'
-        }
-        if (status === 'offseason') {
-            return kind === 'auction'
-                ? 'The startup auction is done.'
-                : 'Pick ownership below sets the draft order.'
-        }
-        if (status === 'archived') {
-            return kind === 'auction'
-                ? 'Kept as league history.'
-                : 'Pick ownership is kept as league history.'
-        }
-        return kind === 'auction'
-            ? 'The commissioner starts the auction.'
-            : 'Pick ownership, including traded picks.'
-    })()
-    const accessibilityLabel = `${title}. ${body}`
-    const showDraftBoardAction = auctionFinished && !compact && Boolean(onOpenDraftBoard)
-
-    return (
-        <View
-            style={[styles.prepNotice, compact && styles.prepNoticeCompact]}
-            role="status"
-            aria-label={accessibilityLabel}
-            aria-live="polite"
-            accessibilityRole="summary"
-            accessibilityLabel={accessibilityLabel}
-            accessibilityLiveRegion="polite"
-        >
-            <Text style={[styles.prepNoticeTitle, compact && styles.prepNoticeTitleCompact]} numberOfLines={compact ? 1 : undefined}>
-                {title}
-            </Text>
-            <Text style={[styles.prepNoticeText, compact && styles.prepNoticeTextCompact]} numberOfLines={compact ? 1 : undefined}>
-                {body}
-            </Text>
-            {showDraftBoardAction ? (
-                <Pressable
-                    style={[panelStyles.secondaryDraftButton, styles.prepNoticeAction]}
-                    onPress={onOpenDraftBoard}
-                    role="button"
-                    aria-label="View Draft Board"
-                    accessibilityRole="button"
-                    accessibilityLabel="View Draft Board"
-                >
-                    <Text style={panelStyles.secondaryDraftButtonText}>View Draft Board</Text>
-                </Pressable>
-            ) : null}
-        </View>
-    )
-}
-
 const styles = StyleSheet.create({
     errorNotice: {
         backgroundColor: colors.dangerLight,
@@ -210,7 +134,7 @@ const styles = StyleSheet.create({
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         padding: spacing.lg,
-        height: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -236,45 +160,6 @@ const styles = StyleSheet.create({
         flex: 1,
         minWidth: 0,
     },
-    prepNotice: {
-        backgroundColor: colors.bgCard,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        padding: spacing.xl,
-        gap: spacing.xs,
-    },
-    prepNoticeCompact: {
-        minHeight: 44,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.xs,
-        gap: spacing.sm,
-    },
-    prepNoticeTitle: { ...textStyles.rowTitle },
-    prepNoticeTitleCompact: {
-        flexShrink: 0,
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-    },
-    prepNoticeText: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textSecondary,
-    },
-    prepNoticeTextCompact: {
-        flex: 1,
-        minWidth: 0,
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-    },
-    prepNoticeAction: {
-        alignSelf: 'flex-start',
-        paddingHorizontal: spacing.xl,
-        marginTop: spacing.sm,
-    },
     syncWrap: { gap: spacing.xs, marginTop: spacing.md },
-    syncHint: { ...textStyles.meta, paddingHorizontal: spacing.xs },
+    syncHint: { fontSize: fontSize['2sm'], color: colors.textMuted, paddingHorizontal: spacing.xs },
 })

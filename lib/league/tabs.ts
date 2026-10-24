@@ -1,18 +1,31 @@
-export type LeagueTab = 'results' | 'auctions' | 'mockRooms' | 'draftBoard' | 'settings' | 'history'
+export type LeagueSection = 'results' | 'history' | 'picks' | 'draft' | 'settings'
+export type LeagueTab = LeagueSection | 'draftBoard' | 'auctions' | 'mockRooms'
 
-// Most-used first: standings and activity all season, draft tools in the
-// offseason, settings last.
-export const LEAGUE_TABS: readonly { key: LeagueTab; label: string }[] = [
+export const LEAGUE_TABS: readonly { key: LeagueSection; label: string }[] = [
     { key: 'results', label: 'Standings' },
     { key: 'history', label: 'Activity' },
-    { key: 'draftBoard', label: 'Draft Board' },
-    { key: 'auctions', label: 'Auctions' },
-    { key: 'mockRooms', label: 'Mock Rooms' },
+    { key: 'picks', label: 'Picks' },
+    { key: 'draft', label: 'Draft' },
     { key: 'settings', label: 'Settings' },
 ]
 
-const LEAGUE_TAB_KEYS = new Set<LeagueTab>(LEAGUE_TABS.map((tab) => tab.key))
+const LEAGUE_TAB_ALIASES: Record<string, LeagueSection> = {
+    results: 'results',
+    standings: 'results',
+    history: 'history',
+    activity: 'history',
+    picks: 'picks',
+    draftBoard: 'picks',
+    'draft-board': 'picks',
+    draft: 'draft',
+    auctions: 'draft',
+    mockRooms: 'draft',
+    'mock-rooms': 'draft',
+    settings: 'settings',
+}
 
-export function parseLeagueTab(tab: unknown): LeagueTab {
-    return typeof tab === 'string' && LEAGUE_TAB_KEYS.has(tab as LeagueTab) ? tab as LeagueTab : 'results'
+export function parseLeagueTab(tab: unknown): LeagueSection {
+    return typeof tab === 'string' && Object.hasOwn(LEAGUE_TAB_ALIASES, tab)
+        ? LEAGUE_TAB_ALIASES[tab]
+        : 'results'
 }

@@ -44,7 +44,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             canAct: controller.canAct,
             draftId,
             refresh,
-            onStopped: () => navigateBackToDraftList(state?.draft.isMock),
+            onStopped: () => navigateBackToDraftList(),
             confirmCopy: {
                 stop: state?.draft.isMock
                     ? 'This ends the mock draft. Its results remain saved. This cannot be undone.'
@@ -55,8 +55,8 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             },
         })
 
-    function navigateBackToDraftList(isMock = false) {
-        router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=auctions')
+    function navigateBackToDraftList() {
+        router.replace('/league?tab=draft')
     }
 
     if (!draftId) return <Redirect href="/draft" />
@@ -76,7 +76,6 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                         <MotionPressable
                             style={styles.nominateButton}
                             onPress={hasLoadError ? refresh : () => navigateBackToDraftList()}
-                            pressedScale={0.96}
                         >
                             <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
                         </MotionPressable>
@@ -103,7 +102,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
             <>
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
                 <ScreenFrame style={styles.container} edges={['bottom']}>
-                    <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)} />
+                    <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()} />
                     <View style={styles.draftEndedContainer}>
                         <Text style={styles.draftEndedTitle}>{stopped ? 'Draft Stopped' : 'Draft Complete'}</Text>
                         <Text style={styles.draftEndedSub}>
@@ -115,8 +114,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                         </Text>
                         <MotionPressable
                             style={styles.nominateButton}
-                            onPress={() => navigateBackToDraftList(draft.isMock)}
-                            pressedScale={0.96}
+                            onPress={() => navigateBackToDraftList()}
                         >
                             <Text style={styles.nominateButtonText}>Back to League</Text>
                         </MotionPressable>
@@ -130,7 +128,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
         <>
             <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
             <ScreenFrame style={styles.container} edges={['bottom']}>
-            <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+            <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
                 {isCommissioner && isDesktop ? (
                     <DraftAdminBar
                         disabled={adminBusy || !controller.actionsReady}
