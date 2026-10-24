@@ -115,10 +115,10 @@ export function GameLogTable({
                 <Pressable
                     style={styles.loadMoreBtn}
                     onPress={onLoadMore}
-                    disabled={loadingMore}
+                    disabled={loadingMore || loading}
                     accessibilityRole="button"
                     accessibilityLabel="Load more games"
-                    accessibilityState={{ disabled: loadingMore, busy: loadingMore }}
+                    accessibilityState={{ disabled: loadingMore || loading, busy: loadingMore || loading }}
                 >
                     <Text style={styles.loadMoreText}>{loadingMore ? 'Loading…' : 'Load more games'}</Text>
                 </Pressable>

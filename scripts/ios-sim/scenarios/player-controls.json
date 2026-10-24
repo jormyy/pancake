@@ -1,0 +1,110 @@
+[
+  {
+    "name": "player-controls-light",
+    "group": "player-controls",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Points"
+        },
+        "expected": {
+          "selector": "[aria-label='Sort: Points']"
+        }
+      },
+      {
+        "name": "availability",
+        "action": {
+          "sequence": [
+            {
+              "tapPrefix": "Availability:"
+            },
+            {
+              "tap": "On waivers"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Availability: On waivers']"
+        }
+      },
+      {
+        "name": "results",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "[aria-label='Claim {{waiverPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-controls-dark",
+    "group": "player-controls",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Points"
+        },
+        "expected": {
+          "selector": "[aria-label='Sort: Points']"
+        }
+      },
+      {
+        "name": "availability",
+        "action": {
+          "sequence": [
+            {
+              "tapPrefix": "Availability:"
+            },
+            {
+              "tap": "On waivers"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Availability: On waivers']"
+        }
+      },
+      {
+        "name": "results",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "[aria-label='Claim {{waiverPlayer.display_name}}']"
+        }
+      }
+    ]
+  }
+]

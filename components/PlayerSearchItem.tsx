@@ -1,12 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native'
-import { memo, useState } from 'react'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
+import { memo } from 'react'
 import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
-import { Avatar } from '@/components/Avatar'
+import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -59,8 +59,6 @@ function PlayerSearchItemImpl({
     const isFA = !owned && !isWaiver
     const canAdd = currentMemberId && (isFA || isWaiver)
     const blockedReason = isWaiver ? null : addBlockedReason
-    const [headshotError, setHeadshotError] = useState(false)
-    const headshotUri = playerHeadshotUrl(item.nba_id)
     const projectionGame = formatProjectionGame({
         projection_date: item.projection_date ?? null,
         next_game_date: item.projection_date ?? null,
@@ -131,21 +129,7 @@ function PlayerSearchItemImpl({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
-                {headshotUri && !headshotError ? (
-                    <Image
-                        source={{ uri: headshotUri }}
-                        style={[styles.headshot, denseProjectionRow && styles.headshotDense]}
-                        onError={() => setHeadshotError(true)}
-                    />
-                ) : (
-                    <View style={styles.leadingCenter}>
-                        <Avatar
-                            name={item.display_name}
-                            color={colors.bgMuted}
-                            size={36}
-                        />
-                    </View>
-                )}
+                <PlayerAvatar name={item.display_name} nbaId={item.nba_id} color={colors.bgMuted} size={HEADSHOT} />
 
                 <View style={styles.playerInfo}>
                     {denseProjectionRow ? (
@@ -163,9 +147,9 @@ function PlayerSearchItemImpl({
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
-                        {item.years_exp != null && (
+                        {item.years_exp === 0 && (
                             <Text style={[styles.experienceText, item.years_exp === 0 && { color: colors.success }]}>
-                                {item.years_exp === 0 ? 'Rookie' : `Yr ${item.years_exp + 1}`}
+                                Rookie
                             </Text>
                         )}
                         {item.injury_status ? (
@@ -180,7 +164,6 @@ function PlayerSearchItemImpl({
                         ) : null}
                         {denseProjectionRow ? statusBadge : null}
                     </View>
-                    <Text style={styles.liveLabel} numberOfLines={1}>{item.playing_now ? 'Playing now' : ' '}</Text>
                     {!showStats && showCompactStats ? (
                         <View style={styles.compactStats}>
                             {compactStats.map((stat) => (
@@ -200,7 +183,7 @@ function PlayerSearchItemImpl({
                 {!showStats && !denseProjectionRow ? (
                     <View style={styles.fpCol}>
                         <Text style={styles.fpValue} numberOfLines={1}>{formatPoints(stats[0]?.value)}</Text>
-                        <Text style={styles.fpLabel}>FP</Text>
+                        <Text style={[styles.fpLabel, item.playing_now && styles.liveLabel]}>{item.playing_now ? 'LIVE' : 'FP'}</Text>
                         {statusBadge}
                     </View>
                 ) : null}
@@ -283,8 +266,8 @@ function StatCell({
     )
 }
 
-const ADD_COL_W = 76
-const HEADSHOT = 36
+const ADD_COL_W = controlSize.minTouch + spacing['4xl']
+const HEADSHOT = spacing['4xl'] + spacing.xs
 
 /** Geometry the stat-table header mirrors so its columns line up with rows. */
 export const playerRowGeometry = {
@@ -303,10 +286,10 @@ const styles = StyleSheet.create({
     },
     addCol: { width: ADD_COL_W, alignItems: 'center' },
     // The 44px target wraps a smaller circle so rows stay short.
-    addTarget: { width: 76, height: 44, alignItems: 'center', justifyContent: 'center' },
+    addTarget: { width: ADD_COL_W, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     addBtn: {
-        width: 72,
-        height: 36,
+        width: ADD_COL_W - spacing.xs,
+        height: HEADSHOT,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.primaryLight,
@@ -331,16 +314,6 @@ const styles = StyleSheet.create({
     },
     playerCardNarrow: { paddingRight: spacing.lg },
     playerCardDense: { paddingVertical: spacing.sm, gap: spacing.md },
-    headshot: {
-        width: HEADSHOT,
-        height: HEADSHOT,
-        borderRadius: HEADSHOT / 2,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        alignSelf: 'center',
-    },
-    leadingCenter: { alignSelf: 'center' },
-    headshotDense: { width: HEADSHOT, height: HEADSHOT, borderRadius: HEADSHOT / 2 },
     playerInfo: { flex: 1, minWidth: 0 },
     playerName: { ...textStyles.rowTitle },
     playerNameDense: { flexShrink: 1 },
@@ -359,7 +332,7 @@ const styles = StyleSheet.create({
     },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize['2sm'], color: colors.textMuted },
-    liveLabel: { fontSize: fontSize['2xs'], lineHeight: 14, height: 14, color: colors.success, fontWeight: fontWeight.bold },
+    liveLabel: { color: colors.success, fontWeight: fontWeight.bold },
     compactStats: { flexDirection: 'row', flexWrap: 'wrap', columnGap: spacing.md, rowGap: spacing.xs, marginTop: spacing.sm },
     compactStat: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
     compactStatLabel: {
@@ -376,9 +349,9 @@ const styles = StyleSheet.create({
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    fpCol: { alignItems: 'flex-end', width: 64, gap: spacing.xxs },
+    fpCol: { alignItems: 'flex-end', width: spacing['4xl'] * 2, gap: spacing.xxs },
     fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
-    fpLabel: { ...textStyles.tableHeader, marginTop: -spacing.xxs },
+    fpLabel: { ...textStyles.tableHeader, width: '100%', textAlign: 'right', marginTop: -spacing.xxs },
     statsGrid: {
         width: 10 * table.statColWidth,
         flexDirection: 'row',

@@ -1,0 +1,568 @@
+[
+  {
+    "name": "player-list-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-filters-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Show filters"
+        },
+        "expected": {
+          "dialog": "Filters"
+        }
+      },
+      {
+        "action": {
+          "tapPrefix": "Sort:"
+        },
+        "expected": {
+          "dialog": "Sort"
+        },
+        "name": "sort"
+      }
+    ]
+  },
+  {
+    "name": "player-search-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-detail-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{freeAgent.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-roster-detail-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/roster"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
+        }
+      },
+      {
+        "action": {
+          "tap": "View {{rosterPlayer.display_name}} player page"
+        },
+        "expected": {
+          "route": "/player/{{rosterPlayer.id}}",
+          "selector": "select[aria-label='Season']"
+        },
+        "name": "page"
+      }
+    ]
+  },
+  {
+    "name": "player-season-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{rosterPlayer.id}}"
+      },
+      {
+        "select": "Season",
+        "value": "2027",
+        "option": "2026\u201327"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "select": "Season",
+          "value": "2026",
+          "option": "2025\u201326"
+        },
+        "expected": {
+          "value": {
+            "selector": "select[aria-label='Season']",
+            "equals": "2026"
+          },
+          "text": "Recent games"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-drop-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-claim-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{waiverPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Submit waiver claim']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} to drop"
+        },
+        "expected": {
+          "selector": "[aria-label='Submit waiver claim']:not([aria-disabled='true'])"
+        },
+        "name": "select-drop"
+      }
+    ]
+  },
+  {
+    "name": "player-out-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{outPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{outPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{outPlayer.id}}",
+          "selector": "[aria-label='Add to IR {{outPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-return-light",
+    "group": "player-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{rosterPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/player/{{rosterPlayer.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-list-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Players"
+        },
+        "expected": {
+          "route": "/players",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-filters-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Show filters"
+        },
+        "expected": {
+          "dialog": "Filters"
+        }
+      },
+      {
+        "action": {
+          "tapPrefix": "Sort:"
+        },
+        "expected": {
+          "dialog": "Sort"
+        },
+        "name": "sort"
+      }
+    ]
+  },
+  {
+    "name": "player-search-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-detail-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{freeAgent.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-roster-detail-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/roster"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
+        }
+      },
+      {
+        "action": {
+          "tap": "View {{rosterPlayer.display_name}} player page"
+        },
+        "expected": {
+          "route": "/player/{{rosterPlayer.id}}",
+          "selector": "select[aria-label='Season']"
+        },
+        "name": "page"
+      }
+    ]
+  },
+  {
+    "name": "player-season-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{rosterPlayer.id}}"
+      },
+      {
+        "select": "Season",
+        "value": "2027",
+        "option": "2026\u201327"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "select": "Season",
+          "value": "2026",
+          "option": "2025\u201326"
+        },
+        "expected": {
+          "value": {
+            "selector": "select[aria-label='Season']",
+            "equals": "2026"
+          },
+          "text": "Recent games"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-drop-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-claim-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{waiverPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Submit waiver claim']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} to drop"
+        },
+        "expected": {
+          "selector": "[aria-label='Submit waiver claim']:not([aria-disabled='true'])"
+        },
+        "name": "select-drop"
+      }
+    ]
+  },
+  {
+    "name": "player-out-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{outPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{outPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{outPlayer.id}}",
+          "selector": "[aria-label='Add to IR {{outPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "player-return-dark",
+    "group": "player-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{rosterPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/player/{{rosterPlayer.id}}",
+          "selector": "select[aria-label='Season']"
+        }
+      }
+    ]
+  }
+]

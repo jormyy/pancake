@@ -145,3 +145,13 @@ it('keeps Add to IR visible during roster refresh and passes the injury designat
     await act(async () => action().props.onPress())
     expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A', injury_status: 'Out' })
 })
+
+it("opens a trade for another team's player from the main action", async () => {
+    state.roster.mockResolvedValue({ status: { status: 'taken', ownerTeamName: 'Other team' }, transactionState: null, claimPending: false })
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const trade = screen!.root.findByProps({ accessibilityLabel: 'Trade Player A' })
+    expect(trade.props.disabled).toBe(false)
+    await act(async () => trade.props.onPress())
+    expect(state.push).toHaveBeenCalledWith('/(modals)/propose-trade?requestPlayerId=player')
+    expect(state.add).not.toHaveBeenCalled()
+})

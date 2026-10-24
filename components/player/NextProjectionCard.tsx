@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { formatProjectionGame, projectionFreshnessLabel, type LeagueProjectionRow } from '@/lib/projections'
 import { todayET } from '@/lib/shared/dates'
@@ -33,7 +33,7 @@ export function NextProjectionCard({ projection, loading = false, liveGame, live
         next.projection_status, next.projection_source_label,
         next.projection_is_fresh === false ? 'Outdated' : null,
         projectionFreshnessLabel(next.projection_fetched_at),
-    ].filter(Boolean).join(' · ') : loading ? 'Loading next game…' : 'No upcoming game available.'
+    ].filter(Boolean).join(' · ') : loading ? '' : 'No upcoming game available.'
     return (
         <View style={styles.card} aria-busy={loading}>
             <View style={styles.row}>
@@ -53,12 +53,12 @@ export function NextProjectionCard({ projection, loading = false, liveGame, live
 }
 
 const styles = StyleSheet.create({
-    card: { height: 112, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous', justifyContent: 'space-between' },
+    card: { height: table.rowHeight * 2, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous', justifyContent: 'space-between' },
     row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     copy: { flex: 1, minWidth: 0 },
-    meta: { ...textStyles.meta, marginTop: spacing.xs, minHeight: 32 },
-    scoreBox: { alignItems: 'flex-end', minWidth: 64 },
-    score: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
-    note: { ...textStyles.meta, height: 18 },
-    live: { ...textStyles.meta, color: colors.success, fontWeight: fontWeight.semibold, height: 18 },
+    meta: { ...textStyles.meta, marginTop: spacing.xs, minHeight: textStyles.meta.lineHeight * 2 },
+    scoreBox: { alignItems: 'flex-end', width: spacing['4xl'] * 2 },
+    score: { width: '100%', textAlign: 'right', fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
+    note: { ...textStyles.meta, height: textStyles.meta.lineHeight },
+    live: { ...textStyles.meta, color: colors.success, fontWeight: fontWeight.semibold, height: textStyles.meta.lineHeight },
 })

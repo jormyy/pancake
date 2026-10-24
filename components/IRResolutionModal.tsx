@@ -1,11 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { colors, fontWeight, spacing, textStyles } from '@/constants/tokens'
-import { Avatar } from '@/components/Avatar'
+import { colors, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
-import { playerHeadshotUrl } from '@/lib/format'
 
 type Phase = 'ineligible' | 'drop-to-activate'
 
@@ -24,11 +23,11 @@ function PlayerLine({ player, action }: { player: RosterPlayer; action: ReactNod
     const p = player.players
     return (
         <View style={styles.row}>
-            <Avatar
+            <PlayerAvatar
                 name={p.display_name}
-                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                nbaId={p.nba_id}
                 color={colors.bgMuted}
-                size={36}
+                size={spacing['4xl'] + spacing.xs}
             />
             <View style={styles.info}>
                 <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
@@ -164,14 +163,7 @@ export function IRResolutionModal({
                 </>
             )}
 
-            <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={handleRequestClose}
-                disabled={loadingId !== null}
-                fullWidth
-                style={styles.cancel}
-            />
+
         </Sheet>
     )
 }
@@ -183,12 +175,11 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 56,
+        minHeight: table.rowHeight,
         paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
         gap: spacing.md,
     },
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    cancel: { marginTop: spacing.md },
 })

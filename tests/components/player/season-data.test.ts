@@ -46,6 +46,14 @@ describe('one season stat source', () => {
         expect(result.avgFantasyPoints).toBe(games.reduce((sum, game) => sum + result.fantasyPointsMap!.get(game.gameId)!, 0) / games.length)
     })
 
+    it.each(['InProgress', 'in_progress', 'inprogress'])('identifies the server live status %s', status => {
+        const row = seasonLine()
+        const result = summarizePlayerSeason([{ ...row, nba_games: { ...row.nba_games, status } }], 'LAL', { points: 1 })
+        expect(result.includesLive).toBe(true)
+        expect(result.games[0].live).toBe(true)
+        expect(result.avgFantasyPoints).toBe(row.points)
+    })
+
     it('does not invent averages when every stat line is a DNP', () => {
         const result = summarizePlayerSeason([seasonLine({ did_not_play: true })], 'LAL', null)
         expect(result.averages).toBeNull()

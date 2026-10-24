@@ -21,7 +21,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { useAuth } from '@/hooks/use-auth'
 import { getRoster, RosterPlayer } from '@/lib/roster'
-import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
+import { isIneligibleIR } from '@/lib/format'
 import { getPlayer } from '@/lib/players'
 import { claimProcessDateLabel, claimProcessTimeLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
@@ -32,7 +32,7 @@ import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
-import { Avatar } from '@/components/Avatar'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
 
@@ -277,7 +277,7 @@ export default function ClaimPlayerScreen() {
             <View style={styles.irChoice}>
                 <View style={styles.claimPlayerCopy}>
                     <Text style={styles.bidLabel}>Place on IR</Text>
-                    <Text style={styles.claimMeta}>If IR is unavailable when awarded, active roster space is required.</Text>
+                    <Text style={styles.claimMeta}>Needs active roster space if IR becomes unavailable.</Text>
                 </View>
                 <Switch value={toIr} onValueChange={value => setIRChoice({ owner: ownerKey, value })}
                     accessibilityLabel="Place on IR" disabled={submitting} />
@@ -288,14 +288,13 @@ export default function ClaimPlayerScreen() {
     function renderClaimSummary() {
         return (
             <View style={styles.claimCard}>
-                <Text style={styles.claimLabel}>Claiming</Text>
                 <View style={styles.claimPlayerRow}>
-                    <Avatar
+                    <PlayerAvatar
                         name={player?.display_name ?? 'Player'}
-                        uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
+                        nbaId={player?.nba_id}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
-                        size={44}
+                        size={controlSize.minTouch}
                     />
                     <View style={styles.claimPlayerCopy}>
                         <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
@@ -342,12 +341,7 @@ export default function ClaimPlayerScreen() {
                     <Text style={styles.sectionTitle}>
                         {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : 'DROP A PLAYER (required)'}
                     </Text>
-                    <Text style={styles.sectionSub}>
-                        {compactDropMode
-                            ? `Pick who goes if the claim for ${player?.display_name ?? 'this player'} wins.`
-                            : 'Your roster is full. Pick who goes if this claim wins.'}
-                    </Text>
-                </View>
+                                    </View>
                 <View style={styles.rosterList}>{renderRosterDropRows()}</View>
             </View>
         )
@@ -365,12 +359,12 @@ export default function ClaimPlayerScreen() {
                     accessibilityLabel={`Select ${item.players.display_name} to drop`}
                     accessibilityState={{ selected: isSelected }}
                 >
-                    <Avatar
+                    <PlayerAvatar
                         name={item.players.display_name}
-                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                        nbaId={item.players.nba_id}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
-                        size={32}
+                        size={spacing['4xl']}
                     />
                     <View style={styles.rosterInfo}>
                         <Text style={styles.rosterName} numberOfLines={1}>{item.players.display_name}</Text>
@@ -404,12 +398,12 @@ export default function ClaimPlayerScreen() {
                     </Text>
                     {ineligibleIR.map((rp) => (
                         <View key={rp.id} style={styles.blockPlayerRow}>
-                            <Avatar
+                            <PlayerAvatar
                                 name={rp.players.display_name}
-                                uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
+                                nbaId={rp.players.nba_id}
                                 color={colors.bgMuted}
                                 textColor={colors.textSecondary}
-                                size={32}
+                                size={spacing['4xl']}
                             />
                             <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
                             <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
@@ -511,9 +505,9 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: layout.formMaxWidth,
         alignSelf: 'center',
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.xl,
-        gap: spacing.lg,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.lg,
+        gap: spacing.md,
     },
     bodyContentWide: { maxWidth: layout.contentMaxWidth },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -547,7 +541,6 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         gap: spacing.md,
     },
-    claimLabel: { ...textStyles.sectionLabel, color: colors.primaryDark },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     claimName: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
@@ -575,7 +568,6 @@ const styles = StyleSheet.create({
     dropSection: { gap: spacing.md },
     dropHeading: { gap: spacing.xs },
     sectionTitle: { ...textStyles.sectionLabel, textTransform: 'none' as const },
-    sectionSub: { ...textStyles.meta },
     rosterList: {
         borderWidth: 1,
         borderColor: colors.borderLight,

@@ -18,6 +18,7 @@ import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
+import { playerDetailRoute } from '@/components/player/navigation'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
@@ -301,7 +302,7 @@ function PlayerSearchSection() {
         else void quickAddHandleAdd(player)
     }, [online, availabilityUpdating, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
-        push(`/player/${player.id}`)
+        push(playerDetailRoute(player))
     }, [push])
     const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
         <PlayerSearchItem
@@ -549,8 +550,8 @@ function PlayerSearchSection() {
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
-                title={`Make room for\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
-                subtitle={quickAdd.irMoveCandidates.length ? "Move an Out player to IR or select a drop." : "Your roster is full. Select a player to drop."}
+                title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
+                subtitle="Roster full"
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping}
                 onDrop={quickAdd.handleDropAndAdd}

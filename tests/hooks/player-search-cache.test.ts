@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@shopify/flash-list', () => ({}))
+vi.mock('@/hooks/use-live-stats', () => ({ readCachedLiveTeams: () => null }))
 vi.mock('react-native', () => ({
     AppState: {
         currentState: 'active',

@@ -286,6 +286,16 @@ onSessionCachesCleared(() => {
     for (const key of listenersByScope.keys()) notify(key, EMPTY_SNAPSHOT)
 })
 
+export function readCachedLiveTeams(leagueId: string): Set<string> | null {
+    let latest: Snapshot | null = null
+    for (const [key, scope] of scopes) {
+        if (scope.leagueId !== leagueId || scope.date !== todayET() || scope.generation !== sessionGeneration() || !snapshotFresh(key)) continue
+        const snapshot = snapshots.get(key)!
+        if (!latest || snapshot.fetchedAt > latest.fetchedAt) latest = snapshot
+    }
+    return latest ? new Set(latest.todaysGames.filter(game => game.status === 'InProgress').flatMap(game => [game.home_team, game.away_team])) : null
+}
+
 export function useLiveStats(selectedDate: string, options?: LiveStatsOptions) {
     const key = JSON.stringify([selectedDate, options?.scope ?? '', [...new Set(options?.playerIds ?? [])].sort(), sessionGeneration(), options?.leagueId, options?.seasonId])
     const scope = useMemo<Scope>(() => {

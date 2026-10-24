@@ -1,12 +1,11 @@
 import { View, Text, StyleSheet } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
-import { colors, spacing, textStyles } from '@/constants/tokens'
-import { Avatar } from '@/components/Avatar'
+import { colors, spacing, table, textStyles } from '@/constants/tokens'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { PosTag } from '@/components/PosTag'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
-import { playerHeadshotUrl } from '@/lib/format'
 
 type Props = {
     visible: boolean
@@ -29,7 +28,6 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
             {irMoveCandidates.length > 0 && onMoveToIR ? (
                 <View style={styles.list}>
-                    <Text style={styles.subtitle}>Move an Out player of yours to IR</Text>
                     {irMoveCandidates.map(rp => (
                         <View key={rp.id} style={styles.row}>
                             <Text style={[textStyles.rowTitle, styles.info]} numberOfLines={1}>{rp.players.display_name}</Text>
@@ -46,11 +44,11 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                     const ep = getEligiblePositions(p)
                     return (
                         <View key={rp.id} style={styles.row}>
-                            <Avatar
+                            <PlayerAvatar
                                 name={p.display_name}
-                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                                nbaId={p.nba_id}
                                 color={colors.bgMuted}
-                                size={36}
+                                size={spacing['4xl'] + spacing.xs}
                             />
                             <View style={styles.info}>
                                 <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
@@ -72,15 +70,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                     )
                 })}
             </View>
-            <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={onCancel}
-                disabled={dropping !== null}
-                accessibilityLabel="Cancel drop player"
-                fullWidth
-                style={styles.cancel}
-            />
+
         </Sheet>
     )
 }
@@ -91,7 +81,7 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 56,
+        minHeight: table.rowHeight,
         paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
@@ -99,5 +89,4 @@ const styles = StyleSheet.create({
     },
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    cancel: { marginTop: spacing.md },
 })
