@@ -1,4 +1,4 @@
-import { notifyMember } from '../_shared/notifications.ts'
+import { queueRookiePickNotification } from '../_shared/notificationDraft.ts'
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
@@ -399,24 +399,7 @@ async function commissionerSnakePick(
   const response = await snakePickResponse(memberId, playerId, rpcData)
   const result = parseSnakePickResult(rpcData)
   if (!result.is_mock) {
-    const { data: pickedPlayer } = await supabase
-      .from('players')
-      .select('display_name')
-      .eq('id', playerId)
-      .single()
-    await notifyMember(
-      memberId,
-      'Rookie Draft Pick Made',
-      `${pickedPlayer?.display_name ?? 'A player'} has been added to your roster.`,
-      {
-        draftId,
-        playerId,
-        pickId: result.pick.id,
-        overallPick: result.pick.overall_pick,
-        round: result.pick.round,
-      },
-      'draft',
-    ).catch(console.error)
+    await queueRookiePickNotification(draftId, memberId, playerId, result.pick.id).catch(console.error)
   }
   return response
 }

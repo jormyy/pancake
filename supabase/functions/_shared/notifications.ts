@@ -1,5 +1,5 @@
 import { supabase } from './supabase.ts'
-import { createNotifyMember, createNotifyMembers } from './notificationDelivery.ts'
+import { createNotifyMembers } from './notificationDelivery.ts'
 import type { VapidKeys } from './webPush.ts'
 import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
@@ -35,26 +35,6 @@ export const webPushFanout = createWebPushFanout({
     return { data, error }
   },
   prune: pruneWebPushSubscriptions,
-})
-
-export const notifyMember = createNotifyMember({
-  member: async (memberId) => {
-    const { data, error } = await supabase
-      .from('league_members')
-      .select('user_id')
-      .eq('id', memberId)
-      .single()
-    return { data, error }
-  },
-  preferences: async (userId) => {
-    const { data, error } = await supabase
-      .from('notification_preferences')
-      .select('trade_enabled, waiver_enabled, draft_enabled, activity_enabled')
-      .eq('user_id', userId)
-      .maybeSingle()
-    return { data, error }
-  },
-  webPush: webPushFanout,
 })
 
 export const notifyMembers = createNotifyMembers({

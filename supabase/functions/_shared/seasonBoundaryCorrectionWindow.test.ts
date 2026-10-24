@@ -4,7 +4,7 @@ Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:9')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'boundary-date-test')
 const { runSeasonBoundary } = await import('./seasonBoundary.ts')
 
-Deno.test('generation waits for six ET dates after the last available regular game and ignores recent finalization', async () => {
+Deno.test('generation waits for two ET dates after the last available regular game and ignores recent finalization', async () => {
   const nativeFetch = globalThis.fetch
   let finalizedAt = '2026-02-07T00:00:00Z'
   let games = true
@@ -22,19 +22,20 @@ Deno.test('generation waits for six ET dates after the last available regular ga
       { nba_game_id: '001fixture', game_date: '2026-02-07', status: 'Final', game_status_text: null },
       { nba_game_id: '002cancelled', game_date: '2026-02-07', status: 'Final', game_status_text: 'Cancelled' },
     ] : [])
+    if (table === 'get_stale_score_weeks') return Response.json([])
     if (table === 'apply_season_boundary_after_grace') { calls++; return Response.json({ applied: true }) }
     throw new Error(`Unexpected request ${url}`)
   }
   try {
-    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-12T04:59:59Z')), [{ leagueId: 'league', actions: [] }])
+    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-08T04:59:59Z')), [{ leagueId: 'league', actions: [] }])
     assert.equal(calls, 0)
-    finalizedAt = '2026-02-12T04:59:00Z'
-    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-12T05:00:00Z')), [{ leagueId: 'league', actions: ['bracket-generated'] }])
+    finalizedAt = '2026-02-08T04:59:00Z'
+    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-08T05:00:00Z')), [{ leagueId: 'league', actions: ['bracket-generated'] }])
     assert.equal(calls, 1)
     games = false
-    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-12T05:00:00Z')), [{ leagueId: 'league', actions: [] }])
+    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-08T05:00:00Z')), [{ leagueId: 'league', actions: [] }])
     assert.equal(calls, 1)
-    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-13T05:00:00Z')), [{ leagueId: 'league', actions: ['bracket-generated'] }])
+    assert.deepEqual(await runSeasonBoundary(new Date('2026-02-09T05:00:00Z')), [{ leagueId: 'league', actions: ['bracket-generated'] }])
     assert.equal(calls, 2)
   } finally { globalThis.fetch = nativeFetch }
 })

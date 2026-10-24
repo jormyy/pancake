@@ -22,7 +22,6 @@ DECLARE
   v_input_token jsonb;
   v_round int;
   v_last_game_date date;
-  v_stat_correction_window_days constant int := 4;
 BEGIN
   IF p_action IS NULL OR p_action NOT IN ('generate', 'advance', 'rollover') OR p_reference_at IS NULL THEN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
@@ -72,7 +71,7 @@ BEGIN
        AND private.lineup_game_available(game.status, game.game_status_text)
      WHERE week.season_year = v_year AND week.week_number = v_start - 1;
     IF v_last_game_date IS NULL OR (p_reference_at AT TIME ZONE 'America/New_York')::date
-        <= v_last_game_date + v_stat_correction_window_days + 1 THEN
+        <= v_last_game_date + 1 THEN
       RETURN jsonb_build_object('applied', false);
     END IF;
   END IF;
@@ -86,7 +85,7 @@ BEGIN
     SELECT input_token INTO v_input_token FROM private.score_week_certificates
       WHERE league_season_id = p_league_season_id AND week_number = v_week;
     IF NOT private.lock_current_score_inputs(p_league_season_id, v_week, v_input_token) THEN
-      RETURN jsonb_build_object('applied', false);
+      RETURN jsonb_build_object('applied', false, 'reason', 'stale_score_inputs', 'retryable', true);
     END IF;
   END LOOP;
 

@@ -7,6 +7,7 @@ import { resolveCdnPlayers } from './playerResolver.ts'
 import { dateFromETDate } from './scoreShared.ts'
 import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
+import type { CdnGamePlayer } from './cdnGameFetch.ts'
 
 export type StatsSyncGame = Pick<
   Database['public']['Tables']['nba_games']['Row'],
@@ -20,7 +21,7 @@ const FINAL_NUMERIC_STATS = [
   'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals',
   'threePointersAttempted', 'threePointersMade', 'turnovers',
 ] as const satisfies readonly (keyof NBABoxScorePlayer['statistics'])[]
-type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
+type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert'] & { is_home?: boolean | null }
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games
@@ -171,15 +172,17 @@ export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameI
 export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
-): Promise<Array<{ player: NBABoxScorePlayer; playerId: string }>> {
+): Promise<Array<{ player: CdnGamePlayer; playerId: string }>> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
-  const resolved: Array<{ player: NBABoxScorePlayer; playerId: string }> = []
+  const resolved: Array<{ player: CdnGamePlayer; playerId: string }> = []
   const playerIds = await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
   })))
   for (const [index, player] of allPlayers.entries()) {
     const playerId = playerIds[index]
-    if (playerId && player.statistics) resolved.push({ player, playerId })
+    if (playerId && player.statistics) {
+      resolved.push({ player: { ...player, isHome: index < (boxScore.homeTeam?.players?.length ?? 0) }, playerId })
+    }
   }
   if (boxScore.gameStatus === 3 && resolved.length !== allPlayers.length) {
     throw new Error(`Final box score has unresolved player stats for ${providerGameId}`)
@@ -207,7 +210,7 @@ export async function saveGameStats(
 }
 
 export function buildStatRow(
-  p: NBABoxScorePlayer,
+  p: CdnGamePlayer,
   playerId: string,
   gameId: string,
   seasonYear: number,
@@ -235,6 +238,7 @@ export function buildStatRow(
   return {
     player_id: playerId,
     game_id: gameId,
+    is_home: p.isHome ?? null,
     season_year: seasonYear,
     week_number: weekNumber,
     minutes_played: minutesPlayed,

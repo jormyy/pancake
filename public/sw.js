@@ -295,6 +295,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification('Pancake', {
+      tag: 'pancake',
       body: 'Open Pancake to check for updates.',
       icon: '/pwa-192.png',
       badge: '/pwa-192.png',

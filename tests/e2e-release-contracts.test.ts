@@ -48,6 +48,25 @@ const SHELL_HTML =
   '</body></html>'
 
 describe('release E2E contracts', () => {
+  it('uses one notification tag so repeated pushes replace the visible notification', async () => {
+    const listeners = new Map<string, (event: { waitUntil: (pending: Promise<unknown>) => void }) => void>()
+    const visible = new Map<string, unknown>()
+    let displayed = 0
+    runInNewContext(await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8'), { self: {
+      addEventListener: (name: string, listener: (event: { waitUntil: (pending: Promise<unknown>) => void }) => void) => listeners.set(name, listener),
+      registration: { showNotification: async (_title: string, options: { tag?: string; renotify?: boolean }) => {
+        displayed++
+        expect(options.renotify).not.toBe(true)
+        visible.set(options.tag ?? String(displayed), options)
+      } },
+    } })
+    const pending: Promise<unknown>[] = []
+    for (let index = 0; index < 2; index++) listeners.get('push')!({ waitUntil: task => pending.push(task) })
+    await Promise.all(pending)
+    expect(displayed).toBe(2)
+    expect([...visible.keys()]).toEqual(['pancake'])
+  })
+
   it('rejects mixed local and hosted E2E data targets', () => {
     expect(() => requireEnv({
       supabaseUrl: 'http://127.0.0.1:54321',

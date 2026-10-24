@@ -2,27 +2,29 @@ import { describe, expect, it, vi } from 'vitest'
 import { getPlayerSeasonLines, summarizePlayerSeason } from '@/components/player/season-data'
 import { seasonLine } from './season-fixtures'
 
-const query = vi.hoisted(() => ({ select: vi.fn(), eq: vi.fn(), like: vi.fn(), order: vi.fn(), limit: vi.fn(), from: vi.fn() }))
+const query = vi.hoisted(() => ({ select: vi.fn(), eq: vi.fn(), like: vi.fn(), order: vi.fn(), limit: vi.fn(), returns: vi.fn(), from: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: query.from } }))
 
 describe('one season stat source', () => {
     it.each([
-        ['LAL', 'vs BOS'], ['BOS', '@ LAL'], ['DEN', 'BOS @ LAL'], [null, 'BOS @ LAL'],
-    ])('labels the matchup for current team %s without guessing past ownership', (team, opponent) => {
-        const result = summarizePlayerSeason([seasonLine()], team, null)
+        [true, 'DEN', 'vs BOS'], [false, 'LAL', '@ LAL'], [null, 'BOS', 'BOS @ LAL'], [undefined, 'LAL', 'BOS @ LAL'],
+    ])('uses the saved game side %s after a trade to %s', (isHome, team, opponent) => {
+        const result = summarizePlayerSeason([{ ...seasonLine(), is_home: isHome }], team, null)
         expect(result.games[0].opponent).toBe(opponent)
     })
 
     it('uses one bounded player query with live status and the same regular-season scope as scoring', async () => {
-        const chain = { select: query.select, eq: query.eq, like: query.like, order: query.order, limit: query.limit }
+        const chain = { select: query.select, eq: query.eq, like: query.like, order: query.order, limit: query.limit, returns: query.returns }
         query.from.mockReturnValue(chain)
         for (const fn of [query.select, query.eq, query.like, query.order]) fn.mockReturnValue(chain)
-        query.limit.mockResolvedValue({ data: [seasonLine()], error: null })
+        query.limit.mockReturnValue(chain)
+        query.returns.mockResolvedValue({ data: [seasonLine()], error: null })
         expect(await getPlayerSeasonLines('player', 2026)).toHaveLength(1)
         expect(query.from).toHaveBeenCalledExactlyOnceWith('player_game_stats')
         expect(query.eq.mock.calls).toEqual([['player_id', 'player'], ['season_year', 2026]])
         expect(query.like).toHaveBeenCalledWith('nba_games.nba_game_id', '002%')
         expect(query.select.mock.calls[0][0]).toContain('status, game_time, started_at')
+        expect(query.select.mock.calls[0][0]).toContain('is_home')
         expect(query.limit).toHaveBeenCalledWith(100)
     })
 

@@ -18,9 +18,13 @@ BEGIN
   VALUES(season,league,2192,true);
   SELECT COALESCE((SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory'),0) INTO prior_revision;
   INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body)
-  VALUES(league,season,member,'trade_offered','Trade offered','Offer created') RETURNING id INTO activity;
+  VALUES(league,season,member,'trade_accepted','Trade accepted','Trade completed') RETURNING id INTO activity;
   IF NOT EXISTS(SELECT 1 FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory' AND hint.revision>prior_revision) THEN
     RAISE EXCEPTION 'New league activity does not publish an inventory hint';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory'
+    AND hint.details=jsonb_build_array(jsonb_build_object('resource','activity','season_id',season))) THEN
+    RAISE EXCEPTION 'Visible activity does not publish a scoped activity hint';
   END IF;
   SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
   UPDATE public.league_activity SET body='Offer revised' WHERE id=activity;
@@ -31,6 +35,19 @@ BEGIN
   DELETE FROM public.league_activity WHERE id=activity;
   IF NOT EXISTS(SELECT 1 FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory' AND hint.revision>prior_revision) THEN
     RAISE EXCEPTION 'Removed league activity does not publish an inventory hint';
+  END IF;
+  SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
+  SELECT league,member,event_type,'Hidden event','Hidden details'
+  FROM unnest(ARRAY['trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated','free_agent_added']) event_type;
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') <> prior_revision THEN
+    RAISE EXCEPTION 'Hidden or private activity publishes an inventory hint';
+  END IF;
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
+  VALUES(league,member,'trade_accepted','Trade accepted','Trade completed');
+  IF NOT EXISTS(SELECT 1 FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory'
+    AND hint.revision>prior_revision AND hint.details=jsonb_build_array(jsonb_build_object('resource','activity','season_id',season))) THEN
+    RAISE EXCEPTION 'Activity without a season does not use the current season';
   END IF;
 END;
 $$;

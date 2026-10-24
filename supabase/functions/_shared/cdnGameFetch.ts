@@ -1,5 +1,7 @@
 import type { NBABoxScorePlayer } from './nba.ts'
 
+export type CdnGamePlayer = NBABoxScorePlayer & { isHome?: boolean }
+
 const CDN_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
   'Accept': 'application/json, text/plain, */*',

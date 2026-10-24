@@ -39,3 +39,22 @@ Deno.test('a server failure masks the message and carries no code', async () => 
   expect(body.error, 'Internal server error', 'error')
   expect(body.code, undefined, 'code')
 })
+
+for (const code of ['PT001', 'PT002']) {
+  for (const wrapped of [false, true]) {
+    Deno.test(`${code} ${wrapped ? 'wrapped' : 'raw'} rule rejection keeps its message`, async () => {
+      const failure = { code, message: 'The league rules do not allow this change.' }
+      const { status, body } = await respond(() => { if (wrapped) throwDb(failure); throw failure })
+      expect(status, 409, 'status')
+      expect(body.error, failure.message, 'error')
+      expect(body.code, code, 'code')
+    })
+  }
+}
+
+Deno.test('an unknown PT code remains an internal error', async () => {
+  const { status, body } = await respond(() => { throw { code: 'PT999', message: 'Private database failure' } })
+  expect(status, 500, 'status')
+  expect(body.error, 'Internal server error', 'error')
+  expect(body.code, undefined, 'code')
+})

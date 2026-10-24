@@ -399,6 +399,23 @@ async function loadCertifiedMaxPossiblePoints(
     return pointsByMember
 }
 
+async function loadFinalizationWeeks(seasonYear: number, weekNumber: number, endWeek: number) {
+    if (endWeek !== weekNumber) return loadMatchupWeeks(seasonYear, weekNumber, endWeek)
+    const { data, error } = await supabase.from('season_weeks').select('week_number, week_start, week_end')
+        .eq('season_year', seasonYear).eq('week_number', weekNumber).maybeSingle()
+    if (error) throw error
+    return data ? [data] : []
+}
+
+async function hasPendingScoreGames(startDate: string, endDate: string, seasonYear: number): Promise<boolean> {
+    const { data, error } = await supabase
+        .rpc('get_score_sync_games', { p_start_date: startDate, p_end_date: endDate, p_season_year: seasonYear })
+        .select('id, nba_game_id')
+        .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
+    if (error) throw error
+    return (data ?? []).some(game => isRegularSeasonGameId(game.nba_game_id))
+}
+
 // If all games in a week are finished, mark matchups as finalized. Already
 // finalized rows are reconciled without notifications so late NBA stat
 // corrections cannot leave displayed scores, winners, max possible, and
@@ -412,15 +429,6 @@ async function finalizeWeekIfComplete(
     referenceDate: Date,
     failedRecoveryDates: ReadonlySet<string>,
 ) {
-    const { data: inputToken, error: tokenError } = await supabase.rpc('capture_score_inputs', {
-        p_league_season_id: leagueSeasonId, p_week_number: weekNumber,
-    })
-    if (tokenError) throw tokenError
-    const { data: league, error: settingsError } = await supabase.from('leagues')
-        .select('scoring_settings').eq('id', leagueId).single()
-    if (settingsError) throw settingsError
-    const settings = scoringSettingsFromJson(league.scoring_settings)
-
     // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -432,6 +440,43 @@ async function finalizeWeekIfComplete(
 
     if (!weekData) return
 
+    const roundWindows = await fetchAllPages<{ end_week_number: number | null }>((from, to) => supabase
+        .from('matchups')
+        .select('end_week_number')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', leagueSeasonId)
+        .eq('is_voided', false)
+        .eq('week_number', weekNumber)
+        .order('id')
+        .range(from, to))
+    if (!roundWindows.length) return
+    const endWeek = Math.max(...roundWindows.map(matchup => matchup.end_week_number ?? weekNumber))
+    if (roundWindows.some(matchup => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
+        throw new Error('Matchups in the same round have inconsistent end weeks.')
+    }
+    const weeks = endWeek === weekNumber
+        ? [{ ...weekData, week_number: weekNumber }]
+        : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
+    const endDate = weeks[weeks.length - 1].week_end
+    if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
+    if (await hasPendingScoreGames(weekData.week_start, endDate, seasonYear)) return
+
+    const { data: inputToken, error: tokenError } = await supabase.rpc('capture_score_inputs', {
+        p_league_season_id: leagueSeasonId, p_week_number: weekNumber,
+    })
+    if (tokenError) throw tokenError
+    const currentWeeks = await loadFinalizationWeeks(seasonYear, weekNumber, endWeek)
+    if (currentWeeks.length !== weeks.length || currentWeeks.some((week, index) =>
+        week.week_start !== weeks[index].week_start || week.week_end !== weeks[index].week_end)) {
+        throw new Error('The scoring calendar changed. Retry scoring.')
+    }
+    if (await hasPendingScoreGames(weekData.week_start, endDate, seasonYear)) return
+
+    const { data: league, error: settingsError } = await supabase.from('leagues')
+        .select('scoring_settings').eq('id', leagueId).single()
+    if (settingsError) throw settingsError
+    const settings = scoringSettingsFromJson(league.scoring_settings)
+
     const matchups = await fetchAllPages<MatchupForFinalization>((from, to) => supabase
         .from('matchups')
         .select('id, end_week_number, home_member_id, away_member_id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized, matchup_type')
@@ -442,23 +487,10 @@ async function finalizeWeekIfComplete(
         .order('id')
         .range(from, to))
     if (!matchups.length) return
-    const endWeek = Math.max(...matchups.map((matchup) => matchup.end_week_number ?? weekNumber))
-    if (matchups.some((matchup) => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
-        throw new Error('Matchups in the same round have inconsistent end weeks.')
+    if (matchups.some(matchup => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
+        throw new Error('The matchup window changed. Retry scoring.')
     }
-    const weeks = endWeek === weekNumber
-        ? [{ ...weekData, week_number: weekNumber }]
-        : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
-    const endDate = weeks[weeks.length - 1].week_end
-    if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
-    if (matchups.some((matchup) => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
-    const { data: pendingGames, error: pendingGamesError } = await supabase
-        .rpc('get_score_sync_games', { p_start_date: weekData.week_start, p_end_date: endDate, p_season_year: seasonYear })
-        .select('id, nba_game_id')
-        // Final status alone does not prove that a complete box score exists.
-        .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
-    if (pendingGamesError) throw pendingGamesError
-    if ((pendingGames ?? []).some((game) => isRegularSeasonGameId(game.nba_game_id))) return
+    if (matchups.some(matchup => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
 
     const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
     const decidableMatchups = matchups.filter((m) =>
