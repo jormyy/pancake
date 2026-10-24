@@ -10,10 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { MAX_TRADE_ITEMS, MAX_TRADE_PARTICIPANTS } from '@pancake/core'
 import { EmptyState } from '@/components/EmptyState'
-import { ErrorBanner } from '@/components/ui'
+import { Button, ErrorBanner } from '@/components/ui'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { PageHeader, usePageMetrics } from '@/components/ui/Page'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
@@ -87,6 +87,7 @@ export default function ProposeTradeScreen() {
     const [rosterPlan, setRosterPlan] = useState<TradeRosterPlan>({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
     const [submitting, setSubmitting] = useState(false)
     const [reviewing, setReviewing] = useState(false)
+    const [analyzing, setAnalyzing] = useState(false)
     // The sender tab outlives the editor so Review and back lands on the same side.
     const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
@@ -158,6 +159,7 @@ export default function ProposeTradeScreen() {
         retainedAttemptRef.current = null
         setSubmitting(false)
         setReviewing(false)
+        setAnalyzing(false)
     }, [ownerIdentity])
 
     const loadMembers = useCallback(async () => {
@@ -514,6 +516,7 @@ export default function ProposeTradeScreen() {
         onFaabChange: composer.setParticipantFaab,
         onNotesChange: setNotes,
         onExpirationDaysChange: setExpirationDays,
+        onAnalyze: () => setAnalyzing(true),
     }
 
     if (!current) {
@@ -534,6 +537,18 @@ export default function ProposeTradeScreen() {
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
     const reviewReady = !tradeAnalysis.loading
+
+    if (analyzing) return <PageFrame style={styles.container}>
+        <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
+            actions={<Button title="Review" size="sm" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
+                accessibilityLabel="Review trade proposal" />} />
+        <DeferredContent ready={!tradeAnalysis.loading}>
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+                {verdict}
+                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
+            </ScrollView>
+        </DeferredContent>
+    </PageFrame>
 
     // Review replaces the editor inside the same page, like any pushed screen,
     // instead of covering the whole window.
@@ -726,7 +741,7 @@ const styles = StyleSheet.create({
     submitButton: {
         backgroundColor: colors.primary,
         paddingHorizontal: spacing.xl,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         minWidth: 72,
@@ -738,7 +753,7 @@ const styles = StyleSheet.create({
     submitTextDisabled: { color: colors.textPlaceholder },
     modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
     modeButton: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,

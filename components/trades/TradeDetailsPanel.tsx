@@ -89,11 +89,10 @@ export function TradeDetailsPanel({
                 onPress={onAnalyze}
                 disabled={actions.acting}
                 accessibilityRole="button"
-                accessibilityLabel={`Analyze this trade in the analyzer`}
+                accessibilityLabel="Analyze this trade"
                 accessibilityState={{ disabled: actions.acting }}
-                pressedScale={0.96}
             >
-                <Text style={styles.analyzeText}>Open in Analyzer</Text>
+                <Text style={styles.analyzeText}>Analyze</Text>
             </MotionPressable>
         </View>
     )

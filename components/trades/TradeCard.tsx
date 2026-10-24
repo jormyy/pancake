@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
-import { MotionPressable, MotionView } from '@/components/Motion'
+import { MotionPressable } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
@@ -264,7 +264,6 @@ export function TradeActionButtons({
                     accessibilityRole="button"
                     accessibilityLabel={button.a11y}
                     accessibilityState={{ disabled: actions.acting }}
-                    pressedScale={0.94}
                     {...ids(button.key)}
                 >
                     <Text style={button.primary ? styles.actionTextPrimary : styles.actionTextSecondary}>{button.label}</Text>
@@ -332,7 +331,7 @@ export function TradeCard({
     )
 
     return (
-        <MotionView style={[styles.card, selected && styles.cardSelected]} preset="rise">
+        <View style={[styles.card, selected && styles.cardSelected]}>
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
@@ -345,11 +344,10 @@ export function TradeCard({
                         accessibilityState={{ disabled: acting }}
                         testID={`trade-analyze-${trade.id}`}
                         id={`trade-analyze-${trade.id}`}
-                        pressedScale={0.94}
                     >
                         <Text style={styles.analyzeBtnText}>Analyze</Text>
                     </MotionPressable>
-                    <StatusChip model={model} />
+                    {trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
                 </View>
             </View>
 
@@ -362,7 +360,6 @@ export function TradeCard({
                     accessibilityState={{ selected }}
                     testID={`trade-details-${trade.id}`}
                     id={`trade-details-${trade.id}`}
-                    pressedScale={0.99}
                 >
                     {summary}
                 </MotionPressable>
@@ -374,7 +371,7 @@ export function TradeCard({
                 actions={{ acting: acting || decisionsDisabled, onAccept, onReject, onVeto, onWithdraw }}
                 withTestIds
             />
-        </MotionView>
+        </View>
     )
 }
 
@@ -394,10 +391,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.md,
     },
-    cardOpponent: { ...textStyles.rowTitle, fontSize: fontSize.lg, lineHeight: 22, flex: 1, minWidth: 0 },
+    cardOpponent: { ...textStyles.rowTitle, fontSize: fontSize.lg, flex: 1, minWidth: 0 },
     cardHeaderControls: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 0 },
     analyzeBtn: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -437,7 +434,7 @@ const styles = StyleSheet.create({
     notes: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
     actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
     actionBtn: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         minWidth: 96,
         paddingHorizontal: spacing.xl,
         borderRadius: radii.md,

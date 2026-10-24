@@ -42,16 +42,22 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "editor",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Cancel trade proposal']) [aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
         }
       },
       {
         "name": "discard",
         "action": {
           "sequence": [
-            {
-              "tap": "Back to trade editor"
-            },
             {
               "tap": "Cancel trade proposal"
             },
@@ -110,16 +116,22 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "editor",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Cancel trade proposal']) [aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
         }
       },
       {
         "name": "discard",
         "action": {
           "sequence": [
-            {
-              "tap": "Back to trade editor"
-            },
             {
               "tap": "Cancel trade proposal"
             },

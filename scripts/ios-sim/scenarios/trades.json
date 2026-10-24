@@ -41,8 +41,7 @@
           "tapPrefix": "Show details of trade with "
         },
         "expected": {
-          "text": "{{rosterPlayer.display_name}}",
-          "selector": "[aria-label='Analyze this trade in the analyzer']"
+          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
         }
       }
     ]
@@ -85,10 +84,20 @@
     "steps": [
       {
         "action": {
-          "tap": "League trade block"
+          "open": "/trades?tab=league-block"
         },
         "expected": {
-          "text": "No league listings yet."
+          "text": "No league listings yet.",
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      },
+      {
+        "name": "legacy-camel-case",
+        "action": {
+          "open": "/trades?tab=leagueBlock"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
         }
       }
     ]
@@ -108,7 +117,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Your trade block"
+          "open": "/trades?tab=my-block"
         },
         "expected": {
           "selector": "[aria-label^='List '][aria-label$=' on trade block']"
@@ -131,10 +140,19 @@
     "steps": [
       {
         "action": {
-          "tap": "Picks"
+          "open": "/trades?tab=picks"
         },
         "expected": {
-          "text": "2028"
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "removed-analyzer",
+        "action": {
+          "open": "/trades?tab=analyzer"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
         }
       }
     ]
@@ -180,6 +198,24 @@
         "name": "analysis"
       },
       {
+        "name": "outlook",
+        "action": {
+          "tap": "Analyze trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "[aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
         "name": "request",
         "action": {
           "sequence": [
@@ -192,7 +228,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label^='Remove '][aria-label$=' for trade']"
+          "selector": "body:has([aria-label='Edit assets sent by {{otherTeam}}'][aria-selected='true']) [aria-label^='Remove '][aria-label$=' for trade']"
         }
       },
       {
@@ -200,7 +236,7 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
         },
         "name": "review"
       },
@@ -302,29 +338,29 @@
     "steps": [
       {
         "action": {
-          "tap": "Analyzer"
+          "tapPrefix": "Analyze trade from "
         },
         "expected": {
-          "selector": "[aria-label^='Analyze with ']"
+          "selector": "[aria-label='Dynasty trade analysis']"
         }
       },
       {
+        "name": "assets",
         "action": {
-          "tap": "Analyze with {{otherTeam}}"
+          "tap": "Edit assets"
         },
         "expected": {
           "selector": "[aria-label$=' for trade']"
-        },
-        "name": "assets"
+        }
       },
       {
+        "name": "result",
         "action": {
           "tap": "Select {{rosterPlayer.display_name}} for trade"
         },
         "expected": {
           "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
-        },
-        "name": "result"
+        }
       },
       {
         "name": "analysis",
@@ -379,8 +415,7 @@
           "tapPrefix": "Show details of trade with "
         },
         "expected": {
-          "text": "{{rosterPlayer.display_name}}",
-          "selector": "[aria-label='Analyze this trade in the analyzer']"
+          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
         }
       }
     ]
@@ -423,10 +458,20 @@
     "steps": [
       {
         "action": {
-          "tap": "League trade block"
+          "open": "/trades?tab=league-block"
         },
         "expected": {
-          "text": "No league listings yet."
+          "text": "No league listings yet.",
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      },
+      {
+        "name": "legacy-camel-case",
+        "action": {
+          "open": "/trades?tab=leagueBlock"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
         }
       }
     ]
@@ -446,7 +491,7 @@
     "steps": [
       {
         "action": {
-          "tap": "Your trade block"
+          "open": "/trades?tab=my-block"
         },
         "expected": {
           "selector": "[aria-label^='List '][aria-label$=' on trade block']"
@@ -469,10 +514,19 @@
     "steps": [
       {
         "action": {
-          "tap": "Picks"
+          "open": "/trades?tab=picks"
         },
         "expected": {
-          "text": "2028"
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "removed-analyzer",
+        "action": {
+          "open": "/trades?tab=analyzer"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
         }
       }
     ]
@@ -518,6 +572,24 @@
         "name": "analysis"
       },
       {
+        "name": "outlook",
+        "action": {
+          "tap": "Analyze trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "[aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
         "name": "request",
         "action": {
           "sequence": [
@@ -530,7 +602,7 @@
           ]
         },
         "expected": {
-          "selector": "[aria-label^='Remove '][aria-label$=' for trade']"
+          "selector": "body:has([aria-label='Edit assets sent by {{otherTeam}}'][aria-selected='true']) [aria-label^='Remove '][aria-label$=' for trade']"
         }
       },
       {
@@ -538,7 +610,7 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
         },
         "name": "review"
       },
@@ -640,29 +712,29 @@
     "steps": [
       {
         "action": {
-          "tap": "Analyzer"
+          "tapPrefix": "Analyze trade from "
         },
         "expected": {
-          "selector": "[aria-label^='Analyze with ']"
+          "selector": "[aria-label='Dynasty trade analysis']"
         }
       },
       {
+        "name": "assets",
         "action": {
-          "tap": "Analyze with {{otherTeam}}"
+          "tap": "Edit assets"
         },
         "expected": {
           "selector": "[aria-label$=' for trade']"
-        },
-        "name": "assets"
+        }
       },
       {
+        "name": "result",
         "action": {
           "tap": "Select {{rosterPlayer.display_name}} for trade"
         },
         "expected": {
           "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
-        },
-        "name": "result"
+        }
       },
       {
         "name": "analysis",
@@ -687,7 +759,7 @@
         "open": "/trades"
       },
       {
-        "tap": "Your trade block"
+        "tap": "Block"
       }
     ],
     "steps": [
@@ -755,7 +827,7 @@
         "open": "/trades"
       },
       {
-        "tap": "Your trade block"
+        "tap": "Block"
       }
     ],
     "steps": [
