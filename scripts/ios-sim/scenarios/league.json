@@ -62,11 +62,51 @@
     "steps": [
       {
         "action": {
-          "tap": "Draft Board"
+          "tap": "Picks"
+        },
+        "expected": {
+          "route": "/league?tab=picks",
+          "text": "You own all your picks, 2028\u20132032"
+        }
+      },
+      {
+        "name": "all",
+        "action": {
+          "tapPrefix": "Show all draft picks,"
+        },
+        "expected": {
+          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+        }
+      },
+      {
+        "name": "traded",
+        "action": {
+          "tapPrefix": "Show traded draft picks,"
+        },
+        "expected": {
+          "text": "No traded picks yet."
+        }
+      },
+      {
+        "name": "old-route",
+        "action": {
+          "open": "/league?tab=draft-board"
         },
         "expected": {
           "route": "/league",
-          "selector": "[aria-label^='Show my draft picks,']"
+          "text": "You own all your picks, 2028\u20132032",
+          "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
+        }
+      },
+      {
+        "name": "saved-tab",
+        "action": {
+          "open": "/league?tab=draftBoard"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "You own all your picks, 2028\u20132032",
+          "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
     ]
@@ -86,11 +126,21 @@
     "steps": [
       {
         "action": {
-          "tap": "Auctions"
+          "tap": "Draft"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
+      },
+      {
+        "name": "old-route",
+        "action": {
+          "open": "/league?tab=auctions"
         },
         "expected": {
           "route": "/league",
-          "selector": "[aria-label='Join Auction Draft']"
+          "selector": "[id='league-panel-draft'] [aria-label='Join Auction Draft']"
         }
       }
     ]
@@ -110,11 +160,39 @@
     "steps": [
       {
         "action": {
-          "tap": "Mock Rooms"
+          "open": "/league?tab=mock-rooms"
         },
         "expected": {
           "route": "/league",
+          "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
+        }
+      },
+      {
+        "name": "new-room",
+        "action": {
+          "tap": "New mock room"
+        },
+        "expected": {
           "selector": "[aria-label='Mock room name']"
+        }
+      },
+      {
+        "name": "cancel",
+        "action": {
+          "tap": "Cancel"
+        },
+        "expected": {
+          "selector": "[aria-label='New mock room']"
+        }
+      },
+      {
+        "name": "saved-tab",
+        "action": {
+          "open": "/league?tab=mockRooms"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
         }
       }
     ]
@@ -492,11 +570,51 @@
     "steps": [
       {
         "action": {
-          "tap": "Draft Board"
+          "tap": "Picks"
+        },
+        "expected": {
+          "route": "/league?tab=picks",
+          "text": "You own all your picks, 2028\u20132032"
+        }
+      },
+      {
+        "name": "all",
+        "action": {
+          "tapPrefix": "Show all draft picks,"
+        },
+        "expected": {
+          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+        }
+      },
+      {
+        "name": "traded",
+        "action": {
+          "tapPrefix": "Show traded draft picks,"
+        },
+        "expected": {
+          "text": "No traded picks yet."
+        }
+      },
+      {
+        "name": "old-route",
+        "action": {
+          "open": "/league?tab=draft-board"
         },
         "expected": {
           "route": "/league",
-          "selector": "[aria-label^='Show my draft picks,']"
+          "text": "You own all your picks, 2028\u20132032",
+          "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
+        }
+      },
+      {
+        "name": "saved-tab",
+        "action": {
+          "open": "/league?tab=draftBoard"
+        },
+        "expected": {
+          "route": "/league",
+          "text": "You own all your picks, 2028\u20132032",
+          "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
     ]
@@ -516,11 +634,21 @@
     "steps": [
       {
         "action": {
-          "tap": "Auctions"
+          "tap": "Draft"
+        },
+        "expected": {
+          "route": "/league?tab=draft",
+          "selector": "[aria-label='Join Auction Draft']"
+        }
+      },
+      {
+        "name": "old-route",
+        "action": {
+          "open": "/league?tab=auctions"
         },
         "expected": {
           "route": "/league",
-          "selector": "[aria-label='Join Auction Draft']"
+          "selector": "[id='league-panel-draft'] [aria-label='Join Auction Draft']"
         }
       }
     ]
@@ -540,11 +668,39 @@
     "steps": [
       {
         "action": {
-          "tap": "Mock Rooms"
+          "open": "/league?tab=mock-rooms"
         },
         "expected": {
           "route": "/league",
+          "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
+        }
+      },
+      {
+        "name": "new-room",
+        "action": {
+          "tap": "New mock room"
+        },
+        "expected": {
           "selector": "[aria-label='Mock room name']"
+        }
+      },
+      {
+        "name": "cancel",
+        "action": {
+          "tap": "Cancel"
+        },
+        "expected": {
+          "selector": "[aria-label='New mock room']"
+        }
+      },
+      {
+        "name": "saved-tab",
+        "action": {
+          "open": "/league?tab=mockRooms"
+        },
+        "expected": {
+          "route": "/league",
+          "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
         }
       }
     ]

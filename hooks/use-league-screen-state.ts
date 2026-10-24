@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
+import { parseLeagueTab, type LeagueSection } from '@/lib/league/tabs'
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
@@ -20,7 +20,7 @@ export function useLeagueScreenState() {
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
     const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
-    const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
+    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
     const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
     const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated })
@@ -127,7 +127,7 @@ export function useLeagueScreenState() {
         )
     }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, invalidateTab])
 
-    const handleTabChange = (nextTab: LeagueTab) => {
+    const handleTabChange = (nextTab: LeagueSection) => {
         setTab(nextTab)
         // setParams (not push) keeps the current screen instance mounted, so the
         // pill tab bar keeps its scroll position instead of resetting to the start.
@@ -178,7 +178,6 @@ export function useLeagueScreenState() {
         nominationMode: draft.nominationMode,
         openBracket: () => push('/(modals)/bracket'),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
-        openProfile: () => push('/profile'),
         openDraftRoom: draft.openDraftRoom,
         openTeamRoster: (memberId: string, teamName: string) =>
             push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } }),

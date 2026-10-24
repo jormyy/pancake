@@ -62,8 +62,7 @@ export function AuctionIdlePanel({
                 <FlashList data={controller.searchResults} keyExtractor={(player) => player.id}
                     scrollEnabled={false} renderItem={({ item }) => (
                         <MotionPressable style={styles.playerResult}
-                            onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected}
-                            pressedScale={0.975} accessibilityRole="button"
+                            onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}>
                             <Avatar name={item.display_name ?? 'Player'} color={colors.bgMuted}
                                 uri={playerHeadshotUrl(item.nba_id)} size={32} />
@@ -80,13 +79,11 @@ export function AuctionIdlePanel({
                         ? <Text style={styles.emptySearch}>Search failed. Keep typing or try again.</Text>
                         : controller.searchQuery.length > 0 && !controller.searchLoading
                             ? <Text style={styles.emptySearch}>No players found</Text> : null} />
-                <MotionPressable style={styles.cancelButton} onPress={controller.cancelNominating}
-                    pressedScale={0.94} accessibilityRole="button" accessibilityLabel="Cancel nomination search">
+                <MotionPressable style={styles.cancelButton} onPress={controller.cancelNominating} accessibilityRole="button" accessibilityLabel="Cancel nomination search">
                     <Text style={styles.cancelText}>Cancel</Text>
                 </MotionPressable>
             </> : <MotionPressable style={styles.nominateButton} onPress={() => controller.setNominating(true)}
-                disabled={!controller.actionsReady || !controller.realtimeConnected}
-                pressedScale={0.965} accessibilityRole="button" accessibilityLabel="Search and nominate a player">
+                disabled={!controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button" accessibilityLabel="Search and nominate a player">
                 <Text style={styles.nominateButtonText}>Search & Nominate a Player</Text>
             </MotionPressable>}
         </>

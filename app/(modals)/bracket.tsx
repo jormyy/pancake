@@ -15,7 +15,7 @@ import { ModalScreen } from '@/components/ui/ModalScreen'
 import { ErrorBanner, LoadingState, usePageMetrics } from '@/components/ui'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { formatPoints } from '@/lib/format'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 
 type Round = { key: string; label: string; matchups: BracketMatchup[]; final?: boolean }
 type LoadStatus = 'loading' | 'ready' | 'error'
@@ -113,13 +113,10 @@ export default function BracketScreen() {
                         onAction={() => setAttempt((value) => value + 1)}
                     />
                 ) : rounds.length === 0 ? (
-                    <EmptyState
-                        icon="account-tree"
-                        message="No playoff bracket yet"
-                        description="It appears when the regular season ends."
-                        actionLabel="View Standings"
-                        onAction={backToStandings}
-                    />
+                    <View style={[styles.emptyBracket, { paddingHorizontal: padX }]}>
+                        <Text style={textStyles.rowTitle}>No playoff bracket yet</Text>
+                        <Text style={textStyles.body}>It appears when the regular season ends.</Text>
+                    </View>
                 ) : (
                     <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX, maxWidth: rounds.length * ROUND_COLUMN_W + (rounds.length - 1) * spacing['3xl'] + 2 * padX }, compactLandscape && styles.scrollCompact]}>
                         {bracket?.champion ? (
@@ -289,6 +286,7 @@ function TeamRow({
 }
 
 const styles = StyleSheet.create({
+    emptyBracket: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, gap: spacing.sm },
     scroll: { paddingTop: spacing.xl, paddingBottom: spacing['5xl'], gap: spacing.lg, width: '100%', alignSelf: 'center' },
     scrollCompact: { paddingTop: spacing.md, gap: spacing.sm, paddingBottom: spacing['4xl'] },
     stack: { gap: spacing.lg },

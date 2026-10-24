@@ -85,7 +85,7 @@ export function AuctionLivePanel({
                         <View style={styles.bidStepGroup}>
                             <MotionPressable style={styles.bidStep}
                                 onPress={() => controller.setBidText((value) => String(Math.max(minimumBid, (parseInt(value, 10) || minimumBid) - 1)))}
-                                disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Decrease bid" hitSlop={8} pressedScale={0.88}>
+                                disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Decrease bid" hitSlop={8}>
                                 <Text style={styles.bidStepText}>−</Text>
                             </MotionPressable>
                             <TextInput style={[styles.bidAmountInput, compact && styles.bidAmountInputCompact]}
@@ -94,7 +94,7 @@ export function AuctionLivePanel({
                             <MotionPressable style={styles.bidStep}
                                 onPress={() => controller.setBidText((value) => String(Math.min(
                                     remainingBudget, (parseInt(value, 10) || minimumBid - 1) + 1,
-                                )))} disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Increase bid" hitSlop={8} pressedScale={0.88}>
+                                )))} disabled={!bidReady} accessibilityRole="button" accessibilityLabel="Increase bid" hitSlop={8}>
                                 <Text style={styles.bidStepText}>+</Text>
                             </MotionPressable>
                         </View>
@@ -103,7 +103,7 @@ export function AuctionLivePanel({
                             onPress={controller.handleBid} accessibilityRole="button"
                             accessibilityLabel={`Bid $${(bidValid ? bidValue : minimumBid).toLocaleString()}`}
                             accessibilityHint="Bidding requires a live draft connection."
-                            disabled={!bidReady || !bidValid || leading || controller.timeLeft === 0} pressedScale={0.965}>
+                            disabled={!bidReady || !bidValid || leading || controller.timeLeft === 0}>
                             <Text style={styles.bidButtonText}>Bid ${(bidValid ? bidValue : minimumBid).toLocaleString()}</Text>
                         </MotionPressable>
                     </View> : null}
@@ -111,7 +111,7 @@ export function AuctionLivePanel({
             </View>
             {nomination.nominatingMemberId === memberId && !paused && nomination.currentBidderId == null ?
                 <MotionPressable style={styles.withdrawButton} onPress={controller.handleWithdraw}
-                    disabled={controller.withdrawing || !controller.actionsReady} accessibilityRole="button" accessibilityLabel="Withdraw nomination" pressedScale={0.96}>
+                    disabled={controller.withdrawing || !controller.actionsReady} accessibilityRole="button" accessibilityLabel="Withdraw nomination">
                     <Text style={styles.withdrawButtonText}>Withdraw nomination</Text>
                 </MotionPressable> : null}
         </View>
@@ -175,13 +175,13 @@ const styles = StyleSheet.create({
     countdownTextUrgent: { color: colors.dangerDark },
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
     bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
-    bidStep: { width: 44, height: 44, borderRadius: 22, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+    bidStep: { width: 44, height: controlSize.minTouch, borderRadius: 22, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
     bidStepText: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold, color: colors.textSecondary },
-    bidAmountInput: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, width: 84, height: 44,
+    bidAmountInput: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, width: 84, height: controlSize.minTouch,
         textAlign: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderCurve: 'continuous', paddingHorizontal: spacing.md },
     bidAmountInputCompact: { width: 70, minWidth: 70 },
-    bidButton: { flex: 1, minWidth: 112, height: 44, backgroundColor: colors.primary, borderRadius: radii.md,
+    bidButton: { flex: 1, minWidth: 112, height: controlSize.minTouch, backgroundColor: colors.primary, borderRadius: radii.md,
         borderCurve: 'continuous', justifyContent: 'center', alignItems: 'center' },
     bidButtonCompact: { minWidth: 96 },
     bidButtonDisabled: { opacity: 0.5 },

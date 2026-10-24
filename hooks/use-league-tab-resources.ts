@@ -19,7 +19,15 @@ const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
 const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
-const RESOURCE_TABS: LeagueTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
+type ResourceTab = 'results' | 'history' | 'settings' | 'draftBoard' | 'mockRooms'
+
+function resourceTab(tab: LeagueTab): ResourceTab | null {
+    if (tab === 'picks') return 'draftBoard'
+    if (tab === 'draft') return 'mockRooms'
+    return tab === 'auctions' ? null : tab
+}
+
+const RESOURCE_TABS: ResourceTab[] = ['results', 'history', 'settings', 'draftBoard', 'mockRooms']
 
 // Persistent per-tab cache: revisits render cached content instantly (no
 // blank flash) while the fresh fetch updates it in place.
@@ -109,10 +117,9 @@ export function useLeagueTabResources(
     }), [history, mockRooms, picks, standings, waiverOrder])
     const resourcesRef = useRef(resources)
     resourcesRef.current = resources
-    const activeResource = activeTab === 'auctions' ? null : resources[activeTab]
-    const activeResourceKey = activeTab === 'auctions'
-        ? null
-        : activeTab === 'mockRooms' ? memberKey : leagueKey
+    const activeResourceTab = resourceTab(activeTab)
+    const activeResource = activeResourceTab ? resources[activeResourceTab] : null
+    const activeResourceKey = activeResourceTab === 'mockRooms' ? memberKey : activeResourceTab ? leagueKey : null
     const [activityLoadingMore, setActivityLoadingMore] = useState(false)
     const [activityLoadMoreError, setActivityLoadMoreError] = useState<string | null>(null)
     const activityRequest = useRef<symbol | null>(null)
@@ -135,17 +142,20 @@ export function useLeagueTabResources(
     }, [])
 
     const ensureTab = useCallback((tab: LeagueTab) => {
-        if (tab !== 'auctions' && admissionRef.current()) void resourcesRef.current[tab].ensure()
+        const target = resourceTab(tab)
+        if (target && admissionRef.current()) void resourcesRef.current[target].ensure()
     }, [])
     const invalidateTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        if (tab !== 'auctions') resourcesRef.current[tab].invalidate(activeTabRef.current === tab && admissionRef.current())
+        const target = resourceTab(tab)
+        if (target) resourcesRef.current[target].invalidate(resourceTab(activeTabRef.current) === target && admissionRef.current())
     }, [resetActivityPagination])
     const refreshTab = useCallback((tab: LeagueTab) => {
         if (tab === 'history') resetActivityPagination()
-        if (tab === 'auctions') return Promise.resolve()
-        if (!admissionRef.current()) { resourcesRef.current[tab].invalidate(false); return Promise.resolve() }
-        return resourcesRef.current[tab].refresh()
+        const target = resourceTab(tab)
+        if (!target) return Promise.resolve()
+        if (!admissionRef.current()) { resourcesRef.current[target].invalidate(false); return Promise.resolve() }
+        return resourcesRef.current[target].refresh()
     }, [resetActivityPagination])
 
     useFocusEffect(useCallback(() => {
@@ -163,7 +173,6 @@ export function useLeagueTabResources(
         if (!reconnected) return
         resetActivityPagination()
         for (const tab of RESOURCE_TABS) {
-            if (tab === 'auctions') continue
             resourcesRef.current[tab].invalidate(false)
         }
     }, [isOnline, resetActivityPagination])

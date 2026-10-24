@@ -2,7 +2,7 @@ import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStat
 import { View, Text, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { LeaguePickItem } from '@/lib/rookieDraft'
-import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -11,7 +11,6 @@ import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedC
 import { tableStyles } from '@/components/league/leagueTableStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
 import { usePageMetrics } from '@/components/ui/Page'
-import type { LeagueStatus } from '@/types/database'
 
 type PickLedgerFilter = 'mine' | 'all' | 'traded'
 
@@ -78,7 +77,6 @@ function PicksBankRow({
     padX: number
 }) {
     const mine = isMine && highlightMine
-    const isTraded = pick.originalOwnerMemberId !== pick.currentOwnerMemberId
     const label = pickRowLabel(pick, isMine)
     return (
         <View
@@ -103,11 +101,6 @@ function PicksBankRow({
                 <Text style={[styles.picksBankFrom, mine && tableStyles.textMe]} numberOfLines={1}>
                     {pick.originalTeamName}
                 </Text>
-                {isTraded ? (
-                    <View style={styles.picksBankTradePill}>
-                        <Text style={styles.picksBankTradeText}>Traded</Text>
-                    </View>
-                ) : null}
             </View>
             <Text style={[styles.picksBankOwner, mine && tableStyles.textMe]} numberOfLines={1}>
                 {isMine ? 'You' : pick.currentTeamName}
@@ -151,7 +144,9 @@ function PicksLedgerHeader({
     hasMemberId,
     padX,
     loading,
+    summary,
 }: {
+    summary: string | null
     filter: PickLedgerFilter
     onFilterChange: (filter: PickLedgerFilter) => void
     flatHasRows: boolean
@@ -209,6 +204,7 @@ function PicksLedgerHeader({
                     controlledPanelId={PICK_FILTER_PANEL_ID}
                     scrollable
                 />
+                {summary ? <Text style={styles.pickSummary}>{summary}</Text> : null}
             </View>
             {flatHasRows ? <PicksBankColumns padX={padX} compact={compactColumns} /> : null}
         </>
@@ -283,12 +279,10 @@ export function PicksBankList({
     picks,
     myMemberId,
     loading,
-    leagueStatus,
 }: {
     picks: LeaguePickItem[]
     myMemberId?: string
     loading?: boolean
-    leagueStatus?: LeagueStatus
 }) {
     const [filter, setFilter] = useState<PickLedgerFilter>('mine')
     const { viewportWidth, viewportHeight, compactLandscape } = useWebViewport()
@@ -314,7 +308,8 @@ export function PicksBankList({
     )
     const visiblePicks = useMemo(() => {
         if (activeFilter === 'mine' && myMemberId) {
-            return picks.filter((pick) => pick.currentOwnerMemberId === myMemberId)
+            return picks.filter((pick) => pick.originalOwnerMemberId !== pick.currentOwnerMemberId
+                && (pick.currentOwnerMemberId === myMemberId || pick.originalOwnerMemberId === myMemberId))
         }
         if (activeFilter === 'traded') {
             return picks.filter((pick) => pick.originalOwnerMemberId !== pick.currentOwnerMemberId)
@@ -337,10 +332,6 @@ export function PicksBankList({
         }
         return result
     }, [compactRows, visiblePicks])
-    const listKey = useMemo(
-        () => `${activeFilter}:${compactRows}:${flatData.map((item) => item.id).join('|')}`,
-        [activeFilter, compactRows, flatData],
-    )
     const hasVisiblePicks = visiblePicks.length > 0
     const listAccessibilityLabel = loading
         ? hasVisiblePicks
@@ -359,9 +350,19 @@ export function PicksBankList({
         loading,
         hasVisiblePicks,
     })
-    const deferHeaderUntilAfterRows = compactLandscape && flatData.length > 0
+    const originalPicks = myMemberId ? picks.filter((pick) => pick.originalOwnerMemberId === myMemberId) : []
+    const retainedPicks = originalPicks.filter((pick) => pick.currentOwnerMemberId === myMemberId)
+    const years = originalPicks.map((pick) => pick.seasonYear)
+    const firstYear = Math.min(...years)
+    const lastYear = Math.max(...years)
+    const yearRange = firstYear === lastYear ? String(firstYear) : `${firstYear}–${lastYear}`
+    const summary = originalPicks.length === 0 || loading ? null
+        : retainedPicks.length === originalPicks.length
+            ? `You own all your picks, ${yearRange}`
+            : `You own ${retainedPicks.length} of your ${originalPicks.length} picks, ${yearRange}`
     const ledgerHeader = (
         <PicksLedgerHeader
+            summary={summary}
             filter={activeFilter}
             onFilterChange={setFilter}
             flatHasRows={flatData.length > 0}
@@ -377,12 +378,11 @@ export function PicksBankList({
 
     return (
         <ScrollView
-            key={listKey}
             style={styles.picksBankScroll}
             contentContainerStyle={[styles.picksBankContent, styles.column]}
             removeClippedSubviews={false}
         >
-            {deferHeaderUntilAfterRows ? null : ledgerHeader}
+            {ledgerHeader}
             <View
                 nativeID={PICK_FILTER_PANEL_ID}
                 role="tabpanel"
@@ -420,7 +420,7 @@ export function PicksBankList({
                             </Fragment>
                         ))}
                     </View>
-                ) : (
+                ) : activeFilter === 'mine' && summary ? null : (
                     <View
                         role="status"
                         aria-live="polite"
@@ -430,11 +430,10 @@ export function PicksBankList({
                         accessibilityState={{ busy: loading }}
                         accessibilityLiveRegion="polite"
                     >
-                        <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={empty.message} description={empty.description} fullScreen={false} /> : null}</View>
+                        <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={empty.message} fullScreen={false} /> : null}</View>
                     </View>
                 )}
             </View>
-            {deferHeaderUntilAfterRows ? ledgerHeader : null}
         </ScrollView>
     )
 }
@@ -473,19 +472,8 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
     },
     picksBankFrom: { flex: 1, minWidth: 0, fontSize: fontSize.sm, color: colors.textSecondary },
-    picksBankTradePill: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xxs,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.warningLight,
-    },
-    picksBankTradeText: {
-        fontSize: fontSize['2xs'],
-        fontWeight: fontWeight.bold,
-        color: colors.warningDark,
-    },
     picksBankOwner: { flexShrink: 1, maxWidth: '45%', marginLeft: spacing.md, textAlign: 'right', fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    pickSummary: { ...textStyles.body, marginTop: spacing.md },
     picksLedgerIntro: {
         paddingTop: spacing.lg,
         paddingBottom: spacing.md,

@@ -302,20 +302,20 @@ export default function ProfileScreen() {
                 </View>
 
                 <SettingsGroup title="Account">
-                    <SettingsRow
-                        reserveValue
-                        label="Name"
-                        value={editing ? null : profile?.display_name ?? ''}
-                        accessory={editing ? (
-                            <TextInput
-                                style={styles.input}
-                                value={displayName}
-                                onChangeText={setDisplayName}
-                                returnKeyType="next"
-                                accessibilityLabel="Display name"
-                            />
-                        ) : undefined}
-                    />
+                    {editing ? (
+                        <SettingsRow
+                            label="Name"
+                            accessory={(
+                                <TextInput
+                                    style={styles.input}
+                                    value={displayName}
+                                    onChangeText={setDisplayName}
+                                    returnKeyType="next"
+                                    accessibilityLabel="Display name"
+                                />
+                            )}
+                        />
+                    ) : null}
                     <SettingsRow reserveValue label="Email" value={user?.email ?? ''} />
                 </SettingsGroup>
 

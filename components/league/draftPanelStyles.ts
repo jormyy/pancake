@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 // Buttons, cards, and scroll containers shared across the league draft panels.
 export const panelStyles = StyleSheet.create({
@@ -7,7 +7,7 @@ export const panelStyles = StyleSheet.create({
         backgroundColor: colors.primary,
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
-        height: 44,
+        height: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
@@ -19,7 +19,7 @@ export const panelStyles = StyleSheet.create({
         borderCurve: 'continuous' as const,
         borderWidth: 1,
         borderColor: colors.border,
-        height: 44,
+        height: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         justifyContent: 'center',
         alignItems: 'center',
