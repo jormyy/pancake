@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import type { PlayerSeasonAverages } from '@/lib/players'
 
 type Props = {
@@ -19,7 +19,7 @@ type Props = {
 /** Season averages as one stat strip, fantasy points first. */
 export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, showFantasy = avgFantasyPoints != null }: Props) {
     const cells = [
-        showFantasy ? { label: 'FP/G', value: loading || avgFantasyPoints == null ? '—' : avgFantasyPoints.toFixed(1), lead: true } : null,
+        showFantasy ? { label: 'FP/G', value: (loading && !averages) || avgFantasyPoints == null ? '—' : avgFantasyPoints.toFixed(1), lead: true } : null,
         { label: 'GP', value: averages ? String(averages.gamesPlayed) : '—' },
         { label: 'MIN', value: averages ? averages.avgMinutesPlayed.toFixed(1) : '—' },
         { label: 'PTS', value: averages ? averages.avgPoints.toFixed(1) : '—' },
@@ -35,8 +35,7 @@ export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, c
         <View style={styles.section} aria-busy={loading}>
             <View style={styles.heading}>
                 <View style={styles.headingCopy}>
-                <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>{seasonControl ? 'Season averages' : `${seasonYear - 1}–${String(seasonYear).slice(2)} averages`}</Text>
-                <Text style={styles.liveNote}>{includesLive ? 'Includes live game' : loading ? 'Loading season stats…' : averages ? ' ' : 'No stats available.'}</Text>
+                <Text style={textStyles.sectionLabel} role="heading" aria-level={2} numberOfLines={1}>{seasonControl ? 'Season averages' : `${seasonYear - 1}–${String(seasonYear).slice(2)} averages`}{includesLive ? ' · Live' : ''}</Text>
                 </View>
                 {actions}
                 {seasonControl}
@@ -56,8 +55,7 @@ export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, c
 const styles = StyleSheet.create({
     section: { gap: spacing.sm },
     headingCopy: { flex: 1, minWidth: 0 },
-    liveNote: { ...textStyles.meta, height: 18 },
-    heading: { minHeight: 44, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
+    heading: { minHeight: controlSize.minTouch, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
     grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -74,7 +72,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.sm,
         gap: spacing.xxs,
     },
-    cellValue: { fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
+    cellValue: { width: '100%', textAlign: 'center', fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
     cellValueLead: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     cellLabel: { ...textStyles.tableHeader },
     cellLabelLead: { color: colors.primaryDark },

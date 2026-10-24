@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 import type { PlayerHeader } from './PlayerHeader'
+import type { PlayerRow } from '@/lib/players'
 
 type HeaderPlayer = ComponentProps<typeof PlayerHeader>['player'] & { id: string }
 
@@ -22,5 +23,19 @@ export function readPlayerHeader(playerId: string, encoded: string | undefined):
         }
     } catch {
         return null
+    }
+}
+
+export function playerDetailRoute(player: PlayerRow) {
+    return {
+        pathname: '/player/[id]' as const,
+        params: {
+            id: player.id,
+            playerHeader: JSON.stringify({
+                id: player.id, display_name: player.display_name, nba_team: player.nba_team,
+                position: player.position, eligible_positions: player.eligible_positions,
+                injury_status: player.injury_status, nba_id: player.nba_id, years_exp: player.years_exp,
+            }),
+        },
     }
 }

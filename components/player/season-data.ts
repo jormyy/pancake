@@ -37,7 +37,7 @@ export function summarizePlayerSeason(lines: PlayerSeasonLine[], team: string | 
         return {
             gameId: row.id, nbaGameId: game.id, gameDate: game.game_date,
             opponent: isHome ? `vs ${game.away_team}` : `@ ${game.home_team}`, isHome,
-            live: game.status === 'in_progress', didNotPlay: row.did_not_play,
+            live: game.status.toLowerCase().replaceAll('_', '') === 'inprogress', didNotPlay: row.did_not_play,
             minutes: Number(row.minutes_played) || 0, points: row.points ?? 0,
             rebounds: row.rebounds ?? 0, assists: row.assists ?? 0, steals: row.steals ?? 0,
             blocks: row.blocks ?? 0, turnovers: row.turnovers ?? 0, personalFouls: row.personal_fouls ?? 0,

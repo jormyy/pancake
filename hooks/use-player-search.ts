@@ -1,5 +1,6 @@
 import type { ScoringSettings } from '@pancake/core'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { readCachedLiveTeams } from '@/hooks/use-live-stats'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { FlashListRef } from '@shopify/flash-list'
 import { searchPlayers, getVisiblePlayerTotals, applyVisiblePlayerTotals, type VisiblePlayerTotals, PlayerRow } from '@/lib/players'
@@ -535,9 +536,13 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
         const timer = setTimeout(() => setNow(Date.now()), Math.min(nextTipoff - Date.now() + 100, 2_147_483_647))
         return () => clearTimeout(timer)
     }, [active, snapshot, key, now])
-    const rows = useMemo(() => snapshot.key === key ? players.map(player => {
-        const row = snapshot.rows.get(player.id)
-        return row ? applyVisiblePlayerTotals(player, row, scoring, now) : player
-    }) : players, [snapshot, key, players, scoring, now])
+    const rows = useMemo(() => {
+        const knownLiveTeams = leagueId ? readCachedLiveTeams(leagueId) : null
+        return players.map(player => {
+            const row = snapshot.key === key ? snapshot.rows.get(player.id) : null
+            if (row) return applyVisiblePlayerTotals(player, row, scoring, now)
+            return knownLiveTeams && player.nba_team ? { ...player, playing_now: knownLiveTeams.has(player.nba_team) } : player
+        })
+    }, [snapshot, key, players, scoring, now, leagueId])
     return { rows, onViewableItemsChanged }
 }

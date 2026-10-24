@@ -150,7 +150,12 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         }
         return settings
     }, [leagueId, scoringKey])
-    const summary = useMemo(() => summarizePlayerSeason(lines.value ?? EMPTY_LINES, player.value?.nba_team ?? null, scoring), [lines.value, player.value?.nba_team, scoring])
+    const lastSeason = useRef({ resourceKey, year: selectedSeason, lines: EMPTY_LINES })
+    if (lastSeason.current.resourceKey !== resourceKey) lastSeason.current = { resourceKey, year: selectedSeason, lines: EMPTY_LINES }
+    if (lines.value !== undefined) lastSeason.current = { resourceKey, year: selectedSeason, lines: lines.value }
+    const displayedLines = lines.value ?? lastSeason.current.lines
+    const displayedSeasonKey = lines.value !== undefined ? seasonKey : JSON.stringify([resourceKey, lastSeason.current.year])
+    const summary = useMemo(() => summarizePlayerSeason(displayedLines, player.value?.nba_team ?? null, scoring), [displayedLines, player.value?.nba_team, scoring])
     useEffect(() => {
         if (!canRead()) return
         if (lines.value !== undefined) seasonCache.entries.set(selectedSeason, lines.value)
@@ -159,11 +164,12 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
             seasons: Array.from(seasonCache.entries.entries()).slice(-3), nextProjection: projection.value, transactions: history.value,
         })
     }, [cacheKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache])
-    const count = visibleGames.key === seasonKey ? visibleGames.count : GAME_LOG_PAGE
+    const count = visibleGames.key === displayedSeasonKey ? visibleGames.count : GAME_LOG_PAGE
     const gameLog = useMemo(() => summary.games.slice(0, count), [summary.games, count])
     const loadMoreGames = useCallback(async () => {
+        if (!lines.settled) return
         setVisibleGames(previous => ({ key: seasonKey, count: (previous.key === seasonKey ? previous.count : GAME_LOG_PAGE) + GAME_LOG_PAGE }))
-    }, [seasonKey])
+    }, [seasonKey, lines.settled])
     const handleSeasonSelect = useCallback((year: number) => setSelection({ key: resourceKey, year }), [resourceKey])
     return {
         canRead, readEpoch, isCurrentRead, rosterRevision: refreshes.roster,

@@ -1,12 +1,11 @@
-import { View, Text, Image, StyleSheet, Pressable } from 'react-native'
-import { useState, type ReactNode } from 'react'
+import { View, Text, StyleSheet, Pressable } from 'react-native'
+import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { INJURY_COLORS, colors, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { Avatar } from '@/components/Avatar'
+import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
-import { playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 
 type PlayerHeaderPlayer = {
@@ -54,9 +53,7 @@ type Props = {
 export function PlayerHeader({ player, rosterStatus, action, backControl, claimPending = false,
     leagueActive, actionsReady = true, actionLoading = false, dropDisabled = false,
     addBlockedReason = null, addBlockedCaption = null, onAdd, onDrop, onClaim, onSetLineup, compact = false }: Props) {
-    const headshotSize = compact ? 40 : 64
-    const [failedHeadshot, setFailedHeadshot] = useState<string | null>(null)
-    const headshotUri = playerHeadshotUrl(player.nba_id)
+    const headshotSize = compact ? spacing['5xl'] : spacing['4xl'] * 2
     const eligiblePositions = getEligiblePositions(player)
     const fallback = rosterStatus?.status === 'free_agent' && onAdd ? { label: 'Add', onPress: onAdd, blockedReason: addBlockedReason }
         : rosterStatus?.status === 'on_waivers' && onClaim ? { label: claimPending ? 'Claim pending' : 'Claim', onPress: onClaim,
@@ -74,10 +71,7 @@ export function PlayerHeader({ player, rosterStatus, action, backControl, claimP
             <View style={styles.identity}>
                 {backControl}
                 <View style={styles.avatarWrap}>
-                    {headshotUri && failedHeadshot !== headshotUri ? (
-                        <Image source={{ uri: headshotUri }} style={[styles.headshot, { width: headshotSize, height: headshotSize }]}
-                            onError={() => setFailedHeadshot(headshotUri)} />
-                    ) : <Avatar name={player.display_name} size={headshotSize} />}
+                    <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
                 </View>
                 <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
@@ -112,20 +106,19 @@ export function PlayerHeader({ player, rosterStatus, action, backControl, claimP
 
 const styles = StyleSheet.create({
     header: { gap: spacing.sm },
-    identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 48 },
+    identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: controlSize.field.md },
     avatarWrap: { flexShrink: 0 },
-    headshot: { borderRadius: radii.full, backgroundColor: colors.bgMuted },
-    name: { flex: 1, minWidth: 0, fontFamily: fontFamily.display, fontSize: fontSize['2xl'], lineHeight: 28, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    nameCompact: { fontSize: fontSize.lg, lineHeight: 22 },
-    metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'flex-start', gap: spacing.xs, minHeight: 44 },
+    name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
+    nameCompact: { ...textStyles.rowTitle, fontSize: fontSize.lg },
+    metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'flex-start', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
-    rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: 112, minWidth: 76, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
-    actionWrap: { width: 96, minWidth: 96, minHeight: 44, flexShrink: 0, justifyContent: 'center' },
-    action: { minHeight: 44, width: '100%', paddingHorizontal: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+    rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, minWidth: controlSize.minTouch + spacing['4xl'], backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
+    actionWrap: { width: spacing['6xl'] * 2, minWidth: spacing['6xl'] * 2, minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'center' },
+    action: { minHeight: controlSize.minTouch, width: '100%', paddingHorizontal: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     actionText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
     placeholder: { backgroundColor: colors.bgMuted },
     pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
     pickupBlockedText: { color: colors.textPlaceholder },
-    pickupCaption: { ...textStyles.meta, minHeight: 32 },
+    pickupCaption: { ...textStyles.meta, minHeight: spacing['4xl'] },
     dropText: { ...textStyles.meta, color: colors.dangerDark },
 })

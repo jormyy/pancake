@@ -9,7 +9,7 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
 import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
@@ -33,8 +33,8 @@ import {
 import { useGoBack } from '@/components/ui/useGoBack'
 
 // Wide enough for a side column of profile stats next to a full game log.
-const TWO_COLUMN_MIN = 1000
-const SIDE_COLUMN_WIDTH = 400
+const TWO_COLUMN_MIN = breakpoints.desktop
+const SIDE_COLUMN_WIDTH = layout.railWidth
 
 export default function PlayerDetailScreen() {
     const { id, playerHeader } = useLocalSearchParams<{ id: string; playerHeader?: string }>()
@@ -194,6 +194,9 @@ export default function PlayerDetailScreen() {
     } : rosterStatus?.status === 'mine' ? {
         label: 'Lineup', onPress: () => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`),
         disabled: !actionsReady, busy: false,
+    } : rosterStatus?.status === 'taken' ? {
+        label: 'Trade', onPress: () => { if (actionsReady) push(`/(modals)/propose-trade?requestPlayerId=${encodeURIComponent(id)}`) },
+        disabled: !actionsReady, busy: false,
     } : null
     const dataWarnings = [
         playerError ? 'Player details could not refresh.' : null,
@@ -221,7 +224,7 @@ export default function PlayerDetailScreen() {
     const profile = (
         <>
             <DeferredContent ready={!seasonLoading} key={`${id}:${selectedSeason}`} style={styles.seasonSlot}
-                fallback={<StatsOverview averages={null} seasonYear={selectedSeason} avgFantasyPoints={null} showFantasy={showFantasy}
+                fallback={<StatsOverview averages={seasonAverages} seasonYear={selectedSeason} avgFantasyPoints={seasonAverages && fantasyPointsMap ? avgFantasyPoints : null} showFantasy={showFantasy}
                     columns={statColumns} seasonControl={seasonControl} actions={dropControl} loading />}>
                 <StatsOverview
                     averages={seasonAverages}
@@ -297,8 +300,8 @@ export default function PlayerDetailScreen() {
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
-                title={`Make room for\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
-                subtitle={quickAdd.irMoveCandidates.length ? "Move an Out player to IR or select a drop." : "Your roster is full. Select a player to drop."}
+                title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
+                subtitle="Roster full"
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping}
                 onDrop={quickAdd.handleDropAndAdd}
@@ -325,12 +328,12 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.lg },
-    body: { gap: spacing.xl },
-    seasonSlot: { flex: 0, minHeight: 0 },
+    body: { gap: spacing.lg },
+    seasonSlot: { flex: undefined, flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
-    dropButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+    dropButton: { minHeight: controlSize.minTouch, justifyContent: 'center', alignItems: 'center' },
     dropText: { ...textStyles.meta, color: colors.dangerDark },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },

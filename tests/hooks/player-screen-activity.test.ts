@@ -167,3 +167,23 @@ it('keeps public player data available without private scoring or history', asyn
     expect(latest.fantasyPointsMap).toBeNull()
     expect(latest.transactions).toEqual([])
 })
+
+it('keeps the prior season and expanded log visible until the selected season arrives', async () => {
+    state.lines.mockResolvedValueOnce(Array.from({ length: 31 }, (_, index) => seasonLine({ id: `current-${index}` })))
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.loadMoreGames(); await latest.loadMoreGames() })
+    const previousGames = latest.gameLog
+    const previousAverage = latest.seasonAverages
+    let release!: (rows: ReturnType<typeof seasonLine>[]) => void
+    state.lines.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    await act(async () => { latest.handleSeasonSelect(2025) })
+    expect(latest.seasonLoading).toBe(true)
+    expect(latest.selectedSeason).toBe(2025)
+    expect(latest.gameLog).toEqual(previousGames)
+    expect(latest.seasonAverages).toEqual(previousAverage)
+    expect(state.write.mock.calls.at(-1)?.[1].seasons.some(([year]: [number]) => year === 2025)).toBe(false)
+    await act(async () => { release([seasonLine({ id: 'past', points: 10 })]) })
+    expect(latest.seasonLoading).toBe(false)
+    expect(latest.gameLog.map(game => game.gameId)).toEqual(['past'])
+    expect(latest.seasonAverages?.avgPoints).toBe(10)
+})

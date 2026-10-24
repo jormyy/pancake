@@ -5,9 +5,10 @@ import { useVisiblePlayerRows } from '@/hooks/use-player-search'
 import { notifyLeagueChange, leagueChangeReceiver } from '@/lib/league-changes'
 import { playerRow } from '../helpers/fixtures'
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), native: null as ((value: string) => void) | null }))
+const mocks = vi.hoisted(() => ({ read: vi.fn(), teams: null as Set<string> | null, native: null as ((value: string) => void) | null }))
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: (_: string, listener: (value: string) => void) => { mocks.native = listener; return { remove: vi.fn() } } } }))
 vi.mock('@shopify/flash-list', () => ({}))
+vi.mock('@/hooks/use-live-stats', () => ({ readCachedLiveTeams: () => mocks.teams }))
 vi.mock('@/lib/players', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/players')>(), getVisiblePlayerTotals: mocks.read }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/lineup', () => ({}))
@@ -30,6 +31,7 @@ beforeEach(async () => {
     vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z'))
     doc = Object.assign(new EventTarget(), { visibilityState: 'visible' })
     vi.stubGlobal('document', doc)
+    mocks.teams = null
     mocks.read.mockReset().mockResolvedValue([{ player_id: 'a', totals: { points: 22, points_count: 2, games_played: 2 }, rounded_fantasy_average: null, game_status: 'Final', game_time: null, started_at: null }])
     await act(async () => { screen = create(React.createElement(Probe)) })
 })
@@ -85,4 +87,15 @@ it('accepts the real stats hint without broad recovery', () => {
     const consume = leagueChangeReceiver('league', receive)
     expect(consume({ league_id: 'league', topic: 'player_stats', revision: 1, scopes: null, details: null })).toBe(true)
     expect(receive).toHaveBeenCalledWith({ topic: 'player_stats', scopes: null })
+})
+
+it('shows a known live game before visible-row reads and accepts its final status', async () => {
+    mocks.teams = new Set([players[0].nba_team!])
+    await act(async () => screen.update(React.createElement(Probe, { owner: 'known-game' })))
+    expect(latest.rows[0].playing_now).toBe(true)
+    expect(mocks.read).not.toHaveBeenCalled()
+    await visible()
+    await tick(300)
+    expect(latest.rows[0].playing_now).toBe(false)
+    expect(mocks.read).toHaveBeenCalledOnce()
 })
