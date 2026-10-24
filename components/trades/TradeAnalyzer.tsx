@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { usePageMetrics } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -52,7 +52,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const online = useOnlineStatus()
     const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [membersLoaded, setMembersLoaded] = useState(false)
-    const [showAnalysis, setShowAnalysis] = useState(false)
+    const [showAnalysis, setShowAnalysis] = useState(Boolean(prefillTrade))
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
     const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
@@ -122,11 +122,11 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     useEffect(() => {
         setMembers([])
         setMembersLoaded(false)
-        setShowAnalysis(false)
+        setShowAnalysis(Boolean(prefillTrade))
         setNetworkUnavailable(false)
         prefillRef.current = ''
         resetComposer()
-    }, [leagueId, myMemberId, resetComposer, user?.id])
+    }, [leagueId, myMemberId, prefillTrade, resetComposer, user?.id])
 
     useEffect(() => {
         let active = true
@@ -243,8 +243,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     const verdict = (
         <View style={styles.verdict}>
-            {error ? <View style={styles.analysisError}>
-                <Text accessibilityRole="alert" style={styles.offline}>{error}</Text>
+            {error || composer.rosterError || networkUnavailable ? <View style={styles.analysisError}>
+                <Text accessibilityRole="alert" style={styles.offline}>{error || composer.rosterError || 'Could not load league teams.'}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Retry trade analysis"
                     onPress={() => { setMembersRetryToken((value) => value + 1); composer.retry() }}>
                     <Text style={styles.copy}>Retry analysis</Text>
@@ -255,14 +255,16 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         </View>
     )
 
-    if (showAnalysis) return <View style={styles.scroll}>
+    if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady && !loading)}>
+        <View style={styles.scroll}>
         <View style={styles.analysisActions}>
             <Button title="Edit assets" variant="secondary" size="sm" onPress={() => setShowAnalysis(false)} />
             <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
                 accessibilityLabel="Make Offer from this analysis" />
         </View>
         <ScrollView contentContainerStyle={styles.content}>{verdict}</ScrollView>
-    </View>
+        </View>
+    </DeferredContent>
 
     return (
         <DeferredContent ready={membersLoaded || !online}>
@@ -335,7 +337,7 @@ const styles = StyleSheet.create({
     copy: { ...textStyles.body },
     offline: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.warningDark },
     modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-    modeButton: { minHeight: 44, minWidth: 96, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderLight },
+    modeButton: { minHeight: controlSize.minTouch, minWidth: 96, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
     teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
@@ -348,6 +350,6 @@ const styles = StyleSheet.create({
     makeOfferText: { color: colors.textWhite, fontSize: fontSize.md, fontWeight: fontWeight.bold },
     disabled: { opacity: 0.45 },
     offerHelp: { ...textStyles.meta, textAlign: 'center' },
-    cancel: { minHeight: 48, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
+    cancel: { minHeight: controlSize.button.md.height, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
     cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

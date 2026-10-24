@@ -7,7 +7,7 @@ import { PosTag } from '@/components/PosTag'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
-import { colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, table, fontWeight, INJURY_COLORS, radii, spacing, textStyles } from '@/constants/tokens'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
@@ -32,7 +32,6 @@ export const TradeEmptyRow = memo(function TradeEmptyRow({ item }: { item: ItemO
 export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     item,
     myMemberId,
-    tab,
     blockBusyId,
     disabled = false,
     tile = false,
@@ -79,15 +78,11 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                         <Text style={styles.blockContext} numberOfLines={1}>{playerSeasonContextText(block.asset)}</Text>
                     </>
                 ) : <Text style={styles.blockMeta}>{block.teamName}</Text>}
-                {mine && tab === 'block' ? <TradeBlockNoteEditor item={block} label={label}
+                {mine ? <TradeBlockNoteEditor item={block} label={label}
                     disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
                     : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
             </View>
-            {mine && tab === 'leagueBlock' ? (
-                <View style={[styles.blockAction, styles.blockActionDisabled]} accessibilityLabel={`${label} is your listing`} accessibilityRole="text">
-                    <Text style={styles.blockActionText}>Yours</Text>
-                </View>
-            ) : mine ? (
+            {mine ? (
                 <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
                     disabled={disabled || blockBusyId === block.id} accessibilityRole="button"
                     accessibilityLabel={`Remove ${label} from trade block`}>
@@ -233,19 +228,11 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 })
 
 const styles = StyleSheet.create({
-    sectionRow: { paddingTop: spacing.xl, paddingBottom: spacing.sm },
+    sectionRow: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
     sectionText: { ...textStyles.sectionLabel },
-    emptyRow: {
-        minHeight: 56,
-        justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        borderWidth: 1,
-        borderStyle: 'dashed',
-        borderColor: colors.borderLight,
-        borderRadius: radii.lg,
-    },
+    emptyRow: { paddingVertical: spacing.sm },
     emptyText: { ...textStyles.meta },
-    blockRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md },
+    blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md },
     tile: {
         flex: 1,
         margin: spacing.xs,
@@ -271,7 +258,7 @@ const styles = StyleSheet.create({
     blockMeta: { ...textStyles.meta },
     blockContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     blockNote: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
-    blockAction: { minWidth: 72, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
+    blockAction: { minWidth: 72, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
     blockActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

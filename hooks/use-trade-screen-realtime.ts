@@ -70,8 +70,8 @@ export function useTradeScreenRealtime({
             const tab = activeTabRef.current
             return ['trades',
                 ...(tab === 'history' ? ['history' as const] : []),
-                ...(tab === 'block' || tab === 'leagueBlock' ? ['block' as const] : []),
-                ...(tab === 'block' || tab === 'picks' ? ['picks' as const] : []),
+                ...(tab === 'block' ? ['block' as const] : []),
+                ...(tab === 'block' ? ['picks' as const] : []),
             ]
         }
         const mark = () => { for (const feed of Object.keys(feeds) as Feed[]) pending.add(feed) }
@@ -104,7 +104,7 @@ export function useTradeScreenRealtime({
         }
         const ownerRecovery = {
             enter: () => {
-                if (activeTabRef.current === 'block' || activeTabRef.current === 'leagueBlock') pending.add('block')
+                if (activeTabRef.current === 'block') pending.add('block')
                 void recover()
                 reconnectIfClosed()
             },

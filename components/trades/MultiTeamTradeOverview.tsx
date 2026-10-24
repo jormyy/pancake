@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, uiColors } from '@/constants/tokens'
 
 type TradeFlowParticipant = {
     memberId: string
@@ -27,29 +27,22 @@ type MultiTeamTradeOverviewProps = {
 }
 
 export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem }: MultiTeamTradeOverviewProps) {
-    const { incomingByMember, outgoingCountByMember, participantLabels } = useMemo(() => {
+    const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
-        const outgoing = new Map<string, number>()
         for (const item of items) {
             const bucket = incoming.get(item.toMemberId)
             if (bucket) bucket.push(item)
             else incoming.set(item.toMemberId, [item])
-            outgoing.set(item.fromMemberId, (outgoing.get(item.fromMemberId) ?? 0) + 1)
         }
-        return { incomingByMember: incoming, outgoingCountByMember: outgoing, participantLabels: labels }
+        return { incomingByMember: incoming, participantLabels: labels }
     }, [items, participants])
 
     return (
         <View style={[styles.container, compact && styles.containerCompact]}>
-            <View style={styles.headingRow}>
-                <Text style={styles.heading}>DEAL OVERVIEW</Text>
-                <Text style={styles.teamCount}>{participants.length} teams</Text>
-            </View>
             <View style={styles.teamGrid}>
                 {participants.map((participant) => {
                     const incoming = incomingByMember.get(participant.memberId) ?? []
-                    const outgoingCount = outgoingCountByMember.get(participant.memberId) ?? 0
 
                     return (
                         <View
@@ -64,8 +57,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         </Text>
                                     </View>
                                     <View style={styles.teamTitleBlock}>
-                                        <Text style={styles.teamName} numberOfLines={1}>{participant.label}</Text>
-                                        <Text style={styles.receivesLabel}>Gets</Text>
+                                        <Text style={styles.teamName} numberOfLines={2}>{participant.label} {participant.label === 'You' ? 'get' : 'gets'}</Text>
                                     </View>
                                 </View>
                                 {participant.statusLabel ? (
@@ -106,9 +98,6 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                 ))}
                             </View>
 
-                            <Text style={styles.sendsLabel}>
-                                SENDS {outgoingCount} {outgoingCount === 1 ? 'ASSET' : 'ASSETS'}
-                            </Text>
                         </View>
                     )
                 })}
@@ -118,26 +107,13 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
 }
 
 const styles = StyleSheet.create({
-    removeAsset: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+    removeAsset: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     container: {
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.xl,
         gap: spacing.md,
     },
     containerCompact: { paddingHorizontal: 0, paddingTop: spacing.sm },
-    headingRow: {
-        minHeight: 24,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: spacing.md,
-    },
-    heading: { ...textStyles.sectionLabel },
-    teamCount: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.semibold,
-        color: colors.textSecondary,
-    },
     teamGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -198,7 +174,6 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.bold,
         color: colors.textPrimary,
     },
-    receivesLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], marginTop: spacing.xxs },
     status: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -239,11 +214,5 @@ const styles = StyleSheet.create({
         fontSize: fontSize.sm,
         color: colors.textMuted,
     },
-    sendsLabel: {
-        ...textStyles.sectionLabel,
-        fontSize: fontSize['2xs'],
-        paddingTop: spacing.sm,
-        borderTopWidth: 1,
-        borderTopColor: colors.borderLight,
-    },
+
 })

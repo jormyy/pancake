@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { Button } from '@/components/ui/Button'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
@@ -35,6 +36,7 @@ type MultiTeamTradeBuilderProps = {
     onNotesChange: (value: string) => void
     onExpirationDaysChange: (value: string) => void
     reviewOnly?: boolean
+    onAnalyze?: () => void
     /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
     activeParticipantId?: string
     onActiveParticipantChange?: (memberId: string) => void
@@ -66,6 +68,7 @@ export function MultiTeamTradeBuilder({
     onNotesChange,
     onExpirationDaysChange,
     reviewOnly = false,
+    onAnalyze,
     activeParticipantId: controlledActiveId,
     onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
@@ -179,7 +182,6 @@ export function MultiTeamTradeBuilder({
                     columns={useColumns}
                 />
                 <View style={styles.reviewTerms}>
-                    <Text style={styles.reviewTermsLabel}>TERMS</Text>
                     <Text style={styles.reviewTermsValue}>
                         Expires in {expirationDays} {expirationDays === '1' ? 'day' : 'days'}
                     </Text>
@@ -203,6 +205,7 @@ export function MultiTeamTradeBuilder({
                 <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
             ) : (
                 <>
+                    <View style={styles.summaryRow}>
                     <Pressable
                         style={styles.compactSummary}
                         onPress={() => setOverviewExpanded((expanded) => !expanded)}
@@ -213,9 +216,8 @@ export function MultiTeamTradeBuilder({
                         id="trade-deal-summary"
                     >
                         <View style={styles.compactSummaryCopy}>
-                            <Text style={styles.compactSummaryTitle}>DEAL SUMMARY</Text>
                             <Text style={styles.compactSummaryMeta}>
-                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'} routed
+                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
                             </Text>
                         </View>
                         <MaterialIcons
@@ -224,6 +226,9 @@ export function MultiTeamTradeBuilder({
                             color={colors.textSecondary}
                         />
                     </Pressable>
+                    {onAnalyze ? <Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                        accessibilityLabel="Analyze trade proposal" /> : null}
+                    </View>
                     {overviewExpanded ? (
                         <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
                     ) : null}
@@ -234,7 +239,6 @@ export function MultiTeamTradeBuilder({
                     Remove unavailable routes from the deal summary before making an offer.
                 </Text>
             ) : null}
-            <Text style={styles.sectionLabel}>EDIT ASSETS SENT BY</Text>
             {!useColumns ? (
                 <View
                     style={styles.senderTabs}
@@ -316,7 +320,6 @@ export function MultiTeamTradeBuilder({
                     {notesBytes} / {MAX_TRADE_NOTES_BYTES} bytes
                 </Text>
             </View>
-            <Text style={styles.sectionLabel}>TERMS</Text>
             <View style={styles.termsRow}>
                 <View style={styles.termField}>
                     <Text style={styles.termLabel}>Expires in days</Text>
@@ -356,12 +359,12 @@ export function MultiTeamTradeBuilder({
 const styles = StyleSheet.create({
     routeWarning: { marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark, fontSize: fontSize.sm },
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
-    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
-    reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
+    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.lg },
+    reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
     reviewTitle: {
         marginTop: spacing.xs,
-        fontSize: fontSize.xl,
-        fontWeight: fontWeight.extrabold,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
     reviewTerms: {
@@ -378,10 +381,10 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
     compactSummary: {
-        minHeight: 56,
-        marginTop: spacing.md,
-        marginHorizontal: spacing.xl,
+        flex: 1,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         flexDirection: 'row',
         alignItems: 'center',
@@ -393,7 +396,6 @@ const styles = StyleSheet.create({
         backgroundColor: uiColors.surfaceAlt,
     },
     compactSummaryCopy: { minWidth: 0, flex: 1 },
-    compactSummaryTitle: { ...textStyles.sectionLabel },
     compactSummaryMeta: {
         marginTop: spacing.xxs,
         fontSize: fontSize.sm,
@@ -403,7 +405,7 @@ const styles = StyleSheet.create({
     sectionLabel: {
         ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing.lg,
         paddingBottom: spacing.md,
     },
     stack: { gap: spacing.lg, marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
@@ -423,7 +425,7 @@ const styles = StyleSheet.create({
         flexBasis: 96,
         minWidth: 96,
         maxWidth: 200,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderBottomWidth: 2,
         borderBottomColor: colors.borderLight,
@@ -463,7 +465,7 @@ const styles = StyleSheet.create({
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
     termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     termInput: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,
@@ -475,6 +477,6 @@ const styles = StyleSheet.create({
     },
     termInputInvalid: { borderColor: colors.danger },
     termError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
+    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: controlSize.minTouch, alignItems: 'center' },
     rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
 })
