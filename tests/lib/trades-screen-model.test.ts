@@ -102,7 +102,7 @@ describe('trade screen read model', () => {
             trade({ id: 'history', status: 'completed' }),
         ], [{
             id: 'block', memberId: 'recipient', teamName: 'Recipient', note: null,
-            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'faab', amount: 1 },
+            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'pick', pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' },
         }], 'recipient')
         expect(sections.incomingTrades.map((item) => item.id)).toEqual(['incoming'])
         expect(sections.outgoingTrades.map((item) => item.id)).toEqual(['outgoing'])
@@ -112,7 +112,7 @@ describe('trade screen read model', () => {
 
     it('lists other teams before your listings without duplicating owned assets', () => {
         const mine = { id: 'mine', memberId: 'recipient', teamName: 'Recipient', note: null,
-            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'faab' as const, amount: 1 } }
+            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'pick' as const, pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' } }
         const other = { ...mine, id: 'other', memberId: 'other' }
         const rows = buildTradeList({ ...listBase, tab: 'block', myBlockItems: [mine], leagueBlockItems: [mine, other] })
         expect(rows.map(row => row._type === 'header' ? row.label : row._type === 'blockItem' ? row.item.id : row._type))

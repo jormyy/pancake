@@ -205,6 +205,7 @@ type TradeProposalOptions = {
 }
 
 export type TradeProposalPayload = {
+    recipientMemberId?: string
     offerPlayerIds: string[]
     requestPlayerIds: string[]
     offerPickIds: string[]
@@ -242,7 +243,7 @@ export type TradeBlockItem = {
     teamName: string
     note: string | null
     updatedAt: string
-    asset: TradeItem
+    asset: Exclude<TradeItem, { kind: 'faab' }>
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
@@ -408,7 +409,8 @@ export async function editTrade(
 }
 
 export async function setTradeRosterPlan(tradeId: string, memberId: string, plan: TradeRosterPlan) {
-    await apiPost(`/trades/${tradeId}/roster-plan`, { memberId, ...plan })
+    const result = await apiPost<{ rosterPlan: TradeRosterPlan }>(`/trades/${tradeId}/roster-plan`, { memberId, ...plan })
+    return result.rosterPlan
 }
 
 export async function setTradeTaxiDestinations(tradeId: string, memberId: string, playerIds: string[]) {

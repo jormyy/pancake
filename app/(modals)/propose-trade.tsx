@@ -306,9 +306,10 @@ export default function ProposeTradeScreen() {
     }, [canUseMultiTeamMode, reset])
 
     const selectTeam = useCallback((memberId: string) => {
+        if (mode !== 'propose' && !multiTeamMode) return
         if (multiTeamMode) toggleParticipant(memberId)
         else setSelectedRecipientId(memberId)
-    }, [multiTeamMode, toggleParticipant])
+    }, [mode, multiTeamMode, toggleParticipant])
 
     const items = useMemo(() => buildMultiTeamItems(), [buildMultiTeamItems])
     // Leaving drops a built trade, so ask first once anything is selected.
@@ -317,6 +318,7 @@ export default function ProposeTradeScreen() {
         else confirmAction('Discard this trade?', 'The players and picks you picked will be cleared.', back, 'Discard')
     }
     const tradeAnalysis = useDynastyTradeAnalysis({
+        debounceMs: 300,
         enabled: ready && composer.assetsReady,
         leagueId,
         memberId: myMemberId,
@@ -501,6 +503,8 @@ export default function ProposeTradeScreen() {
         notesError,
         expirationDays,
         expirationError,
+        leagueStatus: currentLeague?.status,
+        tradeDeadline: currentLeague?.trade_deadline,
         rosterError: composer.rosterError,
         rosterLoading: !composer.displayReady && !composer.rosterError,
         avgMap: composer.avgMap,
@@ -663,8 +667,8 @@ export default function ProposeTradeScreen() {
                         const active = multiTeamMode
                             ? composer.selectedParticipantIds.has(member.id)
                             : selectedRecipientId === member.id
-                        const participantDisabled = multiTeamMode && !active &&
-                            participantIds.length >= MAX_TRADE_PARTICIPANTS
+                        const participantDisabled = mode !== 'propose' && !multiTeamMode ||
+                            multiTeamMode && !active && participantIds.length >= MAX_TRADE_PARTICIPANTS
                         return (
                             <Pressable
                                 key={member.id}

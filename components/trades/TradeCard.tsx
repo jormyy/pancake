@@ -305,8 +305,6 @@ export function TradeCard({
     /** Beside an open detail pane: names only, the pane shows season context and notes. */
     brief?: boolean
     onAccept: () => void
-    onRosterPlan?: (plan: TradeRosterPlan) => void
-    onTaxiDestination?: (playerId: string, value: boolean) => void
     onReject: () => void
     onVeto: () => void
     onWithdraw: () => void

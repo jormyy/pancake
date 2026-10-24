@@ -228,8 +228,6 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         items: itemsWithStats,
         hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
         displayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached)),
-        listingsDisplayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached ||
-            ownsResource && validatedKey === resourceKey && items.every((item) => item.asset.kind !== 'player'))),
         roster: ownsResource ? roster : cached?.roster ?? [],
         avgMap: ownsResource ? avgMap : cachedAvgMap,
         avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,

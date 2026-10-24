@@ -117,6 +117,7 @@ function TradesScreen() {
         loadMoreError: offersLoadMoreError,
         refresh: load,
         loadMore: loadMoreOffers,
+        updateRosterPlan,
     } = useTradesFeed(myMemberId, leagueId, online, { autoLoad: false })
     const {
         trades: historyTrades,
@@ -132,6 +133,7 @@ function TradesScreen() {
         memberId: myMemberId,
         leagueId,
         onAction: load,
+        onRosterPlanSaved: updateRosterPlan,
         enabled: !decisionsDisabled,
     })
     const {
@@ -220,7 +222,7 @@ function TradesScreen() {
             case 'empty':
                 return <TradeEmptyRow item={item} />
             case 'blockItem':
-                return <TradeBlockListingRow item={item} myMemberId={myMemberId} tab={tab}
+                return <TradeBlockListingRow item={item} myMemberId={myMemberId}
                     blockBusyId={blockBusyId} disabled={!online} tile={gridColumns > 1} onRemove={handleRemoveBlockItem} onSaveNote={handleSaveBlockNote} />
             case 'blockPlayer': {
                 const playerId = item.player.players.id

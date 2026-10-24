@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
 import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
+import { buildTradeComposerPayload } from '@/lib/trade-composer'
+import type { LeagueStatus } from '@/types/database'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 type MultiTeamTradeBuilderProps = {
@@ -15,9 +17,12 @@ type MultiTeamTradeBuilderProps = {
     items: MultiTeamTradeItemPayload[]
     myMemberId: string
     faabEnabled: boolean
-    notes: string
+    notes?: string
     notesError: string | null
-    expirationDays: string
+    expirationDays?: string
+    leagueStatus?: LeagueStatus | null
+    tradeDeadline?: string | null
+    showTerms?: boolean
     expirationError: string | null
     rosterError: string | null
     rosterLoading: boolean
@@ -33,8 +38,8 @@ type MultiTeamTradeBuilderProps = {
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, toMemberId: string, value: string) => void
-    onNotesChange: (value: string) => void
-    onExpirationDaysChange: (value: string) => void
+    onNotesChange?: (value: string) => void
+    onExpirationDaysChange?: (value: string) => void
     reviewOnly?: boolean
     onAnalyze?: () => void
     /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
@@ -47,9 +52,12 @@ export function MultiTeamTradeBuilder({
     items,
     myMemberId,
     faabEnabled,
-    notes,
+    notes = '',
     notesError,
-    expirationDays,
+    expirationDays = '',
+    leagueStatus,
+    tradeDeadline,
+    showTerms = true,
     expirationError,
     rosterError,
     rosterLoading,
@@ -81,6 +89,11 @@ export function MultiTeamTradeBuilder({
     const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
     const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
+    const expiresAt = reviewOnly && showTerms ? buildTradeComposerPayload({
+        offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
+        notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
+        leagueStatus, tradeDeadline,
+    }).payload.expiresAt : null
 
     useEffect(() => {
         if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
@@ -181,15 +194,15 @@ export function MultiTeamTradeBuilder({
                     items={overviewItems}
                     columns={useColumns}
                 />
-                <View style={styles.reviewTerms}>
+                {showTerms ? <View style={styles.reviewTerms}>
                     <Text style={styles.reviewTermsValue}>
-                        Expires in {expirationDays} {expirationDays === '1' ? 'day' : 'days'}
+                        {expiresAt ? `Expires ${new Date(expiresAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'No expiry'}
                     </Text>
                     {notes.trim() ? <>
                         <Text style={styles.reviewTermsLabel}>NOTE</Text>
                         <Text style={styles.reviewTermsValue}>{notes.trim()}</Text>
                     </> : null}
-                </View>
+                </View> : null}
             </View>
             </DeferredContent>
         )
@@ -282,6 +295,7 @@ export function MultiTeamTradeBuilder({
                     {panels.find((panel) => panel.key === activeParticipantId) ?? panels[0]}
                 </View>
             )}
+            {showTerms ? <>
             <Text style={styles.sectionLabel}>NOTES (optional)</Text>
             <TextInput
                 style={[styles.notesInput, notesError && styles.notesInputInvalid]}
@@ -290,7 +304,7 @@ export function MultiTeamTradeBuilder({
                 value={notes}
                 onChangeText={(value) => {
                     const nextBytes = utf8ByteLength(value)
-                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange(value)
+                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange?.(value)
                 }}
                 multiline
                 numberOfLines={3}
@@ -328,7 +342,7 @@ export function MultiTeamTradeBuilder({
                         value={expirationDays}
                         onChangeText={(value) => {
                             if (/^\d*$/.test(value) && value.length <= String(MAX_TRADE_EXPIRATION_DAYS).length) {
-                                onExpirationDaysChange(value)
+                                onExpirationDaysChange?.(value)
                             }
                         }}
                         maxLength={String(MAX_TRADE_EXPIRATION_DAYS).length}
@@ -351,6 +365,7 @@ export function MultiTeamTradeBuilder({
                     ) : null}
                 </View>
             </View>
+            </> : null}
         </View>
         </DeferredContent>
     )

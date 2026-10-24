@@ -729,3 +729,22 @@ it('reveals the editor only after selected participant assets settle', async () 
     expect(screen.root.findAllByType('MultiTeamTradeBuilder' as React.ElementType)).toHaveLength(1)
     await act(async () => screen.unmount())
 })
+
+
+it.each(['editTradeId', 'counterTradeId'])('locks the original two-team counterparty for %s', async (sourceParam) => {
+    mocks.params = { [sourceParam]: 'source' }
+    mocks.getTradeById.mockResolvedValue({ id: 'source', isMultiTeam: false })
+    mocks.getLeagueMembers.mockResolvedValue([
+        { id: 'member-a', user_id: 'user-a', team_name: 'Team A' },
+        { id: 'member-b', team_name: 'Team B' },
+        { id: 'member-c', team_name: 'Team C' },
+    ])
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)); await Promise.resolve() })
+    const otherTeam = renderer.root.findByProps({ testID: 'trade-participant-member-c' })
+    expect(otherTeam.props.disabled).toBe(true)
+    await act(async () => { otherTeam.props.onPress() })
+    const originalTeam = renderer.root.findByProps({ testID: 'trade-participant-member-b' })
+    expect(originalTeam.props.accessibilityState.selected).toBe(true)
+    await act(async () => { renderer.unmount() })
+})

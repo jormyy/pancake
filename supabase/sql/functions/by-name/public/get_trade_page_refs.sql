@@ -78,13 +78,14 @@ BEGIN
        )
      ORDER BY participant.proposed_at DESC, participant.trade_id DESC
      LIMIT v_limit
-  ), participant_history AS (
+  ), participant_outgoing AS (
     SELECT trade.id, 1 AS tier, trade.proposed_at
       FROM public.trade_participants AS participant
       JOIN public.trades AS trade ON trade.id = participant.trade_id
      WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
-       AND NOT (trade.status = 'pending'::public.trade_status AND participant.accepted_at IS NULL)
+       AND trade.status = 'pending'::public.trade_status
+       AND participant.accepted_at IS NOT NULL
        AND (
          v_cursor_tier IS NULL OR 1 < v_cursor_tier OR
          (v_cursor_tier = 1 AND (participant.proposed_at, participant.trade_id) < (v_cursor_at, v_cursor_id))
@@ -96,7 +97,7 @@ BEGIN
     UNION ALL
     SELECT * FROM participant_actions
     UNION ALL
-    SELECT * FROM participant_history
+    SELECT * FROM participant_outgoing
     ORDER BY tier DESC, proposed_at DESC, id DESC
     LIMIT v_limit
   )

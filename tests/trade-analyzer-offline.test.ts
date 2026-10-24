@@ -5,7 +5,7 @@ import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
 const saved = vi.hoisted(() => ({ assets: [{ kind: 'player', assetId: 'player', label: 'Saved player' }], teams: [{ memberId: 'me' }] }))
 const composer = vi.hoisted(() => ({
-    participantIds: ['me'], participantViews: [], assetsReady: false, selectedAssetsAvailable: false,
+    participantIds: ['me'], participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
     selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
     setParticipantIds: () => {}, prefillFromTrade: () => {}, participantName: () => 'My team',
 }))
@@ -46,4 +46,17 @@ it('opens the saved offline result without rebuilding its asset selection', asyn
     expect(summary.props.cached).toBe(true)
     expect(renderer.root.findByProps({ accessibilityLabel: 'Make Offer from this analysis' }).props.disabled).toBe(true)
     await act(async () => renderer.unmount())
+})
+
+
+it('hides offer terms in the analyzer', async () => {
+    composer.participantViews = [{ memberId: 'me' }, { memberId: 'them' }]
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+    const builder = renderer.root.findByType('MultiTeamTradeBuilder' as React.ElementType)
+    expect(builder.props.showTerms).toBe(false)
+    expect(builder.props.onNotesChange).toBeUndefined()
+    expect(builder.props.onExpirationDaysChange).toBeUndefined()
+    await act(async () => { renderer.unmount() })
+    composer.participantViews = []
 })

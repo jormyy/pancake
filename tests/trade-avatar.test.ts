@@ -36,7 +36,7 @@ describe('trade player identity', () => {
     it('keeps league block identities independent of a headshot request', async () => {
         await expectInitials(React.createElement(TradeBlockListingRow, {
             item: { _type: 'blockItem', item: { id: 'listing', memberId: 'other', teamName: 'Other', asset, note: null, updatedAt: '2026-10-24T12:00:00Z' } },
-            myMemberId: 'mine', tab: 'block', blockBusyId: null, onRemove: vi.fn(), onSaveNote: vi.fn(),
+            myMemberId: 'mine', blockBusyId: null, onRemove: vi.fn(), onSaveNote: vi.fn(),
         }))
     })
 

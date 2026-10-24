@@ -56,8 +56,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
     const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
-    const [notes, setNotes] = useState('')
-    const [expirationDays, setExpirationDays] = useState('3')
     const prefillRef = useRef('')
     const composer = useMultiTeamTradeComposer({
         enabled: Boolean(myMemberId && leagueId),
@@ -79,6 +77,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const teamCount = Math.max(4, members.length + 1)
     const faabBudget = currentLeague?.faab_starting_budget ?? 100
     const { analysis, seasonYear, loading, error } = useDynastyTradeAnalysis({
+        debounceMs: 300,
         enabled: composer.assetsReady,
         leagueId,
         memberId: myMemberId,
@@ -219,9 +218,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         items,
         myMemberId,
         faabEnabled: currentLeague?.waiver_mode === 'faab',
-        notes,
+        showTerms: false,
         notesError: null,
-        expirationDays,
         expirationError: null,
         rosterError: composer.rosterError,
         rosterLoading: !composer.displayReady && !composer.rosterError,
@@ -237,8 +235,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         onPlayerDestinationChange: composer.setParticipantPlayerDestination,
         onPickDestinationChange: composer.setParticipantPickDestination,
         onFaabChange: composer.setParticipantFaab,
-        onNotesChange: setNotes,
-        onExpirationDaysChange: setExpirationDays,
     }
 
     const verdict = (
