@@ -14,9 +14,9 @@ vi.mock('@react-navigation/native', async () => {
 })
 vi.mock('@/lib/players', () => ({
     getPlayer: async () => ({ id: 'player', nba_team: 'LAL' }), getAvailableSeasons: async () => [2026],
-    getPlayerSeasonAveragesFromView: async () => null, getPlayerGameLog: async () => ({ games: [], hasMore: false }),
-    getPlayerFantasyPoints: async () => [], getPlayerTransactionHistory: async () => [],
+    getPlayerTransactionHistory: async () => [],
 }))
+vi.mock('@/components/player/season-data', () => ({ getPlayerSeasonLines: async () => [], getPlayerScoringSettings: async () => ({}), summarizePlayerSeason: () => ({ games: [], averages: null, fantasyPointsMap: null, avgFantasyPoints: 0, includesLive: false }) }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: () => 2026 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-18' }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => undefined, writePersistentCache: vi.fn() }))
