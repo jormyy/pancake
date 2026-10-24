@@ -94,16 +94,19 @@ export function createWebPushFanout(dependencies: WebPushFanoutDependencies): We
       attempts[index].push(result)
       if (result.outcome === 'sent') summary.sent += 1
       else if (result.outcome === 'gone') gone.set(subscription.endpoint, subscription)
-      else summary.failed += 1
+      else {
+        summary.failed += 1
+        console.error('Web push endpoint delivery failed', { endpoint: subscription.endpoint, ...result })
+      }
     }))
 
     await runBounded(jobs, WEB_PUSH_CONCURRENCY)
     summary.results = messages.map(({ userId }, index): WebPushUserResult => {
       const results = attempts[index]
+      if (results.some((result) => result.outcome === 'sent')) return { userId, status: 'sent' }
       const failures = results.filter((result) => result.outcome === 'failed')
       if (failures.length > 0) return { userId, status: 'failed',
         retryable: failures.some((result) => result.retryable), error: failures.map((result) => result.message).join('; ') }
-      if (results.some((result) => result.outcome === 'sent')) return { userId, status: 'sent' }
       return { userId, status: results.length > 0 ? 'gone' : 'no_subscription' }
     })
 

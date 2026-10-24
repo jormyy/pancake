@@ -29,7 +29,8 @@ BEGIN
      WHERE status IN (
        'active'::public.league_status,
        'playoffs'::public.league_status,
-       'offseason'::public.league_status
+       'offseason'::public.league_status,
+       'drafting'::public.league_status
      )
   ) THEN
     RETURN;

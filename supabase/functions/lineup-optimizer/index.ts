@@ -3,9 +3,6 @@ import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
-// The app-side constants/slots.ts pulls in @pancake/core, which the Deno
-// bundler cannot resolve; use the generated edge-shared map instead. It only
-// lacks the BE entry, which is filtered out before slot filling anyway.
 import { chooseBestAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
 import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'

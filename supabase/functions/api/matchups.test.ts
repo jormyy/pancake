@@ -19,7 +19,7 @@ const { generateMatchups, generateAllMatchups } = await import('./matchups.ts')
 
 Deno.test('matchup generation delegates the schedule to SQL without loading members or sending pairings', async () => {
   calls.length = 0
-  await generateMatchups('league-a', 'season-a', 19)
+  await generateMatchups('league-a', 'season-a')
   assert.deepEqual(calls, [{ name: 'replace_regular_season_matchups_atomic', body: {
     p_league_id: 'league-a', p_league_season_id: 'season-a', p_force: false, p_matchups: [],
   } }])
@@ -29,7 +29,7 @@ Deno.test('matchup generation preserves force and propagates a database rejectio
   calls.length = 0
   reject = true
   try {
-    await assert.rejects(() => generateMatchups('league-a', 'season-a', 19, true), { message: 'League is locked' })
+    await assert.rejects(() => generateMatchups('league-a', 'season-a', true), { message: 'League is locked' })
     assert.equal(calls[0].body.p_force, true)
   } finally { reject = false }
 })

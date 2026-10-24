@@ -90,8 +90,6 @@ const ROSTER_HISTORY_TRANSACTION_TYPES = [
 const ROSTER_ADD_TRANSACTION_TYPE_SET = new Set(ROSTER_ADD_TRANSACTION_TYPES)
 const ROSTER_DROP_TRANSACTION_TYPE_SET = new Set(ROSTER_DROP_TRANSACTION_TYPES)
 const ROSTER_INACTIVE_TRANSACTION_TYPE_SET = new Set(ROSTER_INACTIVE_TRANSACTION_TYPES)
-// Exported so Edge functions (lineup-optimizer) can share the starter-slot
-// eligibility map without importing app code the Deno bundler cannot resolve.
 const SLOT_ALLOWED_POSITIONS: Record<string, string[]> = {
     PG: ['PG'],
     SG: ['SG'],

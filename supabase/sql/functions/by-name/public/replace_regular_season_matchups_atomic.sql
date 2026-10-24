@@ -100,7 +100,7 @@ BEGIN
   END IF;
 
   SELECT count(*) INTO v_member_count FROM public.league_members WHERE league_id = p_league_id;
-  IF v_member_count >= 2 AND p_matchups IS DISTINCT FROM private.regular_season_matchup_payload(p_league_id,p_league_season_id,v_start-1) AND (
+  IF jsonb_array_length(p_matchups) > 0 AND v_member_count >= 2 AND p_matchups IS DISTINCT FROM private.regular_season_matchup_payload(p_league_id,p_league_season_id,v_start-1) AND (
     (SELECT count(DISTINCT (value->>'week_number')::int) FROM jsonb_array_elements(p_matchups)) <> v_start - 1
     OR jsonb_array_length(p_matchups) <> (v_start - 1)::bigint * (v_member_count / 2)
   ) THEN

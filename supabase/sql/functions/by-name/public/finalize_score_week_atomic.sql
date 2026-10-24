@@ -75,8 +75,7 @@ BEGIN
         away_points numeric,
         home_max_possible_points numeric,
         away_max_possible_points numeric,
-        score_read_started_at timestamptz,
-        reconcile_decision boolean
+        score_read_started_at timestamptz
       )
   ),
   locked AS (
@@ -87,8 +86,7 @@ BEGIN
       requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
       requested.away_max_possible_points AS requested_away_max_possible_points,
-      requested.score_read_started_at AS requested_score_read_started_at,
-      requested.reconcile_decision AS requested_reconcile_decision
+      requested.score_read_started_at AS requested_score_read_started_at
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -115,8 +113,7 @@ BEGIN
         away_points numeric,
         home_max_possible_points numeric,
         away_max_possible_points numeric,
-        score_read_started_at timestamptz,
-        reconcile_decision boolean
+        score_read_started_at timestamptz
       )
   ),
   locked AS (
@@ -127,8 +124,7 @@ BEGIN
       requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
       requested.away_max_possible_points AS requested_away_max_possible_points,
-      requested.score_read_started_at AS requested_score_read_started_at,
-      requested.reconcile_decision AS requested_reconcile_decision
+      requested.score_read_started_at AS requested_score_read_started_at
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id

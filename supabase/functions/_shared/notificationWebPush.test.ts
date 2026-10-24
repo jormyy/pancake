@@ -91,7 +91,7 @@ Deno.test('web push delivery excludes account details from provider payloads', a
   assert(payloads.length === 1 && (payloads[0] as { url: string }).url === '/', 'generic notification must open the current account home')
 })
 
-Deno.test('partial device delivery keeps a user retryable without delaying other users', async () => {
+Deno.test('partial device delivery completes the message without retrying successful devices', async () => {
   const fanout = createWebPushFanout({
     vapid: () => KEYS,
     subscriptions: async () => ({ data: [sub('user-a', 'sent'), sub('user-a', 'retry'), sub('user-b', 'gone')], error: null }),
@@ -101,7 +101,8 @@ Deno.test('partial device delivery keeps a user retryable without delaying other
       : { outcome: 'failed', retryable: true, status: 503, message: 'Temporary outage' },
   })
   const summary = await fanout([message('user-a'), message('user-b'), message('user-c')])
-  assert(summary.results[0].status === 'failed' && summary.results[0].retryable, 'partial success hides a retryable device failure')
+  assert(summary.results[0].status === 'sent', 'partial success must complete the message to avoid duplicate pushes')
+  assert(summary.failed === 1 && summary.sent === 1, 'device failures must remain visible in delivery totals')
   assert(summary.results[1].status === 'gone', 'gone recipient must complete')
   assert(summary.results[2].status === 'no_subscription', 'absent recipient must complete')
 })

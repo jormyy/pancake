@@ -325,3 +325,46 @@ export function applyVisiblePlayerTotals(player: PlayerRow, row: VisiblePlayerTo
         playing_now: status === 'inprogress' || (status === 'scheduled' && tipoff != null && Date.parse(tipoff) <= now),
     }
 }
+
+export type PlayerSeasonLine = Pick<Database['public']['Tables']['player_game_stats']['Row'],
+    'id'
+    | 'game_date'
+    | 'did_not_play'
+    | 'minutes_played'
+    | 'points'
+    | 'rebounds'
+    | 'assists'
+    | 'steals'
+    | 'blocks'
+    | 'turnovers'
+    | 'personal_fouls'
+    | 'field_goals_made'
+    | 'field_goals_attempted'
+    | 'three_pointers_made'
+    | 'three_pointers_attempted'
+    | 'free_throws_made'
+    | 'free_throws_attempted'
+    | 'plus_minus'
+    | 'double_double'
+    | 'triple_double'> & {
+    is_home?: boolean | null
+    nba_games: Pick<Database['public']['Tables']['nba_games']['Row'],
+        'id' | 'nba_game_id' | 'game_date' | 'home_team' | 'away_team' | 'status' | 'game_time' | 'started_at'>
+}
+
+export async function getPlayerSeasonLines(playerId: string, seasonYear: number): Promise<PlayerSeasonLine[]> {
+    const { data, error } = await supabase.from('player_game_stats')
+        .select(`id, game_date, is_home, did_not_play, minutes_played,
+            points, rebounds, assists, steals, blocks, turnovers, personal_fouls,
+            field_goals_made, field_goals_attempted, three_pointers_made, three_pointers_attempted,
+            free_throws_made, free_throws_attempted, plus_minus, double_double, triple_double,
+            nba_games!inner(id, nba_game_id, game_date, home_team, away_team, status, game_time, started_at)`)
+        .eq('player_id', playerId)
+        .eq('season_year', seasonYear)
+        .like('nba_games.nba_game_id', '002%')
+        .order('game_date', { ascending: false })
+        .limit(100)
+        .returns<PlayerSeasonLine[]>()
+    if (error) throw error
+    return data ?? []
+}
