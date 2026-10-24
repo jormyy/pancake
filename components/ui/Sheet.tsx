@@ -15,11 +15,13 @@ type WebKeyDownProps = { onKeyDown?: (event: DialogKeyboardEvent) => void }
 export function Sheet({
     visible,
     title,
+    accessibilityLabel,
     onClose,
     children,
 }: {
     visible: boolean
-    title: string
+    title?: string
+    accessibilityLabel?: string
     onClose: () => void
     children: ReactNode
 }) {
@@ -43,7 +45,9 @@ export function Sheet({
         : {}
     // React Native Web's Modal is already the dialog element (role and
     // aria-modal); naming it here avoids a second, nested dialog.
-    const modalLabel = Platform.OS === 'web' ? ({ 'aria-labelledby': titleId } as object) : {}
+    const modalLabel = Platform.OS === 'web'
+        ? (title ? { 'aria-labelledby': titleId } : { 'aria-label': accessibilityLabel }) as object
+        : { accessibilityLabel: accessibilityLabel ?? title }
 
     return (
         <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
@@ -62,7 +66,7 @@ export function Sheet({
                     {...keyProps}
                 >
                     {bottomSheet ? <View style={styles.grabber} aria-hidden /> : null}
-                    <View style={styles.header}>
+                    {title || !bottomSheet ? <View style={styles.header}>
                         <Text nativeID={titleId} style={[textStyles.rowTitle, styles.title]} numberOfLines={1}>{title}</Text>
                         <Pressable
                             onPress={onClose}
@@ -72,7 +76,7 @@ export function Sheet({
                         >
                             <MaterialIcons name="close" size={controlSize.icon.md} color={colors.textSecondary} />
                         </Pressable>
-                    </View>
+                    </View> : null}
                     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
                         {children}
                     </ScrollView>

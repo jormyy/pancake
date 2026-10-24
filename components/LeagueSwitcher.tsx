@@ -1,5 +1,5 @@
 import { ScrollView, Text, StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
 type LeagueSwitcherMembership = {
@@ -37,8 +37,7 @@ export function LeagueSwitcher({
                         accessibilityRole="button"
                         accessibilityLabel={`Switch to ${m.leagues?.name ?? 'League'}`}
                         accessibilityState={{ selected: isActive }}
-                        hitSlop={8}
-                        pressedScale={0.94}
+                        hitSlop={spacing.md}
                     >
                         <Text style={[styles.switcherText, isActive && styles.switcherTextActive]}>
                             {m.leagues?.name ?? 'League'}
@@ -51,20 +50,20 @@ export function LeagueSwitcher({
 }
 
 const styles = StyleSheet.create({
-    switcherRow: { maxHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-    switcherRowCompact: { maxHeight: 38 },
+    switcherRow: { maxHeight: controlSize.button.md.height, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    switcherRowCompact: { maxHeight: controlSize.minTouch },
     switcherContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        gap: 8,
-        paddingVertical: 8,
+        paddingHorizontal: spacing.xl,
+        gap: spacing.md,
+        paddingVertical: spacing.md,
     },
-    switcherContentCompact: { paddingVertical: 5 },
+    switcherContentCompact: { paddingVertical: spacing.xs },
     switcherChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 20,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.sm,
+        borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
     },

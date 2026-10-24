@@ -1,7 +1,7 @@
 import { ComponentProps } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 
@@ -26,6 +26,15 @@ type Props = {
 
 /** Centered empty state for empty lists / missing-data guards. Teaches + offers a CTA. */
 export function EmptyState({ message, description, icon, actionLabel, onAction, fullScreen = true, framed, reserveCopy }: Props) {
+    if (!fullScreen) {
+        return (
+            <View style={styles.inline}>
+                <Text style={styles.inlineText}>{message}</Text>
+                {actionLabel && onAction ? <Button title={actionLabel} variant="outline" size="sm" onPress={onAction} /> : null}
+            </View>
+        )
+    }
+
     return (
         <PromptFrame fullScreen={fullScreen} framed={framed}>
             {icon ? (
@@ -53,6 +62,8 @@ export function EmptyState({ message, description, icon, actionLabel, onAction, 
 }
 
 const styles = StyleSheet.create({
+    inline: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
+    inlineText: { ...textStyles.body, color: colors.textMuted, textAlign: 'center' },
     iconCircle: {
         width: 64,
         height: 64,

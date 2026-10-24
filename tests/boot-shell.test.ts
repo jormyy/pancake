@@ -121,13 +121,23 @@ describe('boot shell', () => {
 
     it('renders the cached league, team, and initials the app will render', () => {
         const { texts, breadcrumb, commissionerHidden } = runBootScript('/roster', membershipStorage({ role: 'commissioner' }))
-        // The live LeagueSwitcher crest is the team's first letter, not the league's.
         expect(texts).toEqual({
             league: 'Sunday Dynasty', 'league-compact': 'Sunday Dynasty',
-            team: 'E2E Team 1', profile: 'E2E Team 1', crest: 'E', initials: 'ET',
+            team: 'E2E Team 1', profile: 'E2E Team 1', initials: 'ET',
         })
         expect(commissionerHidden).toBe(false)
         expect(breadcrumb).toMatchObject({ league: 'Sunday Dynasty', team: 'E2E Team 1', active: '/roster' })
+    })
+
+    it.each(['/player/123', '/profile', '/lineup', '/propose-trade', '/claim-player', '/team-roster',
+        '/change-password', '/commissioner-settings', '/create-league', '/join-league', '/bracket', '/draft-room', '/rookie-draft-room'])('reserves only the back header on boot: %s', pathname => {
+        expect(runBootScript(pathname, membershipStorage()).attributes['data-back-header']).toBe('1')
+    })
+
+    it('keeps the one-league title plain from the first paint', () => {
+        const { attributes } = runBootScript('/', membershipStorage())
+        expect(attributes['data-single-league']).toBe('1')
+        expect(attributes['data-multiple-leagues']).toBeUndefined()
     })
 
     it('renders plain chrome when the cached shape is not what it expects', () => {

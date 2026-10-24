@@ -1,6 +1,7 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Sheet } from './Sheet'
 
 type FilterOption<T extends string> = { key: T; label: string }
@@ -43,7 +44,7 @@ function FilterTrigger({
                 <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
                     {active ? summary : label}
                 </Text>
-                <Text style={[styles.caret, active && styles.chipTextActive]}>▾</Text>
+                <MaterialIcons name="expand-more" size={controlSize.icon.md} color={active ? colors.primaryDark : colors.textMuted} style={styles.caret} aria-hidden />
             </Pressable>
         )
     }
@@ -57,7 +58,7 @@ function FilterTrigger({
                 accessibilityLabel={`${label}: ${summary}`}
             >
                 <Text style={styles.fieldValue} numberOfLines={1}>{summary}</Text>
-                <Text style={styles.caret}>▾</Text>
+                <MaterialIcons name="expand-more" size={controlSize.icon.md} color={colors.textMuted} style={styles.caret} aria-hidden />
             </Pressable>
         </View>
     )
@@ -210,10 +211,10 @@ const styles = StyleSheet.create({
     chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     chipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     chipTextActive: { color: colors.primaryDark },
-    caret: { flexShrink: 0, fontSize: fontSize.xs, color: colors.textMuted },
+    caret: { flexShrink: 0 },
     fieldWrap: { minWidth: 142, flexGrow: 1, flexBasis: 142, gap: spacing.xs },
     fieldButton: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
@@ -226,7 +227,7 @@ const styles = StyleSheet.create({
     fieldValue: { flex: 1, minWidth: 0, fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     optionList: { gap: spacing.xxs },
     option: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         borderRadius: radii.md,
         paddingHorizontal: spacing.md,
@@ -248,7 +249,7 @@ const styles = StyleSheet.create({
     },
     multiActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg },
     multiClear: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.xl,
         alignItems: 'center',
         justifyContent: 'center',
@@ -259,7 +260,7 @@ const styles = StyleSheet.create({
     multiClearText: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.dangerDark },
     multiDone: {
         flex: 1,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
