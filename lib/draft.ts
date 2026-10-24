@@ -96,6 +96,7 @@ export type AuctionDraftStartOptions = {
 }
 
 export type DraftState = {
+    pollRevision?: string | null
     draft: Draft
     order: DraftOrderEntry[]
     budgets: DraftBudget[]
@@ -293,7 +294,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
         const [draftResult, nominationResult, budgetsResult] = await Promise.all([
             supabase.from('drafts').select(DRAFT_SELECT).eq('id', draftId).maybeSingle(),
             supabase.from('nominations')
-                .select('id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at')
+                .select('id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at, closed_at')
                 .eq('draft_id', draftId).order('nomination_order', { ascending: false }).limit(1).maybeSingle(),
             supabase.from('draft_budgets')
                 .select('member_id, remaining, initial_budget, league_members(team_name)').eq('draft_id', draftId),
@@ -331,6 +332,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
             }
             return {
                 ...previous, draft: currentDraft, openNomination, activeBids,
+                pollRevision: draftPollRevision(draftResult.data, nomination),
                 nominations: previous.nominations.map(row => row.id === nomination.id ? openNomination : row),
                 budgets: (budgetsResult.data ?? []).map(row => ({
                     memberId: row.member_id, teamName: row.league_members?.team_name ?? 'Unknown',
@@ -362,7 +364,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
                 .select(
                     `
         id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at,
-        winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order,
+        winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order, closed_at,
         player_id,
         players ( display_name, nba_team, position, nba_id )
       `,
@@ -475,6 +477,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
 
     return {
         draft: mappedDraft,
+        pollRevision: draftPollRevision(draft, nominations.at(-1) ?? null),
         order: mappedOrder,
         budgets: mappedBudgets,
         nominations: mappedNominations,
@@ -482,6 +485,26 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
         openNomination,
         currentNominatorMemberId,
     }
+}
+
+function draftPollRevision(draft: DraftPollRow, nomination: NominationPollRow | null): string {
+    return JSON.stringify({
+        draft: {
+            status: draft.status,
+            current_nomination_order: draft.current_nomination_order,
+            pause_reason: draft.pause_reason,
+            paused_at: draft.paused_at,
+        },
+        nomination: nomination ? {
+            id: nomination.id,
+            status: nomination.status,
+            current_bid_amount: nomination.current_bid_amount,
+            current_bidder_id: nomination.current_bidder_id,
+            current_bid_to_taxi: nomination.current_bid_to_taxi,
+            countdown_expires_at: nomination.countdown_expires_at,
+            closed_at: nomination.closed_at,
+        } : null,
+    })
 }
 
 export async function getDraftPollRevision(draftId: string): Promise<string | null> {
@@ -504,7 +527,7 @@ export async function getDraftPollRevision(draftId: string): Promise<string | nu
     if (!draftResult.data) return null
     const draft = draftResult.data as DraftPollRow
     const nomination = nominationResult.data as NominationPollRow | null
-    return JSON.stringify({ draft, nomination })
+    return draftPollRevision(draft, nomination)
 }
 
 
@@ -513,28 +536,19 @@ export async function searchPlayers(
     draftId: string,
     mode: NominationOrderMode = 'user_nominated',
 ): Promise<DraftSearchPlayer[]> {
-    // Get already-nominated player IDs to filter out
-    const { data: nominated, error: nominatedError } = await supabase
-        .from('nominations')
-        .select('player_id')
-        .eq('draft_id', draftId)
-    if (nominatedError) throw nominatedError
-
-    const nominatedIds = new Set((nominated ?? []).map((n) => n.player_id))
-
     // Nomination board order follows the draft's mode: alphabetical sorts A→Z;
     // by_projection / user_nominated use dynasty rank (Hashtag's list isn't every
     // NBA player, so unranked players fall back alphabetically).
     let playerQuery = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at')
+        .select('id, display_name, nba_team, position, nba_id, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at, nominated:nominations!nominations_player_id_fkey()')
+        .eq('nominated.draft_id', draftId)
+        .is('nominated', null)
     playerQuery =
         mode === 'alphabetical'
             ? playerQuery.order('last_name').order('display_name')
             : playerQuery.order('dynasty_rank', { ascending: true, nullsFirst: false }).order('last_name')
     playerQuery = playerQuery.limit(20)
-
-    if (nominatedIds.size > 0) playerQuery = playerQuery.not('id', 'in', postgresInList([...nominatedIds]))
 
     const trimmed = query.trim()
     if (trimmed) playerQuery = playerQuery.ilike('display_name', `%${trimmed}%`)
@@ -550,34 +564,25 @@ export async function searchPlayers(
     }))
 }
 
-function postgresInList(values: string[]): string {
-    return `(${values.join(',')})`
-}
-
 const DYNASTY_AGE_ROW_CAP = 2000
+const DYNASTY_AGE_ID_CHUNK = 100
 
 async function getLatestDynastyAges(playerIds: string[]): Promise<Map<string, number>> {
     const ids = [...new Set(playerIds.filter(Boolean))]
-    if (ids.length === 0) return new Map()
-
-    // dynasty_rankings holds one row per player per weekly snapshot, so a season's
-    // worth of history for a full nomination list runs to thousands of rows when we
-    // only ever keep the newest per player. Newest-first ordering puts the latest
-    // snapshot inside this cap for any realistic nomination count.
-    const { data, error } = await supabase
-        .from('dynasty_rankings')
-        .select('player_id, age, fetched_at')
-        .in('player_id', ids)
-        .not('age', 'is', null)
-        .order('fetched_at', { ascending: false })
-        .limit(DYNASTY_AGE_ROW_CAP)
-
-    if (error) throw error
-
     const ages = new Map<string, number>()
-    for (const row of (data ?? []) as { player_id: string | null; age: number | string | null }[]) {
-        if (!row.player_id || ages.has(row.player_id) || row.age == null) continue
-        ages.set(row.player_id, Number(row.age))
+    for (let offset = 0; offset < ids.length; offset += DYNASTY_AGE_ID_CHUNK) {
+        const { data, error } = await supabase
+            .from('dynasty_rankings')
+            .select('player_id, age, fetched_at')
+            .in('player_id', ids.slice(offset, offset + DYNASTY_AGE_ID_CHUNK))
+            .not('age', 'is', null)
+            .order('fetched_at', { ascending: false })
+            .limit(DYNASTY_AGE_ROW_CAP)
+        if (error) throw error
+        for (const row of (data ?? []) as { player_id: string | null; age: number | string | null }[]) {
+            if (!row.player_id || ages.has(row.player_id) || row.age == null) continue
+            ages.set(row.player_id, Number(row.age))
+        }
     }
     return ages
 }

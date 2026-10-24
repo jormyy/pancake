@@ -91,7 +91,7 @@ it('admits one save when the keyboard and button submit during the same pending 
     await act(async () => { void input('Team name').props.onSubmitEditing() })
     const requests = [mocks.updateProfile.mock.calls.length, mocks.updateTeamName.mock.calls.length]
     await act(async () => { finish(); await pending })
-    expect(requests).toEqual([1, 1])
+    expect(requests).toEqual([1, 0])
     expect(mocks.success).toHaveBeenCalledOnce()
 })
 
@@ -224,8 +224,9 @@ it('uses the selected league form value when two teams share a saved name', asyn
     await act(async () => input('Team name').props.onChangeText('Unsaved first league name'))
     mocks.memberId = 'next-member'
     await act(async () => { screen.update(React.createElement(ProfileScreen)) })
+    expect(input('Team name').props.value).toBe('Team')
     await act(async () => input('Team name').props.onSubmitEditing())
-    expect(mocks.updateTeamName).toHaveBeenLastCalledWith('next-member', 'Team')
+    expect(mocks.updateTeamName).not.toHaveBeenCalled()
 })
 
 
@@ -282,7 +283,7 @@ it('reconciles a successful profile write after the team write fails first', asy
         resolve()
     } }))
     mocks.updateTeamName.mockRejectedValueOnce(new Error('Team save failed'))
-    await act(async () => input('Display name').props.onChangeText('Committed name'))
+    await act(async () => { input('Display name').props.onChangeText('Committed name'); input('Team name').props.onChangeText('New team') })
     await act(async () => input('Team name').props.onChangeText('Unsaved team'))
     let pending!: Promise<void>
     await act(async () => { pending = input('Team name').props.onSubmitEditing(); await Promise.resolve() })
@@ -332,7 +333,7 @@ it('keeps editing busy when the profile resource updates before the team save se
         mocks.profile = { ...mocks.profile, display_name: 'Committed name' }
         mocks.receiveProfile?.(mocks.profile)
     })
-    await act(async () => input('Display name').props.onChangeText('Committed name'))
+    await act(async () => { input('Display name').props.onChangeText('Committed name'); input('Team name').props.onChangeText('New team') })
     let pending!: Promise<void>
     await act(async () => { pending = input('Team name').props.onSubmitEditing() })
     try {
@@ -367,4 +368,20 @@ it('leaves an unknown team name blank until the membership supplies it', async (
     await act(async () => button('Cancel').props.onPress())
     const row = screen.root.findAllByType('SettingsRow' as React.ElementType).find(node => node.props.label === 'Team name')
     expect(row?.props.value).toBe('')
+})
+
+it('saves a display-name change without rewriting the unchanged team name', async () => {
+    await act(async () => input('Display name').props.onChangeText('New Manager'))
+    await act(async () => input('Team name').props.onChangeText('  Team  '))
+    await act(async () => button('Save').props.onPress())
+    expect(mocks.updateProfile).toHaveBeenCalledWith('user', { display_name: 'New Manager' })
+    expect(mocks.updateTeamName).not.toHaveBeenCalled()
+    expect(mocks.refresh).not.toHaveBeenCalled()
+})
+
+it('saves a changed team name once', async () => {
+    await act(async () => input('Team name').props.onChangeText('  New Team  '))
+    await act(async () => button('Save').props.onPress())
+    expect(mocks.updateTeamName).toHaveBeenCalledExactlyOnceWith('member', 'New Team')
+    expect(mocks.refresh).toHaveBeenCalledOnce()
 })

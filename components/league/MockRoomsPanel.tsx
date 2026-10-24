@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getMockDraftRoomStatus } from '@/lib/mockDraftRooms'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet, TextInput } from 'react-native'
 import type {
@@ -49,14 +50,13 @@ function roomSectionAccessibilityLabel(status: MockDraftRoomStatus, count: numbe
 }
 
 function roomCardAccessibilityLabel(room: MockDraftRoom) {
-    const participants = room.participants.map((participant) => participant.teamName).join(', ') || 'no teams joined'
     const startBlockedCopy = roomStartBlockedCopy(room)
     const parts = [
         room.roomName,
         `${ROOM_STATUS_LABELS[room.roomStatus]} ${roomTypeLabel(room.draftType)} mock room`,
         `starts ${formatRoomTime(room.scheduledAt)}`,
         `creator ${room.creatorTeamName}`,
-        `joined ${participants}`,
+        `${room.participants.length} joined`,
     ]
     if (startBlockedCopy) parts.push(`${startBlockedCopy.toLowerCase()} to start`)
     return parts.join(', ')
@@ -250,8 +250,8 @@ function RoomCard({
                 )}
             </View>
             {compact ? null : (
-                <Text style={styles.roomMeta} numberOfLines={2}>
-                    Creator: {room.creatorTeamName} - Joined: {room.participants.map((p) => p.teamName).join(', ') || 'None'}
+                <Text style={styles.roomMeta} numberOfLines={1}>
+                    Creator: {room.creatorTeamName} · {room.participants.length} joined
                 </Text>
             )}
             {compact ? null : action}
@@ -325,6 +325,18 @@ export function MockRoomsPanel({
     const { padX } = usePageMetrics()
     const compactComposer = viewportHeight < 500
     const [creating, setCreating] = useState(false)
+    const [now, setNow] = useState(Date.now)
+    const renderTime = Math.max(now, Date.now())
+    const currentRooms = rooms.map((room) => ({ ...room, roomStatus: getMockDraftRoomStatus(room, renderTime) }))
+    useEffect(() => {
+        const currentTime = Date.now()
+        const nextStart = Math.min(...rooms
+            .filter((room) => getMockDraftRoomStatus(room, now) === 'scheduled')
+            .map((room) => Date.parse(room.scheduledAt!)))
+        if (!Number.isFinite(nextStart)) return
+        const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, nextStart - currentTime), 2_147_483_647))
+        return () => clearTimeout(timer)
+    }, [now, rooms])
     const statuses: MockDraftRoomStatus[] = ['live', 'active', 'scheduled', 'completed']
 
     const createButton = (
@@ -344,7 +356,7 @@ export function MockRoomsPanel({
     )
 
     const roomSections = () => statuses.map((status) => {
-        const statusRooms = rooms.filter((room) => room.roomStatus === status)
+        const statusRooms = currentRooms.filter((room) => room.roomStatus === status)
         if (statusRooms.length === 0) return null
         return (
             <View key={status} style={styles.roomSection}>

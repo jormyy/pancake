@@ -23,8 +23,6 @@ export type LeagueSettingsUpdate = {
     taxi_slots?: number
     auction_budget?: number
     playoff_start_week?: number
-    playoff_total_weeks?: number
-    playoff_round_weeks?: number[]
     weekly_add_limit?: number | null
     weekly_add_unlimited?: boolean
     waiver_mode?: WaiverMode
@@ -64,8 +62,6 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.taxi_slots != null) payload.taxi_slots = updates.taxi_slots
     if (updates.auction_budget != null) payload.auction_budget = updates.auction_budget
     if (updates.playoff_start_week != null) payload.playoff_start_week = updates.playoff_start_week
-    if (updates.playoff_total_weeks != null) payload.playoff_total_weeks = updates.playoff_total_weeks
-    if (updates.playoff_round_weeks != null) payload.playoff_round_weeks = updates.playoff_round_weeks
     if (updates.weekly_add_unlimited != null) payload.weekly_add_unlimited = updates.weekly_add_unlimited
     if (updates.weekly_add_limit != null) payload.weekly_add_limit = updates.weekly_add_limit
     if (updates.waiver_mode != null) payload.waiver_mode = updates.waiver_mode

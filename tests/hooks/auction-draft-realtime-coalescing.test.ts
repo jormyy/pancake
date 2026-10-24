@@ -6,13 +6,13 @@ import { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomContro
 import type { DraftState } from '@/lib/draft'
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
 
-const mocks = vi.hoisted(() => ({ state: vi.fn(), change: null as (() => void) | null }))
+const mocks = vi.hoisted(() => ({ state: vi.fn(), revision: vi.fn(), status: null as ((value: string) => void) | null, change: null as (() => void) | null }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) } }))
 vi.mock('@/lib/draft', () => ({
-    getDraftState: mocks.state, getDraftPollRevision: vi.fn(), closeExpiredNominations: vi.fn(),
+    getDraftState: mocks.state, getDraftPollRevision: mocks.revision, closeExpiredNominations: vi.fn(),
     nominatePlayer: vi.fn(), placeBid: vi.fn(), searchPlayers: vi.fn(), withdrawNomination: vi.fn(),
-    subscribeToDraft: vi.fn((_id: string, _league: null, change: () => void) => { mocks.change = change; return {} }),
+    subscribeToDraft: vi.fn((_id: string, _league: null, change: () => void, status: (value: string) => void) => { mocks.change = change; mocks.status = status; return {} }),
     unsubscribeFromDraft: vi.fn(async () => {}),
 }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn() }))
@@ -77,4 +77,24 @@ it('cancels an admitted burst on teardown', async () => {
     renderer = undefined
     await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(mocks.state).not.toHaveBeenCalled()
+})
+
+it('does not reload the full room after realtime already supplies the polled revision', async () => {
+    mocks.state.mockResolvedValue({ ...draftState(), pollRevision: 'initial' })
+    mocks.revision.mockResolvedValue('initial')
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { mocks.status!('SUBSCRIBED') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(mocks.state).toHaveBeenCalledTimes(1)
+    mocks.state.mockResolvedValue({ ...draftState(), pollRevision: 'next' })
+    mocks.revision.mockResolvedValue('next')
+    mocks.change!()
+    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+    expect(mocks.state).toHaveBeenCalledTimes(2)
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(mocks.state).toHaveBeenCalledTimes(2)
+    mocks.revision.mockResolvedValue('missed-change')
+    mocks.state.mockResolvedValue({ ...draftState(), pollRevision: 'missed-change' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+    expect(mocks.state).toHaveBeenCalledTimes(3)
 })

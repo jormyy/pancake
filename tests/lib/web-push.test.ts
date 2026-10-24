@@ -396,3 +396,50 @@ describe('web push ownership admission', () => {
         expect(current?.endpoint).toBe('https://web.push.apple.com/new')
     })
 })
+
+it('keeps an owned unchanged subscription on without rotating authority during sync', async () => {
+    const { enableWebPush, syncWebPushSubscription, getWebPushStatus } = await load()
+    await enableWebPush()
+    const authority = authorities.get(current!.endpoint)
+    const posts = mocks.apiPost.mock.calls.filter(([path]) => path === '/profile/web-push/subscribe').length
+    await syncWebPushSubscription()
+    await syncWebPushSubscription()
+    expect(mocks.apiPost.mock.calls.filter(([path]) => path === '/profile/web-push/subscribe')).toHaveLength(posts)
+    expect(authorities.get(current!.endpoint)).toEqual(authority)
+    await expect(getWebPushStatus()).resolves.toBe('on')
+})
+
+it('saves subscription keys that change on an owned endpoint', async () => {
+    const { enableWebPush, syncWebPushSubscription } = await load()
+    await enableWebPush()
+    const endpoint = current!.endpoint
+    const generation = authorities.get(endpoint)!.generation
+    current!.toJSON = () => ({ keys: { p256dh: 'changed-key', auth: 'changed-auth' } })
+    await syncWebPushSubscription()
+    expect(mocks.apiPost).toHaveBeenLastCalledWith('/profile/web-push/subscribe', expect.objectContaining({
+        endpoint, p256dh: 'changed-key', auth: 'changed-auth', generation,
+    }), expect.any(Object))
+    expect(authorities.get(endpoint)?.generation).toBe(generation + 1)
+})
+
+it('recovers a lost registration response during sync by replacing stale authority', async () => {
+    permission = 'granted'
+    const old = fakeSubscription('https://web.push.apple.com/lost', keyBytes())
+    current = old
+    const normal = mocks.apiPost.getMockImplementation()!
+    let failed = false
+    mocks.apiPost.mockImplementation(async (...args) => {
+        if (args[0] === '/profile/web-push/subscribe' && !failed) { failed = true; throw new Error('reply lost') }
+        if (args[0] === '/profile/web-push/subscribe' && args[1].endpoint === old.endpoint) {
+            throw Object.assign(new Error('stale authority'), { code: 'WEB_PUSH_STALE' })
+        }
+        return normal(...args)
+    })
+    const { syncWebPushSubscription, getWebPushStatus } = await load()
+    await expect(syncWebPushSubscription()).rejects.toThrow('reply lost')
+    await expect(getWebPushStatus()).resolves.toBe('off')
+    await syncWebPushSubscription()
+    expect(old.unsubscribe).toHaveBeenCalledOnce()
+    expect(current?.endpoint).toBe('https://web.push.apple.com/new')
+    await expect(getWebPushStatus()).resolves.toBe('on')
+})

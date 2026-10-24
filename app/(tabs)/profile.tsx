@@ -123,7 +123,7 @@ export default function ProfileScreen() {
             const saves: Promise<void>[] = [
                 updateProfile(user.id, { display_name: trimmedDisplay }),
             ]
-            if (current && trimmedTeam) {
+            if (current && trimmedTeam && trimmedTeam !== current.team_name) {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
             const results = await Promise.allSettled(saves)

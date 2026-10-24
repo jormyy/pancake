@@ -8,14 +8,15 @@ import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
 import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
+import { deferLeagueRefresh, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const ACTIVITY_LIMIT = 50
 const EMPTY_STANDINGS: StandingRow[] = []
-type ActivityPage = { rows: TransactionRow[]; hasMore: boolean }
-const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false }
+type ActivityPage = { rows: TransactionRow[]; hasMore: boolean; offset: number }
+const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false, offset: 0 }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
 const EMPTY_MOCK_ROOMS: MockDraftRoom[] = []
@@ -32,10 +33,14 @@ const RESOURCE_TABS: ResourceTab[] = ['results', 'history', 'settings', 'draftBo
 // Persistent per-tab cache: revisits render cached content instantly (no
 // blank flash) while the fresh fetch updates it in place.
 const LEAGUE_TAB_CACHE_PREFIX = 'pancake:league-tab:v1:'
+function persistentKey(key: string): string {
+    const [owner, , leagueId, memberId] = JSON.parse(key) as [string | null, number, string, string]
+    return JSON.stringify([owner, leagueId, memberId])
+}
 function tabCache<Value>(tab: LeagueTab) {
     return {
-        read: (key: string) => readPersistentCache<Value>(`${LEAGUE_TAB_CACHE_PREFIX}${tab}:${key}`) ?? undefined,
-        write: (key: string, value: Value) => writePersistentCache(`${LEAGUE_TAB_CACHE_PREFIX}${tab}:${key}`, value),
+        read: (key: string) => readPersistentCache<Value>(`${LEAGUE_TAB_CACHE_PREFIX}${tab}:${persistentKey(key)}`) ?? undefined,
+        write: (key: string, value: Value) => writePersistentCache(`${LEAGUE_TAB_CACHE_PREFIX}${tab}:${persistentKey(key)}`, value),
     }
 }
 const STANDINGS_CACHE = tabCache<StandingRow[]>('results')
@@ -43,7 +48,7 @@ const HISTORY_ROWS_CACHE = tabCache<TransactionRow[]>('history')
 const HISTORY_CACHE = {
     read: (key: string): ActivityPage | undefined => {
         const rows = HISTORY_ROWS_CACHE.read(key)
-        return rows ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0 } : undefined
+        return rows ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0, offset: rows.length } : undefined
     },
     write: (key: string, page: ActivityPage) => HISTORY_ROWS_CACHE.write(key, page.rows),
 }
@@ -82,7 +87,7 @@ export function useLeagueTabResources(
         EMPTY_ACTIVITY,
         useCallback(async () => {
             const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
-            return { rows, hasMore: rows.length === ACTIVITY_LIMIT }
+            return { rows, hasMore: rows.length === ACTIVITY_LIMIT, offset: rows.length }
         }, [leagueId]),
         HISTORY_CACHE,
         admission,
@@ -197,10 +202,14 @@ export function useLeagueTabResources(
         activityRequest.current = request
         setActivityLoadingMore(true)
         try {
-            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, snapshot.rows.length)
+            const data = await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, snapshot.offset)
             if (activityRequest.current !== request || activeLeagueRef.current !== leagueKey || !permits()) return
             resource.setData((current) => current === snapshot
-                ? { rows: [...current.rows, ...data], hasMore: data.length === ACTIVITY_LIMIT }
+                ? {
+                    rows: [...current.rows, ...data.filter((row) => !current.rows.some((existing) => existing.id === row.id))],
+                    hasMore: data.length === ACTIVITY_LIMIT,
+                    offset: snapshot.offset + data.length,
+                }
                 : current)
             setActivityLoadMoreError(null)
         } catch (error) {
@@ -214,6 +223,15 @@ export function useLeagueTabResources(
             }
         }
     }, [leagueId, leagueKey])
+
+    useEffect(() => {
+        if (!leagueId) return
+        const refresh = deferLeagueRefresh(() => invalidateTab('history'))
+        const stop = listenForLeagueChanges(leagueId, (change) => {
+            if (change.topic === 'inventory' || change.topic === 'roster' || change.topic === 'catchup') refresh.trigger()
+        })
+        return () => { stop(); refresh.cancel() }
+    }, [leagueId, invalidateTab])
 
     const refreshMockRooms = useCallback(() => refreshTab('mockRooms'), [refreshTab])
 

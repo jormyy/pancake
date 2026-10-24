@@ -155,6 +155,7 @@ export function useAuctionDraftRoomController({
                 if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
                 writePersistentCache(cacheKey, { state: s })
                 snapshotRef.current = s
+                pollRevisionRef.current = s?.pollRevision
                 setLoadError(null)
                 // A successful empty read means the room is gone. Read failures throw
                 // and keep the last usable state in the catch path below.

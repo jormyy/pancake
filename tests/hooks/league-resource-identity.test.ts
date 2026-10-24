@@ -2,6 +2,9 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
+import { notifyLeagueChange } from '@/lib/league-changes'
+import { setSessionOwner } from '@/lib/session-cache-registry'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const { getLeagueTransactions, getMockDraftRooms } = vi.hoisted(() => ({
     getLeagueTransactions: vi.fn(),
@@ -181,4 +184,79 @@ it('keeps the failed history offset across suspension and fences a removed membe
         expect(getLeagueTransactions).toHaveBeenCalledTimes(3)
         expect(latest.transactions).toEqual([])
     } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+})
+
+it('deduplicates shifted activity pages and advances by the number of fetched rows', async () => {
+    const page = (start: number) => Array.from({ length: 50 }, (_, index) => ({ id: `row-${start + index}` }))
+    getLeagueTransactions.mockResolvedValueOnce(page(0)).mockResolvedValueOnce(page(49)).mockResolvedValueOnce([])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.transactions).toHaveLength(99)
+        expect(new Set(latest.transactions.map(row => row.id)).size).toBe(99)
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 100)
+        expect(latest.activityHasMore).toBe(false)
+    } finally { await act(async () => renderer.unmount()) }
+})
+
+it('refreshes visible history after an inventory hint and defers hidden history until selection', async () => {
+    vi.useFakeTimers()
+    getLeagueTransactions.mockResolvedValueOnce([{ id: 'before' }]).mockResolvedValueOnce([{ id: 'after' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = ({ tab = 'history' }: { tab?: 'history' | 'results' }) => {
+        latest = useLeagueTabResources('league', 'member', tab)
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => {
+            notifyLeagueChange('other-league', { topic: 'inventory', scopes: null })
+            await vi.advanceTimersByTimeAsync(200)
+        })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(1)
+        await act(async () => {
+            notifyLeagueChange('league', { topic: 'inventory', scopes: null })
+            await vi.advanceTimersByTimeAsync(200)
+        })
+        expect(latest.transactions.map(row => row.id)).toEqual(['after'])
+        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'results' })) })
+        await act(async () => {
+            notifyLeagueChange('league', { topic: 'inventory', scopes: null })
+            await vi.advanceTimersByTimeAsync(200)
+        })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(2)
+        await act(async () => { renderer.update(React.createElement(Probe)) })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(3)
+    } finally { await act(async () => renderer?.unmount()); vi.useRealTimers() }
+})
+
+it('reuses the same persistent tab cache after a session generation changes for the same owner', async () => {
+    const cache = new Map<string, unknown>()
+    vi.mocked(readPersistentCache).mockImplementation(key => cache.get(key) ?? null)
+    vi.mocked(writePersistentCache).mockImplementation((key, value) => { cache.set(key, value) })
+    setSessionOwner('cache-owner')
+    getLeagueTransactions.mockResolvedValueOnce([{ id: 'saved' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => renderer.unmount())
+        setSessionOwner(null)
+        setSessionOwner('cache-owner')
+        getLeagueTransactions.mockReturnValueOnce(new Promise(() => {}))
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.transactions.map(row => row.id)).toEqual(['saved'])
+        expect(latest.isTabLoaded).toBe(true)
+        expect([...cache.keys()]).toEqual(['pancake:league-tab:v1:history:["cache-owner","league","member"]'])
+    } finally {
+        await act(async () => renderer?.unmount())
+        vi.mocked(readPersistentCache).mockImplementation(() => null)
+        vi.mocked(writePersistentCache).mockImplementation(() => {})
+    }
 })

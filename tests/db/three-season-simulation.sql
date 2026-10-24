@@ -583,8 +583,6 @@ BEGIN
   PERFORM pg_temp.assert(v_status = 'completed', 'rookie draft did not complete: ' || v_status);
   PERFORM pg_temp.assert((SELECT bool_and(is_used) FROM public.draft_picks p JOIN public.snake_draft_picks s ON s.draft_pick_id = p.id WHERE s.draft_id = v_draft), 'used picks not marked used');
   PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.trade_block_items WHERE pick_id = p_listed_pick), 'pick listing survived the pick being used');
-  -- Rookies land on full rosters; the league stays in the draft until every
-  -- manager trims back to size, then the commissioner activates it.
   PERFORM pg_temp.act_as(p_commissioner);
   PERFORM pg_temp.assert(NOT public.activate_rookie_draft_league_atomic(v_draft), 'league activated while rosters were over size');
   FOR v_member IN SELECT id FROM public.league_members WHERE league_id = p_league LOOP
@@ -596,8 +594,6 @@ BEGIN
          ORDER BY r.acquired_at DESC, r.id LIMIT 1));
     END LOOP;
   END LOOP;
-  -- Trimming the last over-size roster activates the league on its own; an
-  -- explicit activation afterwards is a no-op and never an error.
   PERFORM pg_temp.act_as(p_commissioner);
   IF (SELECT status::text FROM public.leagues WHERE id = p_league) <> 'active' THEN
     PERFORM pg_temp.assert(public.activate_rookie_draft_league_atomic(v_draft), 'league did not activate after the rookie draft');
