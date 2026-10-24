@@ -50,6 +50,8 @@ BEGIN
     SELECT trade.id, 2 AS tier, trade.proposed_at
       FROM public.trades AS trade
      WHERE trade.league_id = p_league_id
+       AND EXISTS (SELECT 1 FROM public.league_seasons AS season
+         WHERE season.id = trade.league_season_id AND season.is_current)
        AND trade.status = 'accepted'::public.trade_status
        AND trade.veto_window_expires_at > now()
        AND NOT EXISTS (
@@ -71,6 +73,8 @@ BEGIN
      WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
        AND participant.accepted_at IS NULL
+       AND EXISTS (SELECT 1 FROM public.league_seasons AS season
+         WHERE season.id = trade.league_season_id AND season.is_current)
        AND trade.status = 'pending'::public.trade_status
        AND (
          v_cursor_tier IS NULL OR 3 < v_cursor_tier OR
@@ -84,6 +88,8 @@ BEGIN
       JOIN public.trades AS trade ON trade.id = participant.trade_id
      WHERE participant.league_id = p_league_id
        AND participant.member_id = p_member_id
+       AND EXISTS (SELECT 1 FROM public.league_seasons AS season
+         WHERE season.id = trade.league_season_id AND season.is_current)
        AND trade.status = 'pending'::public.trade_status
        AND participant.accepted_at IS NOT NULL
        AND (

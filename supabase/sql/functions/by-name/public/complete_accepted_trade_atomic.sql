@@ -203,6 +203,7 @@ BEGIN
           WHERE item.trade_id = p_trade_id
             AND item.from_member_id = claim.member_id
             AND item.player_id = claim.drop_player_id
+            AND (v_league.allow_inactive_trades OR item.to_taxi OR item.to_ir)
        )
      RETURNING claim.id, claim.member_id, claim.failure_reason
   )
@@ -211,6 +212,18 @@ BEGIN
     failure_reason, jsonb_build_object('claimId', id), 'trade'
   FROM changed_claims
   ON CONFLICT (dedupe_key) DO NOTHING;
+
+  UPDATE waiver_claims AS claim
+     SET drop_player_id = NULL
+   WHERE claim.status = 'pending'
+     AND claim.league_id = v_trade.league_id
+     AND claim.league_season_id = v_trade.league_season_id
+     AND EXISTS (
+       SELECT 1 FROM trade_items AS item
+        WHERE item.trade_id = p_trade_id
+          AND item.from_member_id = claim.member_id
+          AND item.player_id = claim.drop_player_id
+     );
 
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id

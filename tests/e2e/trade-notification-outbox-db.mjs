@@ -79,11 +79,17 @@ async function run() {
   await assertRecipients(fixture, 'trade_accepted', offered, [fixture.proposer.id, fixture.recipient.id])
 
   for (const [status, eventType, expected] of [
-    ['rejected', 'trade_rejected', [fixture.proposer.id]],
+    ['rejected', 'trade_rejected', [fixture.proposer.id, fixture.recipient.id]],
     ['withdrawn', 'trade_withdrawn', nonInitiators],
     ['expired', 'trade_expired', all],
   ]) {
     const tradeId = await offeredTrade(fixture)
+    if (status === 'rejected') {
+      const { error: acceptedError } = await fixture.admin.from('trade_participants')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('trade_id', tradeId).eq('member_id', fixture.recipient.id)
+      if (acceptedError) throw new Error(`partial acceptance before rejection: ${acceptedError.message}`)
+    }
     const { error } = await fixture.admin.from('trades').update({ status }).eq('id', tradeId)
     if (error) throw new Error(`${status} transition: ${error.message}`)
     await assertRecipients(fixture, eventType, tradeId, expected)

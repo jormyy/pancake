@@ -169,7 +169,7 @@ export async function addFreeAgent(
         // both the roster_players row and the roster_transactions audit row in a
         // single SECURITY DEFINER RPC. The prior client-side INSERT had a race
         // window between drop_player_atomic's commit and another tab's
-        // getPlayerRosterStatus refresh, letting a second user scoop a player off
+        // getPlayerRosterContext refresh, letting a second user scoop a player off
         // waivers and breaking queued waiver_claims.
         const { error } = await supabase.rpc('add_free_agent_atomic', {
             p_member_id: memberId,
@@ -230,7 +230,7 @@ export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?
     })
 }
 
-type RosterOverflowFreeAction = 'drop' | 'ir' | 'taxi'
+type RosterOverflowFreeAction = 'drop' | 'ir'
 type RosterActivationSource = 'ir' | 'taxi'
 type RosterActivationWithLineup = {
     activateRosterPlayerId: string

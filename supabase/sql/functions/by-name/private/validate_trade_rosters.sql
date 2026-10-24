@@ -36,7 +36,9 @@ BEGIN
     WHERE item.trade_id=p_trade_id AND item.to_taxi) THEN
     RAISE EXCEPTION 'A promoted player cannot return to this team taxi squad.' USING ERRCODE='PT001';
   END IF;
-  FOR v_team IN SELECT * FROM trade_participants WHERE trade_id = p_trade_id ORDER BY member_id LOOP
+  FOR v_team IN SELECT participant.*, member.team_name FROM trade_participants participant
+    JOIN league_members member ON member.id = participant.member_id
+    WHERE participant.trade_id = p_trade_id ORDER BY participant.member_id LOOP
     IF EXISTS (SELECT 1 FROM unnest(v_team.drop_player_ids) drop_choice(player_id) WHERE
       NOT EXISTS (SELECT 1 FROM roster_players roster WHERE roster.league_season_id = v_trade.league_season_id
         AND roster.member_id = v_team.member_id AND roster.player_id = drop_choice.player_id)
@@ -59,16 +61,16 @@ BEGIN
       WHERE item.trade_id = p_trade_id AND item.to_member_id = v_team.member_id
     ) resulting;
     IF v_count.total > v_league.roster_size + v_league.ir_slots + v_league.taxi_slots THEN
-      RAISE EXCEPTION 'Trade exceeds the total roster limit for team %.', v_team.member_id USING ERRCODE = 'PT001';
+      RAISE EXCEPTION '% must change its trade plan to meet the total roster limit.', v_team.team_name USING ERRCODE = 'PT001';
     END IF;
     IF v_count.active > v_league.roster_size THEN
-      RAISE EXCEPTION 'Trade exceeds the active roster limit for team %. Choose placements or drops.', v_team.member_id USING ERRCODE = 'PT001';
+      RAISE EXCEPTION '% must change its trade plan to meet the active roster limit.', v_team.team_name USING ERRCODE = 'PT001';
     END IF;
     IF v_count.ir > v_league.ir_slots THEN
-      RAISE EXCEPTION 'Trade exceeds the IR limit for team %.', v_team.member_id USING ERRCODE = 'PT001';
+      RAISE EXCEPTION '% must change its trade plan to meet the IR limit.', v_team.team_name USING ERRCODE = 'PT001';
     END IF;
     IF v_count.taxi > v_league.taxi_slots THEN
-      RAISE EXCEPTION 'Trade exceeds the taxi limit for team %.', v_team.member_id USING ERRCODE = 'PT001';
+      RAISE EXCEPTION '% must change its trade plan to meet the taxi limit.', v_team.team_name USING ERRCODE = 'PT001';
     END IF;
   END LOOP;
 END;

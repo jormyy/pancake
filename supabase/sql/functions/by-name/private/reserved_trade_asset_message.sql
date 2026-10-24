@@ -8,5 +8,5 @@ LANGUAGE sql
 IMMUTABLE
 SET search_path = ''
 AS $$
-  SELECT 'This asset is reserved by an accepted trade.'
+  SELECT 'This asset is reserved by a pending or accepted trade.'
 $$;

@@ -115,11 +115,14 @@ BEGIN
     v_result := private.replace_trade_offer(v_source,p_member_id,p_user_id,p_action,
       v_offer_players,v_request_players,v_offer_picks,v_request_picks,v_notes,v_expiration,v_offer_faab,v_request_faab);
   END IF;
-  IF p_payload ? 'rosterPlan' THEN
+  IF p_payload ? 'rosterPlan' AND v_result IS NOT NULL THEN
     PERFORM public.set_trade_roster_plan_atomic(v_result,p_member_id,p_user_id,
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'taxiPlayerIds'))::uuid[],
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'irPlayerIds'))::uuid[],
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'dropPlayerIds'))::uuid[]);
+  END IF;
+  IF v_result IS NOT NULL THEN
+    PERFORM private.validate_trade_rosters(v_result);
   END IF;
   UPDATE private.trade_offer_requests SET completed=true,result_trade_id=v_result
     WHERE user_id=p_user_id AND request_id=p_request_id;
