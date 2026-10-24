@@ -1,3 +1,4 @@
+import { notificationEnabled, type NotificationCategory, type NotificationPreferenceRow } from './notificationsPreferences.ts'
 import { runBounded } from './runBounded.ts'
 import type { WebPushFanout, WebPushFanoutMessage } from './webPushDelivery.ts'
 
@@ -7,9 +8,8 @@ const EXPO_BATCH_CONCURRENCY = 2
 const DISCARD_EXPO_ERRORS = new Set(['DeviceNotRegistered'])
 const DEAD_LETTER_EXPO_ERRORS = new Set(['MessageTooBig', 'MismatchSenderId'])
 
-type NotificationCategory = 'trade' | 'waiver' | 'draft' | 'activity'
-type NotificationPreferenceColumn = 'trade_enabled' | 'waiver_enabled' | 'draft_enabled' | 'activity_enabled'
-type NotificationPreferences = Record<NotificationPreferenceColumn, boolean>
+type DeliveryCategory = NotificationCategory | 'activity'
+type NotificationPreferences = NotificationPreferenceRow
 type LookupError = { message: string; code?: string }
 type LookupResult<Value> = { data: Value | null; error: LookupError | null }
 
@@ -23,15 +23,16 @@ export type NotificationDeliveryFailureCode =
   | 'expo_status'
 
 type NotificationDeliveryResult =
-  | { status: 'sent'; ticketId?: string; pushToken?: string }
-  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' }
+  | { status: 'sent'; ticketRecorded?: boolean; ticketId?: string; pushToken?: string; channel?: 'web' }
+  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' | 'durably_suppressed' }
 
 export type NotificationMessage = {
   memberId: string
   title: string
   body: string
   data?: Record<string, unknown>
-  category?: NotificationCategory
+  category?: DeliveryCategory
+  delivery?: { id: string; claimToken: string }
 }
 
 type NotificationBatchResult = NotificationDeliveryResult & { memberId: string }
@@ -106,7 +107,7 @@ type NotifyMember = (
   title: string,
   body: string,
   data?: Record<string, unknown>,
-  category?: NotificationCategory,
+  category?: DeliveryCategory,
 ) => Promise<NotificationDeliveryResult>
 
 export type NotifyMembers = (messages: NotificationMessage[]) => Promise<NotificationBatchResult[]>
@@ -115,6 +116,10 @@ export type NotificationBatchDependencies = {
   members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
   preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
+  persistExpoTicket?: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
+  admitDelivery?: (message: NotificationMessage) => Promise<boolean>
+  beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted'>
+  finishWebDelivery?: (message: NotificationMessage, sent: boolean) => Promise<void>
   invalidateToken?: (userId: string, token: string) => Promise<LookupResult<boolean>>
   send: (url: string, init: RequestInit) => Promise<Response>
   pushUrl: string
@@ -139,13 +144,6 @@ export function notificationFailureDisposition(error: unknown): NotificationFail
     return 'dead_letter'
   }
   return 'retry'
-}
-
-const preferenceColumns: Record<NotificationCategory, NotificationPreferenceColumn> = {
-  trade: 'trade_enabled',
-  waiver: 'waiver_enabled',
-  draft: 'draft_enabled',
-  activity: 'activity_enabled',
 }
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -261,9 +259,12 @@ const sendBatch = async (
           userId: message.userId,
         }))
       } else {
+        const ticketRecorded = !!(message.delivery && dependencies.persistExpoTicket)
+        if (ticketRecorded) await dependencies.persistExpoTicket!(message, ticket.id, message.token)
         results.push({
           memberId: message.memberId,
           status: 'sent',
+          ...(ticketRecorded ? { ticketRecorded } : {}),
           ticketId: ticket.id,
           pushToken: message.token,
         })
@@ -333,16 +334,20 @@ export function createNotifyMembers(
     const profileByUserId = new Map((profileLookup.data ?? []).map((profile) => [profile.id, profile]))
     const results: NotificationBatchResult[] = []
     const prepared: PreparedNotification[] = []
-    const webMessages: WebPushFanoutMessage[] = []
+    const webMessages: (WebPushFanoutMessage & { message: NotificationMessage })[] = []
 
     for (const message of messages) {
       const userId = memberById.get(message.memberId)!.user_id
       const category = message.category ?? 'activity'
-      if (preferencesByUserId.get(userId)?.[preferenceColumns[category]] === false) {
+      if (message.delivery && dependencies.admitDelivery && !await dependencies.admitDelivery(message)) {
+        results.push({ memberId: message.memberId, status: 'skipped', reason: 'durably_suppressed' })
+        continue
+      }
+      if (!notificationEnabled(preferencesByUserId.get(userId), category, typeof message.data?.notificationEvent === 'string' ? message.data.notificationEvent : undefined)) {
         results.push({ memberId: message.memberId, status: 'skipped', reason: 'preferences_disabled' })
         continue
       }
-      webMessages.push({ userId, title: message.title, body: message.body, data: message.data, category })
+      webMessages.push({ userId, title: message.title, body: message.body, data: message.data, category, message })
       const token = profileByUserId.get(userId)?.push_token
       if (!token) {
         results.push({ memberId: message.memberId, status: 'skipped', reason: 'missing_push_token' })
@@ -351,8 +356,35 @@ export function createNotifyMembers(
       prepared.push({ ...message, userId, token })
     }
 
-    // Web push is independent of the Expo ticket flow and never throws.
-    const webDelivery = dependencies.webPush?.(webMessages)
+    const webReservations = await Promise.all(webMessages.map(async ({ message, ...webMessage }) => {
+      if (!dependencies.webPush) return null
+      try {
+        const state = message.delivery && dependencies.beginWebDelivery
+          ? await dependencies.beginWebDelivery(message, webMessage.userId) : 'send'
+        return { message, webMessage, state }
+      } catch (error) {
+        console.error('Web notification reservation failed', error)
+        return null
+      }
+    }))
+    const webDelivery = Promise.all(webReservations.map(async reservation => {
+      if (!reservation) return
+      const { message, webMessage, state } = reservation
+      try {
+        let sent = state === 'delivered'
+        if (state === 'send') {
+          const summary = await dependencies.webPush!([webMessage])
+          sent = summary.sent > 0
+          if (message.delivery && dependencies.finishWebDelivery) await dependencies.finishWebDelivery(message, sent)
+        }
+        if (sent && message.delivery) {
+          const result = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
+          if (result) results.splice(results.indexOf(result), 1, { memberId: message.memberId, status: 'sent', channel: 'web' })
+        }
+      } catch (error) {
+        console.error('Web notification delivery state failed', error)
+      }
+    }))
     const delivered: NotificationBatchResult[] = []
     try {
       await runBounded(
@@ -387,7 +419,7 @@ export function createNotifyMember(dependencies: NotificationDependencies): Noti
     if (preferenceLookup.error) {
       throw lookupError('preferences_lookup', preferenceLookup.error, memberId, userId)
     }
-    if (preferenceLookup.data?.[preferenceColumns[category]] === false) {
+    if (!notificationEnabled(preferenceLookup.data, category, typeof data?.notificationEvent === 'string' ? data.notificationEvent : undefined)) {
       return { status: 'skipped', reason: 'preferences_disabled' }
     }
 

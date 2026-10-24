@@ -1,0 +1,2388 @@
+[
+  {
+    "id": "playoffs-01",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 55,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "boundary",
+    "original": "v_order[v_index]<=cardinality(v_seeds)",
+    "mutated": "v_order[v_index]<cardinality(v_seeds)",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-02",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 64,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "bye-removal",
+    "original": "v_winner:=COALESCE(v_home,v_away);",
+    "mutated": "v_winner:=v_away;",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-03",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 66,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "wrong-winner",
+    "original": "SELECT winner_member_id INTO v_winner",
+    "mutated": "SELECT home_member_id INTO v_winner",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-04",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 67,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "negate-finalized",
+    "original": "AND is_finalized AND winner_member_id IS NOT NULL",
+    "mutated": "AND NOT is_finalized AND winner_member_id IS NOT NULL",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-05",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 75,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "off-by-one",
+    "original": "v_end:=v_start+v_season.playoff_round_weeks[p_round]-1",
+    "mutated": "v_end:=v_start+v_season.playoff_round_weeks[p_round]",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-06",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 74,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "arithmetic",
+    "original": "v_start:=v_season.playoff_start_week+COALESCE",
+    "mutated": "v_start:=v_season.playoff_start_week-COALESCE",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-07",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1667,
+    "symbol": "private.playoff_seed_rankings(uuid,uuid,integer)",
+    "operator": "ordering-flip",
+    "original": "ORDER BY wins DESC, points_for DESC",
+    "mutated": "ORDER BY wins ASC, points_for DESC",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-08",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1667,
+    "symbol": "private.playoff_seed_rankings(uuid,uuid,integer)",
+    "operator": "ordering-flip",
+    "original": "points_for DESC, max_possible_points DESC",
+    "mutated": "points_for ASC, max_possible_points DESC",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-09",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1667,
+    "symbol": "private.playoff_seed_rankings(uuid,uuid,integer)",
+    "operator": "ordering-flip",
+    "original": "max_possible_points DESC, points_against ASC",
+    "mutated": "max_possible_points ASC, points_against ASC",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "playoffs-10",
+    "area": "playoffs",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1667,
+    "symbol": "private.playoff_seed_rankings(uuid,uuid,integer)",
+    "operator": "ordering-flip",
+    "original": "points_against ASC, tie_token ASC",
+    "mutated": "points_against DESC, tie_token ASC",
+    "oracles": [
+      {
+        "name": "general-playoff-brackets",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+      },
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-seed-corrections",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+      },
+      {
+        "name": "playoff-ranking-priority",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-01",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2307,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "grace-shortened",
+    "original": "v_latest > p_reference_at - interval '48 hours'",
+    "mutated": "v_latest > p_reference_at - interval '24 hours'",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-02",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2302,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "negate-finalized",
+    "original": "is_finalized IS TRUE AND (v_type",
+    "mutated": "is_finalized IS NOT TRUE AND (v_type",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-03",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2302,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "winner-null",
+    "original": "v_type = 'regular_season' OR winner_member_id IS NOT NULL",
+    "mutated": "v_type = 'regular_season' OR winner_member_id IS NULL",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-04",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2299,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "wrong-prerequisite",
+    "original": "v_type := 'playoff_final';",
+    "mutated": "v_type := 'regular_season';",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-05",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2280,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "negate-current",
+    "original": "season.league_id = p_league_id AND season.is_current",
+    "mutated": "season.league_id = p_league_id AND NOT season.is_current",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-06",
+    "area": "champion",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2307,
+    "symbol": "public.apply_season_boundary_after_grace(uuid,uuid,text,timestamp with time zone)",
+    "operator": "logical",
+    "original": "v_count = 0 OR v_ready IS DISTINCT FROM true",
+    "mutated": "v_count = 0 AND v_ready IS DISTINCT FROM true",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-07",
+    "area": "champion",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 197,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "wrong-transition",
+    "original": "SET status = 'offseason',",
+    "mutated": "SET status = 'active',",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-08",
+    "area": "champion",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 59,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "history-current",
+    "original": "SET is_current = false",
+    "mutated": "SET is_current = true",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-09",
+    "area": "champion",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 44,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "off-by-one",
+    "original": "v_current_season.season_year + 1",
+    "mutated": "v_current_season.season_year + 2",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "champion-10",
+    "area": "champion",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 24,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "negate-status-gate",
+    "original": "v_league.status NOT IN ('playoffs'::league_status, 'archived'::league_status)",
+    "mutated": "v_league.status IN ('playoffs'::league_status, 'archived'::league_status)",
+    "oracles": [
+      {
+        "name": "playoff-boundary-guards",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+      },
+      {
+        "name": "playoff-transitions",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-01",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261005000003_league_season_rules.sql",
+    "line": 50,
+    "symbol": "private.trade_deadline_for_season(date,integer)",
+    "operator": "boundary",
+    "original": "extract(month FROM p_deadline) >= 10",
+    "mutated": "extract(month FROM p_deadline) > 10",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-02",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261005000003_league_season_rules.sql",
+    "line": 50,
+    "symbol": "private.trade_deadline_for_season(date,integer)",
+    "operator": "year-arithmetic",
+    "original": "p_season_year - 1",
+    "mutated": "p_season_year + 1",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-03",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261005000003_league_season_rules.sql",
+    "line": 42,
+    "symbol": "private.trade_deadline_for_season(date,integer)",
+    "operator": "leap-clamp",
+    "original": "+ least(",
+    "mutated": "+ greatest(",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-04",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261005000003_league_season_rules.sql",
+    "line": 46,
+    "symbol": "private.trade_deadline_for_season(date,integer)",
+    "operator": "day-offset",
+    "original": "    - 1\n",
+    "mutated": "    - 0\n",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-05",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20260708000001_trade_window_feedback_rules.sql",
+    "line": 788,
+    "symbol": "public.prevent_trade_acceptance_after_deadline()",
+    "operator": "inclusive-boundary",
+    "original": "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date",
+    "mutated": "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-06",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20260708000001_trade_window_feedback_rules.sql",
+    "line": 789,
+    "symbol": "public.prevent_trade_acceptance_after_deadline()",
+    "operator": "wrong-status",
+    "original": "v_league_status = 'active'::league_status",
+    "mutated": "v_league_status = 'setup'::league_status",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-07",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20260708000001_trade_window_feedback_rules.sql",
+    "line": 790,
+    "symbol": "public.prevent_trade_acceptance_after_deadline()",
+    "operator": "champion-reopening",
+    "original": "AND NOT v_champion_finalized",
+    "mutated": "AND v_champion_finalized",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-08",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1180,
+    "symbol": "private.create_trade_offer(uuid,uuid,uuid,uuid,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer,uuid,uuid,uuid,integer)",
+    "operator": "inclusive-boundary",
+    "original": "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date",
+    "mutated": "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-09",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 1196,
+    "symbol": "private.create_trade_offer(uuid,uuid,uuid,uuid,uuid[],uuid[],uuid[],uuid[],text,timestamp with time zone,integer,integer,uuid,uuid,uuid,integer)",
+    "operator": "expiry-comparison",
+    "original": "(p_expires_at AT TIME ZONE 'America/New_York')::date > v_league.trade_deadline",
+    "mutated": "(p_expires_at AT TIME ZONE 'America/New_York')::date < v_league.trade_deadline",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "trade-deadline-10",
+    "area": "trade-deadline",
+    "file": "supabase/migrations/20260709100013_trade_lifecycle_participant_results.sql",
+    "line": 207,
+    "symbol": "public.expire_pending_trades_atomic(integer)",
+    "operator": "expiry-comparison",
+    "original": "pending.expires_at <= now()",
+    "mutated": "pending.expires_at > now()",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "trade-expiry-authorization",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+      },
+      {
+        "name": "deadline-locks",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-01",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 3944,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "reverse-standings",
+    "original": "wins ASC,",
+    "mutated": "wins DESC,",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-02",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 3945,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "tiebreak-order",
+    "original": "points_for ASC,",
+    "mutated": "points_for DESC,",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-03",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 3892,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "season-selection",
+    "original": "ORDER BY season_year DESC",
+    "mutated": "ORDER BY season_year ASC",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-04",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 3943,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "new-member-order",
+    "original": "has_standings DESC,",
+    "mutated": "has_standings ASC,",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-05",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 3814,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "round-limit",
+    "original": "p_rounds < 1 OR p_rounds > 3",
+    "mutated": "p_rounds < 1 OR p_rounds > 2",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-06",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4012,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "traded-slot-owner",
+    "original": "dp.current_owner_id AS member_id",
+    "mutated": "pick_slots.original_owner_id AS member_id",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-07",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4058,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "draft-state",
+    "original": "SET status = 'drafting'",
+    "mutated": "SET status = 'offseason'",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-08",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 64,
+    "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
+    "operator": "autopick-choice",
+    "original": "ORDER BY player.nba_draft_number, player.id",
+    "mutated": "ORDER BY player.nba_draft_number DESC, player.id",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-09",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261018000014_enforce_draft_deadlines_after_lock_waits.sql",
+    "line": 401,
+    "symbol": "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean)",
+    "operator": "completion-gate",
+    "original": "IF v_remaining = 0 THEN",
+    "mutated": "IF v_remaining > 0 THEN",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-10",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261018000014_enforce_draft_deadlines_after_lock_waits.sql",
+    "line": 377,
+    "symbol": "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean)",
+    "operator": "asset-round",
+    "original": "AND round = v_next_pick.round",
+    "mutated": "AND round <> v_next_pick.round",
+    "oracles": [
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-01",
+    "area": "picks",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2830,
+    "symbol": "public.create_league(text,text,integer)",
+    "operator": "allocation-start",
+    "original": "generate_series(v_season_year + 1, v_season_year + 5)",
+    "mutated": "generate_series(v_season_year + 2, v_season_year + 5)",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-02",
+    "area": "picks",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2831,
+    "symbol": "public.create_league(text,text,integer)",
+    "operator": "allocation-rounds",
+    "original": "generate_series(1, 3) AS round_value",
+    "mutated": "generate_series(1, 2) AS round_value",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-03",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 47,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "allocation-horizon",
+    "original": "v_far_year := v_new_year + 5",
+    "mutated": "v_far_year := v_new_year + 4",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-04",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 155,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "rollover-rounds",
+    "original": "unnest(ARRAY[1, 2, 3]) AS round_value",
+    "mutated": "unnest(ARRAY[1, 2]) AS round_value",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-05",
+    "area": "picks",
+    "file": "supabase/migrations/20260606000008_trade_lifecycle_and_pick_slot_guards.sql",
+    "line": 79,
+    "symbol": "private.sync_snake_slot_pick_owner()",
+    "operator": "owner-transfer",
+    "original": "SET member_id = NEW.current_owner_id",
+    "mutated": "SET member_id = OLD.current_owner_id",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-06",
+    "area": "picks",
+    "file": "supabase/migrations/20260606000008_trade_lifecycle_and_pick_slot_guards.sql",
+    "line": 81,
+    "symbol": "private.sync_snake_slot_pick_owner()",
+    "operator": "filled-slot-filter",
+    "original": "AND player_id IS NULL",
+    "mutated": "AND player_id IS NOT NULL",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-07",
+    "area": "picks",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4020,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "original-owner-lookup",
+    "original": "AND original_owner_id = pick_slots.original_owner_id",
+    "mutated": "AND current_owner_id = pick_slots.original_owner_id",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-08",
+    "area": "picks",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 2684,
+    "symbol": "public.complete_accepted_trade_atomic(uuid)",
+    "operator": "trade-transfer",
+    "original": "SET current_owner_id = v_to_member",
+    "mutated": "SET current_owner_id = v_from_member",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-09",
+    "area": "picks",
+    "file": "supabase/migrations/20261018000014_enforce_draft_deadlines_after_lock_waits.sql",
+    "line": 371,
+    "symbol": "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean)",
+    "operator": "pick-consumption",
+    "original": "SET is_used = true,",
+    "mutated": "SET is_used = false,",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-10",
+    "area": "picks",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4037,
+    "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+    "operator": "snake-reversal",
+    "original": "((round - 1) * v_order_count) + pick_in_round,\n      round,\n      pick_in_round,\n      member_id,\n      draft_pick_id",
+    "mutated": "((round - 1) * v_order_count) + (v_order_count-pick_in_round+1),\n      round,\n      pick_in_round,\n      member_id,\n      draft_pick_id",
+    "oracles": [
+      {
+        "name": "league-season-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+      },
+      {
+        "name": "dynasty-rules",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+      },
+      {
+        "name": "draft-goal-behavior",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+      },
+      {
+        "name": "picks-lifecycle",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+      },
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-11",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 316,
+    "symbol": "runSeasonBoundary",
+    "operator": "drafting-query-exclusion",
+    "original": "['active', 'playoffs', 'offseason', 'drafting']",
+    "mutated": "['active', 'playoffs', 'offseason']",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-12",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 133,
+    "symbol": "runSeasonBoundary",
+    "operator": "paused-exclusion",
+    "original": "['in_progress', 'paused'].includes(draft.status)",
+    "mutated": "['in_progress'].includes(draft.status)",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-13",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 105,
+    "symbol": "runSeasonBoundary",
+    "operator": "ET-day-boundary",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-14",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 83,
+    "symbol": "runSeasonBoundary",
+    "operator": "pick-limit",
+    "original": "const MAX_BACKSTOP_PICKS = 200",
+    "mutated": "const MAX_BACKSTOP_PICKS = 1",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-15",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 150,
+    "symbol": "runSeasonBoundary",
+    "operator": "expired-timer-authorization",
+    "original": "p_reason: 'season_boundary_backstop'",
+    "mutated": "p_reason: 'manual'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-16",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 37,
+    "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
+    "operator": "resume-status",
+    "original": "v_draft.status = 'paused'",
+    "mutated": "v_draft.status = 'in_progress'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "picks-11",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 154,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "fill-start-boundary",
+    "original": "generate_series(v_new_year,v_far_year)",
+    "mutated": "generate_series(v_new_year+1,v_far_year)",
+    "oracles": [
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "picks-12",
+    "area": "picks",
+    "file": "supabase/migrations/20261020000060_fill_rollover_pick_years.sql",
+    "line": 157,
+    "symbol": "public.advance_season_atomic(uuid)",
+    "operator": "fill-owner-preservation",
+    "original": "ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING",
+    "mutated": "ON CONFLICT (league_id, season_year, round, original_owner_id) DO UPDATE SET current_owner_id=EXCLUDED.current_owner_id",
+    "oracles": [
+      {
+        "name": "rollover-year-gap",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-17",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 128,
+    "symbol": "public.invoke_season_boundary_if_due(timestamp with time zone)",
+    "operator": "drafting-cron-gate",
+    "original": "'drafting'::public.league_status",
+    "mutated": "'setup'::public.league_status",
+    "oracles": [
+      {
+        "name": "rookie-drafting-gate",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-18",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 334,
+    "symbol": "runSeasonBoundary",
+    "operator": "drafting-job-filter",
+    "original": "status !== 'offseason' && status !== 'drafting'",
+    "mutated": "status !== 'offseason' && status !== 'setup'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-19",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 37,
+    "symbol": "public.auto_pick_snake_pick_atomic(uuid,uuid,text,boolean)",
+    "operator": "mock-resume-guard",
+    "original": "AND NOT v_draft.is_mock AND v_draft.status = 'paused'",
+    "mutated": "AND v_draft.status = 'paused'",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-20",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 347,
+    "symbol": "runSeasonBoundary",
+    "operator": "startup-auction-guard",
+    "original": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)",
+    "mutated": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, true)",
+    "oracles": [
+      {
+        "name": "rookie-backstop",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-21",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 105,
+    "symbol": "runSeasonBoundary",
+    "operator": "premature-commissioner-resume",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) > firstEligibleWeek.week_start",
+    "oracles": [
+      {
+        "name": "rookie-commissioner-early",
+        "command": "POST_ROOKIE_CASE=commissioner_early deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "rookie-draft-22",
+    "area": "rookie-draft",
+    "file": "supabase/migrations/20261020000061_recover_rookie_backstop.sql",
+    "line": 134,
+    "symbol": "public.invoke_season_boundary_if_due(timestamp with time zone)",
+    "operator": "daily-dispatch-guard",
+    "original": "IF NOT private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD')) THEN\n    RETURN;\n  END IF;",
+    "mutated": "PERFORM private.claim_cron_dispatch('season-boundary', to_char(v_now, 'YYYY-MM-DD'));",
+    "oracles": [
+      {
+        "name": "rookie-drafting-gate",
+        "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-01",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 39,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "NEG",
+    "original": "      IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;",
+    "mutated": "      IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_season_id AND NOT v_week=ANY(skipped_weeks)) THEN CONTINUE; END IF;",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-02",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 41,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "STMT-DEL",
+    "original": "      v_played := v_played + 1;",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-03",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 25,
+    "symbol": "private.enforce_skipped_matchup()",
+    "operator": "CONST",
+    "original": "NEW.is_voided := true;",
+    "mutated": "NEW.is_voided := false;",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-04",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 27,
+    "symbol": "private.enforce_skipped_matchup()",
+    "operator": "STMT-DEL",
+    "original": "NEW.winner_member_id := NULL;",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-05",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4503,
+    "symbol": "public.update_league_settings_atomic(uuid,jsonb)",
+    "operator": "ROR",
+    "original": "week>=COALESCE(v_playoff_start_week,v_league.playoff_start_week)",
+    "mutated": "week>COALESCE(v_playoff_start_week,v_league.playoff_start_week)",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-06",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 4511,
+    "symbol": "public.update_league_settings_atomic(uuid,jsonb)",
+    "operator": "STMT-DEL",
+    "original": "UPDATE public.matchups SET is_voided=true WHERE league_season_id=v_current.id AND week_number=ANY(v_skip);",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-07",
+    "area": "skipped-week",
+    "file": "supabase/migrations/20261017000001_dynasty_rules_and_trade_plans.sql",
+    "line": 74,
+    "symbol": "private.generate_playoff_round(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_start:=v_season.playoff_start_week+COALESCE",
+    "mutated": "v_start:=v_season.playoff_start_week+1+COALESCE",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-08",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 104,
+    "symbol": "runSeasonBoundary",
+    "operator": "NEG",
+    "original": "!season.skipped_weeks.includes(week.week_number)",
+    "mutated": "season.skipped_weeks.includes(week.week_number)",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-09",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 105,
+    "symbol": "runSeasonBoundary",
+    "operator": "ROR",
+    "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+    "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-sw-10",
+    "area": "skipped-week",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 102,
+    "symbol": "runSeasonBoundary",
+    "operator": "ORDER",
+    "original": ".order('week_number')",
+    "mutated": ".order('week_number', { ascending: false })",
+    "oracles": [
+      {
+        "name": "rookie-skipped-week",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-01",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 266,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "ROR",
+    "original": "if (stale.length === 0) return result",
+    "mutated": "if (stale.length >= 0) return result",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-02",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 232,
+    "symbol": "processLeagueBoundary",
+    "operator": "STMT-DEL",
+    "original": "if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions",
+    "mutated": "if (!finalDecided) return actions",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-03",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 268,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "STMT-DEL",
+    "original": "const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)",
+    "mutated": "const refreshed = result",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-04",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 269,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "ROR",
+    "original": "(await staleBoundaryWeeks(seasonId, weeks)).length > 0",
+    "mutated": "(await staleBoundaryWeeks(seasonId, weeks)).length < 0",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-stale-05",
+    "area": "champion",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 267,
+    "symbol": "applyBoundaryWithScoreRefresh",
+    "operator": "CONST",
+    "original": "await syncScores(leagueId, referenceDate, { recoverStats: false })",
+    "mutated": "await syncScores(leagueId, referenceDate, { recoverStats: true })",
+    "oracles": [
+      {
+        "name": "playoff-stale-boundary",
+        "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-t3-01",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 164,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "ORDER",
+    "original": "regularSeason.map((game) => game.gameDate).sort()[0] ?? null",
+    "mutated": "regularSeason.map((game) => game.gameDate).sort().at(-1) ?? null",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-02",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 56,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "return month >= 10 ? year + 1 : year",
+    "mutated": "return month >= 11 ? year + 1 : year",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-03",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 142,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "getUTCDay() + 6) % 7",
+    "mutated": "getUTCDay() + 5) % 7",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-04",
+    "area": "opening-night",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 143,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "Math.floor((ordinal(date) - monday) / 7) + 1",
+    "mutated": "Math.floor((ordinal(date) - monday) / 7) + 2",
+    "oracles": [
+      {
+        "name": "calendar-opening",
+        "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-05",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 144,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "ordinal(date) - ordinal(ordered[index]) >= 5",
+    "mutated": "ordinal(date) - ordinal(ordered[index]) >= 2",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-06",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 145,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "nbaWeek(date) === nbaWeek(ordered[index]) + 1",
+    "mutated": "nbaWeek(date) === nbaWeek(ordered[index]) + 2",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-07",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 148,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "ROR",
+    "original": "nbaWeek(game_date) >= postBreakWeek",
+    "mutated": "nbaWeek(game_date) > postBreakWeek",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-08",
+    "area": "all-star-week",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 148,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "CONST",
+    "original": "nbaWeek(game_date) >= postBreakWeek ? 1 : 0",
+    "mutated": "nbaWeek(game_date) >= postBreakWeek ? 0 : 0",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-09",
+    "area": "all-star-week",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 40,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "STMT-DEL",
+    "original": "IF v_complete THEN p_weeks:='[]'::jsonb; END IF;",
+    "mutated": "IF v_complete THEN NULL; END IF;",
+    "oracles": [
+      {
+        "name": "calendar-published",
+        "command": "POST_CALENDAR_CASE=published node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-10",
+    "area": "nba-cup",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 163,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "NEG",
+    "original": "raw.filter((game) => isRegularSeasonGameId(game.gameId))",
+    "mutated": "raw.filter((game) => !isRegularSeasonGameId(game.gameId))",
+    "oracles": [
+      {
+        "name": "calendar-cup",
+        "command": "POST_CALENDAR_CASE=cup node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-11",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/nba.ts",
+    "line": 133,
+    "symbol": "parseNBAScheduleGame",
+    "operator": "CONST",
+    "original": "['Y', '1', 'true', 'PPD']",
+    "mutated": "['1', 'true', 'PPD']",
+    "oracles": [
+      {
+        "name": "calendar-postponed-status",
+        "command": "POST_CALENDAR_CASE=postponed-status node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-12",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 100,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ARG-SWAP",
+    "original": "WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text) THEN stored.game_status_text",
+    "mutated": "WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text) THEN EXCLUDED.game_status_text",
+    "oracles": [
+      {
+        "name": "calendar-durable",
+        "command": "POST_CALENDAR_CASE=durable node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-13",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 108,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ROR",
+    "original": "stored.status<>'Final'",
+    "mutated": "stored.status='Final'",
+    "oracles": [
+      {
+        "name": "calendar-missing",
+        "command": "POST_CALENDAR_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-14",
+    "area": "postponement",
+    "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+    "line": 97,
+    "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+    "operator": "ROR",
+    "original": "EXCLUDED.game_date IS DISTINCT FROM stored.game_date",
+    "mutated": "EXCLUDED.game_date IS NOT DISTINCT FROM stored.game_date",
+    "oracles": [
+      {
+        "name": "calendar-outside",
+        "command": "POST_CALENDAR_CASE=outside node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-15",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 207,
+    "symbol": "processLeagueBoundary",
+    "operator": "NEG",
+    "original": "if (!allFinalized(regular)) {",
+    "mutated": "if (allFinalized(regular)) {",
+    "oracles": [
+      {
+        "name": "boundary-unavailable-recheck",
+        "command": "POST_STALE_CASE=bracket_unavailable_recheck node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-16",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 389,
+    "symbol": "processLeagueBoundary",
+    "operator": "ROR",
+    "original": "toETDate(referenceDate) <= lastWeek.week_end",
+    "mutated": "toETDate(referenceDate) >= lastWeek.week_end",
+    "oracles": [
+      {
+        "name": "boundary-unavailable-recheck",
+        "command": "POST_STALE_CASE=bracket_unavailable_recheck node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t3-17",
+    "area": "postponement",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 190,
+    "symbol": "buildScheduleSyncPlan",
+    "operator": "STMT-DEL",
+    "original": "schedule_complete: complete && completeSnapshot",
+    "mutated": "schedule_complete: complete",
+    "oracles": [
+      {
+        "name": "calendar-all-star",
+        "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-01",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 29,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "ARG-SWAP",
+    "original": "md5(p_season_id::text || ':' || id::text)",
+    "mutated": "md5(p_league_id::text || ':' || id::text)",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-02",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 40,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_order[1 + v_played % (v_count - 1)]",
+    "mutated": "v_order[1]",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-03",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 83,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_seen[v_code] % 2 = 0",
+    "mutated": "v_seen[v_code] % 2 = 1",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-04",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 54,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "CONST",
+    "original": "v_counts[v_code] % 2 = 1",
+    "mutated": "v_counts[v_code] % 2 = 0",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-05",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 216,
+    "symbol": "playoffFit",
+    "operator": "ROR",
+    "original": "endWeek <= lastAvailableWeek && complete ? 'fit'",
+    "mutated": "endWeek < lastAvailableWeek && complete ? 'fit'",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-06",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 208,
+    "symbol": "playoffFit",
+    "operator": "CONST",
+    "original": "weeks.length ? Math.max(...weeks) : null",
+    "mutated": "weeks.length ? Math.max(...weeks) + 1 : null",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-07",
+    "area": "playoff-fit",
+    "file": "supabase/functions/_shared/schedule.ts",
+    "line": 209,
+    "symbol": "playoffFit",
+    "operator": "CONST",
+    "original": "rounds.reduce((sum, length) => sum + length, 0)",
+    "mutated": "rounds.reduce((sum, length) => sum + 1, 0)",
+    "oracles": [
+      {
+        "name": "playoff-fit",
+        "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-08",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 127,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "CONST",
+    "original": "p_pick_timer_seconds: 60",
+    "mutated": "p_pick_timer_seconds: 30",
+    "oracles": [
+      {
+        "name": "rookie-draft",
+        "command": "POST_ROOKIE_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-t4-09",
+    "area": "matchup-order",
+    "file": "supabase/migrations/20261020000063_balanced_season_matchups.sql",
+    "line": 92,
+    "symbol": "private.regular_season_matchup_payload(uuid,uuid,integer)",
+    "operator": "STMT-DEL",
+    "original": " AND NOT is_voided",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "matchup-order",
+        "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql",
+        "timeout": 120000
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-01",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 154,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "LCR",
+    "original": "if (current.status === 'completed')",
+    "mutated": "if (current.status === 'completed' && !completionError)",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-error",
+        "command": "POST_ROOKIE_CASE=cutoff_error node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-02",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 149,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "NEG",
+    "original": "if (cutoff) {",
+    "mutated": "if (!cutoff) {",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-race",
+        "command": "POST_ROOKIE_CASE=cutoff_race node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-03",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 118,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "ROR",
+    "original": "referenceDate.getTime() < Date.parse(cutoff)",
+    "mutated": "referenceDate.getTime() <= Date.parse(cutoff)",
+    "oracles": [
+      {
+        "name": "rookie-timing",
+        "command": "POST_SKIP_PHASE=timing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-skipped-week.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-cutoff-04",
+    "area": "rookie-draft",
+    "file": "supabase/functions/_shared/seasonBoundary.ts",
+    "line": 182,
+    "symbol": "runRookieDraftBackstop",
+    "operator": "ROR",
+    "original": "if (current.status !== 'completed') throw pickError",
+    "mutated": "if (current.status === 'completed') throw pickError",
+    "oracles": [
+      {
+        "name": "rookie-cutoff-publish",
+        "command": "POST_ROOKIE_CASE=cutoff_publish node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-01",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 58,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "ROR",
+    "original": "opponent.wins + opponent.remaining >= candidate.wins",
+    "mutated": "opponent.wins + opponent.remaining > candidate.wins",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-02",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 43,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "count(matchup.id) FILTER (WHERE NOT matchup.is_finalized) AS remaining",
+    "mutated": "GREATEST(count(matchup.id) FILTER (WHERE NOT matchup.is_finalized) - 1, 0) AS remaining",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-03",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 49,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "STMT-DEL",
+    "original": "AND NOT matchup.is_voided",
+    "mutated": "",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-04",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 55,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "NOT EXISTS (SELECT 1 FROM bounds WHERE remaining > 0)",
+    "mutated": "true",
+    "oracles": [
+      {
+        "name": "playoff-clinched-tie",
+        "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-05",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 61,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "STMT-DEL",
+    "original": "PERFORM private.notif_enqueue('playoff_clinched', season.id::text, season.league_id, clincher.member_id,\n        jsonb_build_object('leagueSeasonId', season.id, 'seasonYear', season.season_year,\n          'playoffEntrants', entrants, 'phase', 'qualification', 'body', 'Your team has clinched a playoff spot.'));",
+    "mutated": "NULL;",
+    "oracles": [
+      {
+        "name": "playoff-clinched-early",
+        "command": "POST_CLINCH_CASE=2025:false:early node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  },
+  {
+    "id": "post-clinch-06",
+    "area": "notifications",
+    "file": "supabase/migrations/20261020000064_playoff_clinched.sql",
+    "line": 61,
+    "symbol": "private.playoff_clinched_standings()",
+    "operator": "CONST",
+    "original": "'playoff_clinched', season.id::text",
+    "mutated": "'playoff_clinched', gen_random_uuid()::text",
+    "oracles": [
+      {
+        "name": "playoff-clinched-early",
+        "command": "POST_CLINCH_CASE=2025:false:early node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+      }
+    ]
+  }
+]

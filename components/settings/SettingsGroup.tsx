@@ -2,6 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Children, Fragment, isValidElement, type ReactNode } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, motion, radii, spacing, textStyles } from '@/constants/tokens'
+import { notificationSwitchKeyboardProps } from './NotificationSwitchKeyboard'
 
 type PressableState = { hovered?: boolean; pressed?: boolean }
 
@@ -80,6 +81,7 @@ export function SettingsRow({
     return (
         <Pressable
             onPress={onPress}
+            {...(role === 'switch' ? notificationSwitchKeyboardProps(onPress, disabled) : {})}
             disabled={disabled}
             role={role}
             aria-checked={role === 'switch' ? checked : undefined}

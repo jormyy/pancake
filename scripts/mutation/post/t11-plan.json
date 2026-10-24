@@ -1,0 +1,258 @@
+{
+ "base_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+ "oracles": {
+  "schedule-http-calendar": {
+   "kind": "edge-http",
+   "command": "POST_SCHEDULE_CASE=calendar node scripts/mutation/post/check.mjs supabase/tests/db/post-t11-schedule-http.ts"
+  },
+  "schedule-http-fit": {
+   "kind": "edge-http",
+   "command": "POST_SCHEDULE_CASE=fit node scripts/mutation/post/check.mjs supabase/tests/db/post-t11-schedule-http.ts"
+  },
+  "schedule-http-republish": {
+   "kind": "edge-http",
+   "command": "POST_SCHEDULE_CASE=republish node scripts/mutation/post/check.mjs supabase/tests/db/post-t11-schedule-http.ts"
+  },
+  "schedule-http-sunday-gap": {
+   "kind": "edge-http",
+   "command": "POST_SCHEDULE_CASE=sunday-gap node scripts/mutation/post/check.mjs supabase/tests/db/post-t11-schedule-http.ts"
+  }
+ },
+ "mutants": [
+  {
+   "id": "post-t11-post-t3-01",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 164,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "ORDER",
+   "original": "regularSeason.map((game) => game.gameDate).sort()[0] ?? null",
+   "mutated": "regularSeason.map((game) => game.gameDate).sort().at(-1) ?? null",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-01 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-opening",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-02",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 56,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "return month >= 10 ? year + 1 : year",
+   "mutated": "return month >= 11 ? year + 1 : year",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-02 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-opening",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-03",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 142,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "getUTCDay() + 6) % 7",
+   "mutated": "getUTCDay() + 5) % 7",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-03 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-opening",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-04",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 143,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "Math.floor((ordinal(date) - monday) / 7) + 1",
+   "mutated": "Math.floor((ordinal(date) - monday) / 7) + 2",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-04 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-opening",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-06",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 145,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "nbaWeek(date) === nbaWeek(ordered[index]) + 1",
+   "mutated": "nbaWeek(date) === nbaWeek(ordered[index]) + 2",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-06 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-all-star",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-07",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 148,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "ROR",
+   "original": "nbaWeek(game_date) >= postBreakWeek",
+   "mutated": "nbaWeek(game_date) > postBreakWeek",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-07 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-all-star",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-08",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 148,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "nbaWeek(game_date) >= postBreakWeek ? 1 : 0",
+   "mutated": "nbaWeek(game_date) >= postBreakWeek ? 0 : 0",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-08 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-all-star",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-10",
+   "area": "nba-cup",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 163,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "NEG",
+   "original": "raw.filter((game) => isRegularSeasonGameId(game.gameId))",
+   "mutated": "raw.filter((game) => !isRegularSeasonGameId(game.gameId))",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-10 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-cup",
+   "oracles": [
+    "schedule-http-calendar"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-05",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 144,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "ordinal(date) - ordinal(ordered[index]) >= 5",
+   "mutated": "ordinal(date) - ordinal(ordered[index]) >= 2",
+   "prior_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-05 turn-11 rerun row (unit, base c392cad7, killed; first measured at 482cc785, killed) via calendar-all-star",
+   "oracles": [
+    "schedule-http-calendar",
+    "schedule-http-sunday-gap"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t3-09",
+   "area": "all-star-week",
+   "file": "supabase/migrations/20261020000062_calendar_ingestion_contracts.sql",
+   "line": 40,
+   "symbol": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+   "operator": "STMT-DEL",
+   "original": "IF v_complete THEN p_weeks:='[]'::jsonb; END IF;",
+   "mutated": "IF v_complete THEN NULL; END IF;",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "note": "prior: post-t3-09 first measurement (482cc785, killed) via calendar-published",
+   "oracles": [
+    "schedule-http-republish"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "post-t11-post-t4-05",
+   "area": "playoff-fit",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 216,
+   "symbol": "playoffFit",
+   "operator": "ROR",
+   "original": "endWeek <= lastAvailableWeek && complete ? 'fit'",
+   "mutated": "endWeek < lastAvailableWeek && complete ? 'fit'",
+   "prior_sha": "f17dd0cf7ab3242221d10b11c7a53c4d3a4229e6",
+   "prior_outcome": "killed",
+   "note": "prior: post-t4-05 first measurement (f17dd0cf, killed) via playoff-fit",
+   "oracles": [
+    "schedule-http-fit"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t4-06",
+   "area": "playoff-fit",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 208,
+   "symbol": "playoffFit",
+   "operator": "CONST",
+   "original": "weeks.length ? Math.max(...weeks) : null",
+   "mutated": "weeks.length ? Math.max(...weeks) + 1 : null",
+   "prior_sha": "f17dd0cf7ab3242221d10b11c7a53c4d3a4229e6",
+   "prior_outcome": "killed",
+   "note": "prior: post-t4-06 first measurement (f17dd0cf, killed) via playoff-fit",
+   "oracles": [
+    "schedule-http-fit"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t11-post-t4-07",
+   "area": "playoff-fit",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 209,
+   "symbol": "playoffFit",
+   "operator": "CONST",
+   "original": "rounds.reduce((sum, length) => sum + length, 0)",
+   "mutated": "rounds.reduce((sum, length) => sum + 1, 0)",
+   "prior_sha": "f17dd0cf7ab3242221d10b11c7a53c4d3a4229e6",
+   "prior_outcome": "killed",
+   "note": "prior: post-t4-07 first measurement (f17dd0cf, killed) via playoff-fit",
+   "oracles": [
+    "schedule-http-fit"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  }
+ ]
+}

@@ -1,3 +1,4 @@
+import { shouldKeepPolling } from './policy.ts'
 import { saveScoreboardGames } from './scoreboard.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { fetchTodaysGames } from '../_shared/nba.ts'
@@ -30,9 +31,9 @@ async function stampAttempts(holder: string, checkedIds: string[], statIds: stri
   if (error) throw error
 }
 
-async function ingestTick(holder: string): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[] }> {
+export async function ingestTick(holder: string): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number }> {
   let work = await loadWork()
-  if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [] }
+  if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0 }
   const boardGames = work.filter(game => game.needs_scoreboard)
   if (boardGames.length) {
     await stampAttempts(holder, boardGames.map(game => game.id), [])
@@ -49,6 +50,7 @@ async function ingestTick(holder: string): Promise<{ lines: number; keepRunning:
   const statsGames = work.filter(game => game.needs_stats)
   await stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id))
   let lines = 0
+  let scoreRetries = 0
   const failures: unknown[] = []
   if (statsGames.length) {
     try {
@@ -59,20 +61,14 @@ async function ingestTick(holder: string): Promise<{ lines: number; keepRunning:
       failures.push(error)
     }
     try {
-      await syncScores(undefined, new Date(), { recoverStats: false })
+      await syncScores(undefined, new Date(), { recoverStats: false, onPublicationRetry: () => { scoreRetries++ } })
     } catch (error) {
       failures.push(error)
     }
   }
   for (const error of failures) console.error('[live-poll] input failed:', error)
-  const now = Date.now()
-  const keepRunning = work.some(game => {
-    if (game.status === 'InProgress') return true
-    const tipoff = game.game_time ?? game.started_at
-    return game.status === 'Scheduled' && tipoff != null &&
-      Date.parse(tipoff) >= now - 10 * 60_000 && Date.parse(tipoff) <= now + 2 * 60_000
-  })
-  return { lines, keepRunning, worked: true, failures: failures.map(errorMessage) }
+  const keepRunning = shouldKeepPolling(work)
+  return { lines, keepRunning, worked: true, failures: failures.map(errorMessage), scoreRetries }
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {
@@ -95,6 +91,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
       const started = Date.now()
       let ticks = 0
       let statLines = 0
+      let scoreRetries = 0
       const failures: string[] = []
       for (let next = started; next < started + LIVE_RUN_MS; next += LIVE_TICK_MS) {
         if (controller.signal.aborted || heartbeat.lost) break
@@ -113,6 +110,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
           const tick = await withWorkContext({ signal, livePollHolder: holder }, () => ingestTick(holder))
           if (tick.worked) ticks++
           statLines += tick.lines
+          scoreRetries += tick.scoreRetries
           failures.push(...tick.failures)
           if (!tick.keepRunning) break
         } catch (error) {
@@ -123,7 +121,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
       }
       if (controller.signal.aborted || heartbeat.lost) failures.push(errorMessage(controller.signal.reason))
       return {
-        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, elapsedMs: Date.now() - started, failures },
+        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, scoreRetries, elapsedMs: Date.now() - started, failures },
         rowsAffected: statLines, failure: failures.length ? failures.join('; ') : null,
       }
     }, request)

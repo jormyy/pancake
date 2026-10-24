@@ -3,6 +3,8 @@ import { toETDate } from './date.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
+import { syncScores } from './syncScores.ts'
+import { isRegularSeasonGameId } from './gameId.ts'
 
 // NBA stat corrections land 1-2 days after games. Bracket generation,
 // advancement, and rollover wait this long after the prerequisite week
@@ -74,8 +76,8 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: if the new NBA season's week 1 has begun and the
-// league's rookie draft still has not run, start it and complete every pick
+// Rookie-draft backstop: at the shared opening-night cutoff, or the first
+// eligible week when opening night is unpublished, complete every pick
 // best-available (auto_pick uses nba_draft_number order). Completing the last
 // pick activates the league, so the season-boundary loop resumes normally.
 // Rookies land on rosters, never silently on waivers.
@@ -85,22 +87,36 @@ async function runRookieDraftBackstop(
   leagueId: string,
   leagueSeasonId: string,
   referenceDate: Date,
+  startIfMissing = true,
 ): Promise<string[]> {
   const { data: season, error: seasonError } = await supabase
     .from('league_seasons')
-    .select('season_year')
+    .select('season_year, skipped_weeks')
     .eq('id', leagueSeasonId)
     .single()
   if (seasonError) throw seasonError
 
-  const { data: weekOne, error: weekError } = await supabase
+  const { data: weeks, error: weekError } = await supabase
     .from('season_weeks')
-    .select('week_start')
+    .select('week_number, week_start')
     .eq('season_year', season.season_year)
-    .eq('week_number', 1)
-    .maybeSingle()
+    .order('week_number')
   if (weekError) throw weekError
-  if (!weekOne || toETDate(referenceDate) < weekOne.week_start) return []
+  const firstEligibleWeek = weeks?.find((week) => !season.skipped_weeks.includes(week.week_number))
+  if (!firstEligibleWeek) return []
+  const { data: warning, error: warningError } = await supabase.rpc('draft_timer_start_warning', {
+    p_league_id: leagueId,
+    p_rounds: 3,
+    p_pick_timer_seconds: 60,
+  })
+  if (warningError) throw warningError
+  const cutoff = warning && typeof warning === 'object' && !Array.isArray(warning) &&
+      typeof warning.openingNightCutoff === 'string'
+    ? warning.openingNightCutoff
+    : null
+  if (cutoff
+    ? referenceDate.getTime() < Date.parse(cutoff)
+    : toETDate(referenceDate) < firstEligibleWeek.week_start) return []
 
   const actions: string[] = []
   const { data: drafts, error: draftError } = await supabase
@@ -115,19 +131,32 @@ async function runRookieDraftBackstop(
   if (draftError) throw draftError
 
   let draft = drafts?.[0] ?? null
+  if (!draft && !startIfMissing) return actions
   if (!draft) {
     const { data: started, error: startError } = await supabase.rpc('start_rookie_draft_atomic', {
       p_league_id: leagueId,
       p_rounds: 3,
       p_is_mock: false,
-      p_pick_timer_seconds: 30,
+      p_pick_timer_seconds: 60,
       p_timer_expiry_behavior: 'auto_pick',
     })
     if (startError) throw startError
     draft = started as typeof draft
     actions.push('rookie-draft-started')
   }
-  if (!draft || draft.status !== 'in_progress') return actions
+  if (!draft || !['in_progress', 'paused'].includes(draft.status)) return actions
+
+  if (cutoff) {
+    const { data: completed, error: completionError } = await supabase.rpc('process_expired_snake_picks_atomic', { p_limit: 500 })
+    const { data: current, error: currentError } = await supabase.from('drafts')
+      .select('status').eq('id', draft.id).single()
+    if (currentError) throw currentError
+    if (current.status === 'completed') return [...actions, 'rookie-draft-auto-completed']
+    if (completionError) throw completionError
+    const failure = completed?.find((row) => row.draft_id === draft.id && row.error_message)
+    if (failure) throw new Error(failure.error_message!)
+    return [...actions, 'rookie-draft-backstop-partial']
+  }
 
   for (let picks = 0; picks < MAX_BACKSTOP_PICKS; picks += 1) {
     const { data: nextPick, error: nextError } = await supabase
@@ -146,7 +175,13 @@ async function runRookieDraftBackstop(
       p_member_id: nextPick.member_id,
       p_reason: 'season_boundary_backstop',
     })
-    if (pickError) throw pickError
+    if (pickError) {
+      const { data: current, error: currentError } = await supabase.from('drafts')
+        .select('status').eq('id', draft.id).single()
+      if (currentError) throw currentError
+      if (current.status !== 'completed') throw pickError
+      break
+    }
   }
   const { count: unfilled, error: unfilledError } = await supabase
     .from('snake_draft_picks')
@@ -174,6 +209,7 @@ async function processLeagueBoundary(
   leagueStatus: string,
   playoffStartWeek: number,
   referenceDate: Date,
+  allowUnavailableRefresh = true,
 ): Promise<string[]> {
   const actions: string[] = []
   const matchups = await fetchAllPages<BoundaryMatchup>((from, to) => supabase
@@ -199,8 +235,14 @@ async function processLeagueBoundary(
   const bracketExists = quarterfinals.length > 0 || semifinals.length > 0 || finals.length > 0
 
   if (!bracketExists) {
+    if (!allFinalized(regular)) {
+      if (!allowUnavailableRefresh) throw new Error('Regular-season scores remain incomplete after confirmed-unavailability refresh')
+      if (await refreshUnavailableRegularSeason(leagueId, leagueSeasonId, regular, referenceDate)) {
+        return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
+      }
+    }
     if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
-    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'generate', referenceDate)
+    const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'generate', referenceDate, regular)
     if (result.applied === true) actions.push('bracket-generated')
     return actions
   }
@@ -220,7 +262,7 @@ async function processLeagueBoundary(
     if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
       return actions
     }
-    const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'advance', referenceDate)
+    const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'advance', referenceDate, currentRound)
     if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : latestRound > 0 ? 'round-created' : 'semifinals-created')
     return actions
   }
@@ -228,7 +270,7 @@ async function processLeagueBoundary(
   const finalDecided = finals.every((m) => m.is_finalized && m.winner_member_id != null)
   if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions
 
-  const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'rollover', referenceDate)
+  const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'rollover', referenceDate, [...regular, ...finals])
   if (result.applied !== true) return actions
   actions.push('season-advanced')
 
@@ -237,6 +279,36 @@ async function processLeagueBoundary(
     actions.push(...await ensureSeasonMatchups(leagueId, newSeasonId, playoffStartWeek))
   }
   return actions
+}
+
+async function staleBoundaryWeeks(seasonId: string, weeks: number[]): Promise<number[]> {
+  if (weeks.length === 0) return []
+  const rows = await fetchAllPages<{ week_number: number }>((from, to) => supabase
+    .rpc('get_stale_score_weeks', { p_league_season_id: seasonId, p_through_week: Math.max(...weeks) })
+    .in('week_number', weeks)
+    .order('week_number', { ascending: true })
+    .range(from, to))
+  return rows.map((row) => row.week_number)
+}
+
+async function applyBoundaryWithScoreRefresh(
+  leagueId: string,
+  seasonId: string,
+  action: 'generate' | 'advance' | 'rollover',
+  referenceDate: Date,
+  prerequisites: BoundaryMatchup[],
+) {
+  const result = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  if (result.applied === true) return result
+  const weeks = [...new Set(prerequisites.map((matchup) => matchup.week_number))]
+  const stale = await staleBoundaryWeeks(seasonId, weeks)
+  if (stale.length === 0) return result
+  await syncScores(leagueId, referenceDate, { recoverStats: false })
+  const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  if (refreshed.applied !== true && (await staleBoundaryWeeks(seasonId, weeks)).length > 0) {
+    throw new Error('Score certificates remain stale after boundary refresh. Retry scoring.')
+  }
+  return refreshed
 }
 
 async function applyBoundaryAfterGrace(
@@ -280,7 +352,7 @@ export async function runSeasonBoundary(
       .from('league_seasons')
       .select('id, league_id, leagues!league_seasons_league_id_fkey!inner ( status, playoff_start_week )')
       .eq('is_current', true)
-      .in('leagues.status', ['active', 'playoffs', 'offseason'])
+      .in('leagues.status', ['active', 'playoffs', 'offseason', 'drafting'])
       .order('id')
       .limit(1000)
     if (leagueId) query = query.eq('league_id', leagueId)
@@ -298,7 +370,7 @@ export async function runSeasonBoundary(
   const jobs = (seasons ?? []).flatMap((season) => {
     const league = season.leagues as { status?: string | null; playoff_start_week?: number | null } | null
     const status = league?.status ?? 'setup'
-    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason') return []
+    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason' && status !== 'drafting') return []
     const playoffStartWeek = league?.playoff_start_week ?? DEFAULT_PLAYOFF_START_WEEK
     return [async () => {
       try {
@@ -310,6 +382,8 @@ export async function runSeasonBoundary(
             ...await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek),
             ...await runRookieDraftBackstop(season.league_id, season.id, referenceDate),
           ]
+          : status === 'drafting'
+          ? await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)
           : await processLeagueBoundary(
             season.league_id,
             season.id,
@@ -327,4 +401,29 @@ export async function runSeasonBoundary(
   })
   await runBounded(jobs, BOUNDARY_CONCURRENCY)
   return reports
+}
+
+async function refreshUnavailableRegularSeason(
+  leagueId: string,
+  seasonId: string,
+  matchups: BoundaryMatchup[],
+  referenceDate: Date,
+): Promise<boolean> {
+  const weekNumbers = [...new Set(matchups.map((matchup) => matchup.week_number))]
+  if (weekNumbers.length === 0) return false
+  const { data: season, error: seasonError } = await supabase.from('league_seasons')
+    .select('season_year').eq('id', seasonId).single()
+  if (seasonError) throw seasonError
+  const { data: lastWeek, error: weekError } = await supabase.from('season_weeks')
+    .select('week_end').eq('season_year', season.season_year).eq('week_number', Math.max(...weekNumbers)).maybeSingle()
+  if (weekError) throw weekError
+  if (!lastWeek || toETDate(referenceDate) <= lastWeek.week_end) return false
+  const games = await fetchAllPages<{ nba_game_id: string | null; status: string; game_status_text: string | null; stats_synced_at: string | null }>((from, to) => supabase
+    .from('nba_games').select('nba_game_id,status,game_status_text,stats_synced_at')
+    .eq('season_year', season.season_year).in('week_number', weekNumbers).order('id').range(from, to))
+  const regularGames = games.filter((game) => isRegularSeasonGameId(game.nba_game_id))
+  const unavailable = (game: typeof regularGames[number]) => /postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? '')
+  if (!regularGames.some(unavailable) || regularGames.some((game) => !unavailable(game) && (game.status !== 'Final' || !game.stats_synced_at))) return false
+  await syncScores(leagueId, referenceDate, { recoverStats: false })
+  return true
 }

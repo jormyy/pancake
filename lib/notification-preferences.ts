@@ -1,3 +1,4 @@
+import { notificationEvents, notificationCategories, notificationEnabled, normalizeNotificationPreferences, type NotificationCategory, type NotificationEvent } from '@/supabase/functions/_shared/notificationsPreferences'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 
@@ -6,6 +7,9 @@ export type NotificationPreferences = {
     waiverEnabled: boolean
     draftEnabled: boolean
     activityEnabled: boolean
+    masterEnabled?: boolean
+    categories?: Partial<Record<NotificationCategory, boolean>>
+    events?: Partial<Record<NotificationEvent, boolean>>
 }
 
 export function createNotificationPreferenceWriter(
@@ -22,34 +26,33 @@ export function createNotificationPreferenceWriter(
     }
 }
 
-const DEFAULT_PREFERENCES: NotificationPreferences = {
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     tradeEnabled: true,
     waiverEnabled: true,
     draftEnabled: true,
     activityEnabled: true,
-}
-
-type PreferenceRow = {
-    trade_enabled: boolean
-    waiver_enabled: boolean
-    draft_enabled: boolean
-    activity_enabled: boolean
+    masterEnabled: true,
+    categories: {},
+    events: {},
 }
 
 export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
     const { data, error } = await supabase
         .from('notification_preferences')
-        .select('trade_enabled, waiver_enabled, draft_enabled, activity_enabled')
+        .select('*')
         .eq('user_id', userId)
         .maybeSingle()
     if (error) throw error
-    if (!data) return DEFAULT_PREFERENCES
-    const row = data as PreferenceRow
+    if (!data) return DEFAULT_NOTIFICATION_PREFERENCES
+    const row = normalizeNotificationPreferences(data)
     return {
         tradeEnabled: row.trade_enabled,
         waiverEnabled: row.waiver_enabled,
         draftEnabled: row.draft_enabled,
         activityEnabled: row.activity_enabled,
+        masterEnabled: row.master_enabled ?? true,
+        categories: row.category_settings ?? {},
+        events: row.event_settings ?? {},
     }
 }
 
@@ -66,8 +69,57 @@ export async function updateNotificationPreferences(
                 waiver_enabled: preferences.waiverEnabled,
                 draft_enabled: preferences.draftEnabled,
                 activity_enabled: preferences.activityEnabled,
+                master_enabled: preferences.masterEnabled ?? true,
+                category_settings: preferences.categories ?? {},
+                event_settings: preferences.events ?? {},
                 updated_at: new Date().toISOString(),
             })
+        if (error) throw error
+    })
+}
+
+export { notificationEvents, notificationCategories }
+export type { NotificationCategory, NotificationEvent }
+
+export function eventEnabled(preferences: NotificationPreferences, event: NotificationEvent): boolean {
+    const definition = notificationEvents.find(item => item.key === event)!
+    return notificationEnabled({
+        trade_enabled: preferences.tradeEnabled,
+        waiver_enabled: preferences.waiverEnabled,
+        draft_enabled: preferences.draftEnabled,
+        activity_enabled: preferences.activityEnabled,
+        master_enabled: preferences.masterEnabled,
+        category_settings: preferences.categories,
+        event_settings: preferences.events,
+    }, definition.category, event)
+}
+
+export function setNotificationCategory(
+    preferences: NotificationPreferences,
+    category: NotificationCategory,
+    enabled: boolean,
+): NotificationPreferences {
+    const next = { ...preferences, categories: { ...preferences.categories, [category]: enabled } }
+    if (category === 'trade') next.tradeEnabled = enabled
+    else if (category === 'waiver') next.waiverEnabled = enabled
+    else if (category === 'draft') next.draftEnabled = enabled
+    else if (enabled && !preferences.activityEnabled) {
+        next.activityEnabled = true
+        next.categories = { ...next.categories, player: false, lineup: false, matchup: false, playoff: false, league: false, [category]: true }
+    }
+    return next
+}
+
+export async function setPlayerWatch(leagueId: string, playerId: string, enabled: boolean): Promise<void> {
+    await withPwaMutation('player watch', async () => {
+        const { error } = await supabase.rpc('notif_set_player_watch_atomic', { p_league_id: leagueId, p_player_id: playerId, p_enabled: enabled })
+        if (error) throw error
+    })
+}
+
+export async function publishLeagueAnnouncement(leagueId: string, body: string, requestId: string): Promise<void> {
+    await withPwaMutation('league announcement', async () => {
+        const { error } = await supabase.rpc('notif_publish_announcement_atomic', { p_league_id: leagueId, p_body: body, p_request_id: requestId })
         if (error) throw error
     })
 }

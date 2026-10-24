@@ -7,7 +7,8 @@ import { buildAspNetRankingForm } from './form.ts'
 import { parseDynastyRankingOrderHtml, parseDynastyRankingsHtml } from './parser.ts'
 import { RANKING_VIEWS_IN_WRITE_ORDER, rankingViewForRequest, type RankingViewDefinition } from './views.ts'
 
-const RANKINGS_URL = 'https://hashtagbasketball.com/fantasy-basketball-dynasty-rankings'
+const RANKINGS_URL = new URL('/fantasy-basketball-dynasty-rankings',
+  Deno.env.get('HASHTAG_BASE_URL') ?? 'https://hashtagbasketball.com').href
 
 serveInternal('sync-rankings', async (req) => {
   const requestedView = await requestedRankingView(req) ?? RANKING_VIEWS_IN_WRITE_ORDER.at(-1)!
@@ -82,7 +83,7 @@ async function fetchRankingView(view: RankingViewDefinition) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Origin': 'https://hashtagbasketball.com',
+      'Origin': new URL(RANKINGS_URL).origin,
       'Referer': RANKINGS_URL,
       'User-Agent': 'Mozilla/5.0 (compatible; PancakeApp/1.0)',
     },

@@ -97,6 +97,14 @@ describe('getCurrentWeekNumber', () => {
         await expect(getSeasonWeekDates(2026, 99)).resolves.toEqual([])
     })
 
+    it('returns every stored day of the merged All-Star week', async () => {
+        mockFrom.mockReturnValue(seasonWeekQuery([{ week_number: 17, week_start: '2026-02-09', week_end: '2026-02-22' }]))
+        const dates = await getSeasonWeekDates(2025, 17)
+        expect(dates).toHaveLength(14)
+        expect(dates.at(0)).toBe('2026-02-09')
+        expect(dates.at(-1)).toBe('2026-02-22')
+    })
+
     it('uses the ET date key when querying season weeks', async () => {
         const query = seasonWeekQuery([{ week_number: 22, week_start: '2026-04-20', week_end: '2026-04-26' }])
         mockFrom.mockReturnValue(query)

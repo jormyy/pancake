@@ -64,7 +64,12 @@ Use negative controls to prove that a gate detects the protected failure.
 | Optimizer ownership | `npm run test:db:optimizer-context` |
 | History retention | `npm run test:db:retention`, `npm run test:db:retention-scoring` |
 | Live snapshot order | `npm run test:db:live-snapshot-order` |
+| Final scores from final box scores | `npm run test:db:live-snapshot-order` for the refused later sample; `npm run check:edge-functions` for the box-score write |
 | Certified scoring | `npm run test:db:skipped-week-certificates` |
+| Fantasy calendar publication | `npm run test:db:calendar-publish`, `npm run test:db:calendar-seasons` |
+| Draft timers | `npm run test:db:draft-timer-range`, `npm run test:db:draft-timer-pause` |
+| Notification preferences and producers | `npm run test:db:notif-overhaul`, `npm run test:db:notif-producers-enabled`, `npm run test:db:notif-round3` |
+| Auction turn notices, computed at commit from the settled draft | `npm run test:db:notif-t10-auction` |
 
 These checks use controlled fixtures. They do not establish hosted latency or physical-device behavior.
 
@@ -91,6 +96,8 @@ A source check or catalog pass alone does not authorize a release.
 The attested candidate remains `20261011000062` in both release-history and catalog contracts.
 Later migrations, including this branch's projection and cleanup range, require reviewed attestations before release.
 The [migration history](production-migration-history.md#candidate-migrations) records this boundary.
+The combined bounded-season candidate has 494 migrations; the attested range contains 398.
+Release approval permits the existing workflow to run; it does not bypass an attestation failure.
 
 ## Sleeper projections and weekly cleanup
 

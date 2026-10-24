@@ -190,8 +190,8 @@ try {
   assert.equal(first.games[0].nba_game_id, key(partial.year, 2))
   assert.equal(first.stats.length, 2)
   assert.deepEqual(first.weeks, [], 'Enumeration must not initialize shared weeks from incomplete discovery')
-  assert.equal(first.games[0].week_number, 2, 'Retained stats keep the provisional October-15 estimate')
-  assert.ok(first.stats.every((row: any) => row.week_number === 2))
+  assert.equal(first.games[0].week_number, 1, 'Unresolved discovery keeps a placeholder until a complete calendar supplies the fantasy week')
+  assert.ok(first.stats.every((row: any) => row.week_number === 1))
   assert.ok(!rpcCalls.slice(rpcStart).some((entry) => entry.initialization === true), 'No initialization authority is granted to enumeration')
   requestStart = requests.length; rpcStart = rpcCalls.length
   await assert.rejects(() => run(partial, true), /Calendar resolution required/i)

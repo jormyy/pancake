@@ -1,6 +1,6 @@
 import process from 'node:process'
 
-/** @typedef {'browser' | 'browserAuth' | 'browserPerf' | 'browserGameplay' | 'browserLineup' | 'browserLineupAutoSet' | 'browserLineupLocked' | 'browserPlayoff' | 'browserRookieDraft' | 'browserWaiver' | 'browserWaiverDrop' | 'browserWaiverIrBlock' | 'browserLeagueLifecycle' | 'browserTrade' | 'browserTradeAccept' | 'browserTradeTerminal' | 'browserTradeFuturePick' | 'browserTradeFuturePickAccept' | 'browserTradeOverflowAccept' | 'browserTradePostDeadline' | 'browserTradeVeto' | 'browserTradeMultiTeam' | 'browserPwaLaunch' | 'browserWebTargets'} BrowserFlag */
+/** @typedef {'browser' | 'browserAuth' | 'browserPerf' | 'browserGameplay' | 'browserLineup' | 'browserLineupAutoSet' | 'browserLineupLocked' | 'browserPlayoff' | 'browserRookieDraft' | 'browserWaiver' | 'browserWaiverDrop' | 'browserWaiverIrBlock' | 'browserLeagueLifecycle' | 'browserTrade' | 'browserTradeAccept' | 'browserTradeTerminal' | 'browserTradeFuturePick' | 'browserTradeFuturePickAccept' | 'browserTradeOverflowAccept' | 'browserTradePostDeadline' | 'browserTradeVeto' | 'browserTradeMultiTeam' | 'browserPwaLaunch' | 'browserWebTargets' | 'browserNotificationSettings'} BrowserFlag */
 
 /**
  * @typedef {object} BrowserScenarioMetadata
@@ -22,6 +22,7 @@ import process from 'node:process'
 const evidenceByScenarioId = {
   'web-targets': 'Checks iPhone WebKit tab and simulated standalone layouts, desktop Chromium and WebKit, metadata, navigation, inputs, offline launch, and optional two-build worker updates.',
   smoke: 'Visits the configured route sweep and retains screenshots plus console, error, and network diagnostics.',
+  'notification-settings': 'Checks account notification choices, two-tap changes, failed reads and writes, retry, and phone and desktop layouts.',
   auth: 'Exercises browser sign-in, session persistence, sign-out, and protected-route behavior.',
   performance: 'Measures browser feedback, navigation, heartbeat lag, and mutation load against executable budgets.',
   auction: 'Places a bid through the real draft-room UI and verifies persisted nomination and bid state.',
@@ -50,6 +51,7 @@ const evidenceByScenarioId = {
 const browserScenarioDefinitions = [
   { id: 'web-targets', cliFlag: 'browser-web-targets', envFlag: 'E2E_ENABLE_BROWSER_WEB_TARGETS', flag: 'browserWebTargets', resultKey: 'browserWebTargetsCheck', evidenceId: 'browser.web_targets', passNote: 'supported web client checks passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'smoke', cliFlag: 'browser', envFlag: 'E2E_ENABLE_BROWSER', flag: 'browser', resultKey: 'browserCheck', evidenceId: 'browser.smoke', passNote: 'browser smoke passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
+  { id: 'notification-settings', cliFlag: 'browser-notification-settings', envFlag: 'E2E_ENABLE_BROWSER_NOTIFICATION_SETTINGS', flag: 'browserNotificationSettings', resultKey: 'browserNotificationSettingsCheck', evidenceId: 'browser.notification_settings', passNote: 'browser notification settings passed', ciTier: 'fast', requiresSeed: false, releaseTier: 'release', weekly: false },
   { id: 'auth', cliFlag: 'browser-auth', envFlag: 'E2E_ENABLE_BROWSER_AUTH', flag: 'browserAuth', resultKey: 'browserAuthCheck', evidenceId: 'browser.auth', passNote: 'browser auth scenario passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'performance', cliFlag: 'browser-perf', envFlag: 'E2E_ENABLE_BROWSER_PERF', flag: 'browserPerf', resultKey: 'browserPerfCheck', evidenceId: 'browser.performance', passNote: 'browser perf smoke passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },
   { id: 'auction', cliFlag: 'browser-gameplay', envFlag: 'E2E_ENABLE_BROWSER_GAMEPLAY', flag: 'browserGameplay', resultKey: 'browserGameplayCheck', evidenceId: 'browser.auction', passNote: 'browser auction bid gameplay passed', ciTier: 'fast', requiresSeed: true, releaseTier: 'release', weekly: false },

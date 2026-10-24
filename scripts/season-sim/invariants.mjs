@@ -22,6 +22,7 @@ export async function assertDomain(c, previous = {}) {
   let checks = 0
   for (const key of ['duplicateRosters', 'slotOverflow', 'rosterOverflow', 'negativeFaab', 'negativeAuction', 'doubleInactive', 'invalidTaxi', 'duplicatePriority', 'orphanPickOwner']) { assert.equal(state[key], 0, key); checks++ }
   for (const key of ['playerStats', 'historySeasons', 'historyMatchups']) { assert.ok(state[key] >= (previous[key] ?? 0), `${key} must never decrease`); checks++ }
+  if (state.results.length) assert.ok(state.standings.length > 0, 'Finalized regular results require standings rows')
   for (const standing of state.standings) {
     const results = state.results.filter(result => result.week_number <= standing.week_number && [result.home_member_id, result.away_member_id].includes(standing.member_id))
     const expected = { wins: 0, losses: 0, ties: 0, points_for: 0, points_against: 0 }
@@ -41,21 +42,21 @@ export function assertLiveCoverage(coverage, games, plan) {
   let checks = 0
   for (const game of games) {
     const observed = coverage.games[game.id]
-    assert.ok(observed?.finalRaw > 0, `${game.id}: official raw final must reach the pipeline`)
+    assert.ok(game.provenance === 'SYNTHETIC' ? observed?.finalSynthetic > 0 : observed?.finalRaw > 0, `${game.id}: official raw final must reach the pipeline`)
     assert.ok(observed.scoreboard > 0, `${game.id}: real-derived scoreboard must reach the pipeline`)
-    const snapshots = Object.keys(observed.live)
+    const snapshots = Object.keys(game.provenance === 'SYNTHETIC' ? observed.syntheticLive ?? {} : observed.live)
     assert.ok(snapshots.length >= plan.minimumSnapshots, `${game.id}: needs ${plan.minimumSnapshots} live snapshots, saw ${snapshots.length}`)
     if (plan.requiredPeriods) for (const period of plan.requiredPeriods) assert.ok(snapshots.some(key => key.startsWith(`${period}:`)), `${game.id}: missing quarter ${period}`)
     checks += 3 + (plan.requiredPeriods?.length ?? 0)
   }
-  return { checks, games: games.length, minimumSnapshots: plan.minimumSnapshots, snapshotCounts: Object.fromEntries(games.map(game => [game.id, Object.keys(coverage.games[game.id].live).length])) }
+  return { checks, games: games.length, minimumSnapshots: plan.minimumSnapshots, snapshotCounts: Object.fromEntries(games.map(game => [game.id, Object.keys(game.provenance === 'SYNTHETIC' ? coverage.games[game.id].syntheticLive ?? {} : coverage.games[game.id].live).length])) }
 }
 
 export async function assertHistoricalTeams(expected, previous = {}) {
   const stored = JSON.parse(await sql('SELECT json_object_agg(espn_id,nba_team) FROM players WHERE espn_id IS NOT NULL'))
   const changes = []
   for (const player of expected) {
-    assert.equal(stored[player.espnId], player.nbaTeam, 'Historical NBA roster observation must reach the player master')
+    assert.equal(stored[player.espnId], player.nbaTeam, `Historical NBA roster observation must reach the player master: ESPN ${player.espnId}`)
     if (previous[player.espnId] && previous[player.espnId] !== player.nbaTeam) changes.push({ espnId: player.espnId, from: previous[player.espnId], to: player.nbaTeam, provenance: 'REAL-DERIVED; first observed game date, announcement time unavailable' })
   }
   return { checked: expected.length, changes, teams: stored }

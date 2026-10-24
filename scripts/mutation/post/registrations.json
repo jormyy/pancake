@@ -1,0 +1,30 @@
+{
+  "test:db chain": {
+    "test:db:weekly-idle-dispatch": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-idle-dispatch.sql",
+    "test:db:weekly-formula-boundaries": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-formula-boundaries.sql",
+    "test:db:live-score-guards": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-score-guards.sql",
+    "test:db:live-score-overlap": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/live-score-overlap.ts",
+    "test:db:weekly-skip-idle": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-skip-idle.sql",
+    "test:db:waiver-season": "node tests/e2e/waiver-season-db.mjs",
+    "test:db:waiver-dst": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/waiver-dst-boundaries.sql",
+    "test:db:faab-worker": "node tests/e2e/faab-worker-db.mjs",
+    "test:db:playoff-ranking-priority": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql",
+    "test:db:deadline-locks": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql",
+    "test:db:picks-lifecycle": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql",
+    "test:db:rollover-year-gap": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql",
+    "test:db:rookie-backstop": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts",
+    "test:db:rookie-drafting-gate": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql",
+    "test:db:live-poll-delayed-tipoff": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-poll-delayed-tipoff.sql",
+    "test:db:scoring-idempotent-finalization": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X --set ON_ERROR_STOP=1 -f tests/db/scoring-idempotent-finalization.sql"
+  },
+  "evidence only": {
+    "evidence:db:weekly-idle-load": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/weekly-idle-load.sql",
+    "evidence:db:live-score-load": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read supabase/tests/db/live-score-load.ts",
+    "evidence:db:live-score-tick-recovery": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/live-score-tick-recovery.ts",
+    "evidence:db:scoring-skip-first-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-skip-first-week.ts",
+    "evidence:db:waiver-season-end": "node tests/e2e/waiver-season-end-db.mjs",
+    "evidence:db:rookie-skipped-week": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts",
+    "evidence:db:playoff-stale-boundary": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts",
+    "evidence:db:scoring-eliminated-lineups": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/scoring-eliminated-lineups.ts"
+  }
+}

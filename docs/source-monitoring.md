@@ -155,6 +155,8 @@ A ninety-second lease renews every thirty seconds. Lease loss stops further writ
 One scoring pass follows each batch of game updates.
 Missing final-game stats remain eligible for recovery.
 Failed provider requests back off without marking the game complete.
+A final NBA CDN box score with valid team scores also saves them and its status text as the game's Final scoreboard sample.
+Later non-final scoreboard samples cannot overwrite that final score.
 
 Response-table maintenance uses ordinary vacuum to reclaim expired response space.
 It preserves live responses and requires no table rewrite.
@@ -206,7 +208,23 @@ Deletes free reusable space; they do not immediately shrink relation files.
 ESPN supplies names, teams, coarse positions, injuries, and news.
 Sync preserves finer existing position eligibility.
 NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
+A box player whom no NBA id or name joins links to an existing ESPN row only when the box lists him under its side and ESPN lists exactly one row on that side with the same name words in any order, has listed it there since before tip-off and on no other team since, that row has no NBA id, and no other player on that side has those words; a CDN-only row an earlier box made for his NBA id then merges into it.
+No jersey, nickname, prefix or spelling distance is used.
 Truncated master lists fail before replacement.
+ESPN roster pages name only signed players, but a page can answer 200 and still omit one.
+A structurally complete refresh (every NBA team once, each roster nonempty, every athlete identifiable, every record imported) is therefore not proof that anyone left.
+Stored NBA boxes are not proof either: real boxes omit signed players for a game or for months, whether their last listing showed them playing, inactive or not at all.
+No feed the product reads states, with a date, that a player is no longer rostered.
+An omitted player's team changes (`released`) only when his latest stored box since he was last placed on that team is of a regular-season or postseason game his team did not play.
+He was last placed there by ESPN's latest listing of him on that team or his latest stored regular-season or postseason box under it, whichever is later, so a second move proven only by boxes is released too.
+He moves to the side that box lists him under, so he stays startable on its game days; without a stored side his team is cleared.
+Every path that stores a box (sync-stats, the live poll and both CDN backfills) records its sides before the box's own import.
+A merge of two player rows keeps each stored side and the later of their ESPN listings whole, including since when ESPN has listed him on that team, so a box the listing corroborates still links to the survivor.
+The next listing names his team either way.
+Otherwise a team changes only when an ESPN listing names him on another team; his row, IDs, injury, status, ownership and lineups stay either way.
+Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
+The NBA index step runs between the ESPN import and the sweep, so a person whose split rows it merges is read as one row with his listing and his boxes.
+Any listing gap, import failure or NBA index failure skips the sweep, and the run reports the reasons as `releaseSkipped`.
 [Roster lifecycle](roster-lifecycle.md#configurable-taxi-and-trade-plans) owns rookie and career-game taxi eligibility.
 
 `npm run parity:players` compares the public player feeds and writes ignored test artifacts.

@@ -139,6 +139,25 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
       standing: await query(supabase.from('standings').select('wins,losses,ties,points_for,points_against,created_at')
         .eq('league_season_id', season).eq('member_id', members[0]).eq('week_number', playoff ? 2 : 1).single()),
     })
+    const assertRegularWeekClosure = async (lastClosedWeek: number) => {
+      const matchups = await query(supabase.from('matchups').select('week_number,is_finalized,finalized_at')
+        .eq('league_season_id', season).eq('matchup_type', 'regular_season'))
+      const snapshots = await query(supabase.from('standings').select('member_id,week_number')
+        .eq('league_season_id', season))
+      assert.equal(matchups.length, weeks.length)
+      assert.equal(snapshots.length, lastClosedWeek * members.length, 'Only closed regular weeks have standings')
+      for (const week of weeks) {
+        const matchup = matchups.find((row: any) => row.week_number === week.week_number)
+        assert.ok(matchup, `Week ${week.week_number} must retain its matchup`)
+        const closed = week.week_number <= lastClosedWeek
+        assert.equal(matchup.is_finalized, closed, `Week ${week.week_number} finalization follows its stored end`)
+        assert.equal(matchup.finalized_at == null, !closed, `Week ${week.week_number} finalization timestamp follows closure`)
+        assert.deepEqual(snapshots.filter((row: any) => row.week_number === week.week_number)
+          .map((row: any) => row.member_id).sort(), closed ? [...members].sort() : [],
+        `Week ${week.week_number} standings include every member only after closure`)
+      }
+      console.log(JSON.stringify({ scenario, closedRegularWeeks: lastClosedWeek, standingSnapshots: snapshots.length }))
+    }
     await syncScores(league, reference)
     const before = await readState()
     assert.equal(Number(before.matchup.home_points), 30, 'Control must score the original game')
@@ -146,7 +165,8 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
     assert.equal(before.matchup.winner_member_id, members[0])
     assert.equal(before.standing.wins, playoff ? 0 : 1)
     const snapshots = await query(supabase.from('standings').select('member_id,week_number').eq('league_season_id', season))
-    assert.equal(snapshots.length, playoff ? 4 : 10, 'Only regular-season weeks have standings')
+    if (playoff) assert.equal(snapshots.length, 4, 'Only regular-season weeks have standings')
+    else await assertRegularWeekClosure(4)
     if (playoff) {
       await syncScores(league, reference)
       const unchanged = await readState()
@@ -245,6 +265,13 @@ async function runRegression(scenario: 'regular-overlap' | 'regular-history' | '
         assert.equal(Number(after.standing.points_for), 0)
         assert.equal(Number(after.standing.points_against), 20)
       }
+    }
+    if (!playoff) {
+      if (!historical) {
+        await assertRegularWeekClosure(4)
+        await syncScores(league, new Date(`${addDays(weeks[4].week_end, 1)}T16:00:00Z`))
+      }
+      await assertRegularWeekClosure(5)
     }
 
   } finally {

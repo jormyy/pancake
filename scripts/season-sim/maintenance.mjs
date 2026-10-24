@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { dispatch } from './dispatch.mjs'
 import { sql } from './local-stack.mjs'
+import { nextWaiverRun } from './waiver-scenarios.mjs'
 
 export async function maintenanceTick(invoke = dispatch, execute = sql) {
   await execute('SELECT private.reconcile_edge_invocations()')
@@ -27,4 +28,21 @@ export async function waitForRollover({ start, deadline, oldSeason, move, tick, 
     if (season !== oldSeason) return { season, ticks, at: new Date(at).toISOString(), outcomes }
   }
   throw new Error(`Season did not roll over within ${ticks} ticks (${new Date(start).toISOString()} to ${new Date(deadline).toISOString()})`)
+}
+
+function waiverSettlementAt(scenario) {
+  const conditionalDrop = scenario.input.claims.some(claim => claim.drop && scenario.expected.claims[claim.id] === 'succeeded')
+  const dropExpiry = conditionalDrop ? nextWaiverRun(scenario.processAt + 48 * 3600000 + 1) : 0
+  return Math.max(scenario.processAt, dropExpiry, ...scenario.targets.map(row => row.clearsAt))
+}
+
+export function rolloverDeadline(start, ready, scenarios = []) {
+  return Math.max(start, ready, ...scenarios.map(waiverSettlementAt)) + 26 * 3600000
+}
+
+export function waiverBoundaryDeferral(outcome, context, at) {
+  const scenario = context?.waiverScenarios?.find(row => row.name === 'postseason-pending')
+  if (outcome.function_name !== 'season-boundary' || outcome.status_code !== 200 || outcome.worker_status !== 'failed' || !scenario || at > waiverSettlementAt(scenario) + 26 * 3600000) return false
+  const errors = JSON.parse(outcome.content ?? 'null')?.leagues?.filter(row => row.error) ?? []
+  return errors.length > 0 && errors.every(row => row.leagueId === context.leagueId && row.error === 'Resolve pending waiver claims and waiver holds before advancing season.')
 }

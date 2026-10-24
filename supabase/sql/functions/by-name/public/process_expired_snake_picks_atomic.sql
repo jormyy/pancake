@@ -29,6 +29,8 @@ DECLARE
   v_rows int;
   v_now timestamptz;
 BEGIN
+  RETURN QUERY SELECT * FROM private.draft_timer_complete_opening_night(v_limit);
+
   FOR v_candidate IN
     SELECT
       pick.id AS pick_id,
@@ -42,7 +44,7 @@ BEGIN
    WHERE pick.player_id IS NULL
      AND pick.skipped_at IS NULL
      AND pick.timer_expires_at IS NOT NULL
-     AND pick.timer_expires_at < now()
+     AND pick.timer_expires_at <= clock_timestamp()
      AND NOT EXISTS (
        SELECT 1
          FROM snake_draft_picks AS earlier
@@ -56,7 +58,7 @@ BEGIN
   LOOP
     BEGIN
       v_player_id := NULL;
-      v_now := now();
+      v_now := clock_timestamp();
 
       IF NOT pg_try_advisory_xact_lock(hashtext(v_candidate.draft_id::text), 0) THEN
         CONTINUE;
@@ -82,7 +84,7 @@ BEGIN
          AND pick.player_id IS NULL
          AND pick.skipped_at IS NULL
          AND pick.timer_expires_at IS NOT NULL
-         AND pick.timer_expires_at < v_now
+         AND pick.timer_expires_at <= v_now
          AND NOT EXISTS (
            SELECT 1
              FROM snake_draft_picks AS earlier

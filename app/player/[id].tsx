@@ -1,3 +1,4 @@
+import { NotificationPlayerWatch } from '@/components/settings/NotificationPlayerWatch'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -260,6 +261,7 @@ export default function PlayerDetailScreen() {
                         </View>
                     </View>
 
+                    <NotificationPlayerWatch playerId={id} />
                     <DeferredContent ready={!contentBusy} style={styles.body}>
                         {dataWarnings.map((message) => (
                             <View key={message} style={styles.warningBanner}>

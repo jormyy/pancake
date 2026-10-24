@@ -2,7 +2,13 @@ export function calculateWeekNumberFromDate(
     dateStr: string,
     week1StartStr: string,
     week1EndStr: string,
+    weeks?: readonly { week_number: number; week_start: string; week_end: string }[],
 ): number {
+    if (weeks) {
+        const week = weeks.find((row) => row.week_start <= dateStr && row.week_end >= dateStr)
+        if (!week) throw new Error(`No published fantasy week contains ${dateStr}`)
+        return week.week_number
+    }
     const date = dateOrdinal(dateStr)
     const week1Start = dateOrdinal(week1StartStr)
     const week1End = dateOrdinal(week1EndStr)

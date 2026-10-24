@@ -107,6 +107,14 @@ Local recovery evidence does not establish production lock availability or devic
 
 ## Candidate migrations
 
+The bounded-season candidate adds 63 migrations after main's `20261020000007` head.
+The combined tree contains 494 migrations through `20261024000001`.
+These additions cover season scoring, player identity, draft transitions and notification delivery.
+They preserve all published main migration files.
+The 398-row attested release range does not yet include this combined tree.
+Production release must pass the existing history and catalog gates before applying this suffix.
+Fresh-install and bounded-replay evidence do not replace those production attestations.
+
 Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
 They do not extend the historical alias attestations or approved release range above.
 The release-history and database catalog attestations require review for all later migrations before production release.

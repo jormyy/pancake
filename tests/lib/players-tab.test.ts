@@ -4,6 +4,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: vi.fn(() => 2025) }))
 
 import { supabase } from '@/lib/supabase'
+import { playerAverageLabel } from '@/lib/player-search-state'
 import { getPlayerGameLog, getPlayerTransactionHistory, searchPlayers } from '@/lib/players'
 
 describe('getPlayerTransactionHistory', () => {
@@ -162,6 +163,7 @@ describe('searchPlayers', () => {
                 headshot_url: null,
                 nba_id: '2',
                 years_exp: 2,
+                stats_season_year: 2024,
                 avg_fantasy_points: 18,
                 avg_points: 18,
                 games_played: 2,
@@ -191,21 +193,45 @@ describe('searchPlayers', () => {
             p_health: 'healthy',
             p_sort_by: 'fpts',
             p_sort_dir: 'desc',
-            p_season_year: 2025,
+            p_season_year: undefined,
             p_limit: 25,
             p_offset: 60,
         })
         expect(result.map((player) => player.id)).toEqual(['player-high'])
+        expect(result[0].stats_season_year).toBe(2024)
+        expect(result[0].avg_fantasy_points).toBe(18)
     })
 
-    it('asks for the chosen stats season and defaults to the current one', async () => {
+    it('keeps current midseason averages and the server-selected season label in Auto', async () => {
+        const rows = [
+            { id: 'rookie', display_name: 'R Rookie', avg_fantasy_points: 22.33, games_played: 3 },
+            { id: 'high', display_name: 'Z High', avg_fantasy_points: 13.6, games_played: 5 },
+            { id: 'tie', display_name: 'T Tie', avg_fantasy_points: 13.5, games_played: 4 },
+            { id: 'zero', display_name: 'Y Zero', avg_fantasy_points: -2.5, games_played: 2 },
+            { id: 'prior', display_name: 'B Previous', avg_fantasy_points: null, games_played: null },
+        ].map(row => ({ ...row, stats_season_year: 2091 }))
+        ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: rows, error: null })
+
+        const result = await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: null })
+
+        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({
+            p_sort_by: 'fpts', p_sort_dir: 'desc', p_season_year: undefined,
+        }))
+        expect(result.map(row => [row.avg_fantasy_points, row.games_played])).toEqual([
+            [22.33, 3], [13.6, 5], [13.5, 4], [-2.5, 2], [null, null],
+        ])
+        expect(result.map(row => playerAverageLabel(row.stats_season_year))).toEqual(Array(5).fill('2090–91 avg'))
+        expect(result.map(row => playerAverageLabel(row.stats_season_year))).not.toContain('2089–90 avg')
+    })
+
+    it('asks for the chosen stats season and leaves automatic selection to the server', async () => {
         ;(supabase.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: [], error: null })
 
         await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: 2023 })
         expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2023 }))
 
         await searchPlayers('', 'ALL', [], 'league-1', null, false, 0, 'all', {}, { seasonYear: null })
-        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: 2025 }))
+        expect(supabase.rpc).toHaveBeenLastCalledWith('search_players', expect.objectContaining({ p_season_year: undefined }))
     })
 
     it('passes an explicit empty include scope so empty waiver/mine filters stay empty', async () => {
