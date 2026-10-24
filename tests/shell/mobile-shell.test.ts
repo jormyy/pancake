@@ -9,7 +9,7 @@ const state = vi.hoisted(() => {
     return {
         pathname: '/', params: {} as { tradeId?: string }, current, memberships: [current], setCurrent: vi.fn(),
         draft: null as { id: string } | null, draftChecked: false, draftError: null as string | null,
-        openDraftRoom: vi.fn(), push: vi.fn(),
+        openDraftRoom: vi.fn(), push: vi.fn(), navigate: vi.fn(),
     }
 })
 
@@ -21,7 +21,7 @@ vi.mock('react-native', () => ({
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
 vi.mock('expo-router', () => ({
-    usePathname: () => state.pathname, useGlobalSearchParams: () => state.params, useRouter: () => ({ push: state.push }), Link: 'Link', Navigator: 'Navigator',
+    usePathname: () => state.pathname, useGlobalSearchParams: () => state.params, useRouter: () => ({ push: state.push, navigate: state.navigate }), Link: 'Link', Navigator: 'Navigator',
 }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ ...state, currentLeague: state.current.leagues, membershipStatus: 'ready', isCommissioner: false }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
@@ -86,6 +86,38 @@ it.each(['/', '/roster', '/players', '/trades', '/league'])('keeps the league he
     state.pathname = pathname
     await render()
     expect(controls('Open menu')).toHaveLength(1)
+})
+
+it.each(['/', '/roster', '/players', '/trades', '/league'])('ignores the active bottom tab at %s', async pathname => {
+    state.pathname = pathname
+    await render()
+    const active = screen.root.find(node => node.type === ('Pressable' as React.ElementType)
+        && node.props.accessibilityRole === 'link' && node.props.accessibilityState.selected)
+    await act(async () => active.props.onPress())
+    expect(state.push).not.toHaveBeenCalled()
+    expect(state.navigate).not.toHaveBeenCalled()
+})
+
+it('navigates to another bottom tab without pushing a new history entry', async () => {
+    await render()
+    await act(async () => controls('Roster')[0].props.onPress())
+    expect(state.navigate).toHaveBeenCalledExactlyOnceWith('/roster')
+    expect(state.push).not.toHaveBeenCalled()
+})
+
+it.each([
+    ['/lineup', 'Roster', '/roster'],
+    ['/player/123', 'Players', '/players'],
+    ['/claim-player', 'Players', '/players'],
+    ['/propose-trade', 'Trades', '/trades'],
+    ['/team-roster', 'League', '/league'],
+])('returns from %s to its selected bottom tab', async (pathname, label, href) => {
+    state.pathname = pathname
+    await render()
+    expect(controls(label)[0].props.accessibilityState.selected).toBe(true)
+    await act(async () => controls(label)[0].props.onPress())
+    expect(state.navigate).toHaveBeenCalledExactlyOnceWith(href)
+    expect(state.push).not.toHaveBeenCalled()
 })
 
 it('opens a trade with one header and restores the list header without remounting content', async () => {

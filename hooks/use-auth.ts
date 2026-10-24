@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let active = true
         let sequence = 0
         let current = initial.current
+        let publishedUserId = current.session?.user.id ?? null
         let cacheOwnerId = current.session?.user.id ?? current.refreshIdentity?.userId ?? null
         let expiryTimer: ReturnType<typeof setTimeout> | undefined
         let restoring = false
@@ -46,13 +47,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (next.status === 'missing' && current.status === 'expired') next = { session: null, status: 'expired' }
             clearTimeout(expiryTimer)
             const pending = !settled && next.status === 'expired' && !!next.refreshIdentity && online()
+            const keepPublished = pending && publishedUserId === next.refreshIdentity?.userId
             const nextOwner = next.session?.user.id ?? (pending ? next.refreshIdentity?.userId ?? null : null)
             if (forceClear || (cacheOwnerId !== null && cacheOwnerId !== nextOwner)) clearPersistentCaches()
             cacheOwnerId = nextOwner
-            setSessionOwner(next.session?.user.id ?? null)
             current = next
-            setRestored(next)
-            setLoading(pending)
+            if (!keepPublished) {
+                publishedUserId = next.session?.user.id ?? null
+                setSessionOwner(publishedUserId)
+                setRestored(previous => previous.status === next.status
+                    && previous.session?.access_token === next.session?.access_token
+                    && previous.refreshIdentity?.userId === next.refreshIdentity?.userId ? previous : next)
+                setLoading(pending)
+            }
             if (next.session?.expires_at) {
                 expiryTimer = setTimeout(() => {
                     const checked = inspectAuthSession(current.session)
@@ -113,13 +120,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const storageChanged = (event: StorageEvent) => {
             if (event.key === null || event.key === supabaseAuthStorageKey || event.key === `${supabaseAuthStorageKey}-local-logout`) resume()
         }
+        const visibilityChanged = () => {
+            if (visible()) resume()
+            else supabase.auth.stopAutoRefresh()
+        }
         if (typeof window !== 'undefined') {
             window.addEventListener(localAuthChangeEvent, resume)
             window.addEventListener('online', resume)
+            window.addEventListener('offline', resume)
             window.addEventListener('pageshow', resume)
             window.addEventListener('focus', resume)
             window.addEventListener('storage', storageChanged)
-            document.addEventListener('visibilitychange', resume)
+            document.addEventListener('visibilitychange', visibilityChanged)
         }
         return () => {
             active = false
@@ -129,10 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (typeof window !== 'undefined') {
                 window.removeEventListener(localAuthChangeEvent, resume)
                 window.removeEventListener('online', resume)
+                window.removeEventListener('offline', resume)
                 window.removeEventListener('pageshow', resume)
                 window.removeEventListener('focus', resume)
                 window.removeEventListener('storage', storageChanged)
-                document.removeEventListener('visibilitychange', resume)
+                document.removeEventListener('visibilitychange', visibilityChanged)
             }
         }
     }, [])
