@@ -8,7 +8,6 @@ import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
 import { colors, fontSize, fontWeight, INJURY_COLORS, radii, spacing, textStyles } from '@/constants/tokens'
-import { playerHeadshotUrl } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
@@ -61,7 +60,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     return (
         <View style={[styles.blockRow, tile && styles.tile]}>
             {block.asset.kind === 'player' ? (
-                <Avatar name={block.asset.playerName} uri={playerHeadshotUrl(block.asset.nbaId) ?? undefined}
+                <Avatar name={block.asset.playerName}
                     color={colors.bgMuted} textColor={colors.textSecondary} size={36} />
             ) : (
                 <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{block.asset.kind === 'pick' ? `R${block.asset.round}` : '$'}</Text></View>
@@ -136,7 +135,7 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     })
     return (
         <View style={[styles.blockRow, tile && styles.tile]}>
-            <Avatar name={player.display_name} uri={playerHeadshotUrl(player.nba_id) ?? undefined}
+            <Avatar name={player.display_name}
                 color={colors.bgMuted} textColor={colors.textSecondary} size={36} />
             <View style={styles.blockInfo}>
                 <Text style={styles.blockTitle}>{player.display_name}</Text>

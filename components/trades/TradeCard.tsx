@@ -4,7 +4,6 @@ import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, fontSize, fontWeight, radii
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
-import { playerHeadshotUrl } from '@/lib/format'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
 import { Badge } from '@/components/Badge'
@@ -111,7 +110,6 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
             <View style={styles.assetRow}>
                 <Avatar
                     name={item.playerName}
-                    uri={playerHeadshotUrl(item.nbaId) ?? undefined}
                     color={colors.bgMuted}
                     textColor={colors.textSecondary}
                     size={28}

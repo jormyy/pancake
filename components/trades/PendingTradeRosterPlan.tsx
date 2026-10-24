@@ -33,6 +33,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onChange, disabled }: 
     return <>
         {error ? <Text>{error}</Text> : null}
         <TradeRosterPlanEditor incoming={incoming} roster={roster.filter((player) => !offered.has(player.players.id))}
-            value={plan} onChange={onChange} disabled={disabled} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'} />
+            value={plan} onChange={onChange} disabled={disabled} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'}
+            allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} />
     </>
 }

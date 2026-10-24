@@ -702,19 +702,26 @@
       {
         "name": "edit",
         "action": {
-          "sequence": [
-            {
-              "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
-            },
-            {
-              "fill": "Trade block note for {{rosterPlayer.display_name}}",
-              "value": "Looking for young guards"
-            }
-          ]
+          "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
         },
         "expected": {
           "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
         }
+      },
+      {
+        "name": "type",
+        "action": {
+          "fill": "Trade block note for {{rosterPlayer.display_name}}",
+          "value": "Looking for young guards"
+        },
+        "expected": {
+          "value": {
+            "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']",
+            "equals": "Looking for young guards"
+          },
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        },
+        "note": "Typing and keyboard movement follow the manager\u2019s input."
       },
       {
         "name": "save",
@@ -763,19 +770,26 @@
       {
         "name": "edit",
         "action": {
-          "sequence": [
-            {
-              "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
-            },
-            {
-              "fill": "Trade block note for {{rosterPlayer.display_name}}",
-              "value": "Looking for young guards"
-            }
-          ]
+          "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
         },
         "expected": {
           "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
         }
+      },
+      {
+        "name": "type",
+        "action": {
+          "fill": "Trade block note for {{rosterPlayer.display_name}}",
+          "value": "Looking for young guards"
+        },
+        "expected": {
+          "value": {
+            "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']",
+            "equals": "Looking for young guards"
+          },
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        },
+        "note": "Typing and keyboard movement follow the manager\u2019s input."
       },
       {
         "name": "save",

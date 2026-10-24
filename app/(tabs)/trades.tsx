@@ -51,6 +51,7 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v2:'
 const picksCacheKey = (userId: string, memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${userId}:${leagueId}:${memberId}`
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
+const STATIC_TRADE_LIMIT = 10
 
 // Offer list width when the open trade sits beside it.
 const SPLIT_LIST_WIDTH = 440
@@ -204,6 +205,7 @@ function TradesScreen() {
         () => listData.flatMap((item) => (item._type === 'trade' ? [item.trade] : [])),
         [listData],
     )
+    const staticTradeList = tradeTab && listTrades.length <= STATIC_TRADE_LIMIT && !(tab === 'offers' ? offersHaveMore : historyHasMore)
     const openTrade = (openTradeId ? listTrades.find((trade) => trade.id === openTradeId) : null)
         ?? (split ? listTrades[0] ?? null : null)
     const openTradeDetails = useCallback((trade: Trade) => setOpenTradeId(trade.id), [])
@@ -392,10 +394,10 @@ function TradesScreen() {
                             </ScrollView>
                         </View>
                     )
-                    : gridColumns === 1 && (tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
+                    : gridColumns === 1 && (staticTradeList || tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
                         <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
                             {listData.map((item, index) => <View key={tradeListKey(item, index)}>
-                                {index > 0 ? <ItemSeparator /> : null}
+                                {index > 0 ? tradeTab ? <CardGap /> : <ItemSeparator /> : null}
                                 {renderItem({ item })}
                             </View>)}
                         </ScrollView>
