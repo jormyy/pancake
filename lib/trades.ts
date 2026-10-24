@@ -11,6 +11,7 @@ export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; 
 
 type TradePlayerItem = {
     kind: 'player'
+    fromTaxi?: boolean
     toIR?: boolean
     toTaxi?: boolean
     playerId: string
@@ -138,6 +139,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
     nba_draft_number: number | null
     career_regular_season_games: number | null
+    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean }[]
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -167,6 +169,7 @@ type TradeQueryRow = {
     completion_failure_reason: string | null
     id: string
     league_id: string
+    league_season_id: string
     status: TradeStatus
     proposed_at: string
     accepted_at: string | null
@@ -434,6 +437,7 @@ export async function vetoTrade(tradeId: string, memberId: string): Promise<void
 const TRADE_SELECT = `
             id,
             league_id,
+            league_season_id,
             status,
             completion_failure_reason,
             proposed_at,
@@ -472,7 +476,7 @@ const TRADE_SELECT = `
                 from_member_id,
                 to_member_id,
                 faab_amount,
-                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
+                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_taxi ) ),
                 draft_picks (
                     season_year,
                     round,
@@ -492,6 +496,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         if (item.player_id != null && item.players) {
             tradeItem = {
                 kind: 'player',
+                fromTaxi: item.players.roster_players?.some((roster) => roster.league_season_id === row.league_season_id && roster.member_id === fromMemberId && roster.is_on_taxi) ?? false,
                 toTaxi: item.to_taxi,
                 toIR: item.to_ir,
                 playerId: item.player_id,

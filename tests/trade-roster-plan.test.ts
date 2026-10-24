@@ -6,7 +6,7 @@ import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor
 import { rosterPlayer } from './helpers/fixtures'
 import type { TradeItem, TradeRosterPlan } from '@/lib/trades'
 
-const incoming: TradeItem[] = [{ kind: 'player', playerId: 'incoming', playerName: 'Incoming player', position: 'PG', nbaTeam: 'BOS', injuryStatus: 'Out' }]
+const incoming: Extract<TradeItem, { kind: 'player' }>[] = [{ kind: 'player', playerId: 'incoming', playerName: 'Incoming player', position: 'PG', nbaTeam: 'BOS', injuryStatus: 'Out' }]
 const emptyPlan: TradeRosterPlan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
 let renderer: ReactTestRenderer | null = null
 
@@ -43,4 +43,55 @@ describe('trade roster plan', () => {
         await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.onPress())
         expect(onChange).toHaveBeenCalledWith({ taxiPlayerIds: [], irPlayerIds: ['incoming'], dropPlayerIds: ['player-a'] })
     })
+
+    it('keeps an incoming taxi player on taxi without unusable placement controls', async () => {
+        const onChange = vi.fn()
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], fromTaxi: true, yearsExp: 0, nbaDraftNumber: 1 }],
+            roster: [], value: emptyPlan, onChange,
+        })) })
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: active' })).toHaveLength(0)
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
+        expect(renderer!.root.findAllByProps({ children: 'Taxi · tenure retained' })).toHaveLength(1)
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('hides placements when the league has no matching slots', async () => {
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], yearsExp: 0, nbaDraftNumber: 1 }],
+            roster: [], value: emptyPlan, onChange: vi.fn(), allowIR: false, allowTaxi: false,
+        })) })
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: taxi' })).toHaveLength(0)
+    })
+
+    it('does not save an unchanged placement', async () => {
+        const onChange = vi.fn()
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming, roster: [], value: emptyPlan, onChange,
+        })) })
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.onPress())
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('allows an eligible active rookie to enter and leave taxi', async () => {
+        const onChange = vi.fn()
+        const props = { incoming: [{ ...incoming[0], yearsExp: 0, nbaDraftNumber: 1 }], roster: [], value: emptyPlan, onChange }
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, props)) })
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.onPress())
+        expect(onChange).toHaveBeenLastCalledWith({ ...emptyPlan, taxiPlayerIds: ['incoming'] })
+        const taxiPlan = { ...emptyPlan, taxiPlayerIds: ['incoming'] }
+        await act(async () => { renderer!.update(React.createElement(TradeRosterPlanEditor, { ...props, value: taxiPlan })) })
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.onPress())
+        expect(onChange).toHaveBeenLastCalledWith(emptyPlan)
+    })
+
+    it('shows a fixed active destination without a one-option picker', async () => {
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], injuryStatus: null }], roster: [], value: emptyPlan, onChange: vi.fn(),
+        })) })
+        expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0)
+        expect(renderer!.root.findAllByProps({ children: 'Active' })).toHaveLength(1)
+    })
+
 })

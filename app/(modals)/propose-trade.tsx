@@ -568,11 +568,13 @@ export default function ProposeTradeScreen() {
                         {currentLeague?.allow_inactive_trades ? <TradeRosterPlanEditor
                             incoming={items.flatMap((item) => {
                                 if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
-                                const player = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)?.players
-                                return [{ ...item, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
+                                const rosterPlayer = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)
+                                const player = rosterPlayer?.players
+                                return [{ ...item, fromTaxi: rosterPlayer?.is_on_taxi === true, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
                             })}
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
-                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'} /> : null}
+                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'}
+                            allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
                         {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}

@@ -14,7 +14,7 @@ import {
     type TradeCardActions,
     type TradeCardContext,
 } from '@/components/trades/TradeCard'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, foundation, radii, spacing, textStyles } from '@/constants/tokens'
 
 const DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
 
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     noteText: { ...textStyles.body },
     analyze: {
         alignSelf: 'flex-start',
-        minHeight: 44,
+        minHeight: foundation.minTouch,
         justifyContent: 'center',
     },
     analyzeText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
