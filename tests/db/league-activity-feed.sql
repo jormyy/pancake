@@ -16,9 +16,10 @@ BEGIN
   INSERT INTO roster_transactions(id,league_id,league_season_id,member_id,player_id,transaction_type,occurred_at)
     VALUES(added,l,s,m,p,'fa_add',now()-interval '2 minutes');
   INSERT INTO league_activity(id,league_id,league_season_id,actor_member_id,event_type,title,created_at)
-    VALUES(normal,l,s,m,'trade_countered','Trade countered',now()-interval '1 minute');
+    VALUES(normal,l,s,m,'trade_completed','Trade completed',now()-interval '1 minute');
   INSERT INTO league_activity(league_id,league_season_id,actor_member_id,event_type,title,created_at)
-    VALUES(l,s,m,'trade_block_updated','Player listed',now()),
+    VALUES(l,s,m,'trade_countered','Private offer',now()),
+      (l,s,m,'trade_block_updated','Player listed',now()),
       (l,NULL,m,'trade_block_updated','Listing removed',now()+interval '1 minute');
   PERFORM set_config('request.jwt.claim.sub',u::text,true);
   SELECT array_agg(feed.id ORDER BY feed.occurred_at DESC, feed.id DESC) INTO result
@@ -30,8 +31,8 @@ BEGIN
   IF result IS DISTINCT FROM ARRAY[added] THEN
     RAISE EXCEPTION 'Activity offset includes hidden listings: %',result;
   END IF;
-  IF EXISTS(SELECT 1 FROM public.get_league_activity_feed(l,50,0) WHERE transaction_type='trade_block_updated') THEN
-    RAISE EXCEPTION 'Activity includes trade-block listings';
+  IF EXISTS(SELECT 1 FROM public.get_league_activity_feed(l,50,0) WHERE transaction_type IN ('trade_block_updated','trade_countered')) THEN
+    RAISE EXCEPTION 'Activity includes hidden listings or private offers';
   END IF;
 END;
 $$;

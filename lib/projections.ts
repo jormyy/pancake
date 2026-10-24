@@ -88,29 +88,6 @@ export async function getPlayerProjection(
     return rows[0] ?? null
 }
 
-export async function getProjectionMap({
-    leagueId,
-    seasonYear,
-    gameDate,
-    playerIds,
-}: {
-    leagueId: string
-    seasonYear: number
-    gameDate: string
-    playerIds: string[]
-}): Promise<Map<string, LeagueProjectionRow>> {
-    if (playerIds.length === 0) return new Map()
-    const rows = await getLeagueProjections({
-        leagueId,
-        view: 'today',
-        seasonYear,
-        gameDate,
-        playerIds,
-        limit: Math.min(Math.max(playerIds.length, 1), 1000),
-    })
-    return new Map(rows.map((row) => [row.player_id, row]))
-}
-
 export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_date' | 'next_game_date' | 'next_game_opponent'>): string {
     const opponent = row.next_game_opponent
     const date = row.projection_date ?? row.next_game_date

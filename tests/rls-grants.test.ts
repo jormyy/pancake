@@ -219,7 +219,7 @@ describe('waiver intent oracle closure', () => {
         )
         const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')
         const rosterStatusBody = rosterSource.slice(
-            rosterSource.indexOf('async function readPlayerRosterContext'),
+            rosterSource.indexOf('export async function getPlayerRosterContext'),
             rosterSource.indexOf('export async function addFreeAgent'),
         )
 
@@ -234,9 +234,13 @@ describe('waiver intent oracle closure', () => {
         expect(addBody).not.toContain('waiver_wire_log')
         expect(addBody).not.toContain('FROM waiver_claims')
         expect(addBody).not.toContain('SET cleared_at = now()')
-        expect(guardBody).toContain('cleared_at IS NULL')
-        expect(guardBody).not.toContain('clears_at')
-        expect(guardBody).toContain("ERRCODE = 'PA002'")
+        const assertion = latestFunctionDefinition('assert_free_agent_waiver_cleared', 'private')
+        expect(guardBody).toContain('private.assert_free_agent_waiver_cleared(NEW.league_id, NEW.league_season_id, NEW.player_id)')
+        expect(addBody).toContain('private.assert_free_agent_waiver_cleared(p_league_id, v_season_id, p_player_id)')
+        expect(addBody.indexOf('private.assert_free_agent_waiver_cleared')).toBeLessThan(addBody.indexOf("ERRCODE = 'PA003'"))
+        expect(assertion).toContain('cleared_at IS NULL')
+        expect(assertion).not.toContain('clears_at')
+        expect(assertion).toContain("ERRCODE = 'PA002'")
     })
 })
 

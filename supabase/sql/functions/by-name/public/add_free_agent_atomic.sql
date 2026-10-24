@@ -94,6 +94,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.assert_free_agent_waiver_cleared(p_league_id, v_season_id, p_player_id);
+
   PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
 
   IF p_to_ir THEN

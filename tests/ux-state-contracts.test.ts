@@ -168,6 +168,9 @@ describe('service worker registration cadence', () => {
         await vi.advanceTimersByTimeAsync(9000)
         expect(port.close).not.toHaveBeenCalled()
         page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.visibilityState = 'hidden'
+        page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()
     })
 
@@ -206,7 +209,7 @@ describe('service worker registration cadence', () => {
         expect(page.reload).not.toHaveBeenCalled()
         page.navigator.onLine = true
         page.window.dispatchEvent(new Event('online'))
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.document.visibilityState = 'visible'
         page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()

@@ -1,13 +1,12 @@
 import { supabase } from './supabase.ts'
 import { toETDate } from './date.ts'
+import { isRegularSeasonGameId } from './gameId.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
 
-// NBA stat corrections land 1-2 days after games. Bracket generation,
-// advancement, and rollover wait this long after the prerequisite week
-// finalizes so corrections settle results before they become immutable.
 const BOUNDARY_GRACE_HOURS = 48
+const STAT_CORRECTION_WINDOW_DAYS = 4
 
 const BOUNDARY_CONCURRENCY = 5
 const DEFAULT_PLAYOFF_START_WEEK = 20
@@ -46,6 +45,31 @@ function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean
   }
   if (latest == null) return true
   return referenceDate.getTime() >= latest + BOUNDARY_GRACE_HOURS * 3_600_000
+}
+
+async function regularSeasonCorrectionWindowElapsed(
+  leagueSeasonId: string,
+  playoffStartWeek: number,
+  referenceDate: Date,
+): Promise<boolean> {
+  const { data: season, error: seasonError } = await supabase.from('league_seasons')
+    .select('season_year').eq('id', leagueSeasonId).single()
+  if (seasonError) throw seasonError
+  const { data: week, error: weekError } = await supabase.from('season_weeks')
+    .select('week_start, week_end').eq('season_year', season.season_year)
+    .eq('week_number', playoffStartWeek - 1).maybeSingle()
+  if (weekError) throw weekError
+  if (!week) return false
+  const games = await fetchAllPages<{ nba_game_id: string | null; game_date: string; status: string; game_status_text: string | null }>((from, to) => supabase
+    .from('nba_games').select('nba_game_id, game_date, status, game_status_text')
+    .eq('season_year', season.season_year).gte('game_date', week.week_start).lte('game_date', week.week_end)
+    .order('id').range(from, to))
+  const dates = games.filter(game => isRegularSeasonGameId(game.nba_game_id)
+    && ['Scheduled', 'InProgress', 'Final'].includes(game.status)
+    && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? ''))
+    .map(game => game.game_date).sort()
+  const lastDate = dates.at(-1) ?? week.week_end
+  return Date.parse(toETDate(referenceDate)) - Date.parse(lastDate) > (STAT_CORRECTION_WINDOW_DAYS + 1) * 86_400_000
 }
 
 function allFinalized(matchups: BoundaryMatchup[]): boolean {
@@ -213,7 +237,8 @@ async function processLeagueBoundary(
   const bracketExists = quarterfinals.length > 0 || semifinals.length > 0 || finals.length > 0
 
   if (!bracketExists) {
-    if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
+    if (playoffStartWeek > 1 && (!allFinalized(regular)
+      || !await regularSeasonCorrectionWindowElapsed(leagueSeasonId, playoffStartWeek, referenceDate))) return actions
     const result = await applyBoundaryAfterGrace(leagueId, leagueSeasonId, 'generate', referenceDate)
     if (result.applied === true) actions.push('bracket-generated')
     return actions

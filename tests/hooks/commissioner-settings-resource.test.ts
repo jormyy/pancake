@@ -98,7 +98,7 @@ describe('commissioner settings resource', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.draft.playoffRoundWeeks).toEqual(['', '2', '3'])
-        expect(latest.draft.playoffTotalWeeks).toBe('5')
+        expect(latest.draft.playoffEntrants).toBe('6')
         expect(latest.playoffRoundsNeedReview).toBe(true)
         expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })

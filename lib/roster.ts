@@ -109,29 +109,10 @@ export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: str
     return map
 }
 
-export async function getPlayerRosterStatus(
-    playerId: string,
-    memberId: string,
-    leagueId: string,
-    canRead?: () => boolean,
-): Promise<PlayerRosterStatus> {
-    return (await readPlayerRosterContext(playerId, memberId, leagueId, false, canRead)).status
-}
-
 export async function getPlayerRosterContext(
     playerId: string,
     memberId: string,
     leagueId: string,
-    canRead?: () => boolean,
-): Promise<{ status: PlayerRosterStatus; roster: RosterOccupancy[] }> {
-    return readPlayerRosterContext(playerId, memberId, leagueId, true, canRead)
-}
-
-async function readPlayerRosterContext(
-    playerId: string,
-    memberId: string,
-    leagueId: string,
-    includeOwnRoster: boolean,
     canRead?: () => boolean,
 ): Promise<{ status: PlayerRosterStatus; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
@@ -139,15 +120,12 @@ async function readPlayerRosterContext(
     assertReadActive(canRead)
     if (!seasonId) return { status: { status: 'free_agent' }, roster: [] }
 
-    let query = supabase
+    const { data, error } = await supabase
         .from('roster_players')
         .select('id, player_id, member_id, is_on_ir, league_members ( team_name )')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
-    query = includeOwnRoster
-        ? query.or(`player_id.eq.${playerId},member_id.eq.${memberId}`)
-        : query.eq('player_id', playerId)
-    const { data, error } = await query
+        .or(`player_id.eq.${playerId},member_id.eq.${memberId}`)
     if (error) throw error
     const roster = (data ?? []).filter(row => row.member_id === memberId).map(row => ({ is_on_ir: row.is_on_ir }))
     const owned = data?.find(row => row.player_id === playerId)

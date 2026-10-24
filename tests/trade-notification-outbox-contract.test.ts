@@ -18,13 +18,15 @@ describe('transactional trade notification coverage', () => {
         }
     })
 
-    it('separates global receipt releases from per-ticket attempt accounting', () => {
+    it('wires web delivery failures to leased retries and terminal failures to dead letters', () => {
         const edge = read('supabase/functions/process-trades/index.ts')
+        const outbox = read('supabase/functions/process-trades/outbox.ts')
 
-        expect(edge).toContain('releaseReceipt')
-        expect(edge).toContain('deferReceiptState(row, receiptError, false)')
-        expect(edge).toContain('deferReceiptState(row, receiptError, true)')
-        expect(edge).toContain('p_increment_attempt: incrementAttempt')
-        expect(edge).toContain("case 'dead_lettered'")
+        expect(edge).toContain('deliverTradeNotificationOutbox(')
+        expect(edge).toContain("supabase.rpc('fail_notification_outbox_atomic'")
+        expect(edge).toContain('p_claim_token: row.claim_token')
+        expect(edge).toContain("supabase.rpc('dead_letter_notification_outbox_atomic'")
+        expect(outbox).toContain("result?.status === 'failed' && !result.retryable")
+        expect(outbox).toContain('await fail(row, errorMessage(error))')
     })
 })
