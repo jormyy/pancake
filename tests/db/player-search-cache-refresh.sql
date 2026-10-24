@@ -106,47 +106,31 @@ DO $$ BEGIN
 END $$;
 RESET ROLE;
 
--- A new league uses the side cache before the next materialized refresh.
 INSERT INTO public.leagues (id,name,slug,commissioner_id,status,scoring_settings)
 SELECT '00000000-0000-4000-8000-0000000c0999','Cache Fresh League','cache-fresh-league',commissioner_id,'active',scoring_settings
 FROM public.leagues WHERE id='00000000-0000-4000-8000-000000120001';
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM analytics.player_avg_fantasy_points_fresh WHERE league_id='00000000-0000-4000-8000-0000000c0999') THEN
-    RAISE EXCEPTION 'New league has no immediate side cache';
+  IF NOT EXISTS (SELECT 1 FROM analytics.mv_player_avg_fantasy_points WHERE league_id='00000000-0000-4000-8000-0000000c0999') THEN
+    RAISE EXCEPTION 'New league cannot read live totals';
+  END IF;
+  IF EXISTS (SELECT 1 FROM analytics.player_avg_fantasy_points_fresh) THEN
+    RAISE EXCEPTION 'Retired side cache receives new work';
   END IF;
 END $$;
-CREATE TEMP TABLE expected_fresh AS
-SELECT player_id,season_year,avg_fantasy_points FROM analytics.player_avg_fantasy_points_fresh
-WHERE league_id='00000000-0000-4000-8000-0000000c0999';
-UPDATE analytics.search_cache_refresh_state SET refreshed_at=now()-interval '8 days';
-SELECT public.refresh_player_search_caches();
--- Fresh league seeding intentionally covers only the current season; the materialized cache also covers history.
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM expected_fresh WHERE season_year<>public.current_season_year_et()) THEN
-    RAISE EXCEPTION 'Fresh league seeding unexpectedly includes historical seasons';
-  END IF;
-  IF EXISTS ((TABLE expected_fresh EXCEPT ALL SELECT player_id,season_year,avg_fantasy_points FROM analytics.mv_player_avg_fantasy_points WHERE league_id='00000000-0000-4000-8000-0000000c0999' AND season_year=public.current_season_year_et())
-    UNION ALL (SELECT player_id,season_year,avg_fantasy_points FROM analytics.mv_player_avg_fantasy_points WHERE league_id='00000000-0000-4000-8000-0000000c0999' AND season_year=public.current_season_year_et() EXCEPT ALL TABLE expected_fresh)) THEN
-    RAISE EXCEPTION 'Full refresh changes the fresh league scores';
-  END IF;
-  IF EXISTS (SELECT 1 FROM analytics.player_avg_fantasy_points_fresh WHERE league_id='00000000-0000-4000-8000-0000000c0999') THEN
-    RAISE EXCEPTION 'Full refresh leaves redundant fresh rows';
-  END IF;
-END $$;
+
 -- Refreshes must retain canonical scores after source and settings mutations.
 -- Each case also proves its mutation changes real output, rather than empty work.
 CREATE FUNCTION pg_temp.refresh_changed_cache(p_case text) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE before_digest text; after_digest text;
 BEGIN
   SELECT md5(string_agg(row_to_json(fp)::text, '|' ORDER BY league_id,player_id,season_year))
-    INTO before_digest FROM analytics.mv_player_avg_fantasy_points fp;
+    INTO before_digest FROM expected_cache fp;
   TRUNCATE expected_cache;
   INSERT INTO expected_cache
   SELECT fp.league_id,fp.player_id,fp.season_year,ROUND(AVG(fp.fantasy_points)::numeric,2)
   FROM public.v_fantasy_points fp
   JOIN public.player_game_stats s ON s.id=fp.stat_id AND NOT s.did_not_play
   GROUP BY fp.league_id,fp.player_id,fp.season_year;
-  PERFORM public.refresh_player_search_caches();
   PERFORM pg_temp.assert_cache_equal();
   SELECT md5(string_agg(row_to_json(fp)::text, '|' ORDER BY league_id,player_id,season_year))
     INTO after_digest FROM analytics.mv_player_avg_fantasy_points fp;

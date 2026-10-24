@@ -9,6 +9,7 @@ type Props = {
     hasMore: boolean
     loadingMore: boolean
     onLoadMore: () => void
+    loading?: boolean
 }
 
 function fmtDate(dateStr: string): string {
@@ -40,14 +41,15 @@ export function GameLogTable({
     hasMore,
     loadingMore,
     onLoadMore,
+    loading = false,
 }: Props) {
     const showFpts = fantasyPointsMap !== null
     const { fadeStyle, scrollProps } = useEdgeFade()
 
-    if (games.length === 0) return null
+    const rows = [...games].sort((a, b) => b.gameDate.localeCompare(a.gameDate))
 
     return (
-        <View style={styles.section}>
+        <View style={styles.section} aria-busy={loading}>
             <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
                 <View style={styles.tableInner}>
@@ -70,7 +72,7 @@ export function GameLogTable({
                     </View>
 
                     {/* Data rows */}
-                    {games.map((g, i) => {
+                    {rows.map((g, i) => {
                         const dnp = g.didNotPlay
                         const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
                         return (
@@ -88,7 +90,7 @@ export function GameLogTable({
                                     </Text>
                                 )}
                                 <Text style={styles.numCell}>
-                                    {dnp ? 'DNP' : Math.round(g.minutes)}
+                                    {dnp ? 'DNP' : g.minutes.toFixed(1)}
                                 </Text>
                                 <Text style={[styles.numCell, dnp && styles.dnpText]}>
                                     {dnp ? '' : g.points}
@@ -105,6 +107,7 @@ export function GameLogTable({
                             </View>
                         )
                     })}
+                    {rows.length === 0 ? <View style={[styles.row, styles.emptyRow]}><Text style={styles.emptyText}>{loading ? 'Loading recent games…' : 'No games available.'}</Text></View> : null}
                 </View>
             </ScrollView>
 
@@ -126,6 +129,8 @@ export function GameLogTable({
 
 const styles = StyleSheet.create({
     section: { gap: spacing.md },
+    emptyRow: { minHeight: 160 },
+    emptyText: { ...textStyles.meta },
 
     tableFrame: {
         borderWidth: 1,

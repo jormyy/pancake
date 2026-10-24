@@ -30,7 +30,9 @@ BEGIN
         THEN 'HTTP ' || v_row.response_status || ': ' || COALESCE(v_row.content, '')
       ELSE NULL END;
     UPDATE public.edge_invocations
-       SET status_code = v_row.response_status, error_message = v_error WHERE id = v_row.id;
+       SET status_code = v_row.response_status, error_message = v_error
+     WHERE id = v_row.id
+       AND (status_code, error_message) IS DISTINCT FROM (v_row.response_status, v_error);
 
     IF v_row.worker_started_at IS NOT NULL THEN
       IF v_row.worker_finished_at IS NULL THEN

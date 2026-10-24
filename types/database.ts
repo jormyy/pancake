@@ -135,6 +135,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "bids_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "bids_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
@@ -222,6 +229,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "draft_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
         ]
@@ -358,6 +372,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "draft_picks_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -499,6 +520,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "drafts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -744,6 +772,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "faab_balances_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "faab_balances_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -977,6 +1012,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "league_activity_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "league_activity_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -1060,6 +1102,13 @@ export type Database = {
             referencedRelation: "v_fantasy_points"
             referencedColumns: ["league_id"]
           },
+          {
+            foreignKeyName: "league_audit_logs_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
         ]
       }
       league_change_hints: {
@@ -1124,6 +1173,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "league_member_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "league_member_taxi_exits_league_id_member_id_fkey"
             columns: ["league_id", "member_id"]
             isOneToOne: false
@@ -1180,6 +1236,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "league_members_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "league_members_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1217,6 +1280,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_player_taxi_exits_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -1290,6 +1360,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_seasons_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
         ]
@@ -1458,6 +1535,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "lineup_optimizer_settings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "lineup_optimizer_settings_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -1519,6 +1603,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "lineup_slot_templates_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
         ]
@@ -1712,6 +1803,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "matchups_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -2431,6 +2529,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "roster_players_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "roster_players_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -2506,6 +2611,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "roster_transactions_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -2608,6 +2720,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "rps_challenges_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -2898,6 +3017,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "standings_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "standings_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -3038,6 +3164,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "trade_block_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "trade_block_items_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
@@ -3133,6 +3266,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "trade_items_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "trade_items_pick_id_fkey"
             columns: ["pick_id"]
             isOneToOne: false
@@ -3219,6 +3359,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "trade_participants_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "trade_participants_member_id_fkey"
             columns: ["member_id"]
             isOneToOne: false
@@ -3272,6 +3419,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_vetos_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -3393,6 +3547,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "trades_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "trades_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -3445,6 +3606,7 @@ export type Database = {
           processed_at: string | null
           status: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at: string
+          to_ir: boolean
         }
         Insert: {
           bid_amount?: number
@@ -3461,6 +3623,7 @@ export type Database = {
           processed_at?: string | null
           status?: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at?: string
+          to_ir?: boolean
         }
         Update: {
           bid_amount?: number
@@ -3477,6 +3640,7 @@ export type Database = {
           processed_at?: string | null
           status?: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at?: string
+          to_ir?: boolean
         }
         Relationships: [
           {
@@ -3498,6 +3662,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "waiver_claims_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -3558,6 +3729,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "waiver_priorities_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -3637,6 +3815,13 @@ export type Database = {
             columns: ["league_id"]
             isOneToOne: false
             referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "waiver_wire_log_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
           {
@@ -3737,6 +3922,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "weekly_add_counts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "weekly_add_counts_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -3805,6 +3997,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "weekly_lineups_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "weekly_lineups_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -3849,9 +4048,47 @@ export type Database = {
           season_year: number | null
           triple_doubles: number | null
         }
+        Insert: {
+          avg_assists?: never
+          avg_blocks?: never
+          avg_field_goals_attempted?: never
+          avg_field_goals_made?: never
+          avg_free_throws_attempted?: never
+          avg_free_throws_made?: never
+          avg_minutes_played?: never
+          avg_points?: never
+          avg_rebounds?: never
+          avg_steals?: never
+          avg_three_pointers_made?: never
+          avg_turnovers?: never
+          double_doubles?: number | null
+          games_played?: number | null
+          player_id?: string | null
+          season_year?: number | null
+          triple_doubles?: number | null
+        }
+        Update: {
+          avg_assists?: never
+          avg_blocks?: never
+          avg_field_goals_attempted?: never
+          avg_field_goals_made?: never
+          avg_free_throws_attempted?: never
+          avg_free_throws_made?: never
+          avg_minutes_played?: never
+          avg_points?: never
+          avg_rebounds?: never
+          avg_steals?: never
+          avg_three_pointers_made?: never
+          avg_turnovers?: never
+          double_doubles?: number | null
+          games_played?: number | null
+          player_id?: string | null
+          season_year?: number | null
+          triple_doubles?: number | null
+        }
         Relationships: [
           {
-            foreignKeyName: "player_game_stats_player_id_fkey"
+            foreignKeyName: "player_season_totals_player_id_fkey"
             columns: ["player_id"]
             isOneToOne: false
             referencedRelation: "players"
@@ -3936,6 +4173,13 @@ export type Database = {
             referencedColumns: ["league_id"]
           },
           {
+            foreignKeyName: "matchups_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
             foreignKeyName: "matchups_league_season_id_fkey"
             columns: ["league_season_id"]
             isOneToOne: false
@@ -3958,7 +4202,15 @@ export type Database = {
           player_id: string | null
           season_year: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "player_season_totals_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -4010,7 +4262,12 @@ export type Database = {
         Returns: undefined
       }
       add_free_agent_atomic: {
-        Args: { p_league_id: string; p_member_id: string; p_player_id: string }
+        Args: {
+          p_league_id: string
+          p_member_id: string
+          p_player_id: string
+          p_to_ir?: boolean
+        }
         Returns: undefined
       }
       add_trade_block_item_atomic: {
@@ -4364,6 +4621,7 @@ export type Database = {
           p_league_id: string
           p_member_id: string
           p_player_id: string
+          p_to_ir?: boolean
           p_user_id?: string
         }
         Returns: string
@@ -4458,6 +4716,7 @@ export type Database = {
           p_claim_order?: number
           p_drop_player_id?: string
           p_member_id: string
+          p_to_ir?: boolean
           p_user_id: string
         }
         Returns: undefined
