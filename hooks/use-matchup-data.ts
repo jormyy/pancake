@@ -249,7 +249,11 @@ export function useMatchupData(
     const loadLineups = useCallback(
         async (m: Matchup, date: string): Promise<LineupPair | null> => {
             const capturedResourceKey = resourceKey
-            if (!capturedResourceKey || !canRead() || !ownsResource || !leagueId || date !== selectedDateRef.current) return null
+            if (!capturedResourceKey || !ownsResource || !leagueId || date !== selectedDateRef.current || activeResourceKeyRef.current !== capturedResourceKey) return null
+            if (!canRead()) {
+                setLineupError(true)
+                return null
+            }
             const generation = sessionGeneration()
             const seq = ++lineupSeqRef.current
             const currentLeagueId = leagueId

@@ -126,7 +126,11 @@ describe('trade resource identity', () => {
             .mockResolvedValueOnce({ trades: initial, nextCursor: { token: '40' }, hasMore: true })
             .mockResolvedValueOnce({ trades: [trade('history-40')], nextCursor: null, hasMore: false })
         let latest!: ReturnType<typeof useTradeHistoryFeed>
-        const Probe = () => { latest = useTradeHistoryFeed('member-a', 'league-a', true); return null }
+        const Probe = () => {
+            const { refresh } = latest = useTradeHistoryFeed('member-a', 'league-a', true)
+            React.useEffect(() => { void refresh() }, [refresh])
+            return null
+        }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
         await act(async () => { await latest.loadMore() })
@@ -167,7 +171,8 @@ describe('trade resource identity', () => {
             memberId === 'member-a' ? first.promise : second.promise)
         let latest!: ReturnType<typeof useTradeHistoryFeed>
         const Probe = ({ memberId, leagueId }: { memberId: string; leagueId: string }) => {
-            latest = useTradeHistoryFeed(memberId, leagueId, true)
+            const { refresh } = latest = useTradeHistoryFeed(memberId, leagueId, true)
+            React.useEffect(() => { void refresh() }, [refresh])
             return null
         }
         let renderer!: ReactTestRenderer
@@ -499,7 +504,11 @@ it.each(['offers', 'history'] as const)('keeps settled empty %s data available d
     read.mockResolvedValue({ trades: [], nextCursor: null, hasMore: false })
     let latest!: ReturnType<typeof useTradesFeed> | ReturnType<typeof useTradeHistoryFeed>
     const Offers = () => { latest = useTradesFeed('member-empty', 'league-empty'); return null }
-    const History = () => { latest = useTradeHistoryFeed('member-empty', 'league-empty', true); return null }
+    const History = () => {
+        const { refresh } = latest = useTradeHistoryFeed('member-empty', 'league-empty', true)
+        React.useEffect(() => { void refresh() }, [refresh])
+        return null
+    }
     let view!: ReactTestRenderer
     await act(async () => { view = create(React.createElement(kind === 'offers' ? Offers : History)) })
     expect(latest.hasData).toBe(true)
@@ -514,12 +523,14 @@ it.each(['offers', 'history'] as const)('keeps settled empty %s data available d
     await act(async () => view.unmount())
 })
 
-it('marks the first history render pending before its effect starts the read', async () => {
+it('marks the first history render pending before its owner starts the read', async () => {
     const pending = deferred<TradePage>()
     getTradeHistoryForScreen.mockReturnValue(pending.promise)
     const frames: { enabled: boolean; loading: boolean; hasData: boolean }[] = []
     const Probe = ({ enabled }: { enabled: boolean }) => {
         const result = useTradeHistoryFeed('member-history', 'league-history', enabled)
+        const { refresh } = result
+        React.useEffect(() => { if (enabled) void refresh() }, [enabled, refresh])
         frames.push({ enabled, loading: result.loading, hasData: result.hasData })
         return null
     }
@@ -579,19 +590,23 @@ it('retains trade-block averages until replacement statistics settle', async () 
 })
 
 
-it.each(['history', 'duplicate'])('stops offer pagination when the next page adds only %s rows', async (page) => {
+it('follows server pagination through a duplicate page until the server reaches the end', async () => {
     const initial = trade('first')
     getTradesForScreen.mockResolvedValueOnce({ trades: [initial], nextCursor: { token: 'one' }, hasMore: true })
-        .mockResolvedValueOnce({ trades: [page === 'history' ? { ...trade('old'), status: 'completed' } : initial], nextCursor: { token: 'two' }, hasMore: true })
+        .mockResolvedValueOnce({ trades: [initial], nextCursor: { token: 'two' }, hasMore: true })
+        .mockResolvedValueOnce({ trades: [trade('last')], nextCursor: null, hasMore: false })
     let latest!: ReturnType<typeof useTradesFeed>
     let renderer!: ReactTestRenderer
     const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }
     await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.loadMore() })
     expect(latest.hasMore).toBe(true)
+    expect(latest.trades.map(item => item.id)).toEqual(['first'])
     await act(async () => { await latest.loadMore() })
     expect(latest.hasMore).toBe(false)
+    expect(latest.trades.map(item => item.id)).toEqual(['first', 'last'])
     await act(async () => { await latest.loadMore() })
-    expect(getTradesForScreen).toHaveBeenCalledTimes(2)
+    expect(getTradesForScreen).toHaveBeenCalledTimes(3)
     await act(async () => { renderer.unmount() })
 })
 
@@ -628,7 +643,7 @@ it('keeps inherited taxi placement when the saved plan has no optional taxi choi
 
 
 it.each(['empty', 'history'])('does not auto-page a first page with only %s results', async (page) => {
-    getTradesForScreen.mockResolvedValue({ trades: page === 'history' ? [{ ...trade('old'), status: 'completed' }] : [], nextCursor: { token: 'next' }, hasMore: true })
+    getTradesForScreen.mockResolvedValue({ trades: page === 'history' ? [{ ...trade('old'), status: 'completed' }] : [], nextCursor: null, hasMore: false })
     let latest!: ReturnType<typeof useTradesFeed>
     let renderer!: ReactTestRenderer
     const Probe = () => { latest = useTradesFeed('member-a', 'league-a'); return null }

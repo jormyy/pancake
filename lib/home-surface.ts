@@ -1,5 +1,5 @@
 import type { LiveStatLine, NBAGameRow } from '@/lib/games'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { onSessionCachesCleared, sessionOwner } from '@/lib/session-cache-registry'
 
 // Which surface the Home play area shows. Kept pure so the precedence is
 // testable: a loaded matchup, then the live-draft card (the manager must get
@@ -42,28 +42,24 @@ type GameDisplay = {
     startedTeams: Set<string>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
 }
-type SavedGameDisplay = {
-    date: string
-    players: string
-    savedAt: number
-    games: NBAGameRow[]
-    stats: [string, LiveStatLine][]
-    started: string[]
-    matchups: [string, { opponent: string; isHome: boolean }][]
-}
+type SavedGameDisplay = { date: string; players: string; savedAt: number; display: GameDisplay }
+const gameDisplays = new Map<string, SavedGameDisplay>()
+onSessionCachesCleared(() => gameDisplays.clear())
 
 export function readHomeGameDisplay(scope: string, date: string, players: string): GameDisplay | null {
-    const saved = readPersistentCache<SavedGameDisplay>(`pancake:home-matchup:games:v1:${scope}`)
+    const saved = gameDisplays.get(scope)
     const age = saved ? Date.now() - saved.savedAt : Infinity
-    if (!saved || saved.date !== date || saved.players !== players || !Number.isFinite(age) || age < 0 || age > 60_000) return null
-    if (!Array.isArray(saved.games) || !saved.games.length || !Array.isArray(saved.stats) || !Array.isArray(saved.started) || !Array.isArray(saved.matchups)) return null
-    return { todaysGames: saved.games, liveStats: new Map(saved.stats), startedTeams: new Set(saved.started), teamMatchups: new Map(saved.matchups) }
+    if (!saved || !Number.isFinite(age) || age < 0 || age > 60_000) {
+        gameDisplays.delete(scope)
+        return null
+    }
+    return saved.date === date && saved.players === players ? saved.display : null
 }
 
 export function saveHomeGameDisplay(scope: string, date: string, players: string, display: GameDisplay) {
-    if (!display.todaysGames.length) return
-    writePersistentCache<SavedGameDisplay>(`pancake:home-matchup:games:v1:${scope}`, {
-        date, players, savedAt: Date.now(), games: display.todaysGames,
-        stats: [...display.liveStats], started: [...display.startedTeams], matchups: [...display.teamMatchups],
-    })
+    if (sessionOwner() === null || !display.todaysGames.length) return
+    for (const [key, saved] of gameDisplays) {
+        if (Date.now() - saved.savedAt > 60_000) gameDisplays.delete(key)
+    }
+    gameDisplays.set(scope, { date, players, savedAt: Date.now(), display })
 }

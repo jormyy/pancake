@@ -217,3 +217,65 @@ it('starts reads in the first focused render and waits for every initial resourc
     await act(async () => { release(null) })
     expect(latest.initialSettled).toBe(true)
 })
+
+it('keeps historical season lines quiet during current game and stat signals', async () => {
+    vi.useFakeTimers()
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => latest.handleSeasonSelect(2025))
+    state.lines.mockClear()
+    for (const topic of ['stat', 'game'] as const) {
+        await act(async () => {
+            notifyLeagueChange('league', { topic, scopes: null })
+            await vi.advanceTimersByTimeAsync(250)
+        })
+    }
+    expect(state.lines).not.toHaveBeenCalled()
+    await act(async () => latest.handleSeasonSelect(2026))
+    state.lines.mockClear()
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'stat', scopes: null })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.lines).toHaveBeenCalledExactlyOnceWith('player', 2026)
+})
+
+it('does not persist an unchanged season response on every live hint', async () => {
+    vi.useFakeTimers()
+    state.lines.mockImplementation(async () => [seasonLine()])
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    state.write.mockClear()
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'stat', scopes: null })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.lines).toHaveBeenCalledTimes(2)
+    expect(state.write).not.toHaveBeenCalled()
+    state.lines.mockResolvedValue([seasonLine({ points: 32 })])
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'stat', scopes: null })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.write).toHaveBeenCalledOnce()
+    expect(latest.seasonAverages?.avgPoints).toBe(32)
+})
+
+it('skips identical projection responses with unchanged lines after game signals', async () => {
+    vi.useFakeTimers()
+    state.lines.mockImplementation(async () => [seasonLine()])
+    state.projection.mockImplementation(async () => ({ player_id: 'player', projection_fantasy_points: 30 }))
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    state.write.mockClear()
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'game', scopes: null })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.projection).toHaveBeenCalledTimes(2)
+    expect(state.write).not.toHaveBeenCalled()
+    state.projection.mockResolvedValue({ player_id: 'player', projection_fantasy_points: 42 })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'game', scopes: null })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(state.write).toHaveBeenCalledOnce()
+    expect(latest.nextProjection?.projection_fantasy_points).toBe(42)
+})

@@ -27,12 +27,3 @@ export function canPlayLineupSlot(
     const allowedPositions: readonly string[] = LINEUP_SLOT_ALLOWED_POSITIONS[slotType as LineupSlotType]
     return allPositions.some((position) => allowedPositions.includes(position))
 }
-
-export function canOccupyRosterSlot(
-    position: string | null,
-    eligiblePositions: readonly string[],
-    slotType: SlotType,
-): boolean {
-    if (slotType === 'IR') return true
-    return canPlayLineupSlot(position, eligiblePositions, slotType)
-}

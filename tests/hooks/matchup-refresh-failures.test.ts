@@ -5,17 +5,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { Matchup } from '@/lib/scoring'
 
-const mocks = vi.hoisted(() => ({ lineup: vi.fn(), cache: vi.fn() }))
+const mocks = vi.hoisted(() => ({ lineup: vi.fn(), cache: vi.fn(), matchup: vi.fn(), days: vi.fn(), online: true }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
-vi.mock('@/lib/scoring', () => ({ getMyMatchup: vi.fn(), getLeagueWeekMatchups: vi.fn() }))
+vi.mock('@/lib/scoring', () => ({ getMyMatchup: mocks.matchup, getLeagueWeekMatchups: vi.fn() }))
 vi.mock('@/lib/lineup', () => ({
-    getWeeklyLineup: mocks.lineup, getWeekDays: vi.fn(), clampDateToWeek: vi.fn(), invalidateCachedRoster: vi.fn(),
+    getWeeklyLineup: mocks.lineup, getWeekDays: mocks.days, clampDateToWeek: (date: string) => date, invalidateCachedRoster: vi.fn(),
 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-16' }))
 vi.mock('@/lib/shared/season', () => ({ invalidateSeasonCache: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: vi.fn(), invalidateWeekNumberCache: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getSeasonWeekDates: async () => [], invalidateWeekNumberCache: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: mocks.cache, writePersistentCache: vi.fn() }))
-vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => mocks.online }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
     subscribeToTableChanges: vi.fn(), disposeTableChangeSubscription: vi.fn(), reportRealtimeCleanup: vi.fn(),
@@ -49,8 +49,11 @@ beforeEach(() => {
     vi.setSystemTime(new Date('2026-10-16T12:00:00Z'))
     clearSessionCaches()
     vi.clearAllMocks()
+    mocks.online = true
     mocks.cache.mockImplementation((key: string) => caches[key.endsWith('member-b') ? 'b' : 'a'])
     mocks.lineup.mockResolvedValue(lineup('fresh'))
+    mocks.matchup.mockResolvedValue(match('a'))
+    mocks.days.mockResolvedValue([])
 })
 afterEach(async () => { if (renderer) await act(async () => { renderer.unmount() }); vi.restoreAllMocks(); vi.useRealTimers() })
 
@@ -86,4 +89,24 @@ it('consumes an old owner failure without altering the current owner or reportin
     expect(latest.myLineup?.bench[0].playerId).toBe('b')
     expect(latest.lineupError).toBe(false)
     expect(log).not.toHaveBeenCalled()
+})
+
+it('shows a retry after an offline day selection and clears it after a successful read', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
+    mocks.online = false
+    await act(async () => renderer.update(React.createElement(Probe, { owner: 'a' })))
+    await act(async () => {
+        latest.setSelectedDate('2026-10-20')
+        await latest.loadLineups(latest.matchup!, '2026-10-20')
+    })
+    expect(latest.selectedDate).toBe('2026-10-20')
+    expect(latest.myLineup).toBeNull()
+    expect(latest.lineupLoading).toBe(false)
+    expect(latest.lineupError).toBe(true)
+    expect(mocks.lineup).not.toHaveBeenCalled()
+    mocks.online = true
+    await act(async () => renderer.update(React.createElement(Probe, { owner: 'a' })))
+    await act(async () => { await latest.loadLineups(latest.matchup!, latest.selectedDate) })
+    expect(latest.myLineup?.bench[0].playerId).toBe('fresh')
+    expect(latest.lineupError).toBe(false)
 })

@@ -26,6 +26,7 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     var pendingVersion = null;
     var workerReconciled = !documentVersion;
     var reloaded = false;
+    var assetMissed = false;
     var noticeTimer = null;
     var registration = null;
     var observation = 0;
@@ -51,9 +52,10 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     var tryReload = function (manual, leaving) {
       if (!pendingVersion || reloaded) return;
       if (!workerReconciled || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
-          (!manual && !leaving && document.visibilityState !== 'hidden') ||
+          (!manual && !leaving && !assetMissed && document.visibilityState !== 'hidden') ||
           (manual && document.visibilityState === 'hidden') || navigator.onLine === false) {
-        if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
+        if (assetMissed && held()) showNotice();
+        else if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
         return;
       }
       try {
@@ -110,7 +112,11 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
       observeWorkerVersion(navigator.serviceWorker.controller);
     });
     navigator.serviceWorker.addEventListener('message', function (event) {
-      if (event.data?.type === 'PANCAKE_ASSET_MISS') checkForUpdate(true);
+      if (event.data?.type === 'PANCAKE_ASSET_MISS') {
+        assetMissed = true;
+        checkForUpdate(true);
+        tryReload(false);
+      }
     });
     window.addEventListener('pancake-pwa-hold-change', function () {
       var button = document.getElementById('pancake-update-notice')?.querySelector('button');
@@ -125,7 +131,11 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     window.addEventListener('pagehide', function () { tryReload(false, true); });
     var failedChunk = function (event) {
       var message = String(event.reason?.message || event.message || '');
-      if (/Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed/.test(message)) checkForUpdate(true);
+      if (/Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed|Loading module .* failed|AsyncRequireError/.test(message)) {
+        assetMissed = true;
+        checkForUpdate(true);
+        tryReload(false);
+      }
     };
     window.addEventListener('error', failedChunk);
     window.addEventListener('unhandledrejection', failedChunk);

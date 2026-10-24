@@ -1,6 +1,6 @@
 import { isMultiTeamTradeItemPayload } from '@/lib/multi-team-trade-state'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
-import type { MultiTeamTradeItemPayload } from '@/lib/trades'
+import type { MultiTeamTradeItemPayload, TradeRosterPlan } from '@/lib/trades'
 
 // An unsent trade kept in this tab's session storage, so a page reload (an app update reloads the
 // page) brings the editor back. The editor clears it on send and when it closes, so in-app
@@ -15,6 +15,7 @@ type TradeComposerDraft = {
     items: MultiTeamTradeItemPayload[]
     notes: string
     expirationDays: string
+    rosterPlan: TradeRosterPlan
 }
 
 const DRAFT_KEY = 'pancake:trade-composer-draft'
@@ -37,7 +38,12 @@ function parseDraft(raw: string): TradeComposerDraft | null {
             typeof draft.expirationDays !== 'string' ||
             !Array.isArray(draft.participantIds) || !draft.participantIds.every((id) => typeof id === 'string') ||
             !Array.isArray(draft.items) || !draft.items.every(isMultiTeamTradeItemPayload)) return null
-        return draft as TradeComposerDraft
+        const plan = draft.rosterPlan ?? { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
+        if (!plan || typeof plan !== 'object' || !['taxiPlayerIds', 'irPlayerIds', 'dropPlayerIds'].every(key => {
+            const ids = (plan as Record<string, unknown>)[key]
+            return Array.isArray(ids) && ids.every(id => typeof id === 'string')
+        })) return null
+        return { ...draft, rosterPlan: plan } as TradeComposerDraft
     } catch {
         return null
     }

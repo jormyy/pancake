@@ -96,8 +96,10 @@ export function useTradeScreenRealtime({
             } finally {
                 if (refreshing === request) {
                     refreshing = null
-                    if (!disposed && visibleFeeds().some((feed) => pending.has(feed))) {
-                        retry = setTimeout(() => { void recover() }, 15_000)
+                    if (!disposed) {
+                        const next = visibleFeeds().filter(feed => pending.has(feed))
+                        if (next.some(feed => !work.includes(feed))) void recover()
+                        else if (next.length) retry = setTimeout(() => { void recover() }, 15_000)
                     }
                 }
             }
@@ -105,6 +107,7 @@ export function useTradeScreenRealtime({
         const ownerRecovery = {
             enter: () => {
                 if (activeTabRef.current === 'block') pending.add('block')
+                if (activeTabRef.current === 'history') pending.add('history')
                 void recover()
                 reconnectIfClosed()
             },

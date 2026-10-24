@@ -520,6 +520,7 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
 
 function MobileBottomNav() {
     const pathname = usePathname()
+    const params = useGlobalSearchParams<{ tradeId?: string | string[] }>()
     const router = useRouter()
     const pendingTradeCount = usePendingTradeCount()
 
@@ -527,13 +528,13 @@ function MobileBottomNav() {
         <View style={styles.mobileBottomNav} role="navigation" aria-label="Primary">
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
-                const atDestination = item.href === '/' ? active : pathname === item.href
+                const atDestination = (item.href === '/' ? active : pathname === item.href) && !hasShellBackHeader(pathname, params)
                 const badge = item.href === '/trades' ? pendingTradeCount : 0
                 const displayLabel = MOBILE_LABELS[item.href]
                 return (
                     <Pressable
                         key={item.href}
-                        onPress={() => { if (!atDestination) router.navigate(item.href) }}
+                        onPress={() => { if (!atDestination) router.dismissTo(item.href) }}
                         style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
                         accessibilityRole="link"
                         accessibilityLabel={item.href === '/trades' ? tradesNavLabel(item.label, pendingTradeCount) : item.label}

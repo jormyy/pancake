@@ -25,7 +25,7 @@ describe('home matchup surface wiring', () => {
     it('drives the play surface from resolveHomeSurface so the tested precedence is what renders', async () => {
         const source = await read('app/(tabs)/index.tsx')
         expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })")
-        for (const surface of ['draft', 'loading', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
+        for (const surface of ['draft', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
         expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('<WeekOffNotice leagueId='))
     })
 })
@@ -110,7 +110,7 @@ describe('service worker registration cadence', () => {
             expect(ports.length).toBeGreaterThan(0)
             ports.at(-1)!.onmessage?.({ data: { version } })
         }
-        return { update, reload, document, navigator, window, serviceWorker, ports, reply,
+        return { update, reload, document, navigator, window, serviceWorker, ports, reply, storage,
             load: async () => {
                 window.dispatchEvent(new Event('load'))
                 await vi.advanceTimersByTimeAsync(0)
@@ -185,6 +185,75 @@ describe('service worker registration cadence', () => {
         expect(port.close).toHaveBeenCalledOnce()
         page.reply('next')
         expect(page.reload).not.toHaveBeenCalled()
+    })
+
+    const assetMiss = (page: ReturnType<typeof updatePage>) => {
+        page.serviceWorker.dispatchEvent(Object.assign(new Event('message'), { data: { type: 'PANCAKE_ASSET_MISS' } }))
+    }
+
+    it.each(['asset', 'Loading module 42 failed', 'AsyncRequireError: module unavailable'])(
+        'recovers a missing lazy route while visible: %s', async failure => {
+            const page = updatePage()
+            await page.load()
+            page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+            page.reply('next')
+            expect(page.reload).not.toHaveBeenCalled()
+            if (failure === 'asset') assetMiss(page)
+            else page.window.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: new Error(failure) }))
+            await vi.advanceTimersByTimeAsync(0)
+            expect(page.update).toHaveBeenCalledOnce()
+            page.reply('next')
+            expect(page.reload).toHaveBeenCalledOnce()
+            assetMiss(page)
+            await vi.advanceTimersByTimeAsync(0)
+            page.reply('next')
+            expect(page.reload).toHaveBeenCalledOnce()
+        },
+    )
+
+    it('offers manual recovery instead of auto-reloading the same release twice', async () => {
+        const page = updatePage()
+        await page.load()
+        page.storage.set('pancake-update-reload:/draft-room', 'next')
+        assetMiss(page)
+        await vi.advanceTimersByTimeAsync(0)
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        const button = page.document.getElementById('pancake-update-notice')?.querySelector()
+        expect(button).toBeTruthy()
+        button?.dispatchEvent(new Event('click'))
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('shows a held missing-route update immediately and reloads after the hold ends', async () => {
+        const page = updatePage()
+        const release = holdPwaUpdate('unsent trade')
+        await page.load()
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        page.reply('next')
+        assetMiss(page)
+        await vi.advanceTimersByTimeAsync(0)
+        page.reply('next')
+        const notice = page.document.getElementById('pancake-update-notice')
+        expect(notice?.querySelector()?.disabled).toBe(true)
+        expect(page.reload).not.toHaveBeenCalled()
+        release()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it.each(['loading', 'interactive', 'offline'])('retains the missing-route reload guard while %s', async guard => {
+        const page = updatePage()
+        await page.load()
+        if (guard === 'offline') page.navigator.onLine = false
+        else page.document.readyState = guard
+        assetMiss(page)
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.readyState = 'complete'
+        page.navigator.onLine = true
+        page.window.dispatchEvent(new Event('online'))
+        expect(page.reload).toHaveBeenCalledOnce()
     })
 
     it('keeps a held update through the notice deadline and reloads once after safe recovery', async () => {

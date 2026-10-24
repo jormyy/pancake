@@ -83,6 +83,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     epochRef.current = readEpoch
     const canRead = useCallback(() => admission.current(), [])
     const isCurrentRead = useCallback((epoch: string) => epochRef.current === epoch && admission.current(), [])
+    const selectedSeasonRef = useRef(currentSeasonYear())
     const [refreshes, setRefreshes] = useState({ profile: 0, season: 0, projection: 0, history: 0, roster: 0, scoring: 0 })
     useEffect(() => {
         if (!leagueId || !authorized) return
@@ -102,7 +103,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
             if ((registering && change.topic === 'catchup') || !canRead()) return
-            if (change.topic === 'stat' || change.topic === 'game' || leagueResourceAffects(change, ['averages', 'season'])) queued.add('season')
+            if (selectedSeasonRef.current === currentSeasonYear() &&
+                (change.topic === 'stat' || change.topic === 'game' || leagueResourceAffects(change, ['averages', 'season']))) queued.add('season')
             if (change.topic === 'game' || leagueResourceAffects(change, ['projections', 'season'])) queued.add('projection')
             if (leagueResourceAffects(change, ['averages', 'season'])) queued.add('profile')
             if (leagueResourceAffects(change, ['scoring'])) queued.add('scoring')
@@ -123,12 +125,17 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     }, [cacheKey])
     const [selection, setSelection] = useState({ key: resourceKey, year: cache?.selectedSeason ?? currentSeasonYear() })
     const selectedSeason = selection.key === resourceKey ? selection.year : cache?.selectedSeason ?? currentSeasonYear()
+    selectedSeasonRef.current = selectedSeason
     const seasonCache = useMemo(() => ({ owner: resourceKey, entries: new Map(cache?.seasons ?? []) }), [cache, resourceKey])
     const [visibleGames, setVisibleGames] = useState({ key: '', count: GAME_LOG_PAGE })
     const seasonKey = JSON.stringify([resourceKey, selectedSeason])
     const readPlayer = useCallback(() => getPlayer(playerId), [playerId])
     const readSeasons = useCallback(() => getAvailableSeasons(playerId), [playerId])
-    const readLines = useCallback(() => getPlayerSeasonLines(playerId, selectedSeason), [playerId, selectedSeason])
+    const readLines = useCallback(async () => {
+        const next = await getPlayerSeasonLines(playerId, selectedSeason)
+        const previous = seasonCache.entries.get(selectedSeason)
+        return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+    }, [playerId, selectedSeason, seasonCache])
     const suppliedScoringKey = JSON.stringify(options.scoringSettings ?? null)
     const readScoring = useCallback(() => suppliedScoringKey !== 'null' && refreshes.scoring === 0
         ? Promise.resolve(JSON.parse(suppliedScoringKey) as unknown)
@@ -158,14 +165,19 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const displayedLines = lines.value ?? lastSeason.current.lines
     const displayedSeasonKey = lines.value !== undefined ? seasonKey : JSON.stringify([resourceKey, lastSeason.current.year])
     const summary = useMemo(() => summarizePlayerSeason(displayedLines, player.value?.nba_team ?? null, scoring), [displayedLines, player.value?.nba_team, scoring])
+    const persistedSnapshot = useRef<string | null>(null)
     useEffect(() => {
         if (!canRead()) return
         if (lines.value !== undefined) seasonCache.entries.set(selectedSeason, lines.value)
-        writePersistentCache<PlayerScreenCache>(cacheKey, {
+        const snapshot: PlayerScreenCache = {
             today: todayET(), player: player.value, availableSeasons: seasons.value, selectedSeason,
             seasons: Array.from(seasonCache.entries.entries()).slice(-3), nextProjection: projection.value, transactions: history.value,
-        })
-    }, [cacheKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache])
+        }
+        const serialized = JSON.stringify([resourceKey, snapshot])
+        if (persistedSnapshot.current === serialized) return
+        writePersistentCache(cacheKey, snapshot)
+        persistedSnapshot.current = serialized
+    }, [cacheKey, resourceKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache])
     const count = visibleGames.key === displayedSeasonKey ? visibleGames.count : GAME_LOG_PAGE
     const gameLog = useMemo(() => summary.games.slice(0, count), [summary.games, count])
     const loadMoreGames = useCallback(async () => {

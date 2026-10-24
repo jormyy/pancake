@@ -2,6 +2,8 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { LineupPlayer } from '@/lib/lineup'
+import { saveHomeGameDisplay } from '@/lib/home-surface'
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
 
 const mocks = vi.hoisted(() => ({
@@ -9,11 +11,9 @@ const mocks = vi.hoisted(() => ({
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     setSelected: vi.fn(), doAutoSet: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
     selectedDate: '2026-10-11', lineupError: false,
-    saved: undefined as unknown,
     freshness: 'fresh',
     games: [] as { home_team: string; away_team: string; status: string }[],
 }))
-vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => mocks.saved, writePersistentCache: vi.fn() }))
 vi.mock('@/components/WeekOffNotice', () => ({ WeekOffNotice: 'WeekOffNotice' }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView',
@@ -57,7 +57,7 @@ beforeEach(() => {
     vi.clearAllMocks()
     mocks.selectedDate = '2026-10-11'
     mocks.lineupError = false
-    mocks.saved = undefined
+    clearSessionCaches()
     mocks.freshness = 'fresh'
     mocks.games = []
     mocks.lineup = { ...mocks.lineup, starters: [{ slotType: 'PG', player: null }] }
@@ -134,10 +134,10 @@ it('shows the first matchup with complete game data and retains it through reval
 it('shows a recent complete game display during the initial live refresh', async () => {
     populatedStarters()
     mocks.freshness = 'refreshing'
-    mocks.saved = {
-        date: '2026-10-11', players: '["player"]', savedAt: Date.now(), games: [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }],
-        stats: [], started: ['DEN', 'LAL'], matchups: [['DEN', { opponent: 'LAL', isHome: true }]],
-    }
+    saveHomeGameDisplay(JSON.stringify(['user', 'league', 'member', 'season', undefined]), '2026-10-11', '["player"]', {
+        todaysGames: [{ id: 'game', nba_game_id: '0022700001', game_date: '2026-10-11', home_team: 'DEN', away_team: 'LAL', home_score: 10, away_score: 9, status: 'InProgress', game_status_text: 'Q1' }],
+        liveStats: new Map(), startedTeams: new Set(['DEN', 'LAL']), teamMatchups: new Map([['DEN', { opponent: 'LAL', isHome: true }]]),
+    })
     await mount()
     expect(rows('PG')).toHaveLength(1)
     expect(rows('PG')[0].props.liveTeams).toEqual(new Set(['DEN', 'LAL']))

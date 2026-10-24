@@ -1,5 +1,6 @@
 import React from 'react'
 import Module from 'node:module'
+import { StackRouter } from '@react-navigation/routers'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
@@ -9,7 +10,7 @@ const state = vi.hoisted(() => {
     return {
         pathname: '/', params: {} as { tradeId?: string }, current, memberships: [current], setCurrent: vi.fn(),
         draft: null as { id: string } | null, draftChecked: false, draftError: null as string | null,
-        openDraftRoom: vi.fn(), push: vi.fn(), navigate: vi.fn(),
+        openDraftRoom: vi.fn(), push: vi.fn(), navigate: vi.fn(), dismissTo: vi.fn(),
     }
 })
 
@@ -21,7 +22,7 @@ vi.mock('react-native', () => ({
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
 vi.mock('expo-router', () => ({
-    usePathname: () => state.pathname, useGlobalSearchParams: () => state.params, useRouter: () => ({ push: state.push, navigate: state.navigate }), Link: 'Link', Navigator: 'Navigator',
+    usePathname: () => state.pathname, useGlobalSearchParams: () => state.params, useRouter: () => ({ push: state.push, navigate: state.navigate, dismissTo: state.dismissTo }), Link: 'Link', Navigator: 'Navigator',
 }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ ...state, currentLeague: state.current.leagues, membershipStatus: 'ready', isCommissioner: false }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }))
@@ -96,12 +97,13 @@ it.each(['/', '/roster', '/players', '/trades', '/league'])('ignores the active 
     await act(async () => active.props.onPress())
     expect(state.push).not.toHaveBeenCalled()
     expect(state.navigate).not.toHaveBeenCalled()
+    expect(state.dismissTo).not.toHaveBeenCalled()
 })
 
 it('navigates to another bottom tab without pushing a new history entry', async () => {
     await render()
     await act(async () => controls('Roster')[0].props.onPress())
-    expect(state.navigate).toHaveBeenCalledExactlyOnceWith('/roster')
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/roster')
     expect(state.push).not.toHaveBeenCalled()
 })
 
@@ -116,7 +118,7 @@ it.each([
     await render()
     expect(controls(label)[0].props.accessibilityState.selected).toBe(true)
     await act(async () => controls(label)[0].props.onPress())
-    expect(state.navigate).toHaveBeenCalledExactlyOnceWith(href)
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith(href)
     expect(state.push).not.toHaveBeenCalled()
 })
 
@@ -153,4 +155,43 @@ it.each([
     await act(async () => controls('Profile & settings')[0].props.onPress())
     expect(state.push).toHaveBeenCalledWith('/profile')
     expect(controls('Profile & settings')).toHaveLength(0)
+})
+
+it('dismisses the trade detail when its already-selected tab is tapped', async () => {
+    state.pathname = '/trades'
+    state.params = { tradeId: 'incoming-trade' }
+    const router = StackRouter({})
+    const options = { routeNames: ['index', 'trades'], routeParamList: {}, routeGetIdList: {} }
+    const initial = router.getInitialState(options)
+    let tabs = router.getRehydratedState(router.getStateForAction(initial,
+        { type: 'NAVIGATE', payload: { name: 'trades', params: state.params } }, options)!, options)
+    state.dismissTo.mockImplementation(() => {
+        tabs = router.getRehydratedState(router.getStateForAction(tabs,
+            { type: 'POP_TO', payload: { name: 'trades', params: {} } }, options)!, options)
+    })
+    await render()
+    await act(async () => controls('Trades')[0].props.onPress())
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/trades')
+    expect(tabs.routes[tabs.index].params).not.toHaveProperty('tradeId')
+})
+
+it('reuses the original tabs tree after repeated root-level player visits', async () => {
+    const router = StackRouter({})
+    const options = { routeNames: ['(tabs)', 'player/[id]'], routeParamList: {}, routeGetIdList: {} }
+    let root = router.getInitialState(options)
+    const originalTabs = root.routes[0].key
+    const dispatch = (type: 'NAVIGATE' | 'POP_TO', name: string, params?: object) => {
+        const next = router.getStateForAction(root, { type, payload: { name, params } }, options)
+        if (next) root = router.getRehydratedState(next, options)
+    }
+    state.navigate.mockImplementation(() => dispatch('NAVIGATE', '(tabs)', { screen: 'players' }))
+    state.dismissTo.mockImplementation(() => dispatch('POP_TO', '(tabs)', { screen: 'players' }))
+    state.pathname = '/player/123'
+    await render()
+    for (const id of ['1', '2']) {
+        dispatch('NAVIGATE', 'player/[id]', { id })
+        await act(async () => controls('Players')[0].props.onPress())
+        expect(root.routes.map(route => route.name)).toEqual(['(tabs)'])
+        expect(root.routes[0].key).toBe(originalTabs)
+    }
 })
