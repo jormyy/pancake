@@ -34,6 +34,10 @@ DECLARE
   v_faab_balance int;
   v_player_name text;
   v_candidate record;
+  v_to_ir boolean := false;
+  v_ir_count int;
+  v_ir_eligible boolean;
+  v_ir_failure text;
 BEGIN
   FOR v_candidate IN
     WITH candidate_groups AS (
@@ -287,6 +291,22 @@ BEGIN
         RETURN;
       END IF;
 
+      v_to_ir := false;
+      IF v_claim.to_ir THEN
+        SELECT private.is_ir_designation(injury_status) INTO v_ir_eligible
+          FROM players WHERE id = v_claim.player_id FOR SHARE;
+        SELECT count(*) INTO v_ir_count FROM roster_players AS ir_roster
+         WHERE ir_roster.member_id = v_claim.member_id AND ir_roster.league_season_id = v_claim.league_season_id AND ir_roster.is_on_ir;
+        v_ir_failure := CASE
+          WHEN NOT COALESCE(v_ir_eligible, false) THEN 'Player is no longer IR eligible.'
+          WHEN v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN 'Your IR slots are full.'
+          WHEN v_league.status = 'offseason'::league_status THEN 'IR moves are unavailable in the offseason.'
+          WHEN private.roster_status_game_started(v_claim.player_id) THEN 'This player''s game has already started.'
+          ELSE NULL
+        END;
+        v_to_ir := v_ir_failure IS NULL;
+      END IF;
+
       SELECT count(*)
         INTO v_active_count
         FROM roster_players AS rp
@@ -296,10 +316,11 @@ BEGIN
          AND rp.is_on_ir = false
          AND rp.is_on_taxi = false;
 
-      v_projected_active_count := v_active_count + 1 - CASE WHEN v_claim.drop_player_id IS NULL THEN 0 ELSE 1 END;
+      v_projected_active_count := v_active_count + CASE WHEN v_to_ir THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_to_ir THEN 0 ELSE 1 END;
 
-      IF v_projected_active_count > COALESCE(v_roster_size, 20) THEN
+      IF NOT v_to_ir AND v_projected_active_count > COALESCE(v_roster_size, 20) THEN
         v_failure := CASE
+          WHEN v_claim.to_ir THEN v_ir_failure || ' Your active roster is full.'
           WHEN v_claim.drop_player_id IS NULL THEN 'Roster full and no drop player specified.'
           ELSE 'Waiver claim would leave your active roster over the limit.'
         END;
@@ -315,7 +336,7 @@ BEGIN
         RETURN;
       END IF;
 
-      IF v_claim.drop_player_id IS NOT NULL THEN
+      IF v_claim.drop_player_id IS NOT NULL AND NOT v_to_ir THEN
         SELECT validation.roster_player_id, validation.failure_reason
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
@@ -366,14 +387,16 @@ BEGIN
         league_season_id,
         member_id,
         player_id,
-        acquired_via
+        acquired_via,
+        is_on_ir
       )
       VALUES (
         v_claim.league_id,
         v_claim.league_season_id,
         v_claim.member_id,
         v_claim.player_id,
-        'waiver'
+        'waiver',
+        v_to_ir
       );
 
       INSERT INTO roster_transactions (

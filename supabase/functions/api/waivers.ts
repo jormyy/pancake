@@ -1,4 +1,4 @@
-import { assertUuid, invokeInternalFunction, json, optionalIntegerField, optionalUuidField, readJsonObject, requireAdmin, requireUser, stringField, throwDb, uuidField, verifyOwnMember } from '../_shared/apiRuntime.ts'
+import { assertUuid, invokeInternalFunction, json, optionalBooleanField, optionalIntegerField, optionalUuidField, readJsonObject, requireAdmin, requireUser, stringField, throwDb, uuidField, verifyOwnMember } from '../_shared/apiRuntime.ts'
 import { supabase } from '../_shared/supabase.ts'
 
 async function createClaim(
@@ -22,6 +22,7 @@ async function createClaim(
     p_user_id: userId,
     p_bid_amount: bidAmount,
     p_claim_order: claimOrder ?? undefined,
+    p_to_ir: optionalBooleanField(body, 'toIr') ?? false,
   })
   if (error) throwDb(error)
 }
@@ -43,6 +44,7 @@ async function editClaim(userId: string, claimId: string, body: Record<string, u
     p_drop_player_id: optionalUuidField(body, 'dropPlayerId') ?? undefined,
     p_bid_amount: optionalIntegerField(body, 'bidAmount', { min: 0 }) ?? 0,
     p_claim_order: optionalIntegerField(body, 'claimOrder', { min: 1 }) ?? undefined,
+    p_to_ir: optionalBooleanField(body, 'toIr') ?? false,
   })
   if (error) throwDb(error)
 }

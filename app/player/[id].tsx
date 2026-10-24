@@ -2,12 +2,13 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
-import { PlayerHeader } from '@/components/player/PlayerHeader'
+import { PlayerHeader, type PlayerHeaderAction } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
+import { readPlayerHeader } from '@/components/player/navigation'
 import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
@@ -18,11 +19,11 @@ import { dropPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { loadPickupState } from '@/lib/roster-add-flow'
 import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { addLimitSummary } from '@/lib/pickup'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -35,7 +36,8 @@ const TWO_COLUMN_MIN = 1000
 const SIDE_COLUMN_WIDTH = 400
 
 export default function PlayerDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>()
+    const { id, playerHeader } = useLocalSearchParams<{ id: string; playerHeader?: string }>()
+    const tappedPlayer = useMemo(() => readPlayerHeader(id, playerHeader), [id, playerHeader])
     const { current, currentLeague, membershipValidated } = useLeagueContext()
     const online = useOnlineStatus()
     const router = useRouter()
@@ -58,15 +60,15 @@ export default function PlayerDetailScreen() {
 
 
     const {
-        player, loading, playedToday, canRead, readEpoch, isCurrentRead,
+        player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading, seasonError,
         gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
-        transactions, transactionsError, transactionsSettled,
-    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated })
+        transactions, transactionsError,
+    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated, scoringSettings: currentLeague?.scoring_settings })
 
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity && isCurrentRead(readEpoch), [isCurrentRead, readEpoch])
@@ -95,19 +97,21 @@ export default function PlayerDetailScreen() {
         setDropping(false)
     }, [ownerIdentity])
 
-    const [statusEpoch, setStatusEpoch] = useState<string | null>(null)
-    const loadRosterStatus = useCallback(async () => {
+    const statusRequest = useRef<{ epoch: string; queued: boolean } | null>(null)
+    const lastStatusSignal = useRef<string | null>(null)
+    const loadRosterStatus = useCallback(async function readStatus(): Promise<void> {
         if (!canRead()) return
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
-        setStatusEpoch(null)
         if (!memberId || !leagueId || !requestedOwner) return
+        if (statusRequest.current?.epoch === readEpoch) { statusRequest.current.queued = true; return }
+        const request = { epoch: readEpoch, queued: false }
+        statusRequest.current = request
         try {
             const { status, transactionState, claimPending } = await loadPickupState(id, memberId, leagueId, () => isCurrent(generation, requestedOwner))
             if (isCurrent(generation, requestedOwner)) {
                 setRosterStatusResource({ ownerIdentity: requestedOwner, status, claimPending, error: null })
                 setPickupStateResource({ ownerIdentity: requestedOwner, transactionState })
-                setStatusEpoch(readEpoch)
             }
         } catch (e) {
             if (isCurrent(generation, requestedOwner)) {
@@ -115,14 +119,22 @@ export default function PlayerDetailScreen() {
                     ? { ...previous, error: getErrorMessage(e) }
                     : { ownerIdentity: requestedOwner, status: null, error: getErrorMessage(e) })
             }
+        } finally {
+            if (statusRequest.current === request) {
+                statusRequest.current = null
+                if (request.queued && isCurrent(generation, requestedOwner)) void readStatus()
+            }
         }
     }, [memberId, id, leagueId, ownerIdentity, canRead, readEpoch, isCurrent])
 
     useEffect(() => {
+        if (!canRead()) return
+        const signal = JSON.stringify([ownerIdentity, rosterRevision])
+        if (rosterStatus && lastStatusSignal.current === signal) return
+        lastStatusSignal.current = signal
         void loadRosterStatus()
-        return () => { generationRef.current += 1 }
-    }, [loadRosterStatus])
-    const actionsReady = membershipValidated && online && statusEpoch === readEpoch && canRead()
+    }, [loadRosterStatus, rosterRevision, canRead, ownerIdentity, rosterStatus])
+    const actionsReady = membershipValidated && online && rosterStatus !== null && canRead()
 
     const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
     const quickAdd = useQuickAdd({
@@ -139,7 +151,7 @@ export default function PlayerDetailScreen() {
         const generation = generationRef.current
         const requestedOwner = ownerIdentity
         confirmAction(
-            `Drop ${player?.display_name ?? 'this player'}?`,
+            `Drop ${player.display_name}?`,
             'They will be placed on waivers for 48 hours.',
             async () => {
                 if (!isCurrent(generation, requestedOwner)) return
@@ -158,23 +170,26 @@ export default function PlayerDetailScreen() {
         )
     }
 
-    if (!player) {
-        return (
-            <Page title="Player">
-                <Stack.Screen options={{ title: 'Player', headerShown: false }} />
-                <View style={[styles.missingHeader, { paddingHorizontal: padX }]}>
-                    <BackButton onPress={goBack} />
-                </View>
-                {!loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
-            </Page>
-        )
+    const player = loadedPlayer ?? tappedPlayer ?? {
+        id, display_name: 'Player', first_name: null, last_name: null, nba_team: null,
+        position: null, eligible_positions: [], jersey_number: null, injury_status: null,
+        dynasty_rank: null, headshot_url: null, nba_id: null, years_exp: null, status: null,
     }
-
-    const showFantasy = leagueId != null && fantasyPointsMap !== null && fantasyPointsMap.size > 0
+    const showFantasy = leagueId != null
     const showTransactions = leagueId != null && transactions.length > 0
-    // Hold the body until every card's presence is known, so the page appears
-    // fully formed instead of cards popping in one by one and shifting layout.
-    const contentBusy = loading || seasonLoading || !projectionSettled || !transactionsSettled
+    const action: PlayerHeaderAction | null = !rosterStatus && rosterStatusError ? {
+        label: 'Retry', onPress: () => { void loadRosterStatus() }, disabled: !membershipValidated || !online, busy: false,
+    } : rosterStatus?.status === 'free_agent' ? {
+        label: 'Add', onPress: () => { if (actionsReady) void quickAdd.handleAdd({ id, display_name: player.display_name }) },
+        disabled: !actionsReady, busy: quickAdd.adding === id, blockedReason: quickAdd.addBlockedReason,
+    } : rosterStatus?.status === 'on_waivers' ? {
+        label: rosterStatusResource.claimPending ? 'View claim' : 'Claim',
+        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) push('/roster?claims=1'); else void quickAdd.handleClaim({ id, display_name: player.display_name }) } },
+        disabled: !actionsReady, busy: quickAdd.adding === id,
+    } : rosterStatus?.status === 'mine' ? {
+        label: 'Lineup', onPress: () => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`),
+        disabled: !actionsReady, busy: false,
+    } : null
     const dataWarnings = [
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
@@ -192,31 +207,37 @@ export default function PlayerDetailScreen() {
             onSelect={handleSeasonSelect}
         />
     ) : null
+    const dropControl = rosterStatus?.status === 'mine' ? (
+        <Pressable style={styles.dropButton} onPress={handleDrop} disabled={!actionsReady || dropping}
+            accessibilityRole="button" accessibilityLabel={`Drop ${player.display_name}`}>
+            <Text style={styles.dropText}>Drop</Text>
+        </Pressable>
+    ) : null
     const profile = (
         <>
-            {seasonAverages ? (
+            <DeferredContent ready={!seasonLoading} key={`${id}:${selectedSeason}`} style={styles.seasonSlot}
+                fallback={<StatsOverview averages={null} seasonYear={selectedSeason} avgFantasyPoints={null} showFantasy={showFantasy}
+                    columns={statColumns} seasonControl={seasonControl} actions={dropControl} loading />}>
                 <StatsOverview
                     averages={seasonAverages}
                     seasonYear={selectedSeason}
-                    avgFantasyPoints={showFantasy ? avgFantasyPoints : null}
+                    avgFantasyPoints={fantasyPointsMap ? avgFantasyPoints : null}
+                    showFantasy={showFantasy}
                     columns={statColumns}
                     seasonControl={seasonControl}
+                    loading={seasonLoading}
+                    includesLive={includesLive}
+                    actions={dropControl}
                 />
-            ) : (
-                <View style={styles.section}>
-                    <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>
-                        {selectedSeason - 1}–{String(selectedSeason).slice(2)} Averages
-                    </Text>
-                    {seasonControl}
-                    <Text style={styles.noData}>No stats available.</Text>
-                </View>
-            )}
-            {nextProjection ? <NextProjectionCard projection={nextProjection} /> : null}
+            </DeferredContent>
+            <NextProjectionCard projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
+                liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
         </>
     )
     const gameLogSection = (
         <GameLogTable
             games={gameLog}
+            loading={seasonLoading}
             fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
             hasMore={hasMoreGames}
             loadingMore={gameLogLoading}
@@ -237,36 +258,15 @@ export default function PlayerDetailScreen() {
             <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
             <Page title={player.display_name}>
                 <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
-                    <View style={styles.headerRow}>
-                        <BackButton onPress={goBack} />
-                        <View style={styles.headerMain}>
-                            <PlayerHeader
-                                player={player}
-                                rosterStatus={rosterStatus}
-                                claimPending={ownsRosterStatus && !!rosterStatusResource.claimPending}
-                                leagueActive={!!current || !membershipValidated}
-                                actionsReady={actionsReady}
-                                actionLoading={dropping || quickAdd.adding === id}
-                                dropDisabled={!actionsReady}
-                                playedToday={playedToday}
-                                addBlockedReason={actionsReady ? quickAdd.addBlockedReason : 'Refreshing roster status.'}
-                                addBlockedCaption={quickAdd.addBlockedReason ? addLimitSummary(pickupState) : null}
-                                onAdd={() => actionsReady && quickAdd.handleAdd({ id, display_name: player.display_name })}
-                                onDrop={handleDrop}
-                                onClaim={() => actionsReady && (rosterStatusResource.claimPending ? push('/roster?claims=1') : quickAdd.handleClaim({ id, display_name: player.display_name }))}
-                                onSetLineup={() => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`)}
-                                compact={usableWidth < 600}
-                            />
-                        </View>
-                    </View>
-
-                    <DeferredContent ready={!contentBusy} style={styles.body}>
-                        {dataWarnings.map((message) => (
-                            <View key={message} style={styles.warningBanner}>
-                                <Text style={styles.warningText}>{message}</Text>
-                            </View>
-                        ))}
-
+                    <PlayerHeader
+                        player={player}
+                        rosterStatus={rosterStatus}
+                        leagueActive={!!current || !membershipValidated}
+                        action={action}
+                        backControl={<BackButton onPress={goBack} />}
+                        compact={usableWidth < 600}
+                    />
+                    <View style={styles.body}>
                         {twoColumn ? (
                             <View style={styles.columns}>
                                 <View style={styles.sideColumn}>
@@ -284,7 +284,9 @@ export default function PlayerDetailScreen() {
                                 {historySection}
                             </>
                         )}
-                    </DeferredContent>
+                        {dataWarnings.map(message => <Text key={message} style={styles.warningText}>{message}</Text>)}
+                        {!loadedPlayer && !loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
+                    </View>
                 </ScrollView>
             </Page>
 
@@ -317,22 +319,12 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const styles = StyleSheet.create({
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.lg },
     body: { gap: spacing.xl },
+    seasonSlot: { flex: 0, minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
-    section: { gap: spacing.md },
-    noData: { ...textStyles.body, color: colors.textPlaceholder },
-    missingHeader: { paddingTop: spacing.lg },
-    headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-    headerMain: { flex: 1, minWidth: 0 },
+    dropButton: { minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+    dropText: { ...textStyles.meta, color: colors.dangerDark },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
-    warningBanner: {
-        backgroundColor: colors.dangerLight,
-        borderWidth: 1,
-        borderColor: colors.danger,
-        borderRadius: radii.md,
-        borderCurve: 'continuous' as const,
-        padding: spacing.lg,
-    },
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 })

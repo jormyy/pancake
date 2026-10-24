@@ -1,0 +1,1079 @@
+calls,total_ms,mean_ms,rows,query
+1,685.404,685.404,1,SELECT public.refresh_player_search_caches()
+1,621.879,621.879,10000,REFRESH MATERIALIZED VIEW CONCURRENTLY analytics.mv_player_avg_fantasy_points
+1,101.293,101.293,1,"SELECT count(*) FROM generate_series($1,$2) n CROSS JOIN LATERAL public.search_players(p_league_id=>$3,p_offset=>n*$4) visible"
+10,89.316,8.932,200,"WITH args AS (
+  SELECT
+    NULLIF(trim(COALESCE(p_query, $16)), $17) AS query_text,
+    CASE COALESCE(p_position, $18)
+      WHEN $19 THEN ARRAY[]::text[]
+      WHEN $20 THEN ARRAY[$21, $22]::text[]
+      WHEN $23 THEN ARRAY[$24, $25]::text[]
+      ELSE ARRAY[p_position]::text[]
+    END AS pos_filter,
+    CASE
+      WHEN p_playing_teams IS NOT NULL AND cardinality(COALESCE(p_teams, $26)) > $27 THEN
+          ARRAY(
+            SELECT explicit_team
+            FROM unnest(COALESCE(p_teams, $28)) AS explicit_team
+            WHERE explicit_team = ANY(COALESCE(p_playing_teams, $29))
+            ORDER BY explicit_team
+          )
+      WHEN p_playing_teams IS NOT NULL THEN COALESCE(p_playing_teams, $30)
+      ELSE COALESCE(p_teams, $31)
+    END AS effective_teams,
+    (p_playing_teams IS NOT NULL OR cardinality(COALESCE(p_teams, $32)) > $33) AS team_filter_active,
+    COALESCE(p_excluded_teams, $34) AS excluded_teams,
+    COALESCE(p_exclude_player_ids, $35) AS exclude_player_ids,
+    LEAST(GREATEST(COALESCE(p_limit, $36), $37), $38) AS page_limit,
+    GREATEST(COALESCE(p_offset, $39), $40) AS page_offset
+),
+league_scores AS MATERIALIZED (
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM public.v_player_avg_fantasy_points AS fp
+  WHERE fp.league_id = p_league_id
+    AND fp.season_year = p_season_year
+    AND (p_include_player_ids IS NULL OR fp.player_id = ANY(p_include_player_ids))
+),
+score_source AS (
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM public.v_player_avg_fantasy_points AS fp
+  WHERE fp.league_id = p_league_id
+    AND fp.season_year = p_season_year
+    AND NOT COALESCE(p_health IN ($41, $42, $43, $44), $45)
+  UNION ALL
+  SELECT fp.player_id, fp.avg_fantasy_points
+  FROM league_scores AS fp
+  WHERE p_health IN ($46, $47, $48, $49)
+),
+filtered_base AS (
+  SELECT
+    p.id,
+    COALESCE(p.display_name, concat_ws($50, p.first_name, p.last_name)) AS display_name,
+    p.nba_team,
+    p.position::text AS ""position"",
+    ARRAY(SELECT pos::text FROM unnest(p.eligible_positions) AS pos) AS eligible_positions,
+    p.status,
+    p.injury_status,
+    p.headshot_url,
+    p.nba_id,
+    p.years_exp,
+    fp.avg_fantasy_points,
+    avg.avg_points,
+    avg.avg_rebounds,
+    avg.avg_assists,
+    avg.avg_steals,
+    avg.avg_blocks,
+    avg.avg_turnovers,
+    avg.avg_three_pointers_made,
+    avg.avg_minutes_played,
+    avg.games_played::int AS games_played
+  FROM args
+  JOIN public.players AS p ON $51
+  LEFT JOIN public.mv_player_season_averages AS avg
+    ON avg.player_id = p.id
+   AND avg.season_year = p_season_year
+  LEFT JOIN score_source AS fp
+    ON fp.player_id = p.id
+  WHERE
+    (args.query_text IS NULL OR p.display_name ILIKE ($52 || args.query_text || $53))
+    AND (cardinality(args.pos_filter) = $54 OR EXISTS (
+      SELECT $55
+      FROM unnest(p.eligible_positions) AS player_position
+      WHERE player_position::text = ANY(args.pos_filter)
+    ))
+    AND (NOT args.team_filter_active OR (cardinality(args.effective_teams) > $56 AND p.nba_team = ANY(args.effective_teams)))
+    AND (cardinality(args.excluded_teams) = $57 OR p.nba_team IS NULL OR p.nba_team <> ALL(args.excluded_teams))
+    AND (p_include_player_ids IS NULL OR p.id = ANY(p_include_player_ids))
+    AND (cardinality(args.exclude_player_ids) = $58 OR p.id <> ALL(args.exclude_player_ids))
+    AND (NOT p_rookies_only OR p.years_exp = $59)
+    AND CASE COALESCE(p_health, $60)
+      WHEN $61 THEN p.injury_status IS NULL
+      WHEN $62 THEN p.injury_status = ANY(ARRAY[$63, $64, $65, $66])
+      WHEN $67 THEN p.injury_status = ANY(ARRAY[$68, $69, $70])
+      WHEN $71 THEN p.injury_status = ANY(ARRAY[$72, $73])
+      ELSE $74
+    END
+),
+paged_base AS (
+  SELECT *
+  FROM (
+    SELECT
+      filtered_base.*,
+      row_number() OVER (
+        ORDER BY
+          CASE WHEN p_sort_by = $75 AND p_sort_dir = $76 THEN COALESCE(filtered_base.avg_fantasy_points, $77) END ASC,
+          CASE WHEN p_sort_by = $78 AND p_sort_dir <> $79 THEN COALESCE(filtered_base.avg_fantasy_points, $80) END DESC,
+          CASE WHEN p_sort_by = $81 AND p_sort_dir = $82 THEN COALESCE(filtered_base.avg_minutes_played, $83) END ASC,
+          CASE WHEN p_sort_by = $84 AND p_sort_dir <> $85 THEN COALESCE(filtered_base.avg_minutes_played, $86) END DESC,
+          CASE WHEN p_sort_by = $87 AND p_sort_dir = $88 THEN COALESCE(filtered_base.avg_points, $89) END ASC,
+          CASE WHEN p_sort_by = $90 AND p_sort_dir <> $91 THEN COALESCE(filtered_base.avg_points, $92) END DESC,
+          CASE WHEN p_sort_by = $93 AND p_sort_dir = $94 THEN COALESCE(filtered_base.avg_rebounds, $95) END ASC,
+          CASE WHEN p_sort_by = $96 AND p_sort_dir <> $97 THEN COALESCE(filtered_base.avg_rebounds, $98) END DESC,
+          CASE WHEN p_sort_by = $99 AND p_sort_dir = $100 THEN COALESCE(filtered_base.avg_assists, $101) END ASC,
+          CASE WHEN p_sort_by = $102 AND p_sort_dir <> $103 THEN COALESCE(filtered_base.avg_assists, $104) END DESC,
+          CASE WHEN p_sort_by = $105 AND p_sort_dir = $106 THEN COALESCE(filtered_base.avg_steals, $107) END ASC,
+          CASE WHEN p_sort_by = $108 AND p_sort_dir <> $109 THEN COALESCE(filtered_base.avg_steals, $110) END DESC,
+          CASE WHEN p_sort_by = $111 AND p_sort_dir = $112 THEN COALESCE(filtered_base.avg_blocks, $113) END ASC,
+          CASE WHEN p_sort_by = $114 AND p_sort_dir <> $115 THEN COALESCE(filtered_base.avg_blocks, $116) END DESC,
+          CASE WHEN p_sort_by = $117 AND p_sort_dir = $118 THEN COALESCE(filtered_base.avg_three_pointers_made, $119) END ASC,
+          CASE WHEN p_sort_by = $120 AND p_sort_dir <> $121 THEN COALESCE(filtered_base.avg_three_pointers_made, $122) END DESC,
+          CASE WHEN p_sort_by = $123 AND p_sort_dir = $124 THEN COALESCE(filtered_base.avg_turnovers, $125) END ASC,
+          CASE WHEN p_sort_by = $126 AND p_sort_dir <> $127 THEN COALESCE(filtered_base.avg_turnovers, $128) END DESC,
+          CASE WHEN p_sort_by = $129 AND p_sort_dir = $130 THEN COALESCE(filtered_base.games_played, $131) END ASC,
+          CASE WHEN p_sort_by = $132 AND p_sort_dir <> $133 THEN COALESCE(filtered_base.games_played, $134) END DESC,
+          filtered_base.display_name ASC,
+          filtered_base.id ASC
+      ) AS page_rank
+    FROM filtered_base
+  ) ranked_base
+  ORDER BY page_rank
+  LIMIT (SELECT page_limit FROM args)
+  OFFSET (SELECT page_offset FROM args)
+),
+projection AS (
+  SELECT *
+  FROM public.get_league_projection_rows(
+    p_league_id,
+    p_season_year,
+    (timezone($135, now()))::date,
+    $136,
+    COALESCE((SELECT array_agg(paged_base.id ORDER BY paged_base.id) FROM paged_base), ARRAY[]::uuid[]),
+    (SELECT page_limit FROM args),
+    $137
+  )
+  WHERE p_league_id IS NOT NULL
+)
+SELECT
+  pb.id,
+  pb.display_name,
+  pb.nba_team,
+  pb.""position"",
+  pb.eligible_positions,
+  pb.status,
+  pb.injury_status,
+  pb.headshot_url,
+  pb.nba_id,
+  pb.years_exp,
+  pb.avg_fantasy_points,
+  pb.avg_points,
+  pb.avg_rebounds,
+  pb.avg_assists,
+  pb.avg_steals,
+  pb.avg_blocks,
+  pb.avg_turnovers,
+  pb.avg_three_pointers_made,
+  pb.avg_minutes_played,
+  pb.games_played,
+  proj.projection_fantasy_points,
+  proj.projection_source,
+  proj.projection_source_label,
+  proj.projection_view,
+  proj.projection_fetched_at,
+  proj.projection_date,
+  proj.next_game_opponent AS projection_opponent,
+  proj.projection_minutes,
+  proj.projection_points,
+  proj.projection_rebounds,
+  proj.projection_assists,
+  proj.projection_steals,
+  proj.projection_blocks,
+  proj.projection_three_pointers_made,
+  proj.projection_turnovers,
+  proj.projection_status
+FROM paged_base pb
+LEFT JOIN projection AS proj
+  ON proj.player_id = pb.id
+ORDER BY pb.page_rank"
+1,61.831,61.831,500,REFRESH MATERIALIZED VIEW CONCURRENTLY analytics.mv_player_season_averages
+1,28.826,28.826,12,"SELECT private.reconcile_edge_invocations() FROM generate_series($1,$2)"
+1,21.877,21.877,0,SELECT newdata.*::pg_temp_64.pg_temp_21578 FROM pg_temp_64.pg_temp_21578 newdata WHERE newdata.* IS NOT NULL AND EXISTS (SELECT $1 FROM pg_temp_64.pg_temp_21578 newdata2 WHERE newdata2.* IS NOT NULL AND newdata2.* OPERATOR(pg_catalog.*=) newdata.* AND newdata2.ctid OPERATOR(pg_catalog.<>) newdata.ctid)
+1,14.755,14.755,10000,INSERT INTO analytics.mv_player_avg_fantasy_points SELECT (diff.newdata).* FROM pg_temp_64.pg_temp_21578_2 diff WHERE tid IS NULL
+12,14.205,1.184,610,"SELECT inv.*, resp.status_code AS response_status, resp.error_msg, resp.timed_out,
+           left(resp.content, $1) AS content
+      FROM public.edge_invocations AS inv
+      LEFT JOIN net._http_response AS resp ON resp.id = inv.request_id
+     WHERE inv.reconciled_at IS NULL AND inv.queued_at < now() - interval $2
+     ORDER BY inv.queued_at LIMIT $3 FOR UPDATE OF inv SKIP LOCKED"
+2,12.742,6.371,80,"SELECT public.invoke_live_poll_if_due() FROM generate_series($1,$2)"
+80,10.485,0.131,80,"NOT EXISTS (SELECT $1 FROM public.live_poll_leases WHERE lock_key=$2 AND expires_at>clock_timestamp())
+    AND EXISTS (SELECT $3 FROM public.get_live_poll_work())"
+1,8.644,8.644,0,ANALYZE pg_temp_64.pg_temp_21578_2
+10,6.860,0.686,200,"WITH args AS (
+  SELECT
+    CASE WHEN p_view IN ($8, $9, $10) THEN p_view ELSE $11 END AS view_name,
+    COALESCE(p_game_date, (timezone($12, now()))::date) AS game_date,
+    LEAST(GREATEST(COALESCE(p_limit, $13), $14), $15) AS page_limit,
+    GREATEST(COALESCE(p_offset, $16), $17) AS page_offset
+),
+league AS (
+  SELECT
+    id,
+    scoring_settings,
+    (
+      COALESCE((scoring_settings->>$18)::numeric, $19) <> $20 OR
+      COALESCE((scoring_settings->>$21)::numeric, $22) <> $23 OR
+      COALESCE((scoring_settings->>$24)::numeric, $25) <> $26 OR
+      COALESCE((scoring_settings->>$27)::numeric, $28) <> $29
+    ) AS uses_fantasypros_unsupported_scoring
+  FROM public.leagues
+  WHERE id = p_league_id
+),
+week_ctx AS (
+  SELECT sw.week_number, sw.week_start, sw.week_end
+  FROM args
+  JOIN public.season_weeks sw
+    ON sw.season_year = p_season_year
+   AND sw.week_start <= args.game_date
+   AND sw.week_end >= args.game_date
+  LIMIT $30
+),
+base_players AS (
+  SELECT
+    p.id,
+    COALESCE(p.display_name, concat_ws($31, p.first_name, p.last_name)) AS display_name,
+    p.nba_team,
+    p.position::text AS ""position"",
+    ARRAY(SELECT pos::text FROM unnest(p.eligible_positions) AS pos) AS eligible_positions,
+    p.injury_status,
+    p.headshot_url,
+    p.nba_id
+  FROM public.players p
+  WHERE p_player_ids IS NULL OR p.id = ANY(p_player_ids)
+),
+team_next_games AS MATERIALIZED (
+  SELECT teams.nba_team, g.game_date, g.home_team, g.away_team, g.game_time
+  FROM (SELECT DISTINCT nba_team FROM base_players WHERE nba_team IS NOT NULL) teams
+  LEFT JOIN LATERAL (
+    SELECT ng.game_date, ng.home_team, ng.away_team, ng.game_time
+    FROM args
+    JOIN public.nba_games ng
+      ON ng.season_year = p_season_year
+     AND ng.game_date >= args.game_date
+     AND public.is_regular_season_game_id(ng.nba_game_id)
+     AND (ng.home_team = teams.nba_team OR ng.away_team = teams.nba_team)
+    ORDER BY ng.game_date ASC, ng.game_time ASC NULLS LAST, ng.id ASC
+    LIMIT $32
+  ) g ON $33
+),
+next_games AS (
+  SELECT
+    bp.id AS player_id,
+    g.game_date AS next_game_date,
+    CASE
+      WHEN g.home_team = bp.nba_team THEN $34 || COALESCE(g.away_team, $35)
+      WHEN g.away_team = bp.nba_team THEN $36 || COALESCE(g.home_team, $37)
+      ELSE $38
+    END AS next_game_opponent,
+    g.game_time AS next_game_time
+  FROM base_players bp
+  LEFT JOIN team_next_games g ON g.nba_team = bp.nba_team
+),
+week_game_counts AS (
+  SELECT
+    bp.id AS player_id,
+    COUNT(ng.id)::int AS scheduled_games
+  FROM base_players bp
+  JOIN week_ctx wc ON $39
+  JOIN public.nba_games ng
+    ON ng.season_year = p_season_year
+   AND ng.week_number = wc.week_number
+   AND public.is_regular_season_game_id(ng.nba_game_id)
+   AND bp.nba_team IS NOT NULL
+   AND (ng.home_team = bp.nba_team OR ng.away_team = bp.nba_team)
+  GROUP BY bp.id
+),
+latest_daily_run AS (
+  SELECT latest_run.id
+  FROM args
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = $40
+   AND latest_run.projection_type = $41
+   AND latest_run.projection_date = args.game_date
+   AND latest_run.status = $42
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.started_at DESC, latest_run.id DESC
+  LIMIT $43
+),
+latest_weekly_avg_run AS (
+  SELECT latest_run.id
+  FROM args
+  LEFT JOIN week_ctx wc ON $44
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = $45
+   AND latest_run.projection_type = $46
+   AND latest_run.season_year = p_season_year
+   AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
+   AND latest_run.status = $47
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
+  LIMIT $48
+),
+latest_weekly_total_run AS (
+  SELECT latest_run.id
+  FROM args
+  LEFT JOIN week_ctx wc ON $49
+  JOIN public.projection_sync_runs latest_run
+    ON latest_run.source = $50
+   AND latest_run.projection_type = $51
+   AND latest_run.season_year = p_season_year
+   AND (wc.week_number IS NULL OR latest_run.week_number IS NULL OR latest_run.week_number = wc.week_number)
+   AND latest_run.status = $52
+   AND latest_run.completed_at IS NOT NULL
+  ORDER BY latest_run.week_number DESC NULLS LAST, latest_run.started_at DESC, latest_run.id DESC
+  LIMIT $53
+),
+daily_candidates AS (
+  SELECT DISTINCT ON (r.player_id)
+    r.player_id,
+    $54::text AS projection_source,
+    $55::text AS projection_source_label,
+    $56::text AS projection_view,
+    public.projection_stat_fantasy_points(
+      r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+      $57::numeric, $58::numeric, $59::numeric, $60::numeric, $61::numeric, $62::numeric,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
+    r.minutes AS projection_minutes,
+    r.points AS projection_points,
+    r.rebounds AS projection_rebounds,
+    r.assists AS projection_assists,
+    r.steals AS projection_steals,
+    r.blocks AS projection_blocks,
+    r.three_pointers_made AS projection_three_pointers_made,
+    r.turnovers AS projection_turnovers,
+    r.games_played AS projection_games_played,
+    r.field_goal_pct AS projection_field_goal_pct,
+    r.free_throw_pct AS projection_free_throw_pct,
+    r.source_status AS projection_status,
+    r.fetched_at AS projection_fetched_at,
+    r.projection_date,
+    r.week_number AS projection_week_number,
+    $63 AS projection_is_fresh,
+    $64 AS priority
+  FROM args
+  JOIN league l ON $65
+  JOIN public.fantasypros_projection_rows r
+    ON r.projection_type = $66
+   AND r.match_status = $67
+   AND r.player_id IS NOT NULL
+   AND r.projection_date = args.game_date
+   AND r.fetched_at >= now() - interval $68
+  JOIN latest_daily_run ldr
+    ON ldr.id = r.run_id
+  JOIN base_players projected_player
+    ON projected_player.id = r.player_id
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = $69
+   AND psr.completed_at IS NOT NULL
+  WHERE args.view_name = $70
+    AND NOT l.uses_fantasypros_unsupported_scoring
+  ORDER BY r.player_id, r.fetched_at DESC, r.run_id DESC
+),
+weekly_avg_candidates AS (
+  SELECT DISTINCT ON (r.player_id)
+    r.player_id,
+    CASE
+      WHEN args.view_name = $71 THEN $72
+      ELSE $73
+    END::text AS projection_source,
+    CASE
+      WHEN args.view_name = $74 THEN $75
+      ELSE $76
+    END::text AS projection_source_label,
+    CASE
+      WHEN args.view_name = $77 THEN $78
+      ELSE $79
+    END::text AS projection_view,
+    public.projection_stat_fantasy_points(
+      r.points * m.games_multiplier,
+      r.rebounds * m.games_multiplier,
+      r.assists * m.games_multiplier,
+      r.steals * m.games_multiplier,
+      r.blocks * m.games_multiplier,
+      r.three_pointers_made * m.games_multiplier,
+      r.turnovers * m.games_multiplier,
+      $80::numeric,
+      $81::numeric,
+      $82::numeric,
+      $83::numeric,
+      CASE
+        WHEN args.view_name = $84 AND m.games_multiplier > $85 AND (
+          (COALESCE(r.points, $86) >= $87)::int +
+          (COALESCE(r.rebounds, $88) >= $89)::int +
+          (COALESCE(r.assists, $90) >= $91)::int +
+          (COALESCE(r.steals, $92) >= $93)::int +
+          (COALESCE(r.blocks, $94) >= $95)::int
+        ) >= $96 THEN m.games_multiplier
+        WHEN args.view_name = $97 THEN $98::numeric
+        ELSE $99::numeric
+      END,
+      CASE
+        WHEN args.view_name = $100 AND m.games_multiplier > $101 AND (
+          (COALESCE(r.points, $102) >= $103)::int +
+          (COALESCE(r.rebounds, $104) >= $105)::int +
+          (COALESCE(r.assists, $106) >= $107)::int +
+          (COALESCE(r.steals, $108) >= $109)::int +
+          (COALESCE(r.blocks, $110) >= $111)::int
+        ) >= $112 THEN m.games_multiplier
+        WHEN args.view_name = $113 THEN $114::numeric
+        ELSE $115::numeric
+      END,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
+    r.minutes * m.games_multiplier AS projection_minutes,
+    r.points * m.games_multiplier AS projection_points,
+    r.rebounds * m.games_multiplier AS projection_rebounds,
+    r.assists * m.games_multiplier AS projection_assists,
+    r.steals * m.games_multiplier AS projection_steals,
+    r.blocks * m.games_multiplier AS projection_blocks,
+    r.three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    r.turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = $116 THEN m.games_multiplier::int ELSE r.games_played END AS projection_games_played,
+    r.field_goal_pct AS projection_field_goal_pct,
+    r.free_throw_pct AS projection_free_throw_pct,
+    r.source_status AS projection_status,
+    r.fetched_at AS projection_fetched_at,
+    r.projection_date,
+    r.week_number AS projection_week_number,
+    $117 AS projection_is_fresh,
+    CASE WHEN args.view_name = $118 THEN $119 ELSE $120 END AS priority
+  FROM args
+  JOIN league l ON $121
+  LEFT JOIN week_ctx wc ON $122
+  JOIN public.fantasypros_projection_rows r
+    ON r.projection_type = $123
+   AND r.match_status = $124
+   AND r.player_id IS NOT NULL
+   AND r.season_year = p_season_year
+   AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
+   AND r.fetched_at >= now() - interval $125
+  JOIN latest_weekly_avg_run lwar
+    ON lwar.id = r.run_id
+  JOIN base_players projected_player
+    ON projected_player.id = r.player_id
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = $126
+   AND psr.completed_at IS NOT NULL
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = r.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = $127 THEN COALESCE(NULLIF(r.games_played, $128), wgc.scheduled_games, $129)::numeric
+      ELSE $130::numeric
+    END AS games_multiplier
+  ) m
+  WHERE args.view_name IN ($131, $132, $133)
+    AND NOT l.uses_fantasypros_unsupported_scoring
+  ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
+),
+weekly_total_candidates AS (
+  SELECT DISTINCT ON (r.player_id)
+    r.player_id,
+    $134::text AS projection_source,
+    $135::text AS projection_source_label,
+    $136::text AS projection_view,
+    public.projection_stat_fantasy_points(
+      r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+      $137::numeric, $138::numeric, $139::numeric, $140::numeric,
+      CASE
+        WHEN COALESCE(r.games_played, $141) > $142 AND (
+          (COALESCE(r.points, $143) / NULLIF(r.games_played, $144) >= $145)::int +
+          (COALESCE(r.rebounds, $146) / NULLIF(r.games_played, $147) >= $148)::int +
+          (COALESCE(r.assists, $149) / NULLIF(r.games_played, $150) >= $151)::int +
+          (COALESCE(r.steals, $152) / NULLIF(r.games_played, $153) >= $154)::int +
+          (COALESCE(r.blocks, $155) / NULLIF(r.games_played, $156) >= $157)::int
+        ) >= $158 THEN r.games_played::numeric
+        ELSE $159
+      END,
+      CASE
+        WHEN COALESCE(r.games_played, $160) > $161 AND (
+          (COALESCE(r.points, $162) / NULLIF(r.games_played, $163) >= $164)::int +
+          (COALESCE(r.rebounds, $165) / NULLIF(r.games_played, $166) >= $167)::int +
+          (COALESCE(r.assists, $168) / NULLIF(r.games_played, $169) >= $170)::int +
+          (COALESCE(r.steals, $171) / NULLIF(r.games_played, $172) >= $173)::int +
+          (COALESCE(r.blocks, $174) / NULLIF(r.games_played, $175) >= $176)::int
+        ) >= $177 THEN r.games_played::numeric
+        ELSE $178
+      END,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
+    r.minutes AS projection_minutes,
+    r.points AS projection_points,
+    r.rebounds AS projection_rebounds,
+    r.assists AS projection_assists,
+    r.steals AS projection_steals,
+    r.blocks AS projection_blocks,
+    r.three_pointers_made AS projection_three_pointers_made,
+    r.turnovers AS projection_turnovers,
+    r.games_played AS projection_games_played,
+    r.field_goal_pct AS projection_field_goal_pct,
+    r.free_throw_pct AS projection_free_throw_pct,
+    r.source_status AS projection_status,
+    r.fetched_at AS projection_fetched_at,
+    r.projection_date,
+    r.week_number AS projection_week_number,
+    $179 AS projection_is_fresh,
+    $180 AS priority
+  FROM args
+  JOIN league l ON $181
+  LEFT JOIN week_ctx wc ON $182
+  JOIN public.fantasypros_projection_rows r
+    ON r.projection_type = $183
+   AND r.match_status = $184
+   AND r.player_id IS NOT NULL
+   AND r.season_year = p_season_year
+   AND (wc.week_number IS NULL OR r.week_number IS NULL OR r.week_number = wc.week_number)
+   AND r.fetched_at >= now() - interval $185
+  JOIN latest_weekly_total_run lwtr
+    ON lwtr.id = r.run_id
+  JOIN base_players projected_player
+    ON projected_player.id = r.player_id
+  JOIN public.projection_sync_runs psr
+    ON psr.id = r.run_id
+   AND psr.status = $186
+   AND psr.completed_at IS NOT NULL
+  WHERE args.view_name = $187
+    AND NOT l.uses_fantasypros_unsupported_scoring
+  ORDER BY r.player_id, r.week_number DESC NULLS LAST, r.fetched_at DESC, r.run_id DESC
+),
+internal_candidates AS (
+  SELECT DISTINCT ON (pp.player_id)
+    pp.player_id,
+    $188::text AS projection_source,
+    $189::text AS projection_source_label,
+    $190::text AS projection_view,
+    public.projection_stat_fantasy_points(
+      pp.projected_stat_points * m.games_multiplier,
+      pp.projected_rebounds * m.games_multiplier,
+      pp.projected_assists * m.games_multiplier,
+      pp.projected_steals * m.games_multiplier,
+      pp.projected_blocks * m.games_multiplier,
+      pp.projected_three_pointers_made * m.games_multiplier,
+      pp.projected_turnovers * m.games_multiplier,
+      pp.projected_field_goals_made * m.games_multiplier,
+      pp.projected_field_goals_attempted * m.games_multiplier,
+      pp.projected_free_throws_made * m.games_multiplier,
+      pp.projected_free_throws_attempted * m.games_multiplier,
+      CASE
+        WHEN args.view_name = $191 THEN COALESCE(pp.projected_double_doubles, $192) * m.games_multiplier
+        ELSE pp.projected_double_doubles
+      END,
+      CASE
+        WHEN args.view_name = $193 THEN COALESCE(pp.projected_triple_doubles, $194) * m.games_multiplier
+        ELSE pp.projected_triple_doubles
+      END,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
+    pp.projected_minutes * m.games_multiplier AS projection_minutes,
+    pp.projected_stat_points * m.games_multiplier AS projection_points,
+    pp.projected_rebounds * m.games_multiplier AS projection_rebounds,
+    pp.projected_assists * m.games_multiplier AS projection_assists,
+    pp.projected_steals * m.games_multiplier AS projection_steals,
+    pp.projected_blocks * m.games_multiplier AS projection_blocks,
+    pp.projected_three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    pp.projected_turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = $195 THEN m.games_multiplier::int ELSE $196::int END AS projection_games_played,
+    $197::numeric AS projection_field_goal_pct,
+    $198::numeric AS projection_free_throw_pct,
+    $199::text AS projection_status,
+    pp.fetched_at AS projection_fetched_at,
+    $200::date AS projection_date,
+    pp.week_number AS projection_week_number,
+    $201 AS projection_is_fresh,
+    $202 AS priority
+  FROM args
+  JOIN week_ctx wc ON $203
+  JOIN league l ON $204
+  JOIN public.player_projections pp
+    ON pp.season_year = p_season_year
+   AND pp.week_number = wc.week_number
+   AND pp.projected_stat_points IS NOT NULL
+  JOIN base_players projected_player
+    ON projected_player.id = pp.player_id
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = pp.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = $205 THEN COALESCE(wgc.scheduled_games, $206)::numeric
+      ELSE $207::numeric
+    END AS games_multiplier
+  ) m
+  ORDER BY pp.player_id, pp.fetched_at DESC
+),
+season_avg_candidates AS (
+  SELECT
+    avg.player_id,
+    $208::text AS projection_source,
+    $209::text AS projection_source_label,
+    $210::text AS projection_view,
+    public.projection_stat_fantasy_points(
+      avg.avg_points * m.games_multiplier,
+      avg.avg_rebounds * m.games_multiplier,
+      avg.avg_assists * m.games_multiplier,
+      avg.avg_steals * m.games_multiplier,
+      avg.avg_blocks * m.games_multiplier,
+      avg.avg_three_pointers_made * m.games_multiplier,
+      avg.avg_turnovers * m.games_multiplier,
+      avg.avg_field_goals_made * m.games_multiplier,
+      avg.avg_field_goals_attempted * m.games_multiplier,
+      avg.avg_free_throws_made * m.games_multiplier,
+      avg.avg_free_throws_attempted * m.games_multiplier,
+      (CASE WHEN COALESCE(avg.games_played, $211) > $212
+        THEN COALESCE(avg.double_doubles, $213)::numeric / avg.games_played
+        ELSE $214 END) * m.games_multiplier,
+      (CASE WHEN COALESCE(avg.games_played, $215) > $216
+        THEN COALESCE(avg.triple_doubles, $217)::numeric / avg.games_played
+        ELSE $218 END) * m.games_multiplier,
+      l.scoring_settings
+    ) AS projection_fantasy_points,
+    avg.avg_minutes_played * m.games_multiplier AS projection_minutes,
+    avg.avg_points * m.games_multiplier AS projection_points,
+    avg.avg_rebounds * m.games_multiplier AS projection_rebounds,
+    avg.avg_assists * m.games_multiplier AS projection_assists,
+    avg.avg_steals * m.games_multiplier AS projection_steals,
+    avg.avg_blocks * m.games_multiplier AS projection_blocks,
+    avg.avg_three_pointers_made * m.games_multiplier AS projection_three_pointers_made,
+    avg.avg_turnovers * m.games_multiplier AS projection_turnovers,
+    CASE WHEN args.view_name = $219 THEN m.games_multiplier::int ELSE avg.games_played::int END AS projection_games_played,
+    $220::numeric AS projection_field_goal_pct,
+    $221::numeric AS projection_free_throw_pct,
+    $222::text AS projection_status,
+    $223::timestamptz AS projection_fetched_at,
+    $224::date AS projection_date,
+    $225::int AS projection_week_number,
+    $226 AS projection_is_fresh,
+    $227 AS priority
+  FROM args
+  JOIN league l ON $228
+  JOIN public.mv_player_season_averages avg
+    ON avg.season_year = p_season_year
+  JOIN base_players projected_player
+    ON projected_player.id = avg.player_id
+  LEFT JOIN week_game_counts wgc
+    ON wgc.player_id = avg.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN args.view_name = $229 THEN COALESCE(wgc.scheduled_games, $230)::numeric
+      ELSE $231::numeric
+    END AS games_multiplier
+  ) m
+),
+candidate_union AS (
+  SELECT * FROM daily_candidates
+  UNION ALL SELECT * FROM weekly_total_candidates
+  UNION ALL SELECT * FROM weekly_avg_candidates
+  UNION ALL SELECT * FROM internal_candidates
+  UNION ALL SELECT * FROM season_avg_candidates
+),
+fallback_best AS (
+  SELECT DISTINCT ON (cu.player_id) cu.*
+  FROM candidate_union cu
+  ORDER BY cu.player_id, cu.priority ASC, cu.projection_fetched_at DESC NULLS LAST
+),
+sleeper_games AS (
+  SELECT r.*, public.projection_stat_fantasy_points(
+    r.points, r.rebounds, r.assists, r.steals, r.blocks, r.three_pointers_made, r.turnovers,
+    r.field_goals_made, r.field_goals_attempted, r.free_throws_made, r.free_throws_attempted,
+    r.double_doubles, r.triple_doubles, l.scoring_settings
+  ) AS fantasy_points, r.team IS DISTINCT FROM bp.nba_team AS prior_team_game
+  FROM public.sleeper_projection_rows r
+  JOIN base_players bp ON bp.id = r.player_id
+  LEFT JOIN next_games ng ON ng.player_id=bp.id
+  JOIN league l ON $232
+  CROSS JOIN args
+  LEFT JOIN week_ctx wc ON $233
+  WHERE r.season_year = p_season_year
+    AND (r.game_date<(now() AT TIME ZONE $234)::date OR r.team=bp.nba_team)
+    AND EXISTS (SELECT $235 FROM public.nba_games g WHERE g.season_year=p_season_year
+      AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
+      AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent))
+    AND (args.view_name = $236 AND r.game_date = COALESCE(ng.next_game_date,args.game_date)
+      OR args.view_name <> $237 AND r.week_number = wc.week_number)
+),
+sleeper_totals AS (
+  SELECT player_id, count(*)::integer AS games, count(*) FILTER(WHERE prior_team_game)::integer AS prior_team_games,
+    sum(fantasy_points) AS fantasy_points,
+    sum(points) AS points, sum(rebounds) AS rebounds, sum(assists) AS assists,
+    sum(steals) AS steals, sum(blocks) AS blocks, sum(three_pointers_made) AS three_pointers_made,
+    sum(turnovers) AS turnovers, sum(minutes) AS minutes,
+    $238 * sum(field_goals_made) / NULLIF(sum(field_goals_attempted),$239) AS field_goal_pct,
+    $240 * sum(free_throws_made) / NULLIF(sum(free_throws_attempted),$241) AS free_throw_pct,
+    max(fetched_at) AS fetched_at, min(game_date) AS game_date, min(week_number) AS week_number
+  FROM sleeper_games GROUP BY player_id
+),
+sleeper_candidates AS (
+  SELECT s.player_id, $242::text AS projection_source, $243::text AS projection_source_label,
+    args.view_name AS projection_view,
+    ROUND((s.fantasy_points + COALESCE(b.projection_fantasy_points * m.missing_fraction,$244)) / m.divisor,$245) AS projection_fantasy_points,
+    (s.minutes + COALESCE(b.projection_minutes * m.missing_fraction,$246)) / m.divisor AS projection_minutes,
+    (s.points + COALESCE(b.projection_points * m.missing_fraction,$247)) / m.divisor AS projection_points,
+    (s.rebounds + COALESCE(b.projection_rebounds * m.missing_fraction,$248)) / m.divisor AS projection_rebounds,
+    (s.assists + COALESCE(b.projection_assists * m.missing_fraction,$249)) / m.divisor AS projection_assists,
+    (s.steals + COALESCE(b.projection_steals * m.missing_fraction,$250)) / m.divisor AS projection_steals,
+    (s.blocks + COALESCE(b.projection_blocks * m.missing_fraction,$251)) / m.divisor AS projection_blocks,
+    (s.three_pointers_made + COALESCE(b.projection_three_pointers_made * m.missing_fraction,$252)) / m.divisor AS projection_three_pointers_made,
+    (s.turnovers + COALESCE(b.projection_turnovers * m.missing_fraction,$253)) / m.divisor AS projection_turnovers,
+    s.games + CASE WHEN b.player_id IS NOT NULL THEN m.missing_games ELSE $254 END AS projection_games_played,
+    (COALESCE(s.field_goal_pct,$255)*s.games + COALESCE(b.projection_field_goal_pct,$256)*m.missing_games) /
+      NULLIF(s.games + CASE WHEN b.projection_field_goal_pct IS NOT NULL THEN m.missing_games ELSE $257 END,$258) AS projection_field_goal_pct,
+    (COALESCE(s.free_throw_pct,$259)*s.games + COALESCE(b.projection_free_throw_pct,$260)*m.missing_games) /
+      NULLIF(s.games + CASE WHEN b.projection_free_throw_pct IS NOT NULL THEN m.missing_games ELSE $261 END,$262) AS projection_free_throw_pct,
+    $263::text AS projection_status, s.fetched_at AS projection_fetched_at,
+    CASE WHEN args.view_name=$264 THEN s.game_date ELSE $265::date END AS projection_date,
+    s.week_number AS projection_week_number, s.fetched_at>=now()-interval $266 AS projection_is_fresh, $267 AS priority
+  FROM sleeper_totals s CROSS JOIN args
+  LEFT JOIN fallback_best b ON b.player_id=s.player_id
+  LEFT JOIN week_game_counts wgc ON wgc.player_id=s.player_id
+  CROSS JOIN LATERAL (
+    SELECT CASE WHEN args.view_name=$268 THEN $269 ELSE GREATEST(COALESCE(wgc.scheduled_games,$270)+s.prior_team_games-s.games,$271) END AS missing_games
+  ) missing
+  CROSS JOIN LATERAL (
+    SELECT missing.missing_games,
+      CASE WHEN args.view_name=$272 THEN missing.missing_games::numeric / NULLIF(b.projection_games_played,$273)
+        ELSE missing.missing_games::numeric END AS missing_fraction,
+      CASE WHEN args.view_name=$274 THEN s.games + CASE WHEN b.player_id IS NOT NULL THEN missing.missing_games ELSE $275 END
+        ELSE $276 END::numeric AS divisor
+  ) m
+),
+best AS (
+  SELECT * FROM sleeper_candidates
+  UNION ALL SELECT b.* FROM fallback_best b WHERE NOT EXISTS(SELECT $277 FROM sleeper_candidates s WHERE s.player_id=b.player_id)
+)
+
+SELECT
+  bp.id AS player_id,
+  bp.display_name,
+  bp.nba_team,
+  bp.""position"",
+  bp.eligible_positions,
+  bp.injury_status,
+  bp.headshot_url,
+  bp.nba_id,
+  ng.next_game_date,
+  ng.next_game_opponent,
+  ng.next_game_time,
+  b.projection_source,
+  b.projection_source_label,
+  b.projection_view,
+  b.projection_fantasy_points,
+  b.projection_minutes,
+  b.projection_points,
+  b.projection_rebounds,
+  b.projection_assists,
+  b.projection_steals,
+  b.projection_blocks,
+  b.projection_three_pointers_made,
+  b.projection_turnovers,
+  b.projection_games_played,
+  b.projection_field_goal_pct,
+  b.projection_free_throw_pct,
+  b.projection_status,
+  b.projection_fetched_at,
+  COALESCE(b.projection_date, ng.next_game_date) AS projection_date,
+  b.projection_week_number,
+  b.projection_is_fresh
+FROM args
+JOIN base_players bp ON $278
+LEFT JOIN best b ON b.player_id = bp.id
+LEFT JOIN next_games ng ON ng.player_id = bp.id
+WHERE b.player_id IS NOT NULL
+ORDER BY b.projection_fantasy_points DESC NULLS LAST, bp.display_name ASC, bp.id ASC
+LIMIT (SELECT page_limit FROM args)
+OFFSET (SELECT page_offset FROM args)"
+610,5.569,0.009,610,"UPDATE public.edge_invocations
+       SET status_code = v_row.response_status, error_message = v_error WHERE id = v_row.id"
+490,5.368,0.011,490,UPDATE public.edge_invocations SET reconciled_at = now() WHERE id = v_row.id
+1,3.403,3.403,30,"INSERT INTO public.player_game_stats(player_id,game_id,season_year,week_number,points,rebounds,assists,minutes_played)
+SELECT id,$1,public.current_season_year_et(),$2,$3,$4,$5,$6
+FROM public.players WHERE id::text LIKE $7 ORDER BY id LIMIT $8"
+1,2.666,2.666,30,UPDATE public.player_game_stats SET points=$1 WHERE game_id=$2
+1,2.595,2.595,0,ANALYZE pg_temp_64.pg_temp_21578
+1,2.465,2.465,500,INSERT INTO analytics.mv_player_season_averages SELECT (diff.newdata).* FROM pg_temp_64.pg_temp_20061_2 diff WHERE tid IS NULL
+1,2.036,2.036,10000,"INSERT INTO pg_temp_64.pg_temp_21578_2 SELECT mv.ctid AS tid, newdata.*::pg_temp_64.pg_temp_21578 AS newdata FROM analytics.mv_player_avg_fantasy_points mv FULL JOIN pg_temp_64.pg_temp_21578 newdata ON (newdata.league_id OPERATOR(pg_catalog.=) mv.league_id AND newdata.player_id OPERATOR(pg_catalog.=) mv.player_id AND newdata.season_year OPERATOR(pg_catalog.=) mv.season_year AND newdata.* OPERATOR(pg_catalog.*=) mv.*) WHERE newdata.* IS NULL OR mv.* IS NULL ORDER BY tid"
+1,1.762,1.762,1,"INSERT INTO public.nba_games(id,nba_game_id,season_year,game_date,week_number,home_team,away_team,status,game_time)
+VALUES ($1,$2,public.current_season_year_et(),(now() AT TIME ZONE $3)::date,$4,$5,$6,$7,now()-interval $8)"
+1,1.586,1.586,10,"SELECT public.invoke_edge_function($1) FROM generate_series($2,$3)"
+1,1.558,1.558,0,UPDATE analytics.search_cache_refresh_state SET refreshed_at=now()-interval $1
+30,1.420,0.047,30,"SELECT net.http_post(
+    _base_url || $8 || function_name,
+    body,
+    $9,
+    jsonb_build_object(
+      $10, _internal_token,
+      $11, $12,
+      $13, _invocation_key::text
+    ),
+    $14
+  )"
+1,1.317,1.317,1,"INSERT INTO analytics.search_cache_refresh_state (id, refreshed_at, source_revision)
+  VALUES ($4, now(), v_source_revision)
+  ON CONFLICT (id) DO UPDATE
+    SET refreshed_at = excluded.refreshed_at,
+        source_revision = excluded.source_revision"
+1,1.232,1.232,0,SELECT newdata.*::pg_temp_64.pg_temp_20061 FROM pg_temp_64.pg_temp_20061 newdata WHERE newdata.* IS NOT NULL AND EXISTS (SELECT $1 FROM pg_temp_64.pg_temp_20061 newdata2 WHERE newdata2.* IS NOT NULL AND newdata2.* OPERATOR(pg_catalog.*=) newdata.* AND newdata2.ctid OPERATOR(pg_catalog.<>) newdata.ctid)
+20,0.987,0.049,20,SELECT public.invoke_edge_function($1)
+1,0.952,0.952,60,"SELECT public.invoke_close_expired_nominations_if_due() FROM generate_series($1,$2)"
+1,0.711,0.711,60,"SELECT public.invoke_stats_sync_dispatch_if_due() FROM generate_series($1,$2)"
+1,0.669,0.669,0,ANALYZE pg_temp_64.pg_temp_20061
+80,0.631,0.008,20,"WITH candidates AS (
+    SELECT game.*,
+      game.status = $2 OR (
+        game.status = $3
+        AND (
+          COALESCE(game.game_time,game.started_at) BETWEEN p_now-interval $4 AND p_now+interval $5
+          OR (
+            (COALESCE(game.game_time,game.started_at) < p_now-interval $6
+              OR (COALESCE(game.game_time,game.started_at) IS NULL AND
+                ((p_now AT TIME ZONE $7)::time >= time $8 OR game.game_date < (p_now AT TIME ZONE $9)::date)))
+            AND (attempt.checked_at IS NULL OR attempt.checked_at <= p_now-interval $10)
+          )
+        )
+      ) AS board_due,
+      game.status = $11 OR (game.status = $12
+        AND (game.stats_synced_at IS NULL OR game.stats_synced_at <= p_now-interval $13)
+        AND (attempt.stats_attempted_at IS NULL OR attempt.stats_attempted_at <= p_now-interval $14)) AS stats_due
+    FROM public.nba_games game
+    LEFT JOIN private.live_poll_game_state attempt ON attempt.game_id=game.id
+    WHERE game.game_date IN ((p_now AT TIME ZONE $15)::date-$16,(p_now AT TIME ZONE $17)::date)
+      AND game.nba_game_id LIKE $18
+      AND private.lineup_game_available(game.status,game.game_status_text)
+  ), primary_work AS (
+    SELECT * FROM candidates WHERE board_due OR (stats_due AND stats_synced_at IS NULL)
+  )
+  SELECT game.id,game.nba_game_id,game.game_date,game.season_year,game.week_number,game.status,
+    game.game_time,game.started_at,game.home_team,game.away_team,game.home_score,game.away_score,
+    game.game_status_text,game.stats_synced_at,game.board_due,game.stats_due
+  FROM candidates game
+  WHERE game.board_due OR (game.stats_due AND (game.stats_synced_at IS NULL OR EXISTS(SELECT $19 FROM primary_work)))
+  ORDER BY game.game_date,game.id"
+200,0.520,0.003,200,"WITH category_counts AS (
+    SELECT (
+      (COALESCE(p_points, $15) >= $16)::int +
+      (COALESCE(p_rebounds, $17) >= $18)::int +
+      (COALESCE(p_assists, $19) >= $20)::int +
+      (COALESCE(p_steals, $21) >= $22)::int +
+      (COALESCE(p_blocks, $23) >= $24)::int
+    ) AS ten_plus_categories
+  )
+  SELECT ROUND((
+    COALESCE(p_points, $25)              * COALESCE((p_scoring_settings->>$26)::numeric, $27) +
+    COALESCE(p_rebounds, $28)            * COALESCE((p_scoring_settings->>$29)::numeric, $30) +
+    COALESCE(p_assists, $31)             * COALESCE((p_scoring_settings->>$32)::numeric, $33) +
+    COALESCE(p_steals, $34)              * COALESCE((p_scoring_settings->>$35)::numeric, $36) +
+    COALESCE(p_blocks, $37)              * COALESCE((p_scoring_settings->>$38)::numeric, $39) +
+    COALESCE(p_three_pointers_made, $40) * COALESCE((p_scoring_settings->>$41)::numeric, $42) +
+    COALESCE(p_turnovers, $43)           * COALESCE((p_scoring_settings->>$44)::numeric, $45) +
+    COALESCE(p_field_goals_made, $46)    * COALESCE((p_scoring_settings->>$47)::numeric, $48) +
+    COALESCE(p_field_goals_attempted, $49) * COALESCE((p_scoring_settings->>$50)::numeric, $51) +
+    COALESCE(p_free_throws_made, $52)    * COALESCE((p_scoring_settings->>$53)::numeric, $54) +
+    COALESCE(p_free_throws_attempted, $55) * COALESCE((p_scoring_settings->>$56)::numeric, $57) +
+    COALESCE(p_double_doubles, CASE WHEN ten_plus_categories >= $58 THEN $59 ELSE $60 END) *
+      COALESCE((p_scoring_settings->>$61)::numeric, $62) +
+    COALESCE(p_triple_doubles, CASE WHEN ten_plus_categories >= $63 THEN $64 ELSE $65 END) *
+      COALESCE((p_scoring_settings->>$66)::numeric, $67)
+  ), $68)
+  FROM category_counts"
+1,0.519,0.519,0,ANALYZE pg_temp_64.pg_temp_20061_2
+1,0.403,0.403,0,"DROP TABLE pg_temp_64.pg_temp_20061_2, pg_temp_64.pg_temp_20061"
+30,0.369,0.012,30,"INSERT INTO public.edge_invocations (
+    function_name, request_id, invocation_key, dispatch_job_key, dispatch_period_key, dispatch_claimed_at
+  ) VALUES (
+    function_name, _request_id, _invocation_key, _claim.job_key, _claim.period_key, _claim.dispatched_at
+  )"
+20,0.313,0.016,20,"INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details)
+      VALUES(v_change.league_id,$20,$21,$22,v_change.details)
+    ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+$23,
+      scopes=$24,details=EXCLUDED.details,updated_at=clock_timestamp()"
+30,0.287,0.010,30,"SELECT jsonb_object_agg(key, value)                   FROM jsonb_each(v_old) WHERE key = ANY(v_fields)"
+20,0.281,0.014,20,"INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes)
+      VALUES(v_change.league_id,v_topic,$21,v_change.scopes)
+    ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+$22,
+      scopes=EXCLUDED.scopes,updated_at=clock_timestamp()"
+1,0.274,0.274,0,"DROP TABLE pg_temp_64.pg_temp_21578_2, pg_temp_64.pg_temp_21578"
+30,0.273,0.009,30,"SELECT jsonb_object_agg(key, value)                   FROM jsonb_each(v_new) WHERE key = ANY(v_fields)"
+1,0.269,0.269,0,CREATE TEMP TABLE pg_temp_64.pg_temp_20061_2 (tid pg_catalog.tid)
+1,0.255,0.255,0,CREATE TEMP TABLE pg_temp_64.pg_temp_21578_2 (tid pg_catalog.tid)
+61,0.255,0.004,61,SELECT private.bump_score_input_revisions(v_keys)
+1,0.233,0.233,500,"INSERT INTO pg_temp_64.pg_temp_20061_2 SELECT mv.ctid AS tid, newdata.*::pg_temp_64.pg_temp_20061 AS newdata FROM analytics.mv_player_season_averages mv FULL JOIN pg_temp_64.pg_temp_20061 newdata ON (newdata.player_id OPERATOR(pg_catalog.=) mv.player_id AND newdata.season_year OPERATOR(pg_catalog.=) mv.season_year AND newdata.* OPERATOR(pg_catalog.*=) mv.*) WHERE newdata.* IS NULL OR mv.* IS NULL ORDER BY tid"
+1,0.196,0.196,0,ALTER TABLE pg_temp_64.pg_temp_21578_2 ADD COLUMN newdata pg_temp_64.pg_temp_21578
+1,0.188,0.188,1,"SELECT private.assert_nba_game_candidate(NEW.nba_game_id,NEW.season_year,NEW.game_date,NEW.home_team,NEW.away_team,NEW.id)"
+30,0.184,0.006,30,"insert into net.http_request_queue(method, url, headers, body, timeout_milliseconds)
+    values (
+        $9,
+        net._encode_url_with_params_array(url, params_array),
+        headers,
+        convert_to(body::text, $10),
+        timeout_milliseconds
+    )
+    returning id"
+1,0.149,0.149,0,ALTER TABLE pg_temp_64.pg_temp_20061_2 ADD COLUMN newdata pg_temp_64.pg_temp_20061
+61,0.140,0.002,91,"SELECT value FROM jsonb_array_elements(jsonb_build_array(v_old, v_new)) WHERE value <> $16::jsonb"
+1,0.099,0.099,0,"WITH changed AS (SELECT * FROM new_rows),scopes AS (SELECT roster.league_id,jsonb_build_object($1,roster.league_season_id,$2,stat.game_date) AS scope
+        FROM changed stat JOIN public.nba_games game ON game.id=stat.game_id AND game.nba_game_id LIKE $3
+        JOIN public.roster_players roster ON roster.player_id=stat.player_id
+        JOIN public.league_seasons season ON season.id=roster.league_season_id AND season.season_year=stat.season_year
+        UNION SELECT lineup.league_id,jsonb_build_object($4,lineup.league_season_id,$5,stat.game_date) AS scope
+        FROM changed stat JOIN public.nba_games game ON game.id=stat.game_id AND game.nba_game_id LIKE $6
+        JOIN public.weekly_lineups lineup ON lineup.player_id=stat.player_id AND lineup.game_date=stat.game_date),distinct_scopes AS (
+      SELECT DISTINCT scopes.league_id,scopes.scope FROM scopes
+      JOIN public.leagues league ON league.id=scopes.league_id AND league.deleted_at IS NULL
+    ) SELECT league_id,CASE WHEN count(*)<=$7 THEN jsonb_agg(scope ORDER BY scope::text) END AS scopes
+      FROM distinct_scopes GROUP BY league_id ORDER BY league_id"
+91,0.092,0.001,91,"v_keys := v_keys || COALESCE(ARRAY(
+        SELECT $18 || season_year || $19 || week_number FROM public.season_weeks
+        WHERE season_year = (v_row->>$20)::int
+          AND (v_row->>$21)::date BETWEEN week_start AND week_end
+      ), ARRAY[]::text[])"
+1,0.089,0.089,20,"WITH changed AS (SELECT * FROM resource_new_rows),details AS (SELECT league.id AS league_id,
+        CASE WHEN season.id IS NOT NULL THEN jsonb_build_object($1,$2,$3,season.id) END AS detail
+        FROM public.leagues league LEFT JOIN public.league_seasons season ON season.league_id=league.id
+        WHERE EXISTS (SELECT $4 FROM changed WHERE source_revision IS NOT NULL AND refreshed_at IS NOT NULL)),distinct_details AS (
+      SELECT DISTINCT details.league_id,details.detail FROM details
+      JOIN public.leagues league ON league.id=details.league_id AND league.deleted_at IS NULL
+    ) SELECT league_id,CASE WHEN count(*)<=$5 AND bool_and(detail IS NOT NULL)
+        THEN jsonb_agg(detail ORDER BY detail::text) END AS details
+      FROM distinct_details GROUP BY league_id ORDER BY league_id"
+1,0.078,0.078,1,SELECT private.lock_nba_source(NEW.season_year)
+30,0.067,0.002,30,"select
+        header_value                       from
+        jsonb_each_text(coalesce(headers, $5::jsonb)) r(header_name, header_value)
+    where
+        lower(header_name) = $6
+    limit
+        $7"
+41,0.067,0.002,41,"SELECT CASE
+    WHEN extract($2 FROM timezone($3, p_now)) >= $4
+      THEN extract($5 FROM timezone($6, p_now))::int + $7
+    ELSE extract($8 FROM timezone($9, p_now))::int
+  END"
+20,0.065,0.003,20,"SELECT p_status IN ($3, $4, $5)
+    AND COALESCE(p_status_text, $6) !~* $7"
+60,0.062,0.001,60,"SELECT $2 FROM ONLY ""public"".""players"" x WHERE ""id"" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x"
+60,0.057,0.001,60,"SELECT game_date, season_year, week_number
+                                                             FROM nba_games WHERE id = NEW.game_id FOR SHARE"
+1,0.055,0.055,20,"WITH changed AS (SELECT * FROM new_rows),scopes AS (SELECT season.league_id,jsonb_build_object($1,season.id,$2,game.game_date) AS scope
+        FROM changed game JOIN public.league_seasons season ON season.season_year=game.season_year
+        WHERE game.nba_game_id LIKE $3),distinct_scopes AS (
+      SELECT DISTINCT scopes.league_id,scopes.scope FROM scopes
+      JOIN public.leagues league ON league.id=scopes.league_id AND league.deleted_at IS NULL
+    ) SELECT league_id,CASE WHEN count(*)<=$4 THEN jsonb_agg(scope ORDER BY scope::text) END AS scopes
+      FROM distinct_scopes GROUP BY league_id ORDER BY league_id"
+60,0.040,0.001,60,"SELECT $2 FROM ONLY ""public"".""nba_games"" x WHERE ""id"" OPERATOR(pg_catalog.=) $1 FOR KEY SHARE OF x"
+12,0.038,0.003,24,SELECT * FROM public.cron_dispatch_state WHERE attempts < $1 FOR UPDATE SKIP LOCKED
+61,0.034,0.001,0,SELECT DISTINCT value FROM unnest(p_keys) value WHERE value IS NOT NULL ORDER BY value
+1,0.030,0.030,1,"SELECT CASE WHEN p_id ~ $2 THEN $3
+    WHEN p_id ~ $4 THEN $5 ELSE $6 END"
+24,0.022,0.001,24,"EXISTS (
+      SELECT $22 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
+       AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
+    ) AND NOT EXISTS (
+      SELECT $23 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
+       AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
+       AND reconciled_at IS NULL
+    )"
+3,0.020,0.007,3,UPDATE analytics.search_cache_source_state SET revision = revision + $1 WHERE id
+60,0.020,0.000,60,"NOT EXISTS (
+    SELECT $1 FROM public.drafts WHERE status = $2::public.draft_status
+  )"
+8,0.018,0.002,2,SELECT * FROM pg_event_trigger_ddl_commands()
+30,0.017,0.001,30,"select
+        coalesce(array_agg(net._urlencode_string(key) || $4 || net._urlencode_string(value)), $5)
+                                  from
+        jsonb_each_text(params)"
+60,0.015,0.000,60,"EXISTS (
+    SELECT $3
+      FROM public.sync_jobs AS job
+     WHERE job.job_type LIKE $4
+       AND (
+         job.status = $5
+         OR (
+           job.status = $6
+           AND job.failed_items < $7
+           AND COALESCE(job.completed_at, job.created_at) <= v_horizon - make_interval(
+             secs => CASE WHEN job.failed_items <= $8 THEN $9 ELSE $10 END
+           )
+         )
+         OR (
+           job.status = $11
+           AND (
+             (
+               job.claim_token IS NULL
+               AND COALESCE(job.claimed_at, job.created_at) <= v_horizon - interval $12
+             )
+             OR (
+               job.claim_token IS NOT NULL
+               AND (
+                 job.claimed_at IS NULL
+                 OR job.claimed_at <= v_horizon - interval $13
+               )
+             )
+           )
+         )
+       )
+  )"
+2,0.015,0.007,0,"WITH changed AS (SELECT n.* FROM resource_new_rows n JOIN resource_old_rows o USING(id)
+      WHERE (to_jsonb(n)-ARRAY[$1,$2,$3]) IS DISTINCT FROM (to_jsonb(o)-ARRAY[$4,$5,$6])
+      UNION ALL SELECT o.* FROM resource_old_rows o JOIN resource_new_rows n USING(id)
+      WHERE (to_jsonb(n)-ARRAY[$7,$8,$9]) IS DISTINCT FROM (to_jsonb(o)-ARRAY[$10,$11,$12])),details AS (SELECT league.id AS league_id,
+        CASE WHEN season.id IS NOT NULL THEN jsonb_build_object($13,$14,$15,season.id) END AS detail
+        FROM public.leagues league LEFT JOIN public.league_seasons season ON season.league_id=league.id
+        WHERE EXISTS (SELECT $16 FROM changed WHERE source_revision IS NOT NULL AND refreshed_at IS NOT NULL)),distinct_details AS (
+      SELECT DISTINCT details.league_id,details.detail FROM details
+      JOIN public.leagues league ON league.id=details.league_id AND league.deleted_at IS NULL
+    ) SELECT league_id,CASE WHEN count(*)<=$17 AND bool_and(detail IS NOT NULL)
+        THEN jsonb_agg(detail ORDER BY detail::text) END AS details
+      FROM distinct_details GROUP BY league_id ORDER BY league_id"
+30,0.012,0.000,0,"SELECT *             FROM public.cron_dispatch_state
+   WHERE job_key = NULLIF(current_setting($1, $2), $3)"
+1,0.011,0.011,0,DELETE FROM analytics.mv_player_season_averages mv WHERE ctid OPERATOR(pg_catalog.=) ANY (SELECT diff.tid FROM pg_temp_64.pg_temp_20061_2 diff WHERE diff.tid IS NOT NULL AND diff.newdata IS NULL)
+2,0.010,0.005,12,SELECT * FROM pg_event_trigger_dropped_objects()
+1,0.009,0.009,1,EXISTS (SELECT $25 FROM public.nba_games WHERE id=NEW.id)
+30,0.007,0.000,30,SELECT net.wake()
+1,0.005,0.005,0,SELECT $1 WHERE to_regprocedure($2) IS NOT NULL
+1,0.005,0.005,0,"WITH changed AS (SELECT n.* FROM new_rows n JOIN old_rows o USING(id)
+      WHERE (to_jsonb(n)-ARRAY[$1,$2]) IS DISTINCT FROM (to_jsonb(o)-ARRAY[$3,$4])
+      UNION ALL SELECT o.* FROM old_rows o JOIN new_rows n USING(id)
+      WHERE (to_jsonb(n)-ARRAY[$5,$6]) IS DISTINCT FROM (to_jsonb(o)-ARRAY[$7,$8])),scopes AS (SELECT roster.league_id,jsonb_build_object($9,roster.league_season_id,$10,stat.game_date) AS scope
+        FROM changed stat JOIN public.nba_games game ON game.id=stat.game_id AND game.nba_game_id LIKE $11
+        JOIN public.roster_players roster ON roster.player_id=stat.player_id
+        JOIN public.league_seasons season ON season.id=roster.league_season_id AND season.season_year=stat.season_year
+        UNION SELECT lineup.league_id,jsonb_build_object($12,lineup.league_season_id,$13,stat.game_date) AS scope
+        FROM changed stat JOIN public.nba_games game ON game.id=stat.game_id AND game.nba_game_id LIKE $14
+        JOIN public.weekly_lineups lineup ON lineup.player_id=stat.player_id AND lineup.game_date=stat.game_date),distinct_scopes AS (
+      SELECT DISTINCT scopes.league_id,scopes.scope FROM scopes
+      JOIN public.leagues league ON league.id=scopes.league_id AND league.deleted_at IS NULL
+    ) SELECT league_id,CASE WHEN count(*)<=$15 THEN jsonb_agg(scope ORDER BY scope::text) END AS scopes
+      FROM distinct_scopes GROUP BY league_id ORDER BY league_id"
+1,0.005,0.005,0,"WITH rows AS (SELECT ctid FROM net._http_response WHERE created<now()-interval $1 ORDER BY created LIMIT $2)
+DELETE FROM net._http_response WHERE ctid IN (SELECT ctid FROM rows)"
+2,0.004,0.002,2,"SELECT CASE
+    WHEN p_game_id IS NULL OR btrim(p_game_id) = $2 THEN $3
+    WHEN btrim(p_game_id) LIKE $4 THEN $5
+    WHEN btrim(p_game_id) ~ $6 THEN $7
+    ELSE $8
+  END"
+1,0.004,0.004,1,SELECT revision                               FROM analytics.search_cache_source_state WHERE id
+1,0.004,0.004,0,"SELECT nba_game_id              FROM public.nba_games
+   WHERE season_year=p_year AND game_date=p_date AND id IS DISTINCT FROM p_ignore
+     AND upper(btrim(home_team))=upper(btrim(p_home)) AND upper(btrim(away_team))=upper(btrim(p_away))
+     AND nba_game_id IS DISTINCT FROM p_provider_id
+     AND private.nba_game_provider(nba_game_id)<>private.nba_game_provider(p_provider_id)
+   ORDER BY id LIMIT $7"
+1,0.003,0.003,1,"SELECT set_config($1,$2,$3)"
+1,0.003,0.003,0,SET LOCAL app.supabase_url = 'http://127.0.0.1:1'
+1,0.002,0.002,0,"DELETE FROM analytics.player_avg_fantasy_points_fresh fresh
+  WHERE EXISTS (
+    SELECT $1
+    FROM analytics.mv_player_avg_fantasy_points cached
+    WHERE cached.league_id = fresh.league_id
+  )"
+1,0.002,0.002,0,DELETE FROM analytics.mv_player_avg_fantasy_points mv WHERE ctid OPERATOR(pg_catalog.=) ANY (SELECT diff.tid FROM pg_temp_64.pg_temp_21578_2 diff WHERE diff.tid IS NOT NULL AND diff.newdata IS NULL)
+1,0.001,0.001,0,SET LOCAL app.edge_internal_token = 'synthetic-local-load-token'
+2,0.001,0.001,2,NOT EXISTS (SELECT $1 FROM cache_changed_rows)
+1,0.001,0.001,0,ROLLBACK
+1,0.001,0.001,1,NOT EXISTS (SELECT $1 FROM cache_changed_rows)
+1,0.001,0.001,0,SELECT *              FROM analytics.search_cache_refresh_state WHERE id
+1,0.001,0.001,0,BEGIN

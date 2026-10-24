@@ -146,7 +146,7 @@ VALUES
     false
   );
 
-REFRESH MATERIALIZED VIEW analytics.mv_player_season_averages;
+SELECT public.refresh_player_search_caches();
 
 INSERT INTO public.player_projections (
   id,

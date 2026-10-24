@@ -15,9 +15,6 @@ vi.mock('@react-navigation/native', async () => {
 vi.mock('@/lib/players', () => ({
     getAvailableSeasons: vi.fn(() => mocks.pending),
     getPlayer: vi.fn(() => mocks.pending),
-    getPlayerFantasyPoints: vi.fn(() => mocks.pending),
-    getPlayerGameLog: vi.fn(() => mocks.pending),
-    getPlayerSeasonAveragesFromView: vi.fn(() => mocks.pending),
     getPlayerTransactionHistory: vi.fn(() => mocks.pending),
 }))
 vi.mock('@/lib/projections', () => ({ getPlayerProjection: vi.fn(() => mocks.pending) }))

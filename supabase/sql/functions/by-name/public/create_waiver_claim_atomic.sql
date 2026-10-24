@@ -9,7 +9,8 @@ CREATE OR REPLACE FUNCTION public.create_waiver_claim_atomic(
   p_drop_player_id uuid DEFAULT NULL,
   p_user_id uuid DEFAULT NULL,
   p_bid_amount int DEFAULT 0,
-  p_claim_order int DEFAULT NULL
+  p_claim_order int DEFAULT NULL,
+  p_to_ir boolean DEFAULT false
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -183,7 +184,8 @@ BEGIN
     priority_at_submission,
     process_date,
     bid_amount,
-    claim_order
+    claim_order,
+    to_ir
   )
   VALUES (
     p_league_id,
@@ -194,7 +196,8 @@ BEGIN
     v_priority,
     (v_waiver_log.clears_at AT TIME ZONE 'America/New_York')::date,
     v_bid_amount,
-    v_claim_order
+    v_claim_order,
+    COALESCE(p_to_ir, false)
   )
   RETURNING id INTO v_claim_id;
 
