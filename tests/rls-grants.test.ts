@@ -219,7 +219,7 @@ describe('waiver intent oracle closure', () => {
         )
         const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')
         const rosterStatusBody = rosterSource.slice(
-            rosterSource.indexOf('export async function getPlayerRosterStatus'),
+            rosterSource.indexOf('async function readPlayerRosterContext'),
             rosterSource.indexOf('export async function addFreeAgent'),
         )
 

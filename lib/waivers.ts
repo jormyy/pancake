@@ -152,7 +152,7 @@ export async function getMyWaiverClaims(
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return []
 
-    const { data, error } = await supabase
+    const claimsQuery = () => supabase
         .from('waiver_claims')
         .select(`
             id,
@@ -171,16 +171,19 @@ export async function getMyWaiverClaims(
         `)
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
-        .in('status', ['pending', 'succeeded', 'failed_priority', 'failed_roster'])
-        .order('claim_order', { ascending: true })
-        .order('submitted_at', { ascending: false })
-        .limit(20)
-
-    if (error) throw error
-
-    const pendingPlayerIds = ((data ?? []) as WaiverClaimQueryRow[]).filter((row) => row.status === 'pending').map((row) => row.player_id)
+    const [pending, resolved] = await Promise.all([
+        claimsQuery().eq('status', 'pending')
+            .order('claim_order', { ascending: true })
+            .order('submitted_at', { ascending: true }),
+        claimsQuery().in('status', ['succeeded', 'failed_priority', 'failed_roster'])
+            .order('submitted_at', { ascending: false }).limit(20),
+    ])
+    if (pending.error) throw pending.error
+    if (resolved.error) throw resolved.error
+    const data = [...(pending.data ?? []), ...(resolved.data ?? [])] as WaiverClaimQueryRow[]
+    const pendingPlayerIds = (pending.data ?? []).map(row => row.player_id)
     const clearsAt = pendingPlayerIds.length ? await getWaiverClearsAtForSeason(leagueId, seasonId, pendingPlayerIds) : new Map<string, string>()
-    return ((data ?? []) as WaiverClaimQueryRow[]).map((row) => ({
+    return data.map((row) => ({
         id: row.id,
         playerId: row.player_id,
         clearsAt: clearsAt.get(row.player_id) ?? null,

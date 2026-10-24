@@ -1,4 +1,20 @@
 import type { RosterSlotPlan } from '@/lib/lineup'
+import type { RosterPlayer } from '@/lib/roster'
+
+const PLAYER_POSITION_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE']
+
+function rosterSlotRank(player: RosterPlayer): number {
+    const eligible = player.players.eligible_positions?.length
+        ? player.players.eligible_positions
+        : player.players.position ? [player.players.position] : []
+    const rank = PLAYER_POSITION_ORDER.findIndex(slot => eligible.includes(slot))
+    return rank === -1 ? PLAYER_POSITION_ORDER.length : rank
+}
+
+export function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
+    return rosterSlotRank(a) - rosterSlotRank(b)
+        || (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
+}
 
 // Display order for starting slots; league templates arrive unordered.
 const STARTER_SLOT_ORDER = ['PG', 'SG', 'G', 'SF', 'PF', 'F', 'C', 'UTIL']

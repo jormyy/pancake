@@ -65,11 +65,11 @@ export default function PlayerDetailScreen() {
         initialSettled,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading, seasonError,
-        gameLog, hasMoreGames, gameLogLoading, loadMoreGames, gameLogError,
+        gameLog, hasMoreGames, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
         transactions, transactionsError,
-    } = usePlayerScreenData(id, leagueId, { ownerKey: ownerIdentity ?? undefined, authorized: membershipValidated, scoringSettings: currentLeague?.scoring_settings })
+    } = usePlayerScreenData(id, leagueId, { ownerKey: current?.id ? JSON.stringify([sessionOwner(), current.id]) : undefined, authorized: membershipValidated, scoringSettings: currentLeague?.scoring_settings })
 
     const isCurrent = useCallback((generation: number, identity: string | null) =>
         generationRef.current === generation && activeOwnerRef.current === identity && isCurrentRead(readEpoch), [isCurrentRead, readEpoch])
@@ -206,7 +206,6 @@ export default function PlayerDetailScreen() {
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
         seasonError ? 'Season stats could not refresh.' : null,
-        gameLogError ? 'Game log could not load more games.' : null,
         projectionError ? 'Projection could not refresh.' : null,
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
@@ -242,7 +241,7 @@ export default function PlayerDetailScreen() {
             loading={seasonLoading}
             fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
             hasMore={hasMoreGames}
-            loadingMore={gameLogLoading}
+            loadingMore={false}
             onLoadMore={loadMoreGames}
         />
     )

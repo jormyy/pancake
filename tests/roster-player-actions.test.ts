@@ -7,7 +7,7 @@ import type { RosterPlayer } from '@/lib/roster'
 
 vi.mock('@/lib/format', () => ({ formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
-vi.mock('@/lib/roster', () => ({ isIREligible: () => true, isTaxiEligible: () => true }))
+vi.mock('@/lib/roster', () => ({ isIREligible: () => true }))
 vi.mock('@/lib/trades', () => ({}))
 vi.mock('@/lib/waivers', () => ({}))
 
@@ -23,12 +23,11 @@ describe('RosterPlayerItem actions', () => {
     it('keeps row navigation and roster actions as named sibling controls', async () => {
         const onPress = vi.fn()
         const onToggleIR = vi.fn()
-        const onToggleTaxi = vi.fn()
         let renderer!: ReactTestRenderer
         await act(async () => {
             renderer = create(React.createElement(RosterPlayerItem, {
                 item, slotType: 'BE', togglingId: null, taxiingId: null, droppingId: null,
-                taxiSlotsAvailable: true, onPress, onLongPress: vi.fn(), onToggleIR, onToggleTaxi,
+                onPress, onLongPress: vi.fn(), onToggleIR,
             }))
         })
         const open = renderer.root.findByProps({ accessibilityLabel: 'Open Test Player' })
@@ -39,7 +38,6 @@ describe('RosterPlayerItem actions', () => {
         await act(async () => { ir.props.onPress() })
         expect(onToggleIR).toHaveBeenCalledWith(item)
         expect(onPress).not.toHaveBeenCalled()
-        expect(onToggleTaxi).not.toHaveBeenCalled()
         expect(onPress).not.toHaveBeenCalled()
         await act(async () => { open.props.onPress() })
         expect(onPress).toHaveBeenCalledOnce()

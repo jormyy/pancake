@@ -6,6 +6,13 @@ const query = vi.hoisted(() => ({ select: vi.fn(), eq: vi.fn(), like: vi.fn(), o
 vi.mock('@/lib/supabase', () => ({ supabase: { from: query.from } }))
 
 describe('one season stat source', () => {
+    it.each([
+        ['LAL', 'vs BOS'], ['BOS', '@ LAL'], ['DEN', 'BOS @ LAL'], [null, 'BOS @ LAL'],
+    ])('labels the matchup for current team %s without guessing past ownership', (team, opponent) => {
+        const result = summarizePlayerSeason([seasonLine()], team, null)
+        expect(result.games[0].opponent).toBe(opponent)
+    })
+
     it('uses one bounded player query with live status and the same regular-season scope as scoring', async () => {
         const chain = { select: query.select, eq: query.eq, like: query.like, order: query.order, limit: query.limit }
         query.from.mockReturnValue(chain)

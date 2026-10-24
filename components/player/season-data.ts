@@ -36,7 +36,7 @@ export function summarizePlayerSeason(lines: PlayerSeasonLine[], team: string | 
         const isHome = game.home_team === team
         return {
             gameId: row.id, nbaGameId: game.id, gameDate: game.game_date,
-            opponent: isHome ? `vs ${game.away_team}` : `@ ${game.home_team}`, isHome,
+            opponent: isHome ? `vs ${game.away_team}` : game.away_team === team ? `@ ${game.home_team}` : `${game.away_team} @ ${game.home_team}`, isHome,
             live: game.status.toLowerCase().replaceAll('_', '') === 'inprogress', didNotPlay: row.did_not_play,
             minutes: Number(row.minutes_played) || 0, points: row.points ?? 0,
             rebounds: row.rebounds ?? 0, assists: row.assists ?? 0, steals: row.steals ?? 0,

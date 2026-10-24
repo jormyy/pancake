@@ -14,7 +14,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
-vi.mock('@/lib/roster', () => ({ isIREligible: () => false, isTaxiEligible: () => false }))
+vi.mock('@/lib/roster', () => ({ isIREligible: () => false }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 

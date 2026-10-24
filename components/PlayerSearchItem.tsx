@@ -41,7 +41,6 @@ function PlayerSearchItemImpl({
     waiverIds: Set<string>
     waiverClearsAt?: string | null
     claimPending?: boolean
-    addToIR?: boolean
     isAdding: boolean
     addDisabled?: boolean
     showStats?: boolean

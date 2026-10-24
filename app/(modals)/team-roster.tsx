@@ -13,6 +13,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import { listenForLeagueChanges } from '@/lib/league-changes'
 import { getRoster, RosterPlayer } from '@/lib/roster'
+import { compareRosterBySlot } from '@/lib/roster-slots'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
@@ -20,29 +21,12 @@ import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } f
 import { colors, controlSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
 
-const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 const EMPTY_ROSTER: RosterPlayer[] = []
 type TeamRosterCache = { roster: RosterPlayer[]; averages: [string, number][]; stats: [string, RosterAverage][] }
 
 function readRosterResource(scope: string | null) {
     const cached = scope ? readPersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`) : null
     return cached && scope ? { scope, roster: cached.roster, stats: { avgMap: new Map(cached.averages), avgStatsMap: new Map(cached.stats) } } : null
-}
-
-function rosterSlotRank(player: RosterPlayer): number {
-    const eligible = player.players.eligible_positions?.length
-        ? player.players.eligible_positions
-        : player.players.position
-          ? [player.players.position]
-          : []
-    const rank = LINEUP_SLOT_ORDER.findIndex((slot) => eligible.includes(slot))
-    return rank === -1 ? LINEUP_SLOT_ORDER.length : rank
-}
-
-function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
-    const slotCmp = rosterSlotRank(a) - rosterSlotRank(b)
-    if (slotCmp !== 0) return slotCmp
-    return (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
 }
 
 export default function TeamRosterScreen() {

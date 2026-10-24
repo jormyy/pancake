@@ -83,7 +83,6 @@ describe('season dropdown', () => {
 
 describe('player decision summary', () => {
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z')) })
-    const actions = { onAdd: vi.fn(), onDrop: vi.fn(), onClaim: vi.fn(), onSetLineup: vi.fn() }
     it.each([
         [{ status: 'free_agent' as const }, 'Free agent', ['Add Player A']],
         [{ status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, 'On waivers', ['Claim Player A']],
@@ -92,7 +91,9 @@ describe('player decision summary', () => {
     ])('shows roster status and the available actions for %j', async (rosterStatus, status, labels) => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: 'GTD' }), rosterStatus, leagueActive: true,
-            actionLoading: false, compact: true, ...actions,
+            compact: true,
+            action: labels[0] ? { label: 'Action', accessibilityLabel: labels[0], onPress: vi.fn(), disabled: false, busy: false } : null,
+            onDrop: rosterStatus.status === 'mine' ? vi.fn() : undefined,
         }))
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
@@ -105,7 +106,7 @@ describe('player decision summary', () => {
     it('keeps rank and experience visible without layout measurements', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
-            rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true, ...actions,
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
         expect(screen.root.findAllByType(type('Badge')).map(node => node.props.label)).toEqual(['GTD', 'Dynasty #8', 'Yr 7'])
         expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
@@ -143,9 +144,9 @@ describe('player decision summary', () => {
         const onAdd = vi.fn()
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: injury }), rosterStatus: status, leagueActive: true,
-            actionLoading: false, compact: true, ...actions, onAdd,
-            addBlockedReason: status.status === 'free_agent' ? 'Add limit reached' : null,
-            addBlockedCaption: 'Adds 7/7',
+            compact: true, onDrop: status.status === 'mine' ? vi.fn() : undefined,
+            action: { label: status.status === 'on_waivers' ? 'Claim' : status.status === 'mine' ? 'Lineup' : 'Add',
+                onPress: onAdd, disabled: false, busy: false, blockedReason: status.status === 'free_agent' ? 'Add limit reached' : null },
         }))
         const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')!
         const roster = screen.root.findAllByType(type('Text')).find(node => node.props.children === label)!
@@ -155,8 +156,6 @@ describe('player decision summary', () => {
         const button = screen.root.findByProps({ accessibilityLabel: action })
         expect(name.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
         if (status.status === 'free_agent') {
-            const caption = screen.root.findByProps({ children: 'Adds 7/7' })
-            expect(caption.parent === name.parent?.parent).toBe(true)
             await act(async () => button.props.onPress())
             expect(onAdd).toHaveBeenCalledOnce()
         }
@@ -165,7 +164,7 @@ describe('player decision summary', () => {
     it('puts injury before the other metadata on narrow screens', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'Out' }),
-            rosterStatus: { status: 'free_agent' }, leagueActive: true, actionLoading: false, compact: true, ...actions,
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
         const injury = screen.root.findAllByType(type('Badge')).find(node => node.props.label === 'Out')!
         const core = injury.parent!

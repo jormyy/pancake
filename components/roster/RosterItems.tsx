@@ -236,13 +236,11 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     togglingId: string | null
     taxiingId: string | null
     droppingId: string | null
-    taxiSlotsAvailable: boolean
     avgFpts?: number
     avgMinutes?: number | null
     onPress: (item: RosterPlayer) => void
     onLongPress: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
-    onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const player = item.players
     const positions = getEligiblePositions(player)
@@ -469,8 +467,6 @@ const styles = StyleSheet.create({
     },
     irButtonActive: { backgroundColor: colors.danger, borderColor: colors.danger },
     taxiButtonActive: { backgroundColor: colors.info, borderColor: colors.info },
-    taxiButtonOutline: { borderColor: colors.info },
-    taxiButtonOutlineText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.info },
     actionButtonText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.bold, color: colors.textSecondary },
     actionButtonTextActive: { color: colors.onAccent },
 

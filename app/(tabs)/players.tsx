@@ -34,7 +34,7 @@ import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-stat
 import { todayET } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
-import { addLimitSummary, canAddToIR } from '@/lib/pickup'
+import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
@@ -252,6 +252,7 @@ function PlayerSearchSection() {
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
             ownerKey: JSON.stringify([user?.id, current?.id, leagueId]),
+            initialTotals: search.results.totalsSnapshot,
         })
     const retrySearch = search.results.retry
     const refreshPlayers = useCallback(() => {
@@ -314,7 +315,6 @@ function PlayerSearchSection() {
             waiverIds={waiverIds}
             waiverClearsAt={playerSupportForLeague?.waiverClearsAt.get(item.id) ?? null}
             claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
-            addToIR={currentLeague?.status !== 'offseason' && canAddToIR(item.injury_status, playerSupportForLeague?.roster ?? [], currentLeague?.ir_slots ?? 2)}
             isAdding={quickAdd.adding === item.id}
             addDisabled={!online || availabilityUpdating}
             showStats={showStatTable}
@@ -325,7 +325,7 @@ function PlayerSearchSection() {
             onPress={handleOpenPlayer}
             onPrepare={handlePreparePlayer}
         />
-    ), [currentLeague?.status, currentLeague?.ir_slots, playerSupportForLeague?.roster, current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
+    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
