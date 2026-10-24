@@ -84,4 +84,26 @@ test('opening recovery retains season one and skips completed preseason work', (
   assert.throws(()=>recoveryEvidence(bad(c=>{c.evidence.secondCalendar.passed=false}),receipt,profile,next))
   assert.throws(()=>recoveryEvidence(bad(c=>{c.context.skippedWeeks=[]}),receipt,profile,next))
   assert.throws(()=>recoveryEvidence(snapshot,{...receipt,recovery:{retainedReceipts:[]}},profile,next),/preceding date/)
+  const settled=structuredClone(snapshot)
+  settled.cursor.stage='real-second-season'
+  settled.cursor.date='2025-10-23'
+  settled.cursor.clock=Date.parse('2025-10-23T09:00Z')
+  settled.clock.simMs=settled.cursor.clock
+  settled.cursor.guard=JSON.stringify({clock:settled.cursor.clock,unfinishedWorkers:0,cronActive:'off',cronJobs:0})
+  settled.cursor.evidence.realSecondProgress={days:['2025-10-21','2025-10-22'].map(date=>({date,finals:{passed:true,games:2},coverage:{checks:2},skippedWeek:{passed:true},realInputs:{date}})),checked:[]}
+  const latest={...receipt,nextSeasonProgress:settled.cursor.evidence.realSecondProgress}
+  const nextProfile={...next,end:'2026-04-12'}
+  const continued=recoveryEvidence(settled,latest,profile,nextProfile)
+  assert.equal(continued.recovery.retainedSecondDates,2)
+  assert.equal(continued.recovery.retainedGames,20)
+  assert.equal(continued.featureCheckpoints.length,2)
+  const incomplete=structuredClone(settled)
+  incomplete.cursor.evidence.realSecondProgress.days.pop()
+  assert.throws(()=>recoveryEvidence(incomplete,latest,profile,nextProfile),/preceding second-season/)
+  const wrong=structuredClone(latest)
+  wrong.nextSeasonProgress.days[1].finals.games=3
+  assert.throws(()=>recoveryEvidence(settled,wrong,profile,nextProfile),/observed daily/)
+  const unchecked=structuredClone(settled)
+  unchecked.cursor.evidence.realSecondProgress.days[1].finals.passed=false
+  assert.throws(()=>recoveryEvidence(unchecked,{...latest,nextSeasonProgress:unchecked.cursor.evidence.realSecondProgress},profile,nextProfile),/completed daily/)
 })

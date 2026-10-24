@@ -4,21 +4,32 @@ import { shiftDay } from './season-model.mjs'
 
 export const draftRecoveryFields = ['seasonEnd', 'realDraftBoard', 'rookieAutoPick', 'rookiePause', 'draftPushes', 'pickAllocation', 'offseasonTrade', 'previousChampion', 'realRookieActivation']
 export const openingRecoveryFields = [...draftRecoveryFields,'realSeasonActivation','skippedWeekSettings','secondCalendar']
+export const realSecondRecoveryFields = [...openingRecoveryFields,'realSecondProgress','realRookieActions','rookieActionDates','waiverWeekResets']
 
 export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null) {
   const cursor = snapshot.cursor
   const postDraft = cursor.stage === 'post-draft'
   const opening = cursor.stage === 'next-season-start'
-  const transition = postDraft || opening
+  const realSecond = cursor.stage === 'real-second-season'
+  const transition = postDraft || opening || realSecond
   assert.equal(snapshot.clock.rate, 0, 'Recovery requires a paused checkpoint')
   assert.equal(snapshot.quiescence.workers?.length ?? 0, 0)
   assert.equal(snapshot.quiescence.polls > 0, true, 'Recovery requires an observed worker drain')
   assert.equal(cursor.clock, snapshot.clock.simMs ?? snapshot.clock.sim_ms)
   if (transition) {
-    if (opening) {
-      assert.equal(cursor.date,nextProfile?.start,'Opening recovery starts on the next real opening date')
+    if (opening || realSecond) {
+      if (opening) assert.equal(cursor.date,nextProfile?.start,'Opening recovery starts on the next real opening date')
       assert.equal(cursor.context.firstDate,nextProfile.start)
-      assert.ok(cursor.clock>=Date.parse(`${cursor.date}T14:00:00Z`)&&cursor.clock<Date.parse(`${cursor.date}T14:02:00Z`),'Opening recovery stays inside the drained morning boundary')
+      const hour = realSecond ? '09' : '14'
+      assert.ok(cursor.clock>=Date.parse(`${cursor.date}T${hour}:00:00Z`)&&cursor.clock<Date.parse(`${cursor.date}T${hour}:02:00Z`),'Recovery stays inside its drained morning boundary')
+      if (realSecond) {
+        assert.ok(cursor.date > nextProfile.start && cursor.date <= shiftDay(nextProfile.end, 1))
+        const progress = cursor.evidence.realSecondProgress
+        assert.deepEqual(progress.days.map(row => row.date), dates(nextProfile.start, cursor.date).slice(0, -1), 'Real recovery retains every preceding second-season date')
+        assert.deepEqual(progress.days, receipt.nextSeasonProgress.days, 'Real recovery uses the observed daily receipts')
+        assert.ok(progress.days.every(row => row.finals.passed && row.coverage && row.skippedWeek.passed && row.realInputs.date === row.date), 'Real recovery requires completed daily assertions')
+        assert.equal(new Set(progress.checked).size, progress.checked.length)
+      }
       assert.equal(cursor.evidence?.secondCalendar?.passed,true)
       assert.ok(cursor.evidence?.realSeasonActivation?.at)
       assert.deepEqual(cursor.context.skippedWeeks,[1])
@@ -42,7 +53,7 @@ export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null)
     assert.ok(cursor.date >= profile.start && cursor.date <= profile.end)
     assert.ok(cursor.clock < Date.parse(`${cursor.date}T23:59:59Z`), 'Recovery cursor cannot pass its first date')
   }
-  const retainedEnd=opening?shiftDay(profile.end,1):cursor.date
+  const retainedEnd=opening||realSecond?shiftDay(profile.end,1):cursor.date
   const days = [...(receipt.recovery?.retainedReceipts ?? []), ...receipt.days].filter(day => day.date < retainedEnd)
   assert.deepEqual(days.map(day => day.date), dates(profile.start, retainedEnd).slice(0, -1), 'Recovery requires every preceding date receipt')
   assert.ok(days.every(day => day.finals.passed || day.finals.games === 0), 'Recovery requires verified preceding finals')
@@ -51,8 +62,8 @@ export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null)
   const before = row => Date.parse(row.businessAt) <= cursor.clock
   return {
     ...Object.fromEntries(['firstCalendar', 'champion', 'pendingWaiversAtChampion', 'tradingReopened', 'rolloverRecovery', 'rolloverHistory', 'waiverRollover', 'sourceUnavailable'].filter(key => receipt[key] !== undefined).map(key => [key, receipt[key]])),
-    ...(transition ? Object.fromEntries((opening?openingRecoveryFields:draftRecoveryFields).map(key => [key, cursor.evidence[key]])) : {}),
-    ...(opening?{interruptions:[...(receipt.interruptions??[]),{phase:receipt.phase,failure:receipt.failure??null,failures:receipt.failures??[],source:receipt.source?.application,dumpSha256:snapshot.dumpSha256}]}:{}),
+    ...(transition ? Object.fromEntries((realSecond?realSecondRecoveryFields:opening?openingRecoveryFields:draftRecoveryFields).map(key => [key, cursor.evidence[key]])) : {}),
+    ...(opening||realSecond?{interruptions:[...(receipt.interruptions??[]),{phase:receipt.phase,failure:receipt.failure??null,failures:receipt.failures??[],source:receipt.source?.application,dumpSha256:snapshot.dumpSha256}]}:{}),
     featureCheckpoints: (receipt.featureCheckpoints ?? []).filter(row=>before(row)&&(!opening||row.year<nextProfile.year)),
     playersEvidence: (receipt.playersEvidence ?? []).filter(before),
     realInputChecks: (receipt.realInputChecks ?? []).filter(row => row.date < cursor.date),
@@ -61,7 +72,7 @@ export function recoveryEvidence(snapshot, receipt, profile, nextProfile = null)
     allStarLimits: (receipt.allStarLimits ?? []).filter(row => row.checked < cursor.date),
     realtime: receipt.realtime,
     retainedRealtime: !!receipt.realtime,
-    recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0), retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: transition ? cursor.guard : null, ...(opening?{interruptedFeatureCheckpoints:(receipt.featureCheckpoints??[]).filter(row=>row.year===nextProfile.year)}:{}) },
+    recovery: { date: cursor.date, clock: cursor.clock, stage: cursor.stage ?? null, retainedDates: days.length, retainedGames: days.reduce((sum, day) => sum + day.finals.games, 0)+(realSecond?cursor.evidence.realSecondProgress.days.reduce((sum,day)=>sum+day.finals.games,0):0), retainedSecondDates: realSecond?cursor.evidence.realSecondProgress.days.length:0, retainedReceipts: days.map(({ date, finals }) => ({ date, finals })), dumpSha256: snapshot.dumpSha256, guard: transition ? cursor.guard : null, ...(opening?{interruptedFeatureCheckpoints:(receipt.featureCheckpoints??[]).filter(row=>row.year===nextProfile.year)}:{}) },
   }
 }
 

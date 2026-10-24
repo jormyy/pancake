@@ -16,7 +16,7 @@ export function snapshotRoot() {
 }
 
 export function validSnapshotName(name){
-  return segmentNames.includes(name)||/^season-\d{4}-automatic-champion$/.test(name)||/^recovery-\d{4}-\d{2}-\d{2}$/.test(name)
+  return segmentNames.includes(name)||/^season-\d{4}-automatic-champion$/.test(name)||/^(recovery|real-second)-\d{4}-\d{2}-\d{2}$/.test(name)
 }
 
 async function snapshotActivity() {

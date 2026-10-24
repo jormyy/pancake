@@ -27,7 +27,7 @@ assert.ok(through>=plan.seasons[1].start&&through<=plan.seasons[1].end)
 const evidence = recoveryEvidence(snapshot, receipt, plan.seasons[0], plan.seasons[1])
 assert.equal((await sourceEvidence()).committedHarness, true, 'Recovery requires committed harness source')
 process.env.SUPABASE_DB_URL = localKeys().DB_URL
-if (['post-draft','next-season-start'].includes(snapshot.cursor.stage)) {
+if (['post-draft','next-season-start','real-second-season'].includes(snapshot.cursor.stage)) {
   assert.ok(!values['refresh-players'], 'A completed draft recovery cannot repeat player setup')
   assert.equal(await sql(postDraftStateQuery()), snapshot.cursor.guard, 'Stored transition state must match the verified recovery snapshot')
 }

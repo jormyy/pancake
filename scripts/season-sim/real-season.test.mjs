@@ -3,6 +3,14 @@ import test from 'node:test'
 import * as realSeason from './real-season.mjs'
 const {checkRealCoverage,realSeasonDay}=realSeason
 
+test('a real continuation never plans already verified dates', () => {
+  const profile={start:'2025-10-21'}
+  const retained=[{date:'2025-10-21'},{date:'2025-10-22'}]
+  assert.deepEqual(realSeason.realSeasonDates(profile,'2025-10-24','2025-10-23',retained),['2025-10-23','2025-10-24'])
+  assert.throws(()=>realSeason.realSeasonDates(profile,'2025-10-24','2025-10-23',retained.slice(1)),/each completed/)
+  assert.throws(()=>realSeason.realSeasonDates(profile,'2025-10-24','2025-10-22',retained),/each completed/)
+})
+
 test('the first real morning preserves the clock advanced by snapshot workers', async () => {
   let clock=Date.parse('2025-10-21T14:00:11.267Z')
   const visited=[]

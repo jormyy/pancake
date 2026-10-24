@@ -421,6 +421,11 @@ This keeps a long next-season segment from retaining an expired startup token.
 Next-season dates also run the historical delivery-coverage check, including required regulation-quarter snapshots.
 The daily record stores that coverage with its live-score and weekly checks.
 
+Each verified real date saves a paused `real-second-YYYY-MM-DD` checkpoint for the following morning.
+Recovery checks the stored state and all preceding daily receipts before it starts that date.
+It retains completed NBA dates, fantasy actions, and draft ownership without repeating them.
+Retained delivery records support past coverage; a new Realtime subscription measures subsequent score changes.
+
 Before each next-season waiver batch, genuine free-agent adds maintain enough NBA roster depth for scoring checks.
 These adds obey the weekly limit and enter the independent transaction ledger.
 The scenario drops NBA players and retains an NBA player for every manager.
@@ -565,6 +570,11 @@ Daily raw-point and weekly matchup checks also apply to those games.
 The real draft board identifies rookies independently by NBA person ID and draft number.
 Each raw rookie box appearance requires one canonical player, one stat row, and independently correct fantasy points.
 A selected rookie must keep its original draft player row.
+Reviewed aliases join VJ/Valdez Edgecombe and Ace/Airious Bailey across the draft and provider feeds.
+The NBA profiles confirm [Edgecombe's person ID and pick](https://www.nba.com/player/1642845/vj-edgecombe) and [Bailey's person ID and pick](https://www.nba.com/player/1642846/ace-bailey).
+The migration keeps each drafted row and moves the duplicate's history through the standard merge function.
+It rebuilds the name index and rejects conflicting candidates.
+
 Started and benched rookie preferences must reach locked lineups.
 A genuine midseason fantasy trade must produce later nonzero starter points for the new owner.
 A genuine drop and waiver re-add must keep the player identity.

@@ -46,7 +46,12 @@ export async function realSeasonMorning(move,date,current){
   await move(Math.max(Date.parse(`${date}T14:00:00Z`),current))
 }
 
-export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe, { afterRookieActivation = false, afterOpening = false } = {}) {
+export function realSeasonDates(profile, through, startDate, retained) {
+  assert.deepEqual(retained.map(row=>row.date), dates(profile.start,startDate).slice(0,-1), 'Continuation retains each completed real date exactly once')
+  return dates(startDate,through)
+}
+
+export async function runRealSeason(c, plan, move, report, checkpoint, snapshot, liveCoverage, changeProbe, { afterRookieActivation = false, afterOpening = false, startDate = plan.seasons[1].start } = {}) {
   const profile = plan.seasons[1], oldSeason = c.previousSeasonId
   const through=report.secondSeasonThrough??profile.end
   assert.ok(through>=profile.start&&through<=profile.end,'The cutoff belongs to the real season')
@@ -92,14 +97,15 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     assert.equal(c.firstDate,profile.start)
     assert.equal(report.secondCalendar.passed,true)
     report.secondCalendar=await assertTwoCalendar(c,profile)
-    await captureSeasonFeatures(c,profile,'opening-recovery',report)
-    await capturePlayers(c,'opening-recovery-before-played',report)
+    await captureSeasonFeatures(c,profile,startDate===profile.start?'opening-recovery':'date-recovery',report)
+    await capturePlayers(c,startDate===profile.start?'opening-recovery-before-played':'date-recovery-pool',report)
   }
   const store = await fixtureStore(fixtureDirectory), games = JSON.parse(await readFile(path.join(fixtureDirectory,'games.json'),'utf8')).games
-  const days = [], checked = [], began = Date.now()
+  const days = [...(report.realSecondProgress?.days ?? [])], checked = [...(report.realSecondProgress?.checked ?? [])], began = Date.now()
   report.rookieNbaMoves = rookieMoves(plan.draft.rookies, await rookieListings(plan.draft.rookies, games.filter(row => row.id.startsWith(profile.prefix)), id => store.json(`boxscore-${id}`)), profile.year)
-  report.nextSeasonProgress = { beganAt: new Date(began).toISOString(), days, provenance: 'REAL-RAW final boxes and PBP; REAL-DERIVED historical live snapshots' }
-  for (const date of dates(profile.start,through)) {
+  report.nextSeasonProgress = { beganAt: new Date(began).toISOString(), days, checked, provenance: 'REAL-RAW final boxes and PBP; REAL-DERIVED historical live snapshots' }
+  report.realSecondProgress = { days, checked }
+  for (const date of realSeasonDates(profile,through,startDate,days)) {
     const dayBegan = Date.now(), today = games.filter(row => row.date === date), week = realSeasonDay(profile,date,today)
     const day = { date, provenance: { finals:'REAL-RAW',live:'REAL-DERIVED',actions:'SYNTHETIC',postponementAvailability:'SYNTHETIC' } }, skipped = c.skippedWeeks.includes(week?.week_number)
     await checkpoint(`${date}:real-second-season-morning`)
@@ -145,6 +151,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     days.push(day)
     console.log(JSON.stringify({realSeasonDate:date,games:day.finals.games,wallSeconds:day.wallSeconds}))
     await checkpoint(`${date}:real-second-season-verified`)
+    if (next <= through) await snapshot(`real-second-${next}`,next,dates(next,through).length)
   }
   if(!bounded){
     const ending = { actions: {}, phaseTimings: [], featureCheckpoints:report.featureCheckpoints }
