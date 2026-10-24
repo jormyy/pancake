@@ -99,6 +99,9 @@ team_next_games AS MATERIALIZED (
     JOIN public.nba_games ng
       ON ng.season_year = p_season_year
      AND ng.game_date >= args.game_date
+     AND ng.status NOT IN ('InProgress', 'Final')
+     AND (ng.game_time IS NULL OR ng.game_time > now())
+     AND (ng.started_at IS NULL OR ng.started_at > now())
      AND public.is_regular_season_game_id(ng.nba_game_id)
      AND (ng.home_team = teams.nba_team OR ng.away_team = teams.nba_team)
     ORDER BY ng.game_date ASC, ng.game_time ASC NULLS LAST, ng.id ASC

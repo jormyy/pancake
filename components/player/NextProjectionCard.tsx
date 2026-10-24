@@ -1,33 +1,64 @@
-import { ProjectionCard } from '@/components/projections/ProjectionCard'
-import { Text } from 'react-native'
-import { spacing, textStyles } from '@/constants/tokens'
-import type { LeagueProjectionRow } from '@/lib/projections'
+import { useEffect, useState } from 'react'
+import { View, Text, StyleSheet } from 'react-native'
+import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { formatProjectionGame, projectionFreshnessLabel, type LeagueProjectionRow } from '@/lib/projections'
+import { todayET } from '@/lib/shared/dates'
+import type { PlayerGame } from './season-data'
 
-export function NextProjectionCard({ projection }: { projection: LeagueProjectionRow }) {
-    const time = projection.next_game_time
-        ? new Date(projection.next_game_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-        : null
-    const nextGame = {
-        ...projection,
-        projection_date: projection.next_game_date ?? projection.projection_date,
-        projection_source_label: [projection.projection_source_label, projection.projection_is_fresh === false ? 'Outdated' : null].filter(Boolean).join(' · '),
-        projection_view: '',
-        projection_minutes: null,
-        projection_points: null,
-        projection_rebounds: null,
-        projection_assists: null,
-        projection_steals: null,
-        projection_blocks: null,
-        projection_three_pointers_made: null,
-        projection_turnovers: null,
-    }
+type Props = {
+    projection: LeagueProjectionRow | null
+    loading?: boolean
+    liveGame?: PlayerGame | null
+    liveFantasyPoints?: number | null
+}
 
+export function NextProjectionCard({ projection, loading = false, liveGame, liveFantasyPoints }: Props) {
+    const activity = useBrowserReadActivity()
+    const [, updateTime] = useState(0)
+    const tipoff = projection?.next_game_time ? new Date(projection.next_game_time).getTime() : null
+    useEffect(() => {
+        if (!activity.active || tipoff == null || !Number.isFinite(tipoff)) return
+        const delay = tipoff - Date.now()
+        if (delay <= 0 || delay > 2_147_483_647) return
+        const timer = setTimeout(() => updateTime(value => value + 1), delay)
+        return () => clearTimeout(timer)
+    }, [tipoff, activity.active, activity.revision])
+    const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
+        ? tipoff > Date.now() : projection.next_game_date > todayET())
+    const next = unstarted ? projection : null
+    const time = next?.next_game_time ? new Date(next.next_game_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+    const meta = next ? [
+        formatProjectionGame({ ...next, projection_date: next.next_game_date }),
+        next.projection_status, next.projection_source_label,
+        next.projection_is_fresh === false ? 'Outdated' : null,
+        projectionFreshnessLabel(next.projection_fetched_at),
+    ].filter(Boolean).join(' · ') : loading ? 'Loading next game…' : 'No upcoming game available.'
     return (
-        <ProjectionCard
-            projection={nextGame}
-            title="Next game projection"
-            footer={time ? <Text style={textStyles.meta}>Tipoff {time}</Text> : null}
-            style={{ padding: spacing.md, gap: 0 }}
-        />
+        <View style={styles.card} aria-busy={loading}>
+            <View style={styles.row}>
+                <View style={styles.copy}>
+                    <Text style={textStyles.sectionLabel}>Next game projection</Text>
+                    <Text style={styles.meta} numberOfLines={2}>{meta}</Text>
+                </View>
+                <View style={styles.scoreBox}>
+                    <Text style={styles.score}>{next?.projection_fantasy_points != null ? next.projection_fantasy_points.toFixed(1) : '—'}</Text>
+                    <Text style={textStyles.meta}>FP</Text>
+                </View>
+            </View>
+            <Text style={[styles.note, liveGame && styles.live]} numberOfLines={1}>{liveGame
+                ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far` : time ? `Tipoff ${time}` : ' '}</Text>
+        </View>
     )
 }
+
+const styles = StyleSheet.create({
+    card: { height: 112, padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous', justifyContent: 'space-between' },
+    row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    copy: { flex: 1, minWidth: 0 },
+    meta: { ...textStyles.meta, marginTop: spacing.xs, minHeight: 32 },
+    scoreBox: { alignItems: 'flex-end', minWidth: 64 },
+    score: { fontSize: fontSize['2xl'], fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
+    note: { ...textStyles.meta, height: 18 },
+    live: { ...textStyles.meta, color: colors.success, fontWeight: fontWeight.semibold, height: 18 },
+})
