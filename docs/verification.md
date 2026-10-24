@@ -100,6 +100,13 @@ The [migration history](production-migration-history.md#candidate-migrations) re
 The combined bounded-season candidate and the attested range both contain 494 migrations.
 Release approval permits the existing workflow to run; it does not bypass an attestation failure.
 
+The matchup client first requests SQL-owned schedule generation.
+Schema 431 requires a complete legacy payload, so that exact SQL error triggers one compatible retry.
+Other errors propagate, and SQL still checks saved settings and started schedules.
+Release shards omit the single matchup used by browser latency fixtures.
+The soak generates its complete schedule through the guarded API after loading the calendar.
+Ordinary browser seeds retain their latency matchup.
+
 ## Sleeper projections and weekly cleanup
 
 Use an isolated local Supabase project and ports. Restore the normal config before handoff.
