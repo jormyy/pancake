@@ -94,7 +94,6 @@ export function useLeagueScreenState() {
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid || !currentDraftKey) return
-        const refreshDraftBoard = debounceRealtimeRefresh(() => { invalidateTab('draftBoard') })
         const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
         const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
         const draftFilter = `draft_id=in.(${currentDraftKey})`
@@ -102,10 +101,6 @@ export function useLeagueScreenState() {
             { table: 'draft_room_members', filter: draftFilter, onChange: () => {
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
-            } },
-            { table: 'snake_draft_picks', filter: draftFilter, onChange: () => {
-                refreshDraftBoard.trigger()
-                refreshDraftState.trigger()
             } },
         ]
         const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
@@ -120,7 +115,6 @@ export function useLeagueScreenState() {
         return () => reportRealtimeCleanup(
             'league screen drafts',
             disposeTableChangeSubscription(channel, [
-                refreshDraftBoard,
                 refreshMockRooms,
                 refreshDraftState,
             ]),

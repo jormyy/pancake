@@ -74,11 +74,6 @@ async function ensureSeasonMatchups(
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: if the new NBA season's week 1 has begun and the
-// league's rookie draft still has not run, start it and complete every pick
-// best-available (auto_pick uses nba_draft_number order). Completing the last
-// pick activates the league, so the season-boundary loop resumes normally.
-// Rookies land on rosters, never silently on waivers.
 const MAX_BACKSTOP_PICKS = 200
 
 async function runRookieDraftBackstop(
@@ -157,6 +152,25 @@ async function runRookieDraftBackstop(
   if (unfilledError) throw unfilledError
   actions.push((unfilled ?? 0) === 0 ? 'rookie-draft-auto-completed' : 'rookie-draft-backstop-partial')
   return actions
+}
+
+async function activateCompletedRookieDraft(leagueId: string, leagueSeasonId: string): Promise<string[]> {
+  const { data: drafts, error } = await supabase.from('drafts')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeasonId)
+    .eq('draft_type', 'snake')
+    .eq('is_mock', false)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  if (!drafts?.length) return []
+  const { data: activated, error: activationError } = await supabase.rpc('activate_rookie_draft_league_atomic', {
+    p_draft_id: drafts[0].id,
+  })
+  if (activationError) throw activationError
+  return activated ? ['rookie-league-activated'] : []
 }
 
 async function setLeagueStatusPlayoffs(leagueId: string): Promise<void> {
@@ -280,7 +294,7 @@ export async function runSeasonBoundary(
       .from('league_seasons')
       .select('id, league_id, leagues!league_seasons_league_id_fkey!inner ( status, playoff_start_week )')
       .eq('is_current', true)
-      .in('leagues.status', ['active', 'playoffs', 'offseason'])
+      .in('leagues.status', ['active', 'playoffs', 'offseason', 'drafting'])
       .order('id')
       .limit(1000)
     if (leagueId) query = query.eq('league_id', leagueId)
@@ -298,11 +312,13 @@ export async function runSeasonBoundary(
   const jobs = (seasons ?? []).flatMap((season) => {
     const league = season.leagues as { status?: string | null; playoff_start_week?: number | null } | null
     const status = league?.status ?? 'setup'
-    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason') return []
+    if (status !== 'active' && status !== 'playoffs' && status !== 'offseason' && status !== 'drafting') return []
     const playoffStartWeek = league?.playoff_start_week ?? DEFAULT_PLAYOFF_START_WEEK
     return [async () => {
       try {
-        const actions = status === 'offseason'
+        const actions = status === 'drafting'
+          ? await activateCompletedRookieDraft(season.league_id, season.id)
+          : status === 'offseason'
           // A commissioner who advanced the season manually leaves the new
           // season without matchups (advanceSeason never generated them).
           // Backfill only when none exist; everything else is left untouched.

@@ -67,10 +67,13 @@ type CreateMockDraftRoomOptions = {
     timerExpiryBehavior?: RookieTimerExpiryBehavior
 }
 
-function roomStatus(row: RoomDraftRow, nowIso: string): MockDraftRoomStatus {
-    if (row.status === 'in_progress' || row.status === 'paused') return 'live'
-    if (row.status === 'completed' || row.status === 'cancelled') return 'completed'
-    if (row.scheduled_at && row.scheduled_at > nowIso) return 'scheduled'
+export function getMockDraftRoomStatus(
+    room: Pick<MockDraftRoom, 'status' | 'scheduledAt'>,
+    now = Date.now(),
+): MockDraftRoomStatus {
+    if (room.status === 'in_progress' || room.status === 'paused') return 'live'
+    if (room.status === 'completed' || room.status === 'cancelled') return 'completed'
+    if (room.scheduledAt && Date.parse(room.scheduledAt) > now) return 'scheduled'
     return 'active'
 }
 
@@ -93,7 +96,7 @@ function mapRoom(row: RoomDraftRow, currentMemberId: string, nowIso: string): Mo
         leagueId: row.league_id,
         draftType: row.draft_type,
         status: row.status,
-        roomStatus: roomStatus(row, nowIso),
+        roomStatus: getMockDraftRoomStatus({ status: row.status, scheduledAt: row.scheduled_at }, Date.parse(nowIso)),
         roomName: defaultRoomName(row),
         scheduledAt: row.scheduled_at,
         startedAt: row.started_at,

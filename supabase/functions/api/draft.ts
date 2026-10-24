@@ -377,7 +377,7 @@ async function makeSnakePick(draftId: string, memberId: string, playerId: string
   })
   if (rpcError) throwDb(rpcError)
 
-  return snakePickResponse(draftId, memberId, playerId, rpcData)
+  return snakePickResponse(memberId, playerId, rpcData)
 }
 
 async function commissionerSnakePick(
@@ -396,11 +396,32 @@ async function commissionerSnakePick(
   })
   if (rpcError) throwDb(rpcError)
 
-  return snakePickResponse(draftId, memberId, playerId, rpcData)
+  const response = await snakePickResponse(memberId, playerId, rpcData)
+  const result = parseSnakePickResult(rpcData)
+  if (!result.is_mock) {
+    const { data: pickedPlayer } = await supabase
+      .from('players')
+      .select('display_name')
+      .eq('id', playerId)
+      .single()
+    await notifyMember(
+      memberId,
+      'Rookie Draft Pick Made',
+      `${pickedPlayer?.display_name ?? 'A player'} has been added to your roster.`,
+      {
+        draftId,
+        playerId,
+        pickId: result.pick.id,
+        overallPick: result.pick.overall_pick,
+        round: result.pick.round,
+      },
+      'draft',
+    ).catch(console.error)
+  }
+  return response
 }
 
 async function snakePickResponse(
-  draftId: string,
   memberId: string,
   playerId: string,
   rpcData: Json | null,
@@ -443,25 +464,6 @@ async function snakePickResponse(
   if (activeError) throwDb(activeError)
   if (taxiError) throwDb(taxiError)
 
-  const { data: pickedPlayer } = await supabase
-    .from('players')
-    .select('display_name')
-    .eq('id', playerId)
-    .single()
-  await notifyMember(
-    memberId,
-    'Rookie Draft Pick Made',
-    `${pickedPlayer?.display_name ?? 'A player'} has been added to your roster.`,
-    {
-      draftId,
-      playerId,
-      pickId: result.pick.id,
-      overallPick: result.pick.overall_pick,
-      round: result.pick.round,
-    },
-    'draft',
-  ).catch(console.error)
-
   return {
     pick: result.pick,
     remaining: result.remaining,
@@ -482,7 +484,7 @@ export async function autoPickBest(draftId: string, memberId: string, toTaxi = f
   if (rpcError) throwDb(rpcError)
 
   const playerId = jsonString(jsonObject(rpcData ?? undefined, 'Auto-pick result').player_id, 'player_id')
-  return snakePickResponse(draftId, memberId, playerId, rpcData)
+  return snakePickResponse(memberId, playerId, rpcData)
 }
 
 async function processExpiredSnakePick(draftId: string, memberId: string): Promise<Record<string, unknown>> {
@@ -542,7 +544,7 @@ async function requireDraftLeagueMember(userId: string, draftId: string): Promis
 }
 
 async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
-  await requireCommissionerForDraft(userId, draftId)
+  await requireDraftLeagueMember(userId, draftId)
   const { data, error } = await supabase.rpc('activate_rookie_draft_league_for_user_atomic', {
     p_draft_id: draftId,
     p_user_id: userId,

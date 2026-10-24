@@ -15,6 +15,7 @@ DECLARE
   v_league_id uuid;
   v_player_id uuid;
   v_member_id uuid;
+  v_rookie_draft_id uuid;
   v_roster_size int;
   v_active_count int;
   v_rows int;
@@ -27,6 +28,18 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Roster player not found'
       USING ERRCODE = 'P0002';
+  END IF;
+
+  SELECT draft.id INTO v_rookie_draft_id
+    FROM drafts AS draft
+    JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
+    JOIN leagues AS league ON league.id = draft.league_id AND league.status = 'drafting'
+   WHERE draft.league_id = v_league_id
+     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status = 'completed'
+   ORDER BY draft.created_at DESC LIMIT 1;
+  IF v_rookie_draft_id IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);
+    PERFORM 1 FROM drafts WHERE id = v_rookie_draft_id FOR UPDATE;
   END IF;
 
   PERFORM pg_advisory_xact_lock(
@@ -144,5 +157,8 @@ BEGIN
     v_rp.player_id,
     CASE WHEN p_to_taxi THEN 'taxi_designate' ELSE 'taxi_return' END
   );
+  IF v_rookie_draft_id IS NOT NULL THEN
+    PERFORM private.activate_rookie_draft_league_if_ready(v_rookie_draft_id);
+  END IF;
 END;
 $function$;

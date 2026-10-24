@@ -7,8 +7,8 @@ export type CommissionerSettingsDraft = {
     taxiRule?: 'drafted_rookies' | 'rookies_or_64_games'
     taxiMaxSeasons?: string
     allowInactiveTrades?: boolean
-    playoffEntrants?: string
-    playoffRoundCount?: string
+    playoffEntrants: string
+    playoffRoundCount: string
     skippedWeeks?: number[]
     scoring: Record<string, string>
     slots: Record<string, number>
@@ -17,7 +17,6 @@ export type CommissionerSettingsDraft = {
     taxiSlots: string
     auctionBudget: string
     playoffWeek: string
-    playoffTotalWeeks: string
     playoffRoundWeeks: string[]
     weeklyAddLimit: string
     waiverMode: WaiverMode
@@ -36,7 +35,8 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
     taxiSlots: '',
     auctionBudget: '',
     playoffWeek: '',
-    playoffTotalWeeks: '',
+    playoffEntrants: '',
+    playoffRoundCount: '',
     playoffRoundWeeks: [],
     weeklyAddLimit: '',
     waiverMode: 'faab',
@@ -54,7 +54,6 @@ const DRAFT_SCALAR_FIELDS = [
     'taxiSlots',
     'auctionBudget',
     'playoffWeek',
-    'playoffTotalWeeks',
     'weeklyAddLimit',
     'waiverMode',
     'faabBudget',
@@ -212,11 +211,10 @@ export function buildCommissionerSettingsChange(
     if (draft.taxiSlots !== baseline.taxiSlots) updates.taxi_slots = integerValue('taxiSlots')
     if (draft.auctionBudget !== baseline.auctionBudget) updates.auction_budget = integerValue('auctionBudget')
     const playoffsChanged = draft.playoffWeek !== baseline.playoffWeek ||
-        draft.playoffTotalWeeks !== baseline.playoffTotalWeeks ||
         draft.playoffRoundWeeks.length !== baseline.playoffRoundWeeks.length ||
         draft.playoffRoundWeeks.some((value, index) => value !== baseline.playoffRoundWeeks[index])
     const flexibleChanged = draft.playoffEntrants !== baseline.playoffEntrants || draft.playoffRoundCount !== baseline.playoffRoundCount || playoffsChanged
-    if (draft.playoffEntrants != null && flexibleChanged) {
+    if (flexibleChanged) {
         const entrants = parseStrictInteger(draft.playoffEntrants)
         const count = parseStrictInteger(draft.playoffRoundCount ?? '')
         const lengths = draft.playoffRoundWeeks.map(parseStrictInteger)
@@ -226,20 +224,6 @@ export function buildCommissionerSettingsChange(
         updates.playoff_entrants = entrants
         updates.playoff_round_lengths = lengths.filter((length): length is number => length != null)
         if (draft.playoffWeek !== baseline.playoffWeek) updates.playoff_start_week = integerValue('playoffWeek')
-    } else if (playoffsChanged) {
-        const total = parseStrictInteger(draft.playoffTotalWeeks)
-        const rounds = draft.playoffRoundWeeks.map(parseStrictInteger)
-        if (total == null || total < 1) return { error: 'Total playoff weeks must be a positive whole number.' }
-        if (rounds.length < 2 || rounds.some((value) => value == null || value < 1)) {
-            return { error: 'Enter positive whole weeks for each playoff round.' }
-        }
-        const lengths = rounds.filter((value): value is number => value != null)
-        if (lengths.reduce((sum, value) => sum + value, 0) !== total) {
-            return { error: 'Round weeks must add up to total playoff weeks.' }
-        }
-        updates.playoff_start_week = integerValue('playoffWeek')
-        updates.playoff_total_weeks = total
-        updates.playoff_round_weeks = lengths
     }
     if (draft.weeklyAddLimit !== baseline.weeklyAddLimit) {
         const weeklyAddLimit = integerValue('weeklyAddLimit')

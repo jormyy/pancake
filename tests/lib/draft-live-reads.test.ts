@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
-import { getDraftState, type DraftState } from '@/lib/draft'
+import { getDraftState, getDraftPollRevision, searchPlayers, type DraftState } from '@/lib/draft'
 
 const boundary = vi.hoisted(() => ({ from: vi.fn(), tables: [] as string[], filters: [] as unknown[][] }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: boundary.from } }))
@@ -15,7 +15,7 @@ const draft = {
 }
 const nomination = {
     id: 'nomination', status: 'open', current_bid_amount: 2, current_bidder_id: 'member', current_bid_to_taxi: false,
-    countdown_expires_at: '2026-10-18T12:01:00Z', winning_member_id: null, final_price: null,
+    countdown_expires_at: '2026-10-18T12:01:00Z', closed_at: null, winning_member_id: null, final_price: null,
     nominating_member_id: 'member', nominated_at: '2026-10-18T12:00:00Z', nomination_order: 3,
     player_id: 'player', players: { display_name: 'Player', nba_team: 'LAL', position: 'PG', nba_id: '1' },
 }
@@ -33,8 +33,12 @@ beforeEach(() => {
     boundary.from.mockImplementation((table: string) => {
         boundary.tables.push(table)
         const chain = {
-            select: vi.fn(() => chain), eq: vi.fn(() => chain), order: vi.fn(() => chain),
-            limit: vi.fn(() => chain), in: vi.fn(() => chain), not: vi.fn(() => chain),
+            select: vi.fn(() => chain), eq: vi.fn((...args: unknown[]) => { boundary.filters.push([table, 'eq', ...args]); return chain }), order: vi.fn(() => chain),
+            limit: vi.fn(() => chain),
+            in: vi.fn((...args: unknown[]) => { boundary.filters.push([table, 'in', ...args]); return chain }),
+            not: vi.fn((...args: unknown[]) => { boundary.filters.push([table, 'not', ...args]); return chain }),
+            is: vi.fn((...args: unknown[]) => { boundary.filters.push([table, 'is', ...args]); return chain }),
+            ilike: vi.fn(() => chain),
             gt: vi.fn((...args: unknown[]) => { boundary.filters.push([table, ...args]); return chain }),
             maybeSingle: async () => ({ data: rows[table][0] ?? null, error: null }),
             then: (resolve: (result: unknown) => unknown) => Promise.resolve({ data: rows[table], error: null }).then(resolve),
@@ -105,4 +109,38 @@ it('never reuses another room snapshot', async () => {
     await getDraftState('draft', previous)
     expect(boundary.tables).toContain('draft_orders')
     expect(boundary.tables).toContain('dynasty_rankings')
+})
+
+it('loads ages for 500 nominations using requests of at most 100 ids', async () => {
+    rows.nominations = Array.from({ length: 500 }, (_, index) => ({
+        ...nomination, id: `nomination-${index}`, player_id: `player-${index}`, status: 'sold', nomination_order: index + 1,
+    })).reverse()
+    rows.dynasty_rankings = Array.from({ length: 500 }, (_, index) => ({ player_id: `player-${index}`, age: index + 20 }))
+    const state = (await getDraftState('draft'))!
+    const ageQueries = boundary.filters.filter(([table, operation]) => table === 'dynasty_rankings' && operation === 'in')
+    expect(ageQueries).toHaveLength(5)
+    expect(ageQueries.every(([, , , ids]) => (ids as string[]).length <= 100)).toBe(true)
+    expect(state.nominations).toHaveLength(500)
+    expect(state.nominations[499].player?.age).toBe(519)
+})
+
+it('excludes prior nominations on the server without sending their ids in search requests', async () => {
+    rows.nominations = Array.from({ length: 500 }, (_, index) => ({ player_id: `nominated-${index}` }))
+    rows.players = [{ id: 'available', display_name: 'Available', dynasty_rank: 1 }]
+    rows.dynasty_rankings = [{ player_id: 'available', age: 21 }]
+    const found = await searchPlayers('Available', 'draft')
+    expect(found).toMatchObject([{ id: 'available', age: 21 }])
+    expect(boundary.tables).not.toContain('nominations')
+    expect(boundary.filters).toContainEqual(['players', 'eq', 'nominated.draft_id', 'draft'])
+    expect(boundary.filters).toContainEqual(['players', 'is', 'nominated', null])
+    expect(boundary.filters.some(([table, operation]) => table === 'players' && operation === 'not')).toBe(false)
+})
+
+it('binds full and incremental reads to the revision used by the fallback poll', async () => {
+    const state = (await getDraftState('draft'))!
+    expect(state.pollRevision).toBe(await getDraftPollRevision('draft'))
+    rows.nominations = [{ ...nomination, current_bid_amount: 4 }]
+    const updated = (await getDraftState('draft', state))!
+    expect(updated.pollRevision).toBe(await getDraftPollRevision('draft'))
+    expect(updated.pollRevision).not.toBe(state.pollRevision)
 })

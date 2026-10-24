@@ -11,6 +11,7 @@ export type WebPushAuthority = {
     generation: number
     revocationCredential: string
     ownerId: string | null
+    subscriptionKeys?: { p256dh: string; auth: string }
 }
 
 const STORE = 'records'

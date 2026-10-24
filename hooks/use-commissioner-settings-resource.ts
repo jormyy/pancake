@@ -44,7 +44,6 @@ function remoteDraft(
         taxiSlots: String(league.taxi_slots ?? 0),
         auctionBudget: String(league.auction_budget ?? 200),
         playoffWeek: String(league.playoff_start_week ?? 20),
-        playoffTotalWeeks: String(league.playoff_total_weeks ?? rounds.reduce((sum, value) => sum + value, 0)),
         playoffRoundWeeks: roundInputs,
         weeklyAddLimit: String(league.weekly_add_limit ?? 0),
         waiverMode: waiverModeFromValue(league.waiver_mode),
