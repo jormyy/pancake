@@ -5,7 +5,8 @@
 CREATE OR REPLACE FUNCTION public.add_free_agent_atomic(
   p_member_id uuid,
   p_league_id uuid,
-  p_player_id uuid
+  p_player_id uuid,
+  p_to_ir boolean DEFAULT false
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -18,6 +19,8 @@ DECLARE
   v_active_count int;
   v_existing_roster_id uuid;
   v_ineligible text;
+  v_ir_count int;
+  v_injury text;
 BEGIN
   PERFORM 1
     FROM league_members
@@ -93,6 +96,28 @@ BEGIN
 
   PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
 
+  IF p_to_ir THEN
+    IF v_league.status = 'offseason'::league_status THEN
+      RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
+        USING ERRCODE = 'P0001';
+    END IF;
+    IF private.roster_status_game_started(p_player_id) THEN
+      RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
+        USING ERRCODE = 'P0001';
+    END IF;
+    SELECT injury_status INTO v_injury FROM players WHERE id = p_player_id FOR SHARE;
+    IF NOT private.is_ir_designation(v_injury) THEN
+      RAISE EXCEPTION 'Only players with Out or IR designations can be placed on IR.'
+        USING ERRCODE = 'PA006';
+    END IF;
+    SELECT count(*) INTO v_ir_count FROM roster_players
+     WHERE member_id = p_member_id AND league_season_id = v_season_id AND is_on_ir;
+    IF v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN
+      RAISE EXCEPTION 'Your IR slots are full (% slots).', COALESCE(v_league.ir_slots, 2)
+        USING ERRCODE = 'PA007';
+    END IF;
+  END IF;
+
   SELECT count(*)
     INTO v_active_count
     FROM roster_players
@@ -102,7 +127,7 @@ BEGIN
      AND is_on_ir = false
      AND is_on_taxi = false;
 
-  IF v_active_count >= COALESCE(v_league.roster_size, 20) THEN
+  IF NOT COALESCE(p_to_ir, false) AND v_active_count >= COALESCE(v_league.roster_size, 20) THEN
     RAISE EXCEPTION 'Your active roster is full (% players).', COALESCE(v_league.roster_size, 20)
       USING ERRCODE = 'PA003';
   END IF;
@@ -112,14 +137,16 @@ BEGIN
     league_id,
     league_season_id,
     player_id,
-    acquired_via
+    acquired_via,
+    is_on_ir
   )
   VALUES (
     p_member_id,
     p_league_id,
     v_season_id,
     p_player_id,
-    'free_agent'
+    'free_agent',
+    COALESCE(p_to_ir, false)
   );
 
   INSERT INTO roster_transactions (
