@@ -54,11 +54,14 @@ Both waiver API bodies accept `toIr: boolean`; an omitted value means false.
 The claim row stores `waiver_claims.to_ir boolean NOT NULL DEFAULT false`.
 
 An IR add keeps the active roster intact and consumes one weekly add.
-It requires an Out or IR designation, an open IR slot, and an unstarted game.
+It requires an Out or IR designation and an open IR slot.
+The player can enter IR after his game starts.
 It rejects offseason IR placement.
 It never grants taxi access.
 
-At award time, the server rechecks IR eligibility, capacity, game lock, and season state.
+At award time, the server rechecks IR eligibility, capacity, and season state.
+A started game does not block an IR award.
+Moving a rostered player into or out of IR stays locked after tipoff.
 An unavailable IR placement falls back to the active roster when capacity permits.
 A full active roster fails the claim with `failed_roster` and a clear `failure_reason`.
 An eligible IR award skips any stored drop selection.

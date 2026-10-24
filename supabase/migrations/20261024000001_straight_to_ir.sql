@@ -107,10 +107,6 @@ BEGIN
       RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
         USING ERRCODE = 'P0001';
     END IF;
-    IF private.roster_status_game_started(p_player_id) THEN
-      RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.'
-        USING ERRCODE = 'P0001';
-    END IF;
     SELECT injury_status INTO v_injury FROM players WHERE id = p_player_id FOR SHARE;
     IF NOT private.is_ir_designation(v_injury) THEN
       RAISE EXCEPTION 'Only players with Out or IR designations can be placed on IR.'
@@ -863,7 +859,6 @@ BEGIN
           WHEN NOT COALESCE(v_ir_eligible, false) THEN 'Player is no longer IR eligible.'
           WHEN v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN 'Your IR slots are full.'
           WHEN v_league.status = 'offseason'::league_status THEN 'IR moves are unavailable in the offseason.'
-          WHEN private.roster_status_game_started(v_claim.player_id) THEN 'This player''s game has already started.'
           ELSE NULL
         END;
         v_to_ir := v_ir_failure IS NULL;
