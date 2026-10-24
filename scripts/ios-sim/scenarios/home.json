@@ -1,0 +1,302 @@
+[
+  {
+    "name": "home-light",
+    "group": "home-light",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "tap": "Roster"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Matchup"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-day",
+    "group": "home-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Monday, "
+        },
+        "expected": {
+          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label^='Score breakdown for ']"
+        }
+      },
+      {
+        "name": "next-day",
+        "action": {
+          "tapPrefix": "Tuesday, "
+        },
+        "expected": {
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label^='Score breakdown for ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-breakdown",
+    "group": "home-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Score breakdown for "
+        },
+        "expected": {
+          "selector": "[aria-label='Points by stat']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-auto",
+    "group": "home-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open auto-set lineup options"
+        },
+        "expected": {
+          "selector": "[aria-label='Auto-set today']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-lineup",
+    "group": "home-light",
+    "from": "/player/{{rosterPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Move {{rosterPlayer.display_name}} in lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "move",
+        "action": {
+          "tap": "Bench {{benchPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{benchPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-lineup-auto",
+    "group": "home-light",
+    "from": "/lineup",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open auto-set lineup options"
+        },
+        "expected": {
+          "selector": "[aria-label='Auto-set today']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-light-return",
+    "group": "home-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark",
+    "group": "home-dark",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "tap": "Roster"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Matchup"
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-day",
+    "group": "home-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Monday, "
+        },
+        "expected": {
+          "selector": "body:has([aria-current='date'][aria-label^='Monday, ']) [aria-label^='Score breakdown for ']"
+        }
+      },
+      {
+        "name": "next-day",
+        "action": {
+          "tapPrefix": "Tuesday, "
+        },
+        "expected": {
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label^='Score breakdown for ']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-breakdown",
+    "group": "home-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Score breakdown for "
+        },
+        "expected": {
+          "selector": "[aria-label='Points by stat']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-auto",
+    "group": "home-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open auto-set lineup options"
+        },
+        "expected": {
+          "selector": "[aria-label='Auto-set today']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-lineup",
+    "group": "home-dark",
+    "from": "/player/{{rosterPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Move {{rosterPlayer.display_name}} in lineup"
+        },
+        "expected": {
+          "route": "/lineup",
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "move",
+        "action": {
+          "tap": "Bench {{benchPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{benchPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-lineup-auto",
+    "group": "home-dark",
+    "from": "/lineup",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open auto-set lineup options"
+        },
+        "expected": {
+          "selector": "[aria-label='Auto-set today']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-return",
+    "group": "home-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/",
+          "text": "{{teamName}}"
+        }
+      }
+    ]
+  }
+]
