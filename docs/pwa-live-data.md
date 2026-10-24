@@ -1,4 +1,6 @@
-# PWA, saved content, and reconnects
+# PWA behavior
+
+The PWA uses a public cached shell and private screen snapshots. This document defines player detail, offline actions, reconnects, updates, and push.
 
 ## Public shell
 
@@ -17,6 +19,28 @@ Network fallback handles missing or corrupt cache entries.
 A first install needs a network connection.
 An installed shell can reopen offline, but an unvisited route can lack required assets.
 See [release provenance](release-build-provenance.md) for stamped builds and update checks.
+
+## Player detail
+
+`app/player/[id].tsx` presents identity, roster status, season averages, the next-game projection, recent games, and league history.
+Identity includes team, eligible positions, dynasty rank, and injury status when available.
+The compact header shows experience only when space permits.
+Roster status shows Add for free agents or Claim for players on waivers.
+Owned players have Lineup and Drop controls. Players on another roster have no pickup control.
+Actions require an online connection and current membership and roster reads.
+
+Season averages share one compact stat grid.
+A season dropdown appears when multiple seasons are available.
+It changes averages and recent games; the next-game projection uses the current season.
+The projection shows its source, matchup, fantasy points, and available tipoff time.
+Stale projections show an Outdated label.
+[Source monitoring](source-monitoring.md#projection-readers) defines provider selection and freshness.
+
+Recent games support pagination and show shooting totals and league fantasy points when available.
+League history starts collapsed and appears only when transactions exist.
+Wide screens place profile statistics beside recent games.
+The page waits for its initial section reads to settle before showing the body.
+Read failures show a warning and preserve available content.
 
 ## Private saved content
 

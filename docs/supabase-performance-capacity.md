@@ -1,4 +1,6 @@
-# Database performance contracts
+# Database performance
+
+These contracts define scoring reuse, bounded reads, and local capacity measurements. Recovery preserves database objects and current source data.
 
 ## Scoring
 

@@ -1,8 +1,11 @@
 # Historical season simulator
 
-The simulator replays NBA activity through real local dispatch, Edge handlers, database rules, and authenticated manager actions.
-It exercises scoring, lineups, locks, waivers, trades, IR, taxi, playoffs, rollover, and the rookie draft.
-Use the [setup and command guide](../scripts/season-sim/README.md).
+The simulator replays NBA activity through local dispatch, Edge handlers, database rules, and authenticated manager actions. It checks scoring and league lifecycle behavior under normal and failed delivery.
+
+## Setup
+
+Use the [setup and command guide](../scripts/season-sim/README.md) for the dedicated local stack.
+Replay covers lineups, locks, waivers, trades, IR, taxi, playoffs, rollover, and the rookie draft.
 
 ## Input classes
 

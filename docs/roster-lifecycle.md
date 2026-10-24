@@ -1,7 +1,6 @@
-# Roster lifecycle invariants
+# Roster lifecycle
 
-What must be true about every record tied to roster ownership, which paths change
-ownership, and where the database enforces it.
+Database rules preserve ownership, history, and reservations during roster changes. This contract defines cleanup, waivers, add limits, taxi eligibility, trade plans, and playoff structure.
 
 ## Relationship map
 
@@ -19,7 +18,7 @@ Every other roster-linked record falls into one of three classes.
 | `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never deleted. A succeeded claim keeps its drop player. A player merge re-points the surviving identity and closes an open waiver entry whose player is rostered under it. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
-| Client caches (trade block, player support, roster) | derived | Refreshed on focus, and on realtime changes each screen watches: the players tab `roster_players`; the roster tab `roster_players` and `draft_picks`; the trades screen the trade tables, `trade_block_items` and `draft_picks` (`lib/trades-realtime.ts`). |
+| Client caches | derived | Refresh through the owning loader on focus and relevant changes; [architecture](architecture.md#change-hints) defines league hints. |
 
 ## Enforcement
 
@@ -37,38 +36,34 @@ The [backend inventory](supabase-backend-route-inventory.md) maps public action 
 ## Waiver window
 
 A dropped player becomes eligible to clear 48 hours after the drop.
-The daily worker processes claims at 3:00 AM ET. Until the run processes the entry the
-player stays on waivers: `prevent_uncleared_waiver_free_agent_add` rejects a
-free-agent add of any uncleared entry (SQLSTATE `PA002`, so waiver priority never
-loses to the fastest add; the add RPC itself never reads the wire), and
-`create_waiver_claim_atomic` accepts a claim on any uncleared entry. Expired
-uncleared entries stay hidden from league-wide reads, so a client may show such a
-player as a free agent; the rejection carries `PA002` and every pickup entry point
-then offers the claim flow instead of a dead end.
-`npm run test:db:waiver-window` runs `tests/db/waiver-clearing-window.sql`, which
-covers the add rejection, the claim inside the window, the rejected claim on a
-processed entry, and the next run picking the claim up.
+The daily worker processes claims at 03:00 Eastern Time.
+Until processing, the player stays on waivers.
+`prevent_uncleared_waiver_free_agent_add` rejects free-agent adds for any uncleared entry with SQLSTATE `PA002`.
+The add RPC does not read the wire itself.
+`create_waiver_claim_atomic` accepts claims on uncleared entries, including entries past their clearance time.
+League-wide reads hide expired uncleared entries, so clients can initially show a free agent.
+Every pickup entry point uses `PA002` to offer the claim flow.
+`npm run test:db:waiver-window` checks add rejection, claims before processing, rejection after processing, and worker pickup.
 
 ## Weekly add limits
 
-A league's `weekly_add_limit` caps free-agent adds and processed waiver claims per
-add week. The server is authoritative on every path: `add_free_agent_atomic` (which
-`drop_and_add_free_agent_atomic` calls), `create_waiver_claim_atomic` (at submission)
-and the waiver processor (at success) all call `private.assert_weekly_add_available`.
+`weekly_add_limit` caps free-agent adds and successful waiver claims per add week.
+`private.assert_weekly_add_available` checks capacity during free-agent adds, claim submission, and successful waiver processing.
+`drop_and_add_free_agent_atomic` reaches that guard through `add_free_agent_atomic`.
 
-Add weeks follow `season_weeks` in Eastern Time (`private.add_week_timezone`): the
-count resets at 12:00 AM ET the day after the scheduled week ends. Before the first
-scheduled week the count belongs to that week. Past the last scheduled week (playoffs,
-offseason) the count rolls every seven days from the day after that week; a new
-season with no schedule yet keeps the same cadence anchored on the prior season.
-`private.current_add_week` owns that rule and returns both the week number and the
-reset instant; `current_add_week_number` is a projection of it for the counters.
+Add weeks follow `season_weeks` in Eastern Time, as defined by `private.add_week_timezone`.
+Counts reset at midnight after the scheduled week ends.
+Dates before the first scheduled week belong to that week.
+After the final scheduled week, counts roll every seven days from the next day.
+A new season without a schedule keeps the prior season's cadence.
+`private.current_add_week` returns the week number and reset instant.
+`current_add_week_number` supplies the counter's week number.
 
 The server returns the used count, reset instant, and rejection reason.
 The client treats an ended cached week as eligible for a new server check.
 Commissioner overrides change the count without changing its reset boundary.
 
-## Testing
+## Verification
 
 ```sh
 npm run test:db:roster-lifecycle
@@ -92,7 +87,10 @@ Draft position does not affect this rule. An undrafted rookie qualifies. A secon
 A nonrookie with an unknown count does not qualify. No local box-score count substitutes for a career count.
 
 The daily `sync-players` pipeline reads ESPN's public NBA athlete stats endpoint:
-`https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{espn_id}/stats?seasontype=2`.
+
+```text
+https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/{espn_id}/stats?seasontype=2
+```
 The parser requires the NBA league filter and regular-season filter (`seasontype = 2`).
 It reads the career `GP` aggregate from `categories[].totals` using the matching column name or label.
 It does not sum season rows, which can include both team splits and season totals.
@@ -137,8 +135,16 @@ For opted-in leagues, a pending claim whose drop leaves the roster becomes cance
 
 ## Flexible playoff rounds
 
-Explicit playoff entrants use a full seeded elimination tree. Round count equals ceil(log2(entrants)). Top seeds receive first-round byes. Each round starts after the previous round's configured weeks. Calendar validation includes skipped weeks as elapsed time.
+Explicit playoff entrants use a full seeded elimination tree with `ceil(log2(entrants))` rounds.
+Top seeds receive first-round byes.
+Each round starts after the previous round's configured weeks.
+Calendar validation counts skipped weeks as elapsed time.
 
-The season stores explicit seeds in `playoff_bracket_seed_ids`. Matchups store `playoff_round` and `playoff_position`. These fields drive advancement and freeze consumed results, including consecutive early rounds. The existing matchup types label early rounds, semifinals, and the final.
+The season stores explicit seeds in `playoff_bracket_seed_ids`.
+Matchups store `playoff_round` and `playoff_position`.
+These fields drive advancement and freeze consumed results, including consecutive early rounds.
+Matchup types label early rounds, semifinals, and the final.
 
-Null entrant settings retain the legacy four- or six-team bracket and its original seed snapshot. The legacy array constraint remains intact. No existing season receives a new seed snapshot during migration.
+Null entrant settings retain the legacy four- or six-team bracket and original seed snapshot.
+The legacy array constraint remains intact.
+Migration does not assign new seed snapshots to existing seasons.
