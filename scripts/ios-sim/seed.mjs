@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -142,13 +143,85 @@ export async function withAuctionNomination(admin, { draftId, memberId, playerId
   finally { await db(admin.from('nominations').delete().eq('id', nomination.id)) }
 }
 
-export async function withScenarioSetup(stack, setup, action) {
-  if (!setup) return action()
-  const draftId = setup.auctionNomination
-  assert.ok(stack.fixture.drafts.some(draft => draft.id === draftId && draft.draft_type === 'auction'), 'Unknown auction fixture')
+export async function withHealthyIRPlayer(admin, { memberId, seasonId }, action) {
+  const db = async operation => {
+    const { data, error } = await operation
+    if (error) throw new Error(`iOS IR fixture: ${error.message}`)
+    return data
+  }
+  const roster = await db(admin.from('roster_players').select('player_id').eq('member_id', memberId).eq('league_season_id', seasonId).eq('is_on_ir', true))
+  assert.ok(roster.length, 'The capture manager needs a player on IR')
+  const players = await db(admin.from('players').select('id,injury_status').in('id', roster.map(row => row.player_id)))
+  assert.equal(players.length, roster.length, 'An IR player is missing')
+  try {
+    await db(admin.from('players').update({ injury_status: null }).in('id', players.map(player => player.id)))
+    return await action()
+  } finally {
+    for (const player of players) await db(admin.from('players').update({ injury_status: player.injury_status }).eq('id', player.id))
+  }
+}
+
+export async function withDraftRoom(admin, { draftId, draftType, leagueId, seasonId, members }, action) {
+  assert.ok(['auction', 'snake'].includes(draftType), 'Unknown capture draft type')
+  const db = async operation => {
+    const { data, error } = await operation
+    if (error) throw new Error(`iOS draft fixture: ${error.message}`)
+    return data
+  }
+  await db(admin.from('drafts').insert({
+    id: draftId, league_id: leagueId, league_season_id: seasonId, draft_type: draftType,
+    status: 'in_progress', is_mock: true, budget_per_team: draftType === 'auction' ? 200 : null,
+    started_at: new Date().toISOString(), pick_timer_seconds: 3600, rounds: 3,
+    created_by_member_id: members[0].id,
+  }))
+  try {
+    await db(admin.from('draft_room_members').insert(members.map(member => ({ draft_id: draftId, member_id: member.id }))))
+    await db(admin.from('draft_orders').insert(members.map((member, index) => ({ draft_id: draftId, member_id: member.id, position: index + 1 }))))
+    if (draftType === 'auction') {
+      await db(admin.from('draft_budgets').insert(members.map(member => ({ draft_id: draftId, member_id: member.id, initial_budget: 200, remaining: 200 }))))
+    } else {
+      await db(admin.from('snake_draft_picks').insert(Array.from({ length: 3 }, (_, roundIndex) => {
+        const order = roundIndex % 2 ? [...members].reverse() : members
+        return order.map((member, index) => ({ draft_id: draftId, overall_pick: roundIndex * members.length + index + 1, round: roundIndex + 1, pick_in_round: index + 1, member_id: member.id }))
+      }).flat()))
+    }
+    return await action()
+  } finally {
+    await db(admin.from('drafts').delete().eq('id', draftId))
+  }
+}
+
+export async function withScenarioFixtures(stack, scenarios, action) {
+  const types = [...new Set(scenarios.map(scenario => scenario.setup?.draftRoom).filter(Boolean))]
+  if (!types.length) return action({})
+  localUrl(stack.url, 57121)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
-  return withAuctionNomination(admin, {
-    draftId, memberId: stack.fixture.members[0].id, playerId: stack.fixture.players[220].id,
-  }, action)
+  const createRoom = async (index, drafts) => {
+    if (index === types.length) return action(drafts)
+    const draftType = types[index]
+    const draftId = randomUUID()
+    return withDraftRoom(admin, {
+      draftId, draftType, leagueId: stack.fixture.leagueId, seasonId: stack.fixture.seasonId, members: stack.fixture.members,
+    }, () => createRoom(index + 1, { ...drafts, [draftType]: draftId }))
+  }
+  return createRoom(0, {})
+}
+
+export async function withScenarioSetup(stack, setup, action) {
+  if (!setup) return action()
+  localUrl(stack.url, 57121)
+  const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
+  const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (setup.healthyIRMember) {
+    assert.ok(stack.fixture.members.some(member => member.id === setup.healthyIRMember), 'Unknown IR capture manager')
+    return withHealthyIRPlayer(admin, { memberId: setup.healthyIRMember, seasonId: stack.fixture.seasonId }, action)
+  }
+  if (setup.draftRoom) {
+    if (!setup.auctionNomination) return action()
+    return withAuctionNomination(admin, {
+      draftId: setup.draftId, memberId: stack.fixture.members[0].id, playerId: stack.fixture.players[220].id,
+    }, action)
+  }
+  assert.fail('Unknown scenario setup')
 }

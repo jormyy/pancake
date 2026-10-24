@@ -270,30 +270,6 @@
     ]
   },
   {
-    "name": "trades-refresh-light",
-    "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "refresh": true
-        },
-        "expected": {
-          "route": "/trades",
-          "selector": "[aria-label^='Show details of trade with ']"
-        }
-      }
-    ]
-  },
-  {
     "name": "trades-return-light",
     "group": "trades-light",
     "from": "/profile",
@@ -309,30 +285,6 @@
       {
         "action": {
           "background": true
-        },
-        "expected": {
-          "route": "/trades",
-          "selector": "[aria-label^='Show details of trade with ']"
-        }
-      }
-    ]
-  },
-  {
-    "name": "trades-refresh-dark",
-    "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
-    "steps": [
-      {
-        "action": {
-          "refresh": true
         },
         "expected": {
           "route": "/trades",

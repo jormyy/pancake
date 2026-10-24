@@ -17,11 +17,13 @@ export const SHELL_BACK_HEADER_ROUTES = [
     '/create-league',
     '/join-league',
     '/bracket',
+    '/draft',
     '/draft-room',
     '/rookie-draft-room',
 ] as const
 
-export function hasShellBackHeader(pathname: string) {
+export function hasShellBackHeader(pathname: string, params: { tradeId?: string | string[] } = {}) {
+    if (pathname === '/trades' && (Array.isArray(params.tradeId) ? params.tradeId[0] : params.tradeId)) return true
     return SHELL_BACK_HEADER_ROUTES.some(route => route.endsWith('/')
         ? pathname.startsWith(route)
         : pathname === route || pathname.startsWith(`${route}/`))

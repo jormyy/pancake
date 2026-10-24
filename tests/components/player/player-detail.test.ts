@@ -11,6 +11,7 @@ import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { headerPlayer } from '@/tests/helpers/fixtures'
 import type { GameLogEntry, PlayerSeasonAverages } from '@/lib/players'
 import type { LeagueProjectionRow } from '@/lib/projections'
+import { controlSize } from '@/constants/tokens'
 
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
@@ -250,7 +251,9 @@ it('keeps history collapsed until requested and omits empty history', async () =
     expect(screen.root.findAllByType(type('TransactionHistory'))).toHaveLength(0)
     const toggle = screen.root.findByType(type('Pressable'))
     expect(toggle.props['aria-expanded']).toBe(false)
+    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-more', size: controlSize.icon.md })
     await act(async () => toggle.props.onPress())
+    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-less', size: controlSize.icon.md })
     expect(screen.root.findByType(type('TransactionHistory')).props.transactions).toEqual(props.transactions)
     await act(async () => screen.update(React.createElement(PlayerHistory, { ...props, transactions: [] })))
     expect(screen.toJSON()).toBeNull()

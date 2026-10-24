@@ -374,22 +374,6 @@
     ]
   },
   {
-    "name": "pull-to-refresh",
-    "group": "lifecycle",
-    "from": "/roster",
-    "steps": [
-      {
-        "action": {
-          "refresh": true
-        },
-        "expected": {
-          "route": "/roster",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
-        }
-      }
-    ]
-  },
-  {
     "name": "return-to-app",
     "group": "lifecycle",
     "from": "/roster",

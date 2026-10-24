@@ -21,6 +21,7 @@ import { countLabel, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { DraftNotFoundState } from '@/components/league/draft-room/DraftNotFoundState'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
@@ -99,11 +100,11 @@ export default function RookieDraftRoomScreen() {
                 <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal', headerShown: false }} />
                 <ScreenFrame style={styles.container}>
                     <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
-                    <View style={styles.center}>
-                        {loading ? <LoadingState /> : loadError ? (
+                    {loading || loadError ? <View style={styles.center}>
+                        {loading ? <LoadingState /> : (
                             <ErrorBanner message="Could not load this draft. Tap to retry." onRetry={() => { void refresh() }} />
-                        ) : <Text style={styles.emptyText}>Draft not found.</Text>}
-                    </View>
+                        )}
+                    </View> : <DraftNotFoundState onBack={navigateBackToDraftList} />}
                 </ScreenFrame>
             </>
         )

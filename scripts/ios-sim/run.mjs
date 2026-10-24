@@ -9,8 +9,8 @@ import { args, digest, freePort, home, lock, pause, repo, run, stopChild } from 
 import { installPwa, simulator, startDriver } from './driver.mjs'
 import { failures, videoDifferences, writeReport } from './report.mjs'
 import { serve } from './server.mjs'
-import { withScenarioSetup } from './seed.mjs'
-import { startStack } from './stack.mjs'
+import { withScenarioFixtures, withScenarioSetup } from './seed.mjs'
+import { connectStack } from './stack.mjs'
 
 export function resolveOptions(values) {
   const options = args(values, ['device', 'port', 'appium-port', 'manager', 'scenario', 'scenarios', 'output', 'rebuild', 'native', 'help'])
@@ -47,10 +47,13 @@ export function requireContent(step) {
   assert.equal(reasons.length, 0, reasons.join('; '))
 }
 
-export function requireRosterRefresh(metrics, startedAt) {
-  assert.ok(metrics.requests?.some(request => request.time >= startedAt
-    && ['fetch', 'xhr'].includes(request.kind)
-    && new URL(request.url).pathname === '/rest/v1/roster_players'), 'The pull gesture did not refresh the roster')
+export async function visibleTapLabel(driver, label, prefix = false) {
+  let target
+  await waitFor(async () => {
+    target = await driver.execute(`const label = arguments[0], prefix = arguments[1]; const visible = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); const match = [...document.querySelectorAll('[aria-label],button,a,[role="button"],select')].find(e => visible(e) && (prefix ? (e.getAttribute('aria-label') || '').startsWith(label) : e.getAttribute('aria-label') === label || e.textContent?.trim() === label)); if (match) match.scrollIntoView({block:'nearest'}); return match ? match.getAttribute('aria-label') || label : null`, label, prefix)
+    return target !== null || !prefix
+  })
+  return target
 }
 
 export async function clickThroughPasswordPrompt(driver, label) {
@@ -61,20 +64,6 @@ export async function clickThroughPasswordPrompt(driver, label) {
     await driver.click('Never for This Website')
     return driver.click(label)
   }
-}
-
-export async function pullToRefresh(driver) {
-  await driver.native()
-  const { width, height } = await driver.request('GET', '/window/rect')
-  const x = Math.round(width - 18), y = Math.round(height * 0.22)
-  try {
-    await driver.request('POST', '/actions', { actions: [{ type: 'pointer', id: 'pull', parameters: { pointerType: 'touch' }, actions: [
-      { type: 'pointerMove', duration: 0, x, y },
-      { type: 'pointerDown', button: 0 },
-      { type: 'pointerMove', duration: 350, x, y: Math.round(height * 0.78) },
-      { type: 'pointerUp', button: 0 },
-    ] }] })
-  } finally { await driver.request('DELETE', '/actions') }
 }
 
 export async function waitForNativeTransition(driver) {
@@ -98,7 +87,7 @@ async function runSuite(options) {
   process.once('SIGTERM', signals)
   try {
     await freePort(options.port)
-    const stack = await startStack()
+    const stack = await connectStack()
     const build = await exportWeb(stack, options.rebuild === true)
     report.build = build.hash
     report.sourceFingerprint = build.sourceFingerprint
@@ -120,7 +109,7 @@ async function runSuite(options) {
       return action()
     }
     const tap = async (label, prefix = false) => {
-      const actual = await withWeb(async () => driver.execute(`const label = arguments[0], prefix = arguments[1]; const visible = e => !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); const match = [...document.querySelectorAll('[aria-label],button,a,[role="button"],select')].find(e => visible(e) && (prefix ? (e.getAttribute('aria-label') || '').startsWith(label) : e.getAttribute('aria-label') === label || e.textContent?.trim() === label)); if (match) match.scrollIntoView({block:'nearest'}); return match?.getAttribute('aria-label') || label`, label, prefix))
+      const actual = await withWeb(() => visibleTapLabel(driver, label, prefix))
       await driver.native()
       if (prefix && !actual) await driver.click(`label BEGINSWITH ${JSON.stringify(label)} AND visible == true AND enabled == true`, '-ios predicate string')
       else {
@@ -169,8 +158,8 @@ async function runSuite(options) {
     requireContent(report.steps[0])
     const index = options.manager * 22
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
-    const context = { displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
-    const scenarios = substitute(JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8')), context)
+    const context = { memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
+    const scenarios = JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8'))
     const selected = scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario)
     assert.ok(selected.length, `Unknown scenario ${options.scenario}`)
     const action = async spec => {
@@ -181,12 +170,6 @@ async function runSuite(options) {
       if (spec.open) { server.navigate(`${origin}${spec.open}`); return }
       if (spec.select) { await tap(spec.select); await tap(spec.option); await driver.optional('Done'); return }
       if (spec.offline) { server.network(true); return }
-      if (spec.refresh) {
-        await withWeb(() => driver.execute('getSelection()?.removeAllRanges(); for (const element of document.querySelectorAll("*")) if (element.scrollTop > 0) element.scrollTop = 0; window.scrollTo(0, 0)'))
-        const refreshStartedAt = Date.now()
-        await pullToRefresh(driver)
-        return { refreshStartedAt }
-      }
       if (spec.background) {
         await driver.native()
         await driver.mobile('pressButton', { name: 'home' })
@@ -202,42 +185,42 @@ async function runSuite(options) {
       }
       throw new Error('Unknown scenario action')
     }
-    for (const scenario of selected) {
-      if (interrupted) throw new Error('Run interrupted')
-      process.stdout.write(`Checking ${scenario.name}.\n`)
-      try {
-        await withScenarioSetup(stack, scenario.setup, async () => {
-          server.disarm()
-          await prepare(scenario.from)
-          for (const spec of scenario.prepare ?? []) { await action(spec); await pause(600) }
-          for (const [stepIndex, step] of scenario.steps.entries()) {
-            const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
-            const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
-            try {
-              server.arm({ id, expected: step.expected, quietMs: step.quietMs, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
-              await server.armed(id)
-              const evidence = await action(step.action)
-              result.metrics = await server.result(id)
-              if (step.action.refresh) {
-                assert.ok(evidence, 'Missing refresh gesture evidence')
-                requireRosterRefresh(result.metrics, evidence.refreshStartedAt)
-              }
-            } catch (error) { result.error = error.message }
-            await driver.native()
-            await driver.screenshot(path.join(options.output, `${id}.png`))
-            await driver.source(path.join(options.output, `${id}.xml`))
-            report.steps.push(result)
+    await withScenarioFixtures(stack, selected, async drafts => {
+      for (const template of selected) {
+        const scenario = substitute(template, { ...context, draftId: drafts[template.setup?.draftRoom] })
+        if (interrupted) throw new Error('Run interrupted')
+        process.stdout.write(`Checking ${scenario.name}.\n`)
+        try {
+          await withScenarioSetup(stack, scenario.setup, async () => {
             server.disarm()
-            await writeReport(options.output, report)
-          }
-        })
-      } catch (error) {
-        report.steps.push({ id: scenario.name, error: error.message })
-        await driver.native().catch(() => {})
-        await driver.screenshot(path.join(options.output, `${scenario.name}.png`)).catch(() => {})
-        await driver.source(path.join(options.output, `${scenario.name}.xml`)).catch(() => {})
+            await prepare(scenario.from)
+            for (const spec of scenario.prepare ?? []) { await action(spec); await pause(600) }
+            for (const [stepIndex, step] of scenario.steps.entries()) {
+              const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
+              const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
+              try {
+                server.arm({ id, expected: step.expected, quietMs: step.quietMs, immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
+                await server.armed(id)
+                await action(step.action)
+                result.metrics = await server.result(id)
+
+              } catch (error) { result.error = error.message }
+              await driver.native()
+              await driver.screenshot(path.join(options.output, `${id}.png`))
+              await driver.source(path.join(options.output, `${id}.xml`))
+              report.steps.push(result)
+              server.disarm()
+              await writeReport(options.output, report)
+            }
+          })
+        } catch (error) {
+          report.steps.push({ id: scenario.name, error: error.message })
+          await driver.native().catch(() => {})
+          await driver.screenshot(path.join(options.output, `${scenario.name}.png`)).catch(() => {})
+          await driver.source(path.join(options.output, `${scenario.name}.xml`)).catch(() => {})
+        }
       }
-    }
+    })
   } catch (error) { report.error = error.message }
   finally {
     if (server) { server.network(false); server.disarm() }

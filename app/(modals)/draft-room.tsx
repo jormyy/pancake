@@ -16,6 +16,7 @@ import { LoadingState, usePageMetrics } from '@/components/ui'
 import { MotionPressable } from '@/components/Motion'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { DraftNotFoundState } from '@/components/league/draft-room/DraftNotFoundState'
 import { AuctionDraftSidePanel } from '@/components/league/draft-room/AuctionDraftSidePanel'
 import { AuctionIdlePanel } from '@/components/league/draft-room/AuctionIdlePanel'
 import { AuctionLivePanel } from '@/components/league/draft-room/AuctionLivePanel'
@@ -68,18 +69,16 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                 <Stack.Screen options={{ title: 'Draft Room', headerShown: false }} />
                 <ScreenFrame style={styles.container} edges={['bottom']}>
                     <DraftScreenHeader title="Auction Draft" onBack={() => navigateBackToDraftList()} />
-                    {loading && !hasLoadError ? <LoadingState /> : <View style={styles.draftEndedContainer}>
-                        <Text style={styles.draftEndedTitle}>{hasLoadError ? 'Could not load draft' : 'Draft not found'}</Text>
-                        <Text style={styles.draftEndedSub}>
-                            {hasLoadError ? loadError : 'This draft may have ended or no longer exists.'}
-                        </Text>
+                    {loading && !hasLoadError ? <LoadingState /> : hasLoadError ? <View style={styles.draftEndedContainer}>
+                        <Text style={styles.draftEndedTitle}>Could not load draft</Text>
+                        <Text style={styles.draftEndedSub}>{loadError}</Text>
                         <MotionPressable
                             style={styles.nominateButton}
-                            onPress={hasLoadError ? refresh : () => navigateBackToDraftList()}
+                            onPress={refresh}
                         >
-                            <Text style={styles.nominateButtonText}>{hasLoadError ? 'Try Again' : 'Back to League'}</Text>
+                            <Text style={styles.nominateButtonText}>Try Again</Text>
                         </MotionPressable>
-                    </View>}
+                    </View> : <DraftNotFoundState onBack={navigateBackToDraftList} />}
                 </ScreenFrame>
             </>
         )

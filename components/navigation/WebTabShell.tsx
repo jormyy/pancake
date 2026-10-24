@@ -3,7 +3,7 @@ import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
-import { Link, Navigator, usePathname, useRouter } from 'expo-router'
+import { Link, Navigator, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
@@ -611,7 +611,8 @@ export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chr
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
     const pathname = usePathname()
-    const backHeader = hasShellBackHeader(pathname)
+    const params = useGlobalSearchParams<{ tradeId?: string | string[] }>()
+    const backHeader = hasShellBackHeader(pathname, params)
     usePancakeWebTheme()
     useDocumentTitle()
     // Swap the static boot shell for this one before the first paint.

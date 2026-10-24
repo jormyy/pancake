@@ -127,8 +127,7 @@
         "expected": {
           "dialog": "Resolve IR status",
           "selector": "[aria-label^='Activate ']"
-        },
-        "note": "Requires the manager’s IR player to be healthy; restore the injury fixture after capture."
+        }
       },
       {
         "name": "drop",
@@ -140,7 +139,10 @@
           "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "healthyIRMember": "{{memberId}}"
+    }
   },
   {
     "name": "player-resolution-dark",
@@ -162,8 +164,7 @@
         "expected": {
           "dialog": "Resolve IR status",
           "selector": "[aria-label^='Activate ']"
-        },
-        "note": "Requires the manager’s IR player to be healthy; restore the injury fixture after capture."
+        }
       },
       {
         "name": "drop",
@@ -175,6 +176,9 @@
           "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "healthyIRMember": "{{memberId}}"
+    }
   }
 ]

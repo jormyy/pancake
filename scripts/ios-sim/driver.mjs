@@ -90,7 +90,7 @@ export async function startDriver({ device, port, directory }) {
     await ready(`${driver.url}/status`, driver.child)
     const session = await driver.request('POST', '/session', { capabilities: { alwaysMatch: {
       platformName: 'iOS', 'appium:automationName': 'XCUITest', 'appium:udid': device.udid,
-      'appium:deviceName': device.name, 'appium:platformVersion': '26.5', 'appium:bundleId': 'com.apple.mobilesafari',
+      'appium:deviceName': device.name, 'appium:platformVersion': '26.5',
       'appium:noReset': true, 'appium:newCommandTimeout': 180, 'appium:includeSafariInWebviews': true,
       'appium:additionalWebviewBundleIds': ['*'], 'appium:showXcodeLog': true,
       'appium:wdaLocalPort': port + 1, 'appium:mjpegServerPort': port + 2,

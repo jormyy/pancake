@@ -16,7 +16,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
 vi.mock('@react-navigation/native', () => ({ StackRouter: vi.fn() }))
-vi.mock('expo-router', () => ({ Link: 'Link', Navigator: {}, usePathname: () => mocks.pathname, useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('expo-router', () => ({ Link: 'Link', Navigator: {}, useGlobalSearchParams: () => ({}), usePathname: () => mocks.pathname, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.league }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: mocks.userId } }) }))
 vi.mock('@/hooks/use-pending-trade-count', () => ({ usePendingTradeCount: () => 0 }))

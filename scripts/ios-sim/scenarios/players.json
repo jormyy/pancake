@@ -102,7 +102,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "[data-testid='recent-games-table']"
+          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ]
@@ -170,7 +170,7 @@
             "equals": "2026"
           },
           "text": "Recent games",
-          "selector": "[data-testid='recent-games-table']"
+          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ]
@@ -386,7 +386,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "[data-testid='recent-games-table']"
+          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ]
@@ -454,7 +454,7 @@
             "equals": "2026"
           },
           "text": "Recent games",
-          "selector": "[data-testid='recent-games-table']"
+          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ]

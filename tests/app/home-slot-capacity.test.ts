@@ -5,7 +5,7 @@ import type { LineupPlayer } from '@/lib/lineup'
 import HomeScreen from '@/app/(tabs)/index'
 
 const mocks = vi.hoisted(() => ({
-    lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [], benchSlots: 3, ir: [], taxi: [] },
+    lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     setSelected: vi.fn(),
     saved: undefined as unknown,
@@ -54,8 +54,9 @@ beforeEach(() => {
     mocks.saved = undefined
     mocks.freshness = 'fresh'
     mocks.games = []
-    mocks.lineup.starters = [{ slotType: 'PG', player: null }]
+    mocks.lineup = { ...mocks.lineup, starters: [{ slotType: 'PG', player: null }] }
     mocks.lineup.benchSlots = 3
+    mocks.lineup.bench = []
     mocks.league.ir_slots = 2
     mocks.league.taxi_slots = 2
 })
@@ -90,6 +91,23 @@ it('omits reserve sections with zero configured places', async () => {
     expect(rows('BE')).toHaveLength(0)
     expect(rows('IR')).toHaveLength(0)
     expect(rows('TX')).toHaveLength(0)
+})
+
+it('hides the bench fraction without a lineup and never shows an over-capacity fraction', async () => {
+    populatedStarters()
+    const player = mocks.lineup.starters[0].player!
+    mocks.lineup.bench = [player]
+    await mount()
+    const counts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(counts()).toContain('1/3')
+    mocks.lineup = { ...mocks.lineup, starters: [{ slotType: 'PG', player: null }] }
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(counts()).not.toContain('1/3')
+    populatedStarters()
+    mocks.lineup = { ...mocks.lineup, bench: Array(4).fill(player) }
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(counts()).not.toContain('4/3')
+    expect(rows('BE')).toHaveLength(4)
 })
 
 it('shows the first matchup with complete game data and retains it through revalidation', async () => {

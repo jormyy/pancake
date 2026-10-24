@@ -78,14 +78,20 @@ export function ScoreBreakdownSheet({
 }) {
     const myRows = scoreBreakdown(mine.player ? mine.stats : undefined, settings)
     const theirRows = scoreBreakdown(theirs.player ? theirs.stats : undefined, settings)
+    const rulesOnly = sideTotal(mine, settings) === null && sideTotal(theirs, settings) === null
 
     return (
         <Sheet visible={visible} onClose={onClose} title={`${slotType} slot · Score breakdown`}>
-            <View style={styles.heads}>
+            {rulesOnly ? null : <View style={styles.heads}>
                 <PlayerHead side={mine} total={sideTotal(mine, settings)} align="left" />
                 <PlayerHead side={theirs} total={sideTotal(theirs, settings)} align="right" />
-            </View>
-            <View style={styles.table} role="table" aria-label="Points by stat">
+            </View>}
+            {rulesOnly ? <View style={styles.table} accessibilityLabel="Scoring rules">
+                {myRows.map(row => <View key={row.key} style={styles.ruleRow}>
+                    <Text style={styles.label}>{row.label}</Text>
+                    <Text style={styles.weight}>{`${row.weight > 0 ? '+' : ''}${row.weight} each`}</Text>
+                </View>)}
+            </View> : <View style={styles.table} role="table" aria-label="Points by stat">
                 <View style={[styles.tableRow, styles.tableHeader]} role="row">
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">Stat</Text>
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">FP</Text>
@@ -112,7 +118,7 @@ export function ScoreBreakdownSheet({
                         </View>
                     )
                 })}
-            </View>
+            </View>}
         </Sheet>
     )
 }
@@ -138,6 +144,15 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.separator,
     },
     tableHeader: { minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
+    ruleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        minHeight: table.headerHeight,
+        paddingHorizontal: spacing.md,
+        borderBottomWidth: borderWidth.thin,
+        borderBottomColor: colors.separator,
+    },
     headCell: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
     cell: { fontSize: fontSize.md, color: colors.textSecondary, textAlign: 'center', fontVariant: ['tabular-nums'] as const },
     numCell: { width: table.statColWidth },
