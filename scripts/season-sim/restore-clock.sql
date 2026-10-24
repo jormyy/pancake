@@ -31,6 +31,10 @@ BEGIN
       EXECUTE format('ALTER FUNCTION pg_catalog.%I() RENAME TO %I','season_sim_native_' || name,name);
     END LOOP;
     FOR saved IN SELECT definition FROM current_clock_bindings LOOP EXECUTE saved.definition; END LOOP;
+    FOR saved IN SELECT o.definition FROM season_sim.restore_objects o WHERE o.kind='date-default' ORDER BY o.name LOOP
+      EXECUTE saved.definition;
+    END LOOP;
+    DELETE FROM season_sim.restore_objects WHERE kind='date-default';
     FOREACH name IN ARRAY ARRAY['now','clock_timestamp','transaction_timestamp','statement_timestamp'] LOOP
       EXECUTE format('DROP FUNCTION pg_catalog.%I()','season_sim_virtual_' || name);
     END LOOP;

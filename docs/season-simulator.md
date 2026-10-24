@@ -5,6 +5,11 @@ Its generated evidence establishes coverage.
 Earlier reports and fixture facts do not establish a new run's result.
 See the [command guide](../scripts/season-sim/README.md).
 
+## Setup
+
+Use the [setup and command guide](../scripts/season-sim/README.md) for the dedicated local stack.
+Replay covers lineups, locks, waivers, trades, IR, taxi, playoffs, rollover, and the rookie draft.
+
 The [real two-season leg](#real-two-season-leg) runs 2024–25 followed by 2025–26.
 The earlier synthetic next-season mode remains available separately.
 
@@ -69,6 +74,11 @@ Recovery checks the guard before runtime startup, skips the completed draft and 
 All first-season receipts remain retained. Fresh next-season Realtime proof stays separate from earlier delivery evidence.
 After a host interruption, preserve the run and reconcile stored draft records before selecting this stage.
 The last checkpoint label can precede completed actions while business time advances.
+
+The clock installer maps plain `CURRENT_DATE` defaults to the simulated transaction date.
+Restoration puts the original defaults back.
+Other unsupported clock keywords still stop installation.
+`npm run test:db:simulator-clock-date-defaults` checks timezones, date changes, exact restoration and the remaining keyword guard.
 
 The real `next-season-start` stage retains the completed draft, preseason activation and opening calendar checks.
 It requires the same paused state guard and all settled first-season receipts.

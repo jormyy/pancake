@@ -2472,6 +2472,7 @@ export type Database = {
           matched_count: number
           parser_version: string
           projection_date: string | null
+          projection_period_end: string
           projection_type: string
           row_count: number
           season_year: number | null
@@ -2492,6 +2493,7 @@ export type Database = {
           matched_count?: number
           parser_version?: string
           projection_date?: string | null
+          projection_period_end?: string
           projection_type: string
           row_count?: number
           season_year?: number | null
@@ -2512,6 +2514,7 @@ export type Database = {
           matched_count?: number
           parser_version?: string
           projection_date?: string | null
+          projection_period_end?: string
           projection_type?: string
           row_count?: number
           season_year?: number | null
@@ -2813,6 +2816,101 @@ export type Database = {
           week_start?: string
         }
         Relationships: []
+      }
+      sleeper_projection_rows: {
+        Row: {
+          assists: number
+          blocks: number
+          double_doubles: number | null
+          fetched_at: string
+          field_goals_attempted: number
+          field_goals_made: number
+          free_throws_attempted: number
+          free_throws_made: number
+          game_date: string
+          id: string
+          last_modified: number
+          minutes: number
+          opponent: string
+          player_id: string
+          points: number
+          rebounds: number
+          season_year: number
+          sleeper_id: string
+          source_game_id: string
+          steals: number
+          team: string
+          three_pointers_attempted: number
+          three_pointers_made: number
+          triple_doubles: number | null
+          turnovers: number
+          week_number: number
+        }
+        Insert: {
+          assists: number
+          blocks: number
+          double_doubles?: number | null
+          fetched_at?: string
+          field_goals_attempted: number
+          field_goals_made: number
+          free_throws_attempted: number
+          free_throws_made: number
+          game_date: string
+          id?: string
+          last_modified: number
+          minutes: number
+          opponent: string
+          player_id: string
+          points: number
+          rebounds: number
+          season_year: number
+          sleeper_id: string
+          source_game_id: string
+          steals: number
+          team: string
+          three_pointers_attempted: number
+          three_pointers_made: number
+          triple_doubles?: number | null
+          turnovers: number
+          week_number: number
+        }
+        Update: {
+          assists?: number
+          blocks?: number
+          double_doubles?: number | null
+          fetched_at?: string
+          field_goals_attempted?: number
+          field_goals_made?: number
+          free_throws_attempted?: number
+          free_throws_made?: number
+          game_date?: string
+          id?: string
+          last_modified?: number
+          minutes?: number
+          opponent?: string
+          player_id?: string
+          points?: number
+          rebounds?: number
+          season_year?: number
+          sleeper_id?: string
+          source_game_id?: string
+          steals?: number
+          team?: string
+          three_pointers_attempted?: number
+          three_pointers_made?: number
+          triple_doubles?: number | null
+          turnovers?: number
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sleeper_projection_rows_player_id_fkey"
+            columns: ["player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       snake_draft_picks: {
         Row: {
@@ -4270,6 +4368,17 @@ export type Database = {
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
+      }
+      complete_sleeper_projection_sync: {
+        Args: {
+          p_http_status: number
+          p_metadata?: Json
+          p_row_count: number
+          p_rows: Json
+          p_run_id: string
+          p_unmatched_count: number
+        }
+        Returns: number
       }
       complete_stats_sync_job_atomic: {
         Args: {

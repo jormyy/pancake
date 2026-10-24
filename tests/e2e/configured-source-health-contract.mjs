@@ -1,6 +1,7 @@
 export const CONFIGURED_GAME_SOURCES = Object.freeze([
   { id: 'nba-cdn', label: 'NBA CDN' },
   { id: 'espn-public-json', label: 'ESPN public JSON' },
+  { id: 'sleeper-projections', label: 'Sleeper (RotoWire) projections' },
   { id: 'fantasypros', label: 'FantasyPros projections' },
   { id: 'hashtag-basketball', label: 'Hashtag Basketball rankings' },
   { id: 'nba-draft-order', label: 'NBA.com draft order with stats.nba.com fallback' },

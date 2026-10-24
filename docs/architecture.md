@@ -1,5 +1,7 @@
 # Architecture
 
+Pancake separates browser presentation, shared calculations, and database rules. This document maps those boundaries and the data flow between them.
+
 ## Code map
 
 | Concern | Source | Contract |
@@ -63,6 +65,12 @@ Invalid calendars remain errors. An unpublished next calendar causes a retry.
 
 The [historical simulator](season-simulator.md) exercises ingestion and season transitions.
 The [verification guide](verification.md) lists the focused database checks.
+
+## Projection data
+
+`get_league_projection_rows` supplies player views and lineup optimization.
+[Source monitoring](source-monitoring.md#projection-readers) owns provider precedence, freshness, and storage rules.
+[PWA behavior](pwa-live-data.md#player-detail) owns the player detail layout.
 
 ## Scheduled work
 

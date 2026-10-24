@@ -53,6 +53,7 @@ DECLARE saved record; function_name text;
 BEGIN
   IF to_regprocedure('pg_catalog.season_sim_native_now()') IS NULL THEN
     PERFORM set_config('season_sim.needs_rebind','on',true);
+    DELETE FROM season_sim.restore_objects;
     INSERT INTO season_sim.restore_objects
       SELECT 'function',p.oid::regprocedure::text,pg_get_functiondef(p.oid)
       FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
@@ -86,6 +87,27 @@ BEGIN
   IF current_setting('season_sim.needs_rebind',true)='on' THEN
     FOR saved IN SELECT definition FROM season_sim.restore_objects ORDER BY kind,name LOOP EXECUTE saved.definition; END LOOP;
   END IF;
+END;
+$$;
+
+DO $$
+DECLARE saved record;
+BEGIN
+  FOR saved IN
+    SELECT n.nspname AS schema_name,c.relname AS table_name,a.attname AS column_name
+    FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid
+    JOIN pg_namespace n ON n.oid=c.relnamespace
+    JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
+    WHERE n.nspname IN ('public','private') AND a.attgenerated=''
+      AND pg_get_expr(d.adbin,d.adrelid)='CURRENT_DATE'
+  LOOP
+    INSERT INTO season_sim.restore_objects(kind,name,definition)
+    VALUES ('date-default',format('%I.%I.%I',saved.schema_name,saved.table_name,saved.column_name),
+      format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT CURRENT_DATE',saved.schema_name,saved.table_name,saved.column_name))
+    ON CONFLICT DO NOTHING;
+    EXECUTE format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT pg_catalog.now()::date',
+      saved.schema_name,saved.table_name,saved.column_name);
+  END LOOP;
 END;
 $$;
 

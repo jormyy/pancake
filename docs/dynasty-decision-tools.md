@@ -1,6 +1,6 @@
 # Dynasty decision tools
 
-This document defines the shared value engine for Dynasty Rankings and Trade Analyzer.
+Dynasty Rankings and Trade Analyzer share one value engine. This document defines published order, value calculations, source inputs, and cache rules.
 
 ## Product rules
 
@@ -10,8 +10,8 @@ This document defines the shared value engine for Dynasty Rankings and Trade Ana
 - League scoring adds value context. It does not reorder published ranks.
 - The engine keeps short-term points separate from long-term dynasty value.
 - Trade Analyzer always uses the 5-year outlook.
-- Each trade card opens the Analyzer from an Analyze control in its header, beside the
-  status badge; it is disabled while another trade action is in flight.
+- Each trade card opens Trade Analyzer through its header's Analyze control, beside the status badge.
+- Analyze stays disabled while another trade action runs.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
 - The Analyzer reports value changes without judging a trade as fair or unfair.
@@ -63,7 +63,7 @@ one elite asset.
 - One RPC batches player, 5-year, 3-year, Rookie, production, and projection data.
 - Sync stores 5-year Points, 3-year Points, and Rookie views under separate source keys.
 - Sync reads the source form without a document tree to stay within worker memory limits.
-- The database has no Contend, Rebuild, or old decision-input ranking path.
+- The database uses the published Points and Rookie ranking paths.
 - Unmatched Rookie rows remain visible as source prospects without player links.
 - Ranking cache keys include user, member, league, season, and scoring settings.
 - Analyzer cache keys also include team count and FAAB budget.
