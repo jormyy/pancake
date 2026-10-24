@@ -329,6 +329,7 @@ export default function ProfileScreen() {
                                 <TextInput
                                     style={styles.input}
                                     value={teamName}
+                                    maxLength={40}
                                     onChangeText={setTeamName}
                                     returnKeyType="done"
                                     onSubmitEditing={handleSave}

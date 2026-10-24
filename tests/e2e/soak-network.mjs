@@ -58,18 +58,6 @@ export const backendAuthedJson = async (env, pathname, token, body = {}) => {
   return response.json()
 }
 
-export const assertBackendUsesFakePush = async (env, fakePort) => {
-  const status = await backendGetJson(env, '/e2e/status')
-  // supabase functions serve runs Edge in Docker, which reaches the host-side fake
-  // upstream as host.docker.internal (the CLI maps it to the host gateway on Linux).
-  // 127.0.0.1 only works when the Edge runtime runs on the host itself.
-  const expected = ['127.0.0.1', 'host.docker.internal']
-    .map((host) => `http://${host}:${fakePort}/--/api/v2/push/send`)
-  if (!expected.includes(status.expoPushUrl)) {
-    throw new Error(`D.X.1: backend EXPO_PUSH_URL is ${status.expoPushUrl ?? '<unset>'}; expected one of ${expected.join(', ')}`)
-  }
-}
-
 export const signInForAccessToken = async (env, email, password, label = 'E2E sign-in') => {
   if (!env.anonKey) {
     throw new Error(

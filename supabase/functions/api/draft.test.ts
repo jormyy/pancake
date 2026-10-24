@@ -33,7 +33,12 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asy
       player_id: PLAYER, remaining: 0, league_id: LEAGUE, league_season_id: 'season', is_mock: isMock,
     }
   }
-  if (url.pathname === '/rest/v1/profiles') data = { push_token: null }
+  if (url.pathname === '/rest/v1/notification_outbox') {
+    const body = await req.json()
+    assert.equal(body.event_type, 'rookie_draft_pick')
+    assert.equal(body.member_id, MEMBER)
+    assert.equal(body.category, 'draft')
+  }
   return Response.json(data, { headers: select === 'id' && url.pathname === '/rest/v1/roster_players' ? { 'content-range': '0-0/0' } : {} })
 })
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(server.addr as Deno.NetAddr).port}`)
@@ -78,14 +83,16 @@ Deno.test('manual and self auto-picks return without reading notification recipi
   }
 })
 
-Deno.test('commissioner picks still notify the roster owner, except in mock drafts', async () => {
+Deno.test('commissioner picks queue notification delivery, except in mock drafts', async () => {
   role = 'commissioner'
   isMock = false
   const response = await action('commissioner-pick')
   assert.equal(response?.status, 200)
-  assert.equal(requests.some(path => path.includes('select=user_id')), true)
+  assert.equal(requests.some(path => path.startsWith('/rest/v1/notification_outbox')), true)
+  assert.equal(requests.some(path => path.includes('select=user_id')), false)
   isMock = true
   await action('commissioner-pick')
+  assert.equal(requests.some(path => path.startsWith('/rest/v1/notification_outbox')), false)
   assert.equal(requests.some(path => path.includes('select=user_id')), false)
 })
 

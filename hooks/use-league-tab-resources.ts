@@ -8,7 +8,7 @@ import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
 import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
-import { deferLeagueRefresh, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -82,16 +82,19 @@ export function useLeagueTabResources(
         STANDINGS_CACHE,
         admission,
     )
+    const historyRowCount = useRef(0)
     const history = useKeyedResource(
         leagueKey,
         EMPTY_ACTIVITY,
         useCallback(async () => {
-            const rows = leagueId ? await getLeagueTransactions(leagueId, ACTIVITY_LIMIT, 0) : []
-            return { rows, hasMore: rows.length === ACTIVITY_LIMIT, offset: rows.length }
+            const limit = Math.max(ACTIVITY_LIMIT, historyRowCount.current)
+            const rows = leagueId ? await getLeagueTransactions(leagueId, limit, 0) : []
+            return { rows, hasMore: rows.length === limit, offset: rows.length }
         }, [leagueId]),
         HISTORY_CACHE,
         admission,
     )
+    historyRowCount.current = history.data.rows.length
     const waiverOrder = useKeyedResource(
         leagueKey,
         EMPTY_WAIVER_ORDER,
@@ -227,9 +230,12 @@ export function useLeagueTabResources(
     useEffect(() => {
         if (!leagueId) return
         const refresh = deferLeagueRefresh(() => invalidateTab('history'))
+        let registering = true
         const stop = listenForLeagueChanges(leagueId, (change) => {
-            if (change.topic === 'inventory' || change.topic === 'roster' || change.topic === 'catchup') refresh.trigger()
+            if (registering && change.topic === 'catchup') return
+            if (leagueResourceAffects(change, ['activity'])) refresh.trigger()
         })
+        registering = false
         return () => { stop(); refresh.cancel() }
     }, [leagueId, invalidateTab])
 

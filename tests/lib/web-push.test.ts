@@ -443,3 +443,22 @@ it('recovers a lost registration response during sync by replacing stale authori
     expect(current?.endpoint).toBe('https://web.push.apple.com/new')
     await expect(getWebPushStatus()).resolves.toBe('on')
 })
+
+
+it.each(['expired', 'missing', 'future'] as const)('renews an unchanged subscription with a %s saved time', async age => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_800_000_000_000)
+    try {
+        const { enableWebPush, syncWebPushSubscription } = await load()
+        await enableWebPush()
+        const endpoint = current!.endpoint
+        const authority = authorities.get(endpoint)!
+        expect(authority.savedAt).toBe(Date.now())
+        authorities.set(endpoint, { ...authority, savedAt: age === 'missing' ? undefined
+            : Date.now() + (age === 'future' ? 1 : -7 * 24 * 60 * 60 * 1000) })
+        await syncWebPushSubscription()
+        expect(mocks.apiPost.mock.calls.filter(([path]) => path === '/profile/web-push/subscribe')).toHaveLength(2)
+        expect(authorities.get(endpoint)?.savedAt).toBe(Date.now())
+        await syncWebPushSubscription()
+        expect(mocks.apiPost.mock.calls.filter(([path]) => path === '/profile/web-push/subscribe')).toHaveLength(2)
+    } finally { vi.restoreAllMocks() }
+})

@@ -49,7 +49,7 @@ SELECT jsonb_build_object(
     'name', c.relname, 'valid', i.indisvalid, 'ready', i.indisready, 'definition', pg_get_indexdef(c.oid)
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
   WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN (
-    'profiles_push_token_lookup', 'idx_sync_runs_started_at', 'idx_projection_sync_runs_started_at',
+    'idx_sync_runs_started_at', 'idx_projection_sync_runs_started_at',
     'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'idx_edge_invocations_reconciled_at',
     'web_push_subscriptions_user_id_idx'
   )),

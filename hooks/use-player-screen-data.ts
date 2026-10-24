@@ -108,7 +108,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
             if (change.topic === 'game' || leagueResourceAffects(change, ['projections', 'season'])) queued.add('projection')
             if (leagueResourceAffects(change, ['averages', 'season'])) queued.add('profile')
             if (leagueResourceAffects(change, ['scoring'])) queued.add('scoring')
-            if (change.topic === 'roster' || change.topic === 'inventory' || change.topic === 'catchup') {
+            if (change.topic === 'roster' || leagueResourceAffects(change, ['picks', 'claims', 'waivers', 'priority', 'faab', 'season'])) {
                 queued.add('roster')
                 queued.add('history')
             }

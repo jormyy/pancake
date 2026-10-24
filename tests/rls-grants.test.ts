@@ -190,18 +190,9 @@ describe('profile privacy and invite capacity policies', () => {
         )
     })
 
-    it('keeps the legacy push-token compatibility trigger owner-scoped and non-executable', () => {
-        const definition = latestFunctionDefinition('normalize_legacy_push_token_write', 'private')
-        const privileges = functionPrivilegeStatements('normalize_legacy_push_token_write', 'private')
-            .join('\n')
-            .replace(/\s+/g, ' ')
-
-        expect(definition).toContain('SECURITY DEFINER')
-        expect(definition).toContain("SET search_path = ''")
-        expect(definition).toContain('UPDATE public.profiles')
-        expect(privileges).toContain(
-            'REVOKE ALL ON FUNCTION private.normalize_legacy_push_token_write() FROM PUBLIC, anon, authenticated, service_role',
-        )
+    it('drops the legacy push-token compatibility trigger and revokes direct token writes', () => {
+        expect(() => latestFunctionDefinition('normalize_legacy_push_token_write', 'private')).toThrow(/dropped after its latest definition/)
+        expect(tablePrivilegeStatements('profiles').join('\n')).toContain('REVOKE UPDATE (push_token) ON public.profiles FROM authenticated')
     })
 })
 

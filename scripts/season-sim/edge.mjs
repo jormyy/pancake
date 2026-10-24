@@ -37,7 +37,6 @@ globalThis.fetch = (input, init) => {
 for (const [name, suffix] of Object.entries({
   NBA_CDN_BASE_URL: '/static/json', ESPN_SITE_BASE_URL: '/espn', ESPN_CAREER_BASE_URL: '/career',
   SLEEPER_BASE_URL: '/sleeper', NBA_STATS_BASE_URL: '/stats', NBA_COM_BASE_URL: '/nba',
-  EXPO_PUSH_URL: '/push', EXPO_RECEIPTS_URL: '/receipts',
 })) Deno.env.set(name, `http://127.0.0.1:56280${suffix}`)
 const handlers = new Map()
 let loading

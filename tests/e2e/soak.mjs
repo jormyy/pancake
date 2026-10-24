@@ -55,7 +55,6 @@ import {
   assertWaiverProcessingScenario,
 } from './soak-waiver-push.mjs'
 import {
-  assertBackendUsesFakePush,
   backendGetJson,
   backendJson,
   postJson,
@@ -217,11 +216,11 @@ const main = async () => {
       ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
       : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
     args.push
-      ? 'Push notification intercept enabled through E2E_ENABLE_PUSH=1.'
-      : 'Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.',
+      ? 'Waiver notification queue checks enabled through E2E_ENABLE_PUSH=1.'
+      : 'Waiver notification queue checks disabled; set E2E_ENABLE_PUSH=1 to check D.X.1.',
     args.draftPush
-      ? 'Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.'
-      : 'Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.',
+      ? 'Draft notification queue checks enabled through E2E_ENABLE_DRAFT_PUSH=1.'
+      : 'Draft notification queue checks disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.',
     args.history
       ? 'Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.'
       : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with Edge E2E ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
@@ -372,10 +371,7 @@ const main = async () => {
         await assertCorsPreflight(env)
         notes.push('CORS preflight check passed for the configured frontend origin.')
       }
-      if (args.push || args.draftPush) {
-        await assertBackendUsesFakePush(env, args.fakePort)
-        notes.push('Backend EXPO_PUSH_URL points at the fake upstream push intercept.')
-      }
+
 
       let previousSnapshot = checkpoint?.previousSnapshot ?? null
       const perfMetrics = [...(checkpoint?.perfMetrics ?? [])]
@@ -654,8 +650,8 @@ const main = async () => {
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               offseasonActivityCheck ? 'busy offseason activity survived rollover' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
-              args.push ? 'trade and waiver push notification intercepts passed' : null,
-              draftPushCheck ? 'draft push notification intercept passed' : null,
+              args.push ? 'waiver notification queue checks passed' : null,
+              draftPushCheck ? 'draft notification queue checks passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,
               playoffCheck ? 'playoff bracket scenario passed' : null,

@@ -2007,13 +2007,9 @@ export type Database = {
           dedupe_key: string
           delivered_at: string | null
           event_type: string
-          expo_ticket_id: string | null
           id: string
           last_error: string | null
           member_id: string
-          push_token: string | null
-          receipt_attempt_count: number
-          ticketed_at: string | null
           title: string
         }
         Insert: {
@@ -2029,13 +2025,9 @@ export type Database = {
           dedupe_key: string
           delivered_at?: string | null
           event_type: string
-          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id: string
-          push_token?: string | null
-          receipt_attempt_count?: number
-          ticketed_at?: string | null
           title: string
         }
         Update: {
@@ -2051,13 +2043,9 @@ export type Database = {
           dedupe_key?: string
           delivered_at?: string | null
           event_type?: string
-          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id?: string
-          push_token?: string | null
-          receipt_attempt_count?: number
-          ticketed_at?: string | null
           title?: string
         }
         Relationships: [
@@ -2120,6 +2108,7 @@ export type Database = {
           game_date: string | null
           game_id: string
           id: string
+          is_home: boolean | null
           minutes_played: number | null
           offensive_rebounds: number | null
           personal_fouls: number | null
@@ -2150,6 +2139,7 @@ export type Database = {
           game_date?: string | null
           game_id: string
           id?: string
+          is_home?: boolean | null
           minutes_played?: number | null
           offensive_rebounds?: number | null
           personal_fouls?: number | null
@@ -2180,6 +2170,7 @@ export type Database = {
           game_date?: string | null
           game_id?: string
           id?: string
+          is_home?: boolean | null
           minutes_played?: number | null
           offensive_rebounds?: number | null
           personal_fouls?: number | null
@@ -2377,8 +2368,6 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
-          push_token: string | null
-          push_token_revocation_hash: string | null
           timezone: string
           updated_at: string
           username: string
@@ -2388,8 +2377,6 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
-          push_token?: string | null
-          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username: string
@@ -2399,8 +2386,6 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
-          push_token?: string | null
-          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username?: string

@@ -7,9 +7,6 @@ import {
     type WebPushIntent,
 } from '@/lib/web-push-state'
 
-// Standards Web Push for the installed PWA. Native builds use Expo push
-// (lib/push-token.ts); everything here is a no-op off web.
-
 export type WebPushStatus =
     | 'unsupported'   // browser has no Push API
     | 'needs-install' // iOS Safari tab: push only exists once added to the Home Screen
@@ -105,7 +102,7 @@ async function remember(endpoint: string, receipt: RegistrationReceipt, ownerId:
     if (typeof receipt.generation !== 'number' || typeof receipt.revocationCredential !== 'string') {
         throw new Error('Notification registration acknowledgement is missing.')
     }
-    await saveWebPushAuthority(endpoint, { generation: receipt.generation, revocationCredential: receipt.revocationCredential, ownerId, subscriptionKeys })
+    await saveWebPushAuthority(endpoint, { generation: receipt.generation, revocationCredential: receipt.revocationCredential, ownerId, subscriptionKeys, savedAt: Date.now() })
 }
 
 async function saveSubscription(subscription: PushSubscription, operation: Operation): Promise<void> {
@@ -116,7 +113,9 @@ async function saveSubscription(subscription: PushSubscription, operation: Opera
     await assertOperation(operation)
     if (stored?.ownerId === operation.ownerId && stored.generation > 0
         && stored.subscriptionKeys?.p256dh === subscriptionKeys.p256dh
-        && stored.subscriptionKeys.auth === subscriptionKeys.auth) return
+        && stored.subscriptionKeys.auth === subscriptionKeys.auth
+        && typeof stored.savedAt === 'number' && stored.savedAt <= Date.now()
+        && Date.now() - stored.savedAt < 7 * 24 * 60 * 60 * 1000) return
     const authority = await readWebPushAuthority(subscription.endpoint, operation.intent, true)
     if (!authority) throw new Error('Your notification action changed. Please retry.')
     const receipt = await apiPost<RegistrationReceipt>('/profile/web-push/subscribe', {

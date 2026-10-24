@@ -118,14 +118,7 @@
         "serviceRoleSelect": true
       }
     ],
-    "indexes": [
-      {
-        "definition": "CREATE INDEX profiles_push_token_lookup ON public.profiles USING btree (push_token) WHERE (push_token IS NOT NULL)",
-        "name": "profiles_push_token_lookup",
-        "ready": true,
-        "valid": true
-      }
-    ]
+    "indexes": []
   },
   "phases": {
     "pre-migration": {

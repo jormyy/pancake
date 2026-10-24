@@ -1,6 +1,6 @@
 import React from 'react'
 import Module from 'node:module'
-import { StackRouter } from '@react-navigation/routers'
+import type { StackNavigationState } from '@react-navigation/native'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
@@ -160,14 +160,13 @@ it.each([
 it('dismisses the trade detail when its already-selected tab is tapped', async () => {
     state.pathname = '/trades'
     state.params = { tradeId: 'incoming-trade' }
-    const router = StackRouter({})
-    const options = { routeNames: ['index', 'trades'], routeParamList: {}, routeGetIdList: {} }
-    const initial = router.getInitialState(options)
-    let tabs = router.getRehydratedState(router.getStateForAction(initial,
-        { type: 'NAVIGATE', payload: { name: 'trades', params: state.params } }, options)!, options)
+    let tabs: StackNavigationState<Record<string, object | undefined>> = {
+        stale: false, type: 'stack', key: 'tabs', index: 1, routeNames: ['index', 'trades'],
+        routes: [{ key: 'home', name: 'index' }, { key: 'trades', name: 'trades', params: state.params }],
+        preloadedRoutes: [],
+    }
     state.dismissTo.mockImplementation(() => {
-        tabs = router.getRehydratedState(router.getStateForAction(tabs,
-            { type: 'POP_TO', payload: { name: 'trades', params: {} } }, options)!, options)
+        tabs = { ...tabs, routes: [tabs.routes[0], { ...tabs.routes[1], params: {} }] }
     })
     await render()
     await act(async () => controls('Trades')[0].props.onPress())
@@ -176,20 +175,19 @@ it('dismisses the trade detail when its already-selected tab is tapped', async (
 })
 
 it('reuses the original tabs tree after repeated root-level player visits', async () => {
-    const router = StackRouter({})
-    const options = { routeNames: ['(tabs)', 'player/[id]'], routeParamList: {}, routeGetIdList: {} }
-    let root = router.getInitialState(options)
-    const originalTabs = root.routes[0].key
-    const dispatch = (type: 'NAVIGATE' | 'POP_TO', name: string, params?: object) => {
-        const next = router.getStateForAction(root, { type, payload: { name, params } }, options)
-        if (next) root = router.getRehydratedState(next, options)
+    let root: StackNavigationState<Record<string, object | undefined>> = {
+        stale: false, type: 'stack', key: 'root', index: 0, routeNames: ['(tabs)', 'player/[id]'],
+        routes: [{ key: 'original-tabs', name: '(tabs)' }], preloadedRoutes: [],
     }
-    state.navigate.mockImplementation(() => dispatch('NAVIGATE', '(tabs)', { screen: 'players' }))
-    state.dismissTo.mockImplementation(() => dispatch('POP_TO', '(tabs)', { screen: 'players' }))
+    const originalTabs = root.routes[0].key
+    state.navigate.mockImplementation(() => {
+        root = { ...root, index: root.routes.length, routes: [...root.routes, { key: 'new-tabs', name: '(tabs)' }] }
+    })
+    state.dismissTo.mockImplementation(() => { root = { ...root, index: 0, routes: [root.routes[0]] } })
     state.pathname = '/player/123'
     await render()
     for (const id of ['1', '2']) {
-        dispatch('NAVIGATE', 'player/[id]', { id })
+        root = { ...root, index: root.routes.length, routes: [...root.routes, { key: `player-${id}`, name: 'player/[id]', params: { id } }] }
         await act(async () => controls('Players')[0].props.onPress())
         expect(root.routes.map(route => route.name)).toEqual(['(tabs)'])
         expect(root.routes[0].key).toBe(originalTabs)

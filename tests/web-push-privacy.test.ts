@@ -33,7 +33,7 @@ it('hides queued old-account payloads without requiring a page or durable accoun
         text: () => 'Account A details',
     } })
     expect(sw.showNotification).toHaveBeenCalledWith('Pancake', {
-        body: 'Open Pancake to check for updates.', icon: '/pwa-192.png', badge: '/pwa-192.png', data: { url: '/' },
+        body: 'Open Pancake to check for updates.', icon: '/pwa-192.png', badge: '/pwa-192.png', tag: 'pancake', data: { url: '/' },
     })
     expect(JSON.stringify(sw.showNotification.mock.calls)).not.toContain('Account A')
 })

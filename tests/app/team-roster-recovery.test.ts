@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
         membershipStatus: 'available', refresh: vi.fn(),
     },
     params: { memberId: 'other-member', teamName: 'Other team' },
-    changeListener: null as ((change: { topic: string; scopes: { member_id?: string }[] | null }) => void) | null,
+    changeListener: null as ((change: { topic: string; scopes: { member_id?: string }[] | null; details?: { resource: string; season_id: string }[] }) => void) | null,
     getRoster: vi.fn(),
     getStats: vi.fn(),
 }))
@@ -23,7 +23,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => mocks.params, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
-vi.mock('@/lib/league-changes', () => ({ listenForLeagueChanges: (_league: string, listener: typeof mocks.changeListener) => {
+vi.mock('@/lib/league-changes', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/league-changes')>(), listenForLeagueChanges: (_league: string, listener: typeof mocks.changeListener) => {
     mocks.changeListener = listener; return () => { mocks.changeListener = null }
 } }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
@@ -222,6 +222,8 @@ it('revalidates relevant roster changes and coalesces suspended changes into the
     mocks.getStats.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
     let view!: ReactTestRenderer
     await act(async () => { view = create(React.createElement(TeamRosterScreen)) })
+    await act(async () => mocks.changeListener?.({ topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: 'season' }] }))
+    expect(mocks.getRoster).toHaveBeenCalledTimes(1)
     await act(async () => mocks.changeListener?.({ topic: 'roster', scopes: [{ member_id: 'unrelated-member' }] }))
     expect(mocks.getRoster).toHaveBeenCalledTimes(1)
     await act(async () => mocks.changeListener?.({ topic: 'roster', scopes: [{ member_id: 'other-member' }] }))

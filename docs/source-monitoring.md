@@ -138,7 +138,7 @@ Legacy uncorrelated requests retain their two-hour response window.
 Normal overdue detection takes ten to fifteen minutes, excluding scheduler delays.
 
 Idle gates protect nominations, stats dispatch, live polling, lineups, and trades.
-The trade gate checks expirations, accepted trades, notification delivery, and pending receipts.
+The trade gate checks expirations, accepted trades, and queued notification delivery.
 Idle ticks create no Edge invocation rows.
 Cron still records SQL executions when cluster logging is enabled.
 Missing Edge credentials surface when work becomes due.

@@ -168,7 +168,7 @@ try {
   await new Promise(resolve => setTimeout(resolve, 1200))
   const deliveries = await Promise.all([drain(), drain()])
   assert.equal(deliveries.reduce((sum, result) => sum + result.notificationsDelivered, 0), 3)
-  queued = await rows(); assert.ok(queued?.every(row => row.delivered_at && !row.claim_token && !row.expo_ticket_id))
+  queued = await rows(); assert.ok(queued?.every(row => row.delivered_at && !row.claim_token))
   assert.equal(sends.length - beforeRetry, 3)
   const finalSendCount = sends.length
   await drain(); assert.equal(sends.length, finalSendCount)

@@ -4,7 +4,6 @@ import {
   fetchAll,
 } from './soak-support.mjs'
 export {
-  assertBackendUsesFakePush,
   backendAuthedJson,
   backendGetJson,
   backendJson,

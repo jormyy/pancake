@@ -18,10 +18,6 @@ BEGIN
          available_at = now() + make_interval(
            secs => LEAST(3600, power(2, LEAST(attempt_count, 12))::int)
          ),
-         expo_ticket_id = NULL,
-         push_token = NULL,
-         ticketed_at = NULL,
-         receipt_attempt_count = 0,
          dead_lettered_at = CASE WHEN attempt_count + 1 >= 12 THEN now() ELSE NULL END,
          claimed_at = NULL,
          claim_token = NULL,

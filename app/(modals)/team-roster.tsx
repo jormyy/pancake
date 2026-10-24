@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
-import { listenForLeagueChanges } from '@/lib/league-changes'
+import { leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { getRoster, RosterPlayer } from '@/lib/roster'
 import { compareRosterBySlot } from '@/lib/roster-slots'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
@@ -56,6 +56,7 @@ export default function TeamRosterScreen() {
         if (!leagueId || !memberId || !scope) return
         return listenForLeagueChanges(leagueId, change => {
             if (change.topic !== 'roster' && change.topic !== 'inventory') return
+            if (change.topic === 'inventory' && !leagueResourceAffects(change, ['season'])) return
             if (change.scopes && !change.scopes.some(row => !row.member_id || row.member_id === memberId)) return
             setAttempt(value => value + 1)
         })
