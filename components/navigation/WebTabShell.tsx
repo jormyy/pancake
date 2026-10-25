@@ -208,13 +208,14 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const chevronColor = light ? colors.textMuted : brand.onMuted
 
     if (!current) {
+        const waiting = membershipStatus !== 'empty' && membershipStatus !== 'unavailable'
         return (
             <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
-                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
+                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]} aria-busy={waiting} accessibilityState={{ busy: waiting }}>
                     <View style={styles.flex1}>
-                        <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
+                        <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip" aria-hidden={waiting}>{waiting ? '\u00a0' : membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
                         {light ? null : (
-                            <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
+                            <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip" aria-hidden={waiting}>{waiting ? '\u00a0' : membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
                         )}
                     </View>
                 </View>

@@ -110,6 +110,9 @@ describe('team roster read recovery', () => {
         mocks.context.membershipStatus = 'loading'
         await mount()
         expect(empty()).toHaveLength(0)
+        expect(retry()).toHaveLength(0)
+        expect(screen.root.findAllByProps({ children: 'Join a league to view team rosters.' })).toHaveLength(0)
+        expect(screen.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(1)
         expect(mocks.getRoster).not.toHaveBeenCalled()
         mocks.context.current = { id: 'own-member' }
         mocks.context.currentLeague = { id: 'league-a' }
