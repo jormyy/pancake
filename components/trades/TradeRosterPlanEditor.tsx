@@ -55,7 +55,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
             <Text style={textStyles.meta}>{value.dropPlayerIds.length === 1 ? '1 drop' : `${value.dropPlayerIds.length} drops`}</Text>
         </Pressable>
         {choosingDrops ? <View style={styles.player}>
-            <Text style={textStyles.meta}>Drops happen at completion and enter waivers for 48 hours.</Text>
+            <Text style={textStyles.meta}>Drops happen at completion. They will stay on waivers until the first 3 AM ET run after 48 hours.</Text>
             {roster.map((player) => {
                 const selected = value.dropPlayerIds.includes(player.players.id)
                 return <Pressable key={player.id} disabled={disabled} accessibilityRole="checkbox" aria-checked={selected}

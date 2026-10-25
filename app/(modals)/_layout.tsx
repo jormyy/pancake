@@ -1,6 +1,8 @@
 import { Stack } from 'expo-router'
 import { colors, fontWeight } from '@/constants/tokens'
 
+export { RouteErrorBoundary as ErrorBoundary } from '@/components/navigation/RouteErrorBoundary'
+
 export default function ModalsLayout() {
     return (
         <Stack

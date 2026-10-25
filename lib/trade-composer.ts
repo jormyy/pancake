@@ -3,6 +3,7 @@ import type {
     MultiTeamTradeProposalPayload,
     Trade,
     TradeProposalPayload,
+    TradeRosterPlan,
 } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import type { LeagueStatus } from '@/types/database'
@@ -155,6 +156,15 @@ export function prefillTradeComposerFromTrade(
         selectedRecipientId: mode === 'counter' ? trade.proposerMemberId : trade.recipientMemberId,
         notes: mode === 'counter' ? '' : trade.notes ?? '',
         expirationDays: String(expirationDays),
+    }
+}
+
+export function prefillTradeRosterPlan(trade: Trade, memberId: string): TradeRosterPlan {
+    const incoming = trade.routedItems.filter(item => item.kind === 'player' && item.toMemberId === memberId)
+    return {
+        taxiPlayerIds: incoming.flatMap(item => item.kind === 'player' && item.toTaxi ? [item.playerId] : []),
+        irPlayerIds: incoming.flatMap(item => item.kind === 'player' && item.toIR ? [item.playerId] : []),
+        dropPlayerIds: [...(trade.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds ?? [])],
     }
 }
 

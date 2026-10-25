@@ -15,13 +15,14 @@ export async function getPlayerScoringSettings(leagueId: string) {
 
 export type PlayerGame = GameLogEntry & { live: boolean; nbaGameId: string }
 
-export function summarizePlayerSeason(lines: PlayerSeasonLine[], _team: string | null, scoring: ScoringSettings | null) {
+export function summarizePlayerSeason(lines: PlayerSeasonLine[], team: string | null, scoring: ScoringSettings | null) {
     const games: PlayerGame[] = lines.map(row => {
         const game = row.nba_games
-        const isHome = row.is_home === true
+        const side = row.is_home ?? (game.home_team === team ? true : game.away_team === team ? false : null)
+        const isHome = side === true
         return {
             gameId: row.id, nbaGameId: game.id, gameDate: game.game_date,
-            opponent: isHome ? `vs ${game.away_team}` : row.is_home === false ? `@ ${game.home_team}` : `${game.away_team} @ ${game.home_team}`, isHome,
+            opponent: isHome ? `vs ${game.away_team}` : side === false ? `@ ${game.home_team}` : `${game.away_team} @ ${game.home_team}`, isHome,
             live: game.status.toLowerCase().replaceAll('_', '') === 'inprogress', didNotPlay: row.did_not_play,
             minutes: Number(row.minutes_played) || 0, points: row.points ?? 0,
             rebounds: row.rebounds ?? 0, assists: row.assists ?? 0, steals: row.steals ?? 0,

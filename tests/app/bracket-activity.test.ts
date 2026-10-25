@@ -4,7 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
 import BracketScreen from '@/app/(modals)/bracket'
 
-const state = vi.hoisted(() => ({ active: true, epoch: 0, getBracket: vi.fn() }))
+const state = vi.hoisted(() => ({ active: true, epoch: 0, getBracket: vi.fn(), dismissTo: vi.fn(), replace: vi.fn() }))
 vi.mock('@/components/league/draft-room/useDraftActivity', () => {
     const gate = { canRead: () => state.active, capture: () => state.epoch,
         isCurrent: (epoch: number) => state.active && epoch === state.epoch }
@@ -12,7 +12,7 @@ vi.mock('@/components/league/draft-room/useDraftActivity', () => {
 })
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView',
     StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 1200, height: 900 }) }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace: vi.fn() }) }))
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useRouter: () => ({ replace: state.replace, dismissTo: state.dismissTo }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league' } }) }))
 vi.mock('@/lib/bracket', () => ({ getPlayoffBracket: state.getBracket }))
 vi.mock('@/lib/format', () => ({ formatPoints: String }))
@@ -75,5 +75,14 @@ it('paints a saved bracket answer immediately on remount while the next read is 
     await act(async () => { view = create(React.createElement(BracketScreen)) })
     expect(view.root.findAllByType('LoadingState' as React.ElementType)).toHaveLength(0)
     expect(view.root.findAllByProps({ children: 'No playoff bracket yet' })[0].props.children).toBe('No playoff bracket yet')
+    await act(async () => view.unmount())
+})
+
+it('dismisses the bracket when returning to standings', async () => {
+    let view!: ReactTestRenderer
+    await act(async () => { view = create(React.createElement(BracketScreen)) })
+    await act(async () => view.root.findByType('ModalScreen' as React.ElementType).props.onBack())
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/league?tab=results')
+    expect(state.replace).not.toHaveBeenCalled()
     await act(async () => view.unmount())
 })

@@ -39,6 +39,6 @@ describe('primary navigation order', () => {
         const shellSource = await readFile(path.join(ROOT, 'components/navigation/WebTabShell.tsx'), 'utf8')
 
         expect(shellSource).toContain('accessibilityLabel="Profile & settings"')
-        expect(shellSource).toContain("router.push('/profile')")
+        expect(shellSource).toContain("router.dismissTo('/profile')")
     })
 })

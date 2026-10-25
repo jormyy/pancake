@@ -57,7 +57,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
         })
 
     function navigateBackToDraftList() {
-        router.replace('/league?tab=draft')
+        router.dismissTo('/league?tab=draft')
     }
 
     if (!draftId) return <Redirect href="/draft" />

@@ -366,7 +366,7 @@ function SidebarNavButton({
             ) : null}
         </Pressable>
     )
-    return href ? <Link href={href} asChild>{button}</Link> : button
+    return href ? <Link href={href} dismissTo asChild>{button}</Link> : button
 }
 
 // Pages opened from Profile keep it marked as the current place.
@@ -474,7 +474,7 @@ function WebSidebar() {
 
             <View style={styles.sidebarFooter}>
                 <Pressable
-                    onPress={() => router.push('/profile')}
+                    onPress={() => router.dismissTo('/profile')}
                     style={({ hovered, pressed }: PressableState) => [
                         styles.userChip,
                         hovered && !profileActive && styles.userChipHover,
@@ -579,7 +579,7 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
                     onPress: () => router.push('/(modals)/commissioner-settings'), active: pathname.startsWith('/commissioner-settings'),
                 }]
                 : []),
-            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.push('/profile'), active: isProfileRoute(pathname) },
+            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.dismissTo('/profile'), active: isProfileRoute(pathname) },
         ],
         [draftLoading, isCommissioner, openDraftRoom, pathname, router, showDraftRoom],
     )

@@ -45,7 +45,7 @@ vi.mock('@shopify/flash-list', async () => {
     }
 })
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push, setParams: vi.fn() }), useLocalSearchParams: () => ({}) }))
-vi.mock('expo-haptics', () => ({}))
+vi.mock('expo-haptics', () => ({ impactAsync: vi.fn(), ImpactFeedbackStyle: { Medium: 'Medium' } }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), confirmAction: vi.fn() }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user-a' } }) }))
 vi.mock('@/contexts/league-context', () => ({
@@ -133,6 +133,7 @@ describe('roster empty slots', () => {
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
         mocks.focusData.refresh.mockReset()
+        mocks.league.status = 'active'
         mocks.league.roster_size = 20
         mocks.league.ir_slots = 2
         mocks.league.taxi_slots = 2
@@ -209,6 +210,27 @@ describe('roster empty slots', () => {
         expect(toggleTaxi).not.toHaveBeenCalled()
         expect(mocks.focusData.refresh).toHaveBeenCalledOnce()
         expect(picker().props.pending).toBeNull()
+    })
+
+    it('explains the waiver run when confirming a drop', async () => {
+        const player = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([player])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => screen.root.findByType('RosterPlayerItem' as React.ElementType).props.onLongPress(player))
+        expect(confirmAction).toHaveBeenCalledWith('Drop Active?', 'They will stay on waivers until the first 3 AM ET run after 48 hours.', expect.any(Function), 'Drop')
+    })
+
+    it.each(['active', 'offseason'])('uses real IR occupancy and blocks offseason IR moves in %s', async status => {
+        mocks.league.status = status
+        mocks.league.ir_slots = 1
+        const reserve = { id: 'injured', is_on_ir: true, is_on_taxi: false,
+            players: { id: 'injured-player', display_name: 'Injured', eligible_positions: ['PG'] } } as RosterPlayer
+        mocks.focusData.data = rosterData([reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const picker = screen.root.findByType('ActivationOverflowModal' as React.ElementType)
+        expect.soft(picker.props.myLineup.ir.map((player: { rosterPlayerId: string }) => player.rosterPlayerId)).toEqual(['injured'])
+        expect(picker.props.irSlots).toBe(status === 'offseason' ? 0 : 1)
     })
 
     it('keeps the activation choice open if a selected player becomes locked', async () => {

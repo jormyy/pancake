@@ -8,6 +8,7 @@ import {
     StyleSheet,
 } from 'react-native'
 import { showAlert, confirmAction } from '@/lib/alert'
+import { confirmRosterActivation } from '@/lib/roster-activation-confirm'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
@@ -389,14 +390,14 @@ export default function RosterScreen() {
     }, [roster])
     const ir = useMemo(() => [...roster.filter((p) => p.is_on_ir)].sort(compareRosterBySlot), [roster])
     const taxi = useMemo(() => [...roster.filter((p) => p.is_on_taxi)].sort(compareRosterBySlot), [roster])
-    const activationRoster = useMemo(() => ({
-        starters: [], ir: [], taxi: [],
-        bench: active.map(item => ({
+    const activationRoster = useMemo(() => {
+        const toLineupPlayer = (item: RosterPlayer) => ({
             rosterPlayerId: item.id, playerId: item.players.id, displayName: item.players.display_name,
             position: item.players.position, eligiblePositions: item.players.eligible_positions,
             nbaTeam: item.players.nba_team, injuryStatus: item.players.injury_status, nbaId: item.players.nba_id,
-        })),
-    }), [active])
+        })
+        return { starters: [], bench: active.map(toLineupPlayer), ir: ir.map(toLineupPlayer), taxi: [] }
+    }, [active, ir])
     const rosterSize = currentLeague?.roster_size ?? 20
     const irSlots = currentLeague?.ir_slots ?? 2
     const taxiSlots = currentLeague?.taxi_slots ?? 3
@@ -532,10 +533,7 @@ export default function RosterScreen() {
             setActivationPending({ rosterPlayerId: item.id, source: 'taxi' })
             return
         }
-        const title = 'Activate from Taxi?'
-        const message = `Move ${item.players.display_name} to your active roster? They cannot return to your team’s taxi, even after reacquisition or a season change. Another team can still acquire them into taxi if eligible.`
-
-        confirmAction(title, message, async () => {
+        confirmRosterActivation({ source: 'taxi', reserveName: item.players.display_name }, async () => {
             if (!isCurrentAction(generation, identity)) return
             await rosterRecoveryRunnerRef.current(async () => {
                 if (!isCurrentAction(generation, identity)) return
@@ -563,16 +561,11 @@ export default function RosterScreen() {
         const reserve = roster.find(item => item.id === activationPending.rosterPlayerId)
         const chosen = active.find(item => item.id === freeRosterPlayerId)
         if (!reserve || !chosen) return
-        const chosenName = chosen.players.display_name
-        const reserveName = reserve.players.display_name
-        const taxiNotice = activationPending.source === 'taxi'
-            ? ' They cannot return to your team’s taxi, even after reacquisition or a season change. Another team can still acquire them into taxi if eligible.'
-            : ''
-        const title = freeAction === 'drop' ? `Drop ${chosenName}?` : `Move ${chosenName} to IR?`
-        const message = freeAction === 'drop'
-            ? `Drop ${chosenName} to activate ${reserveName}?${taxiNotice}`
-            : `Move ${chosenName} to IR to activate ${reserveName}?${taxiNotice}`
-        confirmAction(title, message, async () => {
+        confirmRosterActivation({
+            source: activationPending.source,
+            reserveName: reserve.players.display_name,
+            freeing: { name: chosen.players.display_name, action: freeAction },
+        }, async () => {
             if (!isCurrentAction(generation, identity)) return
             if (!onlineRef.current) {
                 showAlert('Offline', 'Check your connection before changing your roster.')
@@ -597,7 +590,7 @@ export default function RosterScreen() {
                     if (isCurrentAction(generation, identity)) setActivationSaving(false)
                 }
             })
-        }, freeAction === 'drop' ? 'Drop and activate' : 'Move and activate', freeAction === 'drop' || activationPending.source === 'taxi')
+        })
     }
 
     async function runAutoSet(mode: 'today' | 'week' | 'season') {
@@ -654,7 +647,7 @@ export default function RosterScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
-            'They will be placed on waivers for 48 hours.',
+            'They will stay on waivers until the first 3 AM ET run after 48 hours.',
             async () => {
                 if (!isCurrentAction(generation, identity)) return
                 await rosterRecoveryRunnerRef.current(async () => {
@@ -1075,7 +1068,7 @@ export default function RosterScreen() {
             <ActivationOverflowModal
                 pending={activationPending}
                 myLineup={activationRoster}
-                irSlots={irSlots}
+                irSlots={currentLeague?.status === 'offseason' ? 0 : irSlots}
                 saving={activationSaving}
                 onDrop={id => resolveActivationOverflow(id, 'drop')}
                 onMoveToIR={id => resolveActivationOverflow(id, 'ir')}

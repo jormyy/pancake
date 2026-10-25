@@ -13,6 +13,7 @@ type SubscriptionWithStatus = TableChangeSubscription & {
     onReconnect?: () => void | boolean | Promise<void | boolean>
 }
 
+let channelNonce = 0
 const subscriptionCleanups = new WeakMap<RealtimeChannel, () => void>()
 
 function reconnectRecovery(reload: NonNullable<SubscriptionWithStatus['onReconnect']>) {
@@ -82,7 +83,7 @@ export function subscribeToTableChanges(
     channelName: string,
     subscription: SubscriptionWithStatus,
 ): RealtimeChannel {
-    const channel = supabase.channel(channelName, { config: { private: true } })
+    const channel = supabase.channel(`${channelName}:${++channelNonce}`, { config: { private: true } })
     const register = (watch: FallbackTableChangeWatch, onChange: TableChangeWatch['onChange']) => {
         channel.on(
             'postgres_changes',

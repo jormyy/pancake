@@ -228,6 +228,7 @@ it.each([
         else {
             await act(async () => { await actions.handleTap({ kind: kind === 'activation' ? 'taxi' : 'bench', index: 0 }) })
             await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+            if (kind === 'activation') await act(async () => { await mocks.confirmAction.mock.calls[0]?.[2]() })
         }
         expect(write).toHaveBeenCalledOnce()
         expect(reload).toHaveBeenCalledTimes(outcome === 'read-failure' || kind === 'auto-set' ? 1 : 0)

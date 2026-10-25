@@ -11,7 +11,7 @@ import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const state = vi.hoisted(() => ({
     params: { id: 'player', playerHeader: undefined as string | undefined },
-    data: {} as Record<string, unknown>, roster: vi.fn(), add: vi.fn(), push: vi.fn(),
+    data: {} as Record<string, unknown>, roster: vi.fn(), add: vi.fn(), push: vi.fn(), dismissTo: vi.fn(),
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
 }))
@@ -20,7 +20,7 @@ vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },
 }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => state.params, useRouter: () => ({ push: state.push }) }))
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => state.params, useRouter: () => ({ push: state.push, dismissTo: state.dismissTo }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league', scoring_settings: { points: 1 } }, membershipValidated: true }) }))
 vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: vi.fn(() => state.data) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
@@ -169,4 +169,14 @@ it("opens a trade for another team's player from the main action", async () => {
     await act(async () => trade.props.onPress())
     expect(state.push).toHaveBeenCalledWith('/(modals)/propose-trade?requestPlayerId=player')
     expect(state.add).not.toHaveBeenCalled()
+})
+
+it('dismisses the player page when viewing an existing claim', async () => {
+    state.roster.mockResolvedValue({ status: { status: 'on_waivers', logId: 'waiver', clearsAt: '2099-01-01' }, transactionState: null, claimPending: true })
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    const action = screen!.root.findByType(PlayerHeader).props.action
+    expect(action.label).toBe('View claim')
+    await act(async () => action.onPress())
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/roster?claims=1')
+    expect(state.push).not.toHaveBeenCalled()
 })

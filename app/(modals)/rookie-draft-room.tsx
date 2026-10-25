@@ -91,7 +91,7 @@ export default function RookieDraftRoomScreen() {
         })
 
     function navigateBackToDraftList() {
-        router.replace('/league?tab=draft')
+        router.dismissTo('/league?tab=draft')
     }
 
     if (!state) {

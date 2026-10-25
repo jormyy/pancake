@@ -299,3 +299,28 @@ it('ignores registration catchup, roster events, and inventory unrelated to acti
         vi.useRealTimers()
     }
 })
+
+it.each([125, 200])('keeps history pageable after a capped refresh with %s remaining rows', async remaining => {
+    let total = 200
+    getLeagueTransactions.mockImplementation(async (_league, limit, offset) =>
+        Array.from({ length: total }, (_, index) => ({ id: `row-${index}` })).slice(offset, offset + Math.min(limit, 100)))
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.loadMoreActivity() })
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.transactions).toHaveLength(150)
+        total = remaining
+        await act(async () => { await latest.refreshTab('history') })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 100, 0)
+        expect(latest.transactions).toHaveLength(100)
+        expect(latest.activityHasMore).toBe(true)
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 100)
+        expect(latest.transactions).toHaveLength(Math.min(remaining, 150))
+        expect(latest.activityHasMore).toBe(remaining >= 150)
+        expect(getLeagueTransactions.mock.calls.every(([, limit]) => limit <= 100)).toBe(true)
+    } finally { await act(async () => renderer?.unmount()) }
+})

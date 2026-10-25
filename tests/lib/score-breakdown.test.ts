@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeason: vi.fn(), getCurrentSeasonId: vi.fn(), getActiveSeasonId: vi.fn(), currentSeasonYear: vi.fn() }))
-vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: vi.fn(), calculateWeekNumberFromDate: vi.fn() }))
+vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: vi.fn() }))
 vi.mock('@/lib/games', () => ({ getLivePlayerStats: vi.fn(), getTodaysGames: vi.fn() }))
 
 import type { LiveStatLine } from '@/lib/games'

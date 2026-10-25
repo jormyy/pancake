@@ -28,6 +28,7 @@ describe('trade roster plan', () => {
         const toggle = renderer!.root.findByProps({ accessibilityLabel: 'Choose drops at trade completion' })
         expect(toggle.props.accessibilityState.expanded).toBe(false)
         await act(async () => toggle.props.onPress())
+        expect(renderer!.root.findAllByProps({ children: 'Drops happen at completion. They will stay on waivers until the first 3 AM ET run after 48 hours.' })).toHaveLength(1)
         const drop = renderer!.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' })
         await act(async () => drop.props.onPress())
         expect(onChange).toHaveBeenCalledWith({ ...emptyPlan, dropPlayerIds: ['player-a'] })

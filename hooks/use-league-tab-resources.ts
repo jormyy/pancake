@@ -87,7 +87,7 @@ export function useLeagueTabResources(
         leagueKey,
         EMPTY_ACTIVITY,
         useCallback(async () => {
-            const limit = Math.max(ACTIVITY_LIMIT, historyRowCount.current)
+            const limit = Math.min(100, Math.max(ACTIVITY_LIMIT, historyRowCount.current))
             const rows = leagueId ? await getLeagueTransactions(leagueId, limit, 0) : []
             return { rows, hasMore: rows.length === limit, offset: rows.length }
         }, [leagueId]),

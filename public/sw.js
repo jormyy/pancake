@@ -296,6 +296,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification('Pancake', {
       tag: 'pancake',
+      renotify: true,
       body: 'Open Pancake to check for updates.',
       icon: '/pwa-192.png',
       badge: '/pwa-192.png',

@@ -84,7 +84,7 @@ export default function BracketScreen() {
         return () => { requestRef.current += 1 }
     }, [attempt, currentId, currentLeagueId, resourceKey, canRead, capture, isCurrent, epoch, cacheKey])
 
-    const backToStandings = () => router.replace('/league?tab=results')
+    const backToStandings = () => router.dismissTo('/league?tab=results')
     const rounds: Round[] = bracket?.rounds?.map((round) => ({
         key: String(round.number), label: round.label, matchups: round.matchups, final: round.label === 'Championship',
     })) ?? (bracket ? [

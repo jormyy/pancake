@@ -28,6 +28,7 @@ import {
     buildTwoTeamTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
+    prefillTradeRosterPlan,
     submitMultiTeamTradeComposer,
     submitTradeComposer,
     tradeComposerSuccessCopy,
@@ -261,6 +262,7 @@ export default function ProposeTradeScreen() {
                 setSelectedRecipientId(trade.isMultiTeam ? null : prefill.selectedRecipientId)
                 setNotes(prefill.notes)
                 setExpirationDays(prefill.expirationDays)
+                setRosterPlan(prefillTradeRosterPlan(trade, myMemberId))
                 prefillFromTrade(trade, myMemberId)
             })
             .catch((error) => {
@@ -463,7 +465,7 @@ export default function ProposeTradeScreen() {
         } catch (error) {
             if (ownsOwner(ownerIdentity) && submissionRef.current === submission) {
                 // Rule and input rejections roll this request back. A conflicting receipt can be committed.
-                const rejected = error instanceof RequestError && (error.code === 'P0001' ||
+                const rejected = error instanceof RequestError && (error.code === 'P0001' || error.code === 'PT001' ||
                     (error.code === '22023' && error.message !== 'This request key already belongs to different trade terms.'))
                 if (rejected) {
                     retainedAttemptRef.current = null
