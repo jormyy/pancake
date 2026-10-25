@@ -1865,6 +1865,13 @@
       "statementCount": 52,
       "statementsSha256": "55aa6ea7ed1a1a4bd2e6e9c47de8c42e8bf1b653ba34253fcb3464756b822cf0",
       "sha256": "e5e2e6a20cb39758bd36db10ff5191f939596598336ee57710fd7fc6d332a6e2"
+    },
+    {
+      "name": "player_import_injury_and_retired_enums",
+      "version": "20261026000800",
+      "statementCount": 6,
+      "statementsSha256": "9349361cb38f25b1be393e4007fd0e3fad33a12d8db087ed69bb1d78651b762f",
+      "sha256": "ae56f009998b9fb09edbce303d9bb4f1a57ca6a7039fa90d56b1193f9b97efb3"
     }
   ]
 }

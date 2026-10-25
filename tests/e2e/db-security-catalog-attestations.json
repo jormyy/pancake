@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261026000700",
+  "candidateVersion": "20261026000800",
   "common": {
     "functions": [
       {
@@ -1282,6 +1282,10 @@
     {
       "filename": "20261026000700_taxi_and_server_rules.sql",
       "sha256": "e5e2e6a20cb39758bd36db10ff5191f939596598336ee57710fd7fc6d332a6e2"
+    },
+    {
+      "filename": "20261026000800_player_import_injury_and_retired_enums.sql",
+      "sha256": "ae56f009998b9fb09edbce303d9bb4f1a57ca6a7039fa90d56b1193f9b97efb3"
     }
   ],
   "preMigration": {
