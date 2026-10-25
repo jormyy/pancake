@@ -135,7 +135,7 @@ END $$;
 CREATE FUNCTION pg_temp.claim(f pg_temp.all_star_fixture,team int,p uuid,bid int,ready boolean) RETURNS uuid LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
-  SELECT f.l,f.s,p,CASE WHEN ready THEN now()-interval '49 hours' ELSE now() END
+  SELECT f.l,f.s,p,CASE WHEN ready THEN now()-interval '73 hours' ELSE now() END
   WHERE NOT EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL);
   RETURN create_waiver_claim_atomic(f.l,f.m[team],p,NULL,f.u[team],bid);
 END $$;
@@ -194,7 +194,7 @@ BEGIN
         PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
         PERFORM pg_temp.check_that((SELECT add_count=2 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=17),'pre/post-break additions share one limit');
         PERFORM pg_temp.expect_limit(f);
-        UPDATE waiver_wire_log SET placed_on_waivers_at=now()-interval '49 hours',clears_at=now()-interval '1 second'
+        UPDATE waiver_wire_log SET placed_on_waivers_at=now()-interval '73 hours',clears_at=now()-interval '1 second'
           WHERE league_season_id=f.s AND player_id IN(SELECT player_id FROM waiver_claims WHERE id IN(limited,after_claim));
         UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date WHERE id IN(limited,after_claim);
         PERFORM pg_temp.drain();

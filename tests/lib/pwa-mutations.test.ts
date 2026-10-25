@@ -28,13 +28,18 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.resetAllMocks() })
 
 describe('direct client write update protection', () => {
-    it.each([null, { code: 'P0001', message: 'Roster full' }])('holds a roster RPC through settlement: %j', async error => {
+    it.each([
+        [undefined, null], [false, null], [true, null],
+        [undefined, { code: 'P0001', message: 'Roster full' }],
+        [false, { code: 'P0001', message: 'Roster full' }],
+        [true, { code: 'P0001', message: 'Roster full' }],
+    ] as const)('holds a roster RPC through settlement (IR=%s, error=%j)', async (toIr, error) => {
         const reply = deferred<{ error: typeof error }>()
         rpc.mockReturnValue(reply.promise)
-        const request = addFreeAgent('member', 'league', 'player')
+        const request = addFreeAgent('member', 'league', 'player', toIr)
         expect(isPwaUpdateHeld()).toBe(true)
         expect(rpc).toHaveBeenCalledWith('add_free_agent_atomic', {
-            p_member_id: 'member', p_league_id: 'league', p_player_id: 'player',
+            p_member_id: 'member', p_league_id: 'league', p_player_id: 'player', p_to_ir: toIr ?? false, p_to_taxi: false,
         })
         const result = error ? expect(request).rejects.toThrow('Roster full') : expect(request).resolves.toBeUndefined()
         reply.resolve({ error })

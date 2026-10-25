@@ -11,6 +11,7 @@ Each document owns one contract or operating topic. Generated reports remain out
 - [Auto-set daily](pre-tipoff-lineups.md): Lineup locks, dispatch, retries, permissions, and recovery.
 - [Production migration history](production-migration-history.md): Historical attestations, approved migration ranges, and database recovery.
 - [PWA behavior](pwa-live-data.md): Player detail, caching, offline actions, reconnects, updates, and push.
+- [Release history attestations](release-history-attestations.md): Local refresh and candidate range checks.
 - [Release build provenance](release-build-provenance.md): Artifact identity, recovery, and repeatable exports.
 - [Roster lifecycle](roster-lifecycle.md): Ownership, waivers, taxi, trade plans, and playoffs.
 - [Season simulator](season-simulator.md): Historical replay inputs, invariants, and acceptance limits.
@@ -21,6 +22,12 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Related guides
 
+- [Database release steps](../supabase/RELEASE-DB.md): Ordered deployment, migration list, and delayed cleanup.
+- [Installed iPhone checks](ios-simulator-testing.md): Home Screen installation, native interactions, and captures.
+- [Bounded replay acceptance](bounded-replay-acceptance.md): Limits of resumed historical evidence.
+- [Load comparison](../scripts/load/README.md): Isolated database workload measurements.
+- [Live scoring mutations](../scripts/mutation/live/README.md): Scoring mutation checks and restoration.
+- [Postseason mutations](../scripts/mutation/post/README.md): Season transition mutation checks.
 - [Browser and soak checks](../tests/e2e/README.md): Browser fixtures and release acceptance.
 - [Layout measurements](../tests/e2e/layout-stability-README.md): Local layout setup and reporting.
 - [Benchmarks](../scripts/bench/README.md): Capacity fixtures and comparisons.

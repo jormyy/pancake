@@ -74,8 +74,8 @@ BEGIN
     IF teams%2=1 THEN
       PERFORM pg_temp.check_bracket((SELECT sum(wins+losses+ties)=teams/2*8 AND sum(ties)=0 FROM standings WHERE league_season_id=season AND week_number=5),'odd byes never add records or ties: '||teams);
     END IF;
-    SELECT array_agg(records.member_id ORDER BY records.wins DESC,records.points_for DESC) INTO expected_seeds FROM (
-      SELECT member.id AS member_id,count(match.id) FILTER (WHERE match.winner_member_id=member.id) AS wins,
+    SELECT array_agg(records.member_id ORDER BY records.wins::numeric/records.games_played DESC,records.points_for/records.games_played DESC) INTO expected_seeds FROM (
+      SELECT member.id AS member_id,count(match.id) FILTER (WHERE match.winner_member_id=member.id) AS wins,count(match.id) AS games_played,
         sum(CASE WHEN match.home_member_id=member.id THEN match.home_points ELSE match.away_points END) AS points_for
       FROM league_members member JOIN matchups match ON match.league_season_id=season AND member.id IN(match.home_member_id,match.away_member_id)
       WHERE member.league_id=league GROUP BY member.id
@@ -88,7 +88,7 @@ BEGIN
     END IF;
     result:=generate_playoff_bracket_atomic(league);
     SELECT playoff_bracket_seed_ids INTO seeds FROM league_seasons WHERE id=season;
-    PERFORM pg_temp.check_bracket(seeds=expected_seeds[1:entrants],'seed order follows saved records: '||entrants);
+    PERFORM pg_temp.check_bracket(seeds=expected_seeds[1:entrants],'seed order follows win rate and points per game: '||entrants);
     seed_order:=CASE span
       WHEN 2 THEN ARRAY[1,2]
       WHEN 4 THEN ARRAY[1,4,2,3]
@@ -130,7 +130,8 @@ BEGIN
         next_slots:=array_append(next_slots,winner);
       END LOOP;
       IF round_number<depth THEN
-        result:=apply_season_boundary_after_grace(league,season,'advance',now());
+        result:=apply_season_boundary_after_grace(league,season,'advance',
+          (SELECT (week_end + 2)::timestamp AT TIME ZONE 'America/New_York' FROM season_weeks WHERE season_year=year AND week_number=end_week));
         PERFORM pg_temp.check_bracket((result->>'applied')::boolean,'automatic boundary advances latest numbered round: '||entrants||' round '||round_number);
         SELECT id,winner_member_id INTO frozen,original_winner FROM matchups WHERE league_season_id=season AND playoff_round=round_number ORDER BY playoff_position LIMIT 1;
         token:=capture_score_inputs(season,start_week);

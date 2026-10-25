@@ -18,7 +18,7 @@ const deferred = <Value,>() => {
     const promise = new Promise<Value>((done) => { resolve = done })
     return { promise, resolve }
 }
-const profile = (id: string) => ({ id, username: id, display_name: id, avatar_url: null, push_token: null, push_token_updated_at: null, created_at: '' })
+const profile = (id: string) => ({ id, username: id, display_name: id, avatar_url: null, created_at: '' })
 
 beforeEach(() => {
     vi.clearAllMocks()
@@ -47,7 +47,7 @@ describe('useProfileResource', () => {
             requested: 'b', profileId: undefined, loaded: false,
         })
         expect(latest.profile?.id).toBe('b')
-        expect(latest.preferences.tradeEnabled).toBe(false)
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
 
         await act(async () => {
             profileA.resolve(profile('a'))
@@ -55,7 +55,7 @@ describe('useProfileResource', () => {
             await Promise.all([profileA.promise, preferencesA.promise])
         })
         expect(latest.profile?.id).toBe('b')
-        expect(latest.preferences.tradeEnabled).toBe(false)
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
     })
 
@@ -72,13 +72,13 @@ describe('useProfileResource', () => {
             .mockResolvedValueOnce(actualPreferences)
         let latest!: ReturnType<typeof useProfileResource>
         const Probe = () => {
-            latest = useProfileResource('a')
+            latest = useProfileResource('a', 'preferences')
             return null
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
 
-        expect(latest.profile?.id).toBe('a')
+        expect(mocks.getProfile).not.toHaveBeenCalled()
         expect(latest.profileLoaded).toBe(false)
         expect(latest.profileError).toContain('preferences offline')
 
@@ -89,7 +89,7 @@ describe('useProfileResource', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('retains loaded preferences but fails closed when the profile read fails', async () => {
+    it('gates profile only on its own read failure', async () => {
         const actualPreferences = {
             tradeEnabled: false,
             waiverEnabled: true,
@@ -107,7 +107,7 @@ describe('useProfileResource', () => {
         await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
 
         expect(latest.profile).toBeNull()
-        expect(latest.preferences).toEqual(actualPreferences)
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
         expect(latest.profileLoaded).toBe(false)
         expect(latest.profileError).toContain('profile offline')
         await act(async () => { renderer.unmount() })
@@ -134,10 +134,38 @@ it.each(['hidden', 'offline'])('defers %s profile and preferences until one resu
         hidden = false; online = true
         await act(async () => { page.dispatchEvent(new Event('visibilitychange')); browser.dispatchEvent(new Event('online')) })
         expect(mocks.getProfile).toHaveBeenCalledOnce()
-        expect(mocks.getNotificationPreferences).toHaveBeenCalledOnce()
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
         expect(latest.profileLoaded).toBe(true)
     } finally {
         await act(async () => { screen.unmount() })
         vi.unstubAllGlobals()
     }
+})
+
+it('loads profile independently of a stalled preferences read', async () => {
+    mocks.getProfile.mockResolvedValue(profile('a'))
+    mocks.getNotificationPreferences.mockReturnValue(new Promise(() => {}))
+    let latest!: ReturnType<typeof useProfileResource>
+    const Probe = () => { latest = useProfileResource('a'); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        expect(latest.profileLoaded).toBe(true)
+        expect(latest.profile?.id).toBe('a')
+        expect(mocks.getNotificationPreferences).not.toHaveBeenCalled()
+    } finally { await act(async () => screen.unmount()) }
+})
+
+it('loads notification preferences independently of a failed profile', async () => {
+    mocks.getProfile.mockRejectedValue(new Error('profile offline'))
+    mocks.getNotificationPreferences.mockResolvedValue({ tradeEnabled: true })
+    let latest!: ReturnType<typeof useProfileResource>
+    const Probe = () => { latest = useProfileResource('a', 'preferences'); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        expect(latest.profileLoaded).toBe(true)
+        expect(latest.profileError).toBeNull()
+        expect(mocks.getProfile).not.toHaveBeenCalled()
+    } finally { await act(async () => screen.unmount()) }
 })

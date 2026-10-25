@@ -1,14 +1,16 @@
 import type { Database } from '../_shared/database.ts'
-import { notifyMembers, suppressNotification, notificationReceiptDelaySeconds } from '../_shared/notifications.ts'
+import { notifyMembers, suppressNotification } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import {
-  deliverTradeNotificationOutbox,
-  drainTradeNotificationOutbox,
+  deliverNotificationOutbox,
+  drainNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
   OUTBOX_LEASE_SECONDS,
 } from './outbox.ts'
+
 import {
   deferTradeNotificationReceipts,
   settleTradeNotificationReceipts,
@@ -49,7 +51,14 @@ async function processAcceptedTrades(): Promise<{
 
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
-  const deliveryResult = await drainNotificationOutbox()
+  for (const row of partitioned.completed) {
+    try {
+      await activateLeagueAfterTrade(row.trade_id)
+    } catch (error) {
+      console.error('Post-trade activation failed', { tradeId: row.trade_id, error })
+    }
+  }
+  const deliveryResult = await drainDueNotifications()
   const receiptResult = await drainNotificationReceipts()
 
   if (partitioned.retryableFailures.length > 0) {
@@ -61,16 +70,16 @@ async function processAcceptedTrades(): Promise<{
     deferred: partitioned.deferred.length,
     failed: partitioned.terminalFailures.length,
     failures: partitioned.terminalFailures.map(tradeFailureMessage),
-    notificationsDelivered: receiptResult.delivered + (deliveryResult.webDelivered ?? 0),
-    notificationsTicketed: deliveryResult.ticketed,
+    notificationsDelivered: deliveryResult.delivered + receiptResult.delivered,
+    notificationsTicketed: deliveryResult.ticketed ?? 0,
     notificationsDeferred: deliveryResult.failed + receiptResult.retried + receiptResult.deferred,
     notificationsDiscarded: deliveryResult.discarded + receiptResult.discarded,
     notificationsDeadLettered: deliveryResult.deadLettered + receiptResult.deadLettered,
   }
 }
 
-async function drainNotificationOutbox(): Promise<{ webDelivered?: number; ticketed: number; failed: number; discarded: number; deadLettered: number }> {
-  return drainTradeNotificationOutbox(claimNotificationOutbox, deliverNotificationOutbox)
+async function drainDueNotifications(): Promise<{ ticketed?: number; delivered: number; failed: number; discarded: number; deadLettered: number }> {
+  return drainNotificationOutbox(claimNotificationOutbox, deliverClaimedNotifications)
 }
 
 async function claimNotificationOutbox(): Promise<OutboxRow[]> {
@@ -82,21 +91,10 @@ async function claimNotificationOutbox(): Promise<OutboxRow[]> {
   return data ?? []
 }
 
-function deliverNotificationOutbox(rows: OutboxRow[]) {
-  return deliverTradeNotificationOutbox(
+function deliverClaimedNotifications(rows: OutboxRow[]) {
+  return deliverNotificationOutbox(
     rows,
     notifyMembers,
-    async (row, ticketId, pushToken) => {
-      const { data: recorded, error: recordError } = await supabase.rpc('record_notification_outbox_ticket_atomic', {
-        p_id: row.id,
-        p_claim_token: row.claim_token,
-        p_expo_ticket_id: ticketId,
-        p_push_token: pushToken,
-        p_receipt_delay_seconds: notificationReceiptDelaySeconds,
-      })
-      if (recordError) throw recordError
-      if (!recorded) throw new Error(`Notification outbox lease ${row.id} was lost before ticket persistence`)
-    },
     async (row) => {
       const { data: completed, error: completeError } = await supabase.rpc('complete_notification_outbox_atomic', {
         p_id: row.id,
@@ -134,6 +132,7 @@ async function expirePendingTrades(): Promise<void> {
   if (error) throw error
   void data
 }
+
 
 async function drainNotificationReceipts(): Promise<{
   delivered: number

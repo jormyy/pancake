@@ -1,11 +1,10 @@
 import { supabase } from './supabase.ts'
-import { createNotifyMembers } from './notificationDelivery.ts'
 import { normalizeNotificationPreferences } from './notificationsPreferences.ts'
+import { createNotifyMembers } from './notificationDelivery.ts'
 import type { VapidKeys } from './webPush.ts'
 import { createWebPushFanout, type WebPushSnapshot } from './webPushDelivery.ts'
 
 export type { NotificationMessage, NotifyMembers } from './notificationDelivery.ts'
-
 
 export async function suppressNotification(id: string, claimToken: string) {
   const { data, error } = await supabase.rpc('notif_suppress_atomic', { p_id: id, p_claim_token: claimToken })
@@ -20,7 +19,7 @@ async function admitNotification(id: string, claimToken: string) {
 }
 
 const configuredReceiptDelay = Number(Deno.env.get('EXPO_RECEIPT_DELAY_SECONDS') ?? 900)
-export const notificationReceiptDelaySeconds = Number.isInteger(configuredReceiptDelay) && configuredReceiptDelay >= 0
+const notificationReceiptDelaySeconds = Number.isInteger(configuredReceiptDelay) && configuredReceiptDelay >= 0
   ? Math.min(configuredReceiptDelay, 3600) : 900
 
 const EXPO_PUSH_URL = Deno.env.get('EXPO_PUSH_URL') ?? 'https://exp.host/--/api/v2/push/send'
@@ -89,10 +88,10 @@ export const notifyMembers = createNotifyMembers({
     return { data, error }
   },
   beginWebDelivery: async (message, userId) => {
-    if (!webPushVapidKeys()) return 'attempted'
     const subscriptions = await supabase.from('web_push_subscriptions').select('endpoint').eq('user_id', userId).limit(1)
     if (subscriptions.error) throw subscriptions.error
-    if (!subscriptions.data?.length) return 'attempted'
+    if (!subscriptions.data?.length) return 'no_device'
+    if (!webPushVapidKeys()) throw new Error('Web push is not configured')
     const { data, error } = await supabase.rpc('notif_begin_web_atomic', {
       p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken,
     })

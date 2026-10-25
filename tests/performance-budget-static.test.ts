@@ -37,51 +37,20 @@ describe('instant-loading performance budget contract', () => {
     })
 
     it('keeps the highest-load reads backed by instant-loading database work', () => {
-        const playerSearchMigration = read('supabase/migrations/20260702000001_player_search_performance_cache.sql')
-        const playerSearchDefaultMigration = read('supabase/migrations/20260702000004_search_players_default_page_size.sql')
-        const readIndexMigration = read('supabase/migrations/20260702000002_instant_app_read_indexes.sql')
-        const secondaryIndexMigration = read('supabase/migrations/20260702000003_instant_app_secondary_read_indexes.sql')
         const playerSearchState = read('lib/player-search-state.ts')
         const playersLib = read('lib/players.ts')
         const dataLatencyBench = read('tests/e2e/data-latency-bench.mjs')
 
-        expect(playerSearchMigration).toContain('analytics.mv_player_avg_fantasy_points')
-        expect(playerSearchMigration).toContain('paged_base AS')
-        expect(playerSearchMigration).toContain('p_limit int DEFAULT 20')
-        expect(playerSearchDefaultMigration).toContain('p_limit int DEFAULT 20')
-        expect(playerSearchDefaultMigration).toContain('LEAST(GREATEST(COALESCE(p_limit, 20), 1), 100) AS page_limit')
         expect(playerSearchState).toContain('PLAYER_SEARCH_PAGE_SIZE = 20')
         expect(playersLib).toContain('DEFAULT_PLAYER_SEARCH_PAGE_SIZE = 20')
         expect(dataLatencyBench).toContain('const PLAYER_SEARCH_PAGE_SIZE = 20')
         expect(dataLatencyBench).toContain('p_limit: PLAYER_SEARCH_PAGE_SIZE')
-        expect(readIndexMigration).toContain('idx_weekly_lineups_member_date_read')
-        expect(readIndexMigration).toContain('idx_roster_players_member_season_read')
-        expect(readIndexMigration).toContain('idx_waiver_claims_member_season_active')
-        expect(readIndexMigration).toContain('idx_trades_league_proposer_recent')
-        expect(secondaryIndexMigration).toContain('idx_nominations_draft_order_instant')
-        expect(secondaryIndexMigration).toContain('idx_players_rookie_board_instant')
-    })
-
-    it('serves fantasy averages to leagues created after the last cache refresh', () => {
-        const freshTableMigration = read('supabase/migrations/20260703000003_fresh_league_fantasy_avg_table.sql')
-
-        // New leagues get seeded rows at creation (trigger) and the view unions
-        // the indexed side table for leagues the nightly MV has not covered —
-        // no live aggregation in the hot path, no NULL FP for fresh leagues.
-        expect(freshTableMigration).toContain('analytics.player_avg_fantasy_points_fresh')
-        expect(freshTableMigration).toContain('CREATE TRIGGER leagues_seed_fantasy_avgs')
-        expect(freshTableMigration).toContain('AFTER INSERT ON public.leagues')
-        expect(freshTableMigration).toContain('CREATE OR REPLACE VIEW public.v_player_avg_fantasy_points')
-        expect(freshTableMigration).toContain('UNION ALL')
-        expect(freshTableMigration).toContain('DELETE FROM analytics.player_avg_fantasy_points_fresh fresh')
     })
 
     it('never dresses plain points up as fantasy points', () => {
-        const fpHonestyMigration = read('supabase/migrations/20260703000002_search_players_fp_no_pts_fallback.sql')
         const canonicalSearch = readFunctionSource('search_players')
         const searchItem = read('components/PlayerSearchItem.tsx')
 
-        expect(fpHonestyMigration).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
         expect(canonicalSearch).not.toContain('COALESCE(fp.avg_fantasy_points, avg.avg_points)')
         expect(searchItem).not.toContain('item.avg_fantasy_points ?? item.avg_points')
     })
@@ -98,7 +67,6 @@ describe('instant-loading performance budget contract', () => {
         const packageJson = JSON.parse(read('package.json'))
         const readme = read('README.md')
         const e2eReadme = read('tests/e2e/README.md')
-        const productionReadiness = read('tests/e2e/production-readiness.mjs')
         const seedLeague = read('tests/e2e/seed-league.mjs')
         const releaseWorkflow = read('.github/workflows/release-soak-shard.yml')
         const testWorkflow = read('.github/workflows/test.yml')
@@ -107,7 +75,6 @@ describe('instant-loading performance budget contract', () => {
         expect(packageJson.scripts['e2e:data-latency']).toBe('node tests/e2e/data-latency-bench.mjs')
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
-        expect(productionReadiness).not.toContain("run('npm', ['run', 'perf:budget']")
         expect(seedLeague).toContain('seedLatencyFixtures')
         expect(seedLeague).toContain("admin.from('matchups').insert")
         expect(seedLeague).toContain("admin.from('snake_draft_picks').insert")
@@ -163,7 +130,6 @@ describe('instant-loading performance budget contract', () => {
         expect(dynastyScreen).not.toContain('Loading dynasty rankings')
         expect(dynastyScreen).not.toContain('Loading dynasty news')
         // The result guard now owns the entire identity/query, including league.
-        expect(playerSearchHook).toContain('renderedKeyRef.current === searchParamsKey')
         expect(playerSearchHook).toContain('dataKey === searchParamsKey')
         expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
     })

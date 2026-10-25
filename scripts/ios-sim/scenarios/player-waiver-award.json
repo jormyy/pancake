@@ -1,0 +1,94 @@
+[
+  {
+    "name": "player-waiver-ir-submit-light",
+    "group": "player-waiver-award",
+    "from": "/player/{{waiverPlayer.id}}",
+    "prepare": [
+      {
+        "tap": "Claim {{waiverPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Submit waiver claim"
+        },
+        "expected": {
+          "text": "Claim Submitted"
+        }
+      }
+    ],
+    "setup": {
+      "waiverClaimMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-waiver-healthy-award-light",
+    "group": "player-waiver-award",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label=\"Move {{waiverPlayer.display_name}} in lineup\"]"
+        },
+        "note": "An independent fixture creates an active waiver award and restores the roster after capture."
+      }
+    ],
+    "setup": {
+      "waiverAwardMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-waiver-ir-submit-dark",
+    "group": "player-waiver-award",
+    "from": "/player/{{waiverPlayer.id}}",
+    "prepare": [
+      {
+        "tap": "Claim {{waiverPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Submit waiver claim"
+        },
+        "expected": {
+          "text": "Claim Submitted"
+        }
+      }
+    ],
+    "setup": {
+      "waiverClaimMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "player-waiver-healthy-award-dark",
+    "group": "player-waiver-award",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label=\"Move {{waiverPlayer.display_name}} in lineup\"]"
+        },
+        "note": "An independent fixture creates an active waiver award and restores the roster after capture."
+      }
+    ],
+    "setup": {
+      "waiverAwardMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "dark"
+  }
+]

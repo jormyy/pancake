@@ -16,7 +16,6 @@ import {
   syncBackfillLedgerProgress,
   updateBackfillJob,
 } from './backfillJobs.ts'
-import { loadCdnPlayerResolver } from './playerResolver.ts'
 import { fetchCdnGameOrMiss as fetchGameOrMiss, type CdnGame } from './cdnGameFetch.ts'
 
 
@@ -54,7 +53,6 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
   for (const dbGame of chunk) {
     const gameId = dbGame.nba_game_id
     try {
-      const resolver = await loadCdnPlayerResolver()
       const game = await fetchCdnGame(gameId)
       if (!game || game.gameStatus !== 3) {
         await markBackfillGameFailed(jobId, 'cdn', seasonYear, gameId, 'CDN game is not final', dbGame.id)
@@ -67,7 +65,7 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       // never reads one of this box's memberships without it.
       validateBoxScorePlayers(game, gameId)
       await recordBoxSides(game, gameId)
-      const players = await resolveBoxScorePlayers(game, gameId, resolver)
+      const players = await resolveBoxScorePlayers(game, gameId)
       await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
       completed++
@@ -148,7 +146,6 @@ export async function runCDNEnumChunk(run: BackfillRun, offset: number): Promise
 async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'completed' | 'failed' | 'missing'> {
   const { jobId, seasonYear } = run
   try {
-    const resolver = await loadCdnPlayerResolver()
     const result = await fetchCdnGameOrMiss(gameId)
     if (result === 'missing') {
       await markBackfillGameMissing(jobId, 'cdn-enum', seasonYear, gameId)
@@ -164,7 +161,7 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
     validateBoxScorePlayers(game, gameId)
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
     await recordBoxSides(game, gameId)
-    const players = await resolveBoxScorePlayers(game, gameId, resolver)
+    const players = await resolveBoxScorePlayers(game, gameId)
     await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
     return 'completed'

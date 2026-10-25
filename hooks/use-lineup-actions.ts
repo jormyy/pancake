@@ -3,19 +3,18 @@ import {
     setPlayerSlotMoves,
     autoSetLineup,
     planLineupMove,
-    type LineupSlot,
     type LineupPlayer,
     type LineupSelection,
+    type LineupMoveData,
 } from '@/lib/lineup'
 import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
 import { todayET } from '@/lib/shared/dates'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
+import { confirmRosterActivation } from '@/lib/roster-activation-confirm'
 import { getErrorMessage } from '@/lib/shared/errors'
 
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; ir?: LineupPlayer[]; taxi?: LineupPlayer[] }
-type Sel = LineupSelection
 type PendingActivation = { rosterPlayerId: string; source: 'ir' | 'taxi'; slotType: string | null }
 type LineupActionContext = {
     memberId: string
@@ -46,13 +45,13 @@ export function useLineupActions({
 }: {
     actionContext: LineupActionContext | null | undefined
     actionOwner?: Pick<LineupActionContext, 'memberId' | 'leagueId' | 'seasonId'> | null
-    myLineup: LineupData | null
+    myLineup: LineupMoveData | null
     league: { roster_size?: number; taxi_slots?: number } | null
     selectedDate: string
     startedTeams: Set<string>
     reloadLineup: (date: string) => Promise<void>
 }) {
-    const [selected, setSelected] = useState<Sel | null>(null)
+    const [selected, setSelected] = useState<LineupSelection | null>(null)
     const [saving, setSaving] = useState(false)
     const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
@@ -91,7 +90,11 @@ export function useLineupActions({
         }
     }, [ownerIdentity])
 
-    const handleTap = useCallback(async (newSel: Sel) => {
+    useEffect(() => {
+        setSelected(null)
+    }, [myLineup])
+
+    const handleTap = useCallback(async (newSel: LineupSelection) => {
         if (autoSetting || saving) return
         if (selectedDate < todayET()) {
             showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
@@ -138,46 +141,53 @@ export function useLineupActions({
             return
         }
 
-        setSaving(true)
         const mutationGeneration = mutationGenerationRef.current
         const mutationOwner = ownerIdentity
-        try {
-            if (plan.kind === 'activate') {
-                await activateRosterPlayerWithLineup({
-                    activateRosterPlayerId: plan.activateRosterPlayerId,
-                    activateSource: plan.activateSource,
-                    freeRosterPlayerId: plan.freeRosterPlayerId,
-                    freeAction: plan.freeAction,
-                    memberId: actionContext.memberId,
-                    leagueId: actionContext.leagueId,
-                    seasonId: actionContext.seasonId,
-                    gameDate: selectedDate,
-                    weekNumber: actionContext.weekNumber,
-                    slotType: plan.slotType,
-                })
-            } else if (plan.kind === 'toggle-ir') {
-                await toggleIR(plan.rosterPlayerId, true)
-
-            } else {
-                await setPlayerSlotMoves(
-                    {
+        const execute = async () => {
+            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
+            setSaving(true)
+            try {
+                if (plan.kind === 'activate') {
+                    await activateRosterPlayerWithLineup({
+                        activateRosterPlayerId: plan.activateRosterPlayerId,
+                        activateSource: plan.activateSource,
+                        freeRosterPlayerId: plan.freeRosterPlayerId,
+                        freeAction: plan.freeAction,
                         memberId: actionContext.memberId,
                         leagueId: actionContext.leagueId,
                         seasonId: actionContext.seasonId,
-                        weekNumber: actionContext.weekNumber,
                         gameDate: selectedDate,
-                    },
-                    plan.moves,
-                )
+                        weekNumber: actionContext.weekNumber,
+                        slotType: plan.slotType,
+                    })
+                } else if (plan.kind === 'toggle-ir') {
+                    await toggleIR(plan.rosterPlayerId, true)
+
+                } else {
+                    await setPlayerSlotMoves(
+                        {
+                            memberId: actionContext.memberId,
+                            leagueId: actionContext.leagueId,
+                            seasonId: actionContext.seasonId,
+                            weekNumber: actionContext.weekNumber,
+                            gameDate: selectedDate,
+                        },
+                        plan.moves,
+                    )
+                }
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+                    await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
+                }
+            } catch (e) {
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
+            } finally {
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
             }
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-                await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
-            }
-        } catch (e) {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
-        } finally {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
         }
+        if (plan.kind === 'activate' && plan.activateSource === 'taxi') {
+            const reserve = myLineup.taxi?.find(player => player.rosterPlayerId === plan.activateRosterPlayerId)
+            if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
+        } else await execute()
     }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
@@ -201,30 +211,40 @@ export function useLineupActions({
             showAlert('Lineup locked', `${lockedPlayer.displayName}'s game has already started. No lineup changes are allowed once a game begins.`, 'info')
             return
         }
-        setActivationOverflowSaving(true)
+        const reserve = allPlayers.find(player => player.rosterPlayerId === activationOverflowPending.rosterPlayerId)
+        const chosen = allPlayers.find(player => player.rosterPlayerId === rosterPlayerId)
+        if (!reserve || !chosen) return
         const mutationGeneration = mutationGenerationRef.current
         const mutationOwner = ownerIdentity
-        try {
-            await activateRosterPlayerWithLineup({
-                activateRosterPlayerId: activationOverflowPending.rosterPlayerId,
-                activateSource: activationOverflowPending.source,
-                freeRosterPlayerId: rosterPlayerId,
-                freeAction,
-                memberId: actionContext.memberId,
-                leagueId: actionContext.leagueId,
-                seasonId: actionContext.seasonId,
-                gameDate: selectedDate,
-                weekNumber: actionContext.weekNumber,
-                slotType: activationOverflowPending.slotType,
-            })
+        confirmRosterActivation({
+            source: activationOverflowPending.source,
+            reserveName: reserve.displayName,
+            freeing: { name: chosen.displayName, action: freeAction },
+        }, async () => {
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            setActivationOverflowPending(null)
-            await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
-        } catch (e) {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
-        } finally {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setActivationOverflowSaving(false)
-        }
+            setActivationOverflowSaving(true)
+            try {
+                await activateRosterPlayerWithLineup({
+                    activateRosterPlayerId: activationOverflowPending.rosterPlayerId,
+                    activateSource: activationOverflowPending.source,
+                    freeRosterPlayerId: rosterPlayerId,
+                    freeAction,
+                    memberId: actionContext.memberId,
+                    leagueId: actionContext.leagueId,
+                    seasonId: actionContext.seasonId,
+                    gameDate: selectedDate,
+                    weekNumber: actionContext.weekNumber,
+                    slotType: activationOverflowPending.slotType,
+                })
+                if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
+                setActivationOverflowPending(null)
+                await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
+            } catch (e) {
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
+            } finally {
+                if (mutationIsCurrent(mutationGeneration, mutationOwner)) setActivationOverflowSaving(false)
+            }
+        })
     }
 
     const handleOverflowDrop = (id: string) => resolveOverflow('drop', id)
@@ -247,18 +267,20 @@ export function useLineupActions({
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
             const refreshed = await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
             if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            if (restOfSeason && result?.failed) {
+            if (result?.failed) {
                 confirmAction(
                     'Lineup partly optimized',
                     `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.${refreshed ? '' : ' Refresh to see saved changes.'}`,
-                    () => { void doAutoSet(null, true, result.results.filter((entry) => entry.status === 'failed').map((entry) => entry.date)) },
+                    () => { void doAutoSet(date, restOfSeason, result.results.filter((entry) => entry.status === 'failed').map((entry) => entry.date)) },
                     'Retry failed dates',
                     false,
                 )
-            } else if (refreshed && restOfSeason && result && result.dates === 0) {
-                showAlert('Season is over', 'There are no remaining dates this season to optimize.', 'info')
-            } else if (refreshed && restOfSeason) {
-                showSuccess('Done', 'Lineup set for the rest of the season.')
+            } else if (refreshed && result && result.dates === 0) {
+                showAlert(restOfSeason ? 'Season is over' : 'No remaining dates', restOfSeason
+                    ? 'There are no remaining dates this season to optimize.'
+                    : 'There are no remaining dates in this selection to optimize.', 'info')
+            } else if (refreshed) {
+                showSuccess('Done', `Lineup set for ${restOfSeason ? 'the rest of the season' : date ? 'today' : 'the rest of the week'}.`)
             }
         } catch (e) {
             if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
@@ -293,7 +315,7 @@ export function useLineupActions({
     }
 }
 
-function selectionPlayer(lineup: LineupData, selection: Sel): LineupPlayer | null {
+function selectionPlayer(lineup: LineupMoveData, selection: LineupSelection): LineupPlayer | null {
     if (selection.kind === 'starter') return lineup.starters[selection.index]?.player ?? null
     if (selection.kind === 'bench') return lineup.bench[selection.index] ?? null
     if (selection.kind === 'ir') return lineup.ir?.[selection.index] ?? null

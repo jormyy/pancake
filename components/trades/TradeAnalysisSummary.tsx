@@ -18,22 +18,14 @@ export function TradeAnalysisSummary({
     /** Outer margin for full-width placement; a side column sets this false. */
     inset?: boolean
 }) {
-    if (!analysis) {
-        return (
-            <DeferredContent ready={!loading} style={{ flex: 0, minHeight: 64 }}>
-            <View style={[styles.empty, inset && styles.inset]} aria-busy={loading} accessibilityState={{ busy: loading }} accessibilityLiveRegion="polite">
-                <Text style={[styles.emptyTitle, loading && { opacity: 0 }]}>Add assets to see the 5-year outlook.</Text>
-            </View>
-            </DeferredContent>
-        )
-    }
+    if (!analysis) return null
 
     return (
         <DeferredContent ready={!loading} style={{ flex: 0, minHeight: 64 }}>
-        <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis">
+        <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
             <View style={styles.headingRow}>
                 <Text style={styles.title}>5-year outlook</Text>
-                <Text style={styles.confidence}>{Math.round(analysis.confidence * 100)}% confidence{cached ? ' · cached' : ''}</Text>
+                <Text style={[styles.confidence, loading && { opacity: 0 }]}>{Math.round(analysis.confidence * 100)}% confidence{cached ? ' · cached' : ''}</Text>
             </View>
             <View style={styles.teamGrid}>
                 {analysis.teams.map((team) => (
@@ -92,6 +84,4 @@ const styles = StyleSheet.create({
     assetRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
     assetCopy: { flex: 1, minWidth: 0 },
     assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    empty: { padding: spacing.xl, gap: spacing.xs, backgroundColor: colors.bgSubtle, borderRadius: radii.lg },
-    emptyTitle: { ...textStyles.body, fontWeight: fontWeight.semibold },
 })

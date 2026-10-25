@@ -35,7 +35,6 @@ function remoteDraft(
     if (roundInputs.length > roundCount) roundInputs.shift()
     return {
         teamLimit: String(league.team_limit ?? 10),
-        taxiRule: league.taxi_rule ?? 'drafted_rookies',
         taxiMaxSeasons: league.taxi_max_seasons == null ? '' : String(league.taxi_max_seasons),
         allowInactiveTrades: league.allow_inactive_trades ?? false,
         playoffEntrants: String(league.playoff_entrants ?? (memberCount >= 10 ? 6 : 4)),
@@ -46,7 +45,6 @@ function remoteDraft(
         taxiSlots: String(league.taxi_slots ?? 0),
         auctionBudget: String(league.auction_budget ?? 200),
         playoffWeek: String(league.playoff_start_week ?? 20),
-        playoffTotalWeeks: String(league.playoff_total_weeks ?? rounds.reduce((sum, value) => sum + value, 0)),
         playoffRoundWeeks: roundInputs,
         weeklyAddLimit: String(league.weekly_add_limit ?? 0),
         waiverMode: waiverModeFromValue(league.waiver_mode),

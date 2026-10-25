@@ -23,6 +23,7 @@ type UseMultiTeamTradeComposerArgs = {
     members: TradeComposerMember[]
     allowInactiveTrades?: boolean
     faabEnabled: boolean
+    recipientMemberId?: string
 }
 
 export function useMultiTeamTradeComposer({
@@ -33,6 +34,7 @@ export function useMultiTeamTradeComposer({
     members,
     faabEnabled,
     allowInactiveTrades = false,
+    recipientMemberId,
 }: UseMultiTeamTradeComposerArgs) {
     const { canRead, capture, isCurrent, epoch } = useModalActivity(leagueId && myMemberId ? `${leagueId}:${myMemberId}` : null)
     const assetsEpoch = useRef<number | null>(null)
@@ -48,6 +50,7 @@ export function useMultiTeamTradeComposer({
     const [rosterLoading, setRosterLoading] = useState(false)
     const [rosterError, setRosterError] = useState<string | null>(null)
     const [loadedParticipantKey, setLoadedParticipantKey] = useState('')
+    const [statsParticipantKey, setStatsParticipantKey] = useState('')
     const [retryToken, setRetryToken] = useState(0)
     const rosterLoadSeqRef = useRef(0)
     const statsLoadSeqRef = useRef(0)
@@ -91,6 +94,7 @@ export function useMultiTeamTradeComposer({
         setAvgStatsMap(EMPTY_STATS_MAP)
         setRosterError(null)
         setLoadedParticipantKey('')
+        setStatsParticipantKey('')
         setRosterLoading(false)
     }, [myMemberId])
 
@@ -174,21 +178,22 @@ export function useMultiTeamTradeComposer({
 
     useEffect(() => {
         const activeParticipants = new Set(participantIds)
-        setParticipantAssets((current) => ({
-            rosters: Object.fromEntries(
-                Object.entries(current.rosters).filter(([memberId]) => activeParticipants.has(memberId)),
-            ),
-            picks: Object.fromEntries(
-                Object.entries(current.picks).filter(([memberId]) => activeParticipants.has(memberId)),
-            ),
-        }))
+        setParticipantAssets((current) => {
+            if (Object.keys(current.rosters).every((id) => activeParticipants.has(id)) &&
+                Object.keys(current.picks).every((id) => activeParticipants.has(id))) return current
+            return {
+                rosters: Object.fromEntries(Object.entries(current.rosters).filter(([memberId]) => activeParticipants.has(memberId))),
+                picks: Object.fromEntries(Object.entries(current.picks).filter(([memberId]) => activeParticipants.has(memberId))),
+            }
+        })
     }, [participantIds])
 
     useEffect(() => {
         const requestId = ++rosterLoadSeqRef.current
         if (!canRead()) return
         const generation = capture()
-        if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId) {
+        if (!enabled || !leagueId || !myMemberId || participantIds[0] !== myMemberId ||
+            recipientMemberId && !participantIds.includes(recipientMemberId)) {
             setRosterLoading(false)
             return
         }
@@ -208,7 +213,7 @@ export function useMultiTeamTradeComposer({
             try {
                 const [rosters, picks] = await Promise.all([
                     getRostersForMembers(missingParticipantIds, leagueId),
-                    getPicksForMembers(missingParticipantIds, leagueId),
+                    getPicksForMembers(missingParticipantIds, leagueId, { tradeableOnly: true }),
                 ])
                 if (rosterLoadSeqRef.current !== requestId || !isCurrent(generation)) return
 
@@ -236,7 +241,7 @@ export function useMultiTeamTradeComposer({
         return () => {
             if (rosterLoadSeqRef.current === requestId) rosterLoadSeqRef.current += 1
         }
-    }, [allowInactiveTrades, enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, retryToken, selectedParticipantKey, canRead, capture, isCurrent, epoch])
+    }, [allowInactiveTrades, enabled, leagueId, myMemberId, participantIds, participantPicks, participantRosters, recipientMemberId, retryToken, selectedParticipantKey, canRead, capture, isCurrent, epoch])
 
     useEffect(() => {
         const requestId = ++statsLoadSeqRef.current
@@ -262,6 +267,8 @@ export function useMultiTeamTradeComposer({
                 if (statsLoadSeqRef.current === requestId && isCurrent(generation)) {
                     console.warn('Could not load optional trade player averages.', error)
                 }
+            } finally {
+                if (statsLoadSeqRef.current === requestId && isCurrent(generation)) setStatsParticipantKey(selectedParticipantKey)
             }
         }
 
@@ -293,6 +300,7 @@ export function useMultiTeamTradeComposer({
         rosterError,
         loadedParticipantKey,
         assetsLoaded,
+        displayReady: assetsLoaded && statsParticipantKey === selectedParticipantKey,
         assetsReady,
         selectedAssetsAvailable,
         reset,

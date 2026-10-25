@@ -11,7 +11,6 @@ export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
     team_limit?: number
-    taxi_rule?: 'drafted_rookies' | 'rookies_or_64_games'
     taxi_max_seasons?: number
     allow_inactive_trades?: boolean
     playoff_entrants?: number
@@ -23,8 +22,6 @@ export type LeagueSettingsUpdate = {
     taxi_slots?: number
     auction_budget?: number
     playoff_start_week?: number
-    playoff_total_weeks?: number
-    playoff_round_weeks?: number[]
     weekly_add_limit?: number | null
     weekly_add_unlimited?: boolean
     waiver_mode?: WaiverMode
@@ -55,7 +52,7 @@ function numericRecordPayload(values: Record<string, number>): JsonObject {
 
 function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     const payload: JsonObject = {}
-    for (const key of ['team_limit','taxi_rule','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
+    for (const key of ['team_limit','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
         if (updates[key] !== undefined) payload[key] = updates[key]
     }
     if (updates.scoring_settings != null) payload.scoring_settings = numericRecordPayload(updates.scoring_settings)
@@ -64,8 +61,6 @@ function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     if (updates.taxi_slots != null) payload.taxi_slots = updates.taxi_slots
     if (updates.auction_budget != null) payload.auction_budget = updates.auction_budget
     if (updates.playoff_start_week != null) payload.playoff_start_week = updates.playoff_start_week
-    if (updates.playoff_total_weeks != null) payload.playoff_total_weeks = updates.playoff_total_weeks
-    if (updates.playoff_round_weeks != null) payload.playoff_round_weeks = updates.playoff_round_weeks
     if (updates.weekly_add_unlimited != null) payload.weekly_add_unlimited = updates.weekly_add_unlimited
     if (updates.weekly_add_limit != null) payload.weekly_add_limit = updates.weekly_add_limit
     if (updates.waiver_mode != null) payload.waiver_mode = updates.waiver_mode
@@ -166,7 +161,8 @@ export async function fetchUserLeagues(userId: string) {
         faab_starting_budget,
         trade_veto_mode,
         trade_veto_window_hours,
-        trade_veto_threshold_percent
+        trade_veto_threshold_percent,
+        drafts!drafts_league_id_fkey (draft_type, is_mock, status, league_seasons (is_current))
       )
     `,
         )
@@ -174,21 +170,28 @@ export async function fetchUserLeagues(userId: string) {
         .is('leagues.deleted_at', null)
 
     if (error) throw error
-    return (data ?? []) as LeagueMembershipQueryRow[]
+    return ((data ?? []) as (LeagueMembershipQueryRow & { leagues: LeagueInfo & {
+        drafts: { draft_type: string; is_mock: boolean; status: string; league_seasons: { is_current: boolean } | null }[]
+    } })[]).map(({ leagues, ...membership }) => {
+        const { drafts, ...league } = leagues
+        return { ...membership, leagues: { ...league, hasStartupAuction: drafts?.some(draft => draft.draft_type === 'auction' && !draft.is_mock
+            && draft.league_seasons?.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status)) ?? false } }
+    })
 }
 
-const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['setup', 'drafting', 'active', 'playoffs', 'offseason'])
+const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['drafting', 'active', 'playoffs', 'offseason'])
 
-/**
- * Dynasty trade window (mirrors trade RPCs): trading is open in setup,
- * drafting, offseason, and pre-deadline active/playoff states. The deadline
- * lock only applies during the current active/playoff season.
- */
+
 export function isTradingClosed(
-    league: { status: LeagueStatus; trade_deadline?: string | null } | null | undefined,
+    league: {
+        status: LeagueStatus
+        trade_deadline?: string | null
+        hasStartupAuction?: boolean
+    } | null | undefined,
 ): boolean {
     if (!league) return false
     if (!TRADE_OPEN_STATUSES.has(league.status)) return true
+    if (league.hasStartupAuction) return true
     if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
     return league.trade_deadline < todayET()

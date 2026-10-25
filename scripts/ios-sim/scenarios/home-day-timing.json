@@ -1,0 +1,27 @@
+[
+  {
+    "name": "home-light-day-timing",
+    "group": "home-timing",
+    "from": "/",
+    "prepare": [
+      {
+        "tap": "Matchup"
+      },
+      {
+        "tapPrefix": "Monday, "
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Tuesday, "
+        },
+        "expected": {
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='No lineups set this day']"
+        }
+      }
+    ],
+    "repeat": 5,
+    "theme": "light"
+  }
+]

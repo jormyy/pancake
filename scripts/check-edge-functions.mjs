@@ -49,9 +49,25 @@ export function checkInventory() {
   return { entrypoints, tests: edgeTests() }
 }
 
+export function checkedDenoRecipes(scripts) {
+  return [...new Set(Object.values(scripts).flatMap(command => {
+    if (typeof command !== 'string') return []
+    return [...command.matchAll(/\bdeno\s+run\s+([^;&|]+)/g)].flatMap(([, argumentsText]) => {
+      const tokens = argumentsText.trim().split(/\s+/)
+      if (!tokens.includes('--check')) return []
+      const entrypoint = tokens.find(token => /\.(?:ts|mts|js|mjs)$/.test(token))
+      if (!entrypoint) throw new Error(`Checked Deno recipe has no entrypoint: ${command}`)
+      return [entrypoint]
+    })
+  }))].sort()
+}
+
 function run() {
   const { entrypoints, tests } = checkInventory()
   console.log(`Edge inventory: ${entrypoints.length} entrypoints, ${tests.length} test files`)
+  const recipes = checkedDenoRecipes(JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts)
+  if (recipes.length) execFileSync('deno', ['check', '--no-lock', ...recipes], { cwd: ROOT, stdio: 'inherit' })
+  console.log(`Deno evidence recipes: ${recipes.length} entrypoints checked`)
   if (process.argv.includes('--inventory-only')) return
 
   execFileSync('deno', ['check', ...entrypoints.map(relative)], { cwd: ROOT, stdio: 'inherit' })

@@ -14,6 +14,7 @@ DECLARE
   v_new_season_id uuid;
   v_new_year int;
   v_far_year int;
+  v_previous_flag text;
 BEGIN
   SELECT *
     INTO v_league
@@ -50,6 +51,9 @@ BEGIN
   );
   v_far_year := v_new_year + 5;
 
+  UPDATE draft_picks SET is_used=true,used_at=now()
+    WHERE league_id=p_league_id AND season_year<v_new_year AND NOT is_used;
+
   IF EXISTS (
     SELECT 1
       FROM league_seasons
@@ -58,6 +62,15 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Season % already exists', v_new_year;
   END IF;
+
+  v_previous_flag := private.begin_trade_lifecycle_write();
+  UPDATE trades
+     SET status = 'expired',
+         completion_failure_reason = 'The season rolled over before this offer was accepted.'
+   WHERE league_id = p_league_id
+     AND league_season_id = v_current_season.id
+     AND status = 'pending';
+  PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 
   UPDATE league_seasons
      SET is_current = false
@@ -171,6 +184,7 @@ BEGIN
       member_id,
       wins,
       losses,
+      ties,
       points_for,
       points_against
     FROM standings
@@ -183,8 +197,8 @@ BEGIN
       lm.id AS member_id,
       row_number() OVER (
         ORDER BY
-          COALESCE(ls.wins, 0) ASC,
-          COALESCE(ls.points_for, 0) ASC,
+          (COALESCE(ls.wins, 0) + 0.5 * COALESCE(ls.ties, 0)) / GREATEST(COALESCE(ls.wins + ls.losses + ls.ties, 0), 1) ASC,
+          COALESCE(ls.points_for, 0) / GREATEST(COALESCE(ls.wins + ls.losses + ls.ties, 0), 1) ASC,
           COALESCE(ls.losses, 0) DESC,
           COALESCE(ls.points_against, 0) DESC,
           lm.id ASC

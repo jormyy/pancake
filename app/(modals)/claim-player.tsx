@@ -1,3 +1,6 @@
+import { isTaxiEligible } from '@pancake/core'
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { getLeagueMembers } from '@/lib/league'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
@@ -7,6 +10,7 @@ import {
     Pressable,
     StyleSheet,
     TextInput,
+    Switch,
     ScrollView,
     Platform,
     useWindowDimensions,
@@ -14,35 +18,35 @@ import {
 } from 'react-native'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Stack, useLocalSearchParams } from 'expo-router'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { useAuth } from '@/hooks/use-auth'
-import { getRoster, RosterPlayer } from '@/lib/roster'
-import { isIneligibleIR, playerHeadshotUrl } from '@/lib/format'
+import { getRoster, getTaxiExitPlayerIds, RosterPlayer } from '@/lib/roster'
 import { getPlayer } from '@/lib/players'
 import { claimProcessDateLabel, claimProcessTimeLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
 import { loadAddLimitState } from '@/lib/roster-add-flow'
-import { addLimitSummary, reportPickupError } from '@/lib/pickup'
+import { addLimitSummary, canAddToIR, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { LoadingState, PageHeader, usePageMetrics } from '@/components/ui'
 import { showAlert, showSuccess } from '@/lib/alert'
-import { Avatar } from '@/components/Avatar'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { EmptyState } from '@/components/EmptyState'
 import { useGoBack } from '@/components/ui/useGoBack'
 
-type ClaimSnapshot = { player: Awaited<ReturnType<typeof getPlayer>>; roster: RosterPlayer[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState | null }
+const IRResolutionModal = lazy(() => import('@/components/IRResolutionModal').then(module => ({ default: module.IRResolutionModal })))
+
+type ClaimSnapshot = { taxiExitIds?: string[]; player: Awaited<ReturnType<typeof getPlayer>>; roster: RosterPlayer[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState | null }
 
 export default function ClaimPlayerScreen() {
     const { playerId } = useLocalSearchParams<{ playerId: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
     const online = useOnlineStatus()
-    const router = useRouter()
     const goBack = useGoBack('/players')
 
     const rosterSize = currentLeague?.roster_size ?? 20
@@ -53,11 +57,14 @@ export default function ClaimPlayerScreen() {
     const cacheKey = `pancake:claim-player:v1:${ownerKey}`
     const [initialCache] = useState(() => readPersistentCache<ClaimSnapshot>(cacheKey))
     const [loadError, setLoadError] = useState<string | null>(null)
-    const [player, setPlayer] = useState<any>(initialCache?.player ?? null)
+    const [player, setPlayer] = useState<ClaimSnapshot['player'] | null>(initialCache?.player ?? null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>(initialCache?.roster ?? [])
     const [priority, setPriority] = useState<number | null>(initialCache?.priority ?? null)
     const [clearsAt, setClearsAt] = useState<string | null>(initialCache?.clearsAt ?? null)
     const [transactionState, setTransactionState] = useState<MemberTransactionState | null>(initialCache?.transactionState ?? null)
+    const [taxiExitIds, setTaxiExitIds] = useState(new Set(initialCache?.taxiExitIds ?? []))
+    const [taxiChoice, setTaxiChoice] = useState<{ owner: string; value: boolean } | null>(null)
+    const [irChoice, setIRChoice] = useState<{ owner: string; value: boolean } | null>(null)
     const [bidInput, setBidInput] = useState('0')
     const [loading, setLoading] = useState(!initialCache)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
@@ -91,6 +98,7 @@ export default function ClaimPlayerScreen() {
         setLoadError(null)
         setPlayer(cached?.player ?? null)
         setMyRoster(cached?.roster ?? [])
+        setTaxiExitIds(new Set(cached?.taxiExitIds ?? []))
         setPriority(cached?.priority ?? null)
         setTransactionState(cached?.transactionState ?? null)
         setClearsAt(cached?.clearsAt ?? null)
@@ -114,23 +122,25 @@ export default function ClaimPlayerScreen() {
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState, waiverEnds, members] = await Promise.all([
+                const [p, roster, prio, txState, waiverEnds, members, exits] = await Promise.all([
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
                     loadAddLimitState(memberId, requestedLeagueId),
                     getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
                     getLeagueMembers(requestedLeagueId),
+                    (currentLeague?.taxi_slots ?? 0) > 0 ? getTaxiExitPlayerIds(memberId, requestedLeagueId) : Promise.resolve(new Set<string>()),
                 ])
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
                 if (!members.some(member => member.id === memberId && member.user_id === userId)) {
                     setLoadError('You no longer belong to this league.')
                     return
                 }
-                writePersistentCache<ClaimSnapshot>(cacheKey, { player: p, roster, priority: prio, clearsAt: waiverEnds, transactionState: txState })
+                writePersistentCache<ClaimSnapshot>(cacheKey, { player: p, roster, priority: prio, clearsAt: waiverEnds, transactionState: txState, taxiExitIds: [...exits] })
                 setPlayer(p)
                 setClearsAt(waiverEnds)
                 setMyRoster(roster)
+                setTaxiExitIds(exits)
                 setPriority(prio)
                 setTransactionState(txState)
                 setSelectedDrop(previous => previous ? roster.find(row => row.id === previous.id) ?? null : null)
@@ -145,7 +155,7 @@ export default function ClaimPlayerScreen() {
         }
         void load()
         return () => { claimLoadSeqRef.current += 1 }
-    }, [leagueId, memberId, playerId, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey])
+    }, [leagueId, memberId, playerId, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey, currentLeague?.taxi_slots])
 
     const refreshTransactionState = useCallback(() => {
         blockActions()
@@ -153,22 +163,32 @@ export default function ClaimPlayerScreen() {
     }, [blockActions])
 
     const activeRoster = myRoster.filter((p) => !p.is_on_ir && !p.is_on_taxi)
-    const ineligibleIR = myRoster.filter((r) => isIneligibleIR(r))
     const rosterFull = activeRoster.length >= rosterSize
-    const needsDrop = rosterFull
+    const irEligible = player?.injury_status != null
+        && canAddToIR(player.injury_status, myRoster, currentLeague?.ir_slots ?? 2)
+    const taxiEligible = (currentLeague?.taxi_slots ?? 0) > myRoster.filter(row => row.is_on_taxi).length
+        && isTaxiEligible(player?.years_exp ?? null, player?.career_regular_season_games ?? null) && !taxiExitIds.has(playerId)
+    const toIr = irEligible && (irChoice?.owner === ownerKey ? irChoice.value : true)
+    const toTaxi = !toIr && taxiEligible && (taxiChoice?.owner === ownerKey ? taxiChoice.value : rosterFull)
+    const needsDrop = rosterFull && !toIr && !toTaxi
+    const rosterLegality = useRosterLegality({ memberId, leagueId, rosterSize, irSlots: currentLeague?.ir_slots ?? 2, onChanged: refreshTransactionState })
+    const faab = currentLeague?.waiver_mode === 'faab'
+    const balanceUnknown = faab && transactionState == null
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
         if (!canAct() || submittingRef.current === ownerRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
+        if (balanceUnknown) return
         if (explainBlock()) return
+        if (!await rosterLegality.check(myRoster)) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
         }
         const bidAmount = Math.max(0, parseInt(bidInput || '0', 10) || 0)
-        if (transactionState?.waiverMode === 'faab' && bidAmount > transactionState.faabBalance) {
+        if (faab && transactionState && bidAmount > transactionState.faabBalance) {
             showAlert('Invalid Bid', 'Your bid cannot exceed your available FAAB balance.')
             return
         }
@@ -189,8 +209,8 @@ export default function ClaimPlayerScreen() {
                 current.id,
                 currentLeague.id,
                 playerId,
-                selectedDrop?.players.id,
-                { bidAmount },
+                needsDrop ? selectedDrop?.players.id : undefined,
+                { bidAmount, ...(irEligible ? { toIr } : {}), ...(taxiEligible ? { toTaxi } : {}) },
             )
             if (ownerRef.current !== owner) return
             showSuccess(
@@ -199,7 +219,7 @@ export default function ClaimPlayerScreen() {
             )
             goBack()
         } catch (e) {
-            if (ownerRef.current === owner) reportPickupError(e, { refresh: refreshTransactionState })
+            if (ownerRef.current === owner && !await rosterLegality.report(e)) reportPickupError(e, { refresh: refreshTransactionState })
         } finally {
             if (submittingRef.current === owner) submittingRef.current = null
             if (ownerRef.current === owner) setSubmittingOwner(null)
@@ -208,9 +228,8 @@ export default function ClaimPlayerScreen() {
 
     const processDateStr = claimProcessDateLabel(clearsAt)
     const claimReady = canAct() && !loading && !!player
-    const submitDisabled = !online || submitting || !claimReady || (needsDrop && !selectedDrop)
+    const submitDisabled = !online || submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
-    const faab = transactionState?.waiverMode === 'faab'
     // Wide screens put the claim beside the drop list instead of stacking them.
     const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
     const claimFacts = [
@@ -262,22 +281,43 @@ export default function ClaimPlayerScreen() {
                 title="Waiver Claim"
                 onBack={goBack}
                 backLabel="Back"
-                actions={ineligibleIR.length > 0 ? null : renderSubmitButton()}
+                actions={renderSubmitButton()}
             />
         )
+    }
+
+    function renderIRChoice() {
+        return <>
+        {irEligible ? (
+            <View style={styles.irChoice}>
+                <View style={styles.claimPlayerCopy}>
+                    <Text style={styles.bidLabel}>Place on IR</Text>
+                    <Text style={styles.claimMeta}>Needs active roster space if IR becomes unavailable.</Text>
+                </View>
+                <Switch value={toIr} onValueChange={value => { setIRChoice({ owner: ownerKey, value }); if (value) setTaxiChoice({ owner: ownerKey, value: false }) }}
+                    accessibilityLabel="Place on IR" disabled={submitting} />
+            </View>
+        ) : null}
+        {taxiEligible ? <View style={styles.irChoice}>
+            <View style={styles.claimPlayerCopy}>
+                <Text style={styles.bidLabel}>Place on taxi</Text>
+                <Text style={styles.claimMeta}>Needs active roster space if taxi becomes unavailable.</Text>
+            </View>
+            <Switch value={toTaxi} onValueChange={value => { setTaxiChoice({ owner: ownerKey, value }); if (value) setIRChoice({ owner: ownerKey, value: false }) }} accessibilityLabel="Place on taxi" disabled={submitting} />
+        </View> : null}
+        </>
     }
 
     function renderClaimSummary() {
         return (
             <View style={styles.claimCard}>
-                <Text style={styles.claimLabel}>Claiming</Text>
                 <View style={styles.claimPlayerRow}>
-                    <Avatar
+                    <PlayerAvatar
                         name={player?.display_name ?? 'Player'}
-                        uri={playerHeadshotUrl(player?.nba_id) ?? undefined}
+                        nbaId={player?.nba_id}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
-                        size={44}
+                        size={controlSize.minTouch}
                     />
                     <View style={styles.claimPlayerCopy}>
                         <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
@@ -287,6 +327,8 @@ export default function ClaimPlayerScreen() {
                     </View>
                 </View>
                 <Text style={styles.claimFacts}>{claimFacts}</Text>
+                <PlayerEligibilityTags yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} />
+                {renderIRChoice()}
                 {faab ? (
                     <View style={styles.bidRow}>
                         <Text style={styles.bidLabel}>FAAB bid</Text>
@@ -301,7 +343,7 @@ export default function ClaimPlayerScreen() {
                                 accessibilityLabel="FAAB bid amount"
                             />
                         </View>
-                        <Text style={styles.bidBalance}>of ${transactionState?.faabBalance ?? 0}</Text>
+                        <Text style={styles.bidBalance}>{transactionState ? `of $${transactionState.faabBalance}` : 'Balance unavailable'}</Text>
                     </View>
                 ) : null}
             </View>
@@ -312,7 +354,7 @@ export default function ClaimPlayerScreen() {
         if (!needsDrop) {
             return (
                 <View style={styles.spaceNote}>
-                    <Text style={styles.spaceNoteText}>You have roster space. No drop required.</Text>
+                    <Text style={styles.spaceNoteText}>{toIr ? 'Place on IR. No drop required.' : toTaxi ? 'Place on taxi. No drop required.' : 'You have roster space. No drop required.'}</Text>
                 </View>
             )
         }
@@ -323,12 +365,7 @@ export default function ClaimPlayerScreen() {
                     <Text style={styles.sectionTitle}>
                         {compactDropMode ? 'DROP A PLAYER FOR CLAIM' : 'DROP A PLAYER (required)'}
                     </Text>
-                    <Text style={styles.sectionSub}>
-                        {compactDropMode
-                            ? `Pick who goes if the claim for ${player?.display_name ?? 'this player'} wins.`
-                            : 'Your roster is full. Pick who goes if this claim wins.'}
-                    </Text>
-                </View>
+                                    </View>
                 <View style={styles.rosterList}>{renderRosterDropRows()}</View>
             </View>
         )
@@ -346,12 +383,12 @@ export default function ClaimPlayerScreen() {
                     accessibilityLabel={`Select ${item.players.display_name} to drop`}
                     accessibilityState={{ selected: isSelected }}
                 >
-                    <Avatar
+                    <PlayerAvatar
                         name={item.players.display_name}
-                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
+                        nbaId={item.players.nba_id}
                         color={colors.bgMuted}
                         textColor={colors.textSecondary}
-                        size={32}
+                        size={spacing['4xl']}
                     />
                     <View style={styles.rosterInfo}>
                         <Text style={styles.rosterName} numberOfLines={1}>{item.players.display_name}</Text>
@@ -367,46 +404,6 @@ export default function ClaimPlayerScreen() {
                 </Pressable>
             )
         })
-    }
-
-    function renderIneligibleIR() {
-        return (
-            <ScrollView
-                style={styles.bodyScroll}
-                contentContainerStyle={[styles.bodyContent, { paddingHorizontal: padX }]}
-            >
-                <View style={styles.blockCard}>
-                    <MaterialIcons name="warning-amber" size={28} color={colors.warningDark} />
-                    <Text style={styles.blockTitle}>Resolve IR Status First</Text>
-                    <Text style={styles.blockSub}>
-                        {ineligibleIR.length > 1
-                            ? `${ineligibleIR.length} players on IR are no longer eligible. Activate or drop them before claiming.`
-                            : 'A player on IR is no longer eligible. Activate or drop that player before claiming.'}
-                    </Text>
-                    {ineligibleIR.map((rp) => (
-                        <View key={rp.id} style={styles.blockPlayerRow}>
-                            <Avatar
-                                name={rp.players.display_name}
-                                uri={playerHeadshotUrl(rp.players.nba_id) ?? undefined}
-                                color={colors.bgMuted}
-                                textColor={colors.textSecondary}
-                                size={32}
-                            />
-                            <Text style={styles.blockPlayerName}>{rp.players.display_name}</Text>
-                            <Text style={styles.blockPlayerStatus}>{rp.players.injury_status ?? 'Healthy'}</Text>
-                        </View>
-                    ))}
-                </View>
-                <Pressable
-                    style={styles.blockButton}
-                    onPress={() => router.replace('/(tabs)/roster')}
-                    accessibilityRole="button"
-                    accessibilityLabel="Go to roster"
-                >
-                    <Text style={styles.blockButtonText}>Go to Roster</Text>
-                </Pressable>
-            </ScrollView>
-        )
     }
 
     // Short landscape screens hide the claim card, so the bid moves to a footer.
@@ -437,6 +434,11 @@ export default function ClaimPlayerScreen() {
                         <Text accessibilityRole="alert" style={{ color: colors.danger }}>{loadError} Tap to retry.</Text>
                     </Pressable>
                 ) : null}
+                {balanceUnknown && !loading ? (
+                    <Pressable onPress={refreshTransactionState} accessibilityRole="button" accessibilityLabel="Retry FAAB balance" style={{ padding: spacing.lg }}>
+                        <Text accessibilityRole="alert" style={{ color: colors.danger }}>Could not load your FAAB balance. Tap to retry.</Text>
+                    </Pressable>
+                ) : null}
                 {/* Until the claim loads, its facts (date, drop rule) would be guesses. */}
                 {loading && !player ? <LoadingState /> : !player ? (
                     <EmptyState
@@ -446,7 +448,7 @@ export default function ClaimPlayerScreen() {
                         actionLabel="Try Again"
                         onAction={() => setLoadAttempt(value => value + 1)}
                     />
-                ) : ineligibleIR.length > 0 ? renderIneligibleIR() : twoColumn ? (
+                ) : twoColumn ? (
                     <ScrollView
                         style={styles.bodyScroll}
                         contentContainerStyle={[styles.bodyContent, styles.bodyContentWide, { paddingHorizontal: padX }]}
@@ -468,7 +470,7 @@ export default function ClaimPlayerScreen() {
                             keyboardShouldPersistTaps="handled"
                         >
                             {renderAddLimitNotice()}
-                            {!compactDropMode ? renderClaimSummary() : null}
+                            {!compactDropMode ? renderClaimSummary() : renderIRChoice()}
                             {renderDropSection()}
                         </ScrollView>
                         {bidFooter}
@@ -476,6 +478,7 @@ export default function ClaimPlayerScreen() {
                 )}
                 </View>
             </ScreenFrame>
+            {rosterLegality.modalProps.visible ? <Suspense fallback={null}><IRResolutionModal {...rosterLegality.modalProps} /></Suspense> : null}
         </>
     )
 }
@@ -492,9 +495,9 @@ const styles = StyleSheet.create({
         width: '100%',
         maxWidth: layout.formMaxWidth,
         alignSelf: 'center',
-        paddingTop: spacing.lg,
-        paddingBottom: spacing.xl,
-        gap: spacing.lg,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.lg,
+        gap: spacing.md,
     },
     bodyContentWide: { maxWidth: layout.contentMaxWidth },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -528,12 +531,12 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         gap: spacing.md,
     },
-    claimLabel: { ...textStyles.sectionLabel, color: colors.primaryDark },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     claimName: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
+    irChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     bidLabel: { ...textStyles.rowTitle, flex: 1 },
     bidField: {
@@ -555,7 +558,6 @@ const styles = StyleSheet.create({
     dropSection: { gap: spacing.md },
     dropHeading: { gap: spacing.xs },
     sectionTitle: { ...textStyles.sectionLabel, textTransform: 'none' as const },
-    sectionSub: { ...textStyles.meta },
     rosterList: {
         borderWidth: 1,
         borderColor: colors.borderLight,

@@ -1,9 +1,10 @@
+\set ON_ERROR_STOP on
 \getenv notif_test_db SUPABASE_DB_URL
 \getenv notif_test_port PANCAKE_TEST_DB_PORT
 \if :{?notif_test_db}
 \else
   \echo SUPABASE_DB_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?notif_test_port}
 \else

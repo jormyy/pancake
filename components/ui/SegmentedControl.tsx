@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
 import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
@@ -41,7 +41,7 @@ function focusSegment(idBase: string | undefined, value: string, shouldFocus: ()
     const focus = () => {
         if (!shouldFocus()) return
         const target = document.getElementById(`${idBase}-${value}`)
-        if (target instanceof HTMLElement && shouldRecoverFocus(target)) target.focus()
+        if (target instanceof HTMLElement && shouldRecoverFocus(target)) target.focus({ preventScroll: true })
     }
     return scheduleWebFocusRecovery(focus)
 }
@@ -82,7 +82,7 @@ export function SegmentedControl<T extends string>({
     const scrollIntoView = useCallback((target: T) => {
         const box = segmentLayouts.current[target]
         const { viewport, x } = edgeSizes.current
-        if (!scrollable || !box || viewport <= 0) return
+        if (Platform.OS === 'web' || !scrollable || !box || viewport <= 0) return
         const pad = spacing.xl
         if (box.x < x + pad) {
             scrollRef.current?.scrollTo({ x: Math.max(0, box.x - pad), animated: false })
@@ -92,6 +92,31 @@ export function SegmentedControl<T extends string>({
     }, [scrollable, edgeSizes])
     keepSelectedInView.current = () => scrollIntoView(value)
     useEffect(() => { scrollIntoView(value) }, [scrollIntoView, value])
+
+    useLayoutEffect(() => {
+        if (Platform.OS !== 'web' || !scrollable || typeof document === 'undefined') return
+        const track = scrollRef.current?.getScrollableNode() as HTMLElement | undefined
+        if (!track) return
+        let positionedWidth = 0
+        const position = () => {
+            const width = track.clientWidth
+            if (width <= 0 || width === positionedWidth) return
+            const segment = document.getElementById(`${effectiveIdBase}-${value}`)
+            if (!segment) return
+            const left = track.getBoundingClientRect().left
+            const box = segment.getBoundingClientRect()
+            const overflow = box.left < left + spacing.xl
+                ? box.left - left - spacing.xl
+                : Math.max(0, box.right - left - width + spacing.xl)
+            track.scrollLeft = Math.max(0, Math.min(track.scrollWidth - width, track.scrollLeft + overflow))
+            positionedWidth = width
+        }
+        position()
+        if (typeof ResizeObserver === 'undefined') return
+        const observer = new ResizeObserver(position)
+        observer.observe(track)
+        return () => observer.disconnect()
+    }, [effectiveIdBase, scrollable, value])
 
     useEffect(() => {
         if (pendingFocusValue.current !== value) return

@@ -1,3 +1,4 @@
+import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type PropsWithChildren } from 'react'
 import { useLeagues, LeagueMembership } from '@/hooks/use-leagues'
 import { useAuth } from '@/hooks/use-auth'
@@ -95,7 +96,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
         [memberships, current, currentLeague, isCommissioner, setCurrent, loading, refresh, membershipStatus, membershipValidated, membershipError, online],
     )
 
-    return <LeagueContext.Provider value={value}>{children}</LeagueContext.Provider>
+    return <LeagueContext.Provider value={value}><PlayerEligibilityContext.Provider value={currentLeague?.taxi_slots ?? 0}>{children}</PlayerEligibilityContext.Provider></LeagueContext.Provider>
 }
 
 export function useLeagueContext() {

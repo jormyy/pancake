@@ -17,7 +17,7 @@ BEGIN
     WHERE accepted.status = 'accepted'::public.trade_status
       AND accepted.veto_window_expires_at <= now()
       AND season.is_current
-      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
+      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status, 'drafting'::public.league_status)
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
     WHERE queued.suppressed_at IS NULL
@@ -30,7 +30,8 @@ BEGIN
       AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - interval '60 seconds')
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
-    WHERE queued.delivered_at IS NULL
+    WHERE queued.suppressed_at IS NULL
+      AND queued.delivered_at IS NULL
       AND queued.dead_lettered_at IS NULL
       AND queued.expo_ticket_id IS NOT NULL
       AND queued.available_at <= now()

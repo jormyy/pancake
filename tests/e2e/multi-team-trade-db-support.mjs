@@ -27,10 +27,11 @@ export const queryRecoveryJson = (sql) => {
   return JSON.parse(output.slice(start, end + 1))
 }
 
-export const expectRpcError = async (admin, name, args, messagePart) => {
+export const expectRpcError = async (admin, name, args, expected) => {
   const { error } = await admin.rpc(name, args)
   assert(error, `${name} unexpectedly succeeded`)
-  assert.match(error.message, new RegExp(messagePart, 'i'))
+  if (typeof expected === 'string') assert.match(error.message, new RegExp(expected, 'i'))
+  else assert.equal(error.code, expected.code)
   return error
 }
 

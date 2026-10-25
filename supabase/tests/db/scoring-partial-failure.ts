@@ -305,6 +305,26 @@ try {
   )
   assert.equal(health.status, 'success')
   console.log(JSON.stringify({ phase: 'restored-retry', rows: final, health }))
+  await q(supabase.from('matchups').update({ home_points: 99, away_points: 98, is_finalized: false, finalized_at: null, winner_member_id: null }).in('league_id', leagues))
+  await q(supabase.from('leagues').update({ deleted_at: new Date().toISOString(), status: 'archived' }).eq('id', leagues[0]))
+  phase = 'deleted'
+  scoped = true
+  try {
+    await syncScores()
+  } finally {
+    scoped = false
+  }
+  const archived = await state()
+  const deleted = archived.find((row: any) => row.league_id === leagues[0])
+  const visible = archived.find((row: any) => row.league_id === leagues[1])
+  assert.equal(Number(deleted.home_points), 99, 'Deleted league score remains unchanged')
+  assert.equal(Number(deleted.away_points), 98)
+  assert.equal(deleted.is_finalized, false)
+  assert.equal(Number(visible.home_points), 10)
+  assert.equal(Number(visible.away_points), 20)
+  assert.equal(visible.is_finalized, true)
+  assert.deepEqual(requests.filter(row => row.phase === 'deleted').map(row => row.status), [200])
+  console.log(JSON.stringify({ phase: 'deleted-league-skipped', checks: 7 }))
   success = true
 } catch (error) {
   runFailure = error

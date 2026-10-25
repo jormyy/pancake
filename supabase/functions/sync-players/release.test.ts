@@ -62,7 +62,7 @@ async function runSync(feed: Feed = {}) {
           ...code === feed.nameless ? [{ id: 'nameless' }] : [],
         ] })
       }
-      if (url.pathname === '/api/injuries') return Response.json({ injuries: [] })
+      if (url.pathname === '/api/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Fixture Player0' } }] }] })
       if (url.pathname === '/api/news') return Response.json({ articles: [] })
     }
     if (url.hostname === 'nba.invalid' && url.pathname === '/static/json/staticData/playerIndex.json') {
@@ -78,6 +78,7 @@ async function runSync(feed: Feed = {}) {
       runs.push(await request.json())
       return Response.json({})
     }
+    if (url.pathname === '/rest/v1/roster_players') return Response.json([])
     if (url.pathname === '/rest/v1/players') return Response.json(feed.index && url.searchParams.get('select')?.includes('nba_id') ? [indexed] : [])
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') {
       sequence.push('dedup')

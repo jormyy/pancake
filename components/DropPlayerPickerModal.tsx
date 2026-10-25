@@ -1,41 +1,63 @@
 import { View, Text, StyleSheet } from 'react-native'
+import { useMemo } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
-import { colors, spacing, textStyles } from '@/constants/tokens'
-import { Avatar } from '@/components/Avatar'
+import { orderRosterOptions } from '@/lib/player-roster-options'
+import { colors, spacing, table, textStyles } from '@/constants/tokens'
+import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { PosTag } from '@/components/PosTag'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
-import { playerHeadshotUrl } from '@/lib/format'
 
 type Props = {
     visible: boolean
     title: string
-    subtitle?: string
     roster: RosterPlayer[]
     dropping: string | null
     onDrop: (rp: RosterPlayer) => void
+    irMoveCandidates?: RosterPlayer[]
+    onMoveToIR?: (rp: RosterPlayer) => void
+    onAdd?: () => void
+    onAddToTaxi?: () => void
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel }: Props) {
+export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi }: Props) {
+    const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
+    const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
         if (dropping === null) onCancel()
     }
     return (
         <Sheet visible={visible} onClose={close} title={title}>
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            <Text style={styles.subtitle}>{onAdd ? 'Choose where to add this player.' : 'Roster full'}</Text>
+            {onAdd || onAddToTaxi ? <View style={styles.row}>
+                {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null} /> : null}
+                {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null} /> : null}
+            </View> : null}
+            {irMoveCandidates.length > 0 && onMoveToIR ? (
+                <View style={styles.list}>
+                    {irOptions.map(rp => (
+                        <View key={rp.id} style={styles.row}>
+                            <Text style={[textStyles.rowTitle, styles.info]} numberOfLines={1}>{rp.players.display_name}</Text>
+                            <Button title="Move to IR" size="sm" onPress={() => onMoveToIR(rp)}
+                                disabled={dropping !== null} loading={dropping === rp.id}
+                                accessibilityLabel={`Move ${rp.players.display_name} to IR and add player`} />
+                        </View>
+                    ))}
+                </View>
+            ) : null}
             <View style={styles.list}>
-                {roster.map((rp) => {
+                {dropOptions.map((rp) => {
                     const p = rp.players
                     const ep = getEligiblePositions(p)
                     return (
                         <View key={rp.id} style={styles.row}>
-                            <Avatar
+                            <PlayerAvatar
                                 name={p.display_name}
-                                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
+                                nbaId={p.nba_id}
                                 color={colors.bgMuted}
-                                size={36}
+                                size={spacing['4xl'] + spacing.xs}
                             />
                             <View style={styles.info}>
                                 <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
@@ -47,7 +69,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                             <Button
                                 title="Drop"
                                 size="sm"
-                                variant="danger"
+                                variant="outline"
                                 onPress={() => onDrop(rp)}
                                 disabled={dropping !== null}
                                 loading={dropping === rp.id}
@@ -57,15 +79,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
                     )
                 })}
             </View>
-            <Button
-                title="Cancel"
-                variant="ghost"
-                onPress={onCancel}
-                disabled={dropping !== null}
-                accessibilityLabel="Cancel drop player"
-                fullWidth
-                style={styles.cancel}
-            />
+
         </Sheet>
     )
 }
@@ -76,7 +90,7 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 56,
+        minHeight: table.rowHeight,
         paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
@@ -84,5 +98,4 @@ const styles = StyleSheet.create({
     },
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
     metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    cancel: { marginTop: spacing.md },
 })

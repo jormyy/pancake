@@ -196,10 +196,6 @@ export function useFocusAsyncData<T>(
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [...deps, staleMs, panelActive, enabled])
 
-    // On web every tab screen stays mounted (hidden with CSS), so a hook
-    // instance must know whether its screen is the focused one before it
-    // reacts to global browser events; otherwise one reconnect fans out to
-    // every tab and a hidden failure surfaces as a banner when the tab is opened.
     const isFocusedRef = useRef(false)
     useFocusEffect(
         useCallback(() => {

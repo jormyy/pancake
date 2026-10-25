@@ -63,18 +63,16 @@ BEGIN
     INSERT INTO matchups(league_id,league_season_id,week_number,home_member_id,away_member_id,matchup_type,home_points,away_points,is_finalized,winner_member_id,finalized_at)
     VALUES(league,season,1,ids[i],ids[5-i],'regular_season',10,5,true,ids[i],now());
   END LOOP;
-  result:=public.apply_season_boundary_after_grace(league,season,'generate',now());
+  result:=public.apply_season_boundary_after_grace(league,season,'generate',timestamptz '8233-02-12 12:00 America/New_York');
   IF (result->>'applied')::boolean OR EXISTS(SELECT 1 FROM matchups WHERE league_season_id=season AND matchup_type<>'regular_season') THEN
-    RAISE EXCEPTION 'Generation ignored renewed regular-season grace';
+    RAISE EXCEPTION 'Generation ignored the last game date correction window';
   END IF;
   UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season;
-  result:=public.apply_season_boundary_after_grace(league,season,'generate',now());
+  result:=public.apply_season_boundary_after_grace(league,season,'generate',timestamptz '8233-02-13 00:00 America/New_York');
   IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation accepted uncertified legacy scores'; END IF;
   PERFORM pg_temp.certify_boundary_fixture(league,season,1);
-  result:=public.apply_season_boundary_after_grace(league,season,'generate',now()-interval '2 hours');
-  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation must wait the full 48 hours'; END IF;
-  result:=public.apply_season_boundary_after_grace(league,season,'generate',now());
-  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation did not proceed after grace'; END IF;
+  result:=public.apply_season_boundary_after_grace(league,season,'generate',timestamptz '8233-02-13 00:00 America/New_York');
+  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Generation did not proceed after the game date correction window'; END IF;
   UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=10,away_points=5,finalized_at=now()
     WHERE league_season_id=season AND matchup_type='playoff_semifinal';
   SELECT id,to_jsonb(m) INTO match_id,untouched FROM matchups m WHERE league_season_id=season AND matchup_type='playoff_semifinal' LIMIT 1;
@@ -86,12 +84,12 @@ BEGIN
     PERFORM public.update_score_points_atomic(league,season,3,jsonb_build_array(jsonb_build_object('id',match_id,'home_points',0,'away_points',20)));
     RAISE EXCEPTION 'Cross-week point write accepted';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
-  result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
-  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement ignored renewed semifinal grace'; END IF;
-  UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_semifinal';
+  result:=public.apply_season_boundary_after_grace(league,season,'advance',timestamptz '8233-02-15 23:59:59 America/New_York');
+  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement ignored the round game date correction window'; END IF;
+  UPDATE matchups SET finalized_at=timestamptz '8233-02-15 19:10 America/New_York' WHERE league_season_id=season AND matchup_type='playoff_semifinal';
   PERFORM pg_temp.certify_boundary_fixture(league,season,2);
-  result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
-  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after grace'; END IF;
+  result:=public.apply_season_boundary_after_grace(league,season,'advance',timestamptz '8233-02-16 09:00 America/New_York');
+  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after the round game date correction window'; END IF;
   PERFORM pg_temp.certify_boundary_fixture(league,season,1);
   result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
   IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Regular results cannot replace an undecided final'; END IF;

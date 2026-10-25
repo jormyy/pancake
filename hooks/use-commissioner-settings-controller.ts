@@ -10,10 +10,10 @@ import { useAuth } from '@/hooks/use-auth'
 export function useCommissionerSettingsController() {
     const { currentLeague: league, isCommissioner, refresh } = useLeagueContext()
     const { user } = useAuth()
-    const { back, replace, canGoBack } = useRouter()
+    const { back, dismissTo, canGoBack } = useRouter()
     const finishSettings = () => {
         if (canGoBack()) back()
-        else replace('/league?tab=settings')
+        else dismissTo('/league?tab=settings')
     }
     const settings = useCommissionerSettingsResource({
         league,
@@ -27,9 +27,10 @@ export function useCommissionerSettingsController() {
         ownerId: settings.authorityReady ? user?.id ?? null : null,
         league,
         refresh,
+        scheduleStart: settings.playoffCalendar?.ranges?.find(week => !settings.playoffCalendar?.skippedWeeks?.includes(week.week_number))?.week_start,
         onDeleted: () => {
             if (canGoBack()) back()
-            else replace('/league')
+            else dismissTo('/league')
         },
     })
 
@@ -48,7 +49,7 @@ export function useCommissionerSettingsController() {
         lifecycle: { ...admin.lifecycle, actions: admin.lifecycle.actions.map(guardAction) },
         lowerPriorityActions: admin.lowerPriorityActions.map(guardAction),
         isCommissioner,
-        navigateBack: () => replace('/league?tab=settings'),
+        navigateBack: finishSettings,
         tradeVetoModeDescription: tradeVetoDescription(settings.draft.tradeVetoMode),
     }
 }

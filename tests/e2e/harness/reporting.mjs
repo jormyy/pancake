@@ -351,9 +351,9 @@ export const writeCoverageReport = async ({ status, startedAt, finishedAt, seaso
     },
     {
       id: 'cross.push', requiredForRelease: true,
-      requirement: 'D.X.1 push notifications',
+      requirement: 'D.X.1 notification queues',
       status: pushStatus,
-      evidence: args.push && args.draftPush ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; draft-push mode verifies rookie auto-pick notifications through the same fake Expo intercept.' : args.push ? 'Push mode verifies trade and waiver notifications through the fake Expo upstream; enable E2E_ENABLE_DRAFT_PUSH=1 for draft notifications.' : args.draftPush ? 'Draft-push mode runs a disposable rookie auto-pick and asserts the fake Expo upstream captured a draft notification; enable E2E_ENABLE_PUSH=1 for trade and waiver notifications.' : 'Enable E2E_ENABLE_PUSH=1 and E2E_ENABLE_DRAFT_PUSH=1 to cover trade, waiver, and draft push notifications.',
+      evidence: 'Push modes check waiver and draft notification queues. Web Push encryption, privacy, fanout, and retries use the Edge regression checks.',
     },
     {
       id: 'cross.realtime', requiredForRelease: true,

@@ -51,3 +51,8 @@ export function evaluateConfiguredSourceHealth(observations) {
   return { pass: failures.length === 0, failures }
 }
 
+
+export const injurySyncHealth = (run) => !run
+  ? { status: 'expected-unavailable', evidence: 'No injury-only run exists; the function can be absent before deployment or after rollback.' }
+  : { status: run.status === 'success' ? 'pass' : 'fail',
+      evidence: `sync-player-injuries latest=${run.status}, rows=${run.rows_affected ?? 'n/a'}, error=${run.error ?? 'none'}.` }

@@ -56,7 +56,12 @@ Use negative controls to prove that a gate detects the protected failure.
 
 | Behavior | Focused database commands |
 | --- | --- |
-| Taxi eligibility and tenure | `npm run test:db:dynasty-rules` |
+| Taxi eligibility and tenure | `npm run test:db:dynasty-rules`, `npm run test:db:server-taxi-rule` |
+| Taxi adds and claims | `npm run test:db:server-taxi-acquisitions`, `npm run test:db:straight-to-taxi-api` |
+| Legal roster guard | `npm run test:db:server-roster-legality`, `npm run test:db:server-roster-dispatch-repairs` |
+| Trade window | `npm run test:db:server-trade-window` |
+| Public activity feed | `npm run test:db:server-activity-feed-review` |
+| Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
 | Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
 | Flexible playoff trees | `npm run test:db:general-brackets` |
 | Roster cleanup | `npm run test:db:roster-lifecycle`, `npm run test:db:roster-oracle` |
@@ -93,18 +98,22 @@ Those deployments do not replace coordinated database and Edge release gates.
 
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
-The attested candidate is `20261024000001` in both release-history and catalog contracts.
-The pre-migration catalog pins 431 applied rows and the exact 63-version pending suffix.
-The 329-row historical audit anchor and all earlier approved SQL fingerprints remain protected.
-The [migration history](production-migration-history.md#candidate-migrations) records this boundary.
-The combined bounded-season candidate and the attested range both contain 494 migrations.
-Release approval permits the existing workflow to run; it does not bypass an attestation failure.
+The attestation files define the historical anchor, recorded production phase, and approved candidate range.
+Final integration must refresh the candidate range before deployment.
+The [migration history](production-migration-history.md#candidate-migrations) explains these boundaries.
+The ordered [database release steps](../supabase/RELEASE-DB.md) name the unpublished migrations and rollback checks.
+Release approval does not bypass an attestation failure.
 
 The matchup client first requests SQL-owned schedule generation.
-Schema 431 requires a complete legacy payload, so that exact SQL error triggers one compatible retry.
+The deployed schema can require a complete legacy payload; that exact SQL error triggers one compatible retry.
 Other errors propagate, and SQL still checks saved settings and started schedules.
+Non-force generation returns HTTP 200 with `ok: true, skipped: true` when a schedule already exists.
+Generate reports that the existing schedule stays unchanged.
+Reset & Regenerate rebuilds the schedule only before the first non-skipped week starts in Eastern Time.
+After that boundary, the server rejects a reset and the client hides the action.
 Release shards omit the single matchup used by browser latency fixtures.
 The soak generates its complete schedule through the guarded API after loading the calendar.
+Repeat-generation checks compare schedule rows, including IDs and scores, rather than counts alone.
 Ordinary browser seeds retain their latency matchup.
 
 ## Sleeper projections and weekly cleanup
@@ -160,8 +169,8 @@ Use the [browser setup](../tests/e2e/README.md#supported-web-clients) for suppor
 
 ## Dependency security
 
-The lockfile resolves Vite 8.3.5 and Zod 4.6.7 for the branch's security updates.
-Use `npm ci` to install the reviewed tree.
+The lockfile records the reviewed dependency versions.
+Use `npm ci` to install that tree.
 `npm run security:audit` rejects unaccepted high or critical advisories and stale accepted exceptions.
 `scripts/check-dependency-audit.mjs` owns exception reasons and removal conditions.
 A passing audit does not mean the tree contains no advisories.

@@ -1,9 +1,10 @@
+\set ON_ERROR_STOP on
 \getenv post_order_db SUPABASE_DB_URL
 \getenv post_order_port PANCAKE_TEST_DB_PORT
 \if :{?post_order_db}
 \else
   \echo SUPABASE_DB_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?post_order_port}
 \else
@@ -80,7 +81,7 @@ BEGIN
           RAISE EXCEPTION 'Preseason skip changes voided week history';
         END IF;
         SELECT jsonb_agg(to_jsonb(m) ORDER BY id) INTO saved FROM matchups m WHERE league_season_id=season;
-        PERFORM replace_regular_season_matchups_atomic(league,season,true);
+        PERFORM replace_regular_season_matchups_atomic(league,season,false);
         PERFORM update_league_settings_atomic(league,'{"skipped_weeks":[1]}'::jsonb);
         IF saved IS DISTINCT FROM (SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season) THEN
           RAISE EXCEPTION 'The corrected delayed schedule changes on retry';
@@ -114,7 +115,12 @@ BEGIN
         UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=5,away_points=1 WHERE league_season_id=season;
         UPDATE league_seasons SET matchup_order_version=0 WHERE id=season;
         SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) INTO saved FROM matchups m WHERE league_season_id=season;
-        PERFORM replace_regular_season_matchups_atomic(league,season,true);
+        BEGIN
+          PERFORM replace_regular_season_matchups_atomic(league,season,true);
+          RAISE EXCEPTION 'Finalized schedule accepted a forced rebuild';
+        EXCEPTION WHEN SQLSTATE 'P0001' THEN
+          IF SQLERRM <> 'The season has started; the schedule can no longer be rebuilt.' THEN RAISE; END IF;
+        END;
         IF saved IS DISTINCT FROM (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM matchups m WHERE league_season_id=season) THEN RAISE EXCEPTION 'Existing finalized legacy matchups were rewritten'; END IF;
         BEGIN
           PERFORM update_league_settings_atomic(league,'{"playoff_start_week":19}'::jsonb);

@@ -7,9 +7,6 @@ import {
     type WebPushIntent,
 } from '@/lib/web-push-state'
 
-// Standards Web Push for the installed PWA. Native builds use Expo push
-// (lib/push-token.ts); everything here is a no-op off web.
-
 export type WebPushStatus =
     | 'unsupported'   // browser has no Push API
     | 'needs-install' // iOS Safari tab: push only exists once added to the Home Screen
@@ -100,28 +97,35 @@ async function assertOperation(operation: Operation): Promise<void> {
     assertIdentity(operation)
 }
 
-async function remember(endpoint: string, receipt: RegistrationReceipt, ownerId: string | null): Promise<void> {
+async function remember(endpoint: string, receipt: RegistrationReceipt, ownerId: string | null, subscriptionKeys?: { p256dh: string; auth: string }): Promise<void> {
     if (!receipt.applied) return
     if (typeof receipt.generation !== 'number' || typeof receipt.revocationCredential !== 'string') {
         throw new Error('Notification registration acknowledgement is missing.')
     }
-    await saveWebPushAuthority(endpoint, { generation: receipt.generation, revocationCredential: receipt.revocationCredential, ownerId })
+    await saveWebPushAuthority(endpoint, { generation: receipt.generation, revocationCredential: receipt.revocationCredential, ownerId, subscriptionKeys, savedAt: Date.now() })
 }
 
 async function saveSubscription(subscription: PushSubscription, operation: Operation): Promise<void> {
     await assertOperation(operation)
+    const json = subscription.toJSON()
+    const subscriptionKeys = { p256dh: json.keys?.p256dh ?? '', auth: json.keys?.auth ?? '' }
+    const stored = await readWebPushAuthority(subscription.endpoint, operation.intent)
+    await assertOperation(operation)
+    if (stored?.ownerId === operation.ownerId && stored.generation > 0
+        && stored.subscriptionKeys?.p256dh === subscriptionKeys.p256dh
+        && stored.subscriptionKeys.auth === subscriptionKeys.auth
+        && typeof stored.savedAt === 'number' && stored.savedAt <= Date.now()
+        && Date.now() - stored.savedAt < 7 * 24 * 60 * 60 * 1000) return
     const authority = await readWebPushAuthority(subscription.endpoint, operation.intent, true)
     if (!authority) throw new Error('Your notification action changed. Please retry.')
-    const json = subscription.toJSON()
     const receipt = await apiPost<RegistrationReceipt>('/profile/web-push/subscribe', {
         endpoint: subscription.endpoint,
-        p256dh: json.keys?.p256dh ?? '',
-        auth: json.keys?.auth ?? '',
+        ...subscriptionKeys,
         generation: authority.generation,
         revocationCredential: authority.revocationCredential,
     }, { expectedUserId: operation.ownerId, beforeSend: () => assertOperation(operation) })
     if (!receipt.applied) throw new Error('Notification registration was not confirmed.')
-    await remember(subscription.endpoint, receipt, operation.ownerId)
+    await remember(subscription.endpoint, receipt, operation.ownerId, subscriptionKeys)
     await assertOperation(operation)
 }
 
@@ -133,6 +137,15 @@ async function replaceSubscription(worker: ServiceWorkerRegistration, previous: 
     await assertOperation(operation)
     if (next.endpoint === previous?.endpoint || next.endpoint === operation.intent.retiredEndpoint) throw new Error('The browser kept the old notification registration. Please retry.')
     return next
+}
+
+async function reconcileSubscription(worker: ServiceWorkerRegistration, subscription: PushSubscription, publicKey: string, operation: Operation): Promise<void> {
+    try { await saveSubscription(subscription, operation) }
+    catch (error) {
+        if (errorCode(error) !== 'WEB_PUSH_STALE') throw error
+        const next = await replaceSubscription(worker, subscription, publicKey, operation)
+        await saveSubscription(next, operation)
+    }
 }
 
 export async function getWebPushStatus(): Promise<WebPushStatus> {
@@ -180,12 +193,7 @@ export async function enableWebPush(): Promise<WebPushStatus> {
     let subscription = await worker.pushManager.getSubscription()
     await assertOperation(operation)
     if (!subscription || prior.reason === 'disabled' || subscription.endpoint === intent.retiredEndpoint || !sameKey(subscription, publicKey)) subscription = await replaceSubscription(worker, subscription, publicKey, operation)
-    try { await saveSubscription(subscription, operation) }
-    catch (error) {
-        if (errorCode(error) !== 'WEB_PUSH_STALE') throw error
-        subscription = await replaceSubscription(worker, subscription, publicKey, operation)
-        await saveSubscription(subscription, operation)
-    }
+    await reconcileSubscription(worker, subscription, publicKey, operation)
     return 'on'
 }
 
@@ -288,7 +296,7 @@ export async function syncWebPushSubscription(): Promise<void> {
     await assertOperation(operation)
     if (!publicKey) return
     if (!sameKey(subscription, publicKey)) throw new Error('Notification keys changed. Enable notifications again.')
-    await saveSubscription(subscription, operation)
+    await reconcileSubscription(worker, subscription, publicKey, operation)
 }
 
 export async function sendTestWebPush(): Promise<{ sent: number; pruned: number; failed: number }> {

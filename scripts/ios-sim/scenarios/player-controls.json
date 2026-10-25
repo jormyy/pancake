@@ -1,0 +1,160 @@
+[
+  {
+    "name": "player-controls-light",
+    "group": "player-controls",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Points"
+        },
+        "expected": {
+          "selector": "[aria-label='Sort: Points']"
+        }
+      },
+      {
+        "name": "availability",
+        "action": {
+          "sequence": [
+            {
+              "tapPrefix": "Availability:"
+            },
+            {
+              "tap": "On waivers"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Availability: On waivers']"
+        }
+      },
+      {
+        "name": "results",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "[aria-label^='Claim ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "player-controls-dark",
+    "group": "player-controls",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Points"
+        },
+        "expected": {
+          "selector": "[aria-label='Sort: Points']"
+        }
+      },
+      {
+        "name": "availability",
+        "action": {
+          "sequence": [
+            {
+              "tapPrefix": "Availability:"
+            },
+            {
+              "tap": "On waivers"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Availability: On waivers']"
+        }
+      },
+      {
+        "name": "results",
+        "action": {
+          "tap": "Close"
+        },
+        "expected": {
+          "selector": "[aria-label^='Claim ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "player-resolution-light",
+    "group": "player-controls",
+    "from": "/player/{{freeAgent.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "dialog": "Resolve roster",
+          "selector": "[aria-label^='Activate ']"
+        }
+      },
+      {
+        "name": "drop",
+        "action": {
+          "tapPrefix": "Activate "
+        },
+        "expected": {
+          "dialog": "Drop to activate",
+          "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
+        }
+      }
+    ],
+    "setup": {
+      "healthyIRMember": "{{memberId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-resolution-dark",
+    "group": "player-controls",
+    "from": "/player/{{freeAgent.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "dialog": "Resolve roster",
+          "selector": "[aria-label^='Activate ']"
+        }
+      },
+      {
+        "name": "drop",
+        "action": {
+          "tapPrefix": "Activate "
+        },
+        "expected": {
+          "dialog": "Drop to activate",
+          "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
+        }
+      }
+    ],
+    "setup": {
+      "healthyIRMember": "{{memberId}}"
+    },
+    "theme": "dark"
+  }
+]

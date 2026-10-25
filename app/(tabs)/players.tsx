@@ -13,11 +13,11 @@ import { FlashList } from '@shopify/flash-list'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { type OwnedEntry } from '@/lib/roster'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { ItemSeparator } from '@/components/ItemSeparator'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
+import { playerDetailRoute } from '@/components/player/navigation'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { FilterSelect, MultiSelect, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
@@ -27,7 +27,7 @@ import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { usePlayerSearch, SORT_OPTIONS } from '@/hooks/use-player-search'
+import { usePlayerSearch, useVisiblePlayerRows, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-search-state'
@@ -95,7 +95,7 @@ type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day'> &
     pendingClaimIds: string[]
     transactionState: PlayerSupport['transactionState']
 }
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v4:'
+const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v5:'
 const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
 
 function PlayerTableHeader({
@@ -108,8 +108,7 @@ function PlayerTableHeader({
     onColumnSort?: (mode: PlayerSearchSortMode) => void
 }) {
     return (
-        <View style={styles.tableHeader}>
-            <View style={styles.tableHeaderAddSpacer} />
+        <View style={[styles.tableHeader, { paddingRight: spacing.sm }]}>
             <View style={styles.tableHeaderCardRow}>
                 <View style={styles.tableHeaderHeadshotSpacer} />
                 <Text style={styles.tableHeaderPlayer}>Player</Text>
@@ -139,6 +138,7 @@ function PlayerTableHeader({
                     })}
                 </View>
             </View>
+            <View style={styles.tableHeaderAddSpacer} />
         </View>
     )
 }
@@ -245,7 +245,13 @@ function PlayerSearchSection() {
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id })
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
+        currentLeague?.scoring_settings, {
+            enabled: focused && online && membershipValidated && !filtersOpen,
+            ownerKey: JSON.stringify([user?.id, current?.id, leagueId]),
+            initialTotals: search.results.totalsSnapshot,
+        })
     const retrySearch = search.results.retry
     const refreshPlayers = useCallback(() => {
         const support = refreshPlayerSupport()
@@ -280,6 +286,9 @@ function PlayerSearchSection() {
         leagueId,
         onChanged: refreshPlayerSupport,
         transactionState,
+        irSlots: currentLeague?.ir_slots ?? 2,
+        taxiSlots: currentLeague?.taxi_slots ?? 0,
+        rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
     })
     const availabilityUpdating = supportSnapshot || playerSupportFetchLoading
@@ -292,8 +301,11 @@ function PlayerSearchSection() {
         else void quickAddHandleAdd(player)
     }, [online, availabilityUpdating, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
     const handleOpenPlayer = useCallback((player: PlayerRow) => {
-        push(`/player/${player.id}`)
-    }, [push])
+        push(playerDetailRoute(player, !ownedMap.has(player.id)))
+    }, [push, ownedMap])
+    const handlePreparePlayer = useCallback(() => {
+        if (browserReadsAllowed()) void import('@/app/player/[id]').catch(() => undefined)
+    }, [])
     const renderPlayerItem = useCallback(({ item }: { item: PlayerRow }) => (
         <PlayerSearchItem
             item={item}
@@ -310,8 +322,9 @@ function PlayerSearchSection() {
             addBlockedReason={addBlockedReason}
             onAdd={handleAddPlayer}
             onPress={handleOpenPlayer}
+            onPrepare={handlePreparePlayer}
         />
-    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer])
+    ), [current?.id, online, availabilityUpdating, ownedMap, waiverIds, playerSupportForLeague?.waiverClearsAt, playerSupportForLeague?.pendingClaimIds, quickAdd.adding, showStatTable, addBlockedReason, handleAddPlayer, handleOpenPlayer, handlePreparePlayer])
     const playerListExtraData = [
         search.sort.mode,
         search.sort.dir,
@@ -332,7 +345,7 @@ function PlayerSearchSection() {
             : 'Rolling waivers'
         : ''
     const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
-    const summaryLine = `${resultCountLabel} · ${addLimitSummary(transactionState)} · ${waiverLine}`
+    const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState), waiverLine].filter(Boolean).join(' · ')
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -417,6 +430,7 @@ function PlayerSearchSection() {
                         <Pressable
                             style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
                             onPress={() => setFiltersOpen(true)}
+                            onPressIn={() => setFiltersOpen(true)}
                             accessibilityRole="button"
                             accessibilityLabel="Show filters"
                         >
@@ -435,12 +449,11 @@ function PlayerSearchSection() {
                                     <Text style={localStyles.clearButtonText}>Clear</Text>
                                 </Pressable>
                             ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
+                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
                         </>
                     )}
                 </View>
-                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: 20, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
-                {averageLabel ? <Text style={localStyles.summary} testID="players-average-season">{averageLabel}</Text> : null}
+                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}
@@ -490,11 +503,11 @@ function PlayerSearchSection() {
                     onScroll={statusScroll.onScroll}
                     scrollEventThrottle={16}
                     ref={search.results.listRef}
-                    data={search.results.players}
+                    data={liveRows.rows}
+                    onViewableItemsChanged={liveRows.onViewableItemsChanged}
                     extraData={playerListExtraData}
                     keyExtractor={(p: PlayerRow) => p.id}
                     contentContainerStyle={statusScroll.contentStyle(search.results.players.length === 0 && !listIsInitialLoading ? styles.emptyContainer : undefined)}
-                    ItemSeparatorComponent={ItemSeparator}
                     ListHeaderComponent={showStatTable ? (
                         <PlayerTableHeader activeSort={search.sort.mode} sortDir={search.sort.dir} onColumnSort={handleColumnSort} />
                     ) : null}
@@ -539,21 +552,28 @@ function PlayerSearchSection() {
 
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
-                title={`Drop a player to add\n${quickAdd.dropPickerPlayer?.display_name ?? ''}`}
-                subtitle="Your roster is full. Pick someone to release."
+                title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
                 roster={quickAdd.myRoster}
-                dropping={quickAdd.dropping}
+                dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
+                onAdd={quickAdd.taxiAvailable && quickAdd.canAddActive ? quickAdd.handleAddActive : undefined}
+                onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
+                irMoveCandidates={quickAdd.irMoveCandidates}
+                onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
             />
 
             <IRResolutionModal
                 visible={quickAdd.irModal !== null}
+                serverMessage={quickAdd.irModal?.serverMessage}
                 ineligibleIR={quickAdd.irModal?.ineligible ?? []}
                 activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={quickAdd.handleIRActivate}
+                onDrop={quickAdd.handleResolutionDrop}
+                onMoveToIR={quickAdd.handleResolutionMoveToIR}
+                irAvailable={(quickAdd.irModal?.roster ?? []).filter(player => player.is_on_ir).length < (currentLeague?.ir_slots ?? 2)}
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
                 onCancel={() => quickAdd.setIrModal(null)}
             />
@@ -607,7 +627,7 @@ function PlayersScreen() {
                         value={section}
                         onChange={openSection}
                         options={[
-                            { label: 'Players', value: 'players' },
+                            { label: 'Players', value: 'players', accessibilityLabel: 'Show player search' },
                             { label: 'Rankings', value: 'rankings' },
                             { label: 'News', value: 'news' },
                         ]}
@@ -651,12 +671,12 @@ const localStyles = StyleSheet.create({
         flexWrap: 'wrap',
         gap: spacing.sm,
     },
-    searchWide: { flexGrow: 0, flexBasis: 280, minWidth: 220, height: 36 },
+    searchWide: { flexGrow: 0, flexBasis: 280, minWidth: 220, height: controlSize.minTouch },
     filterButton: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.lg,
         borderCurve: 'continuous',
@@ -667,16 +687,16 @@ const localStyles = StyleSheet.create({
     filterButtonActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
     filterButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textSecondary },
     filterButtonTextActive: { color: colors.primaryDark },
-    clearButton: { minHeight: 36, justifyContent: 'center', paddingHorizontal: spacing.md },
+    clearButton: { minHeight: controlSize.minTouch, justifyContent: 'center', paddingHorizontal: spacing.md },
     clearButtonText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.dangerDark },
     summary: { ...textStyles.meta },
     summaryWide: { marginLeft: 'auto', flexShrink: 0 },
     // Two fields per row; each field sets its own basis so the grid wraps evenly.
     sheetFields: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     sheetActions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.xl },
-    sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: 44 },
+    sortDirInSheet: { flexGrow: 1, flexBasis: 140, minHeight: controlSize.minTouch },
     sheetClear: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.xl,
         borderRadius: radii.md,
@@ -685,7 +705,7 @@ const localStyles = StyleSheet.create({
     },
     sheetDone: {
         flex: 1,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,

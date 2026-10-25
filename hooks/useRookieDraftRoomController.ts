@@ -176,7 +176,7 @@ export function useRookieDraftRoomController({
         setTrimmingId(null)
     }, [ownerIdentity])
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (deferInitialPaint = false) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
         const readEpoch = capture()
         const requestedDraftId = draftId
@@ -196,7 +196,7 @@ export function useRookieDraftRoomController({
             }
             writePersistentCache(cacheKey, { state: data })
             roomSnapshotRef.current = data
-            setState(data)
+            if (!deferInitialPaint) setState(data)
             setLoadError(null)
             return true
         } catch (e) {
@@ -205,7 +205,7 @@ export function useRookieDraftRoomController({
             setLoadError({ ownerKey: readOwnerKey, message: getErrorMessage(e) ?? 'Failed to refresh draft' })
             return false
         } finally {
-            if (activityIsCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
+            if (!deferInitialPaint && activityIsCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
         }
     }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey])
 
@@ -273,12 +273,21 @@ export function useRookieDraftRoomController({
                         pending = false
                         const readEpoch = capture()
                         inFlightEpoch = readEpoch
-                        const stateLoaded = await load()
-                        const refreshPool = poolPending
+                        const refreshPool = poolPending || prospectsDirtyRef.current
                         poolPending = false
-                        const poolLoaded = (refreshPool || prospectsDirtyRef.current) && isCurrent() && canRefresh()
-                            ? await loadProspects(queryRef.current.trim() || undefined) : true
+                        const poolRead = refreshPool && isCurrent() && canRefresh()
+                            ? loadProspects(queryRef.current.trim() || undefined) : null
+                        const deferInitialPaint = roomSnapshotRef.current === null
+                        const stateLoaded = await load(deferInitialPaint)
+                        const poolLoaded = poolRead ? await poolRead
+                            : prospectsDirtyRef.current && isCurrent() && canRefresh()
+                                ? await loadProspects(queryRef.current.trim() || undefined) : true
                         loaded = stateLoaded && poolLoaded && activityIsCurrent(readEpoch)
+                        if (deferInitialPaint && activityIsCurrent(readEpoch) && !pending) {
+                            setState(roomSnapshotRef.current)
+                            setLoading(false)
+                        }
+                        if (loaded && poolRead) prospectsDirtyRef.current = false
                         if (loaded) markReady(readEpoch)
                     } while (pending && isCurrent() && canRefresh())
                     return loaded && isCurrent()
@@ -412,11 +421,14 @@ export function useRookieDraftRoomController({
             setSecondsLeft(null)
             return
         }
-        const tick = () => setSecondsLeft(Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000)))
+        if (!canRefresh()) return
+        const tick = () => {
+            if (canRefresh()) setSecondsLeft(Math.max(0, Math.ceil((clockEnd - Date.now()) / 1000)))
+        }
         tick()
-        const id = setInterval(tick, 500)
+        const id = setInterval(tick, 1_000)
         return () => clearInterval(id)
-    }, [clockEnd])
+    }, [clockEnd, canRefresh, epoch])
 
     useEffect(() => {
         if (secondsLeft !== 0 || !draftId || !visibleState?.nextPick || picking
@@ -534,7 +546,6 @@ export function useRookieDraftRoomController({
                 setRosterForDrop([])
                 setTrimOverflow(excess <= 0 ? null : { excess, dropList: active })
                 if (excess <= 0 && draftId) {
-                    await activateRookieDraftLeague(draftId)
                     if (mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch) await load()
                 }
             } else {
@@ -646,10 +657,7 @@ export function useRookieDraftRoomController({
             await dropPlayer(rosterPlayerId, visibleState.draft.leagueSeasonId, draftId)
             if (!mutationIsCurrent(generation, identity)) return
             setRosterOverflow(null)
-            if (draftId) {
-                await activateRookieDraftLeague(draftId)
-                await load()
-            }
+            if (draftId) await load()
         } catch {
             if (mutationIsCurrent(generation, identity)) {
                 setPickError('Could not finish the roster check. Open Roster to confirm the drop and resolve any overflow.')

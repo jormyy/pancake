@@ -53,17 +53,17 @@ try {
   await query(admin.from('drafts').insert({ id: draft, league_id: league, league_season_id: season, draft_type: 'snake', status: 'completed', is_mock: false, rounds: 1 }))
   await query(admin.from('snake_draft_picks').insert(members.map((member_id, index) => ({ draft_id: draft, member_id,
     overall_pick: index + 1, round: 1, pick_in_round: index + 1, skipped_at: new Date().toISOString(), skip_reason: 'No eligible players' }))))
-  for (const side of [undefined, 2, 3]) {
+  for (const side of [undefined, 3]) {
     const result = await activate(side, { userId: users[0], actorUserId: users[0] })
     assert.equal(result.status, side === undefined ? 401 : 404, JSON.stringify(result))
     assert.equal(await status(), 'drafting')
   }
-  for (const side of [0, 1]) {
+  for (const side of [0, 1, 2]) {
     const result = await activate(side)
     assert.equal(result.status, 200, JSON.stringify(result)); assert.equal(result.body.activated, true)
     assert.equal(await status(), 'active'); await reset()
   }
-  console.log(JSON.stringify({ case: 'real Edge API uses the signed-in commissioner, permits co-commissioner, denies ordinary manager and outsider', denied: 3, authorized: 2 }))
+  console.log(JSON.stringify({ case: 'real Edge API permits every league member and denies anonymous users and outsiders', denied: 2, authorized: 3 }))
 
   for (const side of [2, 3]) {
     const denied = await clients[side].rpc('activate_rookie_draft_league_atomic', { p_draft_id: draft })
@@ -72,7 +72,8 @@ try {
     assert.equal(forged.error?.code, '42501')
   }
   const manager = await admin.rpc('activate_rookie_draft_league_for_user_atomic', { p_draft_id: draft, p_user_id: users[2] })
-  assert.equal(manager.error?.code, '42501'); assert.equal(await status(), 'drafting')
+  assert.equal(manager.error, null); assert.equal(manager.data, true); assert.equal(await status(), 'active')
+  await reset()
   assert.equal(await query(clients[0].rpc('activate_rookie_draft_league_atomic', { p_draft_id: draft })), true)
   await reset()
   await sql(`BEGIN; SET LOCAL ROLE service_role; DO $$ BEGIN
@@ -81,7 +82,7 @@ try {
   await sql(`BEGIN; SET LOCAL ROLE anon; DO $$ BEGIN
     BEGIN PERFORM public.activate_rookie_draft_league_for_user_atomic('${draft}','${users[0]}'); RAISE EXCEPTION 'Anonymous actor activates'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
     END $$; ROLLBACK`)
-  console.log(JSON.stringify({ case: 'actual database roles deny forged and missing actors while legacy commissioner RPC stays valid', denied: 7 }))
+  console.log(JSON.stringify({ case: 'actual database roles deny forged and missing actors while legacy commissioner RPC stays valid', denied: 6 }))
 
   const gateName = `rookie-role-${scope}`
   const gate = new Deno.Command('psql', { args: [db, '-XqAt', '--set', 'ON_ERROR_STOP=1', '-c',
@@ -101,10 +102,11 @@ try {
   }
   const stale = await pending, gateResult = await gate.output()
   assert.equal(gateResult.code, 0, new TextDecoder().decode(gateResult.stderr))
-  assert.ok(blocked, 'The actual API must reach its atomic authorization after the earlier role read')
-  assert.equal(stale.status, 403, JSON.stringify(stale)); assert.match(stale.body.error, /Commissioner access required/)
-  assert.equal(await status(), 'drafting')
-  console.log(JSON.stringify({ case: 'concurrent demotion after API precheck is denied under the league lock', lockOverlap: blocked, status: stale.status }))
+  assert.ok(blocked, 'The actual API must reach atomic membership authorization after its precheck')
+  assert.equal(stale.status, 200, JSON.stringify(stale)); assert.equal(stale.body.activated, true)
+  assert.equal(await status(), 'active')
+  await reset()
+  console.log(JSON.stringify({ case: 'concurrent demotion retains league membership and can still activate', lockOverlap: blocked, status: stale.status }))
   await query(admin.from('league_members').update({ role: 'commissioner' }).eq('id', members[0]))
   await query(admin.from('league_seasons').update({ is_current: false }).eq('id', season))
   assert.equal(await query(admin.rpc('activate_rookie_draft_league_for_user_atomic', { p_draft_id: draft, p_user_id: users[0] })), false)

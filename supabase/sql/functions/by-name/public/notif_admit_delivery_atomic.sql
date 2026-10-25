@@ -13,7 +13,10 @@ BEGIN
     RAISE EXCEPTION 'Notification delivery lease lost';
   END IF;
   IF r.delivered_at IS NOT NULL OR r.dead_lettered_at IS NOT NULL OR r.suppressed_at IS NOT NULL OR r.expo_ticket_id IS NOT NULL THEN RETURN false; END IF;
-  IF private.notif_is_stale(r.event_type,r.data) THEN
+  IF EXISTS (SELECT 1 FROM public.league_members member JOIN public.leagues league ON league.id=member.league_id
+    WHERE member.id=r.member_id AND league.deleted_at IS NOT NULL) THEN
+    reason := 'league_deleted';
+  ELSIF private.notif_is_stale(r.event_type,r.data) THEN
     reason := 'stale';
   ELSE
     deferred_until := private.notif_draft_deferred_until(r.event_type,r.data);

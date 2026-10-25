@@ -61,9 +61,8 @@ BEGIN
       WHEN 'drop' THEN
         PERFORM public.drop_player_atomic(p_free_roster_player_id);
       WHEN 'ir' THEN
-        PERFORM public.toggle_ir_atomic(p_free_roster_player_id, true, v_user_id);
-      WHEN 'taxi' THEN
-        PERFORM public.toggle_taxi_atomic(p_free_roster_player_id, true, v_user_id);
+        PERFORM private.toggle_ir_for_activation(p_free_roster_player_id, true, v_user_id,
+          CASE WHEN p_activate_source='ir' THEN p_activate_roster_player_id END);
       ELSE
         RAISE EXCEPTION 'Invalid roster overflow action: %', p_free_action
           USING ERRCODE = '22023';

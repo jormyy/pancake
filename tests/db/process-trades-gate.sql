@@ -18,18 +18,23 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='nba-process-trades') THEN
+  RAISE EXCEPTION 'Duplicate trade cron remains';
+END IF; END $$;
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'local-trade-gate-test', true);
+CREATE TEMP TABLE trade_gate_checks(label text PRIMARY KEY);
 CREATE FUNCTION pg_temp.assert_trade_dispatch(p_label text, p_expected boolean) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_before bigint; v_command text; v_after bigint;
 BEGIN
   SELECT count(*) INTO v_before FROM public.edge_invocations WHERE function_name='process-trades';
-  SELECT command INTO STRICT v_command FROM cron.job WHERE jobname='nba-process-trades';
+  SELECT command INTO STRICT v_command FROM cron.job WHERE jobname='notification-dispatch-minute';
   EXECUTE v_command;
   SELECT count(*) INTO v_after FROM public.edge_invocations WHERE function_name='process-trades';
   IF (v_after > v_before) IS DISTINCT FROM p_expected THEN
     RAISE EXCEPTION '%: expected dispatch %, got %',p_label,p_expected,v_after-v_before;
   END IF;
+  INSERT INTO trade_gate_checks VALUES(p_label);
 END $$;
 SELECT pg_temp.assert_trade_dispatch('idle scheduler',false);
 DO $$
@@ -75,6 +80,9 @@ BEGIN
   UPDATE public.leagues SET status='offseason' WHERE id=v_league;
   UPDATE public.trades SET status='accepted' WHERE id=v_trade;
   PERFORM pg_temp.assert_trade_dispatch('offseason due trade',true);
+  UPDATE public.leagues SET status='drafting' WHERE id=v_league;
+  IF EXISTS(SELECT 1 FROM public.notification_outbox) THEN RAISE EXCEPTION 'Drafting gate fixture has unrelated notifications'; END IF;
+  PERFORM pg_temp.assert_trade_dispatch('drafting due trade',true);
   UPDATE public.trades SET status='completed' WHERE id=v_trade;
   PERFORM pg_temp.assert_trade_dispatch('completed trade alerts',true);
   PERFORM public.claim_notification_outbox_atomic(100,60);
@@ -97,17 +105,17 @@ BEGIN
   UPDATE public.notification_outbox SET claimed_at=now()-interval '61 seconds' WHERE id=v_notice;
   PERFORM pg_temp.assert_trade_dispatch('expired delivery lease',true);
   SELECT claim_token INTO v_claim FROM public.claim_notification_outbox_atomic(100,60) WHERE id=v_notice;
-  PERFORM public.record_notification_outbox_ticket_atomic(v_notice,v_claim,'local-gate-ticket','ExponentPushToken[local-gate]',900);
-  PERFORM pg_temp.assert_trade_dispatch('future receipt',false);
+  PERFORM public.fail_notification_outbox_atomic(v_notice,v_claim,'Web push HTTP 503');
+  PERFORM pg_temp.assert_trade_dispatch('future web retry',false);
   UPDATE public.notification_outbox SET available_at=now()-interval '1 second' WHERE id=v_notice;
-  PERFORM pg_temp.assert_trade_dispatch('due receipt',true);
-  SELECT claim_token INTO v_claim FROM public.claim_notification_receipts_atomic(200,60) WHERE id=v_notice;
-  IF v_claim IS NULL THEN RAISE EXCEPTION 'Due receipt is not claimable'; END IF;
-  PERFORM pg_temp.assert_trade_dispatch('active receipt lease',false);
+  PERFORM pg_temp.assert_trade_dispatch('due web retry',true);
+  SELECT claim_token INTO v_claim FROM public.claim_notification_outbox_atomic(100,60) WHERE id=v_notice;
+  IF v_claim IS NULL THEN RAISE EXCEPTION 'Due web retry is not claimable'; END IF;
+  PERFORM pg_temp.assert_trade_dispatch('active web retry lease',false);
   UPDATE public.notification_outbox SET claimed_at=now()-interval '61 seconds' WHERE id=v_notice;
-  PERFORM pg_temp.assert_trade_dispatch('expired receipt lease',true);
+  PERFORM pg_temp.assert_trade_dispatch('expired web retry lease',true);
   UPDATE public.notification_outbox SET delivered_at=now() WHERE id=v_notice;
-  PERFORM pg_temp.assert_trade_dispatch('delivered receipt',false);
+  PERFORM pg_temp.assert_trade_dispatch('delivered web notification',false);
   UPDATE public.notification_outbox SET delivered_at=NULL,dead_lettered_at=now() WHERE id=v_notice;
   PERFORM pg_temp.assert_trade_dispatch('dead letter',false);
 END $$;
@@ -128,4 +136,5 @@ RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT public.invoke_process_trades_if_due();
 RESET ROLE;
+SELECT count(*) AS passed_checks FROM trade_gate_checks;
 ROLLBACK;

@@ -13,7 +13,8 @@ type NotificationPreferences = NotificationPreferenceRow
 type LookupError = { message: string; code?: string }
 type LookupResult<Value> = { data: Value | null; error: LookupError | null }
 
-export type NotificationDeliveryFailureCode =
+type NotificationDeliveryFailureCode =
+  | 'web_push'
   | 'member_lookup'
   | 'preferences_lookup'
   | 'profile_lookup'
@@ -23,8 +24,9 @@ export type NotificationDeliveryFailureCode =
   | 'expo_status'
 
 type NotificationDeliveryResult =
-  | { status: 'sent'; ticketRecorded?: boolean; ticketId?: string; pushToken?: string; channel?: 'web' }
-  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' | 'durably_suppressed' }
+  | { status: 'sent'; ticketId?: string; pushToken?: string; channel?: 'web' }
+  | { status: 'skipped'; reason: 'preferences_disabled' | 'no_device' | 'missing_push_token' | 'durably_suppressed' | 'no_subscription' | 'gone' }
+  | { status: 'failed'; retryable: boolean; error: string }
 
 export type NotificationMessage = {
   memberId: string
@@ -37,7 +39,7 @@ export type NotificationMessage = {
 
 type NotificationBatchResult = NotificationDeliveryResult & { memberId: string }
 
-export class NotificationDeliveryError extends Error {
+class NotificationDeliveryError extends Error {
   readonly code: NotificationDeliveryFailureCode
   readonly memberId: string
   readonly userId: string | null
@@ -93,38 +95,23 @@ class NotificationBatchDeliveryError extends Error {
   }
 }
 
-export type NotificationDependencies = {
-  member: (memberId: string) => Promise<LookupResult<{ user_id: string }>>
-  preferences: (userId: string) => Promise<LookupResult<NotificationPreferences>>
-  profile: (userId: string) => Promise<LookupResult<{ push_token: string | null }>>
-  send: (url: string, init: RequestInit) => Promise<Response>
-  pushUrl: string
-  webPush?: WebPushFanout
-}
-
-type NotifyMember = (
-  memberId: string,
-  title: string,
-  body: string,
-  data?: Record<string, unknown>,
-  category?: DeliveryCategory,
-) => Promise<NotificationDeliveryResult>
-
 export type NotifyMembers = (messages: NotificationMessage[]) => Promise<NotificationBatchResult[]>
 
-export type NotificationBatchDependencies = {
+type ExpoNotificationBatchDependencies = {
   members: (memberIds: string[]) => Promise<LookupResult<Array<{ id: string; user_id: string }>>>
   preferences: (userIds: string[]) => Promise<LookupResult<Array<NotificationPreferences & { user_id: string }>>>
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
-  persistExpoTicket?: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
+  persistExpoTicket: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
   admitDelivery?: (message: NotificationMessage) => Promise<boolean>
-  beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted'>
+  beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted' | 'no_device'>
   finishWebDelivery?: (message: NotificationMessage, sent: boolean) => Promise<void>
   invalidateToken?: (userId: string, token: string) => Promise<LookupResult<boolean>>
   send: (url: string, init: RequestInit) => Promise<Response>
   pushUrl: string
   webPush?: WebPushFanout
 }
+
+export type NotificationBatchDependencies = ExpoNotificationBatchDependencies
 
 type NotificationFailureDisposition = 'discard' | 'dead_letter' | 'retry'
 
@@ -184,7 +171,7 @@ const chunks = <Value>(values: Value[], size: number): Value[][] => {
 type PreparedNotification = NotificationMessage & { userId: string; token: string }
 
 const sendBatch = async (
-  dependencies: NotificationBatchDependencies,
+  dependencies: ExpoNotificationBatchDependencies,
   messages: PreparedNotification[],
 ): Promise<NotificationBatchResult[]> => {
   const memberIds = messages.map((message) => message.memberId)
@@ -259,12 +246,10 @@ const sendBatch = async (
           userId: message.userId,
         }))
       } else {
-        const ticketRecorded = !!(message.delivery && dependencies.persistExpoTicket)
-        if (ticketRecorded) await dependencies.persistExpoTicket!(message, ticket.id, message.token)
+        if (message.delivery) await dependencies.persistExpoTicket(message, ticket.id, message.token)
         results.push({
           memberId: message.memberId,
           status: 'sent',
-          ...(ticketRecorded ? { ticketRecorded } : {}),
           ticketId: ticket.id,
           pushToken: message.token,
         })
@@ -364,6 +349,8 @@ export function createNotifyMembers(
         return { message, webMessage, state }
       } catch (error) {
         console.error('Web notification reservation failed', error)
+        const pending = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
+        if (pending) results.splice(results.indexOf(pending), 1, { memberId: message.memberId, status: 'failed', retryable: true, error: error instanceof Error ? error.message : String(error) })
         return null
       }
     }))
@@ -371,15 +358,33 @@ export function createNotifyMembers(
       if (!reservation) return
       const { message, webMessage, state } = reservation
       try {
+        if (state === 'no_device') {
+          const pending = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
+          if (pending) results.splice(results.indexOf(pending), 1, { memberId: message.memberId, status: 'skipped', reason: 'no_device' })
+          return
+        }
         let sent = state === 'delivered'
+        let webOutcome: NotificationBatchResult = { memberId: message.memberId, status: 'failed', retryable: true, error: 'Web push delivery outcome is unknown' }
         if (state === 'send') {
           const summary = await dependencies.webPush!([webMessage])
           sent = summary.sent > 0
+          const outcome = summary.results[0]
+          if (outcome?.userId === webMessage.userId && outcome.status === 'failed') {
+            webOutcome = { memberId: message.memberId, status: 'failed', retryable: outcome.retryable, error: outcome.error }
+          } else if (outcome?.userId === webMessage.userId && (outcome.status === 'no_subscription' || outcome.status === 'gone')) {
+            webOutcome = { memberId: message.memberId, status: 'skipped', reason: outcome.status }
+          }
           if (message.delivery && dependencies.finishWebDelivery) await dependencies.finishWebDelivery(message, sent)
         }
-        if (sent && message.delivery) {
+        if (sent) {
           const result = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
           if (result) results.splice(results.indexOf(result), 1, { memberId: message.memberId, status: 'sent', channel: 'web' })
+        }
+        if (!sent) {
+          const pending = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
+          if (pending) {
+            results.splice(results.indexOf(pending), 1, webOutcome)
+          }
         }
       } catch (error) {
         console.error('Web notification delivery state failed', error)
@@ -398,110 +403,5 @@ export function createNotifyMembers(
     }
     results.push(...delivered)
     return results
-  }
-}
-
-export function createNotifyMember(dependencies: NotificationDependencies): NotifyMember {
-  return async (
-    memberId,
-    title,
-    body,
-    data,
-    category = 'activity',
-  ) => {
-    const memberLookup = await dependencies.member(memberId)
-    if (memberLookup.error || !memberLookup.data) {
-      throw lookupError('member_lookup', memberLookup.error, memberId)
-    }
-    const userId = memberLookup.data.user_id
-
-    const preferenceLookup = await dependencies.preferences(userId)
-    if (preferenceLookup.error) {
-      throw lookupError('preferences_lookup', preferenceLookup.error, memberId, userId)
-    }
-    if (!notificationEnabled(preferenceLookup.data, category, typeof data?.notificationEvent === 'string' ? data.notificationEvent : undefined)) {
-      return { status: 'skipped', reason: 'preferences_disabled' }
-    }
-
-    // Web push is independent of the Expo delivery result and never throws.
-    const webDelivery = dependencies.webPush?.([{ userId, title, body, data, category }])
-    const deliverExpo = async (): Promise<NotificationDeliveryResult> => {
-      const profileLookup = await dependencies.profile(userId)
-      if (profileLookup.error) {
-        throw lookupError('profile_lookup', profileLookup.error, memberId, userId)
-      }
-      const token = profileLookup.data?.push_token
-      if (!token) return { status: 'skipped', reason: 'missing_push_token' }
-
-      let response: Response
-      try {
-        response = await dependencies.send(dependencies.pushUrl, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
-          signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
-        })
-      } catch (cause) {
-        throw new NotificationDeliveryError({
-          code: 'expo_network',
-          message: 'Expo push request failed.',
-          memberId,
-          userId,
-          cause,
-        })
-      }
-
-      let payload: unknown
-      try {
-        payload = await response.json()
-      } catch (cause) {
-        throw new NotificationDeliveryError({
-          code: response.ok ? 'expo_response' : 'expo_http',
-          message: response.ok
-            ? 'Expo push response was not valid JSON.'
-            : `Expo push request returned HTTP ${response.status}.`,
-          memberId,
-          userId,
-          cause,
-        })
-      }
-      const payloadRecord = record(payload)
-      const delivery = record(payloadRecord?.data)
-      const deliveryMessage = typeof delivery?.message === 'string' ? delivery.message : null
-
-      if (!response.ok) {
-        throw new NotificationDeliveryError({
-          code: 'expo_http',
-          message: `Expo push request returned HTTP ${response.status}${deliveryMessage ? `: ${deliveryMessage}` : ''}.`,
-          memberId,
-          userId,
-        })
-      }
-      if (delivery?.status === 'error') {
-        throw new NotificationDeliveryError({
-          code: 'expo_status',
-          message: deliveryMessage ?? 'Expo rejected the push notification.',
-          memberId,
-          userId,
-        })
-      }
-      if (delivery?.status !== 'ok') {
-        throw new NotificationDeliveryError({
-          code: 'expo_response',
-          message: 'Expo push response did not include a valid delivery status.',
-          memberId,
-          userId,
-        })
-      }
-      return { status: 'sent' }
-    }
-    try {
-      return await deliverExpo()
-    } finally {
-      await webDelivery
-    }
   }
 }

@@ -96,7 +96,6 @@ const LEAGUE_MEMBER_DEPENDENT_TABLES = [
   'matchups',
   'roster_transactions',
   'roster_players',
-  'rps_challenges',
   'standings',
   'waiver_claims',
   'waiver_priorities',

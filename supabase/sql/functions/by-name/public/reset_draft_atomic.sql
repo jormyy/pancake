@@ -49,6 +49,19 @@ BEGIN
     RAISE EXCEPTION 'Draft cannot be reset from status %.', v_draft.status;
   END IF;
 
+  IF NOT v_draft.is_mock AND EXISTS (
+    SELECT 1 FROM (
+      SELECT player_id, member_id FROM snake_draft_picks WHERE draft_id=p_draft_id AND player_id IS NOT NULL
+      UNION ALL
+      SELECT player_id, winning_member_id FROM nominations WHERE draft_id=p_draft_id AND status='sold'
+    ) drafted
+    WHERE EXISTS (SELECT 1 FROM roster_players roster
+      WHERE roster.league_season_id=v_draft.league_season_id AND roster.player_id=drafted.player_id
+        AND (roster.member_id<>drafted.member_id OR roster.acquired_via<>'draft'))
+  ) THEN
+    RAISE EXCEPTION 'A player from this draft was traded, so this draft can no longer be reset.';
+  END IF;
+
   IF v_draft.draft_type = 'auction' THEN
     v_player_ids := ARRAY(
       SELECT player_id

@@ -93,6 +93,28 @@ export const resolveReleaseProvenance = async ({ root = process.cwd() } = {}) =>
   return pending
 }
 
+export const deployedFrontendProvenance = ({
+  commitSha = process.env.E2E_DEPLOYED_FRONTEND_SHA,
+  bundleDigest = process.env.E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST,
+} = {}) => {
+  if (!/^[a-f0-9]{40}$/.test(commitSha ?? '') || !/^[a-f0-9]{64}$/.test(bundleDigest ?? '')) {
+    throw new Error('Deployed frontend provenance requires its SHA and compatibility digest')
+  }
+  return { commitSha, bundleDigest, runId: process.env.GITHUB_RUN_ID || process.env.E2E_RELEASE_RUN_ID ||
+    `local-${commitSha.slice(0, 12)}-${bundleDigest.slice(0, 12)}` }
+}
+
+export const readDeployedFrontendProvenance = async ({
+  markerPath = process.env.E2E_DEPLOYED_FRONTEND_PROVENANCE_PATH,
+  expected = deployedFrontendProvenance(),
+} = {}) => {
+  if (!markerPath) throw new Error('E2E_DEPLOYED_FRONTEND_PROVENANCE_PATH is required for deployed seasons')
+  const marker = JSON.parse(await readFile(markerPath, 'utf8'))
+  const failures = validateReleaseProvenance({ provenance: { ...marker, runId: expected.runId } }, expected, 'Deployed frontend marker')
+  if (failures.length) throw new Error(failures.join('; '))
+  return { commitSha: marker.commitSha, bundleDigest: marker.bundleDigest, runId: expected.runId }
+}
+
 /** @param {unknown} report @param {ReleaseProvenance | undefined} expected @param {string} label */
 export const validateReleaseProvenance = (report, expected, label) => {
   if (!expected) return []

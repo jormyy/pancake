@@ -1,7 +1,3 @@
--- Canonical SQL source for public.record_notification_outbox_ticket_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
 CREATE OR REPLACE FUNCTION public.record_notification_outbox_ticket_atomic(
   p_id uuid,
   p_claim_token uuid,

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { fantasyCalendar, completeSeasonSchedule } from '../src/season/schedule'
-import { calculateWeekNumberFromDate } from '../src/season/week'
 import { resolveSeasonWeekNumber } from '../src/season/weekPolicy'
 
 describe('published fantasy week ranges', () => {
@@ -8,7 +7,6 @@ describe('published fantasy week ranges', () => {
     it('resolves both halves and the break to the same saved week', () => {
         for (const date of ['2026-02-09', '2026-02-16', '2026-02-22']) {
             expect(resolveSeasonWeekNumber(weeks, date, 'exact')).toBe(17)
-            expect(calculateWeekNumberFromDate(date, '2025-10-21', '2025-10-26', weeks)).toBe(17)
         }
     })
     it('shifts later numbers without shifting the opening week', () => {
@@ -26,6 +24,6 @@ describe('published fantasy week ranges', () => {
         expect(completeSeasonSchedule(games.map(game => ({ ...game, gameDate: '2025-10-21' })))).toBe(false)
     })
     it('refuses a date outside a supplied calendar', () => {
-        expect(() => calculateWeekNumberFromDate('2027-01-01', '2025-10-21', '2025-10-26', weeks)).toThrow('No published fantasy week')
+        expect(resolveSeasonWeekNumber(weeks, '2027-01-01', 'exact')).toBeNull()
     })
 })

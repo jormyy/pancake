@@ -1,0 +1,252 @@
+[
+  {
+    "name": "league-auction-bidder-light",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
+        },
+        "quietMs": 400
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-rookie-spectator-light",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "[aria-label='E2E Player001']"
+        }
+      }
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-commissioner-denied-light",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/commissioner-settings"
+        },
+        "expected": {
+          "text": "Commissioner access required"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-member-settings-light",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-auction-bidder-dark",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "input[aria-label='Bid amount']:not([readonly]):not(:disabled)"
+        },
+        "quietMs": 400
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-rookie-spectator-dark",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/rookie-draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "[aria-label='E2E Player001']"
+        }
+      }
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-commissioner-denied-dark",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/commissioner-settings"
+        },
+        "expected": {
+          "text": "Commissioner access required"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "league-member-settings-dark",
+    "group": "league-member",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/league?tab=settings"
+        },
+        "expected": {
+          "selector": "[aria-label^='Share invite code ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "league-covered-form-join-light",
+    "group": "league-member",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-covered-form-password-light",
+    "group": "league-member",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-covered-form-join-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "open": "/join-league"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "league-covered-form-password-dark",
+    "group": "league-member",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "open": "/change-password"
+        },
+        "expected": {
+          "route": "/change-password",
+          "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "league-activity-avatar-light",
+    "group": "league-member",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-activity-avatar-dark",
+    "group": "league-member",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

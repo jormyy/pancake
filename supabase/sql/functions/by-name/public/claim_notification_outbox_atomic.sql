@@ -23,6 +23,17 @@ DECLARE
   v_limit int := LEAST(GREATEST(COALESCE(p_limit, 100), 0), 200);
   v_lease_seconds int := LEAST(GREATEST(COALESCE(p_lease_seconds, 60), 15), 600);
 BEGIN
+  WITH deleted AS (
+    SELECT queued.id FROM public.notification_outbox queued
+    JOIN public.league_members member ON member.id=queued.member_id
+    JOIN public.leagues league ON league.id=member.league_id AND league.deleted_at IS NOT NULL
+    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL AND queued.suppressed_at IS NULL
+      AND queued.expo_ticket_id IS NULL
+      AND (queued.claimed_at IS NULL OR queued.claimed_at<=now()-make_interval(secs=>v_lease_seconds))
+    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
+  )
+  UPDATE public.notification_outbox queued SET suppressed_at=clock_timestamp(),suppression_reason='league_deleted',
+    claimed_at=NULL,claim_token=NULL FROM deleted WHERE queued.id=deleted.id;
   WITH stale AS (
     SELECT queued.id FROM public.notification_outbox queued
     WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
@@ -53,6 +64,8 @@ BEGIN
       FROM notification_outbox AS queued
      WHERE queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
        AND queued.suppressed_at IS NULL
+       AND EXISTS (SELECT 1 FROM public.league_members member JOIN public.leagues league ON league.id=member.league_id
+         WHERE member.id=queued.member_id AND league.deleted_at IS NULL)
        AND NOT private.notif_is_stale(queued.event_type,queued.data)
        AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
        AND private.notif_preference_enabled((SELECT member.user_id FROM public.league_members member WHERE member.id = queued.member_id),queued.event_type,queued.category)

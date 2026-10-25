@@ -48,6 +48,25 @@ const SHELL_HTML =
   '</body></html>'
 
 describe('release E2E contracts', () => {
+  it('uses one notification tag so repeated pushes replace the visible notification', async () => {
+    const listeners = new Map<string, (event: { waitUntil: (pending: Promise<unknown>) => void }) => void>()
+    const visible = new Map<string, unknown>()
+    let displayed = 0
+    runInNewContext(await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8'), { self: {
+      addEventListener: (name: string, listener: (event: { waitUntil: (pending: Promise<unknown>) => void }) => void) => listeners.set(name, listener),
+      registration: { showNotification: async (_title: string, options: { tag?: string; renotify?: boolean }) => {
+        displayed++
+        expect(options.renotify).toBe(true)
+        visible.set(options.tag ?? String(displayed), options)
+      } },
+    } })
+    const pending: Promise<unknown>[] = []
+    for (let index = 0; index < 2; index++) listeners.get('push')!({ waitUntil: task => pending.push(task) })
+    await Promise.all(pending)
+    expect(displayed).toBe(2)
+    expect([...visible.keys()]).toEqual(['pancake'])
+  })
+
   it('rejects mixed local and hosted E2E data targets', () => {
     expect(() => requireEnv({
       supabaseUrl: 'http://127.0.0.1:54321',
@@ -180,7 +199,7 @@ describe('release E2E contracts', () => {
   it('points the soak Edge runtime at the host-side fake upstream through the Docker host alias', async () => {
     // supabase functions serve runs Edge in Docker, where 127.0.0.1 is the container itself.
     const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL', 'EXPO_PUSH_URL']) {
+    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL']) {
       expect(soakWorkflow, name).toMatch(new RegExp(`^\\s+${name}=http://host\\.docker\\.internal:4555/`, 'm'))
     }
     expect(soakWorkflow).not.toContain('=http://127.0.0.1:4555/')
@@ -558,8 +577,8 @@ describe('release E2E contracts', () => {
     expect(soakWorkflow).toContain('--expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST"')
     expect(soakWorkflow).toContain('test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
     expect(soakWorkflow.indexOf('recover-release-artifact.mjs')).toBeLessThan(soakWorkflow.indexOf('--pair=deployed-frontend-candidate-edge'))
-    expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=')
-    expect(soakWorkflow).not.toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
+    expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST')
+    expect(soakWorkflow).toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
     expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(3)
     expect(soakWorkflow).toContain('--pair=deployed-frontend-deployed-edge')
     expect(soakWorkflow).not.toContain('browser-ci-scenario.mjs --scenario=smoke')

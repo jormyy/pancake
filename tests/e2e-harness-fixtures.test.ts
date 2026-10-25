@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
 import { createFakeUpstreamServer } from './e2e/fake-upstream.mjs'
@@ -531,8 +532,9 @@ describe('full simulated season loop', () => {
             bodies.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ok: true }) }
         })
         let reads = 0
-        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
-            'matchups.select': () => ({ count: ++reads === 1 ? 1 : 95, error: null }) })
+        const client = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
+            'matchups.select': () => ({ data: Array.from({ length: ++reads === 1 ? 1 : 95 }, (_, id) => ({ id: `matchup-${id}` })), error: null }) })
         await prepareSoakSeason({ supabase: client, env, leagueId: 'league', season })
         expect(bodies).toEqual([{ leagueId: 'league', force: true }])
         expect(client.calls.filter((call) => call.op === 'delete')).toHaveLength(0)
@@ -542,15 +544,28 @@ describe('full simulated season loop', () => {
         vi.stubGlobal('fetch', async (_url: string, options: { body: string }) => {
             bodies.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ok: true }) }
         })
-        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
-            'matchups.select': { count: 95, error: null } })
+        const client = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
+            'matchups.select': { data: Array.from({ length: 95 }, (_, id) => ({ id: `matchup-${id}` })), error: null } })
         await prepareSoakSeason({ supabase: client, env, leagueId: 'league', season })
         expect(bodies).toEqual([{ leagueId: 'league', force: false }])
-        const partial = fakeClient({ 'league_members.select': { count: 10, error: null },
-            'matchups.select': { count: 1, error: null } })
+        const partial = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
+            'matchups.select': { data: [{ id: 'incomplete' }], error: null } })
         await expect(prepareSoakSeason({ supabase: partial, env, leagueId: 'league', season })).rejects.toThrow('expected 95')
         vi.stubGlobal('fetch', async () => ({ ok: false, status: 400, text: async () => 'current schedule has started' }))
         await expect(prepareSoakSeason({ supabase: partial, env, leagueId: 'league', season })).rejects.toThrow('schedule has started')
+    })
+    it('refuses to force an incomplete schedule once the first week starts', async () => {
+        const request = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) }))
+        let reads = 0
+        vi.stubGlobal('fetch', request)
+        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
+            'matchups.select': () => ({ data: Array.from({ length: ++reads === 1 ? 1 : 95 }, (_, id) => ({ id: `matchup-${id}` })), error: null }),
+            'season_weeks.select': { data: { week_start: '2020-10-19' }, error: null } })
+        await expect(prepareSoakSeason({ supabase: client, env, leagueId: 'league', season }))
+            .rejects.toThrow('first week starts')
+        expect(request).not.toHaveBeenCalled()
     })
     const legacyGames = [
         { id: 'legacy-1', nba_game_id: 'FAKE0001', season_year: 2027, week_number: 1,
@@ -773,9 +788,13 @@ describe('harness cleanup table list', () => {
         const created = new Set<string>()
         const dropped = new Set<string>()
         for (const file of files) {
-            const sql = await readFile(`${dir}/${file}`, 'utf8')
-            for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) { created.add(m[1]); dropped.delete(m[1]) }
-            for (const m of sql.matchAll(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) dropped.add(m[1])
+            const sql = maskSqlNonCode(await readFile(`${dir}/${file}`, 'utf8'))
+            for (const statement of sql.split(';')) {
+                const create = statement.match(/^\s*CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (create) { created.add(create[1]); dropped.delete(create[1]) }
+                const drop = statement.match(/^\s*DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (drop) dropped.add(drop[1])
+            }
         }
         for (const { table } of PLAYER_REFERENCE_TABLES) {
             expect(created.has(table), `${table} was never created`).toBe(true)
@@ -802,7 +821,7 @@ describe('harness cleanup table list', () => {
                 const alter = line.match(/ALTER TABLE(?: ONLY)?(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (create) { table = create[1]; dropped.delete(table) }
                 else if (alter) table = alter[1]
-                const drop = line.match(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                const drop = line.match(/^\s*DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (drop) { dropped.add(drop[1]); continue }
                 // "REFERENCES players" with or without "(id)"; the ON DELETE clause may
                 // sit on the next line. Only CASCADE / SET NULL / SET DEFAULT remove the

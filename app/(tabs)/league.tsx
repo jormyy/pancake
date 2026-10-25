@@ -6,10 +6,11 @@ import { ErrorBanner, Page, PageHeader, SegmentedControl } from '@/components/ui
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { StandingsTable } from '@/components/league/LeagueStandings'
 import { ActivityFeed } from '@/components/league/LeagueActivityFeed'
-import { AuctionPanel, DraftBoardPanel } from '@/components/league/DraftSetupPanels'
+import { DraftPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
+import { PicksBankList } from '@/components/league/LeaguePicksBank'
 import { LEAGUE_TABS } from '@/lib/league/tabs'
 
 const LEAGUE_TAB_LABELS = Object.fromEntries(
@@ -36,7 +37,7 @@ function LeagueScreen() {
         // Tab panels render only once their data is known, so content appears
         // fully formed instead of loading in pieces that shift the layout.
         if (!screen.isTabLoaded) return null
-        if ((screen.tab === 'auctions' || screen.tab === 'draftBoard') && !screen.activeDraftLoaded) {
+        if (screen.tab === 'draft' && !screen.activeDraftLoaded) {
             return null
         }
 
@@ -54,9 +55,9 @@ function LeagueScreen() {
             )
         }
 
-        if (screen.tab === 'auctions') {
+        if (screen.tab === 'draft') {
             return (
-                <AuctionPanel
+                <DraftPanel
                     activeDraft={screen.activeDraft}
                     activeDraftLoading={screen.activeDraftLoading && !screen.activeDraftLoaded}
                     currentLeagueStatus={screen.currentLeague?.status}
@@ -71,63 +72,48 @@ function LeagueScreen() {
                     onStartDraft={screen.handleStartDraft}
                     onJoinDraft={screen.handleJoinDraftRoom}
                     onReseedRookiePicks={screen.handleReseedRookiePicks}
-                    onOpenDraftBoard={() => screen.handleTabChange('draftBoard')}
-                />
-            )
-        }
-
-        if (screen.tab === 'mockRooms') {
-            return (
-                <MockRoomsPanel
-                    roomName={screen.roomName}
-                    onRoomNameChange={screen.setRoomName}
-                    roomDraftType={screen.roomDraftType}
-                    onRoomDraftTypeChange={screen.setRoomDraftType}
-                    roomScheduledAt={screen.roomScheduledAt}
-                    onRoomScheduledAtChange={screen.setRoomScheduledAt}
-                    roomSubmitting={screen.roomSubmitting}
-                    draftLoading={screen.draftLoading}
-                    rooms={screen.mockRooms}
-                    nominationMode={screen.nominationMode}
-                    onNominationModeChange={screen.setNominationMode}
-                    draftTimerSeconds={screen.draftTimerSeconds}
-                    onDraftTimerSecondsChange={screen.setDraftTimerSeconds}
-                    rookieRounds={screen.rookieRounds}
-                    onRookieRoundsChange={screen.setRookieRounds}
-                    rookieTimerExpiryBehavior={screen.rookieTimerExpiryBehavior}
-                    onRookieTimerExpiryBehaviorChange={screen.setRookieTimerExpiryBehavior}
-                    onCreateRoom={screen.handleCreateMockRoom}
-                    onOpenRoom={screen.openDraftRoom}
-                    onJoinRoom={screen.handleJoinMockRoom}
-                    onLeaveRoom={screen.handleLeaveMockRoom}
-                    onStartRoom={screen.handleStartMockRoom}
-                    onDeleteRoom={screen.handleDeleteMockRoom}
-                />
-            )
-        }
-
-        if (screen.tab === 'draftBoard') {
-            return (
-                <DraftBoardPanel
-                    activeDraft={screen.activeDraft}
-                    activeDraftLoading={screen.activeDraftLoading && !screen.activeDraftLoaded}
-                    currentLeagueStatus={screen.currentLeague?.status}
-                    isCommissioner={screen.isCommissioner}
-                    draftLoading={screen.draftLoading}
-                    activeDraftError={screen.activeDraftError}
-                    onRetryActiveDraft={screen.retryActiveDraft}
-                    picks={screen.currentLeaguePicks}
-                    picksLoading={screen.isTabLoading}
-                    myMemberId={screen.current?.id}
-                    draftTimerSeconds={screen.draftTimerSeconds}
-                    onDraftTimerSecondsChange={screen.setDraftTimerSeconds}
                     rookieRounds={screen.rookieRounds}
                     onRookieRoundsChange={screen.setRookieRounds}
                     rookieTimerExpiryBehavior={screen.rookieTimerExpiryBehavior}
                     onRookieTimerExpiryBehaviorChange={screen.setRookieTimerExpiryBehavior}
                     onStartRookieDraft={screen.handleStartRookieDraft}
-                    onJoinDraft={screen.handleJoinDraftRoom}
-                    onReseedRookiePicks={screen.handleReseedRookiePicks}
+                >
+                    <MockRoomsPanel
+                        embedded
+                        roomName={screen.roomName}
+                        onRoomNameChange={screen.setRoomName}
+                        roomDraftType={screen.roomDraftType}
+                        onRoomDraftTypeChange={screen.setRoomDraftType}
+                        roomScheduledAt={screen.roomScheduledAt}
+                        onRoomScheduledAtChange={screen.setRoomScheduledAt}
+                        roomSubmitting={screen.roomSubmitting}
+                        draftLoading={screen.draftLoading}
+                        rooms={screen.mockRooms}
+                        nominationMode={screen.mockNominationMode}
+                        onNominationModeChange={screen.setMockNominationMode}
+                        draftTimerSeconds={screen.mockDraftTimerSeconds}
+                        onDraftTimerSecondsChange={screen.setMockDraftTimerSeconds}
+                        rookieRounds={screen.mockRookieRounds}
+                        onRookieRoundsChange={screen.setMockRookieRounds}
+                        rookieTimerExpiryBehavior={screen.mockRookieTimerExpiryBehavior}
+                        onRookieTimerExpiryBehaviorChange={screen.setMockRookieTimerExpiryBehavior}
+                        onCreateRoom={screen.handleCreateMockRoom}
+                        onOpenRoom={screen.openDraftRoom}
+                        onJoinRoom={screen.handleJoinMockRoom}
+                        onLeaveRoom={screen.handleLeaveMockRoom}
+                        onStartRoom={screen.handleStartMockRoom}
+                        onDeleteRoom={screen.handleDeleteMockRoom}
+                    />
+                </DraftPanel>
+            )
+        }
+
+        if (screen.tab === 'picks') {
+            return (
+                <PicksBankList
+                    picks={screen.currentLeaguePicks}
+                    loading={screen.isTabLoading}
+                    myMemberId={screen.current?.id}
                 />
             )
         }
@@ -142,7 +128,6 @@ function LeagueScreen() {
                     onShareInviteCode={screen.shareInviteCode}
                     onOpenBracket={screen.openBracket}
                     onOpenCommissionerSettings={screen.openCommissionerSettings}
-                    onOpenProfile={screen.openProfile}
                 />
             )
         }
@@ -152,6 +137,8 @@ function LeagueScreen() {
                 transactions={screen.transactions}
                 myMemberId={screen.current?.id}
                 onLoadMore={screen.handleLoadMoreActivity}
+                onRefresh={screen.retryCurrentTab}
+                refreshing={screen.isTabRefreshing}
                 hasMore={screen.activityHasMore && !screen.activityLoadingMore}
                 loading={screen.isTabLoading}
                 loadingMore={screen.activityLoadingMore}
@@ -174,7 +161,7 @@ function LeagueScreen() {
                         accessibilityLabel="League sections"
                         idBase="league-tab"
                         controlledPanelId={activePanelId}
-                        scrollable
+                        style={styles.tabs}
                     />
                 )}
             />
@@ -186,10 +173,10 @@ function LeagueScreen() {
                 aria-labelledby={activeTabId}
                 accessibilityLabel={`${activeTabLabel} league section`}
             >
-                <DeferredContent ready={screen.isTabLoaded && (!(screen.tab === 'auctions' || screen.tab === 'draftBoard') || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading}>{renderTabContent()}</DeferredContent>
+                <DeferredContent ready={screen.isTabLoaded && (screen.tab !== 'draft' || screen.activeDraftLoaded)} busy={screen.isTabRefreshing || screen.isTabLoading}>{renderTabContent()}</DeferredContent>
             </View>
             <ScreenStatusOverlay>
-                {screen.tab !== 'auctions' && screen.isTabLoaded && !screen.isOnline ? (
+                {screen.tab !== 'draft' && screen.isTabLoaded && !screen.isOnline ? (
                     <Text style={styles.freshness} accessibilityLiveRegion="polite">
                         {`Offline. Showing saved ${activeTabLabel} data.`}
                     </Text>
@@ -210,6 +197,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     freshness: { color: colors.textSecondary, fontSize: fontSize.sm, padding: spacing.md },
     panel: { flex: 1, minHeight: 0 },
+    tabs: { flexWrap: 'nowrap', justifyContent: 'space-between', gap: 0 },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

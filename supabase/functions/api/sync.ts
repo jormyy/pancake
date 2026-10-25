@@ -87,7 +87,15 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
     const leagueId = uuidField(body, 'leagueId')
     const userId = await requireUser(req)
     if (!isAdmin(userId)) await requireCommissioner(userId, leagueId)
-    await generateAllMatchups(Boolean(body.force), leagueId)
+    try {
+      const results = await generateAllMatchups(Boolean(body.force), leagueId)
+      if (results.some(result => result.skipped)) return json({ ok: true, skipped: true })
+    } catch (error) {
+      if ((error as { message?: string })?.message === 'The season has started; the schedule can no longer be rebuilt.') {
+        return json({ error: 'The season has started; the schedule can no longer be rebuilt.' }, 409)
+      }
+      throw error
+    }
     return json({ ok: true })
   }
 

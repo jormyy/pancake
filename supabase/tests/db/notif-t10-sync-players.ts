@@ -24,7 +24,9 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, r
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
   if (stats) {
     const games = career.get(decodeURIComponent(stats[1]))
-    return Response.json(games === undefined || games === null ? {} : { filters: [{ name: 'seasontype', value: '2' }, { name: 'league', value: 'nba' }], categories: [{ names: ['gamesPlayed'], totals: [String(games)] }] })
+    return Response.json(games === undefined || games === null
+      ? { filters: [{ name: 'league', value: 'nba' }] }
+      : { filters: [{ name: 'seasontype', value: '2' }, { name: 'league', value: 'nba' }], categories: [{ names: ['gamesPlayed'], totals: [String(games)] }] })
   }
   return new Response('synthetic provider has no such route', { status: 404 })
 })

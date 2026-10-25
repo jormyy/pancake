@@ -58,7 +58,7 @@ export function useWebPushNotifications() {
         const onMessage = (event: MessageEvent) => {
             if (event.data?.type !== NOTIFICATION_CLICK || typeof event.data.url !== 'string') return
             if (!event.data.url.startsWith('/') || event.data.url.startsWith('//')) return
-            router.push(event.data.url as Href)
+            router.dismissTo(event.data.url as Href)
         }
         navigator.serviceWorker.addEventListener('message', onMessage)
         return () => navigator.serviceWorker.removeEventListener('message', onMessage)

@@ -1,33 +1,49 @@
-import { ProjectionCard } from '@/components/projections/ProjectionCard'
-import { Text } from 'react-native'
-import { spacing, textStyles } from '@/constants/tokens'
+import { useEffect, useState } from 'react'
+import { View, Text, StyleSheet } from 'react-native'
+import { colors, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import type { LeagueProjectionRow } from '@/lib/projections'
+import { todayET } from '@/lib/shared/dates'
+import type { PlayerGame } from './season-data'
 
-export function NextProjectionCard({ projection }: { projection: LeagueProjectionRow }) {
-    const time = projection.next_game_time
-        ? new Date(projection.next_game_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-        : null
-    const nextGame = {
-        ...projection,
-        projection_date: projection.next_game_date ?? projection.projection_date,
-        projection_source_label: [projection.projection_source_label, projection.projection_is_fresh === false ? 'Outdated' : null].filter(Boolean).join(' · '),
-        projection_view: '',
-        projection_minutes: null,
-        projection_points: null,
-        projection_rebounds: null,
-        projection_assists: null,
-        projection_steals: null,
-        projection_blocks: null,
-        projection_three_pointers_made: null,
-        projection_turnovers: null,
-    }
+type Props = {
+    projection: LeagueProjectionRow | null
+    loading?: boolean
+    liveGame?: PlayerGame | null
+    liveFantasyPoints?: number | null
+}
 
+export function NextProjectionCard({ projection, loading = false, liveGame, liveFantasyPoints }: Props) {
+    const activity = useBrowserReadActivity()
+    const [, updateTime] = useState(0)
+    const tipoff = projection?.next_game_time ? new Date(projection.next_game_time).getTime() : null
+    useEffect(() => {
+        if (!activity.active || tipoff == null || !Number.isFinite(tipoff)) return
+        const delay = tipoff - Date.now()
+        if (delay <= 0 || delay > 2_147_483_647) return
+        const timer = setTimeout(() => updateTime(value => value + 1), delay)
+        return () => clearTimeout(timer)
+    }, [tipoff, activity.active, activity.revision])
+    const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
+        ? tipoff > Date.now() : projection.next_game_date > todayET())
+    const next = unstarted ? projection : null
+    if (!liveGame && !next) return null
+    const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00`) : null
+    const weekday = date?.toLocaleDateString('en-US', { weekday: 'short' })
+    const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
+        ? date?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+    const summary = liveGame
+        ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
+        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${next?.projection_fantasy_points?.toFixed(1) ?? '—'} FP proj`].filter(Boolean).join(' · ')
     return (
-        <ProjectionCard
-            projection={nextGame}
-            title="Next game projection"
-            footer={time ? <Text style={textStyles.meta}>Tipoff {time}</Text> : null}
-            style={{ padding: spacing.md, gap: 0 }}
-        />
+        <View style={styles.card} aria-busy={loading}>
+            <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1}>{summary}</Text>
+        </View>
     )
 }
+
+const styles = StyleSheet.create({
+    card: { padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
+    summary: { ...textStyles.meta, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+    live: { color: colors.success, fontWeight: fontWeight.semibold },
+})

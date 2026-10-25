@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { breakpoints, colors, layout, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, layout, motion, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
 
 type PageWidth = 'content' | 'form' | 'full'
 
@@ -70,7 +70,7 @@ export function BackButton({ onPress, label = 'Back' }: { onPress: () => void; l
             accessibilityRole="button"
             accessibilityLabel={label}
         >
-            <MaterialIcons name="arrow-back" size={22} color={colors.textPrimary} />
+            <MaterialIcons name="arrow-back" size={controlSize.icon.lg} color={colors.textPrimary} />
         </Pressable>
     )
 }
@@ -126,23 +126,23 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-end',
         gap: spacing.md,
-        minHeight: 56,
+        minHeight: layout.pageHeaderHeight,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
     // Tabs sit on the bottom border; titles and back controls center in the row.
-    headerCentered: { alignItems: 'center', minHeight: 56, paddingVertical: spacing.xs },
+    headerCentered: { alignItems: 'center', minHeight: layout.pageHeaderHeight, paddingVertical: spacing.xs },
     headerBack: { alignSelf: 'center' },
     headerMain: { flex: 1, minWidth: 0 },
     back: {
-        width: 44,
-        height: 44,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.md,
         borderCurve: 'continuous',
         backgroundColor: colors.bgMuted,
     },
-    pressed: { opacity: 0.76 },
+    pressed: { opacity: motion.pressedOpacity },
     headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0, alignSelf: 'center' },
 })

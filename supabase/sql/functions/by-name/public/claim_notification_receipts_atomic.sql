@@ -1,7 +1,3 @@
--- Canonical SQL source for public.claim_notification_receipts_atomic.
--- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
--- npm run check:db-function-sources verifies every latest migration function has exact source parity.
-
 CREATE OR REPLACE FUNCTION public.claim_notification_receipts_atomic(
   p_limit int DEFAULT 200,
   p_lease_seconds int DEFAULT 60

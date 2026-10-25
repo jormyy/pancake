@@ -15,6 +15,7 @@ BEGIN
     WHEN 'waiver' THEN 'waiver_enabled' ELSE 'activity_enabled' END);
   IF (to_jsonb(p)->>v_legacy)::boolean IS FALSE THEN RETURN false; END IF;
   IF (p.category_settings->>COALESCE(e.category,p_category))::boolean IS FALSE THEN RETURN false; END IF;
-  RETURN COALESCE((p.event_settings->>p_event)::boolean,e.default_enabled,false);
+  RETURN COALESCE((p.event_settings->>p_event)::boolean,e.default_enabled,
+    p_event IN ('rookie_draft_pick','waiver_claim_succeeded','waiver_claim_failed'));
 END;
 $$;

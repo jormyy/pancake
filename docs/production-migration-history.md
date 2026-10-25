@@ -5,18 +5,18 @@ The release preflight accepts audited historical migration names for production 
 ## Attested history
 
 [`release-history-attestations.json`](../tests/e2e/release-history-attestations.json) owns approved versions, names, fingerprints, classifications, convergence bodies, and the migration range.
-The historical audit baseline is `20261005000003` with 329 rows.
-The approved range contains 165 migrations, from `20261006000001_share_scoring_cache_aggregation` through `20261024000001_link_reviewed_rookie_identities`.
-All 69 earlier approved fingerprints and 24 alias records remain unchanged.
-The current pre-migration phase has 431 rows through `20261020000007`, with 63 migrations pending.
-The post-migration phase has all 494 rows.
+The attestation's `baselineVersion` and `baselineCount` define the historical audit anchor.
+Its `approvedMigrations` array defines the approved range and its size.
+[`db-security-catalog-attestations.json`](../tests/e2e/db-security-catalog-attestations.json) defines the recorded pre-migration phase in `preMigration`.
+The post-migration count equals `baselineCount` plus the length of `approvedMigrations`.
+The pending count equals that total minus `preMigration.count`.
 A partial upgrade plans only the remaining approved suffix.
 Each applied range member must match its statement count and stored-SQL fingerprint.
 
-The preflight accepts 24 historical names changed by commit `c083075fe75976852fa2307c54d8fc7b3b33e9a6`.
+The preflight accepts the historical names attested for commit `c083075fe75976852fa2307c54d8fc7b3b33e9a6`.
 Stored statements match that commit's parent.
-Twenty-one match current parsed SQL apart from header comments.
-Three contain temporary helper-name changes:
+Most match current parsed SQL apart from header comments.
+The following contain temporary helper-name changes:
 
 | Version | Historical helper names | Repository helper names |
 | --- | --- | --- |
@@ -40,6 +40,9 @@ Approved replacements change the expected convergence body only after their migr
 Each `convergenceRedefinitions` entry must name an approved migration containing the recorded body in dollar-quoted SQL.
 An early replacement or a late baseline body fails.
 
+Refresh the range and post-migration catalog with the [local refresh command](release-history-attestations.md).
+The command preserves the recorded production catalog.
+
 ## Fingerprints and evidence
 
 Repository fingerprints use SHA-256 over file bytes.
@@ -53,10 +56,10 @@ Compare recorded statement counts and fingerprints, not only the final schema.
 Local evidence does not replace the current production history check.
 Unrelated applied rows receive ordered version/name checks; this audit does not cover their SQL.
 
-The historical audit anchor stays fixed when the current production phase advances.
+The historical audit anchor stays fixed when the recorded production phase advances.
 Earlier approved migrations retain their source and stored-SQL fingerprint checks.
 A later schema release must extend the reviewed range and update changed convergence expectations.
-The catalog separately pins the exact current production phase and its pending suffix.
+The catalog separately pins the exact recorded production phase and its pending suffix.
 
 ## Release preflight
 
@@ -66,7 +69,7 @@ The workflow validates the target and linked project ref before querying, then p
 This path supports the workflow's pinned Supabase CLI 2.109.1.
 
 The generic planner requires exact names.
-The production entry point accepts only the 24 attested aliases and exact SQL, preserving original labels in its result.
+The production entry point accepts only attested aliases and exact SQL, preserving original labels in its result.
 Missing, duplicate, reordered, foreign, or unapproved pending versions fail.
 Changed attested SQL, source files, helper bodies, or grants also fail.
 
@@ -111,20 +114,19 @@ Local recovery evidence does not establish production lock availability or devic
 
 ## Candidate migrations
 
-The bounded-season candidate adds 63 migrations after main's `20261020000007` head.
-The combined tree contains 494 migrations through `20261024000001`.
-These additions cover season scoring, player identity, draft transitions and notification delivery.
-They preserve all published main migration files.
-The approved release range includes all 494 files.
-Isolated ordered upgrades capture the 329, 398, 431, 432 and 494-row states.
-The 431-row history fingerprints and protected catalog match read-only production metadata.
-The ordered 494-row history and catalog match a fresh installation exactly.
-These checks preserve the original 69 fingerprints and separately review the 33 later applied migrations.
-The release must still pass the existing soak, compatibility and immediate production preflight gates.
+The candidate adds the approved suffix after the security attestation's `preMigration.version`.
+The release-history attestation defines its final version and total count.
+These additions cover scoring, identity, drafts, notifications, roster rules, and taxi acquisitions.
+They preserve published migration files.
+The approved release range includes every file recorded in `approvedMigrations` and its baseline.
+An ordered local upgrade must match a fresh installation at the approved candidate version.
+Preserve earlier source fingerprints and review each addition to the attested range.
+The release must pass the soak, compatibility, and immediate production preflight gates.
+The [database release steps](../supabase/RELEASE-DB.md#release-order-for-this-release) list this release's unpublished migrations.
 
 Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
 They preserve the historical aliases and belong to the reviewed 431-row production phase.
-Any migration after the approved 494-file range requires another reviewed contract update.
+Any migration beyond the attested range requires another reviewed contract update.
 The canonical function catalog records current completion and cleanup helpers separately.
 
 | Migration | Change |

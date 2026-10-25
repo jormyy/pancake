@@ -16,6 +16,7 @@ Deno.test('rollover waits for an unpublished next-season calendar without report
       if (init?.method === 'HEAD') return Promise.resolve(new Response(null, { headers: { 'content-range': '*/0' } }))
       return Promise.resolve(Response.json([{ id: 'final', matchup_type: 'playoff_final', playoff_round: 2, week_number: 24, is_finalized: true, finalized_at: '2026-04-13T09:00:00Z', winner_member_id: 'winner' }]))
     }
+    if (url.pathname.endsWith('/get_stale_score_weeks')) return Promise.resolve(Response.json([]))
     if (url.pathname.endsWith('/apply_season_boundary_after_grace')) return Promise.resolve(Response.json({ applied: true, new_season_id: 'new-season' }))
     if (url.pathname.endsWith('/draft_timer_start_warning')) return Promise.resolve(Response.json({ openingNightCutoff: null }))
     if (url.pathname.endsWith('/league_members')) return Promise.resolve(Response.json([{ id: 'a' }, { id: 'b' }]))

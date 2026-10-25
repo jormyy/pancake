@@ -75,8 +75,7 @@ BEGIN
         away_points numeric,
         home_max_possible_points numeric,
         away_max_possible_points numeric,
-        score_read_started_at timestamptz,
-        reconcile_decision boolean
+        score_read_started_at timestamptz
       )
   ),
   locked AS (
@@ -87,8 +86,7 @@ BEGIN
       requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
       requested.away_max_possible_points AS requested_away_max_possible_points,
-      requested.score_read_started_at AS requested_score_read_started_at,
-      requested.reconcile_decision AS requested_reconcile_decision
+      requested.score_read_started_at AS requested_score_read_started_at
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -115,8 +113,7 @@ BEGIN
         away_points numeric,
         home_max_possible_points numeric,
         away_max_possible_points numeric,
-        score_read_started_at timestamptz,
-        reconcile_decision boolean
+        score_read_started_at timestamptz
       )
   ),
   locked AS (
@@ -127,8 +124,7 @@ BEGIN
       requested.away_points AS requested_away_points,
       requested.home_max_possible_points AS requested_home_max_possible_points,
       requested.away_max_possible_points AS requested_away_max_possible_points,
-      requested.score_read_started_at AS requested_score_read_started_at,
-      requested.reconcile_decision AS requested_reconcile_decision
+      requested.score_read_started_at AS requested_score_read_started_at
     FROM public.matchups AS matchup
     JOIN requested
       ON requested.id = matchup.id
@@ -160,11 +156,13 @@ BEGIN
       FROM locked
      WHERE matchup.id = locked.id
        AND NOT private.playoff_matchup_is_consumed(locked.id)
-       AND (NOT locked.is_finalized
-         OR (locked.home_points, locked.away_points, locked.winner_member_id,
-           locked.home_max_possible_points, locked.away_max_possible_points) IS DISTINCT FROM
-           (COALESCE(locked.requested_home_points, locked.home_points),
-             COALESCE(locked.requested_away_points, locked.away_points), locked.requested_winner_member_id,
+       AND (locked.is_finalized IS DISTINCT FROM true
+         OR (locked.winner_member_id, locked.home_points, locked.away_points,
+             locked.home_max_possible_points, locked.away_max_possible_points)
+           IS DISTINCT FROM
+            (locked.requested_winner_member_id,
+             COALESCE(locked.requested_home_points, locked.home_points),
+             COALESCE(locked.requested_away_points, locked.away_points),
              locked.requested_home_max_possible_points, locked.requested_away_max_possible_points))
      RETURNING
        matchup.id,
@@ -229,8 +227,7 @@ BEGIN
     ties,
     points_for,
     points_against,
-    max_possible_points,
-    waiver_priority
+    max_possible_points
   )
   SELECT
     p_league_id,
@@ -243,8 +240,7 @@ BEGIN
     standing.ties,
     standing.points_for,
     standing.points_against,
-    standing.max_possible_points,
-    standing.waiver_priority
+    standing.max_possible_points
   FROM jsonb_to_recordset(p_standings) AS standing(
     member_id uuid,
     created_at timestamptz,
@@ -253,8 +249,7 @@ BEGIN
     ties int,
     points_for numeric,
     points_against numeric,
-    max_possible_points numeric,
-    waiver_priority int
+    max_possible_points numeric
   )
   ON CONFLICT (league_id, league_season_id, member_id, week_number)
   DO UPDATE SET
@@ -264,12 +259,12 @@ BEGIN
     ties = EXCLUDED.ties,
     points_for = EXCLUDED.points_for,
     points_against = EXCLUDED.points_against,
-    max_possible_points = EXCLUDED.max_possible_points,
-    waiver_priority = EXCLUDED.waiver_priority
-  WHERE (standings.wins, standings.losses, standings.ties, standings.points_for, standings.points_against,
-    standings.max_possible_points, standings.waiver_priority) IS DISTINCT FROM
-    (EXCLUDED.wins, EXCLUDED.losses, EXCLUDED.ties, EXCLUDED.points_for, EXCLUDED.points_against,
-      EXCLUDED.max_possible_points, EXCLUDED.waiver_priority);
+    max_possible_points = EXCLUDED.max_possible_points
+  WHERE (standings.wins, standings.losses, standings.ties,
+         standings.points_for, standings.points_against, standings.max_possible_points)
+    IS DISTINCT FROM
+        (EXCLUDED.wins, EXCLUDED.losses, EXCLUDED.ties,
+         EXCLUDED.points_for, EXCLUDED.points_against, EXCLUDED.max_possible_points);
 
   IF EXISTS (SELECT 1 FROM public.league_seasons WHERE id=p_league_season_id AND cardinality(skipped_weeks)>0) THEN
     PERFORM private.rebuild_regular_standings(p_league_id,p_league_season_id);

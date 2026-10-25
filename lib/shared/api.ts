@@ -48,10 +48,7 @@ function apiErrorMessage(json: { error?: unknown; message?: unknown } | null, st
     const error = typeof json?.error === 'string' && json.error.trim() ? json.error.trim() : null
     const message = typeof json?.message === 'string' && json.message.trim() ? json.message.trim() : null
 
-    if (message && (!error || error === 'Bad Request')) {
-        return message
-    }
-    return error ?? message ?? `API error: ${status}`
+    return message ?? error ?? `API error: ${status}`
 }
 
 async function authHeaders(options: { accessToken?: string; expectedUserId?: string }): Promise<Record<string, string>> {

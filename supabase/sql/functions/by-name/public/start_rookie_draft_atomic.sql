@@ -134,11 +134,11 @@ BEGIN
     SELECT
       lm.id AS member_id,
       CASE WHEN latest.member_id IS NULL THEN 0 ELSE 1 END AS has_standings,
-      COALESCE(latest.wins, 0) AS wins,
-      COALESCE(latest.points_for, 0) AS points_for
+      (COALESCE(latest.wins, 0) + 0.5 * COALESCE(latest.ties, 0)) / GREATEST(COALESCE(latest.wins + latest.losses + latest.ties, 0), 1) AS win_rate,
+      COALESCE(latest.points_for, 0) / GREATEST(COALESCE(latest.wins + latest.losses + latest.ties, 0), 1) AS points_per_game
     FROM league_members AS lm
     LEFT JOIN LATERAL (
-      SELECT s.member_id, s.wins, s.points_for
+      SELECT s.member_id, s.wins, s.losses, s.ties, s.points_for
         FROM standings AS s
        WHERE v_last_season_id IS NOT NULL
          AND s.league_id = p_league_id
@@ -155,8 +155,8 @@ BEGIN
       row_number() OVER (
         ORDER BY
           has_standings DESC,
-          wins ASC,
-          points_for ASC,
+          win_rate ASC,
+          points_per_game ASC,
           member_id ASC
       )::int AS position
     FROM ordered_members
@@ -268,6 +268,8 @@ BEGIN
   );
 
   IF NOT v_is_mock THEN
+    UPDATE draft_picks SET is_used=true,used_at=now()
+      WHERE league_id=p_league_id AND season_year=v_season.season_year AND round>p_rounds AND NOT is_used;
     UPDATE leagues
        SET status = 'drafting'
      WHERE id = p_league_id

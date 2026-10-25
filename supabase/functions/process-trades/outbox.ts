@@ -1,7 +1,7 @@
 import type { Json } from '../_shared/database.ts'
 import type { NotificationMessage, NotifyMembers } from '../_shared/notifications.ts'
-import { notificationCategories } from '../_shared/notificationsPreferences.ts'
 import { notificationFailureDisposition } from '../_shared/notificationDelivery.ts'
+import { notificationCategories } from '../_shared/notificationsPreferences.ts'
 import { runBounded } from '../_shared/runBounded.ts'
 
 export const OUTBOX_CLAIM_LIMIT = 10
@@ -10,7 +10,7 @@ export const OUTBOX_MAX_CLAIMS_PER_RUN = 20
 export const OUTBOX_DRAIN_BUDGET_MS = 20_000
 const OUTBOX_MUTATION_CONCURRENCY = OUTBOX_CLAIM_LIMIT
 
-export type TradeNotificationOutboxRow = {
+export type NotificationOutboxRow = {
   id: string
   claim_token: string
   member_id: string
@@ -20,15 +20,14 @@ export type TradeNotificationOutboxRow = {
   category: string
 }
 
-type DeliveryCounts = { webDelivered?: number; ticketed: number; failed: number; discarded: number; deadLettered: number }
-type Complete = (row: TradeNotificationOutboxRow) => Promise<void>
-type Fail = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
-type DeadLetter = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
-type RecordTicket = (row: TradeNotificationOutboxRow, ticketId: string, pushToken: string) => Promise<void>
+type DeliveryCounts = { ticketed?: number; delivered: number; failed: number; discarded: number; deadLettered: number }
+type Complete = (row: NotificationOutboxRow) => Promise<void>
+type Fail = (row: NotificationOutboxRow, error: string) => Promise<void>
+type DeadLetter = (row: NotificationOutboxRow, error: string) => Promise<void>
 
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
-function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
+function messageFor(row: NotificationOutboxRow): NotificationMessage {
   if (row.category !== 'activity' && !Object.hasOwn(notificationCategories, row.category)) throw new Error(`Unsupported notification outbox category: ${row.category}`)
   const data = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
     ? row.data as Record<string, unknown>
@@ -43,18 +42,17 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
   }
 }
 
-export async function deliverTradeNotificationOutbox(
-  rows: TradeNotificationOutboxRow[],
+export async function deliverNotificationOutbox(
+  rows: NotificationOutboxRow[],
   notify: NotifyMembers,
-  recordTicket: RecordTicket,
   complete: Complete,
   fail: Fail,
   deadLetter: DeadLetter,
   suppress?: Complete,
 ): Promise<DeliveryCounts> {
-  if (rows.length === 0) return { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
+  if (rows.length === 0) return { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
-  let webDelivered = 0
+  let delivered = 0
   let ticketed = 0
   let failed = 0
   let discarded = 0
@@ -72,16 +70,22 @@ export async function deliverTradeNotificationOutbox(
         discarded += 1
         return
       }
-      if (result?.status === 'sent' && result.channel === 'web') {
-        await complete(row)
-        webDelivered += 1
+      if (result?.status === 'sent' && result.ticketId && result.pushToken) {
+        ticketed += 1
         return
       }
-      if (result?.status !== 'sent' || !result.ticketId || !result.pushToken) {
-        throw new Error('Expo push delivery did not return durable ticket evidence')
+      if (result?.status === 'sent') {
+        await complete(row)
+        delivered += 1
+      } else if (result?.status === 'skipped' && result.reason !== 'missing_push_token') {
+        await complete(row)
+        discarded += 1
+      } else if (result?.status === 'failed' && !result.retryable) {
+        await deadLetter(row, result.error)
+        deadLettered += 1
+      } else {
+        throw new Error(result?.status === 'failed' ? result.error : 'Web push delivery returned no outcome')
       }
-      if (!result.ticketRecorded) await recordTicket(row, result.ticketId, result.pushToken)
-      ticketed += 1
     } catch (error) {
       const disposition = notificationFailureDisposition(error)
       if (disposition === 'discard') {
@@ -96,25 +100,25 @@ export async function deliverTradeNotificationOutbox(
       }
     }
   }), OUTBOX_MUTATION_CONCURRENCY)
-  return { ticketed, failed, discarded, deadLettered, ...(webDelivered > 0 ? { webDelivered } : {}) }
+  return { delivered, failed, discarded, deadLettered, ...(ticketed > 0 ? { ticketed } : {}) }
 }
 
 // One claim per cron run left a burst of trade notifications waiting a full
 // interval for every ten messages. Keep claiming while each batch fills and
 // settles without a retryable failure; any failure ends the run so the
 // existing retry backoff, not this loop, decides when that row is tried again.
-export async function drainTradeNotificationOutbox(
-  claim: () => Promise<TradeNotificationOutboxRow[]>,
-  deliver: (rows: TradeNotificationOutboxRow[]) => Promise<DeliveryCounts>,
+export async function drainNotificationOutbox(
+  claim: () => Promise<NotificationOutboxRow[]>,
+  deliver: (rows: NotificationOutboxRow[]) => Promise<DeliveryCounts>,
   now: () => number = Date.now,
 ): Promise<DeliveryCounts> {
-  const totals: DeliveryCounts = { ticketed: 0, failed: 0, discarded: 0, deadLettered: 0 }
+  const totals: DeliveryCounts = { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }
   const startedAt = now()
   for (let claims = 0; claims < OUTBOX_MAX_CLAIMS_PER_RUN; claims += 1) {
     const rows = await claim()
     const result = await deliver(rows)
-    if (result.webDelivered) totals.webDelivered = (totals.webDelivered ?? 0) + result.webDelivered
-    totals.ticketed += result.ticketed
+    totals.delivered += result.delivered
+    if (result.ticketed) totals.ticketed = (totals.ticketed ?? 0) + result.ticketed
     totals.failed += result.failed
     totals.discarded += result.discarded
     totals.deadLettered += result.deadLettered

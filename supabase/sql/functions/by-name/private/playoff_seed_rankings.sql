@@ -10,6 +10,8 @@ CREATE OR REPLACE FUNCTION private.playoff_seed_rankings(
 RETURNS TABLE (
   member_id uuid,
   wins bigint,
+  ties bigint,
+  games_played bigint,
   points_for numeric,
   max_possible_points numeric,
   points_against numeric,
@@ -26,6 +28,8 @@ AS $$
     SELECT
       member.id AS member_id,
       count(*) FILTER (WHERE matchup.winner_member_id = member.id) AS wins,
+      count(matchup.id) AS games_played,
+      count(matchup.id) FILTER (WHERE matchup.winner_member_id IS NULL) AS ties,
       COALESCE(sum(CASE
         WHEN matchup.home_member_id = member.id THEN matchup.home_points
         WHEN matchup.away_member_id = member.id THEN matchup.away_points
@@ -56,14 +60,16 @@ AS $$
     SELECT
       member_stats.*,
       row_number() OVER (
-        ORDER BY wins DESC, points_for DESC, max_possible_points DESC, points_against ASC, tie_token ASC, member_id ASC
+        ORDER BY (wins + 0.5 * ties) / greatest(games_played, 1) DESC,
+          points_for / greatest(games_played, 1) DESC, max_possible_points DESC, points_against ASC, tie_token ASC, member_id ASC
       ) AS seed_rank
     FROM member_stats
   )
   SELECT
-    ranked.*,
+    member_id, wins, ties, games_played, points_for, max_possible_points, points_against, tie_token, seed_rank,
     min(seed_rank) OVER (
-      PARTITION BY wins, points_for, max_possible_points, points_against
+      PARTITION BY (wins + 0.5 * ties) / greatest(games_played, 1),
+        points_for / greatest(games_played, 1), max_possible_points, points_against
     ) AS group_start
   FROM ranked;
 $$;

@@ -6,7 +6,7 @@ import { strict as assert } from 'node:assert'
 // (players-t17-silent-omission.ts), so a complete refresh without X holds him: he keeps MIN, his row, ids,
 // injury, ownership and lineups, the optimizer keeps starting him on MIN game days, and the run reports
 // him as held (unproven). A later listing on BOS, positive evidence of a move, re-teams the same row. An
-// incomplete or failed refresh (a team missing, a roster error, an injuries error, a failed import chunk)
+// incomplete or failed refresh (a team missing, a roster error, a failed import chunk)
 // skips the sweep and says why. Those that reach the career-games step rewrite his row after the box, so
 // nothing may date his last listing by players.updated_at. X shares five PG-eligible starter slots with
 // five playing BOS guards and sorts first on ties, so while he keeps a team that plays he takes a slot
@@ -54,6 +54,7 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
 const run = crypto.randomUUID().slice(0, 8)
 type Athlete = { espn: string; last: string; team: string; injury?: string }
 const fillers: Athlete[] = codes.flatMap((team, index) => Array.from({ length: 17 }, (_, slot) => ({ espn: `t14-${run}-${index}-${slot}`, last: `T14${run}t${index}s${slot}`, team })))
+fillers[0].injury = 'Out'
 const x: Athlete = { espn: `t14-${run}-x`, last: `T14${run}X`, team: 'MIN', injury: 'Day-To-Day' }
 const ys: Athlete[] = Array.from({ length: 5 }, (_, index) => ({ espn: `t14-${run}-y${index}`, last: `T14${run}Y${index}`, team: 'BOS' }))
 type Feed = { athletes: Athlete[]; teams?: string[]; failRoster?: string; failInjuries?: boolean; blankName?: boolean }
@@ -79,7 +80,10 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
   if (box && boxes.has(box[1])) return Response.json({ game: boxes.get(box[1]) })
-  if (route.startsWith('/career/')) return Response.json({})
+  if (/^\/career\/athletes\/[^/]+\/stats$/.test(route)) return Response.json({
+    filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
+    categories: [{ names: ['gamesPlayed'], totals: ['120'] }],
+  })
   return new Response('synthetic provider has no such route', { status: 404 })
 })
 const origin = `http://127.0.0.1:${originPort}`
@@ -117,7 +121,7 @@ const etDate = (offset: number) => {
 }
 const today = etDate(0), gameDay = etDate(2), pastDay = etDate(-2)
 const user = crypto.randomUUID(), league = crypto.randomUUID(), season = crypto.randomUUID(), member = crypto.randomUUID()
-const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID(), final = crypto.randomUUID()
+const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID(), final = crypto.randomUUID(), prior = crypto.randomUUID()
 const yIds = ys.map(() => `8${crypto.randomUUID().slice(1)}`)
 const started = new Date().toISOString()
 let year = 0
@@ -143,6 +147,10 @@ try {
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(${year},1,${q(etDate(-3))},${q(etDate(3))});
     INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
       VALUES(${q(game)},${q(`002t14${run}`)},${year},1,${q(gameDay)},${q(gameDay + 'T23:00:00Z')},'MIN','BOS','Scheduled');
+    INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+      VALUES(${q(prior)},${q(`002t14${run}prior`)},${year},1,${q(pastDay)},${q(pastDay + 'T23:00:00Z')},'MIN','BOS','Final');
+    INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,game_date,minutes_played,points,did_not_play)
+      VALUES(${q(xId)},${q(prior)},${year},1,${q(pastDay)},30,20,false);
     INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
       SELECT ${q(league)},${q(season)},${q(member)},id,'draft' FROM unnest(ARRAY[${[xId, ...yIds].map(q)}]::uuid[]) id;
     INSERT INTO lineup_optimizer_settings(league_id,league_season_id,member_id,enabled) VALUES(${q(league)},${q(season)},${q(member)},true)
@@ -191,7 +199,8 @@ try {
   const lines = boxed.map((listed, index) => ({ personId: person + index, name: `Synthetic ${listed.last}`, played: '1', status: 'ACTIVE',
     statistics: { minutes: 'PT20M00.00S', points: 10, reboundsTotal: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
       foulsPersonal: 0, fieldGoalsMade: 0, fieldGoalsAttempted: 0, threePointersMade: 0, threePointersAttempted: 0, freeThrowsMade: 0, freeThrowsAttempted: 0, plusMinusPoints: 0 } }))
-  await sql(`INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,home_score,away_score,game_status_text)
+  await sql(`UPDATE players SET career_games_checked_at=clock_timestamp()-interval '1 day' WHERE id=${q(xId)};
+    INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,home_score,away_score,game_status_text)
     VALUES(${q(final)},${q(finalId)},${year},1,${q(today)},clock_timestamp(),'MIN','BOS','Final',100,90,'Final')`)
   boxes.set(finalId, { gameId: finalId, gameStatus: 3, gameStatusText: 'Final', homeTeam: { teamTricode: 'MIN', score: 100, players: lines.slice(0, 17) },
     awayTeam: { teamTricode: 'BOS', score: 90, players: lines.slice(17) } })
@@ -206,11 +215,10 @@ try {
     assert.deepEqual(await ownership(xId), owned, `${label}: X's ownership is unchanged`)
     assert.deepEqual(await lineups(xId), lined, `${label}: X's lineups are unchanged`)
   }
-  // A roster or injuries error fails the run before any import, so it reports no receipt at all.
+  // A roster error fails the run before any import, so it reports no receipt at all.
   const incomplete: [string, Feed, number, string[] | undefined][] = [
     ['a team missing from the teams payload', { athletes: withoutX, teams: codes.filter(code => code !== 'UTAH') }, 200, ['missing roster UTA']],
     ['a roster error', { athletes: withoutX, failRoster: 'DEN' }, 500, undefined],
-    ['an injuries error', { athletes: withoutX, failInjuries: true }, 500, undefined],
     ['a failed import chunk', { athletes: withoutX, blankName: true }, 500, ['1 import failure(s)']],
   ]
   for (const [label, next, status, skipped] of incomplete) {
@@ -222,7 +230,23 @@ try {
     if (skipped) assert.deepEqual([body.released, body.releaseHeld], [0, { unproven: 0, unclaimed: 0 }], `${label}: a skipped sweep reports nobody`)
   }
 
-  assert.equal(await sql(`SELECT p.updated_at > g.game_time FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
+  const injuries = () => json<{ id: string; injury_status: string | null }[]>(`SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'injury_status',injury_status) ORDER BY id),'[]')
+    FROM players WHERE espn_id LIKE ${q(`t14-${run}-%`)}`)
+  const storedInjuries = await injuries()
+  assert.ok(storedInjuries.some(row => row.id !== xId && row.injury_status === 'Out'), 'An imported player has an injury to preserve')
+  const injuryOutage = await refresh('an injuries error', { athletes: withoutX, failInjuries: true }, 200)
+  assert.equal(injuryOutage.ok, true)
+  assert.equal(injuryOutage.failure, null)
+  assert.equal(injuryOutage.injuryWarnings, 1)
+  assert.equal(injuryOutage.updated, withoutX.length)
+  assert.equal(injuryOutage.inserted, 0)
+  assert.deepEqual([injuryOutage.released, injuryOutage.releaseSkipped, injuryOutage.releaseHeld], [0, [], { unproven: 1, unclaimed: 0 }])
+  assert.deepEqual(await injuries(), storedInjuries, 'An injury-feed outage preserves injuries on imported and omitted rows')
+  await unchanged('an injuries error')
+  observations.push({ case: 'injury-feed-outage', receipt: injuryOutage, injuriesPreserved: storedInjuries.length })
+
+  assert.equal(await sql(`SELECT p.updated_at > g.game_time AND p.career_games_checked_at > g.game_time
+    FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
     'The refreshes since the box rewrote his row, so updated_at no longer dates his last listing')
 
   // Refresh 2 is complete and successful without X.
@@ -261,8 +285,8 @@ try {
     await provider.shutdown()
   } finally {
     await sql(`DELETE FROM leagues WHERE id=${q(league)};
-      DELETE FROM player_game_stats WHERE game_id=${q(final)};
-      DELETE FROM nba_games WHERE id IN (${q(game)},${q(final)});
+      DELETE FROM player_game_stats WHERE game_id IN (${q(final)},${q(prior)});
+      DELETE FROM nba_games WHERE id IN (${q(game)},${q(final)},${q(prior)});
       ${year ? `DELETE FROM season_weeks WHERE season_year=${year};` : ''}
       DELETE FROM players WHERE id IN (${[xId, ...yIds].map(q)}) OR espn_id LIKE ${q(`t14-${run}-%`)};
       DELETE FROM profiles WHERE id=${q(user)};

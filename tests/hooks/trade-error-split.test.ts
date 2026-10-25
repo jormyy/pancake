@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
+import type { Trade } from '@/lib/trades'
 
 // Round-3 #25 / round-4 #2 and #6: add/remove and load-more failures are not
 // load errors, and a refresh (the banner's own recovery) clears them.
@@ -9,7 +10,13 @@ const mocks = vi.hoisted(() => ({
     getRoster: vi.fn(async () => []),
     addTradeBlockItem: vi.fn(async () => { throw new Error('listing rejected') }),
     removeTradeBlockItem: vi.fn(async () => undefined),
-    getTradesForScreen: vi.fn(async () => ({ trades: [], nextCursor: { id: 'c' }, hasMore: true })),
+    getTradesForScreen: vi.fn(async () => ({ trades: [{
+        id: 'visible', status: 'pending', proposerMemberId: 'member-1', recipientMemberId: 'member-2', participants: [],
+        proposerTeamName: 'One', recipientTeamName: 'Two', proposedAt: '2026-01-01T00:00:00Z',
+        acceptedAt: null, vetoWindowExpiresAt: null, completedAt: null, vetoedAt: null, expiresAt: null, notes: null,
+        isMultiTeam: false, parentTradeId: null, counteredFromTradeId: null, editedFromTradeId: null,
+        replacedByTradeId: null, version: 1, proposerFaabAmount: 0, recipientFaabAmount: 0, myVetoed: false, routedItems: [],
+    } satisfies Trade], nextCursor: { token: 'c' }, hasMore: true })),
 }))
 vi.mock('@/lib/trades', () => ({
     withTradeBlockStats: (items: unknown[]) => items,

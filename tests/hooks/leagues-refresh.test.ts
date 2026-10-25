@@ -241,3 +241,24 @@ it.each(['hidden', 'offline'])('defers %s bootstrap and never validates cached m
         await act(async () => { renderer.unmount() })
     }
 })
+
+it('does not read memberships for a nomination-only draft update', async () => {
+    vi.useFakeTimers()
+    mocks.userId = 'user'
+    mocks.online = true
+    mocks.cache.clear()
+    mocks.fetchUserLeagues.mockReset().mockResolvedValue([{ id: 'member', leagues: { id: 'league' } }])
+    let renderer!: ReactTestRenderer
+    const Probe = () => { useLeagues(); return null }
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        const subscription = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1]
+        expect(subscription.watches).not.toContainEqual({ table: 'drafts', filter: 'league_id=eq.league' })
+        if (subscription.mode !== 'fallback') throw new Error('Expected a league refresh listener')
+        await act(async () => {
+            if (subscription.watches.some(watch => watch.table === 'drafts')) subscription.onChange!()
+            await vi.advanceTimersByTimeAsync(250)
+        })
+        expect(mocks.fetchUserLeagues).toHaveBeenCalledTimes(1)
+    } finally { await act(async () => renderer.unmount()); vi.useRealTimers() }
+})

@@ -46,9 +46,19 @@ BEGIN
    WHERE id = p_draft_id;
 
   IF NOT v_draft.is_mock THEN
-    UPDATE leagues
-       SET status = 'active'
-     WHERE id = v_draft.league_id;
+    UPDATE draft_picks pick SET is_used=true,used_at=now(),rookie_draft_id=p_draft_id
+      FROM snake_draft_picks slot WHERE slot.draft_id=p_draft_id
+        AND slot.player_id IS NULL AND slot.draft_pick_id=pick.id AND NOT pick.is_used;
+    IF v_draft.draft_type='snake' THEN
+      IF NOT EXISTS (SELECT 1 FROM roster_players roster JOIN leagues league ON league.id=roster.league_id
+        WHERE roster.league_id=v_draft.league_id AND roster.league_season_id=v_draft.league_season_id
+          AND NOT roster.is_on_ir AND NOT roster.is_on_taxi
+        GROUP BY roster.member_id,league.roster_size HAVING count(*)>league.roster_size) THEN
+        PERFORM private.activate_rookie_draft_league_if_ready(p_draft_id);
+      END IF;
+    ELSE
+      UPDATE leagues SET status='active' WHERE id=v_draft.league_id;
+    END IF;
   END IF;
 
   INSERT INTO draft_audit_logs (draft_id, league_id, actor_user_id, action, metadata)

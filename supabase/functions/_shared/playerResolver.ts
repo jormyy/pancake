@@ -6,16 +6,9 @@ import { resolvePlayerImports } from './playerImports.ts'
 type PlayerRow = {
   id: string
   display_name: string | null
-  nba_id?: string | null
 }
 
 const AMBIGUOUS = '__ambiguous__'
-
-export type CdnPlayerResolver = {
-  byNbaId: Map<string, string>
-  byExactName: Map<string, string>
-  byName: Map<string, string>
-}
 
 type NamePlayerResolver = {
   byExactName: Map<string, string>
@@ -41,10 +34,6 @@ async function loadPlayers(select: string): Promise<PlayerRow[]> {
   return players
 }
 
-export async function loadCdnPlayerResolver(): Promise<CdnPlayerResolver> {
-  return { byNbaId: new Map(), byExactName: new Map(), byName: new Map() }
-}
-
 export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
   const byExactName = new Map<string, string>()
   const byName = new Map<string, string>()
@@ -58,7 +47,6 @@ export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
 }
 
 export async function resolveCdnPlayers(
-  resolver: CdnPlayerResolver,
   players: { personId: string; displayName: string }[],
   providerGameId?: string,
 ): Promise<string[]> {
@@ -68,12 +56,9 @@ export async function resolveCdnPlayers(
     ...(providerGameId === undefined ? {} : { nba_game_id: providerGameId }),
   })))
   return results.map((result, index) => {
-    const { personId, displayName } = players[index]
+    const { displayName } = players[index]
     const playerId = result.player_id
     if (!playerId) throw new Error(`Ambiguous CDN player name without NBA id: ${displayName}`)
-    resolver.byNbaId.set(personId, playerId)
-    setUniqueName(resolver.byExactName, displayName.toLowerCase(), playerId)
-    setUniqueName(resolver.byName, normalizeName(displayName), playerId)
     return playerId
   })
 }

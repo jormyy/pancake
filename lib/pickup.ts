@@ -1,3 +1,5 @@
+import { isIREligible } from '@pancake/core'
+import type { RosterOccupancy } from '@/lib/roster'
 import type { MemberTransactionState } from '@/lib/league'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
@@ -75,10 +77,23 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
         confirmAction(ON_WAIVERS_TITLE, `${message} Claims are processed on the next waiver run.`, claim, 'Claim', false)
         return
     }
-    if (code === RULE_CODES.ineligibleIr && onIneligibleIr) {
+    if ((code === RULE_CODES.ineligibleIr || code === RULE_CODES.ineligibleTaxi) && onIneligibleIr) {
         onIneligibleIr(message)
+        return
+    }
+    if (code === 'PA006' || code === 'PA007') {
+        refresh?.()
+        showAlert(code === 'PA006' ? 'Player cannot enter IR' : 'IR is full', message)
         return
     }
     if (code === '23505') refresh?.()
     showAlert(code === RULE_CODES.onWaivers ? ON_WAIVERS_TITLE : 'Error', message)
+}
+
+export function hasOpenIRSlot(roster: RosterOccupancy[], irSlots = 2): boolean {
+    return roster.filter(player => player.is_on_ir).length < irSlots
+}
+
+export function canAddToIR(injuryStatus: string | null | undefined, roster: RosterOccupancy[], irSlots = 2): boolean {
+    return isIREligible(injuryStatus ?? null) && hasOpenIRSlot(roster, irSlots)
 }

@@ -1,1 +1,4 @@
-export { generateAllMatchups, generateMatchups } from '../_shared/matchupGeneration.ts'
+export {
+  generateAllMatchups,
+  generateMatchups,
+} from '../_shared/matchupGeneration.ts'

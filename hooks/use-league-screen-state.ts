@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
-import { parseLeagueTab, type LeagueTab } from '@/lib/league/tabs'
+import { parseLeagueTab, type LeagueSection } from '@/lib/league/tabs'
 import {
     debounceRealtimeRefresh,
     disposeTableChangeSubscription,
@@ -20,17 +20,13 @@ export function useLeagueScreenState() {
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
     const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
-    const [tab, setTab] = useState<LeagueTab>(() => parseLeagueTab(params.tab))
+    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
     const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
     const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated })
     const mockRooms = useMockRoomsController({
         leagueId: currentLeague?.id,
         memberId: current?.id,
-        nominationMode: draft.nominationMode,
-        draftTimerSeconds: draft.draftTimerSeconds,
-        rookieRounds: draft.rookieRounds,
-        rookieTimerExpiryBehavior: draft.rookieTimerExpiryBehavior,
         refreshRooms: tabResources.refreshMockRooms,
         openDraftRoom: draft.openDraftRoom,
     })
@@ -94,7 +90,6 @@ export function useLeagueScreenState() {
     useEffect(() => {
         const lid = currentLeague?.id
         if (!lid || !currentDraftKey) return
-        const refreshDraftBoard = debounceRealtimeRefresh(() => { invalidateTab('draftBoard') })
         const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
         const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
         const draftFilter = `draft_id=in.(${currentDraftKey})`
@@ -102,10 +97,6 @@ export function useLeagueScreenState() {
             { table: 'draft_room_members', filter: draftFilter, onChange: () => {
                 refreshDraftState.trigger()
                 refreshMockRooms.trigger()
-            } },
-            { table: 'snake_draft_picks', filter: draftFilter, onChange: () => {
-                refreshDraftBoard.trigger()
-                refreshDraftState.trigger()
             } },
         ]
         const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
@@ -120,14 +111,13 @@ export function useLeagueScreenState() {
         return () => reportRealtimeCleanup(
             'league screen drafts',
             disposeTableChangeSubscription(channel, [
-                refreshDraftBoard,
                 refreshMockRooms,
                 refreshDraftState,
             ]),
         )
     }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, invalidateTab])
 
-    const handleTabChange = (nextTab: LeagueTab) => {
+    const handleTabChange = (nextTab: LeagueSection) => {
         setTab(nextTab)
         // setParams (not push) keeps the current screen instance mounted, so the
         // pill tab bar keeps its scroll position instead of resetting to the start.
@@ -178,14 +168,21 @@ export function useLeagueScreenState() {
         nominationMode: draft.nominationMode,
         openBracket: () => push('/(modals)/bracket'),
         openCommissionerSettings: () => push('/(modals)/commissioner-settings'),
-        openProfile: () => push('/profile'),
         openDraftRoom: draft.openDraftRoom,
         openTeamRoster: (memberId: string, teamName: string) =>
             push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } }),
         retryActiveDraft: draft.retryActiveDraft,
-        retryCurrentTab: () => currentLeague?.id && tabResources.refreshTab(tab),
+        retryCurrentTab: () => currentLeague?.id ? tabResources.refreshTab(tab) : Promise.resolve(),
         rookieRounds: draft.rookieRounds,
         rookieTimerExpiryBehavior: draft.rookieTimerExpiryBehavior,
+        mockNominationMode: mockRooms.mockNominationMode,
+        setMockNominationMode: mockRooms.setMockNominationMode,
+        mockDraftTimerSeconds: mockRooms.mockDraftTimerSeconds,
+        setMockDraftTimerSeconds: mockRooms.setMockDraftTimerSeconds,
+        mockRookieRounds: mockRooms.mockRookieRounds,
+        setMockRookieRounds: mockRooms.setMockRookieRounds,
+        mockRookieTimerExpiryBehavior: mockRooms.mockRookieTimerExpiryBehavior,
+        setMockRookieTimerExpiryBehavior: mockRooms.setMockRookieTimerExpiryBehavior,
         roomDraftType: mockRooms.roomDraftType,
         roomName: mockRooms.roomName,
         roomScheduledAt: mockRooms.roomScheduledAt,

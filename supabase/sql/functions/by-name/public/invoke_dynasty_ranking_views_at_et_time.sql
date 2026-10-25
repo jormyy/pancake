@@ -15,8 +15,6 @@ AS $$
 DECLARE
   v_now timestamp := timezone('America/New_York', p_now);
 BEGIN
-  -- Direct calls later in the week can catch up, once per ISO week.
-  -- The installed cron only calls this on Mondays; it cannot retry on Tuesday.
   IF EXTRACT(ISODOW FROM v_now)::int = 1 AND v_now::time < make_time(p_hour, p_minute, 0) THEN
     RETURN;
   END IF;

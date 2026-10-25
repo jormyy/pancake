@@ -340,7 +340,8 @@ BEGIN
             sleeper_id = CASE WHEN p_source = 'sleeper' THEN v_provider ELSE sleeper_id END,
             first_name = v_first, last_name = v_last,
             nba_team = v_metadata->>'nba_team', status = v_metadata->>'status',
-            injury_status = v_metadata->>'injury_status', years_exp = (v_metadata->>'years_exp')::int,
+            injury_status = CASE WHEN v_metadata ? 'injury_status' THEN v_metadata->>'injury_status' ELSE injury_status END,
+            years_exp = (v_metadata->>'years_exp')::int,
             position = CASE WHEN p_source = 'espn' AND (v_row.position IS NOT NULL OR cardinality(v_row.eligible_positions) > 0)
               THEN v_row.position ELSE (v_metadata->>'position')::nba_position END,
             eligible_positions = CASE WHEN p_source = 'espn' AND (v_row.position IS NOT NULL OR cardinality(v_row.eligible_positions) > 0)

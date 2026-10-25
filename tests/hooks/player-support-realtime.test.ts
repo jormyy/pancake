@@ -3,12 +3,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { notifyLeagueChange } from '@/lib/league-changes'
 import { PanelActivityContext } from '@/contexts/panel-activity'
+import { submitWaiverClaim, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim } from '@/lib/waivers'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
-    subscription: null as null | { watches: { table: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
+    post: vi.fn(),
+    subscription: null as null | { watches: { table: string; filter?: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
     support: vi.fn(), recover: vi.fn(), derived: vi.fn(), invalidate: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: boundary.post }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: (_name: string, options: NonNullable<typeof boundary.subscription>) => { boundary.subscription = options; return {} },
     unsubscribeFromTableChanges: boundary.stop, reportRealtimeCleanup: vi.fn(),
@@ -20,6 +24,7 @@ const Probe = () => { usePlayerSupportRealtime('member', 'league', boundary.supp
 beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    boundary.post.mockResolvedValue({ claimOrder: 2 })
     boundary.subscription = null
     boundary.support.mockResolvedValue(true)
     boundary.recover.mockResolvedValue(true)
@@ -164,7 +169,7 @@ it('ignores a retained former-member callback before it can dirty the current re
     expect(boundary.invalidate).not.toHaveBeenCalled()
     expect(boundary.support).not.toHaveBeenCalled()
     await act(async () => { boundary.subscription!.watches[0].onChange({ eventType: 'INSERT', new: { member_id: 'second' }, old: {} }); await vi.advanceTimersByTimeAsync(200) })
-    expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['ownership', 'transactions'])
+    expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['ownership', 'claims', 'transactions'])
     expect(boundary.support).toHaveBeenCalledOnce()
 })
 
@@ -183,4 +188,50 @@ it('marks a hidden claim invalidation before any foreground reader can consume i
         await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); await vi.advanceTimersByTimeAsync(200) })
         expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
     } finally { vi.unstubAllGlobals() }
+})
+
+
+it('ignores activity-only inventory for player availability and rankings', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: seasonId }] })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(boundary.support).not.toHaveBeenCalled()
+    expect(boundary.recover).not.toHaveBeenCalled()
+    expect(boundary.derived).not.toHaveBeenCalled()
+})
+
+it.each(['submit', 'cancel', 'edit', 'reorder'])('refreshes own claims directly after %s without a league hint', async operation => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        if (operation === 'submit') await submitWaiverClaim('member', 'league', 'player')
+        if (operation === 'cancel') await cancelWaiverClaim('claim', 'member')
+        if (operation === 'edit') await editWaiverClaim('claim', 'member', { dropPlayerId: null, toIr: false })
+        if (operation === 'reorder') await reorderWaiverClaim('claim', 'member', 'up')
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
+    expect(boundary.recover).not.toHaveBeenCalled()
+})
+
+it.each(['INSERT', 'UPDATE', 'DELETE'])('refreshes claims after an own roster %s cancels server claims', async eventType => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        boundary.subscription!.watches[0].onChange({ eventType, new: eventType === 'DELETE' ? {} : { member_id: 'member' }, old: { id: 'roster-row' } })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(eventType === 'DELETE' ? ['ownership', 'transactions'] : ['ownership', 'claims', 'transactions'])
+})
+
+
+it('watches private own claims and refreshes cancellations with primary-key-only old rows', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const watch = boundary.subscription!.watches.find(row => row.table === 'waiver_claims')
+    expect(watch?.filter).toBe('member_id=eq.member')
+    await act(async () => {
+        watch!.onChange({ eventType: 'UPDATE', new: { id: 'claim', member_id: 'member', status: 'cancelled' }, old: { id: 'claim' } })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
 })

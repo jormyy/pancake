@@ -1,0 +1,88 @@
+[
+  {
+    "name": "home-light-moves",
+    "group": "home-light",
+    "from": "/lineup?playerId={{rosterPlayer.id}}",
+    "steps": [
+      {
+        "name": "move",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Bench {{benchPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{benchPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "home-dark-moves",
+    "group": "home-dark",
+    "from": "/lineup?playerId={{rosterPlayer.id}}",
+    "steps": [
+      {
+        "name": "move",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Bench {{benchPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "restore",
+        "action": {
+          "sequence": [
+            {
+              "tap": "{{lineupSlot}} {{benchPlayer.display_name}}"
+            },
+            {
+              "tap": "Bench {{rosterPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{benchPlayer.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

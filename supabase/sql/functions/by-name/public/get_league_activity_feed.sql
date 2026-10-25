@@ -22,7 +22,10 @@ RETURNS TABLE (
   occurred_at timestamptz,
   is_system boolean,
   title text,
-  body text
+  body text,
+  years_exp int,
+  career_regular_season_games int,
+  participant_team_names text[]
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -72,7 +75,10 @@ BEGIN
       tx.occurred_at,
       false AS is_system,
       NULL::text AS title,
-      NULL::text AS body
+      CASE WHEN tx.acquired_to_taxi AND tx.transaction_type IN ('fa_add','waiver_add') THEN 'Player added to taxi.' ELSE NULL END::text AS body,
+      player.years_exp,
+      player.career_regular_season_games,
+      ARRAY[]::text[] AS participant_team_names
     FROM roster_transactions AS tx
     JOIN current_season ON current_season.id = tx.league_season_id
     LEFT JOIN league_members AS member ON member.id = tx.member_id
@@ -97,7 +103,17 @@ BEGIN
       activity.created_at AS occurred_at,
       true AS is_system,
       activity.title,
-      activity.body
+      activity.body,
+      player.years_exp,
+      player.career_regular_season_games,
+      CASE WHEN activity.event_type = 'trade_completed' THEN
+        COALESCE((SELECT array_agg(participant_member.team_name::text ORDER BY participant.sort_order, participant.member_id)
+          FROM trade_participants AS participant
+          JOIN league_members AS participant_member ON participant_member.id = participant.member_id
+            AND participant_member.league_id = activity.league_id
+          WHERE participant.trade_id = activity.related_trade_id),
+          array_remove(ARRAY[actor.team_name::text, target.team_name::text], NULL))
+      ELSE ARRAY[]::text[] END AS participant_team_names
     FROM league_activity AS activity
     JOIN current_season
       ON activity.league_season_id = current_season.id
@@ -106,6 +122,8 @@ BEGIN
     LEFT JOIN league_members AS target ON target.id = activity.target_member_id
     LEFT JOIN players AS player ON player.id = activity.related_player_id
     WHERE activity.league_id = p_league_id
+      AND activity.event_type NOT IN ('trade_block_updated', 'free_agent_added',
+        'trade_offered', 'trade_countered', 'trade_edited', 'trade_expired')
   )
   SELECT
     feed.id,
@@ -122,7 +140,10 @@ BEGIN
     feed.occurred_at,
     feed.is_system,
     feed.title,
-    feed.body
+    feed.body,
+    feed.years_exp,
+    feed.career_regular_season_games,
+    feed.participant_team_names
   FROM feed
   ORDER BY feed.occurred_at DESC, feed.id DESC
   LIMIT v_limit

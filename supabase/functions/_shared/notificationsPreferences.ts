@@ -372,6 +372,6 @@ export function notificationEnabled(
     : category === 'waiver' ? 'waiver_enabled' : category === 'draft' ? 'draft_enabled' : 'activity_enabled')
   if (preferences?.[legacy] === false) return false
   if (resolvedCategory !== 'activity' && preferences?.category_settings?.[resolvedCategory] === false) return false
-  if (!definition) return event === undefined
+  if (!definition) return event === undefined || ['rookie_draft_pick', 'waiver_claim_succeeded', 'waiver_claim_failed'].includes(event)
   return preferences?.event_settings?.[definition.key] ?? definition.defaultEnabled
 }

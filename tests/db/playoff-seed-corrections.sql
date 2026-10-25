@@ -23,6 +23,9 @@ BEGIN
   END LOOP;
   SELECT array_agg(member_id ORDER BY seed_rank) INTO seeds FROM private.playoff_seed_rankings(league,season,20);
   PERFORM generate_playoff_bracket_atomic(league);
+  IF to_regclass('public.rps_challenges') IS NOT NULL THEN
+    RAISE EXCEPTION 'Unused tiebreak storage must be removed';
+  END IF;
   UPDATE matchups SET is_finalized=true,winner_member_id=away_member_id WHERE league_season_id=season AND matchup_type='playoff_quarterfinal';
   SELECT id INTO corrected FROM matchups WHERE league_season_id=season AND matchup_type='regular_season' AND seeds[3] IN(home_member_id,away_member_id);
   UPDATE matchups SET winner_member_id=seeds[3],home_points=CASE WHEN home_member_id=seeds[3] THEN 100 ELSE 0 END,away_points=CASE WHEN away_member_id=seeds[3] THEN 100 ELSE 0 END WHERE id=corrected;
@@ -60,6 +63,9 @@ BEGIN
   END LOOP;
   SELECT array_agg(member_id ORDER BY seed_rank) INTO seeds FROM private.playoff_seed_rankings(league,season,20);
   PERFORM generate_playoff_bracket_atomic(league);
+  IF to_regclass('public.rps_challenges') IS NOT NULL THEN
+    RAISE EXCEPTION 'Unused tiebreak storage must be removed';
+  END IF;
   UPDATE league_seasons SET playoff_seed_member_ids=NULL WHERE id=season; -- Explicit legacy-shape fixture only.
   UPDATE matchups SET is_finalized=true,winner_member_id=away_member_id WHERE league_season_id=season AND matchup_type='playoff_quarterfinal';
   SELECT id INTO corrected FROM matchups WHERE league_season_id=season AND matchup_type='regular_season' AND seeds[3] IN(home_member_id,away_member_id);
@@ -67,8 +73,7 @@ BEGIN
   SELECT jsonb_build_object(
     'league',(SELECT to_jsonb(l) FROM leagues l WHERE id=league),
     'season',(SELECT to_jsonb(s) FROM league_seasons s WHERE id=season),
-    'matchups',(SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season),
-    'ties',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM rps_challenges r WHERE league_season_id=season)) INTO before_state;
+    'matchups',(SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season)) INTO before_state;
   result:=generate_playoff_bracket_atomic(league);
   IF result->>'skipped'<>'true' THEN RAISE EXCEPTION 'Existing legacy bracket generation retry was not a no-op'; END IF;
   BEGIN
@@ -80,8 +85,7 @@ BEGIN
   IF before_state IS DISTINCT FROM jsonb_build_object(
     'league',(SELECT to_jsonb(l) FROM leagues l WHERE id=league),
     'season',(SELECT to_jsonb(s) FROM league_seasons s WHERE id=season),
-    'matchups',(SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season),
-    'ties',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM rps_challenges r WHERE league_season_id=season)) THEN
+    'matchups',(SELECT jsonb_agg(to_jsonb(m) ORDER BY id) FROM matchups m WHERE league_season_id=season)) THEN
     RAISE EXCEPTION 'Rejected legacy advancement or generation retry changed existing data';
   END IF;
   -- This synthetic fixture saved the exact original generated order above.

@@ -1,6 +1,8 @@
+import { isDeepStrictEqual } from 'node:util'
 import { backendJson, postJson } from '../soak-network.mjs'
 import { calendarWeeksForLeague, seasonYearForDate } from './season-calendar.mjs'
 import { querySupabaseDb } from '../env.mjs'
+import { readSchedule } from './schedule.mjs'
 
 const readBoundaryReadiness = (env, leagueId, seasonId, action) => {
   try {
@@ -90,12 +92,21 @@ export const prepareSoakSeason = async ({ supabase, env, leagueId, season }) => 
   const members = await count('league_members', {})
   if (members < 4) throw new Error('The season loop requires at least four league members')
   const expected = ((season.playoff_start_week ?? 20) - 1) * Math.floor(members / 2)
-  const before = await count('matchups', { league_season_id: season.id })
+  const before = await readSchedule(supabase, leagueId, season.id)
   // The seed contains one matchup for browser latency. Replace that incomplete
   // fixture through the guarded API, which refuses a started schedule.
-  await backendJson(env, '/e2e/generate-matchups', { leagueId, force: before > 0 && before !== expected })
-  const after = await count('matchups', { league_season_id: season.id })
-  if (after !== expected) throw new Error(`Soak regular schedule has ${after} matchups; expected ${expected}`)
+  const force = before.length > 0 && before.length !== expected
+  if (force) {
+    const { data: first, error } = await supabase.from('season_weeks').select('week_start')
+      .eq('season_year', season.season_year).order('week_number').limit(1).single()
+    if (error || !first?.week_start) throw new Error('Soak schedule requires its first calendar week')
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    if (today >= first.week_start) throw new Error('Cannot rebuild an incomplete schedule after its first week starts')
+  }
+  await backendJson(env, '/e2e/generate-matchups', { leagueId, force })
+  const after = await readSchedule(supabase, leagueId, season.id)
+  if (!force && before.length > 0 && !isDeepStrictEqual(after, before)) throw new Error('Existing schedule changed after non-force generation')
+  if (after.length !== expected) throw new Error(`Soak regular schedule has ${after.length} matchups; expected ${expected}`)
   // This owned simulation fixture enters its regular season here. Draft/reset
   // workflows run separately through their guarded scenario contracts.
   const { error } = await supabase.from('leagues').update({ status: 'active' }).eq('id', leagueId)

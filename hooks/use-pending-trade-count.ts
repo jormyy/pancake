@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
+import { useAuth } from '@/hooks/use-auth'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 import { getPendingIncomingTradeCount } from '@/lib/trades'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 
 /**
  * Count of pending incoming trade offers for the current member — powers the
@@ -16,7 +19,11 @@ export function usePendingTradeCount(): number {
     const pathname = usePathname()
     const memberId = current?.id
     const leagueId = currentLeague?.id
-    const key = memberId && leagueId ? `${leagueId}:${memberId}` : null
+    const { user } = useAuth()
+    const owner = user?.id ?? null
+    const generation = sessionGeneration()
+    const cacheKey = owner && memberId && leagueId ? `pancake:pending-trade-count:v1:${owner}:${leagueId}:${memberId}` : null
+    const key = memberId && leagueId ? `${generation}:${owner ?? ''}:${leagueId}:${memberId}` : null
     const activeKeyRef = useRef(key)
     activeKeyRef.current = key
     // The count remembers whose it is, so a league switch never shows the
@@ -31,6 +38,7 @@ export function usePendingTradeCount(): number {
         let retryTimer: ReturnType<typeof setTimeout> | null = null
         let lastLoadedAt = 0
         const isCurrent = () => !disposed && activeKeyRef.current === key
+            && sessionGeneration() === generation && sessionOwner() === owner
         const canRefresh = () => (typeof navigator === 'undefined' || navigator.onLine !== false)
             && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
         const clearRetry = () => {
@@ -58,6 +66,7 @@ export function usePendingTradeCount(): number {
                             const count = await getPendingIncomingTradeCount(memberId, leagueId)
                             if (isCurrent() && requestId === revision) {
                                 lastLoadedAt = Date.now()
+                                if (cacheKey) writePersistentCache(cacheKey, count)
                                 setState((previous) => {
                                     if (!isCurrent() || requestId !== revision) return previous
                                     return previous?.key === key && previous.count === count ? previous : { key, count }
@@ -115,7 +124,7 @@ export function usePendingTradeCount(): number {
                 clearRetry()
             },
         }
-    }, [key, leagueId, memberId])
+    }, [cacheKey, generation, key, leagueId, memberId, owner])
 
     useEffect(() => {
         refreshQueue.activate()
@@ -157,7 +166,9 @@ export function usePendingTradeCount(): number {
         if (changed) refreshQueue.trigger()
     }, [refreshQueue, pathname])
 
-    return state && state.key === key ? state.count : 0
+    if (state?.key === key) return state.count
+    const cached = cacheKey ? readPersistentCache<unknown>(cacheKey) : null
+    return typeof cached === 'number' && Number.isSafeInteger(cached) && cached >= 0 ? cached : 0
 }
 
 const MAX_RETRIES = 2

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PlayerSupportResource } from '@/lib/player-availability'
 import { sessionGeneration } from '@/lib/session-cache-registry'
+import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { invalidateSeasonCache } from '@/lib/shared/season'
@@ -57,6 +58,7 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             for (const resource of resources) pending.add(resource)
             refresh.trigger()
         }
+        const stopClaims = listenForMemberClaimsChanges(memberId, () => changed('claims', 'transactions'))
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
             if (!current()) return
@@ -86,8 +88,10 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
                     if (!current()) return
                     invalidateLeagueSnapshot(leagueId, 'supportRaw')
                     const knownOtherPickup = payload?.eventType === 'INSERT' && typeof payload.new.member_id === 'string' && payload.new.member_id !== memberId
-                    changed('ownership', ...(!knownOtherPickup ? ['transactions' as const] : []))
+                    const ownRoster = payload && 'member_id' in payload.new && payload.new.member_id === memberId
+                    changed('ownership', ...(ownRoster ? ['claims' as const] : []), ...(!knownOtherPickup ? ['transactions' as const] : []))
                 } },
+                { table: 'waiver_claims', filter: `member_id=eq.${memberId}`, onChange: () => changed('claims', 'transactions') },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => { if (!current()) return; invalidateLeagueSnapshot(leagueId, 'supportRaw'); changed(...ALL_SUPPORT) } },
             ],
             onReconnect: () => {
@@ -102,6 +106,7 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
         return () => {
             disposed = true
             stop()
+            stopClaims()
             refresh.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }

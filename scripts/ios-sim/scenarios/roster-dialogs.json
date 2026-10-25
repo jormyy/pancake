@@ -1,0 +1,138 @@
+[
+  {
+    "name": "roster-trim-light",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']"
+        }
+      }
+    ],
+    "setup": {
+      "rosterLimit": 19
+    },
+    "theme": "light"
+  },
+  {
+    "name": "roster-activation-light",
+    "group": "roster-dialogs",
+    "from": "/",
+    "prepare": [
+      {
+        "tapPrefix": "Sunday,"
+      },
+      {
+        "tapPrefix": "Select TX slot,"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Select empty SG slot"
+        },
+        "expected": {
+          "dialog": "Active roster full"
+        },
+        "note": "Use the last day of the week so started games do not lock the taxi player."
+      }
+    ],
+    "setup": {
+      "activationMember": "{{memberId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "roster-taxi-choice-light",
+    "group": "roster-dialogs",
+    "from": "/league?tab=auctions",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{liveAuctionId}}"
+        },
+        "expected": {
+          "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
+        },
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{otherMemberId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "roster-trim-dark",
+    "group": "roster-dialogs",
+    "from": "/profile",
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']"
+        }
+      }
+    ],
+    "setup": {
+      "rosterLimit": 19
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "roster-activation-dark",
+    "group": "roster-dialogs",
+    "from": "/",
+    "prepare": [
+      {
+        "tapPrefix": "Sunday,"
+      },
+      {
+        "tapPrefix": "Select TX slot,"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Select empty SG slot"
+        },
+        "expected": {
+          "dialog": "Active roster full"
+        },
+        "note": "Use the last day of the week so started games do not lock the taxi player."
+      }
+    ],
+    "setup": {
+      "activationMember": "{{memberId}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "roster-taxi-choice-dark",
+    "group": "roster-dialogs",
+    "from": "/league?tab=auctions",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{liveAuctionId}}"
+        },
+        "expected": {
+          "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
+        },
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{otherMemberId}}"
+    },
+    "theme": "dark"
+  }
+]

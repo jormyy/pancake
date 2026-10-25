@@ -43,9 +43,9 @@ export default function DraftRoomTab() {
                 <EmptyState
                     icon="flash-on"
                     message="No active draft"
-                    description="Your league has no draft running. Practice in a mock draft room."
-                    actionLabel="Open Mock Rooms"
-                    onAction={() => router.push('/league?tab=mockRooms')}
+                    description="Start or join a mock room in Draft."
+                    actionLabel="Open Draft"
+                    onAction={() => router.push('/league?tab=draft')}
                 />
             )}
         </Page>

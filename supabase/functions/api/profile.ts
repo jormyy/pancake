@@ -1,5 +1,4 @@
 import {
-  booleanField,
   json,
   readJsonObject,
   requireUser,
@@ -12,14 +11,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { pruneWebPushSubscriptions, webPushFanout, webPushVapidKeys } from '../_shared/notifications.ts'
 import { assertSubscriptionKeys, isAllowedPushEndpoint } from '../_shared/webPush.ts'
 
-const MAX_PUSH_TOKEN_LENGTH = 512
 const REVOCATION_CREDENTIAL_RE = /^[A-Za-z0-9_-]{43}$/
-
-function pushToken(body: Record<string, unknown>): string {
-  const token = stringField(body, 'token').trim()
-  if (token.length > MAX_PUSH_TOKEN_LENGTH) throw new ValidationError('token must contain at most 512 characters')
-  return token
-}
 
 function revocationCredential(body: Record<string, unknown>): string {
   const credential = stringField(body, 'revocationCredential').trim()
@@ -45,49 +37,6 @@ type RpcError = { code?: string; message?: string }
 
 function missingCredentialRpc(error: RpcError): boolean {
   return error.code === 'PGRST202'
-}
-
-async function clearPushTokenLegacy(userId: string, token: string): Promise<void> {
-  const { error } = await supabase
-    .from('profiles')
-    .update({ push_token: null })
-    .eq('id', userId)
-    .eq('push_token', token)
-  if (error) throwDb(error)
-}
-
-async function updatePushToken(userId: string, token: string, active: boolean): Promise<string | null> {
-  if (active) {
-    const credential = createRevocationCredential()
-    const { error } = await supabase.rpc('register_push_token_atomic', {
-      p_user_id: userId,
-      p_token: token,
-      p_revocation_hash: await credentialHash(credential),
-    })
-    if (error) {
-      if (!missingCredentialRpc(error)) throwDb(error)
-      throw new ServiceUnavailableError('Push registration is temporarily unavailable. Please retry.')
-    }
-    return credential
-  }
-
-  const { error } = await supabase.rpc('clear_push_token_for_user_atomic', {
-    p_user_id: userId,
-    p_token: token,
-  })
-  if (error) {
-    if (!missingCredentialRpc(error)) throwDb(error)
-    await clearPushTokenLegacy(userId, token)
-  }
-  return null
-}
-
-async function revokePushToken(token: string, credential: string): Promise<void> {
-  const { error } = await supabase.rpc('revoke_push_token_atomic', {
-    p_token: token,
-    p_revocation_hash: await credentialHash(credential),
-  })
-  if (error && !missingCredentialRpc(error)) throwDb(error)
 }
 
 // Enough for a phone, tablet, and a few desktop browsers; older rows are dropped.
@@ -214,15 +163,5 @@ async function handleWebPushRoute(req: Request, path: string): Promise<Response 
 
 export async function handleProfileRoute(req: Request, path: string): Promise<Response | null> {
   if (path.startsWith('/profile/web-push/')) return handleWebPushRoute(req, path)
-  if (req.method !== 'POST') return null
-  if (path === '/profile/push-token/revoke') {
-    const body = await readJsonObject(req)
-    await revokePushToken(pushToken(body), revocationCredential(body))
-    return json({ ok: true })
-  }
-  if (path !== '/profile/push-token') return null
-  const body = await readJsonObject(req)
-  const userId = await requireUser(req)
-  const credential = await updatePushToken(userId, pushToken(body), booleanField(body, 'active'))
-  return json({ ok: true, ...(credential ? { revocationCredential: credential } : {}) })
+  return null
 }

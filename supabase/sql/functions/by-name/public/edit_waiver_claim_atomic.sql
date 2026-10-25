@@ -8,7 +8,9 @@ CREATE OR REPLACE FUNCTION public.edit_waiver_claim_atomic(
   p_user_id uuid,
   p_drop_player_id uuid DEFAULT NULL,
   p_bid_amount int DEFAULT 0,
-  p_claim_order int DEFAULT NULL
+  p_claim_order int DEFAULT NULL,
+  p_to_ir boolean DEFAULT NULL,
+  p_to_taxi boolean DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -116,6 +118,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.assert_legal_roster(v_claim.league_id,v_claim.league_season_id,p_member_id);
+
   PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, p_member_id);
 
   PERFORM 1
@@ -138,7 +142,7 @@ BEGIN
   IF v_league.waiver_mode = 'rolling' THEN
     v_bid_amount := 0;
   ELSE
-    v_balance := private.ensure_faab_balance(v_claim.league_id, v_claim.league_season_id, p_member_id);
+    v_balance := private.available_faab_balance(v_claim.league_id, v_claim.league_season_id, p_member_id);
     IF v_bid_amount > v_balance THEN
       RAISE EXCEPTION 'FAAB bid exceeds your available balance.'
         USING ERRCODE = 'P0001';
@@ -161,8 +165,14 @@ BEGIN
     END IF;
   END IF;
 
+  IF COALESCE(p_to_ir,v_claim.to_ir) AND COALESCE(p_to_taxi,v_claim.to_taxi) THEN
+    RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
+  END IF;
+
   UPDATE waiver_claims
-     SET drop_player_id = p_drop_player_id,
+     SET to_ir = COALESCE(p_to_ir, to_ir),
+         to_taxi = COALESCE(p_to_taxi, to_taxi),
+         drop_player_id = p_drop_player_id,
          bid_amount = v_bid_amount,
          claim_order = COALESCE(p_claim_order, claim_order),
          submitted_at = now()

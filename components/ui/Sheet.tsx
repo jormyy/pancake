@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { ReactNode, useEffect, useId } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { breakpoints, colors, elevation, radii, scrim, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, elevation, layout, radii, scrim, spacing, textStyles } from '@/constants/tokens'
 import { trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
 import { scheduleWebFocusRecovery } from './webFocus'
 
@@ -15,11 +15,13 @@ type WebKeyDownProps = { onKeyDown?: (event: DialogKeyboardEvent) => void }
 export function Sheet({
     visible,
     title,
+    accessibilityLabel,
     onClose,
     children,
 }: {
     visible: boolean
-    title: string
+    title?: string
+    accessibilityLabel?: string
     onClose: () => void
     children: ReactNode
 }) {
@@ -43,10 +45,12 @@ export function Sheet({
         : {}
     // React Native Web's Modal is already the dialog element (role and
     // aria-modal); naming it here avoids a second, nested dialog.
-    const modalLabel = Platform.OS === 'web' ? ({ 'aria-labelledby': titleId } as object) : {}
+    const modalLabel = Platform.OS === 'web'
+        ? (title ? { 'aria-labelledby': titleId } : { 'aria-label': accessibilityLabel }) as object
+        : { accessibilityLabel: accessibilityLabel ?? title }
 
     return (
-        <Modal visible={visible} transparent animationType={bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
+        <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : bottomSheet ? 'slide' : 'fade'} onRequestClose={onClose} {...modalLabel}>
             <View style={[styles.scrim, bottomSheet ? styles.scrimBottom : styles.scrimCenter]}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
                 <View
@@ -62,7 +66,7 @@ export function Sheet({
                     {...keyProps}
                 >
                     {bottomSheet ? <View style={styles.grabber} aria-hidden /> : null}
-                    <View style={styles.header}>
+                    {title || !bottomSheet ? <View style={styles.header}>
                         <Text nativeID={titleId} style={[textStyles.rowTitle, styles.title]} numberOfLines={1}>{title}</Text>
                         <Pressable
                             onPress={onClose}
@@ -70,9 +74,9 @@ export function Sheet({
                             accessibilityRole="button"
                             accessibilityLabel="Close"
                         >
-                            <MaterialIcons name="close" size={20} color={colors.textSecondary} />
+                            <MaterialIcons name="close" size={controlSize.icon.md} color={colors.textSecondary} />
                         </Pressable>
-                    </View>
+                    </View> : null}
                     <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}>
                         {children}
                     </ScrollView>
@@ -102,14 +106,14 @@ const styles = StyleSheet.create({
     },
     panelCenter: {
         width: '100%',
-        maxWidth: 560,
+        maxWidth: layout.sheet.maxWidth,
         maxHeight: '86%',
         borderRadius: radii['2xl'],
     },
     grabber: {
         alignSelf: 'center',
-        width: 36,
-        height: 4,
+        width: layout.sheet.grabberWidth,
+        height: layout.sheet.grabberHeight,
         borderRadius: radii.full,
         backgroundColor: colors.border,
         marginTop: spacing.sm,
@@ -120,12 +124,12 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingLeft: spacing.xl,
         paddingRight: spacing.sm,
-        minHeight: 52,
+        minHeight: layout.sheet.headerHeight,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
     title: { flex: 1 },
-    close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
+    close: { width: controlSize.minTouch, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
     body: { flexGrow: 0 },
     bodyContent: { padding: spacing.xl },
 })

@@ -1,11 +1,11 @@
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
-type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'inventory' | 'resources'
+type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
-type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
+type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'activity' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
 type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null }
 type Listener = (change: LeagueChange) => void
-const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'inventory', 'resources'])
+const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
@@ -52,7 +52,9 @@ export function setLeagueChangesConnected(leagueId: string, ready: boolean): voi
 }
 
 export function notifyLeagueChange(leagueId: string, change: LeagueChange): void {
-    invalidateLeagueSnapshot(leagueId, change.topic)
+    if (change.topic !== 'inventory' || !change.details || change.details.some(detail => detail.resource !== 'activity')) {
+        invalidateLeagueSnapshot(leagueId, change.topic)
+    }
     if (change.topic === 'inventory') {
         const affected = new Set<string>()
         if (!change.details || change.details.some(detail => detail.resource === 'season')) affected.add('supportBroad')
@@ -85,14 +87,15 @@ export function leagueChangeAffects(change: LeagueChange, selection: { seasonId:
 }
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const inventoryResources = new Set(['picks', 'claims', 'waivers', 'priority', 'faab', 'season'])
+const inventoryResources = new Set(['picks', 'claims', 'waivers', 'priority', 'faab', 'season', 'activity'])
 const dailyResources = new Set(['averages', 'projections', 'scoring'])
 
 function resourceDetails(value: unknown, topic: Topic): ResourceDetail[] | null {
     if (!Array.isArray(value) || !value.length || value.length > 16 || JSON.stringify(value).length > 4096) return null
     const resources = topic === 'inventory' ? inventoryResources : dailyResources
+    const known = value.filter(entry => !(entry && typeof entry === 'object' && typeof entry.resource === 'string' && !resources.has(entry.resource)))
     const seen = new Set<string>()
-    for (const entry of value) {
+    for (const entry of known) {
         if (!entry || typeof entry !== 'object' || Object.keys(entry).some(key => !['resource', 'season_id', 'member_id'].includes(key))
             || !resources.has(entry.resource) || typeof entry.season_id !== 'string' || !uuid.test(entry.season_id)) return null
         const memberRequired = ['picks', 'priority', 'faab'].includes(entry.resource)
@@ -101,7 +104,7 @@ function resourceDetails(value: unknown, topic: Topic): ResourceDetail[] | null 
         if (seen.has(key)) return null
         seen.add(key)
     }
-    return value as ResourceDetail[]
+    return known as ResourceDetail[]
 }
 
 export function leagueResourceAffects(change: LeagueChange, resources: ResourceDetail['resource'][], selection: { seasonId?: string | null; memberId?: string } = {}): boolean {
@@ -114,11 +117,15 @@ export function leagueResourceAffects(change: LeagueChange, resources: ResourceD
         && (!detail.member_id || !selection.memberId || detail.member_id === selection.memberId))
 }
 
+export function leagueActivityChanged(change: LeagueChange): boolean {
+    return change.topic === 'roster' || leagueResourceAffects(change, ['activity', 'season', 'picks', 'waivers', 'priority', 'faab', 'scoring'])
+}
+
 export function leagueChangeReceiver(leagueId: string, receive: Listener) {
     const revisions = new Map<string, bigint>()
     const consume = (row: Record<string, unknown>) => {
         if (row.league_id !== leagueId || typeof row.topic !== 'string') return false
-        if (!topics.has(row.topic)) { receive({ topic: 'catchup', scopes: null }); return false }
+        if (!topics.has(row.topic)) return true
         const topic = row.topic as Topic
         const raw = row.revision
         if (!(typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0)
@@ -143,8 +150,10 @@ export function leagueChangeReceiver(leagueId: string, receive: Listener) {
             && (scope.week === undefined || Number.isSafeInteger(scope.week))))) return false
         revisions.set(topic, revision)
         const gap = previous !== undefined && revision > previous + 1n
+        const details = ['inventory', 'resources'].includes(topic) ? resourceDetails(row.details, topic) : null
+        if (details?.length === 0 && !gap) return true
         receive({ topic, scopes: gap || ['inventory', 'resources'].includes(topic) ? null : scopes as Scope[] | null,
-            ...(['inventory', 'resources'].includes(topic) ? { details: previous !== undefined && !gap ? resourceDetails(row.details, topic) : null } : {}),
+            ...(['inventory', 'resources'].includes(topic) ? { details: previous !== undefined && !gap ? details : null } : {}),
         })
         return true
     }

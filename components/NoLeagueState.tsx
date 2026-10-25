@@ -2,7 +2,7 @@ import { Platform, View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useRouter } from 'expo-router'
 import { colors, elevation, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, webBackgrounds, type WebOnlyViewStyle } from '@/constants/tokens'
-import { Button } from '@/components/ui'
+import { Button, LoadingState } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 import { useLeagueContext } from '@/contexts/league-context'
 
@@ -16,6 +16,7 @@ export function NoLeagueState() {
     const { push } = useRouter()
     const { membershipStatus, online, loading, refresh } = useLeagueContext()
     if (membershipStatus === 'signed-out') return null
+    if (membershipStatus !== 'empty' && membershipStatus !== 'unavailable') return <LoadingState />
     if (membershipStatus !== 'empty') {
         return (
             <PromptFrame cardMaxWidth={520}>

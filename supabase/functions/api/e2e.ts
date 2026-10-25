@@ -29,7 +29,6 @@ export async function handleE2eRoute(req: Request, path: string): Promise<Respon
       ok: true,
       nbaCdnBaseUrl: Deno.env.get('NBA_CDN_BASE_URL') ?? null,
       sleeperBaseUrl: Deno.env.get('SLEEPER_BASE_URL') ?? null,
-      expoPushUrl: Deno.env.get('EXPO_PUSH_URL') ?? null,
       runtime: 'supabase-edge',
     })
   }
@@ -53,7 +52,15 @@ export async function handleE2eRoute(req: Request, path: string): Promise<Respon
   }
   if (path === '/e2e/generate-matchups') {
     const leagueId = typeof body.leagueId === 'string' ? uuidField(body, 'leagueId') : undefined
-    await generateAllMatchups(Boolean(body.force), leagueId)
+    try {
+      const results = await generateAllMatchups(Boolean(body.force), leagueId)
+      if (results.some(result => result.skipped)) return json({ ok: true, skipped: true })
+    } catch (error) {
+      if ((error as { message?: string })?.message === 'The season has started; the schedule can no longer be rebuilt.') {
+        return json({ error: 'The season has started; the schedule can no longer be rebuilt.' }, 409)
+      }
+      throw error
+    }
     return json({ ok: true })
   }
   if (path === '/e2e/advance-season') {

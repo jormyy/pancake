@@ -1,14 +1,11 @@
 import { supabase } from './supabase.ts'
 import { toETDate } from './date.ts'
+import { isRegularSeasonGameId } from './gameId.ts'
 import { generateMatchups } from './matchupGeneration.ts'
 import { runBounded } from './runBounded.ts'
 import { fetchAllPages } from './scoreShared.ts'
 import { syncScores } from './syncScores.ts'
-import { isRegularSeasonGameId } from './gameId.ts'
 
-// NBA stat corrections land 1-2 days after games. Bracket generation,
-// advancement, and rollover wait this long after the prerequisite week
-// finalizes so corrections settle results before they become immutable.
 const BOUNDARY_GRACE_HOURS = 48
 
 const BOUNDARY_CONCURRENCY = 5
@@ -18,6 +15,7 @@ type BoundaryMatchup = {
   matchup_type: string
   playoff_round?: number | null
   week_number: number
+  end_week_number?: number | null
   is_finalized: boolean | null
   finalized_at: string | null
   winner_member_id: string | null
@@ -38,6 +36,11 @@ export function summarizeBoundaryFailures(reports: BoundaryLeagueReport[]): stri
   return `${failed.length} of ${reports.length} league(s) failed — ${sample}`
 }
 
+function boundaryErrorMessage(error: unknown): string {
+  if (error instanceof AggregateError) return [error.message, ...error.errors.map(boundaryErrorMessage)].join('; ')
+  return (error as { message?: string } | null)?.message ?? JSON.stringify(error)
+}
+
 function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean {
   let latest: number | null = null
   for (const matchup of matchups) {
@@ -48,6 +51,41 @@ function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean
   }
   if (latest == null) return true
   return referenceDate.getTime() >= latest + BOUNDARY_GRACE_HOURS * 3_600_000
+}
+
+async function seasonCorrectionWindow(
+  leagueSeasonId: string,
+  endWeek: number,
+  referenceDate: Date,
+  startWeek = endWeek,
+): Promise<{ ended: boolean; elapsed: boolean }> {
+  const { data: season, error: seasonError } = await supabase.from('league_seasons')
+    .select('season_year').eq('id', leagueSeasonId).single()
+  if (seasonError) throw seasonError
+  const { data: week, error: weekError } = await supabase.from('season_weeks')
+    .select('week_start, week_end').eq('season_year', season.season_year)
+    .eq('week_number', endWeek).maybeSingle()
+  if (weekError) throw weekError
+  if (!week) return { ended: false, elapsed: false }
+  let firstDate = week.week_start
+  if (startWeek !== endWeek) {
+    const { data: firstWeek, error: firstError } = await supabase.from('season_weeks')
+      .select('week_start').eq('season_year', season.season_year).eq('week_number', startWeek).maybeSingle()
+    if (firstError) throw firstError
+    if (!firstWeek) return { ended: false, elapsed: false }
+    firstDate = firstWeek.week_start
+  }
+  const games = await fetchAllPages<{ nba_game_id: string | null; game_date: string; status: string; game_status_text: string | null }>((from, to) => supabase
+    .from('nba_games').select('nba_game_id, game_date, status, game_status_text')
+    .eq('season_year', season.season_year).gte('game_date', firstDate).lte('game_date', week.week_end)
+    .order('id').range(from, to))
+  const dates = games.filter(game => isRegularSeasonGameId(game.nba_game_id)
+    && ['Scheduled', 'InProgress', 'Final'].includes(game.status)
+    && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? ''))
+    .map(game => game.game_date).sort()
+  const lastDate = dates.at(-1) ?? week.week_end
+  const elapsed = Date.parse(toETDate(referenceDate)) - Date.parse(lastDate) > 86_400_000
+  return { ended: toETDate(referenceDate) > week.week_end, elapsed }
 }
 
 function allFinalized(matchups: BoundaryMatchup[]): boolean {
@@ -72,15 +110,10 @@ async function ensureSeasonMatchups(
     .select('week_number').eq('season_year', season.season_year).limit(1)
   if (calendarError) throw calendarError
   if (!calendar?.length) return ['calendar-pending']
-  await generateMatchups(leagueId, leagueSeasonId, playoffStartWeek - 1)
+  await generateMatchups(leagueId, leagueSeasonId)
   return ['matchups-generated']
 }
 
-// Rookie-draft backstop: at the shared opening-night cutoff, or the first
-// eligible week when opening night is unpublished, complete every pick
-// best-available (auto_pick uses nba_draft_number order). Completing the last
-// pick activates the league, so the season-boundary loop resumes normally.
-// Rookies land on rosters, never silently on waivers.
 const MAX_BACKSTOP_PICKS = 200
 
 async function runRookieDraftBackstop(
@@ -194,6 +227,25 @@ async function runRookieDraftBackstop(
   return actions
 }
 
+async function activateCompletedRookieDraft(leagueId: string, leagueSeasonId: string): Promise<string[]> {
+  const { data: drafts, error } = await supabase.from('drafts')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('league_season_id', leagueSeasonId)
+    .eq('draft_type', 'snake')
+    .eq('is_mock', false)
+    .in('status', ['completed', 'cancelled'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (error) throw error
+  if (!drafts?.length) return []
+  const { data: activated, error: activationError } = await supabase.rpc('activate_rookie_draft_league_atomic', {
+    p_draft_id: drafts[0].id,
+  })
+  if (activationError) throw activationError
+  return activated ? ['rookie-league-activated'] : []
+}
+
 async function setLeagueStatusPlayoffs(leagueId: string): Promise<void> {
   const { error } = await supabase
     .from('leagues')
@@ -214,7 +266,7 @@ async function processLeagueBoundary(
   const actions: string[] = []
   const matchups = await fetchAllPages<BoundaryMatchup>((from, to) => supabase
     .from('matchups')
-    .select('id, matchup_type, playoff_round, week_number, is_finalized, finalized_at, winner_member_id')
+    .select('id, matchup_type, playoff_round, week_number, end_week_number, is_finalized, finalized_at, winner_member_id')
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
     .eq('is_voided', false)
@@ -241,7 +293,7 @@ async function processLeagueBoundary(
         return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
       }
     }
-    if (playoffStartWeek > 1 && (!allFinalized(regular) || !graceElapsed(regular, referenceDate))) return actions
+    if (playoffStartWeek > 1 && (!allFinalized(regular) || !(await seasonCorrectionWindow(leagueSeasonId, playoffStartWeek - 1, referenceDate)).elapsed)) return actions
     const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'generate', referenceDate, regular)
     if (result.applied === true) actions.push('bracket-generated')
     return actions
@@ -258,10 +310,16 @@ async function processLeagueBoundary(
     const latestRound = matchups.reduce((latest, matchup) => Math.max(latest, matchup.playoff_round ?? 0), 0)
     const currentRound = latestRound > 0 ? matchups.filter((matchup) => matchup.playoff_round === latestRound)
       : semifinals.length > 0 ? semifinals : quarterfinals
-    const roundDecided = currentRound.every((m) => m.is_finalized && m.winner_member_id != null)
-    if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
-      return actions
+    if (currentRound.length === 0) return actions
+    const window = await seasonCorrectionWindow(leagueSeasonId,
+      Math.max(...currentRound.map(matchup => matchup.end_week_number ?? matchup.week_number)), referenceDate,
+      Math.min(...currentRound.map(matchup => matchup.week_number)))
+    if (window.ended && !allFinalized(currentRound) && allowUnavailableRefresh) {
+      await syncScores(leagueId, referenceDate, { recoverStats: false })
+      return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
     }
+    const roundDecided = currentRound.every((m) => m.is_finalized && m.winner_member_id != null)
+    if (!roundDecided || !window.elapsed) return actions
     const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'advance', referenceDate, currentRound)
     if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : latestRound > 0 ? 'round-created' : 'semifinals-created')
     return actions
@@ -298,13 +356,13 @@ async function applyBoundaryWithScoreRefresh(
   referenceDate: Date,
   prerequisites: BoundaryMatchup[],
 ) {
-  const result = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  const result = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate, prerequisites)
   if (result.applied === true) return result
   const weeks = [...new Set(prerequisites.map((matchup) => matchup.week_number))]
   const stale = await staleBoundaryWeeks(seasonId, weeks)
   if (stale.length === 0) return result
   await syncScores(leagueId, referenceDate, { recoverStats: false })
-  const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)
+  const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate, prerequisites)
   if (refreshed.applied !== true && (await staleBoundaryWeeks(seasonId, weeks)).length > 0) {
     throw new Error('Score certificates remain stale after boundary refresh. Retry scoring.')
   }
@@ -316,7 +374,14 @@ async function applyBoundaryAfterGrace(
   seasonId: string,
   action: 'generate' | 'advance' | 'rollover',
   referenceDate: Date,
+  matchups: BoundaryMatchup[],
 ) {
+  const { data: staleWeeks, error: staleError } = await supabase.rpc('get_stale_score_weeks', {
+    p_league_season_id: seasonId,
+    p_through_week: Math.max(0, ...matchups.map(matchup => matchup.week_number)),
+  })
+  if (staleError) throw staleError
+  if (staleWeeks?.length) await syncScores(leagueId, referenceDate, { recoverStats: false })
   const { data, error } = await supabase.rpc('apply_season_boundary_after_grace', {
     p_league_id: leagueId,
     p_league_season_id: seasonId,
@@ -326,6 +391,9 @@ async function applyBoundaryAfterGrace(
   if (error) throw error
   if (data == null || typeof data !== 'object' || Array.isArray(data)) {
     throw new Error('Automatic season boundary returned no result.')
+  }
+  if (data.applied === false && data.reason === 'stale_score_inputs') {
+    throw new Error('Score inputs are stale. Retry the season boundary after scoring completes.')
   }
   return data
 }
@@ -374,7 +442,10 @@ export async function runSeasonBoundary(
     const playoffStartWeek = league?.playoff_start_week ?? DEFAULT_PLAYOFF_START_WEEK
     return [async () => {
       try {
-        const actions = status === 'offseason'
+        const actions = status === 'drafting'
+          ? [...await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false),
+            ...await activateCompletedRookieDraft(season.league_id, season.id)]
+          : status === 'offseason'
           // A commissioner who advanced the season manually leaves the new
           // season without matchups (advanceSeason never generated them).
           // Backfill only when none exist; everything else is left untouched.
@@ -382,8 +453,6 @@ export async function runSeasonBoundary(
             ...await ensureSeasonMatchups(season.league_id, season.id, playoffStartWeek),
             ...await runRookieDraftBackstop(season.league_id, season.id, referenceDate),
           ]
-          : status === 'drafting'
-          ? await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)
           : await processLeagueBoundary(
             season.league_id,
             season.id,
@@ -393,7 +462,7 @@ export async function runSeasonBoundary(
           )
         reports.push({ leagueId: season.league_id, actions })
       } catch (error) {
-        const message = (error as { message?: string } | null)?.message ?? JSON.stringify(error)
+        const message = boundaryErrorMessage(error)
         console.error(`[season-boundary] league ${season.league_id} failed: ${message}`)
         reports.push({ leagueId: season.league_id, actions: [], error: message })
       }

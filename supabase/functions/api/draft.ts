@@ -1,3 +1,4 @@
+import { queueRookiePickNotification } from '../_shared/notificationDraft.ts'
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import {
@@ -397,7 +398,12 @@ async function commissionerSnakePick(
   })
   if (rpcError) throwDb(rpcError)
 
-  return snakePickResponse(memberId, playerId, rpcData)
+  const response = await snakePickResponse(memberId, playerId, rpcData)
+  const result = parseSnakePickResult(rpcData)
+  if (!result.is_mock) {
+    await queueRookiePickNotification(draftId, memberId, playerId, result.pick.id).catch(console.error)
+  }
+  return response
 }
 
 async function snakePickResponse(
@@ -442,7 +448,6 @@ async function snakePickResponse(
   ])
   if (activeError) throwDb(activeError)
   if (taxiError) throwDb(taxiError)
-
 
   return {
     pick: result.pick,
@@ -524,7 +529,7 @@ async function requireDraftLeagueMember(userId: string, draftId: string): Promis
 }
 
 async function activateRookieDraftLeague(draftId: string, userId: string): Promise<{ activated: boolean }> {
-  await requireCommissionerForDraft(userId, draftId)
+  await requireDraftLeagueMember(userId, draftId)
   const { data, error } = await supabase.rpc('activate_rookie_draft_league_for_user_atomic', {
     p_draft_id: draftId,
     p_user_id: userId,

@@ -31,6 +31,7 @@ describe('Sleeper lazy roster-limit contracts', () => {
             'private/validate_waiver_claim_drop_player.sql',
             'public/drop_player_atomic__uuid_uuid_uuid.sql',
             'public/toggle_ir_atomic.sql',
+            'private/toggle_ir_for_activation.sql',
             'public/toggle_taxi_atomic.sql',
         ].map((file) => read(`supabase/sql/functions/by-name/${file}`)).join('\n')
         const computePoints = read('supabase/sql/functions/by-name/public/compute_fantasy_points.sql')
@@ -40,7 +41,8 @@ describe('Sleeper lazy roster-limit contracts', () => {
         expect(completion).not.toMatch(/trade_drop_reservations|overfill a roster|roster_size/)
         expect(lineupMoves).toContain('private.assert_roster_within_active_limit')
         expect(autoLineup).toContain('private.assert_roster_within_active_limit')
-        expect(capGuard).toContain('v_active_count > v_roster_size')
+        expect(capGuard).toContain('IF EXISTS (SELECT 1 FROM private.roster_problems')
+        expect(capGuard).toContain("WHERE kind='active_limit'")
         expect(capGuard).toContain('over the active player limit')
         expect(computePoints).not.toMatch(/roster_size|assert_roster_within_active_limit/)
         expect(finalizeWeek).not.toMatch(/roster_size|assert_roster_within_active_limit/)

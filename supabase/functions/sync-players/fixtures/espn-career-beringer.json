@@ -1,0 +1,332 @@
+{
+  "filters": [
+    {
+      "name": "league",
+      "value": "nba"
+    },
+    {
+      "name": "seasontype",
+      "value": "2"
+    }
+  ],
+  "categories": [
+    {
+      "name": "averages",
+      "labels": [
+        "GP",
+        "GS",
+        "MIN",
+        "FG",
+        "FG%",
+        "3PT",
+        "3P%",
+        "FT",
+        "FT%",
+        "OR",
+        "DR",
+        "REB",
+        "AST",
+        "BLK",
+        "STL",
+        "PF",
+        "TO",
+        "PTS"
+      ],
+      "names": [
+        "gamesPlayed",
+        "gamesStarted",
+        "avgMinutes",
+        "avgFieldGoalsMade-avgFieldGoalsAttempted",
+        "fieldGoalPct",
+        "avgThreePointFieldGoalsMade-avgThreePointFieldGoalsAttempted",
+        "threePointFieldGoalPct",
+        "avgFreeThrowsMade-avgFreeThrowsAttempted",
+        "freeThrowPct",
+        "avgOffensiveRebounds",
+        "avgDefensiveRebounds",
+        "avgRebounds",
+        "avgAssists",
+        "avgBlocks",
+        "avgSteals",
+        "avgFouls",
+        "avgTurnovers",
+        "avgPoints"
+      ],
+      "statistics": [
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2026,
+            "displayName": "2025-26"
+          },
+          "stats": [
+            "40",
+            "3",
+            "7.9",
+            "1.6-2.5",
+            "66.3",
+            "0.0-0.0",
+            "0.0",
+            "0.7-0.9",
+            "70.3",
+            "1.1",
+            "1.2",
+            "2.3",
+            "0.3",
+            "0.7",
+            "0.2",
+            "1.2",
+            "0.3",
+            "3.9"
+          ],
+          "position": "F"
+        },
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2027,
+            "displayName": "2026-27"
+          },
+          "stats": [
+            "2",
+            "0",
+            "14.0",
+            "2.0-5.0",
+            "40.0",
+            "0.0-0.0",
+            "0.0",
+            "0.5-1.0",
+            "50.0",
+            "5.5",
+            "2.0",
+            "7.5",
+            "0.5",
+            "0.0",
+            "0.0",
+            "1.0",
+            "1.5",
+            "4.5"
+          ],
+          "position": "F"
+        }
+      ],
+      "totals": [
+        "42",
+        "3",
+        "8.1",
+        "1.6-2.6",
+        "63.9",
+        "0.0-0.0",
+        "0.0",
+        "0.6-0.9",
+        "69.2",
+        "1.3",
+        "1.2",
+        "2.5",
+        "0.3",
+        "0.6",
+        "0.2",
+        "1.2",
+        "0.3",
+        "3.9"
+      ]
+    },
+    {
+      "name": "totals",
+      "labels": [
+        "FG",
+        "FG%",
+        "3PT",
+        "3P%",
+        "FT",
+        "FT%",
+        "OR",
+        "DR",
+        "REB",
+        "AST",
+        "BLK",
+        "STL",
+        "PF",
+        "TO",
+        "PTS"
+      ],
+      "names": [
+        "fieldGoalsMade-fieldGoalsAttempted",
+        "fieldGoalPct",
+        "threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+        "threePointFieldGoalPct",
+        "freeThrowsMade-freeThrowsAttempted",
+        "freeThrowPct",
+        "offensiveRebounds",
+        "defensiveRebounds",
+        "totalRebounds",
+        "assists",
+        "blocks",
+        "steals",
+        "fouls",
+        "turnovers",
+        "points"
+      ],
+      "statistics": [
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2026,
+            "displayName": "2025-26"
+          },
+          "stats": [
+            "65-98",
+            "66.3",
+            "0-0",
+            "0.0",
+            "26-37",
+            "70.3",
+            "45",
+            "47",
+            "92",
+            "12",
+            "26",
+            "7",
+            "47",
+            "11",
+            "156"
+          ],
+          "position": "F"
+        },
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2027,
+            "displayName": "2026-27"
+          },
+          "stats": [
+            "4-10",
+            "40.0",
+            "0-0",
+            "0.0",
+            "1-2",
+            "50.0",
+            "11",
+            "4",
+            "15",
+            "1",
+            "0",
+            "0",
+            "2",
+            "3",
+            "9"
+          ],
+          "position": "F"
+        }
+      ],
+      "totals": [
+        "69-108",
+        "63.9",
+        "0-0",
+        "0.0",
+        "27-39",
+        "69.2",
+        "56",
+        "51",
+        "107",
+        "13",
+        "26",
+        "7",
+        "49",
+        "14",
+        "165"
+      ]
+    },
+    {
+      "name": "miscellaneous",
+      "labels": [
+        "DD2",
+        "TD3",
+        "DQ",
+        "EJECT",
+        "TECH",
+        "FLAG",
+        "AST/TO",
+        "STL/TO",
+        "SC-EFF",
+        "SH-EFF"
+      ],
+      "names": [
+        "doubleDouble",
+        "tripleDouble",
+        "disqualifications",
+        "ejections",
+        "technicalFouls",
+        "flagrantFouls",
+        "assistTurnoverRatio",
+        "stealTurnoverRatio",
+        "scoringEfficiency",
+        "shootingEfficiency"
+      ],
+      "statistics": [
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2026,
+            "displayName": "2025-26"
+          },
+          "stats": [
+            "1",
+            "0",
+            "0",
+            "0",
+            "0",
+            "0",
+            "1.1",
+            "0.6",
+            "1.592",
+            "0.66"
+          ],
+          "position": "F"
+        },
+        {
+          "teamId": "16",
+          "teamSlug": "minnesota-timberwolves",
+          "season": {
+            "year": 2027,
+            "displayName": "2026-27"
+          },
+          "stats": [
+            "0",
+            "0",
+            "0",
+            "0",
+            "0",
+            "0",
+            "0.3",
+            "0.0",
+            "0.900",
+            "0.40"
+          ],
+          "position": "F"
+        }
+      ],
+      "totals": [
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0.9",
+        "0.5",
+        "1.528",
+        "0.64"
+      ]
+    }
+  ],
+  "_source": {
+    "origin": "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/5279133/stats?seasontype=2",
+    "fields": "Only fields used by the parser are retained."
+  }
+}

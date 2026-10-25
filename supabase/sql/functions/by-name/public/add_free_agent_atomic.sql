@@ -5,7 +5,9 @@
 CREATE OR REPLACE FUNCTION public.add_free_agent_atomic(
   p_member_id uuid,
   p_league_id uuid,
-  p_player_id uuid
+  p_player_id uuid,
+  p_to_ir boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -17,8 +19,12 @@ DECLARE
   v_season_id uuid;
   v_active_count int;
   v_existing_roster_id uuid;
-  v_ineligible text;
+  v_ir_count int;
+  v_injury text;
 BEGIN
+  IF p_to_ir AND p_to_taxi THEN
+    RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
+  END IF;
   PERFORM 1
     FROM league_members
    WHERE id = p_member_id
@@ -45,11 +51,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_player_id::text));
 
-  v_ineligible := private.ineligible_ir_player_names(p_league_id, v_season_id, p_member_id);
-  IF v_ineligible IS NOT NULL THEN
-    RAISE EXCEPTION 'You have ineligible players on IR (%). Activate or drop them before adding players.', v_ineligible
-      USING ERRCODE = 'PA005';
-  END IF;
+  PERFORM private.assert_legal_roster(p_league_id,v_season_id,p_member_id);
 
   SELECT id
     INTO v_existing_roster_id
@@ -91,7 +93,27 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.assert_free_agent_waiver_cleared(p_league_id, v_season_id, p_player_id);
+
   PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
+
+  IF p_to_ir THEN
+    IF v_league.status = 'offseason'::league_status THEN
+      RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
+        USING ERRCODE = 'P0001';
+    END IF;
+    SELECT injury_status INTO v_injury FROM players WHERE id = p_player_id FOR SHARE;
+    IF NOT private.is_ir_designation(v_injury) THEN
+      RAISE EXCEPTION 'Only players with Out or IR designations can be placed on IR.'
+        USING ERRCODE = 'PA006';
+    END IF;
+    SELECT count(*) INTO v_ir_count FROM roster_players
+     WHERE member_id = p_member_id AND league_season_id = v_season_id AND is_on_ir;
+    IF v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN
+      RAISE EXCEPTION 'Your IR slots are full (% slots).', COALESCE(v_league.ir_slots, 2)
+        USING ERRCODE = 'PA007';
+    END IF;
+  END IF;
 
   SELECT count(*)
     INTO v_active_count
@@ -102,9 +124,13 @@ BEGIN
      AND is_on_ir = false
      AND is_on_taxi = false;
 
-  IF v_active_count >= COALESCE(v_league.roster_size, 20) THEN
+  IF NOT COALESCE(p_to_ir, false) AND NOT COALESCE(p_to_taxi, false) AND v_active_count >= COALESCE(v_league.roster_size, 20) THEN
     RAISE EXCEPTION 'Your active roster is full (% players).', COALESCE(v_league.roster_size, 20)
       USING ERRCODE = 'PA003';
+  END IF;
+
+  IF p_to_taxi THEN
+    PERFORM private.authorize_taxi_acquisition(p_league_id,v_season_id,p_member_id,p_player_id,'free_agent',p_player_id);
   END IF;
 
   INSERT INTO roster_players (
@@ -112,14 +138,18 @@ BEGIN
     league_id,
     league_season_id,
     player_id,
-    acquired_via
+    acquired_via,
+    is_on_ir,
+    is_on_taxi
   )
   VALUES (
     p_member_id,
     p_league_id,
     v_season_id,
     p_player_id,
-    'free_agent'
+    'free_agent',
+    COALESCE(p_to_ir, false),
+    COALESCE(p_to_taxi, false)
   );
 
   INSERT INTO roster_transactions (
@@ -127,14 +157,16 @@ BEGIN
     league_season_id,
     member_id,
     player_id,
-    transaction_type
+    transaction_type,
+    acquired_to_taxi
   )
   VALUES (
     p_league_id,
     v_season_id,
     p_member_id,
     p_player_id,
-    'fa_add'
+    'fa_add',
+    COALESCE(p_to_taxi,false)
   );
 
   PERFORM private.consume_weekly_add(p_league_id, v_season_id, p_member_id);
@@ -144,7 +176,7 @@ BEGIN
     v_season_id,
     'free_agent_added',
     'Free agent added',
-    NULL,
+    CASE WHEN p_to_taxi THEN 'Player added to taxi.' ELSE NULL END,
     p_member_id,
     p_member_id,
     p_player_id,

@@ -37,16 +37,19 @@ describe('offline roster mutation admission', () => {
         expect(rpc).toHaveBeenCalledWith('drop_player_atomic', { p_roster_player_id: 'roster' })
     })
 
-    it('keeps the exact claim payload and failure for explicit retry', async () => {
+    it.each([undefined, false, true])('keeps the exact claim payload and failure for explicit retry (IR=%s)', async toIr => {
         vi.stubGlobal('navigator', { onLine: true })
         apiPost.mockRejectedValueOnce(new Error('server unavailable')).mockResolvedValueOnce(undefined)
-        const submit = () => submitWaiverClaim('member', 'league', 'player', 'drop', { bidAmount: 3, claimOrder: 2 })
+        const submit = () => submitWaiverClaim('member', 'league', 'player', 'drop', { bidAmount: 3, claimOrder: 2, toIr })
         await expect(submit()).rejects.toThrow('server unavailable')
         expect(apiPost).toHaveBeenCalledOnce()
         await submit()
-        expect(apiPost).toHaveBeenLastCalledWith('/waivers/claims', {
-            memberId: 'member', leagueId: 'league', playerId: 'player', dropPlayerId: 'drop', bidAmount: 3, claimOrder: 2,
-        })
+        expect(apiPost).toHaveBeenCalledTimes(2)
+        const payload = {
+            memberId: 'member', leagueId: 'league', playerId: 'player', dropPlayerId: 'drop', bidAmount: 3, claimOrder: 2, toIr: toIr ?? false, toTaxi: false,
+        }
+        expect(apiPost).toHaveBeenNthCalledWith(1, '/waivers/claims', payload)
+        expect(apiPost).toHaveBeenNthCalledWith(2, '/waivers/claims', payload)
     })
 
     it.each([undefined, {}])('preserves platforms without a browser offline signal (%j)', async (navigatorValue) => {

@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import {
     View,
     Text,
@@ -21,9 +22,10 @@ import { countLabel, playerHeadshotUrl } from '@/lib/format'
 import { Avatar } from '@/components/Avatar'
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
+import { DraftNotFoundState } from '@/components/league/draft-room/DraftNotFoundState'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
-import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
+import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
 import { PosTag } from '@/components/PosTag'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -79,18 +81,18 @@ export default function RookieDraftRoomScreen() {
             canAct,
             draftId,
             refresh,
-            onStopped: () => navigateBackToDraftList(state?.draft.isMock),
+            onStopped: () => navigateBackToDraftList(),
             onReset: () => showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.'),
             confirmCopy: {
-                stop: 'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+                stop: 'This ends the rookie draft now. Players already drafted stay on their rosters. The season starts after every roster fits or at the opening-night deadline. This cannot be undone.',
                 reset: 'This clears every pick, returns all pick assets, and restarts the draft from the first selection. This cannot be undone.',
                 pause: 'This freezes the pick clock until the commissioner resumes the draft.',
                 resume: 'This restarts the draft clock and allows picks again.',
             },
         })
 
-    function navigateBackToDraftList(isMock = false) {
-        router.replace(isMock ? '/league?tab=mockRooms' : '/league?tab=draftBoard')
+    function navigateBackToDraftList() {
+        router.dismissTo('/league?tab=draft')
     }
 
     if (!state) {
@@ -99,11 +101,11 @@ export default function RookieDraftRoomScreen() {
                 <Stack.Screen options={{ title: 'Rookie Draft', presentation: 'modal', headerShown: false }} />
                 <ScreenFrame style={styles.container}>
                     <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
-                    <View style={styles.center}>
-                        {loading ? <LoadingState /> : loadError ? (
+                    {loading || loadError ? <View style={styles.center}>
+                        {loading ? <LoadingState /> : (
                             <ErrorBanner message="Could not load this draft. Tap to retry." onRetry={() => { void refresh() }} />
-                        ) : <Text style={styles.emptyText}>Draft not found.</Text>}
-                    </View>
+                        )}
+                    </View> : <DraftNotFoundState onBack={navigateBackToDraftList} />}
                 </ScreenFrame>
             </>
         )
@@ -111,7 +113,7 @@ export default function RookieDraftRoomScreen() {
 
     if (state.draft.leagueId !== currentLeague?.id) {
         return <ScreenFrame style={styles.container}>
-            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList(state.draft.isMock)} />
+            <DraftScreenHeader title="Rookie Draft" onBack={() => navigateBackToDraftList()} />
             <View style={styles.center}>
                 <Text style={styles.emptyText}>This draft belongs to another league. Select its league to continue.</Text>
             </View>
@@ -141,7 +143,7 @@ export default function RookieDraftRoomScreen() {
             <Stack.Screen options={{ title: draftTitle, presentation: 'modal', headerShown: false }} />
 
             <Modal visible={!!rosterOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList(draft.isMock) }}>
+                onRequestClose={() => { if (!resolvingOverflow) navigateBackToDraftList() }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Roster Full</Text>
@@ -152,7 +154,7 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
                             accessibilityLabel="Back to League" disabled={resolvingOverflow}
-                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            onPress={() => navigateBackToDraftList()}>
                             <Text style={styles.overflowExitText}>Back to League</Text>
                         </MotionPressable>
                         {rosterForDrop.length > 0 && (
@@ -165,7 +167,6 @@ export default function RookieDraftRoomScreen() {
                                             style={styles.overflowDropRow}
                                             onPress={() => resolveByDrop(rp.id)}
                                             disabled={resolvingOverflow || !actionsReady}
-                                            pressedScale={0.975}
                                         >
                                             <Avatar
                                                 name={rp.players?.display_name ?? 'Player'}
@@ -192,7 +193,7 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <Modal visible={!!trimOverflow} transparent animationType="slide"
-                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList(draft.isMock) }}>
+                onRequestClose={() => { if (!trimmingId) navigateBackToDraftList() }}>
                 <View style={styles.overflowOverlay}>
                     <View style={styles.overflowCard}>
                         <Text style={styles.overflowTitle}>Trim Your Roster</Text>
@@ -203,7 +204,7 @@ export default function RookieDraftRoomScreen() {
                         </Text>
                         <MotionPressable style={styles.overflowBtn} accessibilityRole="button"
                             accessibilityLabel="Back to League" disabled={!!trimmingId}
-                            onPress={() => navigateBackToDraftList(draft.isMock)}>
+                            onPress={() => navigateBackToDraftList()}>
                             <Text style={styles.overflowExitText}>Back to League</Text>
                         </MotionPressable>
                         <Text style={styles.overflowDropLabel}>Select a player to drop:</Text>
@@ -214,7 +215,6 @@ export default function RookieDraftRoomScreen() {
                                     style={styles.overflowDropRow}
                                     onPress={() => handleTrimDrop(rp.id)}
                                     disabled={!!trimmingId || !actionsReady}
-                                    pressedScale={0.975}
                                 >
                                     <Avatar
                                         name={rp.players?.display_name ?? 'Player'}
@@ -239,7 +239,7 @@ export default function RookieDraftRoomScreen() {
             </Modal>
 
             <ScreenFrame style={styles.container} edges={['bottom']}>
-                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList(draft.isMock)}>
+                <DraftScreenHeader title={draftTitle} onBack={() => navigateBackToDraftList()}>
                     {isCommissioner && !isDone && isDesktop ? (
                         <DraftAdminBar
                             disabled={adminBusy || !actionsReady}
@@ -255,9 +255,18 @@ export default function RookieDraftRoomScreen() {
                     ) : null}
                 </DraftScreenHeader>
                 {loadError ? <ErrorBanner message="Draft updates are unavailable. Tap to retry." onRetry={() => { void refresh() }} /> : null}
-                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? <TaxiAcquisitionChoice
-                    value={draftToTaxi} onChange={setDraftToTaxi} disabled={picking || !actionsReady}
-                    label="Draft this pick directly into taxi" /> : null}
+                {!draft.isMock && !isDone && (isMyTurn || canCommissionerPick) ? (
+                    <SettingsRow
+                        label="Draft to taxi"
+                        detail="Players cannot return to your taxi after leaving it."
+                        role="switch"
+                        checked={draftToTaxi}
+                        disabled={picking || !actionsReady}
+                        accessibilityLabel="Draft this pick directly into taxi"
+                        onPress={() => setDraftToTaxi(!draftToTaxi)}
+                        accessory={<SettingsToggle on={draftToTaxi} />}
+                    />
+                ) : null}
                 <KeyboardAvoidingView
                     style={[styles.body, isDesktop && styles.bodyDesktop]}
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -349,7 +358,6 @@ export default function RookieDraftRoomScreen() {
                         <MotionPressable
                             style={[styles.tab, activeTab === 'prospects' && styles.tabActive]}
                             onPress={() => setActiveTab('prospects')}
-                            pressedScale={0.96}
                             accessibilityRole="button"
                             accessibilityLabel="Show prospects"
                         >
@@ -360,7 +368,6 @@ export default function RookieDraftRoomScreen() {
                         <MotionPressable
                             style={[styles.tab, activeTab === 'board' && styles.tabActive]}
                             onPress={() => setActiveTab('board')}
-                            pressedScale={0.96}
                             accessibilityRole="button"
                             accessibilityLabel="Show pick board"
                         >
@@ -411,7 +418,8 @@ export default function RookieDraftRoomScreen() {
                                 renderItem={({ item }) => (
                                     <ProspectRow
                                         player={item}
-                                        isDone={isDone || isPending || pickTimerExpired || (isPaused && !canCommissionerPick)}
+                                        canPick={!isDone && !isPending && !pickTimerExpired && (!isPaused || canCommissionerPick)
+                                            && (isMyTurn || canCommissionerPick)}
                                         picking={picking || !actionsReady}
                                         onPick={canCommissionerPick ? handleCommissionerPick : handlePick}
                                         actionLabel={canCommissionerPick ? 'Commish Pick' : 'Pick'}
@@ -441,13 +449,13 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 function ProspectRow({
     player,
-    isDone,
+    canPick,
     picking,
     onPick,
     actionLabel = 'Pick',
 }: {
     player: RookieProspect
-    isDone: boolean
+    canPick: boolean
     picking: boolean
     onPick: (player: RookieProspect) => void
     actionLabel?: string
@@ -455,11 +463,10 @@ function ProspectRow({
     return (
         <MotionPressable
             style={styles.resultRow}
-            onPress={isDone || picking ? undefined : () => onPick(player)}
-            disabled={isDone || picking}
-            pressedScale={0.985}
-            accessibilityRole="button"
-            accessibilityLabel={`${actionLabel} ${player.display_name}`}
+            onPress={!canPick || picking ? undefined : () => onPick(player)}
+            disabled={!canPick || picking}
+            accessibilityRole={canPick ? 'button' : 'text'}
+            accessibilityLabel={canPick ? `${actionLabel} ${player.display_name}` : player.display_name}
         >
             <Avatar
                 name={player.display_name}
@@ -471,6 +478,7 @@ function ProspectRow({
             <View style={styles.resultInfo}>
                 <View style={styles.resultNameRow}>
                     <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
+                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
                     {player.nba_draft_number != null && (
                         <PosTag position={player.position ?? '?'} />
                     )}
@@ -479,7 +487,7 @@ function ProspectRow({
                     {player.nba_draft_number != null ? `#${player.nba_draft_number} · ` : ''}{player.nba_team ?? 'FA'}
                 </Text>
             </View>
-            {!isDone && (
+            {canPick && (
                 <Text style={styles.pickBtn}>{actionLabel}</Text>
             )}
         </MotionPressable>
@@ -602,7 +610,7 @@ const styles = StyleSheet.create({
     },
     bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bannerTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textPrimary },
-    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted },
+    bannerClock: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.textMuted, width: table.statColWidth, textAlign: 'right', fontVariant: ['tabular-nums'] },
     bannerClockUrgent: { color: colors.dangerDark },
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
@@ -638,7 +646,7 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     searchContainerCompact: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         marginHorizontal: spacing.xs,
         marginTop: spacing.xxs,
         marginBottom: 0,

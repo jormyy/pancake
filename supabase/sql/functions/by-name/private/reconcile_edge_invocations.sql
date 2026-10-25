@@ -16,12 +16,19 @@ DECLARE
   v_run uuid;
 BEGIN
   FOR v_row IN
-    SELECT inv.*, resp.status_code AS response_status, resp.error_msg, resp.timed_out,
+    WITH batch AS MATERIALIZED (
+      SELECT inv.*
+        FROM public.edge_invocations AS inv
+       WHERE inv.reconciled_at IS NULL AND inv.queued_at < now() - interval '1 minute'
+       ORDER BY inv.queued_at LIMIT 500 FOR UPDATE OF inv SKIP LOCKED
+    )
+    SELECT batch.*, resp.status_code AS response_status, resp.error_msg, resp.timed_out,
            left(resp.content, 500) AS content
-      FROM public.edge_invocations AS inv
-      LEFT JOIN net._http_response AS resp ON resp.id = inv.request_id
-     WHERE inv.reconciled_at IS NULL AND inv.queued_at < now() - interval '1 minute'
-     ORDER BY inv.queued_at LIMIT 500 FOR UPDATE OF inv SKIP LOCKED
+      FROM batch
+      LEFT JOIN net._http_response AS resp
+        ON resp.id = batch.request_id
+       AND resp.created >= (SELECT min(queued_at) FROM batch) - interval '1 minute'
+     ORDER BY batch.queued_at
   LOOP
     v_error := CASE
       WHEN v_row.error_msg IS NOT NULL THEN v_row.error_msg
@@ -30,7 +37,9 @@ BEGIN
         THEN 'HTTP ' || v_row.response_status || ': ' || COALESCE(v_row.content, '')
       ELSE NULL END;
     UPDATE public.edge_invocations
-       SET status_code = v_row.response_status, error_message = v_error WHERE id = v_row.id;
+       SET status_code = v_row.response_status, error_message = v_error
+     WHERE id = v_row.id
+       AND (status_code, error_message) IS DISTINCT FROM (v_row.response_status, v_error);
 
     IF v_row.worker_started_at IS NOT NULL THEN
       IF v_row.worker_finished_at IS NULL THEN
@@ -39,6 +48,8 @@ BEGIN
           error = 'worker did not finish within 10 minutes' WHERE id = v_row.sync_run_id;
         UPDATE public.edge_invocations SET worker_status = 'failed' WHERE id = v_row.id;
       END IF;
+    ELSIF v_row.function_name='sync-player-injuries' AND v_row.response_status=404 THEN
+      NULL;
     ELSIF v_row.response_status BETWEEN 200 AND 299 AND v_error IS NULL THEN
       NULL;
     ELSE
@@ -74,6 +85,7 @@ BEGIN
       IF EXISTS (
         SELECT 1 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
          AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
+         AND NOT (function_name='sync-player-injuries' AND status_code IS NOT DISTINCT FROM 404 AND worker_status IS NULL)
          AND (worker_status = 'failed' OR (worker_status IS NULL
            AND (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299)))
       ) THEN

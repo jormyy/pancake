@@ -1,4 +1,5 @@
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { memberClaimsRevision } from '@/lib/claim-updates'
 import { todayET } from '@/lib/shared/dates'
 import { leagueSnapshotRevision, type SnapshotDomain } from '@/lib/league-changes'
 
@@ -6,7 +7,7 @@ type Snapshot<T> = { data: T; scope: string; revision: string | null; savedAt: n
 
 export function tabSnapshotRevision(leagueId: string, domain: SnapshotDomain = 'roster', memberId?: string): string | null {
     const revision = leagueSnapshotRevision(leagueId, domain, memberId)
-    return revision ? `${todayET()}:${revision}` : null
+    return revision ? `${todayET()}:${revision}${memberId && (domain === 'roster' || domain === 'support') ? `:claims:${memberClaimsRevision(memberId)}` : ''}` : null
 }
 
 export function tabSnapshotScope(userId: string | undefined, memberId: string | undefined, leagueId: string | undefined, settings: unknown): string {

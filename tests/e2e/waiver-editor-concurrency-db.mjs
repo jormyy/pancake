@@ -247,7 +247,9 @@ async function race(kind, outcome) {
         assert.deepEqual(after.wire, before.wire); assert.deepEqual(after.transactions, before.transactions)
         assert.equal(resultB.ok, true)
       }
-      if (!resultB.ok && kind === 'trade') assert.equal(resultB.sqlstate, '40P01')
+      if (!resultB.ok && kind === 'trade') {
+        assert.equal(resultB.sqlstate, '40P01')
+      }
       if (!resultB.ok && kind === 'drop') assert(['40P01', 'P0001'].includes(resultB.sqlstate))
       // Retry only the failed branch. Never claim rollback of the successful peer.
       if (!resultA.ok) {

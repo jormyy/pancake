@@ -138,42 +138,6 @@ const targets = [
     "kind": "wake"
   },
   {
-    "id": "N27",
-    "file": "supabase/functions/_shared/notificationDelivery.ts",
-    "symbol": "sendBatch",
-    "original": "if (ticketRecorded) await dependencies.persistExpoTicket!(message, ticket.id, message.token)",
-    "mutated": "if (ticketRecorded) await Promise.resolve()",
-    "operator": "remove immediate ticket persistence",
-    "kind": "edge"
-  },
-  {
-    "id": "N28",
-    "file": "supabase/functions/process-trades/outbox.ts",
-    "symbol": "deliverTradeNotificationOutbox",
-    "original": "if (!result.ticketRecorded) await recordTicket(row, result.ticketId, result.pushToken)",
-    "mutated": "await recordTicket(row, result.ticketId, result.pushToken)",
-    "operator": "record already persisted ticket again",
-    "kind": "edge"
-  },
-  {
-    "id": "N29",
-    "file": "supabase/functions/process-trades/outbox.ts",
-    "symbol": "deliverTradeNotificationOutbox",
-    "original": "webDelivered += 1",
-    "mutated": "discarded += 1",
-    "operator": "count web success as discard",
-    "kind": "edge"
-  },
-  {
-    "id": "N30",
-    "file": "supabase/functions/process-trades/outbox.ts",
-    "symbol": "drainTradeNotificationOutbox",
-    "original": "if (result.webDelivered) totals.webDelivered = (totals.webDelivered ?? 0) + result.webDelivered",
-    "mutated": "",
-    "operator": "drop web delivery totals from drain",
-    "kind": "edge"
-  },
-  {
     "id": "N31",
     "file": "supabase/functions/_shared/notificationDelivery.ts",
     "symbol": "createNotifyMembers",

@@ -1,9 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { todayET } from '@/lib/shared/dates'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
-import { calculateWeekNumberFromDate, resolveSeasonWeekNumber, type SeasonWeekRange } from '@pancake/core'
-
-export { calculateWeekNumberFromDate }
+import { resolveSeasonWeekNumber, type SeasonWeekRange } from '@pancake/core'
 
 // Seeded week ranges are static for a season, and the current week only
 // changes when the ET day changes — memoize the season's weeks per

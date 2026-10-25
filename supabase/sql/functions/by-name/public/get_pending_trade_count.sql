@@ -19,6 +19,8 @@ AS $$
      AND participant.member_id = p_member_id
      AND participant.accepted_at IS NULL
    WHERE trade.league_id = p_league_id
+     AND EXISTS (SELECT 1 FROM public.league_seasons AS season
+       WHERE season.id = trade.league_season_id AND season.is_current)
      AND trade.status = 'pending'::public.trade_status
      AND EXISTS (
        SELECT 1

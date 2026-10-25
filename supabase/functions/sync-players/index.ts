@@ -41,14 +41,16 @@ serveInternal('sync-players', async (req) => {
         releaseSkipped: players.releaseSkipped,
         releaseHeld: players.releaseHeld,
         ambiguousSkipped: players.ambiguousSkipped,
+        injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
         careerGamesUpdated: career.updated,
+        careerUnverified: career.unverified,
         newsUpserted: news.upserted,
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted,
+      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted + career.updated,
       failure,
     }
   }, req)
@@ -56,14 +58,14 @@ serveInternal('sync-players', async (req) => {
 })
 
 type PlayerImportTotals = {
-  updated: number; inserted: number; ambiguousSkipped: number; failures: string[]
+  updated: number; inserted: number; ambiguousSkipped: number; injuryWarnings: number; failures: string[]
   listing: { records: ListedPlayer[]; gaps: string[] } | null
 }
 type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing'> & { released: number; releaseSkipped: string[]; releaseHeld: HeldReleases }
 
 async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
   console.log('[sync-players] Fetching from ESPN...')
-  const { records, gaps } = await fetchEspnPlayerListing()
+  const { records, gaps, injuryWarnings } = await fetchEspnPlayerListing()
 
   let updated = 0
   let inserted = 0
@@ -74,7 +76,7 @@ async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
       const result = await importPlayerChunk('espn', records.slice(offset, offset + CHUNK).map((record) => ({
         provider_id: record.espn_id, first_name: record.first_name, last_name: record.last_name,
         metadata: { nba_team: record.nba_team, position: record.position, eligible_positions: record.eligible_positions,
-          status: record.status, injury_status: record.injury_status, years_exp: record.years_exp },
+          status: record.status, ...(Object.hasOwn(record, 'injury_status') ? { injury_status: record.injury_status } : {}), years_exp: record.years_exp },
       })), offset)
       updated += result.updated
       inserted += result.inserted
@@ -83,7 +85,7 @@ async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures, listing: { records, gaps } }
+  return { updated, inserted, ambiguousSkipped, injuryWarnings, failures, listing: { records, gaps } }
 }
 
 async function releaseEspnOmissions(imported: PlayerImportTotals, indexFailures: string[]): Promise<PlayerSyncTotals> {
@@ -135,7 +137,7 @@ async function syncPlayers(): Promise<PlayerImportTotals> {
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures, listing: null }
+  return { updated, inserted, ambiguousSkipped, injuryWarnings: 0, failures, listing: null }
 }
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null

@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+import { getMockDraftRoomStatus } from '@/lib/mockDraftRooms'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet, TextInput } from 'react-native'
 import type {
@@ -5,7 +7,7 @@ import type {
     MockDraftRoomKind,
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
@@ -20,7 +22,7 @@ import {
 } from '@/components/league/DraftChips'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 import { useWebViewport } from '@/hooks/use-web-viewport'
-import { usePageMetrics } from '@/components/ui'
+import { Button, usePageMetrics } from '@/components/ui'
 
 const ROOM_STATUS_LABELS: Record<MockDraftRoomStatus, string> = {
     active: 'Active',
@@ -48,14 +50,13 @@ function roomSectionAccessibilityLabel(status: MockDraftRoomStatus, count: numbe
 }
 
 function roomCardAccessibilityLabel(room: MockDraftRoom) {
-    const participants = room.participants.map((participant) => participant.teamName).join(', ') || 'no teams joined'
     const startBlockedCopy = roomStartBlockedCopy(room)
     const parts = [
         room.roomName,
         `${ROOM_STATUS_LABELS[room.roomStatus]} ${roomTypeLabel(room.draftType)} mock room`,
         `starts ${formatRoomTime(room.scheduledAt)}`,
         `creator ${room.creatorTeamName}`,
-        `joined ${participants}`,
+        `${room.participants.length} joined`,
     ]
     if (startBlockedCopy) parts.push(`${startBlockedCopy.toLowerCase()} to start`)
     return parts.join(', ')
@@ -249,8 +250,8 @@ function RoomCard({
                 )}
             </View>
             {compact ? null : (
-                <Text style={styles.roomMeta} numberOfLines={2}>
-                    Creator: {room.creatorTeamName} - Joined: {room.participants.map((p) => p.teamName).join(', ') || 'None'}
+                <Text style={styles.roomMeta} numberOfLines={1}>
+                    Creator: {room.creatorTeamName} · {room.participants.length} joined
                 </Text>
             )}
             {compact ? null : action}
@@ -261,8 +262,6 @@ function RoomCard({
 function MockRoomsEmptyState({ compact }: { compact: boolean }) {
     const title = 'No mock rooms yet.'
     const fullBody = 'Create an auction or rookie room for managers to join before starting a mock draft.'
-    const compactBody = 'Create one for managers to join before drafting.'
-    const body = compact ? compactBody : fullBody
     const accessibilityLabel = `${title} ${fullBody}`
 
     return (
@@ -275,12 +274,12 @@ function MockRoomsEmptyState({ compact }: { compact: boolean }) {
             accessibilityLiveRegion="polite"
         >
             <Text style={[styles.mockRoomsEmptyTitle, compact && styles.mockRoomsEmptyTitleCompact]} numberOfLines={1}>{title}</Text>
-            <Text style={[styles.mockRoomsEmptyText, compact && styles.mockRoomsEmptyTextCompact]} numberOfLines={compact ? 1 : undefined}>{body}</Text>
         </View>
     )
 }
 
 export function MockRoomsPanel({
+    embedded = false,
     roomName,
     onRoomNameChange,
     roomDraftType,
@@ -305,6 +304,7 @@ export function MockRoomsPanel({
     onStartRoom,
     onDeleteRoom,
 }: DraftControlProps & {
+    embedded?: boolean
     roomName: string
     onRoomNameChange: (value: string) => void
     roomDraftType: MockDraftRoomKind
@@ -324,11 +324,24 @@ export function MockRoomsPanel({
     const { viewportHeight } = useWebViewport()
     const { padX } = usePageMetrics()
     const compactComposer = viewportHeight < 500
+    const [creating, setCreating] = useState(false)
+    const [now, setNow] = useState(Date.now)
+    const renderTime = Math.max(now, Date.now())
+    const currentRooms = rooms.map((room) => ({ ...room, roomStatus: getMockDraftRoomStatus(room, renderTime) }))
+    useEffect(() => {
+        const currentTime = Date.now()
+        const nextStart = Math.min(...rooms
+            .filter((room) => getMockDraftRoomStatus(room, now) === 'scheduled')
+            .map((room) => Date.parse(room.scheduledAt!)))
+        if (!Number.isFinite(nextStart)) return
+        const timer = setTimeout(() => setNow(Date.now()), Math.min(Math.max(0, nextStart - currentTime), 2_147_483_647))
+        return () => clearTimeout(timer)
+    }, [now, rooms])
     const statuses: MockDraftRoomStatus[] = ['live', 'active', 'scheduled', 'completed']
 
     const createButton = (
         <Pressable
-            style={[panelStyles.draftButton, compactComposer && styles.mockCompactCreateButton]}
+            style={panelStyles.draftButton}
             onPress={onCreateRoom}
             disabled={roomSubmitting}
             role="button"
@@ -343,7 +356,7 @@ export function MockRoomsPanel({
     )
 
     const roomSections = () => statuses.map((status) => {
-        const statusRooms = rooms.filter((room) => room.roomStatus === status)
+        const statusRooms = currentRooms.filter((room) => room.roomStatus === status)
         if (statusRooms.length === 0) return null
         return (
             <View key={status} style={styles.roomSection}>
@@ -385,65 +398,51 @@ export function MockRoomsPanel({
 
     const panelContent = (
         <>
-            {rooms.length ? roomSections() : null}
-            <View style={[panelStyles.panelCard, compactComposer && panelStyles.panelCardCompact]}>
-                <Text style={panelStyles.panelTitle}>New mock room</Text>
-                {compactComposer ? (
-                    <View style={styles.mockCompactCreateRow}>
-                        <View style={styles.mockCompactTypeWrap}>
-                            <DraftChips
-                                options={MOCK_ROOM_TYPE_CHIPS}
-                                selectedValue={roomDraftType}
-                                onSelect={onRoomDraftTypeChange}
-                                groupLabel="Mock room type"
-                                accessibilityLabelForOption={mockRoomTypeChipLabel}
-                                compact
-                            />
-                        </View>
-                        {createButton}
-                    </View>
-                ) : (
-                    <>
-                        <TextInput
-                            style={styles.textInput}
-                            value={roomName}
-                            onChangeText={onRoomNameChange}
-                            placeholder="Room name"
-                            placeholderTextColor={colors.inputPlaceholder}
-                            accessibilityLabel="Mock room name"
-                        />
-                        <Text style={panelStyles.nominationModeLabel}>Room type</Text>
-                        <DraftChips
-                            options={MOCK_ROOM_TYPE_CHIPS}
-                            selectedValue={roomDraftType}
-                            onSelect={onRoomDraftTypeChange}
-                            groupLabel="Mock room type"
-                            accessibilityLabelForOption={mockRoomTypeChipLabel}
-                        />
-                    </>
-                )}
-                {compactComposer ? null : (
-                    <>
-                        <Text style={panelStyles.nominationModeLabel}>Starts</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={roomScheduledAt}
-                            onChangeText={onRoomScheduledAtChange}
-                            placeholder="2026-07-01 19:30"
-                            placeholderTextColor={colors.inputPlaceholder}
-                            autoCapitalize="none"
-                            accessibilityLabel="Mock room start time"
-                        />
-                        <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                        <DraftTimerControl
-                            selectedValue={draftTimerSeconds}
-                            onSelect={onDraftTimerSecondsChange}
-                            groupLabel="Mock draft timer"
-                            rookie={roomDraftType === 'snake'}
-                        />
-                    </>
-                )}
-                {compactComposer ? null : roomDraftType === 'auction' ? (
+            <View style={styles.mockHeader}>
+                <Text style={panelStyles.panelTitle}>Mock rooms</Text>
+                <Button
+                    title={creating ? 'Cancel' : 'New mock room'}
+                    variant="outline"
+                    size="sm"
+                    disabled={roomSubmitting}
+                    onPress={() => setCreating(!creating)}
+                />
+            </View>
+            {creating ? <View style={[panelStyles.panelCard, compactComposer && panelStyles.panelCardCompact]}>
+                <TextInput
+                    style={styles.textInput}
+                    value={roomName}
+                    onChangeText={onRoomNameChange}
+                    placeholder="Room name"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    accessibilityLabel="Mock room name"
+                />
+                <Text style={panelStyles.nominationModeLabel}>Room type</Text>
+                <DraftChips
+                    options={MOCK_ROOM_TYPE_CHIPS}
+                    selectedValue={roomDraftType}
+                    onSelect={onRoomDraftTypeChange}
+                    groupLabel="Mock room type"
+                    accessibilityLabelForOption={mockRoomTypeChipLabel}
+                />
+                <Text style={panelStyles.nominationModeLabel}>Starts</Text>
+                <TextInput
+                    style={styles.textInput}
+                    value={roomScheduledAt}
+                    onChangeText={onRoomScheduledAtChange}
+                    placeholder="YYYY-MM-DD HH:mm"
+                    placeholderTextColor={colors.inputPlaceholder}
+                    autoCapitalize="none"
+                    accessibilityLabel="Mock room start time"
+                />
+                <Text style={panelStyles.nominationModeLabel}>Timer</Text>
+                <DraftTimerControl
+                    selectedValue={draftTimerSeconds}
+                    onSelect={onDraftTimerSecondsChange}
+                    groupLabel="Mock draft timer"
+                    rookie={roomDraftType === 'snake'}
+                />
+                {roomDraftType === 'auction' ? (
                     <>
                         <Text style={panelStyles.nominationModeLabel}>Nomination order</Text>
                         <DraftChips
@@ -472,12 +471,14 @@ export function MockRoomsPanel({
                         />
                     </>
                 )}
-                {/* Create comes after every option, so the room is set up before it exists. */}
-                {compactComposer ? null : createButton}
-            </View>
-            {rooms.length ? null : <MockRoomsEmptyState compact={compactComposer} />}
+                {createButton}
+            </View> : null}
+            {rooms.length ? roomSections() : null}
+            {rooms.length || creating ? null : <MockRoomsEmptyState compact={compactComposer} />}
         </>
     )
+
+    if (embedded) return <View style={styles.embedded}>{panelContent}</View>
 
     return (
         <ScrollView contentContainerStyle={compactComposer ? undefined : [panelStyles.panelScroll, { paddingHorizontal: padX }]}>
@@ -491,9 +492,11 @@ export function MockRoomsPanel({
 }
 
 const styles = StyleSheet.create({
+    embedded: { gap: spacing.md },
+    mockHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
     draftButtonDisabled: { opacity: 0.5 },
     textInput: {
-        height: 44,
+        height: controlSize.minTouch,
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: radii.md,
@@ -503,19 +506,6 @@ const styles = StyleSheet.create({
         fontSize: fontSize.lg,
         color: colors.textPrimary,
         backgroundColor: colors.bgScreen,
-    },
-    mockCompactCreateRow: {
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        gap: spacing.sm,
-    },
-    mockCompactTypeWrap: {
-        flex: 1,
-        minWidth: 0,
-    },
-    mockCompactCreateButton: {
-        flexBasis: 152,
-        flexShrink: 0,
     },
     mockRoomsScrollCompact: {
         paddingTop: spacing.xs,
@@ -533,7 +523,7 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     roomCardCompact: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingVertical: 0,
         paddingHorizontal: spacing.lg,
         gap: 0,
@@ -574,7 +564,7 @@ const styles = StyleSheet.create({
         gap: spacing.xs,
     },
     mockRoomsEmptyStateCompact: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingVertical: spacing.md,
         paddingHorizontal: spacing.lg,
         gap: spacing.xxs,
@@ -582,13 +572,4 @@ const styles = StyleSheet.create({
     },
     mockRoomsEmptyTitle: { ...textStyles.rowTitle },
     mockRoomsEmptyTitleCompact: { fontSize: fontSize.sm },
-    mockRoomsEmptyText: {
-        fontSize: fontSize.sm,
-        lineHeight: 18,
-        color: colors.textMuted,
-    },
-    mockRoomsEmptyTextCompact: {
-        fontSize: fontSize.xs,
-        lineHeight: 16,
-    },
 })

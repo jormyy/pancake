@@ -189,6 +189,42 @@ BEGIN
     END LOOP;
   END IF;
 
+  WITH changed_claims AS (
+    UPDATE waiver_claims AS claim
+       SET status = 'cancelled',
+           failure_reason = 'The selected drop player left this roster in another transaction.',
+           processed_at = now(),
+           drop_player_id = NULL
+     WHERE claim.status = 'pending'
+       AND claim.league_id = v_trade.league_id
+       AND claim.league_season_id = v_trade.league_season_id
+       AND EXISTS (
+         SELECT 1 FROM trade_items AS item
+          WHERE item.trade_id = p_trade_id
+            AND item.from_member_id = claim.member_id
+            AND item.player_id = claim.drop_player_id
+            AND (v_league.allow_inactive_trades OR item.to_taxi OR item.to_ir)
+       )
+     RETURNING claim.id, claim.member_id, claim.failure_reason
+  )
+  INSERT INTO notification_outbox(dedupe_key, member_id, event_type, title, body, data, category)
+  SELECT 'trade_claim_cancelled:' || id, member_id, 'trade_claim_cancelled', 'Waiver claim cancelled',
+    failure_reason, jsonb_build_object('claimId', id), 'trade'
+  FROM changed_claims
+  ON CONFLICT (dedupe_key) DO NOTHING;
+
+  UPDATE waiver_claims AS claim
+     SET drop_player_id = NULL
+   WHERE claim.status = 'pending'
+     AND claim.league_id = v_trade.league_id
+     AND claim.league_season_id = v_trade.league_season_id
+     AND EXISTS (
+       SELECT 1 FROM trade_items AS item
+        WHERE item.trade_id = p_trade_id
+          AND item.from_member_id = claim.member_id
+          AND item.player_id = claim.drop_player_id
+     );
+
   FOR v_item IN
     SELECT * FROM trade_items WHERE trade_id = p_trade_id ORDER BY created_at, id
   LOOP
@@ -218,13 +254,14 @@ BEGIN
       END IF;
 
       EXCEPTION WHEN SQLSTATE 'P0001' THEN
-        IF NOT v_item.to_taxi THEN RAISE; END IF;
         -- A game in progress only delays a taxi destination: keep the accepted trade for a later run.
-        IF SQLERRM LIKE 'This player''s game has already started%' THEN
+        IF v_item.to_taxi AND SQLERRM LIKE 'This player''s game has already started%' THEN
           RAISE EXCEPTION 'A taxi destination waits for the player''s game slate to end.' USING ERRCODE='PT002';
         END IF;
         -- A changed destination precondition expires this trade, not the whole queue.
-        RAISE EXCEPTION 'Taxi acquisition failed: %', SQLERRM USING ERRCODE='PT001';
+        RAISE EXCEPTION '% acquisition failed: %',
+          CASE WHEN v_item.to_taxi THEN 'Taxi' WHEN v_item.to_ir THEN 'IR' ELSE 'Player' END,
+          SQLERRM USING ERRCODE='PT001';
       END;
 
       INSERT INTO roster_transactions (

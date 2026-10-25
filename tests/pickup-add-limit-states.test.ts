@@ -56,7 +56,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     it('opens the claim list for an already pending claim', async () => {
         const onAdd = vi.fn()
         const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), claimPending: true, onAdd })
-        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim pending for Player A, view claims' })
+        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(pending.findByProps({ name: 'schedule' }).props).toMatchObject({ name: 'schedule', color: uiColors.waiverText })
         await act(async () => { pending.props.onPress() })
         expect(onAdd).toHaveBeenCalledWith(playerRow())
@@ -79,21 +79,21 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     async function renderHeader(status: ReturnType<typeof rosterStatus.freeAgent>, handlers: { onAdd: () => void; onClaim: () => void }) {
         await act(async () => {
             renderer = create(React.createElement(PlayerHeader, {
-                player: headerPlayer(), rosterStatus: status, leagueActive: true, actionLoading: false,
-                addBlockedReason: REASON, addBlockedCaption: CAPTION,
-                onDrop: vi.fn(), onSetLineup: vi.fn(), ...handlers,
+                player: headerPlayer(), rosterStatus: status, leagueActive: true,
+                action: { label: status.status === 'on_waivers' ? 'Claim' : 'Add', disabled: false, busy: false,
+                    onPress: status.status === 'on_waivers' ? handlers.onClaim : handlers.onAdd,
+                    blockedReason: status.status === 'free_agent' ? REASON : null },
             }))
         })
         return renderer!
     }
 
-    it('player header add action carries the reason and a caption', async () => {
+    it('player header add action carries the supplied blocked reason', async () => {
         const onAdd = vi.fn()
         const tree = await renderHeader(rosterStatus.freeAgent(), { onAdd, onClaim: vi.fn() })
         const action = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
         expect(action.props.accessibilityState).toEqual({ disabled: true })
         expect(action.props.accessibilityHint).toBe(REASON)
-        expect(tree.root.findAllByProps({ children: CAPTION }).length).toBeGreaterThan(0)
         await act(async () => { action.props.onPress() })
         expect(onAdd).toHaveBeenCalled()
     })
@@ -112,14 +112,24 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         const onClaim = vi.fn()
         await act(async () => {
             renderer = create(React.createElement(PlayerHeader, {
-                player: headerPlayer(), rosterStatus: rosterStatus.onWaivers(), leagueActive: true, actionLoading: false,
-                claimPending: true, onAdd: vi.fn(), onDrop: vi.fn(), onClaim, onSetLineup: vi.fn(),
+                player: headerPlayer(), rosterStatus: rosterStatus.onWaivers(), leagueActive: true,
+                action: { label: 'View claim', accessibilityLabel: 'View claim for Player A', onPress: onClaim, disabled: false, busy: false },
             }))
         })
-        const pending = renderer!.root.findByProps({ accessibilityLabel: 'Claim pending for Player A, view claims' })
-        expect(pending.findByProps({ children: 'Claim pending' }).props.children).toBe('Claim pending')
+        const pending = renderer!.root.findByProps({ accessibilityLabel: 'View claim for Player A' })
+        expect(pending.findByProps({ children: 'View claim' }).props.children).toBe('View claim')
         await act(async () => { pending.props.onPress() })
         expect(onClaim).toHaveBeenCalledOnce()
     })
 
+})
+
+it('keeps the add icon accessible and disables it during a pending write', async () => {
+    const props = { item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, animate: false, onAdd: vi.fn(), onPress: vi.fn() }
+    const tree = await renderSearchItem(props)
+    const button = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+    expect(button.findByProps({ name: 'add' })).toBeDefined()
+    await act(async () => tree.update(React.createElement(PlayerSearchItem, { ...props, isAdding: true })))
+    expect(tree.root.findByProps({ accessibilityLabel: 'Add Player A' }).props.disabled).toBe(true)
+    expect(tree.root.findByProps({ name: 'schedule' })).toBeDefined()
 })

@@ -24,7 +24,7 @@ describe('roster-full error contract', () => {
         const roster = [active, rosterPlayer({ id: 'ir', is_on_ir: true }), rosterPlayer({ id: 'taxi', is_on_taxi: true })]
         await expect(addFreeAgentOrRequestDrop('member', 'league', 'player', roster))
             .resolves.toEqual({ status: 'roster_full', activeRoster: [active] })
-        expect(mocks.addFreeAgent).toHaveBeenCalledWith('member', 'league', 'player')
+        expect(mocks.addFreeAgent).toHaveBeenCalledWith('member', 'league', 'player', false)
     })
 
     it('does not treat other errors containing full as roster capacity errors', async () => {

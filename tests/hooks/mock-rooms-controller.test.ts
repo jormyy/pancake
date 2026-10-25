@@ -44,10 +44,6 @@ describe('mock room action ownership', () => {
             latest = useMockRoomsController({
                 leagueId: `league-${owner}`,
                 memberId: `member-${owner}`,
-                nominationMode: 'user_nominated',
-                draftTimerSeconds: 30,
-                rookieRounds: 3,
-                rookieTimerExpiryBehavior: 'auto_pick',
                 refreshRooms: vi.fn(async () => undefined),
                 openDraftRoom: owner === 'a' ? openA : openB,
             })
@@ -75,10 +71,6 @@ describe('mock room action ownership', () => {
             latest = useMockRoomsController({
                 leagueId: 'league-a',
                 memberId: 'member-a',
-                nominationMode: 'user_nominated',
-                draftTimerSeconds: 30,
-                rookieRounds: 3,
-                rookieTimerExpiryBehavior: 'auto_pick',
                 refreshRooms: vi.fn(async () => undefined),
                 openDraftRoom,
             })
@@ -105,10 +97,6 @@ describe('mock room action ownership', () => {
             latest = useMockRoomsController({
                 leagueId: `league-${owner}`,
                 memberId: `member-${owner}`,
-                nominationMode: 'user_nominated',
-                draftTimerSeconds: 30,
-                rookieRounds: 3,
-                rookieTimerExpiryBehavior: 'auto_pick',
                 refreshRooms: vi.fn(async () => undefined),
                 openDraftRoom: vi.fn(),
             })
@@ -138,4 +126,25 @@ describe('mock room action ownership', () => {
         await act(async () => { join.resolve(); await pendingJoin })
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('owns mock options separately and defaults each room type', async () => {
+    let latest!: ReturnType<typeof useMockRoomsController>
+    const Probe = () => {
+        latest = useMockRoomsController({ leagueId: 'league', memberId: 'member', refreshRooms: vi.fn(async () => {}), openDraftRoom: vi.fn() })
+        return null
+    }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        expect(latest.mockDraftTimerSeconds).toBe(60)
+        await act(async () => latest.setMockDraftTimerSeconds(90))
+        await act(async () => latest.setRoomDraftType('snake'))
+        expect(latest.mockDraftTimerSeconds).toBe(86400)
+        await act(async () => latest.setMockDraftTimerSeconds(5400))
+        await act(async () => { await latest.handleCreateMockRoom() })
+        expect(mocks.createMockDraftRoom).toHaveBeenLastCalledWith(expect.objectContaining({ draftType: 'snake', timerSeconds: 5400 }))
+        await act(async () => latest.setRoomDraftType('auction'))
+        expect(latest.mockDraftTimerSeconds).toBe(60)
+    } finally { await act(async () => screen.unmount()) }
 })

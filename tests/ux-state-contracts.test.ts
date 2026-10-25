@@ -25,7 +25,7 @@ describe('home matchup surface wiring', () => {
     it('drives the play surface from resolveHomeSurface so the tested precedence is what renders', async () => {
         const source = await read('app/(tabs)/index.tsx')
         expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })")
-        for (const surface of ['draft', 'loading', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
+        for (const surface of ['draft', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
         expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('<WeekOffNotice leagueId='))
     })
 })
@@ -110,7 +110,7 @@ describe('service worker registration cadence', () => {
             expect(ports.length).toBeGreaterThan(0)
             ports.at(-1)!.onmessage?.({ data: { version } })
         }
-        return { update, reload, document, navigator, window, serviceWorker, ports, reply,
+        return { update, reload, document, navigator, window, serviceWorker, ports, reply, storage,
             load: async () => {
                 window.dispatchEvent(new Event('load'))
                 await vi.advanceTimersByTimeAsync(0)
@@ -168,6 +168,9 @@ describe('service worker registration cadence', () => {
         await vi.advanceTimersByTimeAsync(9000)
         expect(port.close).not.toHaveBeenCalled()
         page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.visibilityState = 'hidden'
+        page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()
     })
 
@@ -182,6 +185,75 @@ describe('service worker registration cadence', () => {
         expect(port.close).toHaveBeenCalledOnce()
         page.reply('next')
         expect(page.reload).not.toHaveBeenCalled()
+    })
+
+    const assetMiss = (page: ReturnType<typeof updatePage>) => {
+        page.serviceWorker.dispatchEvent(Object.assign(new Event('message'), { data: { type: 'PANCAKE_ASSET_MISS' } }))
+    }
+
+    it.each(['asset', 'Loading module 42 failed', 'AsyncRequireError: module unavailable'])(
+        'recovers a missing lazy route while visible: %s', async failure => {
+            const page = updatePage()
+            await page.load()
+            page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+            page.reply('next')
+            expect(page.reload).not.toHaveBeenCalled()
+            if (failure === 'asset') assetMiss(page)
+            else page.window.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: new Error(failure) }))
+            await vi.advanceTimersByTimeAsync(0)
+            expect(page.update).toHaveBeenCalledOnce()
+            page.reply('next')
+            expect(page.reload).toHaveBeenCalledOnce()
+            assetMiss(page)
+            await vi.advanceTimersByTimeAsync(0)
+            page.reply('next')
+            expect(page.reload).toHaveBeenCalledOnce()
+        },
+    )
+
+    it('offers manual recovery instead of auto-reloading the same release twice', async () => {
+        const page = updatePage()
+        await page.load()
+        page.storage.set('pancake-update-reload:/draft-room', 'next')
+        assetMiss(page)
+        await vi.advanceTimersByTimeAsync(0)
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        const button = page.document.getElementById('pancake-update-notice')?.querySelector()
+        expect(button).toBeTruthy()
+        button?.dispatchEvent(new Event('click'))
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it('shows a held missing-route update immediately and reloads after the hold ends', async () => {
+        const page = updatePage()
+        const release = holdPwaUpdate('unsent trade')
+        await page.load()
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        page.reply('next')
+        assetMiss(page)
+        await vi.advanceTimersByTimeAsync(0)
+        page.reply('next')
+        const notice = page.document.getElementById('pancake-update-notice')
+        expect(notice?.querySelector()?.disabled).toBe(true)
+        expect(page.reload).not.toHaveBeenCalled()
+        release()
+        expect(page.reload).toHaveBeenCalledOnce()
+    })
+
+    it.each(['loading', 'interactive', 'offline'])('retains the missing-route reload guard while %s', async guard => {
+        const page = updatePage()
+        await page.load()
+        if (guard === 'offline') page.navigator.onLine = false
+        else page.document.readyState = guard
+        assetMiss(page)
+        page.serviceWorker.dispatchEvent(new Event('controllerchange'))
+        page.reply('next')
+        expect(page.reload).not.toHaveBeenCalled()
+        page.document.readyState = 'complete'
+        page.navigator.onLine = true
+        page.window.dispatchEvent(new Event('online'))
+        expect(page.reload).toHaveBeenCalledOnce()
     })
 
     it('keeps a held update through the notice deadline and reloads once after safe recovery', async () => {
@@ -206,7 +278,7 @@ describe('service worker registration cadence', () => {
         expect(page.reload).not.toHaveBeenCalled()
         page.navigator.onLine = true
         page.window.dispatchEvent(new Event('online'))
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.document.visibilityState = 'visible'
         page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()
@@ -229,9 +301,19 @@ describe('edge job bookkeeping', () => {
         expect(producer).toContain("OLD.status IS NOT DISTINCT FROM NEW.status")
         expect(producer).toContain("'waiver_claim_won'")
         expect(producer).toContain("'waiver_claim_lost'")
-        const drain = await read('supabase/functions/process-waivers/drain.ts')
-        const loop = drain.slice(drain.indexOf('for (let batch = 0'), drain.indexOf('return rows'))
-        expect(loop).toContain('await onBatch(batchRows)')
+        const { drainDueClaims, MAX_BATCHES } = await import('../supabase/functions/process-waivers/drain')
+        const batches = [[], ['claim-1'], [], ['claim-2', 'claim-3'], [], [], ['never-fetched']]
+        const processBatch = vi.fn(async () => batches.shift() ?? [])
+        await expect(drainDueClaims(processBatch)).resolves.toEqual(['claim-1', 'claim-2', 'claim-3'])
+        expect(processBatch).toHaveBeenCalledTimes(6)
+        let processedBatches = 0
+        const continuousBatch = async () => {
+            processedBatches += 1
+            if (processedBatches > MAX_BATCHES) throw new Error('Drain exceeds its batch limit')
+            return ['claim']
+        }
+        await expect(drainDueClaims(continuousBatch)).resolves.toHaveLength(MAX_BATCHES)
+        expect(processedBatches).toBe(MAX_BATCHES)
     })
 
     it('the backfill progress poll projects columns instead of select(*)', async () => {

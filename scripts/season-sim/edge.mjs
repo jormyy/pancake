@@ -63,7 +63,7 @@ let loading
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
 Object.defineProperty(Deno, 'serve', { value: handler => { assert.ok(loading); handlers.set(loading, handler) }, configurable: true })
 try {
-  for (const name of ['api', 'sync-rankings', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']) {
+  for (const name of ['api', 'sync-rankings', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']) {
     loading = name
     await import(new URL(`../../supabase/functions/${name}/index.ts`, import.meta.url).href)
     assert.ok(handlers.has(name), `No handler registered for ${name}`)

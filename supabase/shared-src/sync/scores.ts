@@ -70,7 +70,6 @@ type StandingSnapshot = {
     points_for: number
     points_against: number
     max_possible_points: number
-    waiver_priority: number
 }
 
 type PreviousStandingSnapshot = StandingSnapshot & {
@@ -89,7 +88,6 @@ type StandingSnapshotUpsertRow = {
     points_for: number
     points_against: number
     max_possible_points: number
-    waiver_priority: number
 }
 
 type MatchupResult = MatchupForFinalization & {
@@ -172,8 +170,6 @@ async function loadLockedPlayoffTypes(
     return locked
 }
 
-// Re-arm playoff grace only when its decision changes. The read boundary can
-// advance on unchanged polling without delaying bracket advancement.
 export type FinalizationCandidate = {
     is_finalized: boolean | null
     winner_member_id: string | null
@@ -234,7 +230,7 @@ async function buildStandingsSnapshotRows(
 
     const previousRows = await fetchAllPages<PreviousStandingSnapshot>((from, to) => supabase
         .from('standings')
-        .select('member_id, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority, week_number')
+        .select('member_id, wins, losses, ties, points_for, points_against, max_possible_points, week_number')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
         .lt('week_number', weekNumber)
@@ -288,16 +284,6 @@ async function buildStandingsSnapshotRows(
         }
     }
 
-    const waiverRows = await fetchAllPages<{ member_id: string; priority: number }>((from, to) => supabase
-        .from('waiver_priorities')
-        .select('member_id, priority')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', leagueSeasonId)
-        .in('member_id', memberIds)
-        .order('member_id')
-        .range(from, to))
-    const waiverPriorityByMember = new Map(waiverRows.map((row) => [row.member_id, row.priority]))
-
     const standingsByMember = new Map<string, StandingSnapshot>()
     for (const memberId of memberIds) {
         const previous = previousByMember.get(memberId)
@@ -309,7 +295,6 @@ async function buildStandingsSnapshotRows(
             points_for: Number(previous?.points_for ?? 0),
             points_against: Number(previous?.points_against ?? 0),
             max_possible_points: Number(previous?.max_possible_points ?? 0),
-            waiver_priority: waiverPriorityByMember.get(memberId) ?? previous?.waiver_priority ?? 0,
         })
     }
 
@@ -352,7 +337,6 @@ async function buildStandingsSnapshotRows(
             points_for: parseFloat(row.points_for.toFixed(2)),
             points_against: parseFloat(row.points_against.toFixed(2)),
             max_possible_points: parseFloat(row.max_possible_points.toFixed(2)),
-            waiver_priority: row.waiver_priority,
         }))
 }
 
@@ -399,6 +383,23 @@ async function loadCertifiedMaxPossiblePoints(
     return pointsByMember
 }
 
+async function loadFinalizationWeeks(seasonYear: number, weekNumber: number, endWeek: number) {
+    if (endWeek !== weekNumber) return loadMatchupWeeks(seasonYear, weekNumber, endWeek)
+    const { data, error } = await supabase.from('season_weeks').select('week_number, week_start, week_end')
+        .eq('season_year', seasonYear).eq('week_number', weekNumber).maybeSingle()
+    if (error) throw error
+    return data ? [data] : []
+}
+
+async function hasPendingScoreGames(startDate: string, endDate: string, seasonYear: number): Promise<boolean> {
+    const { data, error } = await supabase
+        .rpc('get_score_sync_games', { p_start_date: startDate, p_end_date: endDate, p_season_year: seasonYear })
+        .select('id, nba_game_id')
+        .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
+    if (error) throw error
+    return (data ?? []).some(game => isRegularSeasonGameId(game.nba_game_id))
+}
+
 // If all games in a week are finished, mark matchups as finalized. Already
 // finalized rows are reconciled without notifications so late NBA stat
 // corrections cannot leave displayed scores, winners, max possible, and
@@ -412,15 +413,6 @@ async function finalizeWeekIfComplete(
     referenceDate: Date,
     failedRecoveryDates: ReadonlySet<string>,
 ) {
-    const { data: inputToken, error: tokenError } = await supabase.rpc('capture_score_inputs', {
-        p_league_season_id: leagueSeasonId, p_week_number: weekNumber,
-    })
-    if (tokenError) throw tokenError
-    const { data: league, error: settingsError } = await supabase.from('leagues')
-        .select('scoring_settings').eq('id', leagueId).single()
-    if (settingsError) throw settingsError
-    const settings = scoringSettingsFromJson(league.scoring_settings)
-
     // Get the week's date range from season_weeks (authoritative)
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -432,6 +424,43 @@ async function finalizeWeekIfComplete(
 
     if (!weekData) return
 
+    const roundWindows = await fetchAllPages<{ end_week_number: number | null }>((from, to) => supabase
+        .from('matchups')
+        .select('end_week_number')
+        .eq('league_id', leagueId)
+        .eq('league_season_id', leagueSeasonId)
+        .eq('is_voided', false)
+        .eq('week_number', weekNumber)
+        .order('id')
+        .range(from, to))
+    if (!roundWindows.length) return
+    const endWeek = Math.max(...roundWindows.map(matchup => matchup.end_week_number ?? weekNumber))
+    if (roundWindows.some(matchup => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
+        throw new Error('Matchups in the same round have inconsistent end weeks.')
+    }
+    const weeks = endWeek === weekNumber
+        ? [{ ...weekData, week_number: weekNumber }]
+        : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
+    const endDate = weeks[weeks.length - 1].week_end
+    if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
+    if (await hasPendingScoreGames(weekData.week_start, endDate, seasonYear)) return
+
+    const { data: inputToken, error: tokenError } = await supabase.rpc('capture_score_inputs', {
+        p_league_season_id: leagueSeasonId, p_week_number: weekNumber,
+    })
+    if (tokenError) throw tokenError
+    const currentWeeks = await loadFinalizationWeeks(seasonYear, weekNumber, endWeek)
+    if (currentWeeks.length !== weeks.length || currentWeeks.some((week, index) =>
+        week.week_start !== weeks[index].week_start || week.week_end !== weeks[index].week_end)) {
+        throw new Error('The scoring calendar changed. Retry scoring.')
+    }
+    if (await hasPendingScoreGames(weekData.week_start, endDate, seasonYear)) return
+
+    const { data: league, error: settingsError } = await supabase.from('leagues')
+        .select('scoring_settings').eq('id', leagueId).single()
+    if (settingsError) throw settingsError
+    const settings = scoringSettingsFromJson(league.scoring_settings)
+
     const matchups = await fetchAllPages<MatchupForFinalization>((from, to) => supabase
         .from('matchups')
         .select('id, end_week_number, home_member_id, away_member_id, home_points, away_points, home_max_possible_points, away_max_possible_points, winner_member_id, is_finalized, matchup_type')
@@ -442,25 +471,12 @@ async function finalizeWeekIfComplete(
         .order('id')
         .range(from, to))
     if (!matchups.length) return
-    const endWeek = Math.max(...matchups.map((matchup) => matchup.end_week_number ?? weekNumber))
-    if (matchups.some((matchup) => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
-        throw new Error('Matchups in the same round have inconsistent end weeks.')
+    if (matchups.some(matchup => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
+        throw new Error('The matchup window changed. Retry scoring.')
     }
-    const weeks = endWeek === weekNumber
-        ? [{ ...weekData, week_number: weekNumber }]
-        : await loadMatchupWeeks(seasonYear, weekNumber, endWeek)
-    const endDate = weeks[weeks.length - 1].week_end
-    if ([...failedRecoveryDates].some((date) => date >= weekData.week_start && date <= endDate)) return
-    if (toETDate(referenceDate) <= endDate && matchups.some((matchup) =>
+    if (toETDate(referenceDate) <= endDate && matchups.some(matchup =>
         !matchup.is_finalized || isPlayoffMatchupType(matchup.matchup_type)
     )) return
-    const { data: pendingGames, error: pendingGamesError } = await supabase
-        .rpc('get_score_sync_games', { p_start_date: weekData.week_start, p_end_date: endDate, p_season_year: seasonYear })
-        .select('id, nba_game_id')
-        // Final status alone does not prove that a complete box score exists.
-        .or('status.in.(Scheduled,InProgress),and(status.eq.Final,stats_synced_at.is.null)')
-    if (pendingGamesError) throw pendingGamesError
-    if ((pendingGames ?? []).some((game) => isRegularSeasonGameId(game.nba_game_id))) return
 
     const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
     const decidableMatchups = matchups.filter((m) =>
@@ -492,16 +508,6 @@ async function finalizeWeekIfComplete(
         home_points: pointsByMember.get(matchup.home_member_id) ?? 0,
         away_points: pointsByMember.get(matchup.away_member_id) ?? 0,
     }))
-    const standingsRows = await buildStandingsSnapshotRows(
-        leagueId,
-        leagueSeasonId,
-        weekNumber,
-        scoredMatchups,
-        maxPossiblePointsByMember,
-        scoringReadStartedAt,
-    )
-    if (standingsRows == null) return
-
     const matchupResults: MatchupResult[] = decidableMatchups.map((m) => {
         const homePoints = pointsByMember.get(m.home_member_id) ?? 0
         const awayPoints = pointsByMember.get(m.away_member_id) ?? 0
@@ -524,8 +530,22 @@ async function finalizeWeekIfComplete(
         }
     })
 
-    // Every completed read advances its replay boundary. Only a changed decision
-    // restarts the playoff grace period.
+    if (certifiedMaxPossiblePoints && matchupResults.every((matchup) =>
+        !finalizationWriteNeeded(matchup) &&
+        Number(matchup.home_points ?? NaN) === matchup.homePoints &&
+        Number(matchup.away_points ?? NaN) === matchup.awayPoints
+    )) return
+
+    const standingsRows = await buildStandingsSnapshotRows(
+        leagueId,
+        leagueSeasonId,
+        weekNumber,
+        scoredMatchups,
+        maxPossiblePointsByMember,
+        scoringReadStartedAt,
+    )
+    if (standingsRows == null) return
+
     const reconciliationTimestamp = new Date().toISOString()
     const finalizedTimestamp = new Date().toISOString()
     const { error: finalizeErr } = await supabase.rpc('finalize_score_week_atomic', {
@@ -551,7 +571,6 @@ async function finalizeWeekIfComplete(
             points_for: row.points_for,
             points_against: row.points_against,
             max_possible_points: row.max_possible_points,
-            waiver_priority: row.waiver_priority,
         })),
         p_finalized_at: finalizedTimestamp,
         p_reconciliation_at: reconciliationTimestamp,
@@ -691,7 +710,7 @@ async function loadWeeksToSync(
         .order('id')
         .range(from, to))
 
-    let earliestWeek = currentWeek > 1 ? currentWeek - 1 : currentWeek
+    let earliestWeek = currentWeek
     for (const row of unfinalizedRows) {
         if (Number.isInteger(row.week_number) && row.week_number >= 1) {
             earliestWeek = Math.min(earliestWeek, row.week_number)
@@ -845,7 +864,8 @@ export async function syncScores(leagueId?: string, referenceDate = new Date(), 
     }>((from, to) => {
         let query = supabase
             .from('league_seasons')
-            .select('id, league_id, season_year, is_current, leagues!league_seasons_league_id_fkey ( scoring_settings )')
+            .select('id, league_id, season_year, is_current, leagues!league_seasons_league_id_fkey!inner ( scoring_settings )')
+            .is('leagues.deleted_at', null)
             .order('id')
 
         if (leagueId) query = query.eq('league_id', leagueId)

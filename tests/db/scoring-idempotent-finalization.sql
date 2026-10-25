@@ -1,3 +1,4 @@
+\set ON_ERROR_STOP on
 \getenv scoring_port PANCAKE_TEST_DB_PORT
 \if :{?scoring_port}
 \else
@@ -7,7 +8,7 @@ SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'scoring_port' AS sco
 \if :scoring_safe
 \else
   \echo Only the expected loopback database port is allowed
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 BEGIN;
 SET LOCAL statement_timeout = '30s';

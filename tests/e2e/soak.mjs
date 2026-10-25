@@ -55,7 +55,6 @@ import {
   assertWaiverProcessingScenario,
 } from './soak-waiver-push.mjs'
 import {
-  assertBackendUsesFakePush,
   backendGetJson,
   backendJson,
   postJson,
@@ -94,6 +93,8 @@ import {
   seasonArtifactFailures,
   writeCheckpoint,
 } from './soak-shards.mjs'
+import { readDeployedFrontendProvenance } from './release-provenance.mjs'
+import { readPreparedMigration, soakBrowserArgs, soakRuntimeForSeason } from './soak-runtime.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -180,6 +181,7 @@ const main = async () => {
 
   const shard = resolveSoakShard(args.shard, args.seasons)
   const sharded = shard.shardCount > 1
+  const deployedSeasons = process.env.E2E_SOAK_RUNTIME ? MIDLIFE_MIGRATION_AFTER_SEASON : 0
   const release = {
     releaseSha: process.env.E2E_RELEASE_SHA ?? '',
     planSha256: process.env.E2E_SOAK_MIGRATION_PLAN_SHA256 ?? '',
@@ -217,11 +219,11 @@ const main = async () => {
       ? 'Future-pick multi-hop scenario enabled through E2E_ENABLE_PICK_CHAIN=1.'
       : 'Future-pick multi-hop scenario disabled; set E2E_ENABLE_PICK_CHAIN=1 to exercise D.LONG.2.',
     args.push
-      ? 'Push notification intercept enabled through E2E_ENABLE_PUSH=1.'
-      : 'Push notification intercept disabled; set E2E_ENABLE_PUSH=1 with backend EXPO_PUSH_URL pointed at the fake upstream to exercise the trade-notification slice of D.X.1.',
+      ? 'Waiver notification queue checks enabled through E2E_ENABLE_PUSH=1.'
+      : 'Waiver notification queue checks disabled; set E2E_ENABLE_PUSH=1 to check D.X.1.',
     args.draftPush
-      ? 'Draft push notification intercept enabled through E2E_ENABLE_DRAFT_PUSH=1.'
-      : 'Draft push notification intercept disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.',
+      ? 'Draft notification queue checks enabled through E2E_ENABLE_DRAFT_PUSH=1.'
+      : 'Draft notification queue checks disabled; set E2E_ENABLE_DRAFT_PUSH=1 to exercise the rookie auto-pick notification slice of D.X.1.',
     args.history
       ? 'Standings/champion history retention enabled through E2E_ENABLE_HISTORY=1.'
       : 'Standings/champion history retention disabled; set E2E_ENABLE_HISTORY=1 with Edge E2E ticks to exercise the D.LONG.3/D.LONG.4 fixture-retention slice.',
@@ -372,10 +374,7 @@ const main = async () => {
         await assertCorsPreflight(env)
         notes.push('CORS preflight check passed for the configured frontend origin.')
       }
-      if (args.push || args.draftPush) {
-        await assertBackendUsesFakePush(env, args.fakePort)
-        notes.push('Backend EXPO_PUSH_URL points at the fake upstream push intercept.')
-      }
+
 
       let previousSnapshot = checkpoint?.previousSnapshot ?? null
       const perfMetrics = [...(checkpoint?.perfMetrics ?? [])]
@@ -383,7 +382,9 @@ const main = async () => {
         const upstreamHitsAtSeasonStart = { ...fake.state.hits }
         let midlifeMigrationReport = null
         if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
-          midlifeMigrationReport = await applyMidlifeMigration(season)
+          midlifeMigrationReport = process.env.E2E_SOAK_RUNTIME
+            ? readPreparedMigration(season)
+            : await applyMidlifeMigration(season)
           notes.push(`D.LONG.5 mid-life migration ${midlifeMigrationReport.status.toLowerCase()} before season ${season}.`)
         }
 
@@ -414,10 +415,13 @@ const main = async () => {
         }
         phaseTimings.mark('startup_ticks')
 
-        const browserScenarioResults = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
+        const browserArgs = soakBrowserArgs(args, season, deployedSeasons)
+        const scenarioContext = soakRuntimeForSeason(season, deployedSeasons) === 'deployed'
+          ? { provenance: await readDeployedFrontendProvenance() } : {}
+        const browserScenarioResults = await runBrowserScenarios({ args: browserArgs, season, shouldRun: shouldRunScenario, scenarioContext: scenarioContext })
         phaseTimings.mark('browser_scenarios')
         const backendScenarioResults = await runBackendScenarios({
-          args,
+          args: browserArgs,
           shouldRun: shouldRunScenario,
           context: {
             supabase,
@@ -475,7 +479,7 @@ const main = async () => {
         }
         phaseTimings.mark('realtime')
         let pushCheck = false
-        if (args.push) {
+        if (browserArgs.push) {
           await assertPushNotifications({
             supabase,
             env,
@@ -572,7 +576,7 @@ const main = async () => {
         const durationMs = nowMs() - seasonStartedMs
         const phaseDurationsMs = phaseTimings.finish(seasonStartedMs + durationMs)
         const phaseSummary = formatPhaseTimings(phaseDurationsMs)
-        const metric = { season, durationMs: roundedMs(durationMs), phaseDurationsMs, memory: currentMemory() }
+        const metric = { season, runtime: soakRuntimeForSeason(season, deployedSeasons), durationMs: roundedMs(durationMs), phaseDurationsMs, memory: currentMemory() }
         perfMetrics.push(metric)
         await mkdir(ARTIFACT_ROOT, { recursive: true })
         await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
@@ -654,8 +658,8 @@ const main = async () => {
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               offseasonActivityCheck ? 'busy offseason activity survived rollover' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
-              args.push ? 'trade and waiver push notification intercepts passed' : null,
-              draftPushCheck ? 'draft push notification intercept passed' : null,
+              pushCheck ? 'waiver notification queue checks passed' : null,
+              draftPushCheck ? 'draft notification queue checks passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,
               playoffCheck ? 'playoff bracket scenario passed' : null,
@@ -740,7 +744,7 @@ const main = async () => {
       const aggregateFailures = [
         ...(rows.some((row) => row.status === 'FAIL') ? [] : completedSoakFailures(rows, args.seasons)),
         ...seasonArtifactFailures(ROOT, args.seasons, (season) => shouldRunScenario(args, season)
-          ? BROWSER_SCENARIO_MANIFEST.filter((scenario) => args[scenario.flag]).map((scenario) => scenario.id)
+          ? BROWSER_SCENARIO_MANIFEST.filter((scenario) => soakBrowserArgs(args, season, deployedSeasons)[scenario.flag]).map((scenario) => scenario.id)
           : []),
       ]
       if (aggregateFailures.length > 0) {

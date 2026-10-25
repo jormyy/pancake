@@ -1,16 +1,13 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { View, Text } from 'react-native'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
-import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
+import { Button, usePageMetrics } from '@/components/ui'
 import {
     NOMINATION_ORDER_MODE_LABELS,
     ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS,
     type Draft,
-    type NominationOrderMode,
-    type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
-import type { LeaguePickItem } from '@/lib/rookieDraft'
-import { layout, spacing } from '@/constants/tokens'
-import { usePageMetrics } from '@/components/ui'
+import type { LeagueStatus } from '@/types/database'
 import {
     DraftChips,
     DraftTimerControl,
@@ -20,31 +17,11 @@ import {
     rookieRoundChipLabel,
     type DraftControlProps,
 } from '@/components/league/DraftChips'
-import type { DraftTimerOption, RookieRoundOption } from '@/lib/draft-options'
-import { ActiveDraftEntry, ActiveDraftErrorNotice, DraftPrepNotice } from '@/components/league/DraftActiveState'
+import { ActiveDraftEntry, ActiveDraftErrorNotice } from '@/components/league/DraftActiveState'
 import { panelStyles } from '@/components/league/draftPanelStyles'
-import { PicksBankList } from '@/components/league/LeaguePicksBank'
-import type { LeagueStatus } from '@/types/database'
+import { textStyles } from '@/constants/tokens'
 
-function auctionStartButtonLabel(draftTimerSeconds: DraftTimerOption, nominationMode: NominationOrderMode) {
-    return `Start auction draft, ${draftTimerSeconds} second timer, ${NOMINATION_ORDER_MODE_LABELS[nominationMode]} nomination order`
-}
-
-function rookieStartButtonLabel(
-    rookieRounds: RookieRoundOption,
-    draftTimerSeconds: DraftTimerOption,
-    rookieTimerExpiryBehavior: RookieTimerExpiryBehavior,
-) {
-    return `Start rookie draft, ${rookieRounds} rounds, ${draftTimerSeconds} second timer, ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior]} timeout behavior`
-}
-
-function draftBoardSetupMaxHeight(width: number, height: number) {
-    if (height < 500) return 64
-    if (width < 600) return 144
-    return 188
-}
-
-export function AuctionPanel({
+export function DraftPanel({
     activeDraft,
     activeDraftLoading,
     currentLeagueStatus,
@@ -56,11 +33,16 @@ export function AuctionPanel({
     onNominationModeChange,
     draftTimerSeconds,
     onDraftTimerSecondsChange,
+    rookieRounds,
+    onRookieRoundsChange,
+    rookieTimerExpiryBehavior,
+    onRookieTimerExpiryBehaviorChange,
     onStartDraft,
+    onStartRookieDraft,
     onJoinDraft,
     onReseedRookiePicks,
-    onOpenDraftBoard,
-}: Pick<DraftControlProps, 'nominationMode' | 'onNominationModeChange' | 'draftTimerSeconds' | 'onDraftTimerSecondsChange'> & {
+    children,
+}: DraftControlProps & {
     activeDraft: Draft | null
     activeDraftLoading: boolean
     currentLeagueStatus?: LeagueStatus
@@ -69,84 +51,45 @@ export function AuctionPanel({
     activeDraftError?: string | null
     onRetryActiveDraft: () => void
     onStartDraft: () => void
+    onStartRookieDraft: () => void
     onJoinDraft: () => void
     onReseedRookiePicks: () => void
-    onOpenDraftBoard?: () => void
+    children: ReactNode
 }) {
-    const { height } = useWindowDimensions()
     const { padX } = usePageMetrics()
-    const compactSetup = height < 500
-    const activeDraftReady = !activeDraftLoading && !activeDraftError
-    const hasActiveAuction = activeDraftReady && activeDraft?.draftType === 'auction'
-    const canStartAuction = activeDraftReady && currentLeagueStatus === 'setup' && isCommissioner
-    const startAuctionAccessibilityLabel = auctionStartButtonLabel(draftTimerSeconds, nominationMode)
-
-    const startButton = (
-        <Pressable
-            style={[panelStyles.draftButton, compactSetup && styles.auctionCompactStartButton]}
-            onPress={onStartDraft}
-            disabled={draftLoading}
-            role="button"
-            aria-label={startAuctionAccessibilityLabel}
-            aria-disabled={draftLoading}
-            accessibilityRole="button"
-            accessibilityLabel={startAuctionAccessibilityLabel}
-            accessibilityState={{ disabled: draftLoading }}
-        >
-            <Text style={panelStyles.draftButtonText}>Start Auction Draft</Text>
-        </Pressable>
-    )
+    const [timerValid, setTimerValid] = useState(true)
+    const ready = !activeDraftLoading && !activeDraftError
+    const canStartAuction = ready && !activeDraft && currentLeagueStatus === 'setup' && isCommissioner
+    const canStartRookie = ready && !activeDraft && currentLeagueStatus === 'offseason' && isCommissioner
+    const canStart = canStartAuction || canStartRookie
+    const startLabel = canStartAuction
+        ? `Start auction draft, ${draftTimerSeconds} second timer, ${NOMINATION_ORDER_MODE_LABELS[nominationMode]} nomination order`
+        : `Start rookie draft, ${rookieRounds} rounds, ${draftTimerSeconds} second timer, ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior]} timeout behavior`
 
     return (
-        <ScrollView contentContainerStyle={[
-            panelStyles.panelScroll,
-            { paddingHorizontal: padX },
-            compactSetup && panelStyles.panelScrollCompactLandscape,
-            compactSetup && (hasActiveAuction || canStartAuction) && styles.activeDraftPanelScrollCompact,
-        ]}>
+        <ScrollView contentContainerStyle={[panelStyles.panelScroll, { paddingHorizontal: padX }]}>
             <ActiveDraftErrorNotice activeDraftError={activeDraftError} onRetryActiveDraft={onRetryActiveDraft} />
             <ActiveDraftEntry
                 activeDraft={activeDraft}
                 activeDraftLoading={activeDraftLoading}
                 isCommissioner={isCommissioner}
                 draftLoading={draftLoading}
-                filterType="auction"
                 onJoinDraft={onJoinDraft}
                 onReseedRookiePicks={onReseedRookiePicks}
             />
-            {canStartAuction ? (
-                <View style={[panelStyles.panelCard, compactSetup && panelStyles.panelCardCompact, compactSetup && styles.auctionPanelCardCompact]}>
-                    {compactSetup ? null : <Text style={panelStyles.panelTitle}>Auction</Text>}
-                    {compactSetup ? (
+            {canStart ? (
+                <View style={panelStyles.panelCard}>
+                    <Text style={panelStyles.panelTitle}>{canStartAuction ? 'Auction setup' : 'Rookie draft setup'}</Text>
+                    <Text style={panelStyles.nominationModeLabel}>Timer</Text>
+                    <DraftTimerControl
+                        selectedValue={draftTimerSeconds}
+                        onSelect={onDraftTimerSecondsChange}
+                        groupLabel={canStartAuction ? 'Auction draft timer' : 'Rookie draft timer'}
+                        rookie={canStartRookie}
+                        onValidityChange={setTimerValid}
+                    />
+                    {canStartAuction ? (
                         <>
-                            <View style={styles.auctionCompactStartRow}>
-                                <View style={styles.auctionCompactTimerWrap}>
-                                    <DraftTimerControl
-                                        selectedValue={draftTimerSeconds}
-                                        onSelect={onDraftTimerSecondsChange}
-                                        groupLabel="Auction draft timer"
-                                        compact
-                                    />
-                                </View>
-                                {startButton}
-                            </View>
-                            <Text style={[panelStyles.nominationModeLabel, styles.auctionCompactLabel]}>Nomination order</Text>
-                            <DraftChips
-                                options={NOMINATION_ORDER_CHIPS}
-                                selectedValue={nominationMode}
-                                onSelect={onNominationModeChange}
-                                groupLabel="Nomination order"
-                                compact
-                            />
-                        </>
-                    ) : (
-                        <>
-                            <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftTimerControl
-                                selectedValue={draftTimerSeconds}
-                                onSelect={onDraftTimerSecondsChange}
-                                groupLabel="Auction draft timer"
-                            />
                             <Text style={panelStyles.nominationModeLabel}>Nomination order</Text>
                             <DraftChips
                                 options={NOMINATION_ORDER_CHIPS}
@@ -154,144 +97,9 @@ export function AuctionPanel({
                                 onSelect={onNominationModeChange}
                                 groupLabel="Nomination order"
                             />
-                            {startButton}
-                        </>
-                    )}
-                </View>
-            ) : null}
-            {activeDraftReady && !hasActiveAuction && !canStartAuction ? (
-                <DraftPrepNotice kind="auction" status={currentLeagueStatus} compact={compactSetup} onOpenDraftBoard={onOpenDraftBoard} />
-            ) : null}
-        </ScrollView>
-    )
-}
-
-export function DraftBoardPanel({
-    activeDraft,
-    activeDraftLoading,
-    currentLeagueStatus,
-    isCommissioner,
-    draftLoading,
-    activeDraftError,
-    onRetryActiveDraft,
-    picks,
-    picksLoading,
-    myMemberId,
-    draftTimerSeconds,
-    onDraftTimerSecondsChange,
-    rookieRounds,
-    onRookieRoundsChange,
-    rookieTimerExpiryBehavior,
-    onRookieTimerExpiryBehaviorChange,
-    onStartRookieDraft,
-    onJoinDraft,
-    onReseedRookiePicks,
-}: Pick<DraftControlProps, 'draftTimerSeconds' | 'onDraftTimerSecondsChange' | 'rookieRounds' | 'onRookieRoundsChange' | 'rookieTimerExpiryBehavior' | 'onRookieTimerExpiryBehaviorChange'> & {
-    activeDraft: Draft | null
-    activeDraftLoading: boolean
-    currentLeagueStatus?: LeagueStatus
-    isCommissioner: boolean
-    draftLoading: boolean
-    activeDraftError?: string | null
-    onRetryActiveDraft: () => void
-    picks: LeaguePickItem[]
-    picksLoading?: boolean
-    myMemberId?: string
-    onStartRookieDraft: () => void
-    onJoinDraft: () => void
-    onReseedRookiePicks: () => void
-}) {
-    const { width, height } = useWindowDimensions()
-    const [timerValid, setTimerValid] = useState(true)
-    const { padX } = usePageMetrics()
-    const compactRookieSetup = width < 600 || height < 500
-    const constrainBoardTop = width < 600 || height < 500
-    const compactRookiePrepNotice = constrainBoardTop
-    const boardTopMaxHeight = currentLeagueStatus === 'offseason' && isCommissioner
-        ? Math.max(draftBoardSetupMaxHeight(width, height), Math.min(360, height - 300))
-        : draftBoardSetupMaxHeight(width, height)
-    const activeDraftReady = !activeDraftLoading && !activeDraftError
-    const hasActiveRookieDraft = activeDraftReady && activeDraft?.draftType === 'snake'
-    const canStartRookieDraft = activeDraftReady && currentLeagueStatus === 'offseason' && isCommissioner
-    const showRookiePrepNotice = !picksLoading && activeDraftReady && activeDraft?.draftType !== 'snake' && picks.length === 0
-    const showBoardTop = Boolean(activeDraftError) || hasActiveRookieDraft || canStartRookieDraft || showRookiePrepNotice
-    const startRookieAccessibilityLabel = rookieStartButtonLabel(rookieRounds, draftTimerSeconds, rookieTimerExpiryBehavior)
-
-    const startRookieButton = (
-        <Pressable
-            style={[panelStyles.draftButton, compactRookieSetup && styles.rookieCompactStartButton]}
-            onPress={onStartRookieDraft}
-            disabled={draftLoading || !timerValid}
-            role="button"
-            aria-label={startRookieAccessibilityLabel}
-            aria-disabled={draftLoading || !timerValid}
-            accessibilityRole="button"
-            accessibilityLabel={startRookieAccessibilityLabel}
-            accessibilityState={{ disabled: draftLoading || !timerValid }}
-        >
-            <Text style={panelStyles.draftButtonText}>Start Rookie Draft</Text>
-        </Pressable>
-    )
-
-    const boardTop = (
-        <>
-            <ActiveDraftErrorNotice activeDraftError={activeDraftError} onRetryActiveDraft={onRetryActiveDraft} />
-            <ActiveDraftEntry
-                activeDraft={activeDraft}
-                activeDraftLoading={activeDraftLoading}
-                isCommissioner={isCommissioner}
-                draftLoading={draftLoading}
-                filterType="snake"
-                onJoinDraft={onJoinDraft}
-                onReseedRookiePicks={onReseedRookiePicks}
-            />
-            {canStartRookieDraft ? (
-                <View style={[panelStyles.panelCard, compactRookieSetup && panelStyles.panelCardCompact]}>
-                    <Text style={panelStyles.panelTitle}>Rookie Draft</Text>
-                    {compactRookieSetup ? (
-                        <>
-                            <View style={styles.rookieCompactStartRow}>
-                                <View style={styles.rookieCompactRoundsWrap}>
-                                    <DraftChips
-                                        options={ROOKIE_ROUND_CHIPS}
-                                        selectedValue={rookieRounds}
-                                        onSelect={onRookieRoundsChange}
-                                        groupLabel="Rookie draft rounds"
-                                        accessibilityLabelForOption={rookieRoundChipLabel}
-                                        dense
-                                        compact
-                                    />
-                                </View>
-                                {startRookieButton}
-                            </View>
-                            <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftTimerControl
-                                selectedValue={draftTimerSeconds}
-                                onSelect={onDraftTimerSecondsChange}
-                                groupLabel="Rookie draft timer"
-                                rookie
-                                onValidityChange={setTimerValid}
-                                compact
-                            />
-                            <Text style={panelStyles.nominationModeLabel}>Timeout behavior</Text>
-                            <DraftChips
-                                options={ROOKIE_TIMER_EXPIRY_CHIPS}
-                                selectedValue={rookieTimerExpiryBehavior}
-                                onSelect={onRookieTimerExpiryBehaviorChange}
-                                groupLabel="Rookie timeout behavior"
-                                compact
-                            />
                         </>
                     ) : (
                         <>
-                            <Text style={panelStyles.nominationModeLabel}>Timer</Text>
-                            <DraftTimerControl
-                                selectedValue={draftTimerSeconds}
-                                onSelect={onDraftTimerSecondsChange}
-                                groupLabel="Rookie draft timer"
-                                rookie
-                                onValidityChange={setTimerValid}
-                            />
                             <Text style={panelStyles.nominationModeLabel}>Rookie rounds</Text>
                             <DraftChips
                                 options={ROOKIE_ROUND_CHIPS}
@@ -307,94 +115,17 @@ export function DraftBoardPanel({
                                 onSelect={onRookieTimerExpiryBehaviorChange}
                                 groupLabel="Rookie timeout behavior"
                             />
-                            {startRookieButton}
                         </>
                     )}
+                    <Button
+                        title={canStartAuction ? 'Start Auction Draft' : 'Start Rookie Draft'}
+                        onPress={canStartAuction ? onStartDraft : onStartRookieDraft}
+                        disabled={draftLoading || !timerValid}
+                        accessibilityLabel={startLabel}
+                    />
                 </View>
-            ) : null}
-            {showRookiePrepNotice ? (
-                <DraftPrepNotice kind="rookie" status={currentLeagueStatus} compact={compactRookiePrepNotice} />
-            ) : null}
-        </>
-    )
-
-    return (
-        <View style={styles.boardWrap}>
-            {showBoardTop ? (
-                constrainBoardTop ? (
-                    <ScrollView
-                        style={[styles.boardTopScroll, { maxHeight: boardTopMaxHeight }]}
-                        showsVerticalScrollIndicator
-                    >
-                        <View style={[styles.boardTop, { paddingHorizontal: padX }, styles.boardTopConstrained]}>
-                            {boardTop}
-                        </View>
-                    </ScrollView>
-                ) : (
-                    <View style={[styles.boardTop, { paddingHorizontal: padX }]}>
-                        {boardTop}
-                    </View>
-                )
-            ) : null}
-            <View style={styles.boardList}>
-                <PicksBankList
-                    picks={picks}
-                    myMemberId={myMemberId}
-                    loading={picksLoading}
-                    leagueStatus={currentLeagueStatus}
-                />
-            </View>
-        </View>
+            ) : ready && !activeDraft ? <Text style={textStyles.meta}>No live draft.</Text> : null}
+            {children}
+        </ScrollView>
     )
 }
-
-const styles = StyleSheet.create({
-    activeDraftPanelScrollCompact: { paddingTop: spacing.xs },
-    auctionPanelCardCompact: {
-        paddingTop: 0,
-        paddingBottom: spacing.xs,
-        gap: 0,
-    },
-    auctionCompactLabel: { marginTop: spacing.xs, marginBottom: 0 },
-    auctionCompactStartRow: {
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        gap: spacing.sm,
-    },
-    auctionCompactTimerWrap: {
-        flex: 1,
-        minWidth: 0,
-    },
-    auctionCompactStartButton: {
-        flexBasis: 184,
-        flexShrink: 0,
-    },
-    rookieCompactStartRow: {
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        gap: spacing.sm,
-    },
-    rookieCompactRoundsWrap: {
-        flex: 1,
-        minWidth: 0,
-    },
-    rookieCompactStartButton: {
-        flexBasis: 184,
-        flexShrink: 0,
-    },
-    boardWrap: { flex: 1 },
-    boardTop: {
-        paddingVertical: spacing.lg,
-        gap: spacing.lg,
-        width: '100%',
-        maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular,
-        alignSelf: 'center',
-    },
-    boardTopConstrained: {
-        paddingTop: spacing.md,
-        paddingBottom: spacing.sm,
-        gap: spacing.sm,
-    },
-    boardTopScroll: { flexShrink: 0 },
-    boardList: { flex: 1 },
-})

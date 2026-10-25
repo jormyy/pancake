@@ -1,0 +1,112 @@
+[
+  {
+    "name": "trades-analyzer-offline-light",
+    "group": "trades-offline",
+    "from": "/trades",
+    "prepare": [
+      {
+        "tapPrefix": "Analyze trade from "
+      },
+      {
+        "reveal": "Dynasty trade analysis"
+      },
+      {
+        "tap": "Back to trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "open",
+        "action": {
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit assets"
+        },
+        "expected": {
+          "selector": "[aria-label='View trade analysis']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "text": "cached"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-analyzer-offline-dark",
+    "group": "trades-offline",
+    "from": "/trades",
+    "prepare": [
+      {
+        "tapPrefix": "Analyze trade from "
+      },
+      {
+        "reveal": "Dynasty trade analysis"
+      },
+      {
+        "tap": "Back to trades"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "offline": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "open",
+        "action": {
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit assets"
+        },
+        "expected": {
+          "selector": "[aria-label='View trade analysis']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "text": "cached"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

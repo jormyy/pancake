@@ -4,6 +4,7 @@ import path from 'path'
 export default defineConfig({
     test: {
         globals: true,
+        setupFiles: ['tests/helpers/vector-icons-mock.ts'],
         environment: 'node',
         env: {
             EXPO_PUBLIC_API_URL: 'http://127.0.0.1:54321/functions/v1/api',

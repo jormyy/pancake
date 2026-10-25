@@ -240,9 +240,9 @@ BEGIN
     AND EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
     AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-activate')),'real activation records that team exit');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_activate,pg_temp.taxi_id('user-a')),
-    'P0001','only through a draft or trade','manual taxi reentry is denied');
+    'P0001','through a draft, trade, free-agent add or waiver claim','manual taxi reentry is denied');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_manual,pg_temp.taxi_id('user-a')),
-    'P0001','only through a draft or trade','manual first taxi entry is denied');
+    'P0001','through a draft, trade, free-agent add or waiver claim','manual first taxi entry is denied');
   PERFORM pg_temp.taxi_fails(format('UPDATE roster_players SET is_on_taxi=true WHERE id=%L',v_manual),
     'P0001','only through a draft or trade','direct status write cannot forge taxi entry');
   PERFORM pg_temp.taxi_fails(format('INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via,is_on_taxi)
@@ -256,10 +256,10 @@ BEGIN
   SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) INTO v_before FROM roster_players r WHERE r.id IN(v_ir,v_manual);
   PERFORM set_config('request.jwt.claim.sub',pg_temp.taxi_id('user-a')::text,true);
   PERFORM pg_temp.taxi_fails(format('SELECT public.activate_roster_player_with_overflow_atomic(%L,''ir'',%L,''taxi'')',v_ir,v_manual),
-    'P0001','only through a draft or trade','overflow activation cannot create taxi entry');
+    '22023','Invalid roster overflow action: taxi','overflow activation cannot create taxi entry');
   PERFORM pg_temp.taxi_fails(format('SELECT public.activate_roster_player_with_lineup_atomic(%L,''ir'',%L,''taxi'',%L,%L,%L,CURRENT_DATE,1,NULL)',
     v_ir,v_manual,pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-league'),pg_temp.taxi_id('life-season')),
-    'P0001','only through a draft or trade','lineup activation cannot create taxi entry');
+    '22023','Invalid roster overflow action: taxi','lineup activation cannot create taxi entry');
   PERFORM pg_temp.taxi_check(v_before=(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r WHERE r.id IN(v_ir,v_manual)),
     'both compound denials leave both roster rows unchanged');
   PERFORM public.drop_player_atomic(v_drop);
@@ -427,7 +427,7 @@ BEGIN
   SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r
     WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) INTO v_before FROM trades t WHERE id=v_trade;
   PERFORM pg_temp.taxi_fails(format('SELECT public.complete_accepted_trade_atomic(%L)',v_trade),
-    'PT001','Taxi acquisition failed: Only current rookies','changed trade taxi eligibility yields terminal queue signal');
+    'PT001','Taxi acquisition failed: The career games count is not known yet','changed trade taxi eligibility yields terminal queue signal');
   PERFORM pg_temp.taxi_check(v_before=(SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id)
     FROM roster_players r WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) FROM trades t WHERE id=v_trade),
     'failed late taxi trade rolls back every roster and lifecycle write');

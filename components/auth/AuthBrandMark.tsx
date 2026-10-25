@@ -1,4 +1,5 @@
 import { Image, Platform, StyleSheet } from 'react-native'
+import { layout } from '@/constants/tokens'
 
 export function AuthBrandMark({ compact = false }: { compact?: boolean }) {
     const source = require('@/assets/images/pancake_logo.png')
@@ -28,11 +29,11 @@ export function AuthBrandMark({ compact = false }: { compact?: boolean }) {
 
 const styles = StyleSheet.create({
     mark: {
-        width: 96,
-        height: 96,
+        width: layout.auth.heroMarkSize,
+        height: layout.auth.heroMarkSize,
     },
     markCompact: {
-        width: 72,
-        height: 72,
+        width: layout.auth.markSize,
+        height: layout.auth.markSize,
     },
 })

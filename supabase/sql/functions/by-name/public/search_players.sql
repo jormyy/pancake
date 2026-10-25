@@ -56,7 +56,8 @@ RETURNS TABLE (
   projection_three_pointers_made numeric,
   projection_turnovers numeric,
   projection_status text,
-  stats_season_year int
+  stats_season_year int,
+  career_regular_season_games int
 )
 LANGUAGE plpgsql
 STABLE
@@ -200,6 +201,7 @@ filtered_base AS (
     p.headshot_url,
     p.nba_id,
     p.years_exp,
+    p.career_regular_season_games,
     fp.avg_fantasy_points,
     avg.avg_points,
     avg.avg_rebounds,
@@ -323,7 +325,8 @@ SELECT
   proj.projection_three_pointers_made,
   proj.projection_turnovers,
   proj.projection_status,
-  v_stats_season
+  v_stats_season,
+  pb.career_regular_season_games
 FROM paged_base pb
 LEFT JOIN projection AS proj
   ON proj.player_id = pb.id

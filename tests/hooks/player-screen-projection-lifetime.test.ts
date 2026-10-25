@@ -5,18 +5,12 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { setLeagueChangesConnected } from '@/lib/league-changes'
 
 const state = vi.hoisted(() => ({ focused: true, rpc: vi.fn() }))
-vi.mock('@react-navigation/native', async () => {
-    const { useEffect } = await import('react')
-    return { useFocusEffect: (callback: React.EffectCallback) => {
-        const focused = state.focused
-        useEffect(() => focused ? callback() : undefined, [callback, focused])
-    } }
-})
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
 vi.mock('@/lib/players', () => ({
     getPlayer: async () => ({ id: 'player', nba_team: 'LAL' }), getAvailableSeasons: async () => [2026],
-    getPlayerSeasonAveragesFromView: async () => null, getPlayerGameLog: async () => ({ games: [], hasMore: false }),
-    getPlayerFantasyPoints: async () => [], getPlayerTransactionHistory: async () => [],
+    getPlayerTransactionHistory: async () => [],
 }))
+vi.mock('@/components/player/season-data', () => ({ getPlayerSeasonLines: async () => [], getPlayerScoringSettings: async () => ({}), summarizePlayerSeason: () => ({ games: [], averages: null, fantasyPointsMap: null, avgFantasyPoints: 0, includesLive: false }) }))
 vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: () => 2026 }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-18' }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => undefined, writePersistentCache: vi.fn() }))

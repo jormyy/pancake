@@ -190,18 +190,9 @@ describe('profile privacy and invite capacity policies', () => {
         )
     })
 
-    it('keeps the legacy push-token compatibility trigger owner-scoped and non-executable', () => {
-        const definition = latestFunctionDefinition('normalize_legacy_push_token_write', 'private')
-        const privileges = functionPrivilegeStatements('normalize_legacy_push_token_write', 'private')
-            .join('\n')
-            .replace(/\s+/g, ' ')
-
-        expect(definition).toContain('SECURITY DEFINER')
-        expect(definition).toContain("SET search_path = ''")
-        expect(definition).toContain('UPDATE public.profiles')
-        expect(privileges).toContain(
-            'REVOKE ALL ON FUNCTION private.normalize_legacy_push_token_write() FROM PUBLIC, anon, authenticated, service_role',
-        )
+    it('keeps the deployed Edge push-token trigger while revoking direct client writes', () => {
+        expect(latestFunctionDefinition('normalize_legacy_push_token_write', 'private')).toContain('UPDATE public.profiles')
+        expect(tablePrivilegeStatements('profiles').join('\n')).toContain('REVOKE UPDATE (push_token) ON public.profiles FROM authenticated')
     })
 })
 
@@ -219,7 +210,7 @@ describe('waiver intent oracle closure', () => {
         )
         const rosterSource = readFileSync(path.resolve(__dirname, '../lib/roster.ts'), 'utf8')
         const rosterStatusBody = rosterSource.slice(
-            rosterSource.indexOf('export async function getPlayerRosterStatus'),
+            rosterSource.indexOf('export async function getPlayerRosterContext'),
             rosterSource.indexOf('export async function addFreeAgent'),
         )
 
@@ -234,9 +225,13 @@ describe('waiver intent oracle closure', () => {
         expect(addBody).not.toContain('waiver_wire_log')
         expect(addBody).not.toContain('FROM waiver_claims')
         expect(addBody).not.toContain('SET cleared_at = now()')
-        expect(guardBody).toContain('cleared_at IS NULL')
-        expect(guardBody).not.toContain('clears_at')
-        expect(guardBody).toContain("ERRCODE = 'PA002'")
+        const assertion = latestFunctionDefinition('assert_free_agent_waiver_cleared', 'private')
+        expect(guardBody).toContain('private.assert_free_agent_waiver_cleared(NEW.league_id, NEW.league_season_id, NEW.player_id)')
+        expect(addBody).toContain('private.assert_free_agent_waiver_cleared(p_league_id, v_season_id, p_player_id)')
+        expect(addBody.indexOf('private.assert_free_agent_waiver_cleared')).toBeLessThan(addBody.indexOf("ERRCODE = 'PA003'"))
+        expect(assertion).toContain('cleared_at IS NULL')
+        expect(assertion).not.toContain('clears_at')
+        expect(assertion).toContain("ERRCODE = 'PA002'")
     })
 })
 

@@ -51,7 +51,11 @@ SELECT pg_temp.expect_error(:'auto_call','42501');
 SELECT pg_temp.expect_error(:'move_call','42501');
 SELECT pg_temp.check_taxi_reads(:'league_id',0);
 SELECT pg_temp.expect_error(format('INSERT INTO public.league_player_taxi_exits(league_id,player_id) VALUES(%L,%L)',:'league_id',:'player_id'),'42501');
-SELECT pg_temp.expect_error('SELECT * FROM analytics.search_cache_source_state','42501');
+DO $$ BEGIN
+  IF has_schema_privilege(current_user,'analytics','USAGE') THEN
+    RAISE EXCEPTION 'Authenticated users can access the analytics schema';
+  END IF;
+END $$;
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub',:'owner_id',true);
 SET LOCAL ROLE authenticated;

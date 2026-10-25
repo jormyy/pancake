@@ -503,7 +503,7 @@ BEGIN
   PERFORM pg_temp.act_as(i.u2);
   PERFORM pg_temp.rejected('IR a healthy player', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a2, pg_temp.vet(8)), i.u2)), '%Out or IR%');
   PERFORM pg_temp.act_as(i.u3);
-  PERFORM pg_temp.rejected('taxi a veteran', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(7)), i.u3)), '%only through a draft or trade%');
+  PERFORM pg_temp.rejected('taxi a veteran', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(7)), i.u3)), '%through a draft, trade, free-agent add or waiver claim%');
   INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date)
   VALUES (i.a, pg_temp.season(i.a), i.a3, pg_temp.vet(7), 'UTIL', (now() AT TIME ZONE 'America/New_York')::date + 2);
   PERFORM pg_temp.checkpoint('season 1: IR and lineups');
@@ -583,8 +583,6 @@ BEGIN
   PERFORM pg_temp.assert(v_status = 'completed', 'rookie draft did not complete: ' || v_status);
   PERFORM pg_temp.assert((SELECT bool_and(is_used) FROM public.draft_picks p JOIN public.snake_draft_picks s ON s.draft_pick_id = p.id WHERE s.draft_id = v_draft), 'used picks not marked used');
   PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.trade_block_items WHERE pick_id = p_listed_pick), 'pick listing survived the pick being used');
-  -- Rookies land on full rosters; the league stays in the draft until every
-  -- manager trims back to size, then the commissioner activates it.
   PERFORM pg_temp.act_as(p_commissioner);
   PERFORM pg_temp.assert(NOT public.activate_rookie_draft_league_atomic(v_draft), 'league activated while rosters were over size');
   FOR v_member IN SELECT id FROM public.league_members WHERE league_id = p_league LOOP
@@ -596,8 +594,6 @@ BEGIN
          ORDER BY r.acquired_at DESC, r.id LIMIT 1));
     END LOOP;
   END LOOP;
-  -- Trimming the last over-size roster activates the league on its own; an
-  -- explicit activation afterwards is a no-op and never an error.
   PERFORM pg_temp.act_as(p_commissioner);
   IF (SELECT status::text FROM public.leagues WHERE id = p_league) <> 'active' THEN
     PERFORM pg_temp.assert(public.activate_rookie_draft_league_atomic(v_draft), 'league did not activate after the rookie draft');
@@ -623,7 +619,7 @@ BEGIN
 
   -- Taxi acquisition occurs in the draft; later manual entry is forbidden.
   PERFORM pg_temp.act_as(i.u3);
-  PERFORM pg_temp.rejected('manual taxi entry', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.b2, pg_temp.any_player(i.b2, true)), i.u3)), '%only through a draft or trade%');
+  PERFORM pg_temp.rejected('manual taxi entry', pg_temp.try(format('SELECT public.toggle_taxi_atomic(%L, true, %L)', pg_temp.row_of(i.b2, pg_temp.any_player(i.b2, true)), i.u3)), '%through a draft, trade, free-agent add or waiver claim%');
   PERFORM pg_temp.assert((SELECT count(*) FROM public.roster_players WHERE member_id = i.b2 AND league_season_id = pg_temp.season(i.b) AND is_on_taxi) = 1, 'draft taxi acquisition did not take');
   -- Settings change between seasons: A tightens to 2 adds a week, B gains a limit of 1.
   UPDATE public.leagues SET weekly_add_limit = 2 WHERE id = i.a;

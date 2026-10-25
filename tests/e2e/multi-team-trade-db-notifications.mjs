@@ -100,106 +100,40 @@ export const assertCompletionFailureIsTerminal = async (fixture) => {
   })
   const targetClaims = claimed.filter((entry) => queued.some((queuedEntry) => queuedEntry.id === entry.id))
   assert.equal(targetClaims.length, 3)
-  const [success, retry, deferred] = targetClaims
-  for (const [index, entry] of targetClaims.entries()) {
-    assert.equal(await rpc(fixture.admin, 'record_notification_outbox_ticket_atomic', {
-      p_id: entry.id,
-      p_claim_token: entry.claim_token,
-      p_expo_ticket_id: `receipt-lifecycle-${tradeId}-${index}`,
-      p_push_token: `ExponentPushToken[receipt-lifecycle-${index}]`,
-      p_receipt_delay_seconds: 0,
-    }), true)
-  }
-
-  const deliveryClaims = await rpc(fixture.admin, 'claim_notification_outbox_atomic', {
-    p_limit: 200,
-    p_lease_seconds: 60,
-  })
-  assert.equal(deliveryClaims.some((entry) => targetClaims.some((target) => target.id === entry.id)), false)
-
-  const receiptClaims = await rpc(fixture.admin, 'claim_notification_receipts_atomic', {
-    p_limit: 200,
-    p_lease_seconds: 60,
-  })
-  const targetReceipts = receiptClaims.filter((entry) => targetClaims.some((target) => target.id === entry.id))
-  assert.equal(targetReceipts.length, 3)
-  const successReceipt = targetReceipts.find((entry) => entry.id === success.id)
-  const retryReceipt = targetReceipts.find((entry) => entry.id === retry.id)
-  const deferredReceipt = targetReceipts.find((entry) => entry.id === deferred.id)
-  assert(successReceipt && retryReceipt && deferredReceipt)
-  assert.equal(successReceipt.push_token, 'ExponentPushToken[receipt-lifecycle-0]')
+  const [success, retry, terminal] = targetClaims
   assert.equal(await rpc(fixture.admin, 'complete_notification_outbox_atomic', {
-    p_id: successReceipt.id,
-    p_claim_token: successReceipt.claim_token,
+    p_id: success.id, p_claim_token: success.claim_token,
   }), true)
   assert.equal(await rpc(fixture.admin, 'fail_notification_outbox_atomic', {
-    p_id: retryReceipt.id,
-    p_claim_token: retryReceipt.claim_token,
-    p_error: 'Expo receipt: InvalidCredentials',
+    p_id: retry.id, p_claim_token: retry.claim_token, p_error: 'Web push HTTP 503',
   }), true)
-  assert.equal(await rpc(fixture.admin, 'defer_notification_receipt_atomic', {
-    p_id: deferredReceipt.id,
-    p_claim_token: deferredReceipt.claim_token,
-    p_error: 'Expo receipt not ready',
-    p_retry_delay_seconds: 15,
+  assert.equal(await rpc(fixture.admin, 'dead_letter_notification_outbox_atomic', {
+    p_id: terminal.id, p_claim_token: terminal.claim_token, p_error: 'Web push HTTP 400',
   }), true)
-
   const { data: retryState, error: retryStateError } = await fixture.admin
     .from('notification_outbox')
-    .select('attempt_count, expo_ticket_id, push_token, ticketed_at, claimed_at, claim_token, last_error')
-    .eq('id', retry.id)
-    .single()
+    .select('attempt_count, claimed_at, claim_token, last_error, available_at')
+    .eq('id', retry.id).single()
   if (retryStateError) throw new Error(`retry outbox lookup: ${retryStateError.message}`)
   assert.equal(retryState.attempt_count, 1)
-  assert.equal(retryState.expo_ticket_id, null)
-  assert.equal(retryState.push_token, null)
-  assert.equal(retryState.ticketed_at, null)
   assert.equal(retryState.claimed_at, null)
   assert.equal(retryState.claim_token, null)
-  assert.equal(retryState.last_error, 'Expo receipt: InvalidCredentials')
-
-  const { data: deferredState, error: deferredStateError } = await fixture.admin
-    .from('notification_outbox')
-    .select('receipt_attempt_count, expo_ticket_id, push_token, claimed_at, claim_token, last_error')
-    .eq('id', deferred.id)
-    .single()
-  if (deferredStateError) throw new Error(`deferred receipt lookup: ${deferredStateError.message}`)
-  assert.equal(deferredState.receipt_attempt_count, 1)
-  assert.equal(deferredState.expo_ticket_id, deferredReceipt.expo_ticket_id)
-  assert.equal(deferredState.push_token, deferredReceipt.push_token)
-  assert.equal(deferredState.claimed_at, null)
-  assert.equal(deferredState.claim_token, null)
-  assert.equal(deferredState.last_error, 'Expo receipt not ready')
-
-  const { error: retryDueError } = await fixture.admin
-    .from('notification_outbox')
-    .update({ available_at: new Date(Date.now() - 1_000).toISOString() })
-    .in('id', [retry.id, deferred.id])
+  assert.equal(retryState.last_error, 'Web push HTTP 503')
+  assert(Date.parse(retryState.available_at) > Date.now())
+  const { error: retryDueError } = await fixture.admin.from('notification_outbox')
+    .update({ available_at: new Date(Date.now() - 1_000).toISOString() }).eq('id', retry.id)
   if (retryDueError) throw new Error(`outbox retry scheduling fixture: ${retryDueError.message}`)
   const retried = (await rpc(fixture.admin, 'claim_notification_outbox_atomic', {
-    p_limit: 200,
-    p_lease_seconds: 60,
-  })).find((entry) => entry.id === retry.id)
-  assert(retried, 'failed receipt was not reclaimable for a fresh delivery')
-  assert.notEqual(retried.claim_token, retryReceipt.claim_token)
-  const deferredAgain = (await rpc(fixture.admin, 'claim_notification_receipts_atomic', {
-    p_limit: 200,
-    p_lease_seconds: 60,
-  })).find((entry) => entry.id === deferred.id)
-  assert(deferredAgain, 'deferred receipt was not reclaimable without resending')
-  assert.notEqual(deferredAgain.claim_token, deferredReceipt.claim_token)
-  assert.equal(await rpc(fixture.admin, 'dead_letter_notification_outbox_atomic', {
-    p_id: deferredAgain.id,
-    p_claim_token: deferredAgain.claim_token,
-    p_error: 'Expo receipt: MismatchSenderId',
-  }), true)
-
+    p_limit: 200, p_lease_seconds: 60,
+  })).find(entry => entry.id === retry.id)
+  assert(retried, 'temporary web failure is not reclaimable')
+  assert.notEqual(retried.claim_token, retry.claim_token)
   const { data: terminalRows, error: terminalRowsError } = await fixture.admin
     .from('notification_outbox')
     .select('id, delivered_at, dead_lettered_at')
-    .in('id', [success.id, retry.id, deferred.id])
-  if (terminalRowsError) throw new Error(`terminal receipt state lookup: ${terminalRowsError.message}`)
+    .in('id', [success.id, retry.id, terminal.id])
+  if (terminalRowsError) throw new Error(`terminal web delivery state lookup: ${terminalRowsError.message}`)
   assert(terminalRows.find((entry) => entry.id === success.id)?.delivered_at)
   assert.equal(terminalRows.find((entry) => entry.id === retry.id)?.delivered_at, null)
-  assert(terminalRows.find((entry) => entry.id === deferred.id)?.dead_lettered_at)
+  assert(terminalRows.find((entry) => entry.id === terminal.id)?.dead_lettered_at)
 }

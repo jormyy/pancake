@@ -37,14 +37,13 @@ export function AutoSetModal({
                 />
                 {onEditManually ? (
                     <Button
-                        title="Edit manually instead"
+                        title="Edit lineup"
                         variant="ghost"
                         onPress={onEditManually}
                         accessibilityLabel="Edit lineup manually"
                         fullWidth
                     />
                 ) : null}
-                <Button title="Cancel" variant="ghost" onPress={onClose} accessibilityLabel="Cancel auto-set" fullWidth />
             </View>
         </Sheet>
     )

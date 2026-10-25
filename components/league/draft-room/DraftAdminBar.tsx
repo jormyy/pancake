@@ -36,7 +36,6 @@ export function DraftAdminBar({
                         disabled={disabled}
                         accessibilityState={{ disabled }}
                         onPress={isPaused ? onResume : onPause}
-                        pressedScale={0.94}
                         accessibilityRole="button"
                         accessibilityLabel={isPaused ? 'Resume draft' : 'Pause draft'}
                     >
@@ -48,7 +47,6 @@ export function DraftAdminBar({
                     disabled={disabled}
                     accessibilityState={{ disabled }}
                     onPress={onReset}
-                    pressedScale={0.94}
                     accessibilityRole="button"
                     accessibilityLabel="Reset draft"
                 >
@@ -59,7 +57,6 @@ export function DraftAdminBar({
                     disabled={disabled}
                     accessibilityState={{ disabled }}
                     onPress={onStop}
-                    pressedScale={0.94}
                     accessibilityRole="button"
                     accessibilityLabel="Stop draft"
                 >

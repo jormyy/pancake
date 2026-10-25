@@ -1,0 +1,286 @@
+[
+  {
+    "name": "league-draft-clock-light",
+    "group": "league-clock",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft"
+        },
+        "expected": {
+          "text": "You're leading"
+        },
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{memberId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-auction-clock-light",
+    "group": "league-clock",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "text": "You're leading"
+        },
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-auction-pause-light",
+    "group": "league-clock",
+    "from": "/draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Pause draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Resume draft']"
+        },
+        "note": "One user tap pauses the server clock."
+      },
+      {
+        "name": "resume",
+        "action": {
+          "tap": "Resume draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Pause draft']"
+        },
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-rookie-pause-light",
+    "group": "league-clock",
+    "from": "/rookie-draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Pause draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Resume draft']"
+        },
+        "note": "One user tap pauses the server clock."
+      },
+      {
+        "name": "resume",
+        "action": {
+          "tap": "Resume draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Pause draft']"
+        },
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "league-commissioner-tools-light",
+    "group": "league-clock",
+    "from": "/commissioner-settings",
+    "steps": [
+      {
+        "action": {
+          "reveal": "Generate Playoff Bracket"
+        },
+        "expected": {
+          "text": "Generate Playoff Bracket"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-draft-clock-dark",
+    "group": "league-clock",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft"
+        },
+        "expected": {
+          "text": "You're leading"
+        },
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{memberId}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-auction-clock-dark",
+    "group": "league-clock",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "text": "You're leading"
+        },
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-auction-pause-dark",
+    "group": "league-clock",
+    "from": "/draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Pause draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Resume draft']"
+        },
+        "note": "One user tap pauses the server clock."
+      },
+      {
+        "name": "resume",
+        "action": {
+          "tap": "Resume draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Pause draft']"
+        },
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-rookie-pause-dark",
+    "group": "league-clock",
+    "from": "/rookie-draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Pause draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Resume draft']"
+        },
+        "note": "One user tap pauses the server clock."
+      },
+      {
+        "name": "resume",
+        "action": {
+          "tap": "Resume draft"
+        },
+        "expected": {
+          "selector": "[aria-label='Pause draft']"
+        },
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "snake",
+      "draftId": "{{draftId}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "league-commissioner-tools-dark",
+    "group": "league-clock",
+    "from": "/commissioner-settings",
+    "steps": [
+      {
+        "action": {
+          "reveal": "Generate Playoff Bracket"
+        },
+        "expected": {
+          "text": "Generate Playoff Bracket"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "league-activity-retry-light",
+    "group": "league-clock",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "league-activity-retry-dark",
+    "group": "league-clock",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tap": "Activity"
+        },
+        "expected": {
+          "route": "/league?tab=history",
+          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

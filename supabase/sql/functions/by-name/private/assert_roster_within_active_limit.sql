@@ -11,17 +11,13 @@ RETURNS void
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
-DECLARE
-  v_roster_size int;
-  v_active_count int;
 BEGIN
   PERFORM pg_advisory_xact_lock(
     hashtext(p_league_id::text),
     hashtext(p_member_id::text)
   );
 
-  SELECT COALESCE(roster_size, 20)
-    INTO v_roster_size
+  PERFORM 1
     FROM leagues
    WHERE id = p_league_id
    FOR SHARE;
@@ -31,16 +27,8 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT count(*)
-    INTO v_active_count
-    FROM roster_players
-   WHERE league_id = p_league_id
-     AND league_season_id = p_league_season_id
-     AND member_id = p_member_id
-     AND is_on_ir = false
-     AND is_on_taxi = false;
-
-  IF v_active_count > v_roster_size THEN
+  IF EXISTS (SELECT 1 FROM private.roster_problems(p_league_id,p_league_season_id,p_member_id)
+    WHERE kind='active_limit') THEN
     RAISE EXCEPTION 'Roster is over the active player limit. Drop or move an eligible player to IR/taxi before editing your lineup.'
       USING ERRCODE = 'P0001';
   END IF;

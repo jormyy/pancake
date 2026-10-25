@@ -11,6 +11,7 @@ export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; 
 
 type TradePlayerItem = {
     kind: 'player'
+    fromTaxi?: boolean
     toIR?: boolean
     toTaxi?: boolean
     playerId: string
@@ -21,6 +22,8 @@ type TradePlayerItem = {
     nbaId?: string | null
     injuryStatus?: string | null
     yearsExp?: number | null
+    nbaDraftNumber?: number | null
+    careerGames?: number | null
     avgFantasyPoints?: number | null
     avgMinutesPlayed?: number | null
     fromMemberId?: string | null
@@ -134,6 +137,9 @@ type TradePlayerQueryRow = {
     nba_id: string | null
     injury_status: string | null
     years_exp: number | null
+    nba_draft_number: number | null
+    career_regular_season_games: number | null
+    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean }[]
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -163,6 +169,7 @@ type TradeQueryRow = {
     completion_failure_reason: string | null
     id: string
     league_id: string
+    league_season_id: string
     status: TradeStatus
     proposed_at: string
     accepted_at: string | null
@@ -198,6 +205,7 @@ type TradeProposalOptions = {
 }
 
 export type TradeProposalPayload = {
+    recipientMemberId?: string
     offerPlayerIds: string[]
     requestPlayerIds: string[]
     offerPickIds: string[]
@@ -235,7 +243,7 @@ export type TradeBlockItem = {
     teamName: string
     note: string | null
     updatedAt: string
-    asset: TradeItem
+    asset: Exclude<TradeItem, { kind: 'faab' }>
 }
 
 export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
@@ -246,6 +254,7 @@ export async function getPicksForMember(memberId: string, leagueId: string): Pro
 export async function getPicksForMembers(
     memberIds: string[],
     leagueId: string,
+    options: { tradeableOnly?: boolean } = {},
 ): Promise<Record<string, TradePickItem[]>> {
     const uniqueMemberIds = [...new Set(memberIds)]
     const picks = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as TradePickItem[]]))
@@ -267,7 +276,17 @@ export async function getPicksForMembers(
 
     if (error) throw error
 
+    const unavailableSeasons = new Set<number>()
+    if (options.tradeableOnly) {
+        const { data: drafts, error: draftError } = await supabase.from('drafts')
+            .select('league_seasons!inner(season_year)')
+            .eq('league_id', leagueId).eq('draft_type', 'snake').eq('is_mock', false)
+            .in('status', ['in_progress', 'paused'])
+        if (draftError) throw draftError
+        for (const draft of drafts ?? []) unavailableSeasons.add(draft.league_seasons.season_year)
+    }
     for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
+        if (unavailableSeasons.has(row.season_year)) continue
         picks[row.current_owner_id]?.push({
             kind: 'pick',
             pickId: row.id,
@@ -401,7 +420,8 @@ export async function editTrade(
 }
 
 export async function setTradeRosterPlan(tradeId: string, memberId: string, plan: TradeRosterPlan) {
-    await apiPost(`/trades/${tradeId}/roster-plan`, { memberId, ...plan })
+    const result = await apiPost<{ rosterPlan: TradeRosterPlan }>(`/trades/${tradeId}/roster-plan`, { memberId, ...plan })
+    return result.rosterPlan
 }
 
 export async function setTradeTaxiDestinations(tradeId: string, memberId: string, playerIds: string[]) {
@@ -430,6 +450,7 @@ export async function vetoTrade(tradeId: string, memberId: string): Promise<void
 const TRADE_SELECT = `
             id,
             league_id,
+            league_season_id,
             status,
             completion_failure_reason,
             proposed_at,
@@ -468,7 +489,7 @@ const TRADE_SELECT = `
                 from_member_id,
                 to_member_id,
                 faab_amount,
-                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
+                players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_taxi ) ),
                 draft_picks (
                     season_year,
                     round,
@@ -488,6 +509,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         if (item.player_id != null && item.players) {
             tradeItem = {
                 kind: 'player',
+                fromTaxi: item.players.roster_players?.some((roster) => roster.league_season_id === row.league_season_id && roster.member_id === fromMemberId && roster.is_on_taxi) ?? false,
                 toTaxi: item.to_taxi,
                 toIR: item.to_ir,
                 playerId: item.player_id,
@@ -498,6 +520,8 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
                 nbaId: item.players?.nba_id ?? null,
                 injuryStatus: item.players?.injury_status ?? null,
                 yearsExp: item.players?.years_exp ?? null,
+                nbaDraftNumber: item.players?.nba_draft_number ?? null,
+                careerGames: item.players?.career_regular_season_games ?? null,
                 fromMemberId,
                 toMemberId,
             } satisfies RoutedTradeItem
@@ -762,7 +786,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp ),
+            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
             draft_picks (
                 season_year,
                 round,
@@ -792,6 +816,8 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
                     nbaId: row.players.nba_id ?? null,
                     injuryStatus: row.players.injury_status ?? null,
                     yearsExp: row.players.years_exp ?? null,
+                    nbaDraftNumber: row.players.nba_draft_number ?? null,
+                    careerGames: row.players.career_regular_season_games ?? null,
                 },
             }]
         }

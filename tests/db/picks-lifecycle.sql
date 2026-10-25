@@ -50,11 +50,11 @@ BEGIN
   UPDATE leagues SET status='offseason' WHERE id=league;
   PERFORM set_config('request.jwt.claim.sub','',true);
   draft:=start_rookie_draft_atomic(league,3,false); draft_id:=(draft->>'id')::uuid;
-  expected:=ARRAY[members[3],members[2],members[1],members[4]];
+  expected:=ARRAY[members[2],members[1],members[3],members[4]];
   SELECT array_agg(member_id ORDER BY draft_orders.position) INTO actual FROM draft_orders WHERE draft_orders.draft_id=picks_lifecycle.draft_id;
-  PERFORM pg_temp.check_post(actual=expected,'rookie order uses latest season and week, wins, points, and new manager last');
+  PERFORM pg_temp.check_post(actual=expected,'rookie order uses latest season and week, win rate, points per game, and new manager last');
   PERFORM pg_temp.check_post((SELECT status='drafting' FROM leagues WHERE id=league),'rookie start marks league drafting');
-  PERFORM pg_temp.check_post((SELECT member_id=members[1] AND overall_pick=1 FROM snake_draft_picks WHERE draft_pick_id=asset),'traded pick controls the first slot');
+  PERFORM pg_temp.check_post((SELECT member_id=members[1] AND overall_pick=3 FROM snake_draft_picks WHERE draft_pick_id=asset),'traded pick keeps its owner in the rate-based order');
   FOR r IN 1..3 LOOP
     FOR position IN 1..4 LOOP
       SELECT original_owner_id INTO chosen FROM draft_picks pick JOIN snake_draft_picks slot ON slot.draft_pick_id=pick.id

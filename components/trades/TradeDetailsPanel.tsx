@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { useLeagueContext } from '@/contexts/league-context'
+import { isTradeTaxiEligible } from '@/lib/trade-assets'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { MotionPressable } from '@/components/Motion'
@@ -13,7 +14,7 @@ import {
     type TradeCardActions,
     type TradeCardContext,
 } from '@/components/trades/TradeCard'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, foundation, radii, spacing, textStyles } from '@/constants/tokens'
 
 const DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
 
@@ -75,23 +76,23 @@ export function TradeDetailsPanel({
             ) : null}
 
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
-            {trade.status === 'pending' && currentLeague?.allow_inactive_trades && actions.onRosterPlan ? <PendingTradeRosterPlan trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             {trade.status === 'pending' && !currentLeague?.allow_inactive_trades && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
-                item.kind === 'player' && item.toMemberId === myMemberId ? [<TaxiAcquisitionChoice
+                item.kind === 'player' && item.toMemberId === myMemberId && (item.toTaxi ||
+                    (currentLeague?.taxi_slots ?? 0) > 0 && isTradeTaxiEligible(item)) ? [<TaxiAcquisitionChoice
                     key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
                     label={`Receive ${item.playerName} into taxi`}
                     onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}
             <TradeActionButtons trade={trade} model={model} actions={actions} />
+            {trade.status === 'pending' && currentLeague?.allow_inactive_trades && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <MotionPressable
                 style={styles.analyze}
                 onPress={onAnalyze}
                 disabled={actions.acting}
                 accessibilityRole="button"
-                accessibilityLabel={`Analyze this trade in the analyzer`}
+                accessibilityLabel="Analyze this trade"
                 accessibilityState={{ disabled: actions.acting }}
-                pressedScale={0.96}
             >
-                <Text style={styles.analyzeText}>Open in Analyzer</Text>
+                <Text style={styles.analyzeText}>Analyze</Text>
             </MotionPressable>
         </View>
     )
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
     noteText: { ...textStyles.body },
     analyze: {
         alignSelf: 'flex-start',
-        minHeight: 44,
+        minHeight: foundation.minTouch,
         justifyContent: 'center',
     },
     analyzeText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },

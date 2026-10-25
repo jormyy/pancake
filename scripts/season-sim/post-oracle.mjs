@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { etDate } from './common.mjs'
 import { expectedWinner } from './score-oracle.mjs'
 
 export function rookieOrder(members, standings) {
@@ -34,7 +35,7 @@ export function checkChampion(final, apiRow) {
   return { matchupId: final.id, memberId: final.winner_member_id, passed: true }
 }
 
-export function checkPlayoffShape(matchups,entrants,start,lengths){
+export function checkPlayoffShape(matchups,entrants,start,lengths,calendar){
   let first=start
   for(const [index,length] of lengths.entries()){
     const rows=matchups.filter(row=>row.playoff_round===index+1)
@@ -47,7 +48,7 @@ export function checkPlayoffShape(matchups,entrants,start,lengths){
       if(index){
         const previous=matchups.filter(prior=>prior.playoff_round===index)
         for(const member of [row.home_member_id,row.away_member_id])assert.ok(previous.some(prior=>prior.winner_member_id===member),'Only previous-round winners advance')
-        assert.ok(Date.parse(row.created_at)>=Math.max(...previous.map(prior=>Date.parse(prior.finalized_at)))+48*3600000,'Automatic playoff advancement retains its 48-hour grace')
+        checkRoundReady(row.created_at, previous, calendar)
       }
     }
     first+=length
@@ -67,4 +68,13 @@ export function checkRealDraftBoard(rookies,players){
     assert.equal(rows[0].nba_id,null,'Name-only draft imports stay unlinked before the first NBA observation')
   }
   return {passed:true,players:players.length,provenance:'REAL-RAW NBA Stats board compared with the NBA.com production import'}
+}
+
+export function checkRoundReady(createdAt, prerequisites, calendar) {
+  assert.ok(prerequisites.length, 'A bracket requires preceding matchups')
+  const lastWeek = Math.max(...prerequisites.map(row => row.end_week_number ?? row.week_number))
+  const lastGameDate = calendar.weeks.find(row => row.week_number === lastWeek)?.week_end
+  assert.ok(lastGameDate, 'A bracket requires the preceding round calendar')
+  assert.ok(prerequisites.every(row => row.is_finalized), 'A bracket requires finalized preceding matchups')
+  assert.ok(etDate(createdAt) > lastGameDate, 'A bracket waits until the Eastern date passes the last game date')
 }

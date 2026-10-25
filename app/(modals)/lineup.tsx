@@ -5,10 +5,11 @@ import { Avatar } from '@/components/Avatar'
 import { DaySelector } from '@/components/DaySelector'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 import { useAuth } from '@/hooks/use-auth'
+import { getGameDisplayState } from '@/lib/home-surface'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { deferLeagueRefresh, leagueChangeAffects, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
@@ -33,7 +34,7 @@ import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration } from '@/lib/session-cache-registry'
-import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
+import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot, type LineupSnapshot } from '@/lib/lineup/snapshot'
 import { showAlert } from '@/lib/alert'
 import { useLocalSearchParams } from 'expo-router'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -54,7 +55,8 @@ const StarterRow = memo(function StarterRow({
     slot,
     index,
     isSelected,
-    liveTeamsRef,
+    liveTeams,
+    startedTeams,
     teamMatchups,
     onPress,
     disabled,
@@ -64,7 +66,8 @@ const StarterRow = memo(function StarterRow({
     slot: LineupSlot
     index: number
     isSelected: boolean
-    liveTeamsRef: React.RefObject<Set<string>>
+    liveTeams: Set<string>
+    startedTeams: Set<string>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
@@ -72,8 +75,8 @@ const StarterRow = memo(function StarterRow({
     targetState: LineupMoveTargetState
 }) {
     const p = slot.player
-    const liveTeams = liveTeamsRef.current
-    const isLocked = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
+    const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
+    const isLive = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
     const starterMatchupLabel = p?.nbaTeam
         ? (starterMatchup ? `${starterMatchup.isHome ? 'vs' : '@'} ${starterMatchup.opponent}` : '· No game')
@@ -89,13 +92,12 @@ const StarterRow = memo(function StarterRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || targetState === 'invalid'}
+            disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || targetState === 'invalid' }}
-            pressedScale={0.985}
+            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -104,22 +106,21 @@ const StarterRow = memo(function StarterRow({
                         name={p.displayName}
                         color={colors.bgMuted}
                         size={36}
-                        uri={playerHeadshotUrl(p.nbaId)}
+                        uri={playerHeadshotUrl(p.nbaId && /^\d+$/.test(p.nbaId) ? p.nbaId : null)}
                     />
                     <View style={styles.playerInfo}>
-                        <Text style={styles.playerName}>{p.displayName}</Text>
+                        <Text style={styles.playerName} numberOfLines={1}>{p.displayName}</Text>
                         <View style={styles.playerMetaRow}>
                             <InjuryBadge status={p.injuryStatus} />
                             {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                             {starterMatchupLabel !== null && (
-                                <Text style={styles.playerMeta}>{p.nbaTeam} {starterMatchupLabel}</Text>
+                                <Text style={styles.playerMeta} numberOfLines={1}>{p.nbaTeam} {starterMatchupLabel}</Text>
                             )}
                         </View>
                     </View>
-                    {isLocked && (
-                        <Text style={styles.lockedBadge}>LIVE</Text>
-                    )}
-                    {targetState === 'valid' && <Text style={styles.moveBadge}>MOVE</Text>}
+                    <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
+                        {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
+                    </Text>
                 </>
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
@@ -133,7 +134,8 @@ const BenchRow = memo(function BenchRow({
     player,
     index,
     isSelected,
-    liveTeamsRef,
+    liveTeams,
+    startedTeams,
     teamMatchups,
     onPress,
     disabled,
@@ -143,15 +145,16 @@ const BenchRow = memo(function BenchRow({
     player: LineupPlayer
     index: number
     isSelected: boolean
-    liveTeamsRef: React.RefObject<Set<string>>
+    liveTeams: Set<string>
+    startedTeams: Set<string>
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     onPress: () => void
     disabled: boolean
     readOnly: boolean
     targetState: LineupMoveTargetState
 }) {
-    const liveTeams = liveTeamsRef.current
-    const isLocked = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
+    const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
+    const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
     const benchMatchupLabel = player.nbaTeam
         ? (benchMatchup ? `${benchMatchup.isHome ? 'vs' : '@'} ${benchMatchup.opponent}` : '· No game')
@@ -167,34 +170,32 @@ const BenchRow = memo(function BenchRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || targetState === 'invalid'}
+            disabled={disabled || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={`Bench ${player.displayName}`}
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || targetState === 'invalid' }}
-            pressedScale={0.985}
+            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
             <Avatar
                 name={player.displayName}
                 color={colors.bgMuted}
                 size={36}
-                uri={playerHeadshotUrl(player.nbaId)}
+                uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null)}
             />
             <View style={styles.playerInfo}>
-                <Text style={styles.playerName}>{player.displayName}</Text>
+                <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
                 <View style={styles.playerMetaRow}>
                     <InjuryBadge status={player.injuryStatus} />
                     {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
                     {benchMatchupLabel !== null && (
-                        <Text style={styles.playerMeta}>{player.nbaTeam} {benchMatchupLabel}</Text>
+                        <Text style={styles.playerMeta} numberOfLines={1}>{player.nbaTeam} {benchMatchupLabel}</Text>
                     )}
                 </View>
             </View>
-            {isLocked && (
-                <Text style={styles.lockedBadge}>LIVE</Text>
-            )}
-            {targetState === 'valid' && <Text style={styles.moveBadge}>MOVE</Text>}
+            <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
+                {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
+            </Text>
         </MotionPressable>
     )
 })
@@ -250,10 +251,8 @@ function LineupScreen() {
     const loadPendingRef = useRef<{ key: string; requestId: number; promise: Promise<boolean> } | null>(null)
     const [dataOwnerKey, setDataOwnerKey] = useState(ownerKey)
 
-    const { startedTeams, liveTeams, teamMatchups } = useLiveStats(selectedDate, { scope: ownerKey ?? '', playerIds: [], leagueId, seasonId: ctx?.seasonId })
-    // Wrap in a ref so memoized row components read the latest value without re-rendering on poll updates
-    const liveTeamsRef = useRef(liveTeams)
-    liveTeamsRef.current = online && contextAuthority && !savedSnapshot ? liveTeams : new Set()
+    const { startedTeams, todaysGames = [], freshness = 'fresh', teamMatchups } = useLiveStats(selectedDate, { scope: ownerKey ?? '', playerIds: [], leagueId, seasonId: ctx?.seasonId })
+    const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
 
     const requestIsCurrent = useCallback((requestId: number, generation: number) =>
         activeOwnerRef.current === ownerKey && lineupLoadSeqRef.current === requestId && browserReadsAllowed()
@@ -349,9 +348,10 @@ function LineupScreen() {
                 const days = await getWeekDays(lineupCtx.weekNumber, lineupCtx.seasonYear)
                 if (!requestIsCurrent(requestId, generation)) return false
                 const date = clampDateToWeek(wanted, days)
-                const optimizerEnabled = await getLineupOptimizerEnabled(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId)
-                if (!requestIsCurrent(requestId, generation)) return false
-                const lineup = await getWeeklyLineup(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId, lineupCtx.weekNumber, date)
+                const [optimizerEnabled, lineup] = await Promise.all([
+                    getLineupOptimizerEnabled(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId),
+                    getWeeklyLineup(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId, lineupCtx.weekNumber, date),
+                ])
                 if (!requestIsCurrent(requestId, generation)) return false
                 const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, optimizerEnabled }
                 saveLineupSnapshot(snapshotScope, generation, value)
@@ -535,6 +535,16 @@ function LineupScreen() {
         reloadLineup: reloadLineupForActions,
     })
 
+    const preselectedKey = requestedPlayerId ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
+    const preselectionPending = Boolean(preselectedKey && preselectedKeyRef.current !== preselectedKey && !readOnly && lineupForActions)
+    const requestedStarterIndex = preselectionPending ? visibleStarters.findIndex((slot) => slot.player?.playerId === requestedPlayerId) : -1
+    const requestedBenchIndex = preselectionPending ? visibleBench.findIndex((player) => player.playerId === requestedPlayerId) : -1
+    const displayedSelection = requestedStarterIndex >= 0
+        ? { kind: 'starter' as const, index: requestedStarterIndex }
+        : requestedBenchIndex >= 0
+            ? { kind: 'bench' as const, index: requestedBenchIndex }
+            : selected
+
     useEffect(() => {
         if (!requestedPlayerId || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
         const preselectedKey = `${ownerKey}:${selectedDate}:${requestedPlayerId}`
@@ -555,7 +565,7 @@ function LineupScreen() {
                   lineup: lineupForActions,
                   league: currentLeague,
                   startedTeams,
-                  from: selected,
+                  from: displayedSelection,
                   to,
               })
             : null
@@ -585,7 +595,10 @@ function LineupScreen() {
                 actionContext.seasonId,
                 true,
             )
-            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(true)
+            if (optimizerRequestIsCurrent(requestId, generation)) {
+                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, true)
+                setSeasonOptimizerEnabled(true)
+            }
         } catch (e) {
             if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
         } finally {
@@ -606,20 +619,16 @@ function LineupScreen() {
                 actionContext.seasonId,
                 false,
             )
-            if (optimizerRequestIsCurrent(requestId, generation)) setSeasonOptimizerEnabled(false)
+            if (optimizerRequestIsCurrent(requestId, generation)) {
+                if (snapshotScope) updateLineupOptimizerSnapshot(snapshotScope, generation, actionContext.seasonId, false)
+                setSeasonOptimizerEnabled(false)
+            }
         } catch (e) {
             if (optimizerRequestIsCurrent(requestId, generation)) showAlert('Auto-set daily failed', getErrorMessage(e))
         } finally {
             if (optimizerRequestIsCurrent(requestId, generation)) setOptimizerSaving(false)
         }
     }
-
-    const selectedPlayer =
-        selected?.kind === 'starter'
-            ? visibleStarters[selected.index]?.player
-            : selected?.kind === 'bench'
-              ? visibleBench[selected.index]
-              : null
 
     if (!visibleCtx) {
         const emptyMessage = lineupLoading
@@ -640,7 +649,6 @@ function LineupScreen() {
                             onPress={() => { if (!snapshotScope) void refreshLeague(); else void load() }}
                             accessibilityRole="button"
                             accessibilityLabel="Retry lineup load"
-                            pressedScale={0.96}
                         >
                             <Text style={styles.retryButtonText}>Try again</Text>
                         </MotionPressable>
@@ -654,7 +662,7 @@ function LineupScreen() {
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
-        <DeferredContent ready={(!lineupLoading && matchingDay) || Boolean(lineupError)}>
+        <DeferredContent ready={(!lineupLoading && matchingDay && gamesReady && (!preselectedKey || preselectedKeyRef.current === preselectedKey || !lineupRefreshing)) || Boolean(lineupError)}>
         <Page title="Lineup">
             <PageHeader
                 title={`Week ${visibleCtx.weekNumber} lineup`}
@@ -695,23 +703,11 @@ function LineupScreen() {
                         onPress={() => { void load(selectedDate) }}
                         accessibilityRole="button"
                         accessibilityLabel="Retry selected lineup day"
-                        pressedScale={0.96}
                     >
                         <Text style={styles.errorRetryButtonText}>Retry</Text>
                     </MotionPressable>
                 </View>
             ) : null}
-
-            {/* Selection hint */}
-            {selected && !readOnly && (
-                <MotionView style={styles.hint} preset="slide-left">
-                    <Text style={styles.hintText}>
-                        {selectedPlayer
-                            ? `${selectedPlayer.displayName} selected — tap a slot to move`
-                            : `Empty ${selected.kind === 'starter' ? visibleStarters[selected.index]?.slotType : ''} slot selected — tap a player`}
-                    </Text>
-                </MotionView>
-            )}
 
             <ScrollView
                 style={styles.scroller}
@@ -743,8 +739,9 @@ function LineupScreen() {
                             key={`starter-${i}`}
                             slot={slot}
                             index={i}
-                            isSelected={selected?.kind === 'starter' && selected.index === i}
-                            liveTeamsRef={liveTeamsRef}
+                            isSelected={displayedSelection?.kind === 'starter' && displayedSelection.index === i}
+                            liveTeams={liveTeams}
+                            startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
                             disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
@@ -773,8 +770,9 @@ function LineupScreen() {
                             key={player.playerId}
                             player={player}
                             index={i}
-                            isSelected={selected?.kind === 'bench' && selected.index === i}
-                            liveTeamsRef={liveTeamsRef}
+                            isSelected={displayedSelection?.kind === 'bench' && displayedSelection.index === i}
+                            liveTeams={liveTeams}
+                            startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'bench', index: i })}
                             disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
@@ -819,7 +817,7 @@ function LineupScreen() {
                 visible={autoSetModalVisible}
                 disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(selectedDate) }}
+                onToday={() => { void doAutoSet(todayET()) }}
                 onWholeWeek={() => { void doAutoSet(null) }}
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
             />
@@ -841,15 +839,6 @@ const styles = StyleSheet.create({
         borderColor: colors.primaryBorder,
     },
     preDraftHintText: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.medium },
-
-    hint: {
-        backgroundColor: colors.primaryLight,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.primaryBorder,
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-    },
-    hintText: { fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
 
     statusBanner: {
         backgroundColor: colors.primaryLight,
@@ -937,7 +926,8 @@ const styles = StyleSheet.create({
     playerInfo: { flex: 1, minWidth: 0, gap: spacing.xxs },
     playerName: { ...textStyles.rowTitle },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    playerMeta: { ...textStyles.meta },
+    playerMeta: { ...textStyles.meta, flexShrink: 1 },
+    rowStatus: { width: controlSize.minTouch, textAlign: 'right' },
 
     emptySlot: { ...textStyles.body, color: colors.textMuted, fontStyle: 'italic' },
     lockedBadge: {

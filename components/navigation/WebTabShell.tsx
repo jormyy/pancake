@@ -3,7 +3,7 @@ import { StackRouter } from '@react-navigation/native'
 import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
 import { createPortal } from 'react-dom'
-import { Link, Navigator, usePathname, useRouter } from 'expo-router'
+import { Link, Navigator, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
@@ -13,7 +13,8 @@ import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { Avatar } from '@/components/Avatar'
-import { brand, breakpoints, colors, spacing, themeVariablesCss } from '@/constants/tokens'
+import { brand, breakpoints, colors, controlSize, layout, spacing, themeVariablesCss } from '@/constants/tokens'
+import { hasShellBackHeader, SHELL_SECTION_CHILDREN } from '@/constants/navigation'
 import { Sheet } from '@/components/ui/Sheet'
 import { styles } from './webTabShellStyles'
 
@@ -58,6 +59,7 @@ const PAGE_TITLES: { prefix: string; label: string }[] = [
     { prefix: '/create-league', label: 'Create League' },
     { prefix: '/join-league', label: 'Join League' },
     { prefix: '/change-password', label: 'Change Password' },
+    { prefix: '/notification-settings', label: 'Notifications' },
     { prefix: '/rookie-draft-room', label: 'Rookie Draft' },
     { prefix: '/draft', label: 'Draft Room' },
 ]
@@ -90,15 +92,8 @@ function tradesNavLabel(label: string, pendingCount: number) {
 }
 
 // Screens opened on top of a section keep that section lit in the navigation.
-const SECTION_CHILDREN: Partial<Record<RouteHref, string[]>> = {
-    '/roster': ['/lineup'],
-    '/players': ['/player/', '/claim-player'],
-    '/trades': ['/propose-trade'],
-    '/league': ['/team-roster'],
-}
-
 function isRouteActive(pathname: string, href: RouteHref) {
-    if ((SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
+    if ((SHELL_SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
     return pathname.startsWith(href)
 }
@@ -140,7 +135,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
     )
 }
 
-function NavIcon({ name, active = false, size = 19 }: { name: IconName; active?: boolean; size?: number }) {
+function NavIcon({ name, active = false, size = controlSize.icon.md }: { name: IconName; active?: boolean; size?: number }) {
     return (
         <View style={styles.navIconFrame} aria-hidden>
             <MaterialIcons name={name} size={size} color={active ? colors.textWhite : brand.onStrong} />
@@ -213,14 +208,14 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const chevronColor = light ? colors.textMuted : brand.onMuted
 
     if (!current) {
+        const waiting = membershipStatus !== 'empty' && membershipStatus !== 'unavailable'
         return (
             <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
-                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]}>
-                    <View style={styles.leagueCrest}><Text style={styles.leagueCrestText}>P</Text></View>
+                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight]} aria-busy={waiting} accessibilityState={{ busy: waiting }}>
                     <View style={styles.flex1}>
-                        <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
+                        <Text style={nameStyle} numberOfLines={1} ellipsizeMode="clip" aria-hidden={waiting}>{waiting ? '\u00a0' : membershipStatus === 'empty' ? 'No league' : 'League unavailable'}</Text>
                         {light ? null : (
-                            <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
+                            <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip" aria-hidden={waiting}>{waiting ? '\u00a0' : membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'}</Text>
                         )}
                     </View>
                 </View>
@@ -230,6 +225,19 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
 
     const currentLeagueName = current.leagues?.name ?? 'Pancake League'
     const currentTeamName = current.team_name ?? 'Team'
+
+    if (memberships.length <= 1) {
+        return (
+            <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
+                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight, styles.leagueSwitchStatic]}>
+                    <View style={styles.flex1}>
+                        <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{currentLeagueName}</Text>
+                        {light ? null : <Text style={metaStyle} numberOfLines={1}>{currentTeamName}</Text>}
+                    </View>
+                </View>
+            </View>
+        )
+    }
 
     return (
         <View ref={wrapRef} style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
@@ -246,16 +254,13 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 accessibilityLabel="Switch league"
                 aria-expanded={open}
             >
-                <View style={styles.leagueCrest}>
-                    <Text style={styles.leagueCrestText}>{(current.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
-                </View>
                 <View style={styles.flex1}>
                     <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{currentLeagueName}</Text>
                     {light ? null : (
                         <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
                     )}
                 </View>
-                <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={18} color={chevronColor} />
+                <MaterialIcons name={open ? 'expand-less' : 'expand-more'} size={controlSize.icon.md} color={chevronColor} />
             </Pressable>
 
             {open && anchor && typeof document !== 'undefined' ? createPortal(
@@ -294,14 +299,11 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                     pressed && styles.pressed,
                                 ]}
                             >
-                                <View style={[styles.leagueCrest, styles.leagueMenuCrest]}>
-                                    <Text style={styles.leagueCrestText}>{(membership.team_name ?? 'Team').slice(0, 1).toUpperCase()}</Text>
-                                </View>
                                 <View style={styles.flex1}>
                                     <Text style={styles.leagueMenuName} numberOfLines={2} ellipsizeMode="tail">{membership.leagues?.name ?? 'League'}</Text>
                                     <Text style={styles.leagueMenuMeta} numberOfLines={1} ellipsizeMode="clip">{membership.team_name ?? 'Team'}</Text>
                                 </View>
-                                {active ? <MaterialIcons name="check" size={17} color={colors.primary} /> : null}
+                                {active ? <MaterialIcons name="check" size={controlSize.icon.sm} color={colors.primary} /> : null}
                             </Pressable>
                         )
                     })}
@@ -366,11 +368,11 @@ function SidebarNavButton({
             ) : null}
         </Pressable>
     )
-    return href ? <Link href={href} asChild>{button}</Link> : button
+    return href ? <Link href={href} dismissTo asChild>{button}</Link> : button
 }
 
 // Pages opened from Profile keep it marked as the current place.
-const PROFILE_ROUTES = ['/profile', '/change-password', '/create-league', '/join-league']
+const PROFILE_ROUTES = ['/notification-settings', '/profile', '/change-password', '/create-league', '/join-league']
 function isProfileRoute(pathname: string) {
     return PROFILE_ROUTES.some((route) => pathname.startsWith(route))
 }
@@ -474,7 +476,7 @@ function WebSidebar() {
 
             <View style={styles.sidebarFooter}>
                 <Pressable
-                    onPress={() => router.push('/profile')}
+                    onPress={() => router.dismissTo('/profile')}
                     style={({ hovered, pressed }: PressableState) => [
                         styles.userChip,
                         hovered && !profileActive && styles.userChipHover,
@@ -488,7 +490,7 @@ function WebSidebar() {
                 >
                     <Avatar
                         name={current?.team_name ?? user?.email ?? 'P'}
-                        size={34}
+                        size={layout.shell.crestSize}
                         uri={avatarUrl}
                         color={profileActive ? colors.primaryHover : colors.primary}
                         textColor={colors.textWhite}
@@ -497,7 +499,7 @@ function WebSidebar() {
                         <Text style={[styles.userName, profileActive && styles.userTextActive]} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
                         <Text style={[styles.userMeta, profileActive && styles.userTextActive]} numberOfLines={1}>Profile & settings</Text>
                     </View>
-                    <MaterialIcons name="settings" size={17} color={profileActive ? brand.on : brand.onSubtle} />
+                    <MaterialIcons name="settings" size={controlSize.icon.sm} color={profileActive ? brand.on : brand.onSubtle} />
                 </Pressable>
             </View>
         </View>
@@ -512,7 +514,7 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
                 <LeagueSwitcher tone="light" />
             </View>
             <Pressable onPress={onMenuPress} style={styles.mobileMenuButton} accessibilityRole="button" accessibilityLabel="Open menu">
-                <MaterialIcons name="menu" size={22} color={colors.textPrimary} />
+                <MaterialIcons name="menu" size={controlSize.icon.lg} color={colors.textPrimary} />
             </Pressable>
         </View>
     )
@@ -520,6 +522,7 @@ function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
 
 function MobileBottomNav() {
     const pathname = usePathname()
+    const params = useGlobalSearchParams<{ tradeId?: string | string[] }>()
     const router = useRouter()
     const pendingTradeCount = usePendingTradeCount()
 
@@ -527,12 +530,13 @@ function MobileBottomNav() {
         <View style={styles.mobileBottomNav} role="navigation" aria-label="Primary">
             {MOBILE_NAV.map((item) => {
                 const active = isRouteActive(pathname, item.href)
+                const atDestination = (item.href === '/' ? active : pathname === item.href) && !hasShellBackHeader(pathname, params)
                 const badge = item.href === '/trades' ? pendingTradeCount : 0
                 const displayLabel = MOBILE_LABELS[item.href]
                 return (
                     <Pressable
                         key={item.href}
-                        onPress={() => router.push(item.href)}
+                        onPress={() => { if (!atDestination) router.dismissTo(item.href) }}
                         style={({ pressed }: PressableState) => [styles.bottomNavItem, pressed && styles.pressed]}
                         accessibilityRole="link"
                         accessibilityLabel={item.href === '/trades' ? tradesNavLabel(item.label, pendingTradeCount) : item.label}
@@ -540,7 +544,7 @@ function MobileBottomNav() {
                         {...(active ? ARIA_CURRENT_PAGE : null)}
                     >
                         <View style={styles.bottomNavIconWrap} aria-hidden>
-                            <MaterialIcons name={item.icon} size={22} color={active ? colors.primary : colors.textMuted} />
+                            <MaterialIcons name={item.icon} size={controlSize.icon.lg} color={active ? colors.primary : colors.textMuted} />
                             {badge > 0 ? (
                                 <View style={[styles.navBadge, styles.bottomNavBadge]}>
                                     <Text style={styles.navBadgeText}>{badge}</Text>
@@ -561,29 +565,29 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
     const router = useRouter()
     const pathname = usePathname()
     const { currentLeague, isCommissioner } = useLeagueContext()
-    const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
+    const { openDraftRoom, draftLoading, draft, draftChecked, draftError } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
+    const showDraftRoom = !draftChecked || Boolean(draft) || Boolean(draftError)
     // League sub-tabs are reachable from the League tab's own pill bar — the
     // sheet only carries destinations the bottom bar doesn't already cover.
     const menuItems = useMemo(
         () => [
-            {
+            ...(showDraftRoom ? [{
                 key: 'draft-room', label: 'Draft Room', icon: 'flash-on' as IconName, onPress: openDraftRoom, loading: draftLoading,
                 active: pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room'),
-            },
-            { key: 'playoffs', label: 'Playoffs', icon: 'account-tree' as IconName, onPress: () => router.push('/(modals)/bracket'), active: pathname.startsWith('/bracket') },
+            }] : []),
             ...(isCommissioner
                 ? [{
                     key: 'commissioner', label: 'Commissioner', icon: 'admin-panel-settings' as IconName,
                     onPress: () => router.push('/(modals)/commissioner-settings'), active: pathname.startsWith('/commissioner-settings'),
                 }]
                 : []),
-            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.push('/profile'), active: isProfileRoute(pathname) },
+            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.dismissTo('/profile'), active: isProfileRoute(pathname) },
         ],
-        [draftLoading, isCommissioner, openDraftRoom, pathname, router],
+        [draftLoading, isCommissioner, openDraftRoom, pathname, router, showDraftRoom],
     )
 
     return (
-        <Sheet visible={visible} title="Menu" onClose={onClose}>
+        <Sheet visible={visible} accessibilityLabel="Menu" onClose={onClose}>
             {menuItems.map((item) => (
                 <Pressable
                     key={item.key}
@@ -598,25 +602,21 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
                     accessibilityState={{ selected: item.active }}
                     {...(item.active ? ARIA_CURRENT_PAGE : null)}
                 >
-                    <MaterialIcons name={item.icon} size={21} color={item.active ? colors.primaryDark : colors.textSecondary} />
+                    <MaterialIcons name={item.icon} size={controlSize.icon.md} color={item.active ? colors.primaryDark : colors.textSecondary} />
                     <Text style={[styles.sheetItemText, item.active && styles.sheetItemTextActive]}>{item.label}</Text>
-                    <MaterialIcons name="chevron-right" size={20} color={colors.textPlaceholder} />
+                    <MaterialIcons name="chevron-right" size={controlSize.icon.md} color={colors.textPlaceholder} />
                 </Pressable>
             ))}
         </Sheet>
     )
 }
 
-/**
- * The persistent web app-shell: sidebar (wide) or mobile top/bottom nav
- * (compact) wrapping a content area. Mounted ONCE at the root for every
- * authenticated route, so the navigation chrome never disappears — including
- * during the draft, lineup, trades, and on player detail. Former full-screen
- * `(modals)` takeovers now render as pages inside this content area.
- */
 export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chrome?: boolean }>) {
     const { width } = useWindowDimensions()
     const compact = width < breakpoints.compact
+    const pathname = usePathname()
+    const params = useGlobalSearchParams<{ tradeId?: string | string[] }>()
+    const backHeader = hasShellBackHeader(pathname, params)
     usePancakeWebTheme()
     useDocumentTitle()
     // Swap the static boot shell for this one before the first paint.
@@ -628,8 +628,8 @@ export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chr
     // routes render chrome-less.
     return (
         <View style={chrome ? [styles.root, compact ? styles.rootCompact : styles.rootDesktop] : styles.flex1}>
-            {chrome ? (compact ? <MobileTopBar onMenuPress={() => setMenuOpen(true)} /> : <WebSidebar />) : null}
-            <View key="route-content" style={chrome ? [styles.content, compact && styles.contentCompact] : styles.flex1} role={chrome ? 'main' : undefined}>{children}</View>
+            {chrome ? (compact ? (backHeader ? null : <MobileTopBar onMenuPress={() => setMenuOpen(true)} />) : <WebSidebar />) : null}
+            <View key="route-content" style={chrome ? [styles.content, compact && styles.contentCompact, compact && backHeader && styles.contentWithBackHeader] : styles.flex1} role={chrome ? 'main' : undefined}>{children}</View>
             {chrome && compact ? (
                 <>
                     <MobileBottomNav />

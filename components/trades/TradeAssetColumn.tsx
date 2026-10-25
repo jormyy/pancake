@@ -1,10 +1,11 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors, INJURY_COLORS } from '@/constants/tokens'
-import { playerHeadshotUrl, yearShort } from '@/lib/format'
+import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
@@ -51,7 +52,6 @@ function PlayerRow({
         >
             <Avatar
                 name={p.display_name}
-                uri={playerHeadshotUrl(p.nba_id) ?? undefined}
                 color={selected ? colors.primary : colors.bgMuted}
                 textColor={selected ? colors.textWhite : colors.textSecondary}
                 size={36}
@@ -70,7 +70,7 @@ function PlayerRow({
                             variant="solid"
                         />
                     ) : null}
-                    {player.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
+                    <PlayerEligibilityTags yearsExp={p.years_exp} careerGames={p.career_regular_season_games} />
                 </View>
                 <Text style={styles.playerContext} numberOfLines={1}>
                     {blocked && !selected ? 'Remove the earlier route to select this player.' : statText}

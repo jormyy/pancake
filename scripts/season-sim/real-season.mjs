@@ -8,7 +8,7 @@ import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
 import { assertFinals, assertLeaguePoints } from './assertions.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
-import { assertLiveCoverage } from './invariants.mjs'
+import { assertLiveCoverage, assertTaxiTransactions } from './invariants.mjs'
 import { assertTwoCalendar, assertTwoDay } from './two-checks.mjs'
 import { activateRealRookies, nbaTradeSetup, allStarLimit, realRookieActions, rookieLineups, rookieListings, rookieMoves } from './two-actions.mjs'
 import { assertSkippedWeek } from './skipped-week.mjs'
@@ -18,6 +18,7 @@ import { finishSeason } from './season-end.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 import { shiftDay } from './season-model.mjs'
 import { checkPlayoffShape } from './post-oracle.mjs'
+import { ensureRegularSchedule } from './schedule.mjs'
 
 export function checkRealCoverage(profile,days,checked,rookies,observations,{through=profile.end,games=null}={}){
   assert.ok(through>=profile.start&&through<=profile.end,'The cutoff belongs to the real season')
@@ -86,7 +87,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
     assert.equal(standings.length, 0, 'The real second season starts without prior standings')
     await move(`${profile.start}T14:00:00Z`)
-    await c.api(c.users[0], '/sync/matchups', { leagueId: c.leagueId })
+    await ensureRegularSchedule(c)
     report.secondCalendar = await assertTwoCalendar(c, profile)
     await captureSeasonFeatures(c,profile,'week-1',report)
     await capturePlayers(c,'opening-before-played',report)
@@ -147,6 +148,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     day.skippedWeek = await assertSkippedWeek(c,1)
     for(const pick of [...report.actions.tradeDeadline.transferredPicks,{id:report.offseasonTrade.pickId,owner:report.offseasonTrade.owner},{id:report.offseasonTrade.counterPickId,owner:report.offseasonTrade.counterOwner}])assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`),pick.owner,'Traded future picks retain their owners through the second real season')
     assert.equal(await digest(),before,'Real second-season play preserves all settled first-season history')
+    day.taxi = await assertTaxiTransactions(c)
     day.wallSeconds=(Date.now()-dayBegan)/1000
     days.push(day)
     console.log(JSON.stringify({realSeasonDate:date,games:day.finals.games,wallSeconds:day.wallSeconds}))
@@ -157,7 +159,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     const ending = { actions: {}, phaseTimings: [], featureCheckpoints:report.featureCheckpoints }
     report.secondSeasonEnd = await finishSeason(c,move,ending,checkpoint,{ stopAfterChampion:true,snapshot:async(name,...args)=>snapshot(`season-${profile.year}-${name}`,...args) })
     report.secondChampion = ending.champion
-    report.secondPlayoffs=checkPlayoffShape(await c.rest(c.users[0],`matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=neq.regular_season&is_voided=eq.false`),c.users.length,profile.playoffStart,[1,2])
+    report.secondPlayoffs=checkPlayoffShape(await c.rest(c.users[0],`matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=neq.regular_season&is_voided=eq.false`),c.users.length,profile.playoffStart,[1,2],profile.calendar)
   }
   await capturePlayers(c,'requested-end',report)
   report.realRookieCoverage=checkRealCoverage(profile,days,checked,plan.draft.rookies,report.realInputChecks.filter(row=>row.year===profile.year).flatMap(row=>row.identities).filter(row=>plan.draft.rookies.some(rookie=>rookie.nbaId===row.nbaId)),{through,games})

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
-import { isTradeVisibleOnScreen, type Trade, type TradePickItem } from '@/lib/trades'
+import { isTradeVisibleOnScreen, type Trade } from '@/lib/trades'
+import { normalizeTradeTab } from '@/lib/trade-ui-model'
 import { buildTradeList, buildTradeScreenModel, selectTradeScreenSections, tradeScreenResource } from '@/lib/trades-screen-model'
 
 const NOW = Date.parse('2026-07-09T12:00:00Z')
@@ -36,10 +37,6 @@ function trade(overrides: Partial<Trade> = {}): Trade {
     }
 }
 
-const pick = (id: string, year: number, round: number): TradePickItem => ({
-    kind: 'pick', pickId: id, seasonYear: year, round, originalTeamName: 'Team',
-})
-
 const listBase = {
     vetoableTrades: [], incomingTrades: [], outgoingTrades: [], historyTrades: [],
     picks: [], tradesLoading: false, myBlockItems: [], blockLoading: false,
@@ -72,8 +69,8 @@ describe('trade screen read model', () => {
     it('emits no empty rows while the resource is in error', () => {
         const failed = buildTradeList({ ...listBase, tab: 'offers', tradesError: true })
         expect(failed.filter((row) => row._type === 'empty')).toEqual([])
-        expect(failed.filter((row) => row._type === 'header').map((row) => row.label)).toEqual(['Incoming', 'Outgoing'])
-        const block = buildTradeList({ ...listBase, tab: 'leagueBlock', blockError: true })
+        expect(failed.filter((row) => row._type === 'header').map((row) => row.label)).toEqual(['Incoming'])
+        const block = buildTradeList({ ...listBase, tab: 'block', blockError: true })
         expect(block.some((row) => row._type === 'empty')).toBe(false)
         const history = buildTradeList({ ...listBase, tab: 'history', tradesError: true })
         expect(history.some((row) => row._type === 'empty')).toBe(false)
@@ -82,7 +79,7 @@ describe('trade screen read model', () => {
         expect(withRows.some((row) => row._type === 'trade' && row.trade.id === 'live')).toBe(true)
         expect(withRows.some((row) => row._type === 'empty')).toBe(false)
         // Without an error the empty rows are back.
-        expect(buildTradeList({ ...listBase, tab: 'offers' }).filter((row) => row._type === 'empty')).toHaveLength(2)
+        expect(buildTradeList({ ...listBase, tab: 'offers' }).filter((row) => row._type === 'empty')).toHaveLength(1)
     })
 
     it('keeps actionable veto trades ahead of incoming and outgoing sections', () => {
@@ -105,7 +102,7 @@ describe('trade screen read model', () => {
             trade({ id: 'history', status: 'completed' }),
         ], [{
             id: 'block', memberId: 'recipient', teamName: 'Recipient', note: null,
-            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'faab', amount: 1 },
+            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'pick', pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' },
         }], 'recipient')
         expect(sections.incomingTrades.map((item) => item.id)).toEqual(['incoming'])
         expect(sections.outgoingTrades.map((item) => item.id)).toEqual(['outgoing'])
@@ -113,21 +110,22 @@ describe('trade screen read model', () => {
         expect(sections.myBlockItems.map((item) => item.id)).toEqual(['block'])
     })
 
-    it('sorts and groups picks by season', () => {
-        const rows = buildTradeList({
-            ...listBase,
-            tab: 'picks',
-            picks: [pick('late', 2028, 2), pick('early', 2027, 1)],
-        })
-        expect(rows.map((row) => row._type === 'header' ? row.label : row._type === 'pick' ? row.pick.pickId : row._type)).toEqual([
-            '2027 Picks', 'early', '2028 Picks', 'late',
-        ])
+    it('lists other teams before your listings without duplicating owned assets', () => {
+        const mine = { id: 'mine', memberId: 'recipient', teamName: 'Recipient', note: null,
+            updatedAt: '2026-07-09T10:00:00Z', asset: { kind: 'pick' as const, pickId: 'pick-a', seasonYear: 2027, round: 1, originalTeamName: 'A' } }
+        const other = { ...mine, id: 'other', memberId: 'other' }
+        const rows = buildTradeList({ ...listBase, tab: 'block', myBlockItems: [mine], leagueBlockItems: [mine, other] })
+        expect(rows.map(row => row._type === 'header' ? row.label : row._type === 'blockItem' ? row.item.id : row._type))
+            .toEqual(['League listings', 'other', 'Your listings', 'mine'])
+    })
+
+    it('redirects removed trade sections to their current sections', () => {
+        for (const alias of ['picks', 'analyzer']) expect(normalizeTradeTab(alias)).toBe('offers')
+        for (const alias of ['leagueBlock', 'my-block']) expect(normalizeTradeTab(alias)).toBe('block')
     })
 
     it('assigns each tab to exactly one retryable resource owner', () => {
-        expect(tradeScreenResource('picks')).toBe('picks')
         expect(tradeScreenResource('block')).toBe('block')
-        expect(tradeScreenResource('leagueBlock')).toBe('block')
         expect(tradeScreenResource('offers')).toBe('trades')
         expect(tradeScreenResource('history')).toBe('history')
     })

@@ -11,6 +11,7 @@ AS $function$
 DECLARE
   v_league           public.leagues%ROWTYPE;
   v_user_id          uuid := (SELECT auth.uid());
+  v_team_name        text := regexp_replace(p_team_name, '^[[:space:]]+|[[:space:]]+$', '', 'g');
   v_invite_code      text := upper(trim(coalesce(p_invite_code, '')));
   v_existing         uuid;
   v_member_id        uuid;
@@ -21,6 +22,10 @@ DECLARE
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  IF v_team_name IS NULL OR v_team_name = '' OR char_length(v_team_name) > 40 THEN
+    RAISE EXCEPTION 'Team name must contain 1 to 40 characters.';
   END IF;
 
   IF v_invite_code !~ '^[A-Z0-9]{16}$' THEN
@@ -75,7 +80,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.league_members (league_id, user_id, role, team_name)
-  VALUES (v_league.id, v_user_id, 'manager', trim(p_team_name))
+  VALUES (v_league.id, v_user_id, 'manager', v_team_name)
   RETURNING id INTO v_member_id;
 
   SELECT COALESCE(max(wp.priority), 0) + 1

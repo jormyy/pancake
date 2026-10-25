@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { SeasonSelector as WebSeasonSelector } from '@/components/player/SeasonSelector.web'
@@ -11,6 +11,7 @@ import { PlayerHistory } from '@/components/player/PlayerHistory'
 import { headerPlayer } from '@/tests/helpers/fixtures'
 import type { GameLogEntry, PlayerSeasonAverages } from '@/lib/players'
 import type { LeagueProjectionRow } from '@/lib/projections'
+import { controlSize } from '@/constants/tokens'
 
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
@@ -30,7 +31,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 let screen: ReactTestRenderer
 const type = (name: string) => name as React.ElementType
 const text = () => screen.root.findAllByType(type('Text')).map(node => node.props.children).flat().join(' ')
-afterEach(async () => { await act(async () => screen?.unmount()) })
+afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers() })
 const render = async (element: React.ReactElement) => { await act(async () => { screen = create(element) }) }
 
 const averages: PlayerSeasonAverages = {
@@ -81,7 +82,7 @@ describe('season dropdown', () => {
 })
 
 describe('player decision summary', () => {
-    const actions = { onAdd: vi.fn(), onDrop: vi.fn(), onClaim: vi.fn(), onSetLineup: vi.fn() }
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z')) })
     it.each([
         [{ status: 'free_agent' as const }, 'Free agent', ['Add Player A']],
         [{ status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, 'On waivers', ['Claim Player A']],
@@ -90,38 +91,48 @@ describe('player decision summary', () => {
     ])('shows roster status and the available actions for %j', async (rosterStatus, status, labels) => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: 'GTD' }), rosterStatus, leagueActive: true,
-            actionLoading: false, compact: true, ...actions,
+            compact: true,
+            action: labels[0] ? { label: 'Action', accessibilityLabel: labels[0], onPress: vi.fn(), disabled: false, busy: false } : null,
+            onDrop: rosterStatus.status === 'mine' ? vi.fn() : undefined,
         }))
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
         expect(text()).toContain(status)
-        expect(screen.root.findByType(type('Badge')).props.label).toBe('GTD')
+        expect(screen.root.findAllByType(type('Badge')).map(node => node.props.label)).toContain('GTD')
         expect(screen.root.findByType(type('PosTag')).props.position).toBe('PG')
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
 
-    it('restores dynasty rank and shows experience only when the identity line has room', async () => {
+    it('keeps rank and experience visible without layout measurements', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
-            rosterStatus: { status: 'free_agent' }, leagueActive: true, actionLoading: false, compact: true, ...actions,
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        const labels = () => screen.root.findAllByType(type('Badge')).map(node => node.props.label)
-        expect(labels()).toContain('Dynasty #8')
-        expect(labels()).not.toContain('Yr 7')
-        const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')
-        expect(name?.props.numberOfLines).toBe(1)
-        const measured = screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')
-        expect(measured).toHaveLength(2)
-        await act(async () => {
-            measured[0].props.onLayout({ nativeEvent: { layout: { width: 260 } } })
-            measured[1].props.onLayout({ nativeEvent: { layout: { width: 230 } } })
-        })
-        expect(labels()).not.toContain('Yr 7')
-        await act(async () => measured[1].props.onLayout({ nativeEvent: { layout: { width: 150 } } }))
-        expect(labels()).toContain('Yr 7')
-        await act(async () => measured[0].props.onLayout({ nativeEvent: { layout: { width: 190 } } }))
-        expect(labels()).not.toContain('Yr 7')
-        expect(labels()).toContain('Dynasty #8')
+        expect(screen.root.findAllByType(type('Badge')).map(node => node.props.label)).toEqual(['GTD', 'Dynasty #8', 'Yr 7'])
+        expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
+        expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBe(2)
+    })
+
+    it('reserves a fixed action slot from the first frame and takes its label from props', async () => {
+        const props = { player: headerPlayer(), rosterStatus: null, leagueActive: true, compact: true }
+        await render(React.createElement(PlayerHeader, props))
+        const slot = () => screen.root.findByProps({ testID: 'player-action-slot' })
+        const initialStyle = slot().props.style
+        expect(slot().props['aria-busy']).toBe(true)
+        expect(slot().findAllByType(type('View')).length).toBeGreaterThan(0)
+        const onPress = vi.fn()
+        for (const busy of [false, true, false]) {
+            await act(async () => screen.update(React.createElement(PlayerHeader, {
+                ...props, rosterStatus: { status: 'free_agent' }, action: { label: 'Add to IR', onPress, disabled: false, busy },
+            })))
+            expect(slot().props.style).toEqual(initialStyle)
+            const buttons = screen.root.findAllByType(type('Pressable'))
+            expect(buttons).toHaveLength(1)
+            expect(buttons[0].props.disabled).toBe(busy)
+            expect(text()).toContain('Add to IR')
+        }
+        await act(async () => screen.root.findByType(type('Pressable')).props.onPress())
+        expect(onPress).toHaveBeenCalledOnce()
     })
 
     it.each([
@@ -133,20 +144,18 @@ describe('player decision summary', () => {
         const onAdd = vi.fn()
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ injury_status: injury }), rosterStatus: status, leagueActive: true,
-            actionLoading: false, compact: true, ...actions, onAdd,
-            addBlockedReason: status.status === 'free_agent' ? 'Add limit reached' : null,
-            addBlockedCaption: 'Adds 7/7',
+            compact: true, onDrop: status.status === 'mine' ? vi.fn() : undefined,
+            action: { label: status.status === 'on_waivers' ? 'Claim' : status.status === 'mine' ? 'Lineup' : 'Add',
+                onPress: onAdd, disabled: false, busy: false, blockedReason: status.status === 'free_agent' ? 'Add limit reached' : null },
         }))
         const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')!
         const roster = screen.root.findAllByType(type('Text')).find(node => node.props.children === label)!
-        expect(roster.parent?.parent === name.parent).toBe(true)
+        expect(roster.parent === name.parent?.parent?.children[1]).toBe(true)
         const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
         expect(styles.alignItems).toBe('center')
         const button = screen.root.findByProps({ accessibilityLabel: action })
-        expect(roster.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
+        expect(name.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
         if (status.status === 'free_agent') {
-            const caption = screen.root.findByProps({ children: 'Adds 7/7' })
-            expect(caption.parent === name.parent).toBe(true)
             await act(async () => button.props.onPress())
             expect(onAdd).toHaveBeenCalledOnce()
         }
@@ -155,7 +164,7 @@ describe('player decision summary', () => {
     it('puts injury before the other metadata on narrow screens', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'Out' }),
-            rosterStatus: { status: 'free_agent' }, leagueActive: true, actionLoading: false, compact: true, ...actions,
+            rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
         const injury = screen.root.findAllByType(type('Badge')).find(node => node.props.label === 'Out')!
         const core = injury.parent!
@@ -164,27 +173,28 @@ describe('player decision summary', () => {
         expect(core.findAllByType(type('Badge')).map(node => node.props.label)).toContain('Dynasty #100')
     })
 
-    it('keeps the projection source status and shows tipoff separately', async () => {
-        const projection = {
-            next_game_date: '2026-10-24', next_game_opponent: 'vs BOS', next_game_time: '2026-10-24T23:00:00Z',
-            projection_status: 'GTD', projection_fantasy_points: 32, injury_status: null, projection_source_label: 'FantasyPros',
-        } as LeagueProjectionRow
-        await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('GTD')
-        expect(text()).toContain('32.0')
-        expect(text()).toContain('Tipoff')
+    it('never calls a started game next and shows live points from the log', async () => {
+        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T17:00:00Z',
+            next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
+        await render(React.createElement(NextProjectionCard, { projection,
+            liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4 }))
+        expect(text()).toContain('Live vs BOS · 12.4 FP so far')
+        expect(text()).not.toContain('42.8')
+        await act(async () => screen.update(React.createElement(NextProjectionCard, {
+            projection: { ...projection, next_game_date: '2026-10-25', next_game_time: '2026-10-25T23:00:00Z', next_game_opponent: '@ DEN' },
+            liveGame: { ...game(), live: true, nbaGameId: 'game' }, liveFantasyPoints: 12.4,
+        })))
+        expect(text()).not.toContain('@ DEN')
+        expect(text()).toBe('Live vs BOS · 12.4 FP so far')
     })
 
-    it.each([true, false])('shows old projection age with backend freshness %s', async fresh => {
-        const projection = {
-            next_game_date: '2026-10-24', next_game_opponent: 'vs BOS', projection_fantasy_points: 32,
-            projection_source_label: 'Sleeper', projection_is_fresh: fresh,
-            projection_fetched_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
-        } as LeagueProjectionRow
+    it('removes the next projection at tipoff without polling', async () => {
+        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T18:00:01Z',
+            next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('3d')
-        if (fresh) expect(text()).not.toContain('Outdated')
-        else expect(text()).toContain('Outdated')
+        expect(text()).toContain('42.8')
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+        expect(screen.toJSON()).toBeNull()
     })
 
     it('keeps ten decision stats, with fantasy points first and one season control', async () => {
@@ -208,11 +218,10 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('Next game projection')
-        expect(text()).toContain('vs BOS Oct 24')
+        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj$/)
+        expect(screen.root.findByType(type('Text')).props.numberOfLines).toBe(1)
         expect(text()).toContain('42.8')
         expect(text()).toContain('FP')
-        expect(text()).toContain('Outdated')
     })
 })
 
@@ -241,7 +250,9 @@ it('keeps history collapsed until requested and omits empty history', async () =
     expect(screen.root.findAllByType(type('TransactionHistory'))).toHaveLength(0)
     const toggle = screen.root.findByType(type('Pressable'))
     expect(toggle.props['aria-expanded']).toBe(false)
+    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-more', size: controlSize.icon.md })
     await act(async () => toggle.props.onPress())
+    expect(screen.root.findByType(type('MaterialIcons')).props).toMatchObject({ name: 'expand-less', size: controlSize.icon.md })
     expect(screen.root.findByType(type('TransactionHistory')).props.transactions).toEqual(props.transactions)
     await act(async () => screen.update(React.createElement(PlayerHistory, { ...props, transactions: [] })))
     expect(screen.toJSON()).toBeNull()

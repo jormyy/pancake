@@ -5,20 +5,12 @@
 CREATE OR REPLACE FUNCTION private.prevent_uncleared_waiver_free_agent_add()
 RETURNS trigger
 LANGUAGE plpgsql
+SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF NEW.acquired_via = 'free_agent'
-     AND EXISTS (
-       SELECT 1
-         FROM public.waiver_wire_log AS waiver
-        WHERE waiver.league_id = NEW.league_id
-          AND waiver.league_season_id = NEW.league_season_id
-          AND waiver.player_id = NEW.player_id
-          AND waiver.cleared_at IS NULL
-     ) THEN
-    RAISE EXCEPTION 'This player is on waivers - submit a waiver claim instead.'
-      USING ERRCODE = 'PA002';
+  IF NEW.acquired_via = 'free_agent' THEN
+    PERFORM private.assert_free_agent_waiver_cleared(NEW.league_id, NEW.league_season_id, NEW.player_id);
   END IF;
   RETURN NEW;
 END;

@@ -19,7 +19,8 @@ function draft(overrides: Partial<CommissionerSettingsDraft> = {}): Commissioner
         taxiSlots: '0',
         auctionBudget: '200',
         playoffWeek: '20',
-        playoffTotalWeeks: '2',
+        playoffEntrants: '4',
+        playoffRoundCount: '2',
         playoffRoundWeeks: ['1', '1'],
         weeklyAddLimit: '0',
         faabBudget: '100',
@@ -100,12 +101,12 @@ describe('commissioner settings draft', () => {
     it('accepts positive custom starts and explicit round durations without clamping', () => {
         const baseline = draft()
         for (const start of ['1', '8', '16', '25', '30']) {
-            expect(buildCommissionerSettingsChange(draft({ playoffWeek: start, playoffTotalWeeks: '5',
+            expect(buildCommissionerSettingsChange(draft({ playoffWeek: start,
                 playoffRoundWeeks: ['2', '3'] }), baseline, 'setup', ['points'], ['PG']))
-                .toMatchObject({ updates: { playoff_start_week: Number(start), playoff_total_weeks: 5, playoff_round_weeks: [2, 3] } })
+                .toMatchObject({ updates: { playoff_start_week: Number(start), playoff_entrants: 4, playoff_round_lengths: [2, 3] } })
         }
-        expect(buildCommissionerSettingsChange(draft({ playoffTotalWeeks: '5' }), baseline, 'setup', ['points'], ['PG']))
-            .toEqual({ error: 'Round weeks must add up to total playoff weeks.' })
+        expect(buildCommissionerSettingsChange(draft({ playoffRoundCount: '3' }), baseline, 'setup', ['points'], ['PG']))
+            .toEqual({ error: 'Playoffs with 4 entrants need 2 rounds.' })
         expect(buildCommissionerSettingsChange(draft({ playoffRoundWeeks: ['1.5', '0.5'] }), baseline, 'setup', ['points'], ['PG']))
             .toEqual({ error: 'Enter positive whole weeks for each playoff round.' })
     })

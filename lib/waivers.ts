@@ -2,6 +2,8 @@ import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 import { apiPost } from '@/lib/shared/api'
+import { sessionGeneration } from '@/lib/session-cache-registry'
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 
 export type WaiverClaim = {
     id: string
@@ -18,6 +20,10 @@ export type WaiverClaim = {
     bidAmount: number
     claimOrder: number
     clearsAt?: string | null
+    toIr?: boolean
+    toTaxi?: boolean
+    playerYearsExp?: number | null
+    playerCareerGames?: number | null
     failureReason: string | null
 }
 
@@ -27,9 +33,13 @@ type PlayerSummaryRow = {
     position?: string | null
     nba_team?: string | null
     injury_status?: string | null
+    years_exp?: number | null
+    career_regular_season_games?: number | null
 } | null
 type WaiverPlayerIdRow = { player_id: string; clears_at: string }
 type WaiverClaimQueryRow = {
+    to_ir: boolean
+    to_taxi: boolean
     id: string
     player_id: string
     drop_player_id: string | null
@@ -87,11 +97,12 @@ export async function submitWaiverClaim(
     leagueId: string,
     playerId: string,
     dropPlayerId?: string,
-    options: { bidAmount?: number; claimOrder?: number | null } = {},
+    options: { bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean } = {},
 ): Promise<void> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         throw new Error('Connect to the internet to submit a waiver claim.')
     }
+    const generation = sessionGeneration()
     await apiPost('/waivers/claims', {
         memberId,
         leagueId,
@@ -99,11 +110,16 @@ export async function submitWaiverClaim(
         dropPlayerId: dropPlayerId ?? null,
         bidAmount: options.bidAmount ?? 0,
         claimOrder: options.claimOrder ?? null,
+        toIr: options.toIr ?? false,
+        toTaxi: options.toTaxi ?? false,
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function cancelWaiverClaim(claimId: string, memberId: string): Promise<void> {
+    const generation = sessionGeneration()
     await apiPost(`/waivers/claims/${claimId}/cancel`, { memberId })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function editWaiverClaim(
@@ -112,14 +128,18 @@ export async function editWaiverClaim(
     // dropPlayerId is required (null clears it): edit_waiver_claim_atomic writes
     // whatever it receives, so an omitted field would silently drop the drop
     // player and turn a valid claim into one that fails "roster full".
-    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null },
+    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean },
 ): Promise<void> {
+    const generation = sessionGeneration()
     await apiPost(`/waivers/claims/${claimId}/edit`, {
         memberId,
         dropPlayerId: updates.dropPlayerId,
         bidAmount: updates.bidAmount ?? 0,
         claimOrder: updates.claimOrder ?? null,
+        ...(updates.toIr !== undefined ? { toIr: updates.toIr } : {}),
+        ...(updates.toTaxi !== undefined ? { toTaxi: updates.toTaxi } : {}),
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function reorderWaiverClaim(
@@ -127,10 +147,12 @@ export async function reorderWaiverClaim(
     memberId: string,
     direction: 'up' | 'down',
 ): Promise<number> {
+    const generation = sessionGeneration()
     const result = await apiPost<{ claimOrder: number }>(`/waivers/claims/${claimId}/reorder`, {
         memberId,
         direction,
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
     return result.claimOrder
 }
 
@@ -141,9 +163,9 @@ export async function getMyWaiverClaims(
     const seasonId = await getCurrentSeasonId(leagueId)
     if (!seasonId) return []
 
-    const { data, error } = await supabase
+    const claimsQuery = () => supabase
         .from('waiver_claims')
-        .select(`
+        .select<string, WaiverClaimQueryRow>(`
             id,
             player_id,
             drop_player_id,
@@ -153,22 +175,27 @@ export async function getMyWaiverClaims(
             priority_at_submission,
             bid_amount,
             claim_order,
+            to_ir,
+            to_taxi,
             failure_reason,
-            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id ),
+            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id, years_exp, career_regular_season_games ),
             drop_player:players!waiver_claims_drop_player_id_fkey ( display_name, nba_id )
         `)
         .eq('member_id', memberId)
         .eq('league_season_id', seasonId)
-        .in('status', ['pending', 'succeeded', 'failed_priority', 'failed_roster'])
-        .order('claim_order', { ascending: true })
-        .order('submitted_at', { ascending: false })
-        .limit(20)
-
-    if (error) throw error
-
-    const pendingPlayerIds = ((data ?? []) as WaiverClaimQueryRow[]).filter((row) => row.status === 'pending').map((row) => row.player_id)
+    const [pending, resolved] = await Promise.all([
+        claimsQuery().eq('status', 'pending')
+            .order('claim_order', { ascending: true })
+            .order('submitted_at', { ascending: true }),
+        claimsQuery().in('status', ['succeeded', 'failed_priority', 'failed_roster'])
+            .order('submitted_at', { ascending: false }).limit(20),
+    ])
+    if (pending.error) throw pending.error
+    if (resolved.error) throw resolved.error
+    const data = [...(pending.data ?? []), ...(resolved.data ?? [])] as WaiverClaimQueryRow[]
+    const pendingPlayerIds = (pending.data ?? []).map(row => row.player_id)
     const clearsAt = pendingPlayerIds.length ? await getWaiverClearsAtForSeason(leagueId, seasonId, pendingPlayerIds) : new Map<string, string>()
-    return ((data ?? []) as WaiverClaimQueryRow[]).map((row) => ({
+    return data.map((row) => ({
         id: row.id,
         playerId: row.player_id,
         clearsAt: clearsAt.get(row.player_id) ?? null,
@@ -183,6 +210,10 @@ export async function getMyWaiverClaims(
         priorityAtSubmission: row.priority_at_submission,
         bidAmount: row.bid_amount ?? 0,
         claimOrder: row.claim_order ?? 1,
+        toIr: row.to_ir,
+        toTaxi: row.to_taxi,
+        playerYearsExp: row.claim_player?.years_exp ?? null,
+        playerCareerGames: row.claim_player?.career_regular_season_games ?? null,
         failureReason: row.failure_reason ?? null,
     }))
 }

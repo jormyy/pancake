@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { evaluateConfiguredSourceHealth } from './configured-source-health-contract.mjs'
+import { evaluateConfiguredSourceHealth, injurySyncHealth } from './configured-source-health-contract.mjs'
 import { querySupabaseDb, writeMarkdownReport } from './env.mjs'
 
 const outputArg = process.argv.find((arg) => arg.startsWith('--output-dir='))
@@ -15,7 +15,7 @@ const runRows = querySupabaseDb('local', 'configured source runs', `
     FROM public.sync_runs
    WHERE function_name IN (
      'sync-schedule', 'source:nba-cdn-scoreboard', 'sync-stats',
-     'sync-players', 'sync-rankings', 'sync-draft-order'
+     'sync-players', 'sync-player-injuries', 'sync-rankings', 'sync-draft-order'
    )
    ORDER BY started_at DESC
 `)
@@ -108,6 +108,7 @@ const nbaComplete = Number(metrics.schedule_games) >= 1000 && Number(metrics.sch
   Number(metrics.final_games_without_stats) === 0 && Number(metrics.nba_ids) >= 500
 
 const espnRun = latestRun('sync-players')
+const injuryHealth = injurySyncHealth(latestRun('sync-player-injuries'))
 const espnNewsAge = metrics.latest_espn_news ? ageHours(metrics.latest_espn_news) : Number.POSITIVE_INFINITY
 const fantasyAttemptsFresh = projectionRows.length === 3 && projectionRows.every((row) => ageHours(row.started_at) <= 48)
 const fantasyStatusesExpected = projectionRows.every((row) =>
@@ -139,8 +140,8 @@ const observations = [
       `espn_ids=${metrics.espn_ids}, news=${metrics.espn_news}, latest_news_age=${espnNewsAge}h.`,
     ),
     failures: dimension(
-      espnRun?.status === 'success' ? 'pass' : 'fail',
-      `Latest player, team, position, injury, and news attempt is ${espnRun?.status ?? 'missing'}; errors are retained in sync_runs.`,
+      espnRun?.status === 'success' && injuryHealth.status !== 'fail' ? 'pass' : 'fail',
+      `Latest player, team, position, injury, and news attempt is ${espnRun?.status ?? 'missing'}; errors are retained in sync_runs. ${injuryHealth.evidence}`,
     ),
     recovery: dimension(
       recoveryVerified && espnRun && priorFailureBefore('sync-players', espnRun.started_at) ? 'pass' : 'fail',

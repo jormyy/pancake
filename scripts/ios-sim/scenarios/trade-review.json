@@ -1,0 +1,140 @@
+[
+  {
+    "name": "trades-review-light",
+    "group": "trade-review",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Trade with {{otherTeam}}"
+      },
+      {
+        "tap": "Edit assets sent by {{otherTeam}}"
+      },
+      {
+        "tapPrefix": "Select "
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "editor",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Cancel trade proposal']) [aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-review-dark",
+    "group": "trade-review",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Trade with {{otherTeam}}"
+      },
+      {
+        "tap": "Edit assets sent by {{otherTeam}}"
+      },
+      {
+        "tapPrefix": "Select "
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "editor",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Cancel trade proposal']) [aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

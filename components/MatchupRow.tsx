@@ -1,18 +1,16 @@
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
-import { LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
+import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
-
-type Sel = { kind: 'starter' | 'bench' | 'ir' | 'taxi'; index: number }
 
 const SLOT_W = 52
 const FPTS_W = 64
@@ -39,7 +37,7 @@ function emptySlotLabel(slotType: string): string {
 }
 
 function compactLineupName(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(Boolean)
+    const parts = name.trim().split(/\s+/).filter(part => part && !/^(?:jr\.?|sr\.?|ii|iii|iv|\d+)$/i.test(part))
     const last = parts.at(-1) ?? name
     return last.split('-')[0]
 }
@@ -64,7 +62,7 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
         <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
                 name={player.displayName}
-                uri={playerHeadshotUrl(player.nbaId) ?? undefined}
+                uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
                 color={colors.bgMuted}
                 textColor={colors.textSecondary}
                 size={size}
@@ -281,7 +279,7 @@ function PlayerSide({
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"
-                                style={[styles.sideMeta, styles.detailText, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
+                                style={[styles.sideMeta, styles.detailText, { textAlign: left ? 'right' : 'left' }, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
@@ -313,7 +311,7 @@ type MatchupRowProps = {
     selKind: 'starter' | 'bench' | 'ir' | 'taxi'
     selIndex: number
     isSelected: boolean
-    onTap: (sel: Sel) => void
+    onTap: (sel: LineupSelection) => void
     saving: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
@@ -384,7 +382,6 @@ function MatchupRowImpl({
                 disabled={!myPlayer}
                 accessibilityRole="button"
                 accessibilityLabel={myPlayer ? `Score breakdown for ${myPlayer.displayName}` : 'Score breakdown'}
-                pressedScale={0.985}
             >
                 <PlayerSide
                     side="left"
@@ -422,7 +419,6 @@ function MatchupRowImpl({
                 accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
                 accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
                 hitSlop={7}
-                pressedScale={0.88}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
@@ -435,7 +431,6 @@ function MatchupRowImpl({
                 disabled={!oppPlayer}
                 accessibilityRole="button"
                 accessibilityLabel={oppPlayer ? `Score breakdown for ${oppPlayer.displayName}` : 'Score breakdown'}
-                pressedScale={0.985}
             >
                 <PlayerSide
                     side="right"
@@ -490,7 +485,7 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     rowSideCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xs },
     playerBlock: { flex: 1, minWidth: 0, minHeight: 48, justifyContent: 'center', gap: spacing.xxs },
-    playerBlockCompact: { minHeight: 44 },
+    playerBlockCompact: { minHeight: controlSize.minTouch },
     playerBlockDense: { minHeight: 28 },
     fptsNum: {
         fontSize: fontSize.xl,
@@ -516,9 +511,9 @@ const styles = StyleSheet.create({
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textDisabled },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    detailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 16, maxWidth: '100%' },
+    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 16, maxWidth: '100%' },
     sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
-    detailText: { flexShrink: 1, minWidth: 0 },
+    detailText: { flex: 1, minWidth: 0 },
     detailTextStats: { color: colors.textMuted },
     lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4 },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
@@ -535,8 +530,8 @@ const styles = StyleSheet.create({
     // Phone chips are the tap target for lineup moves, so they stay near 44px,
     // even on the shortest phones.
     slotChipCenterCompact: {
-        width: 42,
-        height: 40,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.md,
     },
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },

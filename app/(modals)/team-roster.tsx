@@ -11,38 +11,22 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
-import { listenForLeagueChanges } from '@/lib/league-changes'
+import { leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { getRoster, RosterPlayer } from '@/lib/roster'
+import { compareRosterBySlot } from '@/lib/roster-slots'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
-import { colors, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { useGoBack } from '@/components/ui/useGoBack'
 
-const LINEUP_SLOT_ORDER = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F', 'UTIL', 'BE'] as const
 const EMPTY_ROSTER: RosterPlayer[] = []
 type TeamRosterCache = { roster: RosterPlayer[]; averages: [string, number][]; stats: [string, RosterAverage][] }
 
 function readRosterResource(scope: string | null) {
     const cached = scope ? readPersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`) : null
     return cached && scope ? { scope, roster: cached.roster, stats: { avgMap: new Map(cached.averages), avgStatsMap: new Map(cached.stats) } } : null
-}
-
-function rosterSlotRank(player: RosterPlayer): number {
-    const eligible = player.players.eligible_positions?.length
-        ? player.players.eligible_positions
-        : player.players.position
-          ? [player.players.position]
-          : []
-    const rank = LINEUP_SLOT_ORDER.findIndex((slot) => eligible.includes(slot))
-    return rank === -1 ? LINEUP_SLOT_ORDER.length : rank
-}
-
-function compareRosterBySlot(a: RosterPlayer, b: RosterPlayer): number {
-    const slotCmp = rosterSlotRank(a) - rosterSlotRank(b)
-    if (slotCmp !== 0) return slotCmp
-    return (a.players.display_name ?? '').localeCompare(b.players.display_name ?? '')
 }
 
 export default function TeamRosterScreen() {
@@ -72,6 +56,7 @@ export default function TeamRosterScreen() {
         if (!leagueId || !memberId || !scope) return
         return listenForLeagueChanges(leagueId, change => {
             if (change.topic !== 'roster' && change.topic !== 'inventory') return
+            if (change.topic === 'inventory' && !leagueResourceAffects(change, ['season'])) return
             if (change.scopes && !change.scopes.some(row => !row.member_id || row.member_id === memberId)) return
             setAttempt(value => value + 1)
         })
@@ -93,14 +78,18 @@ export default function TeamRosterScreen() {
             const nextRoster = await getRoster(memberId, leagueId)
             if (cancelled || !isCurrent(generation)) return
             rosterLoaded = true
-            setResource((previous) => ({
-                scope, roster: nextRoster,
-                stats: previous?.scope === scope ? previous.stats : { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
-            }))
-            const stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+            let stats: RosterStatsMaps
+            try {
+                stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+            } catch (error) {
+                if (!cancelled && isCurrent(generation)) setResource((previous) => previous?.scope === scope ? previous : {
+                    scope, roster: nextRoster, stats: { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
+                })
+                throw error
+            }
             if (cancelled || !isCurrent(generation)) return
             writePersistentCache<TeamRosterCache>(`pancake:team-roster:v1:${scope}`, { roster: nextRoster, averages: [...stats.avgMap], stats: [...stats.avgStatsMap] })
-            setResource((previous) => previous?.scope === scope ? { ...previous, stats } : previous)
+            setResource({ scope, roster: nextRoster, stats })
         })()
             .catch((error) => {
                 console.error(error)
@@ -230,7 +219,7 @@ const styles = StyleSheet.create({
     },
     rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
     emptySlot: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         justifyContent: 'center',
         paddingHorizontal: spacing.lg,
     },

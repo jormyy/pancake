@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { canOccupyRosterSlot, canPlayLineupSlot } from '../src/positions'
+import { canPlayLineupSlot } from '../src/positions'
 
 describe('canPlayLineupSlot', () => {
     it('allows PG in PG slot', () => {
@@ -62,12 +62,5 @@ describe('canPlayLineupSlot', () => {
         expect(canPlayLineupSlot('SF', [], 'F')).toBe(true)
         expect(canPlayLineupSlot('PF', [], 'F')).toBe(true)
         expect(canPlayLineupSlot('SG', [], 'F')).toBe(false)
-    })
-})
-
-describe('canOccupyRosterSlot', () => {
-    it('keeps inactive IR roster semantics separate from lineup slots', () => {
-        expect(canOccupyRosterSlot(null, [], 'IR')).toBe(true)
-        expect(canOccupyRosterSlot(null, [], 'UTIL')).toBe(false)
     })
 })

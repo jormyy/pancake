@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getTradesForScreen, type Trade, type TradePageCursor } from '@/lib/trades'
+import { getTradesForScreen, type Trade, type TradePageCursor, type TradeRosterPlan } from '@/lib/trades'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -111,10 +111,11 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
                 cursor,
             )
             if (loadSequence.current !== requestId) return
+            const known = new Set(trades.map((trade) => trade.id))
+            const added = result.trades.filter((trade) => !known.has(trade.id))
             setResource((current) => {
                 if (current.key !== resourceKey) return current
-                const known = new Set(current.trades.map((trade) => trade.id))
-                const next = [...current.trades, ...result.trades.filter((trade) => !known.has(trade.id))]
+                const next = [...current.trades, ...added]
                 writePersistentCache(tradesCacheKey(memberId, leagueId), next)
                 return { key: resourceKey, trades: next }
             })
@@ -131,7 +132,26 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
                 if (loadSequence.current === requestId) setLoadingMore(false)
             }
         }
-    }, [hasMore, leagueId, memberId, resourceKey])
+    }, [hasMore, leagueId, memberId, resourceKey, trades])
+
+    const updateRosterPlan = useCallback((tradeId: string, plan: TradeRosterPlan) => {
+        setResource((current) => {
+            if (current.key !== resourceKey) return current
+            const next = current.trades.map((trade) => trade.id !== tradeId ? trade : {
+                ...trade,
+                routedItems: trade.routedItems.map((item) => item.kind === 'player' && item.toMemberId === memberId ? {
+                    ...item,
+                    toTaxi: item.fromTaxi === true || plan.taxiPlayerIds.includes(item.playerId),
+                    toIR: plan.irPlayerIds.includes(item.playerId),
+                } : item),
+                participants: trade.participants.map((participant) => participant.memberId === memberId ? {
+                    ...participant, dropPlayerIds: plan.dropPlayerIds,
+                } : participant),
+            })
+            writePersistentCache(tradesCacheKey(memberId, leagueId), next)
+            return { key: resourceKey, trades: next }
+        })
+    }, [leagueId, memberId, resourceKey])
 
     const ownsResource = resource.key === resourceKey
     return {
@@ -145,5 +165,6 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
         loadMoreError: ownsResource ? loadMoreError : null,
         refresh,
         loadMore,
+        updateRosterPlan,
     }
 }

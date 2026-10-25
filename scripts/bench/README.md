@@ -73,9 +73,9 @@ Use a new label; the runner refuses existing reports.
 `--only NAME,NAME` selects named cases.
 By default, the runner recreates its fixture and disables cron entries.
 
-The fixture has 600 synthetic players, 1,230 games, 49,200 stat rows, and thirty twelve-team leagues.
+The fixture source in `scripts/bench/profile-seed.sql` defines the dataset and exact counts.
 It varies scoring settings and includes rosters, lineups, history, picks, and drafts.
-Every synthetic player has 82 games. This is a dense capacity workload.
+This dense synthetic workload does not represent average production traffic.
 Reads use authenticated HTTP. Response sizes count decoded bodies.
 Jobs run production handlers through local PostgREST with pinned provider responses.
 Inspect returned outcomes: idle work and failed imports do not prove successful ingestion capacity.
@@ -96,7 +96,7 @@ Keep baseline and candidate source copies on the same isolated stack.
 Use identical benchmark scripts, runtime, dataset, provider cache, and arguments.
 Generate each copy's local environment with the helper.
 Let the unchanged scorer complete cold historical repair before warm comparison.
-The warm fixture must contain 600 players, 49,200 stat rows, thirty leagues, and 600 certificates.
+Confirm the warm fixture matches the seed and has all expected scoring certificates.
 
 Run cold preparation in the baseline copy:
 
@@ -124,7 +124,7 @@ See [measurement limits](../../docs/supabase-performance-capacity.md).
 ```sh
 npm run test:bench:profile
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:56322/postgres npm run test:db:skipped-week-certificates
-deno test --no-lock --node-modules-dir=none -A scripts/bench/profile-span-certificates.ts --before ../before --out ../evidence/span-certificates.json
+deno test --no-lock --node-modules-dir=none -A scripts/bench/profile-span-certificates.ts -- --before ../before --out ../evidence/span-certificates.json
 ```
 
 The database command requires the isolated migrated stack.

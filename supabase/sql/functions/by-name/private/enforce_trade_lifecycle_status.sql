@@ -23,8 +23,8 @@ BEGIN
         USING ERRCODE = 'P0002';
     END IF;
 
-    IF v_status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status) THEN
-      RAISE EXCEPTION 'Trades require an active or playoff season.'
+    IF v_status NOT IN ('active'::league_status, 'playoffs'::league_status, 'offseason'::league_status, 'drafting'::league_status) THEN
+      RAISE EXCEPTION 'Trades open during offseason, drafting, active, and playoff seasons.'
         USING ERRCODE = 'P0001';
     END IF;
   END IF;

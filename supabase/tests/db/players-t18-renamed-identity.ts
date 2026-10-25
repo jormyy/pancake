@@ -134,11 +134,14 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
     return Response.json({ athletes: listing.filter(listed => listed.team === team).map(listed => ({ id: listed.espn, firstName: listed.first, lastName: listed.last,
       fullName: `${listed.first} ${listed.last}`, position: { abbreviation: 'PG' }, status: { type: 'active' }, experience: { years: 1 } })) })
   }
-  if (route === '/site/injuries') return Response.json({ injuries: [] })
+  if (route === '/site/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { id: fillers[0].espn, displayName: `${fillers[0].first} ${fillers[0].last}` } }] }] })
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return new Response(served.slice(), { headers: { 'content-type': 'application/json' } })
   if (box && realBoxes.has(box[1])) return new Response(realBoxes.get(box[1])!.body.slice(), { headers: { 'content-type': 'application/json' } })
-  if (route.startsWith('/career/')) return Response.json({})
+  if (/^\/career\/athletes\/[^/]+\/stats$/.test(route)) return Response.json({
+    filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
+    categories: [{ names: ['gamesPlayed'], totals: ['120'] }],
+  })
   return new Response('served origin has no such route', { status: 404 })
 })
 const origin = `http://127.0.0.1:${originPort}`

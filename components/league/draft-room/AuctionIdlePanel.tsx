@@ -1,4 +1,6 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { FlashList } from '@shopify/flash-list'
+import { useRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native'
 import { Avatar } from '@/components/Avatar'
 import { MotionPressable } from '@/components/Motion'
@@ -42,7 +44,7 @@ export function AuctionIdlePanel({
         </View>
     } else if (!isMyTurn) {
         content = <View style={styles.waitingRow}>
-            <ConnectionHint connected={controller.realtimeConnected} text="Waiting for" fallback="Reconnecting live draft"
+            <ConnectionHint connected={controller.realtimeConnected} failed={Boolean(controller.loadError)} text="Waiting for" fallback="Reconnecting live draft"
                 textStyle={styles.waitingText} height={textStyles.body.lineHeight} />
             <Text style={styles.waitingTeam}>{currentNominatorTeam}</Text>
             <Text style={styles.waitingText}>to nominate</Text>
@@ -50,7 +52,7 @@ export function AuctionIdlePanel({
     } else {
         content = <>
             <Text style={styles.yourTurnBanner}>Your turn to nominate</Text>
-            <ConnectionHint connected={controller.realtimeConnected}
+            <ConnectionHint connected={controller.realtimeConnected} failed={Boolean(controller.loadError)}
                 text={`Nomination order: ${NOMINATION_ORDER_MODE_LABELS[draft.nominationOrderMode]}`}
                 fallback="Reconnecting live draft. Nominations stay disabled."
                 textStyle={styles.nominationModeHint} height={textStyles.meta.lineHeight * 2} />
@@ -61,13 +63,13 @@ export function AuctionIdlePanel({
                 <FlashList data={controller.searchResults} keyExtractor={(player) => player.id}
                     scrollEnabled={false} renderItem={({ item }) => (
                         <MotionPressable style={styles.playerResult}
-                            onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected}
-                            pressedScale={0.975} accessibilityRole="button"
+                            onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}>
                             <Avatar name={item.display_name ?? 'Player'} color={colors.bgMuted}
                                 uri={playerHeadshotUrl(item.nba_id)} size={32} />
                             <View style={styles.playerCopy}>
                                 <Text style={styles.playerResultName}>{item.display_name}</Text>
+                            <PlayerEligibilityTags yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
                                 <Text style={styles.playerResultMeta}>{draftPlayerMeta([
                                     item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
                                     item.nba_team, item.position, draftAgeLabel(item.age),
@@ -79,13 +81,11 @@ export function AuctionIdlePanel({
                         ? <Text style={styles.emptySearch}>Search failed. Keep typing or try again.</Text>
                         : controller.searchQuery.length > 0 && !controller.searchLoading
                             ? <Text style={styles.emptySearch}>No players found</Text> : null} />
-                <MotionPressable style={styles.cancelButton} onPress={controller.cancelNominating}
-                    pressedScale={0.94} accessibilityRole="button" accessibilityLabel="Cancel nomination search">
+                <MotionPressable style={styles.cancelButton} onPress={controller.cancelNominating} accessibilityRole="button" accessibilityLabel="Cancel nomination search">
                     <Text style={styles.cancelText}>Cancel</Text>
                 </MotionPressable>
             </> : <MotionPressable style={styles.nominateButton} onPress={() => controller.setNominating(true)}
-                disabled={!controller.actionsReady || !controller.realtimeConnected}
-                pressedScale={0.965} accessibilityRole="button" accessibilityLabel="Search and nominate a player">
+                disabled={!controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button" accessibilityLabel="Search and nominate a player">
                 <Text style={styles.nominateButtonText}>Search & Nominate a Player</Text>
             </MotionPressable>}
         </>
@@ -94,11 +94,14 @@ export function AuctionIdlePanel({
     return <View style={[styles.card, compact && styles.cardCompact]}>{content}</View>
 }
 
-function ConnectionHint({ connected, text, fallback, textStyle, height }: {
-    connected: boolean; text: string; fallback: string; textStyle: TextStyle; height: number
+function ConnectionHint({ connected, failed, text, fallback, textStyle, height }: {
+    connected: boolean; failed: boolean; text: string; fallback: string; textStyle: TextStyle; height: number
 }) {
+    const hasConnected = useRef(connected)
+    if (connected) hasConnected.current = true
+    const reconnecting = !connected && (hasConnected.current || failed)
     return <Text style={[textStyle, { height, width: '100%', textAlign: 'left' }]}
-        numberOfLines={2} accessibilityLiveRegion="polite">{connected ? text : fallback}</Text>
+        numberOfLines={2} accessibilityLiveRegion="polite">{reconnecting ? fallback : text}</Text>
 }
 
 const styles = StyleSheet.create({

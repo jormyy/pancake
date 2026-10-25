@@ -9,7 +9,9 @@ CREATE OR REPLACE FUNCTION public.create_waiver_claim_atomic(
   p_drop_player_id uuid DEFAULT NULL,
   p_user_id uuid DEFAULT NULL,
   p_bid_amount int DEFAULT 0,
-  p_claim_order int DEFAULT NULL
+  p_claim_order int DEFAULT NULL,
+  p_to_ir boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
 )
 RETURNS uuid
 LANGUAGE plpgsql
@@ -28,6 +30,9 @@ DECLARE
   v_claim_order int;
   v_balance int;
 BEGIN
+  IF p_to_ir AND p_to_taxi THEN
+    RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
+  END IF;
   IF v_bid_amount < 0 THEN
     RAISE EXCEPTION 'FAAB bid must be a non-negative integer.'
       USING ERRCODE = '22023';
@@ -108,12 +113,14 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.assert_legal_roster(p_league_id,v_season_id,p_member_id);
+
   PERFORM private.assert_weekly_add_available(p_league_id, v_season_id, p_member_id);
 
   IF v_league.waiver_mode = 'rolling' THEN
     v_bid_amount := 0;
   ELSE
-    v_balance := private.ensure_faab_balance(p_league_id, v_season_id, p_member_id);
+    v_balance := private.available_faab_balance(p_league_id, v_season_id, p_member_id);
     IF v_bid_amount > v_balance THEN
       RAISE EXCEPTION 'FAAB bid exceeds your available balance.'
         USING ERRCODE = 'P0001';
@@ -183,7 +190,9 @@ BEGIN
     priority_at_submission,
     process_date,
     bid_amount,
-    claim_order
+    claim_order,
+    to_ir,
+    to_taxi
   )
   VALUES (
     p_league_id,
@@ -194,7 +203,9 @@ BEGIN
     v_priority,
     (v_waiver_log.clears_at AT TIME ZONE 'America/New_York')::date,
     v_bid_amount,
-    v_claim_order
+    v_claim_order,
+    COALESCE(p_to_ir, false),
+    COALESCE(p_to_taxi, false)
   )
   RETURNING id INTO v_claim_id;
 

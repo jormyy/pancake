@@ -1,29 +1,42 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { LineupPlayer } from '@/lib/lineup'
+import { saveHomeGameDisplay } from '@/lib/home-surface'
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
 
 const mocks = vi.hoisted(() => ({
-    lineup: { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3, ir: [], taxi: [] },
+    lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
-    setSelected: vi.fn(),
+    refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
+    setSelected: vi.fn(), doAutoSet: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
+    selectedDate: '2026-10-11', lineupError: false,
+    freshness: 'fresh',
+    announcementsLoaded: true, announcementRead: vi.fn(),
+    announcements: [] as { id: string; body: string; league_id: string; published_at: string; author_member_id: string | null }[],
+    games: [] as { home_team: string; away_team: string; status: string }[],
 }))
 vi.mock('@/components/WeekOffNotice', () => ({ WeekOffNotice: 'WeekOffNotice' }))
 vi.mock('react-native', () => ({
-    Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView',
+    Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
-    memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league,
+    memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league, membershipValidated: false,
 }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' }, loading: false }) }))
+vi.mock('@/hooks/use-league-announcements', () => ({ useLeagueAnnouncements: (...args: unknown[]) => { mocks.announcementRead(...args); return { announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements } } }))
 vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
+    refresh: mocks.refreshHome,
     matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
-    leagueMatchups: [], weekDays: [], selectedDate: '2026-10-11', myLineup: mocks.lineup, oppLineup: mocks.lineup,
+    leagueMatchups: [], weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
+    myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
+    setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
-vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: [], liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
-vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected }) }))
+vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
+vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, doAutoSet: mocks.doAutoSet }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
@@ -46,8 +59,17 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 
 let screen: ReactTestRenderer
 beforeEach(() => {
-    mocks.lineup.starters = [{ slotType: 'PG', player: null }]
+    vi.clearAllMocks()
+    mocks.announcementsLoaded = true
+    mocks.announcements = []
+    mocks.selectedDate = '2026-10-11'
+    mocks.lineupError = false
+    clearSessionCaches()
+    mocks.freshness = 'fresh'
+    mocks.games = []
+    mocks.lineup = { ...mocks.lineup, starters: [{ slotType: 'PG', player: null }] }
     mocks.lineup.benchSlots = 3
+    mocks.lineup.bench = []
     mocks.league.ir_slots = 2
     mocks.league.taxi_slots = 2
 })
@@ -55,8 +77,17 @@ afterEach(async () => { await act(async () => screen?.unmount()) })
 const mount = async () => { await act(async () => { screen = create(React.createElement(HomeScreen)) }) }
 const rows = (slot: string) => screen.root.findAllByType('MatchupRow' as React.ElementType).filter((node) => node.props.slotType === slot)
 
+const populatedStarters = () => {
+    mocks.lineup.starters = [{ slotType: 'PG', player: {
+        rosterPlayerId: 'roster', playerId: 'player', displayName: 'Player', position: 'PG',
+        eligiblePositions: ['PG'], nbaTeam: 'LAL', injuryStatus: null, nbaId: null,
+    } }]
+}
+
 it('shows the BE template count instead of deriving bench places from roster size', async () => {
     await mount()
+    expect(rows('PG')).toHaveLength(0)
+    expect(screen.root.findByProps({ accessibilityLabel: 'No lineups set this day' }).props.children).toBe('No lineups set this day')
     expect(rows('BE')).toHaveLength(3)
     expect(rows('IR')).toHaveLength(2)
     expect(rows('TX')).toHaveLength(2)
@@ -73,4 +104,180 @@ it('omits reserve sections with zero configured places', async () => {
     expect(rows('BE')).toHaveLength(0)
     expect(rows('IR')).toHaveLength(0)
     expect(rows('TX')).toHaveLength(0)
+})
+
+it('hides the bench fraction without a lineup and never shows an over-capacity fraction', async () => {
+    populatedStarters()
+    const player = mocks.lineup.starters[0].player!
+    mocks.lineup.bench = [player]
+    await mount()
+    const counts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(counts()).toContain('1/3')
+    mocks.lineup = { ...mocks.lineup, starters: [{ slotType: 'PG', player: null }] }
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(counts()).not.toContain('1/3')
+    populatedStarters()
+    mocks.lineup = { ...mocks.lineup, bench: Array(4).fill(player) }
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(counts()).not.toContain('4/3')
+    expect(rows('BE')).toHaveLength(4)
+})
+
+it('shows the first matchup with complete game data and retains it through revalidation', async () => {
+    populatedStarters()
+    mocks.freshness = 'refreshing'
+    await mount()
+    expect(rows('PG')).toHaveLength(0)
+    mocks.freshness = 'fresh'
+    mocks.games = [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }]
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')).toHaveLength(1)
+    mocks.freshness = 'refreshing'
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')).toHaveLength(1)
+    expect(rows('PG')[0].props.liveTeams).toEqual(new Set(['DEN', 'LAL']))
+})
+
+it('shows a recent complete game display during the initial live refresh', async () => {
+    populatedStarters()
+    mocks.freshness = 'refreshing'
+    saveHomeGameDisplay(JSON.stringify(['user', 'league', 'member', 'season', undefined]), '2026-10-11', '["player"]', {
+        todaysGames: [{ id: 'game', nba_game_id: '0022700001', game_date: '2026-10-11', home_team: 'DEN', away_team: 'LAL', home_score: 10, away_score: 9, status: 'InProgress', game_status_text: 'Q1' }],
+        liveStats: new Map(), startedTeams: new Set(['DEN', 'LAL']), teamMatchups: new Map([['DEN', { opponent: 'LAL', isHome: true }]]),
+    })
+    await mount()
+    expect(rows('PG')).toHaveLength(1)
+    expect(rows('PG')[0].props.liveTeams).toEqual(new Set(['DEN', 'LAL']))
+    mocks.freshness = 'fresh'
+    mocks.games = [{ home_team: 'DEN', away_team: 'LAL', status: 'Final' }]
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')).toHaveLength(1)
+    expect(rows('PG')[0].props.liveTeams.size).toBe(0)
+})
+
+it('auto-sets today when the manager views another date', async () => {
+    mocks.selectedDate = '2026-10-12'
+    await mount()
+    screen.root.findByType('AutoSetModal' as React.ElementType).props.onToday()
+    expect(mocks.doAutoSet).toHaveBeenCalledWith('2026-10-11')
+})
+
+it('replaces old rows with one error and leaves the day selector active', async () => {
+    populatedStarters()
+    await mount()
+    expect(rows('PG')).toHaveLength(1)
+    mocks.lineupError = true
+    mocks.selectedDate = '2026-10-12'
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(rows('PG')).toHaveLength(0)
+    expect(screen.root.findAllByType('ErrorBanner' as React.ElementType)).toHaveLength(1)
+    const selector = screen.root.findByType('DaySelector' as React.ElementType)
+    expect(selector.props.selectedDate).toBe('2026-10-12')
+    const boundary = screen.root.findAllByType('View' as React.ElementType).find(node => 'inert' in node.props)
+    expect(boundary?.props.inert).toBe(false)
+    await act(async () => { await selector.props.onSelect('2026-10-11') })
+    expect(mocks.setSelectedDate).toHaveBeenCalledWith('2026-10-11')
+    expect(mocks.loadLineups).toHaveBeenCalledWith({ id: 'matchup' }, '2026-10-11')
+})
+
+it('keeps a warm matchup visible while announcements load and defers a late banner until remount', async () => {
+    mocks.announcementsLoaded = false
+    await mount()
+    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
+    mocks.announcements = [{ id: 'newest', body: 'Set your lineup today.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+    mocks.announcementsLoaded = true
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
+    await act(async () => screen.unmount())
+    await mount()
+    const banner = screen.root.findByProps({ testID: 'home-announcement' })
+    expect(banner.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')).toContain('Set your lineup today.')
+    await act(async () => banner.findByProps({ accessibilityLabel: 'Dismiss announcement' }).props.onPress())
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
+    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+})
+
+it('pulls fresh Home data and announcements without remounting the loaded matchup', async () => {
+    await mount()
+    const card = screen.root.findByType('ScoreCard' as React.ElementType)
+    const pull = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)?.props.refreshControl
+    expect(pull).toBeDefined()
+    await act(async () => { await pull.props.onRefresh() })
+    expect(mocks.refreshHome).toHaveBeenCalledOnce()
+    expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+    expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+})
+
+it('refreshes Home and announcements from the web pull gesture', async () => {
+    await mount()
+    const scroll = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)!
+    expect(scroll.props.onTouchStart).toEqual(expect.any(Function))
+    await act(async () => {
+        scroll.props.onTouchStart({ nativeEvent: { touches: [{ pageX: 100, pageY: 100 }] } })
+        scroll.props.onTouchMove({ nativeEvent: { touches: [{ pageX: 100, pageY: 200 }] } })
+        scroll.props.onTouchEnd()
+    })
+    expect(mocks.refreshHome).toHaveBeenCalledOnce()
+    expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+})
+
+it('renders the cached score card offline without an announcement read', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    mocks.announcementsLoaded = false
+    try {
+        await mount()
+        expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    } finally { vi.unstubAllGlobals() }
+})
+
+it('starts the membership-checked announcement RPC without waiting for membership revalidation', async () => {
+    await mount()
+    expect(mocks.announcementRead).toHaveBeenCalledWith('user', 'league')
+})
+
+it('keeps the first Home layout when a later announcement read returns a banner', async () => {
+    await mount()
+    const card = screen.root.findByType('ScoreCard' as React.ElementType)
+    mocks.announcements = [{ id: 'late', body: 'Arrived later.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
+})
+
+it('shows a new announcement from pull refresh without remounting the matchup', async () => {
+    await mount()
+    const card = screen.root.findByType('ScoreCard' as React.ElementType)
+    mocks.refreshAnnouncements.mockImplementationOnce(async () => {
+        mocks.announcements = [{ id: 'pull', body: 'Returned by pull refresh.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+    })
+    const pull = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)!.props.refreshControl
+    await act(async () => pull.props.onRefresh())
+    expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+    expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+})
+
+it('re-snapshots announcements when Home returns to the foreground', async () => {
+    const page = new EventTarget()
+    let hidden = false
+    Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', page)
+    try {
+        await mount()
+        const card = screen.root.findByType('ScoreCard' as React.ElementType)
+        mocks.refreshAnnouncements.mockImplementationOnce(async () => {
+            mocks.announcements = [{ id: 'foreground', body: 'Returned in the foreground.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+        })
+        hidden = true
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        hidden = false
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+        expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+        expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+    } finally {
+        await act(async () => screen.unmount())
+        vi.unstubAllGlobals()
+    }
 })

@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { nextWaiverRun } from './waiver-scenarios.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { nbaTradeSetup, rookieListings, rookieMoves } from './two-actions.mjs'
 
@@ -84,7 +85,7 @@ for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_leag
 const leagueId = league.id
 // createLeagueActions' integrated settings, except that the playoffs start in season 2's week (the 24-week 2026 calendar cannot
 // hold season 1's week-23 start with rounds of 1 and 2 weeks); then runRealSeason's season-2 call as it is.
-await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, taxi_rule: 'rookies_or_64_games', playoff_entrants: 4, playoff_start_week: profile.playoffStart, playoff_round_lengths: [1, 2] }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, playoff_entrants: 4, playoff_start_week: profile.playoffStart, playoff_round_lengths: [1, 2] }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
 await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { skipped_weeks: [1], playoff_start_week: profile.playoffStart } })
 const leagueSeasonId = sql(`SELECT id FROM league_seasons WHERE league_id=${q(leagueId)} AND is_current AND season_year=${profile.year}`)
 assert.ok(leagueSeasonId, 'create_league opened the 2026 season')
@@ -100,7 +101,7 @@ assert.equal(sql(`UPDATE season_sim.clock SET sim_ms=${at},real_ms=${Date.now()}
 assert.equal(sql(`SELECT ${utc('now()')}`), `${date}T14:00:00Z`, 'Business time is the replay morning of 2026-01-01')
 
 const state = () => json(`SELECT json_build_object('now',(SELECT ${utc('now()')}),
-  'league',(SELECT row_to_json(l) FROM (SELECT status,waiver_mode,faab_starting_budget,weekly_add_limit,roster_size,ir_slots,taxi_slots,taxi_rule,playoff_entrants,playoff_start_week,playoff_round_lengths FROM leagues WHERE id=${q(leagueId)}) l),
+  'league',(SELECT row_to_json(l) FROM (SELECT status,waiver_mode,faab_starting_budget,weekly_add_limit,roster_size,ir_slots,taxi_slots,playoff_entrants,playoff_start_week,playoff_round_lengths FROM leagues WHERE id=${q(leagueId)}) l),
   'season',(SELECT row_to_json(s) FROM (SELECT season_year,is_current,skipped_weeks FROM league_seasons WHERE id=${q(leagueSeasonId)}) s),
   'slots',(SELECT json_object_agg(slot_type,slot_count) FROM lineup_slot_templates WHERE league_id=${q(leagueId)}),
   'roster',(SELECT coalesce(json_agg(r ORDER BY r.member_id,r.nba_id),'[]') FROM (SELECT r.member_id,p.nba_id,r.acquired_via,r.is_on_ir,r.is_on_taxi FROM roster_players r JOIN players p ON p.id=r.player_id WHERE r.league_season_id=${q(leagueSeasonId)}) r),
@@ -129,7 +130,7 @@ const checks = result.checks = []
 const check = (name, actual, expected) => { assert.deepEqual(actual, expected, name); checks.push(name) }
 const owners = c.nbaTradeSubjects.map(row => row.owner), vacated = owners.map(owner => nba[veterans[users.findIndex(user => user.memberId === owner)].id])
 check('Business time', result.after.now, `${date}T14:00:00Z`)
-check('Season-2 settings', [result.after.league, result.after.season], [{ status: 'active', waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, taxi_rule: 'rookies_or_64_games', playoff_entrants: 4, playoff_start_week: profile.playoffStart, playoff_round_lengths: [1, 2] }, { season_year: profile.year, is_current: true, skipped_weeks: [1] }])
+check('Season-2 settings', [result.after.league, result.after.season], [{ status: 'active', waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1, roster_size: 3, ir_slots: 2, taxi_slots: 4, playoff_entrants: 4, playoff_start_week: profile.playoffStart, playoff_round_lengths: [1, 2] }, { season_year: profile.year, is_current: true, skipped_weeks: [1] }])
 // The slot rule createLeagueActions asserts: UTIL 2, BE 1, IR 2 and every other slot 0.
 check('Season-2 lineup slots', Object.entries(result.after.slots).filter(([slot, count]) => count !== ({ UTIL: 2, BE: 1, IR: 2 }[slot] ?? 0)).concat([result.after.slots.UTIL, result.after.slots.BE].includes(undefined) ? [['missing', null]] : []), [])
 check('One subject per member, three members', new Set(owners).size, 3)
@@ -137,7 +138,7 @@ check('Every subject has its owner', c.nbaTradeSubjects.map(row => [row.nbaId, n
 for (const [index, subject] of c.nbaTradeSubjects.entries()) check(`${subject.nbaId} is a free-agent add on its owner's roster`, result.after.roster.filter(row => row.nba_id === subject.nbaId).map(row => [row.member_id, row.acquired_via, row.is_on_ir, row.is_on_taxi]), [[owners[index], 'free_agent', false, false]])
 for (const user of users) check(`Member ${user.memberId} active roster stays full`, active(result.after.roster, user.memberId).length, 3)
 check('Every drafted rookie stays with its owner', draftedRookies.map(row => result.after.roster.filter(roster => roster.nba_id === row.nbaId).map(roster => roster.member_id)), draftedRookies.map(row => [row.owner]))
-check('Only the three owners\' veterans were dropped, to waivers clearing 48 hours later', result.after.waivers.map(row => [row.member_id, row.nba_id, row.clears_at]).sort(), owners.map((owner, index) => [owner, vacated[index], '2026-01-03T14:00:00Z']).sort())
+check('Only the three owners\' veterans were dropped, to waivers clearing on the first eligible 03:00 Eastern run', result.after.waivers.map(row => [row.member_id, row.nba_id, row.clears_at]).sort(), owners.map((owner, index) => [owner, vacated[index], new Date(nextWaiverRun(Date.parse(`${date}T14:00:00Z`) + 48 * 3600000)).toISOString().replace('.000Z', 'Z')]).sort())
 check('Each owner used its one weekly add of week 11', [result.after.adds.map(row => [row.member_id, row.week_number, row.add_count]).sort(), result.after.addWeek], [owners.map(owner => [owner, 11, 1]).sort(), { week_number: 11, resets_at: '2026-01-05T05:00:00Z' }])
 check('Transactions are one drop and one add per owner', result.after.transactions.map(row => [row.member_id, row.nba_id, row.transaction_type]).sort(), owners.flatMap((owner, index) => [[owner, subjects[index].nbaId, 'fa_add'], [owner, vacated[index], 'fa_drop']]).sort())
 check('No drop or add was rejected', calls.filter(row => /drop_player_atomic|add_free_agent_atomic/.test(row.route)).map(row => [row.route.split('/').at(-1), row.status < 300]), owners.flatMap(() => [['drop_player_atomic', true], ['add_free_agent_atomic', true]]))

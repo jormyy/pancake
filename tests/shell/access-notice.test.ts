@@ -19,7 +19,7 @@ it('announces offline access without entering document flow', async () => {
     const notice = screen.root.findByProps({ role: 'status' })
     expect(notice.props['aria-live']).toBe('polite')
     expect(Object.assign({}, ...notice.props.style).position).toBe('fixed')
-    expect(screen.root.findByType('Text' as React.ElementType).props.children).toBe('Offline · League access is unverified.')
+    expect(screen.root.findByType('Text' as React.ElementType).props.children).toBe('Offline · showing saved data')
     state.online = true
     await act(async () => screen.update(React.createElement(LeagueAccessNotice)))
     expect(screen.toJSON()).toBeNull()

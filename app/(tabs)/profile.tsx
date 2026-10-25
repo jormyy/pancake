@@ -92,7 +92,7 @@ export default function ProfileScreen() {
             const saves: Promise<void>[] = [
                 updateProfile(user.id, { display_name: trimmedDisplay }),
             ]
-            if (current && trimmedTeam) {
+            if (current && trimmedTeam && trimmedTeam !== current.team_name) {
                 saves.push(updateTeamName(current.id, trimmedTeam))
             }
             const results = await Promise.allSettled(saves)
@@ -186,6 +186,11 @@ export default function ProfileScreen() {
     }
 
     const showTeamSection = Boolean(current) || leagueLoading
+    const revealedOwnerRef = useRef<string | null>(null)
+    const profileOwner = `${user?.id ?? ''}:${sessionGeneration()}`
+    const contentReady = profileLoaded || Boolean(profileError)
+    if (contentReady) revealedOwnerRef.current = profileOwner
+    const contentVisible = revealedOwnerRef.current === profileOwner
 
     return (
         <Page title="Profile">
@@ -211,7 +216,7 @@ export default function ProfileScreen() {
                     onRetry={() => { void retryProfile() }}
                 />
             ) : null}
-            <ScrollView aria-busy={!profileLoaded} accessibilityState={{ busy: !profileLoaded }} style={styles.scroll} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
+            <ScrollView aria-busy={!contentVisible} aria-hidden={!contentVisible} pointerEvents={contentVisible ? 'auto' : 'none'} accessibilityState={{ busy: !contentVisible }} style={[styles.scroll, !contentVisible && styles.pendingContent]} contentContainerStyle={[styles.scrollContent, styles.formColumn, { paddingHorizontal: padX }]}>
                 <View style={styles.identity}>
                     <Pressable
                         onPress={handlePickAvatar}
@@ -242,21 +247,20 @@ export default function ProfileScreen() {
                 </View>
 
                 <SettingsGroup title="Account">
-                    <SettingsRow
-                        reserveValue
-                        label="Name"
-                        value={editing ? null : profile?.display_name ?? ''}
-                        accessory={editing ? (
-                            <TextInput
-                                style={styles.input}
-                                value={displayName}
-                                onChangeText={setDisplayName}
-                                autoFocus
-                                returnKeyType="next"
-                                accessibilityLabel="Display name"
-                            />
-                        ) : undefined}
-                    />
+                    {editing ? (
+                        <SettingsRow
+                            label="Name"
+                            accessory={(
+                                <TextInput
+                                    style={styles.input}
+                                    value={displayName}
+                                    onChangeText={setDisplayName}
+                                    returnKeyType="next"
+                                    accessibilityLabel="Display name"
+                                />
+                            )}
+                        />
+                    ) : null}
                     <SettingsRow reserveValue label="Email" value={user?.email ?? ''} />
                 </SettingsGroup>
 
@@ -270,6 +274,7 @@ export default function ProfileScreen() {
                                 <TextInput
                                     style={styles.input}
                                     value={teamName}
+                                    maxLength={40}
                                     onChangeText={setTeamName}
                                     returnKeyType="done"
                                     onSubmitEditing={handleSave}
@@ -288,7 +293,7 @@ export default function ProfileScreen() {
 
                 {/* Native screens are light only, so Appearance is a web setting. */}
                 {Platform.OS === 'web' ? (
-                    <SettingsGroup title="Appearance" footer="Auto matches your device's light or dark setting.">
+                    <SettingsGroup title="Appearance">
                         <View style={styles.themeRow}>
                             <SegmentedControl<ThemePreference>
                                 options={THEME_OPTIONS}
@@ -317,7 +322,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
     formColumn: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     scroll: { flex: 1 },
-    scrollContent: { paddingTop: spacing.xl, paddingBottom: spacing['4xl'], gap: spacing.xl },
+    pendingContent: { opacity: 0 },
+    scrollContent: { paddingTop: spacing.lg, paddingBottom: spacing['3xl'], gap: spacing.lg },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
     identityText: { flex: 1, minWidth: 0, gap: spacing.xxs },
     themeRow: { padding: spacing.md },

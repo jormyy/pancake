@@ -1,231 +1,74 @@
-import {
-  createNotifyMember,
-  createNotifyMembers,
-  notificationFailureDisposition,
-  NotificationDeliveryError,
-  type NotificationBatchDependencies,
-  type NotificationDeliveryFailureCode,
-  type NotificationDependencies,
-} from './notificationDelivery.ts'
+import { strict as assert } from 'node:assert'
+import { createNotifyMembers, type NotificationBatchDependencies } from './notificationDelivery.ts'
 
-const deferred = () => {
-  let resolve!: () => void
-  const promise = new Promise<void>((done) => { resolve = done })
-  return { promise, resolve }
-}
-
-const flush = () => new Promise<void>((resolve) => queueMicrotask(resolve))
-const waitFor = async (predicate: () => boolean, message: string) => {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    if (predicate()) return
-    await flush()
-  }
-  throw new Error(message)
-}
-
-const dependencies = (overrides: Partial<NotificationDependencies> = {}): NotificationDependencies => ({
-  member: async () => ({ data: { user_id: 'user-a' }, error: null }),
-  preferences: async () => ({
-    data: { trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true },
-    error: null,
-  }),
-  profile: async () => ({ data: { push_token: 'ExponentPushToken[test]' }, error: null }),
-  send: async () => Response.json({ data: { status: 'ok', id: 'push-a' } }),
-  pushUrl: 'https://push.invalid/send',
+const preferences = { trade_enabled: true, waiver_enabled: false, draft_enabled: true, activity_enabled: true }
+const dependencies = (overrides: Partial<NotificationBatchDependencies> = {}): NotificationBatchDependencies => ({
+  profiles: async () => ({ data: [], error: null }),
+  persistExpoTicket: async () => {},
+  send: async () => { throw new Error('Expo requires a token') },
+  pushUrl: 'http://127.0.0.1/fake',
+  members: async () => ({ data: [{ id: 'member-a', user_id: 'user-a' }], error: null }),
+  preferences: async () => ({ data: [{ user_id: 'user-a', ...preferences }], error: null }),
+  webPush: async (messages) => ({ sent: messages.length, pruned: 0, failed: 0,
+    results: messages.map(({ userId }) => ({ userId, status: 'sent' })) }),
   ...overrides,
 })
 
-const expectDeliveryError = async (
-  expectedCode: NotificationDeliveryFailureCode,
-  operation: () => Promise<unknown>,
-) => {
-  try {
-    await operation()
-  } catch (error) {
-    if (!(error instanceof NotificationDeliveryError)) throw error
-    if (error.code !== expectedCode) {
-      throw new Error(`expected ${expectedCode}, found ${error.code}`)
-    }
-    if (error.memberId !== 'member-a') throw new Error('delivery error lost member identity')
-    return
-  }
-  throw new Error(`expected ${expectedCode} delivery error`)
-}
-
-Deno.test('notification boundary reports typed lookup failures', async () => {
-  await expectDeliveryError('member_lookup', () => createNotifyMember(dependencies({
-    member: async () => ({ data: null, error: { message: 'database unavailable', code: '08006' } }),
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('preferences_lookup', () => createNotifyMember(dependencies({
-    preferences: async () => ({ data: null, error: { message: 'preference read failed' } }),
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('profile_lookup', () => createNotifyMember(dependencies({
-    profile: async () => ({ data: null, error: { message: 'profile read failed' } }),
-  }))('member-a', 'Title', 'Body'))
+Deno.test('web push alone supplies durable sent outcomes without a profile or Expo token', async () => {
+  const deps = dependencies()
+  const results = await createNotifyMembers(deps)([{ memberId: 'member-a', title: 'Offer', body: 'New offer', category: 'trade' }])
+  assert.equal(results[0].status, 'sent')
 })
 
-Deno.test('notification boundary distinguishes network, HTTP, payload, and Expo status failures', async () => {
-  await expectDeliveryError('expo_network', () => createNotifyMember(dependencies({
-    send: async () => { throw new Error('connection reset') },
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('expo_http', () => createNotifyMember(dependencies({
-    send: async () => Response.json({ data: { message: 'upstream unavailable' } }, { status: 503 }),
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('expo_http', () => createNotifyMember(dependencies({
-    send: async () => new Response('unavailable', { status: 503 }),
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('expo_response', () => createNotifyMember(dependencies({
-    send: async () => new Response('not-json'),
-  }))('member-a', 'Title', 'Body'))
-
-  await expectDeliveryError('expo_status', () => createNotifyMember(dependencies({
-    send: async () => Response.json({ data: { status: 'error', message: 'DeviceNotRegistered' } }),
-  }))('member-a', 'Title', 'Body'))
+Deno.test('disabled preferences suppress delivery while absent preferences keep the default', async () => {
+  let sends = 0
+  const deps = dependencies()
+  const notify = createNotifyMembers({ ...deps, webPush: async messages => { sends++; return deps.webPush!(messages) } })
+  assert.deepEqual(await notify([{ memberId: 'member-a', title: 'Waiver', body: 'Claim', category: 'waiver' }]),
+    [{ memberId: 'member-a', status: 'skipped', reason: 'preferences_disabled' }])
+  assert.equal(sends, 0)
+  assert.equal((await createNotifyMembers(dependencies({ preferences: async () => ({ data: [], error: null }) }))([
+    { memberId: 'member-a', title: 'Waiver', body: 'Claim', category: 'waiver' },
+  ]))[0].status, 'sent')
 })
 
-Deno.test('notification boundary returns explicit sent and skipped outcomes', async () => {
-  const sent = await createNotifyMember(dependencies())('member-a', 'Title', 'Body')
-  if (sent.status !== 'sent') throw new Error(`expected sent outcome, found ${sent.status}`)
-
-  const disabled = await createNotifyMember(dependencies({
-    preferences: async () => ({
-      data: { trade_enabled: false, waiver_enabled: true, draft_enabled: true, activity_enabled: true },
-      error: null,
-    }),
-  }))('member-a', 'Title', 'Body', undefined, 'trade')
-  if (disabled.status !== 'skipped' || disabled.reason !== 'preferences_disabled') {
-    throw new Error('disabled preference did not return an explicit skip')
-  }
-
-  const missingToken = await createNotifyMember(dependencies({
-    profile: async () => ({ data: { push_token: null }, error: null }),
-  }))('member-a', 'Title', 'Body')
-  if (missingToken.status !== 'skipped' || missingToken.reason !== 'missing_push_token') {
-    throw new Error('missing push token did not return an explicit skip')
+Deno.test('notification lookups fail closed before delivery', async () => {
+  for (const override of [
+    { members: async () => ({ data: null, error: { message: 'members unavailable' } }) },
+    { members: async () => ({ data: [], error: null }) },
+    { preferences: async () => ({ data: null, error: { message: 'preferences unavailable' } }) },
+  ]) {
+    let sent = false
+    await assert.rejects(() => createNotifyMembers(dependencies({ ...override,
+      webPush: async () => { sent = true; throw new Error('unexpected send') },
+    }))([{ memberId: 'member-a', title: 'T', body: 'B' }]), /lookup/i)
+    assert.equal(sent, false)
   }
 })
 
-Deno.test('bulk notification delivery clears invalid tokens and classifies the rejection as permanent', async () => {
-  const invalidated: Array<{ userId: string; token: string }> = []
-  const batchDependencies: NotificationBatchDependencies = {
-    members: async () => ({ data: [{ id: 'member-a', user_id: 'user-a' }], error: null }),
-    preferences: async () => ({
-      data: [{
-        user_id: 'user-a',
-        trade_enabled: true,
-        waiver_enabled: true,
-        draft_enabled: true,
-        activity_enabled: true,
-      }],
-      error: null,
-    }),
-    profiles: async () => ({
-      data: [{ id: 'user-a', push_token: 'ExponentPushToken[invalid]' }],
-      error: null,
-    }),
-    invalidateToken: async (userId, token) => {
-      invalidated.push({ userId, token })
-      return { data: true, error: null }
-    },
-    send: async () => Response.json({
-      data: [{
-        status: 'error',
-        message: 'The device is not registered',
-        details: { error: 'DeviceNotRegistered' },
-      }],
-    }),
-    pushUrl: 'https://push.invalid/send',
-  }
-
-  try {
-    await createNotifyMembers(batchDependencies)([{
-      memberId: 'member-a',
-      title: 'Accepted Trade Expired',
-      body: 'Check the trade activity.',
-      category: 'trade',
-    }])
-    throw new Error('expected invalid token delivery to fail')
-  } catch (error) {
-    if (notificationFailureDisposition(error) !== 'discard') throw error
-  }
-  if (JSON.stringify(invalidated) !== JSON.stringify([{
-    userId: 'user-a',
-    token: 'ExponentPushToken[invalid]',
-  }])) {
-    throw new Error(`invalid token was not cleared exactly once: ${JSON.stringify(invalidated)}`)
+Deno.test('per-user web failures and terminal skips survive notification mapping', async () => {
+  for (const outcome of [
+    { userId: 'user-a', status: 'failed' as const, retryable: true, error: 'HTTP 503' },
+    { userId: 'user-a', status: 'failed' as const, retryable: false, error: 'HTTP 400' },
+    { userId: 'user-a', status: 'gone' as const },
+    { userId: 'user-a', status: 'no_subscription' as const },
+  ]) {
+    const [result] = await createNotifyMembers(dependencies({ webPush: async () => ({ sent: 0, pruned: 0, failed: 0, results: [outcome] }) }))([
+      { memberId: 'member-a', title: 'T', body: 'B' },
+    ])
+    assert.equal(result.status, outcome.status === 'failed' ? 'failed' : 'skipped')
+    if (result.status === 'failed' && outcome.status === 'failed') assert.equal(result.retryable, outcome.retryable)
   }
 })
 
-Deno.test('bulk notification delivery bounds 600 delayed recipients to six Expo batches and three lookups', async () => {
-  const memberIds = Array.from({ length: 600 }, (_, index) => `member-${index}`)
-  const gates = Array.from({ length: 6 }, deferred)
-  const lookupCalls = { members: 0, preferences: 0, profiles: 0 }
-  const batchSizes: number[] = []
-  let active = 0
-  let maxActive = 0
-  const batchDependencies: NotificationBatchDependencies = {
-    members: async (ids) => {
-      lookupCalls.members += 1
-      return { data: ids.map((id) => ({ id, user_id: `user-${id}` })), error: null }
-    },
-    preferences: async (ids) => {
-      lookupCalls.preferences += 1
-      return {
-        data: ids.map((user_id) => ({
-          user_id,
-          trade_enabled: true,
-          waiver_enabled: true,
-          draft_enabled: true,
-          activity_enabled: true,
-        })),
-        error: null,
-      }
-    },
-    profiles: async (ids) => {
-      lookupCalls.profiles += 1
-      return { data: ids.map((id) => ({ id, push_token: `ExponentPushToken[${id}]` })), error: null }
-    },
-    send: async (_url, init) => {
-      const batchIndex = batchSizes.length
-      const batch = JSON.parse(String(init.body)) as unknown[]
-      batchSizes.push(batch.length)
-      active += 1
-      maxActive = Math.max(maxActive, active)
-      await gates[batchIndex].promise
-      active -= 1
-      return Response.json({ data: batch.map((_, index) => ({ status: 'ok', id: `ticket-${batchIndex}-${index}` })) })
-    },
-    pushUrl: 'https://push.invalid/send',
-  }
+Deno.test('missing web outcomes are retryable rather than acknowledged', async () => {
+  const [result] = await createNotifyMembers(dependencies({ webPush: async () => ({ sent: 0, pruned: 0, failed: 0, results: [] }) }))([
+    { memberId: 'member-a', title: 'T', body: 'B' },
+  ])
+  assert.equal(result.status, 'failed')
+  if (result.status === 'failed') assert.equal(result.retryable, true)
+})
 
-  let completed = false
-  const pending = createNotifyMembers(batchDependencies)(memberIds.map((memberId) => ({
-    memberId,
-    title: 'Trade Completed',
-    body: 'Assets moved.',
-    category: 'trade',
-  }))).then(() => { completed = true })
-
-  await waitFor(() => batchSizes.length === 2, 'initial Expo batches did not start')
-  if (completed || maxActive !== 2) throw new Error('bulk delivery did not await or bound its initial batches')
-  for (let index = 0; index < gates.length; index += 1) {
-    gates[index].resolve()
-    if (index < gates.length - 2) {
-      await waitFor(() => batchSizes.length === index + 3, `Expo batch ${index + 3} did not start`)
-    }
-  }
-  await pending
-
-  if (batchSizes.length !== 6 || batchSizes.some((size) => size !== 100)) {
-    throw new Error(`expected six 100-message batches, found ${batchSizes.join(',')}`)
-  }
-  if (maxActive !== 2) throw new Error(`expected maximum batch concurrency 2, found ${maxActive}`)
-  if (Object.values(lookupCalls).some((count) => count !== 1)) {
-    throw new Error(`bulk delivery repeated lookups: ${JSON.stringify(lookupCalls)}`)
-  }
+Deno.test('empty batches do not query notification data', async () => {
+  assert.deepEqual(await createNotifyMembers(dependencies({ members: async () => { throw new Error('unexpected lookup') } }))([]), [])
 })

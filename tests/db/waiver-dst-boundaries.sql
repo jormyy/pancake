@@ -4,7 +4,7 @@
 SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS local_target \gset
 \if :local_target
 \else
-  \quit 2
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 BEGIN;
 UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
@@ -17,6 +17,7 @@ DECLARE
   p uuid; c1 uuid; c2 uuid; placed timestamptz; actual timestamptz; expected timestamptz;
   before_reset timestamptz; after_reset timestamptz; wk int; got int; i int;
   today date:=(now() AT TIME ZONE 'America/New_York')::date;
+  run_day date:=((now() AT TIME ZONE 'America/New_York')-interval '3 hours')::date;
 BEGIN
   INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
   VALUES(u,'authenticated','authenticated',u||'@example.test','x',now(),'{}','{}',now(),now());
@@ -31,11 +32,11 @@ BEGIN
     VALUES(p,'Synthetic','DST','PG',ARRAY['PG'],'Active','SIM');
     placed:=CASE i WHEN 1 THEN '2026-10-31 01:30:00-04'::timestamptz
       WHEN 2 THEN '2026-11-01 01:59:59-04'::timestamptz ELSE '2026-11-01 01:00:00-05'::timestamptz END;
-    expected:=CASE i WHEN 1 THEN '2026-11-02 00:30:00-05'::timestamptz
-      WHEN 2 THEN '2026-11-03 00:59:59-05'::timestamptz ELSE '2026-11-03 01:00:00-05'::timestamptz END;
+    expected:=CASE i WHEN 1 THEN '2026-11-02 03:00:00-05'::timestamptz
+      WHEN 2 THEN '2026-11-03 03:00:00-05'::timestamptz ELSE '2026-11-03 03:00:00-05'::timestamptz END;
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     VALUES(l,s,p,placed) RETURNING clears_at INTO actual;
-    IF actual<>expected OR extract(epoch FROM actual-placed)<>172800 THEN
+    IF actual<>expected OR actual-placed<interval '48 hours' OR actual-placed>=interval '72 hours' THEN
       RAISE EXCEPTION 'ASSERT DST drop %: clear % expected %, elapsed %',i,actual,expected,actual-placed;
     END IF;
   END LOOP;
@@ -60,20 +61,20 @@ BEGIN
     p:=gen_random_uuid();
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team)
     VALUES(p,'Synthetic','ET edge','PG',ARRAY['PG'],'Active','SIM');
-    expected:=(CASE i WHEN 1 THEN (today-1)::timestamp+interval '23:59:59' ELSE today::timestamp END) AT TIME ZONE 'America/New_York';
+    expected:=(CASE i WHEN 1 THEN (run_day-1)::timestamp ELSE run_day::timestamp END+interval '3 hours') AT TIME ZONE 'America/New_York';
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     VALUES(l,s,p,expected-interval '48 hours');
     IF i=1 THEN c1:=create_waiver_claim_atomic(l,m,p,NULL,u,0); ELSE c2:=create_waiver_claim_atomic(l,m,p,NULL,u,0); END IF;
   END LOOP;
-  IF (SELECT process_date FROM waiver_claims WHERE id=c1)<>today-1 OR (SELECT process_date FROM waiver_claims WHERE id=c2)<>today THEN
+  IF (SELECT process_date FROM waiver_claims WHERE id=c1)<>run_day-1 OR (SELECT process_date FROM waiver_claims WHERE id=c2)<>run_day THEN
     RAISE EXCEPTION 'ASSERT submission must derive the ET clearing day';
   END IF;
-  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today-1,100) WHERE claim_id IN(c1,c2);
+  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(run_day-1,100) WHERE claim_id IN(c1,c2);
   IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c1)<>'succeeded' OR (SELECT status FROM waiver_claims WHERE id=c2)<>'pending' THEN
-    RAISE EXCEPTION 'ASSERT ET previous-day processing must select only the pre-midnight claim';
+    RAISE EXCEPTION 'ASSERT ET previous-day processing must select only the previous run claim';
   END IF;
-  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(today,100) WHERE claim_id IN(c1,c2);
-  IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c2)<>'succeeded' THEN RAISE EXCEPTION 'ASSERT midnight claim must process on its ET day'; END IF;
-  RAISE NOTICE 'PASS SYNTHETIC fixed 2026 DST drop instants, 48 elapsed hours, ET midnight labels, real submission/processing day edges';
+  SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(run_day,100) WHERE claim_id IN(c1,c2);
+  IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c2)<>'succeeded' THEN RAISE EXCEPTION 'ASSERT current run claim must process on its ET day'; END IF;
+  RAISE NOTICE 'PASS SYNTHETIC fixed 2026 DST drop instants, 48-hour minimum before the 03:00 ET run, ET midnight labels, real submission/processing day edges';
 END $$;
 ROLLBACK;

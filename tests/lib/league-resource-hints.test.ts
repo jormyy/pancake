@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { leagueChangeReceiver, leagueResourceAffects } from '@/lib/league-changes'
+import { leagueChangeReceiver, leagueResourceAffects, leagueSnapshotRevision, notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 
 const season = '10000000-0000-4000-8000-000000000001'
 const detail = { resource: 'claims', season_id: season }
@@ -21,10 +21,9 @@ describe('bounded resource hints', () => {
         [],
         [{ ...detail, member_id: '20000000-0000-4000-8000-000000000001' }],
         [{ ...detail, player_id: 'private' }],
-        [{ ...detail, resource: 'future-resource' }],
         [{ ...detail, season_id: 'not-a-uuid' }],
         Array.from({ length: 17 }, (_, index) => ({ resource: 'picks', season_id: `10000000-0000-4000-8000-${String(index).padStart(12, '0')}` })),
-    ])('broadens an invalid or unknown detail instead of dropping the change: %j', details => {
+    ])('broadens an invalid detail instead of dropping the change: %j', details => {
         const receive = vi.fn()
         const consume = leagueChangeReceiver('league', receive)
         consume(row(1))
@@ -33,7 +32,7 @@ describe('bounded resource hints', () => {
         expect(receive).toHaveBeenCalledTimes(2)
     })
 
-    it('takes a broad catch-up for unsafe counters and unknown topics', () => {
+    it('takes a broad catch-up for unsafe counters', () => {
         const receive = vi.fn()
         const consume = leagueChangeReceiver('league', receive)
         consume(row(1))
@@ -41,7 +40,7 @@ describe('bounded resource hints', () => {
         consume(row(2))
         consume(row(3, [detail], 'new-topic'))
         expect(receive.mock.calls.map(([change]) => [change.topic, change.details ?? null])).toEqual([
-            ['inventory', null], ['inventory', null], ['inventory', null], ['catchup', null],
+            ['inventory', null], ['inventory', null], ['inventory', null],
         ])
     })
 
@@ -74,4 +73,37 @@ it('keeps broad invalidation inside its topic and includes future-season picks f
     const futurePick = { topic: 'inventory' as const, scopes: null, details: [{ resource: 'picks' as const, season_id: 'future', member_id: 'mine' }] }
     expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'mine' })).toBe(true)
     expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'other' })).toBe(false)
+})
+
+
+it('keeps activity hints narrow and outside roster support resources', () => {
+    const receive = vi.fn()
+    const consume = leagueChangeReceiver('league', receive)
+    const activity = { resource: 'activity' as const, season_id: season }
+    consume(row(1))
+    consume(row(2, [activity]))
+    const change = receive.mock.calls.at(-1)![0]
+    expect(change.details).toEqual([activity])
+    expect(leagueResourceAffects(change, ['activity'])).toBe(true)
+    expect(leagueResourceAffects(change, ['picks', 'claims', 'waivers', 'faab', 'priority', 'season'])).toBe(false)
+})
+
+
+it('keeps roster and pick cache revisions stable for activity-only inventory', () => {
+    setLeagueChangesConnected('activity-cache', true)
+    const domains = ['roster', 'support', 'picks'] as const
+    const before = domains.map(domain => leagueSnapshotRevision('activity-cache', domain))
+    notifyLeagueChange('activity-cache', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: season }] })
+    expect(domains.map(domain => leagueSnapshotRevision('activity-cache', domain))).toEqual(before)
+    setLeagueChangesConnected('activity-cache', false)
+})
+
+it('ignores future topics and details without disconnecting or broad recovery', () => {
+    const receive = vi.fn()
+    const consume = leagueChangeReceiver('league', receive)
+    expect(consume(row(1, null, 'future-topic'))).toBe(true)
+    expect(consume(row(1, [{ resource: 'future-resource', season_id: season }]))).toBe(true)
+    expect(receive).not.toHaveBeenCalled()
+    consume(row(2, [detail, { resource: 'future-resource', season_id: season }]))
+    expect(receive).toHaveBeenCalledExactlyOnceWith({ topic: 'inventory', scopes: null, details: [detail] })
 })

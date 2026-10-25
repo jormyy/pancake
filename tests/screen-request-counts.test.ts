@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { loadPlayerSupport } from '@/lib/player-availability'
+import { canAddToIR } from '@/lib/pickup'
 import { loadPickupState } from '@/lib/roster-add-flow'
 import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
 import { invalidateSeasonCache } from '@/lib/shared/season'
@@ -21,6 +22,7 @@ const fixtures = vi.hoisted((): Record<string, Record<string, unknown>[]> => ({}
 vi.mock('@/lib/supabase', async () => ({
     supabase: (await import('./helpers/fake-supabase')).createFakeSupabase(counts, fixtures),
 }))
+vi.mock('@/lib/alert', () => ({ confirmAction: vi.fn(), showAlert: vi.fn() }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: () => {} }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
@@ -80,7 +82,12 @@ beforeEach(seedFixtures)
 
 describe('screen request budgets', () => {
     it('players tab support load (availability + transaction state)', async () => {
-        const result = await measure(() => loadPlayerSupport('member', 'league'))
+        fixtures.roster_players[0].is_on_ir = true
+        const result = await measure(async () => {
+            const support = await loadPlayerSupport('member', 'league')
+            expect([...support.ownedMap.keys()]).toEqual(['p-1', 'p-2'])
+            expect(support.ownedMap.get('p-1')).toMatchObject({ memberId: 'member', isOnIR: true })
+        })
         expect(result).toEqual({
             requests: 5,
             byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1, waiver_claims: 1 },
@@ -194,7 +201,15 @@ describe('screen request budgets', () => {
             requests: 2,
             byTarget: { league_seasons: 1, roster_players: 1 },
         })
-        const freeAgent = await measure(() => loadPickupState('p-7', 'member', 'league'))
+        fixtures.roster_players[0].is_on_ir = true
+        fixtures.roster_players[1].is_on_ir = true
+        const freeAgent = await measure(async () => {
+            const pickup = await loadPickupState('p-7', 'member', 'league')
+            expect(pickup.status).toEqual({ status: 'free_agent' })
+            expect(pickup.roster).toEqual([{ is_on_ir: true }])
+            expect(canAddToIR('Out', pickup.roster, 1)).toBe(false)
+            expect(canAddToIR('Out', pickup.roster, 2)).toBe(true)
+        })
         expect(freeAgent).toEqual({
             requests: 4,
             byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },

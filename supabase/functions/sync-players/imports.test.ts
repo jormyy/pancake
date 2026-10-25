@@ -28,12 +28,14 @@ const players = Array.from({ length: 634 }, (_, index) => ({
 }))
 const conflictPlayerId = '00000000-0000-4000-8000-000000000123'
 
-async function runSync(source: string, conflicts: Set<string>, otherError = false, indexAction?: string) {
+async function runSync(source: string, conflicts: Set<string>, otherError = false, indexAction?: string, injuries: 'healthy' | 'empty' | 'unmapped' = 'healthy') {
   const originalFetch = globalThis.fetch
   const originalLog = console.log
   const originalError = console.error
   const imports: string[][] = []
   const imported: string[] = []
+  const metadata: Record<string, unknown>[] = []
+  let newsFetched = false
   const runs: { status: string; error?: string; rows_affected?: number }[] = []
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
@@ -47,8 +49,8 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
         id: player.provider_id, firstName: player.first_name, lastName: player.last_name,
         position: { abbreviation: 'PG' }, status: { type: 'active' }, experience: { years: 1 },
       })) })
-      if (url.pathname === '/api/injuries') return Response.json({ injuries: [] })
-      if (url.pathname === '/api/news') return Response.json({ articles: [] })
+      if (url.pathname === '/api/injuries') return Response.json({ injuries: injuries === 'empty' ? [] : [{ injuries: [{ status: injuries === 'unmapped' ? 'Unknown' : 'Out', athlete: { displayName: 'Fixture Player0' } }] }] })
+      if (url.pathname === '/api/news') { newsFetched = true; return Response.json({ articles: [] }) }
     }
     if (url.hostname === 'sleeper.invalid' && url.pathname === '/v1/players/nba') return Response.json(Object.fromEntries(players.map((player) => [player.provider_id, {
       ...player, player_id: player.provider_id, sport: 'nba', position: 'PG', team: 'BOS', status: 'Active', years_exp: 1,
@@ -63,10 +65,11 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
       runs.push(await request.json())
       return Response.json({})
     }
+    if (url.pathname === '/rest/v1/roster_players') return Response.json([])
     if (url.pathname === '/rest/v1/players') return Response.json(indexAction ? [{ id: 'index-candidate', display_name: 'Index Candidate', nba_id: null }] : [])
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') return Response.json(null)
     assert.equal(url.pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
-    const body = await request.json() as { p_source: string; p_records: { provider_id: string }[] }
+    const body = await request.json() as { p_source: string; p_records: { provider_id: string; metadata: Record<string, unknown> }[] }
     if (body.p_source === 'nba_index') return Response.json({ results: [{ index: 0, player_id: null, action: indexAction }], stale_draft_numbers_cleared: 0 })
     assert.equal(body.p_source, source)
     const ids = body.p_records.map((row) => row.provider_id)
@@ -74,6 +77,7 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
     if (ids.some((id) => conflicts.has(id))) return Response.json({ code: '23514', message: otherError
       ? 'Player metadata is invalid.' : `Conflicting provider identity for player ${conflictPlayerId}` }, { status: 400 })
     imported.push(...ids)
+    metadata.push(...body.p_records.map(row => row.metadata))
     return Response.json({ results: ids.map((id, index) => ({ index, player_id: `player-${id}`, action: 'updated' })), stale_draft_numbers_cleared: 0 })
   }
   try {
@@ -82,7 +86,7 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
     const response = await handlers.get(source)!(new Request('http://function.invalid/sync-players', {
       method: 'POST', headers: { 'x-internal-function-token': 'fixture-internal-token' },
     }))
-    return { response, imports, imported, runs }
+    return { response, imports, imported, runs, metadata, newsFetched }
   } finally {
     globalThis.fetch = originalFetch
     console.log = originalLog
@@ -149,5 +153,18 @@ for (const action of ['missing', 'stale', 'ambiguous']) {
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
     assert.match(result.runs.at(-1)?.error ?? '', new RegExp(`nba-index-id.*${action}`))
+  })
+}
+
+for (const injuries of ['empty', 'unmapped'] as const) {
+  Deno.test(`${injuries} injuries allow the full import and count a warning`, async () => {
+    const result = await runSync('espn', new Set(), false, undefined, injuries)
+    assert.equal(result.imported.length, 634)
+    assert.ok(result.metadata.every(row => !Object.hasOwn(row, 'injury_status')))
+    assert.ok(result.newsFetched)
+    assert.equal(result.response.status, 200)
+    assert.equal((await result.response.json()).injuryWarnings, 1)
+    assert.equal(result.runs.at(-1)?.status, 'success')
+    assert.equal(result.runs.at(-1)?.error, undefined)
   })
 }

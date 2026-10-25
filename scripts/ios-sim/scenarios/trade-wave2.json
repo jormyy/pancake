@@ -1,0 +1,580 @@
+[
+  {
+    "name": "trade-roster-plan-light",
+    "group": "trade-roster-plan",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tradeId={{rosterPlanTradeId}}"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "invalid-choices",
+        "note": "Healthy veterans have no IR or taxi choice. An incoming taxi player must stay on taxi.",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "body:not(:has([aria-label='Marcus Williams 22: active'],[aria-label='Marcus Williams 22: ir'],[aria-label='Malik Carter 20: ir'],[aria-label='Malik Carter 20: taxi'])) [aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "drops",
+        "action": {
+          "tap": "Choose drops at trade completion"
+        },
+        "expected": {
+          "text": "Hide drop choices"
+        }
+      },
+      {
+        "name": "choose-drop",
+        "action": {
+          "tap": "Drop Jalen Davis 41 at completion"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop Jalen Davis 41 at completion'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "restore-drop",
+        "action": {
+          "tap": "Drop Jalen Davis 41 at completion"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop Jalen Davis 41 at completion'][aria-checked='false']"
+        }
+      },
+      {
+        "name": "close-drops",
+        "action": {
+          "tap": "Choose drops at trade completion"
+        },
+        "expected": {
+          "text": "Choose drops"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "trade-roster-plan-dark",
+    "group": "trade-roster-plan",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tradeId={{rosterPlanTradeId}}"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "invalid-choices",
+        "note": "Healthy veterans have no IR or taxi choice. An incoming taxi player must stay on taxi.",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "body:not(:has([aria-label='Marcus Williams 22: active'],[aria-label='Marcus Williams 22: ir'],[aria-label='Malik Carter 20: ir'],[aria-label='Malik Carter 20: taxi'])) [aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "drops",
+        "action": {
+          "tap": "Choose drops at trade completion"
+        },
+        "expected": {
+          "text": "Hide drop choices"
+        }
+      },
+      {
+        "name": "choose-drop",
+        "action": {
+          "tap": "Drop Jalen Davis 41 at completion"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop Jalen Davis 41 at completion'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "restore-drop",
+        "action": {
+          "tap": "Drop Jalen Davis 41 at completion"
+        },
+        "expected": {
+          "selector": "[aria-label='Drop Jalen Davis 41 at completion'][aria-checked='false']"
+        }
+      },
+      {
+        "name": "close-drops",
+        "action": {
+          "tap": "Choose drops at trade completion"
+        },
+        "expected": {
+          "text": "Choose drops"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "trade-taxi-plan-light",
+    "group": "trade-taxi-plan",
+    "from": "/trades",
+    "prepare": [
+      {
+        "open": "/trades?tradeId={{rosterPlanTradeId}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Keegan Carter 19: taxi"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: taxi'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "restore-active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "unchanged-active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "trade-review-plan-light",
+    "group": "trade-taxi-plan",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Trade with {{otherTeam}}"
+      },
+      {
+        "tap": "Select {{rosterPlayer.display_name}} for trade"
+      },
+      {
+        "tap": "Edit assets sent by {{otherTeam}}"
+      },
+      {
+        "tap": "Select Keegan Carter 19 for trade"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "taxi",
+        "action": {
+          "tap": "Keegan Carter 19: taxi"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: taxi'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "light"
+  },
+  {
+    "name": "trade-taxi-plan-dark",
+    "group": "trade-taxi-plan",
+    "from": "/trades",
+    "prepare": [
+      {
+        "open": "/trades?tradeId={{rosterPlanTradeId}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Keegan Carter 19: taxi"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: taxi'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "restore-active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "unchanged-active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "trade-review-plan-dark",
+    "group": "trade-taxi-plan",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Trade with {{otherTeam}}"
+      },
+      {
+        "tap": "Select {{rosterPlayer.display_name}} for trade"
+      },
+      {
+        "tap": "Edit assets sent by {{otherTeam}}"
+      },
+      {
+        "tap": "Select Keegan Carter 19 for trade"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "taxi",
+        "action": {
+          "tap": "Keegan Carter 19: taxi"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: taxi'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "active",
+        "action": {
+          "tap": "Keegan Carter 19: active"
+        },
+        "expected": {
+          "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "setup": {
+      "tradePlan": true
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "trades-review-light-sample",
+    "group": "trade-paired",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Trade with {{otherTeam}}"
+      },
+      {
+        "tap": "Edit assets sent by {{otherTeam}}"
+      },
+      {
+        "tapPrefix": "Select "
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "repeat": 3,
+    "theme": "light"
+  },
+  {
+    "name": "trades-multi-team-light-sample",
+    "group": "trade-paired",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Use multi-team trade mode"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "repeat": 3,
+    "theme": "light"
+  },
+  {
+    "name": "trades-multi-team-dark-sample",
+    "group": "trade-paired",
+    "from": "/propose-trade",
+    "prepare": [
+      {
+        "tap": "Use multi-team trade mode"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "repeat": 3,
+    "theme": "dark"
+  },
+  {
+    "name": "trades-analyzer-dark-sample",
+    "group": "trade-paired",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Edit assets"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "result"
+      },
+      {
+        "name": "analysis",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      }
+    ],
+    "repeat": 3,
+    "theme": "dark"
+  }
+]

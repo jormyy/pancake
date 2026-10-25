@@ -1,0 +1,56 @@
+[
+  {
+    "name": "player-first-tap-light",
+    "group": "player-first-tap",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{liveFreeAgent.display_name}}"
+      },
+      {
+        "tap": "Search players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{liveFreeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{liveFreeAgent.id}}",
+          "text": "Live vs LAL · 50.2 FP so far"
+        }
+      }
+    ],
+    "repeat": 10,
+    "theme": "light"
+  },
+  {
+    "name": "player-first-tap-dark",
+    "group": "player-first-tap",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{liveFreeAgent.display_name}}"
+      },
+      {
+        "tap": "Search players"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{liveFreeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{liveFreeAgent.id}}",
+          "text": "Live vs LAL · 50.2 FP so far"
+        }
+      }
+    ],
+    "repeat": 10,
+    "theme": "dark"
+  }
+]

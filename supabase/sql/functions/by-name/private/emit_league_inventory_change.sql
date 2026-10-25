@@ -23,7 +23,7 @@ BEGIN
         FROM changed pick LEFT JOIN public.league_seasons season
           ON season.league_id=pick.league_id AND season.season_year=pick.season_year$details$;
     WHEN 'waiver_claims' THEN
-      v_details := $details$SELECT league_id,jsonb_build_object('resource','claims','season_id',league_season_id) AS detail FROM changed$details$;
+      v_details := $details$SELECT league_id,jsonb_build_object('resource','claims','season_id',league_season_id) AS detail FROM changed WHERE status NOT IN ('pending','cancelled')$details$;
     WHEN 'waiver_wire_log' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','waivers','season_id',league_season_id) AS detail FROM changed$details$;
     WHEN 'waiver_priorities' THEN

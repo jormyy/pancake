@@ -1,9 +1,10 @@
+\set ON_ERROR_STOP on
 \getenv notif_test_db SUPABASE_DB_URL
 \getenv notif_test_port PANCAKE_TEST_DB_PORT
 \if :{?notif_test_db}
 \else
   \echo SUPABASE_DB_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?notif_test_port}
 \else
@@ -54,5 +55,26 @@ BEGIN
   SELECT * INTO receipt FROM claim_notification_receipts_atomic(200,60) WHERE id=r.id;
   IF receipt.id IS NULL OR NOT complete_notification_outbox_atomic(receipt.id,receipt.claim_token) THEN RAISE EXCEPTION 'receipt completion failed'; END IF;
   IF EXISTS(SELECT 1 FROM claim_notification_outbox_atomic(200,60) WHERE id=r.id) THEN RAISE EXCEPTION 'delivered dual-channel event retried'; END IF;
+  PERFORM private.notif_enqueue('trade_offered','web-known-failure',f.league,f.member);
+  SELECT * INTO r FROM claim_notification_outbox_atomic(200,60)
+    WHERE id IN(SELECT id FROM notification_outbox WHERE dedupe_key='trade_offered:web-known-failure:' || f.member);
+  IF notif_begin_web_atomic(r.id,r.claim_token)<>'send' THEN RAISE EXCEPTION 'First Web Push attempt not reserved'; END IF;
+  IF NOT notif_finish_web_atomic(r.id,r.claim_token,false) THEN RAISE EXCEPTION 'Known failure not recorded'; END IF;
+  IF NOT fail_notification_outbox_atomic(r.id,r.claim_token,'known HTTP 503') THEN RAISE EXCEPTION 'Known failure not retried'; END IF;
+  UPDATE notification_outbox SET available_at=now() WHERE id=r.id;
+  SELECT * INTO r FROM claim_notification_outbox_atomic(200,60) WHERE id=r.id;
+  IF notif_begin_web_atomic(r.id,r.claim_token)<>'send' THEN RAISE EXCEPTION 'Known failure blocks the next Web Push attempt'; END IF;
+  IF NOT notif_finish_web_atomic(r.id,r.claim_token,true) THEN RAISE EXCEPTION 'Retry success not recorded'; END IF;
+  UPDATE notification_outbox SET claimed_at=now()-interval '61 seconds' WHERE id=r.id;
+  SELECT * INTO r FROM claim_notification_outbox_atomic(200,60) WHERE id=r.id;
+  IF notif_begin_web_atomic(r.id,r.claim_token)<>'delivered' THEN RAISE EXCEPTION 'Retry sends a successful Web Push twice'; END IF;
+  IF NOT complete_notification_outbox_atomic(r.id,r.claim_token) THEN RAISE EXCEPTION 'Saved Web Push success cannot complete'; END IF;
+  PERFORM private.notif_enqueue('trade_offered','web-unknown-outcome',f.league,f.member);
+  SELECT * INTO r FROM claim_notification_outbox_atomic(200,60)
+    WHERE id IN(SELECT id FROM notification_outbox WHERE dedupe_key='trade_offered:web-unknown-outcome:' || f.member);
+  IF notif_begin_web_atomic(r.id,r.claim_token)<>'send' THEN RAISE EXCEPTION 'Unknown-outcome attempt not reserved'; END IF;
+  UPDATE notification_outbox SET claimed_at=now()-interval '61 seconds' WHERE id=r.id;
+  SELECT * INTO r FROM claim_notification_outbox_atomic(200,60) WHERE id=r.id;
+  IF notif_begin_web_atomic(r.id,r.claim_token)<>'attempted' THEN RAISE EXCEPTION 'Unknown Web Push outcome is sent twice'; END IF;
 END $$;
 ROLLBACK;

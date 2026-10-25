@@ -35,6 +35,7 @@ import {
   writeFile,
 } from './browser-trade-support.mjs'
 import { createClient } from '@supabase/supabase-js'
+import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
 
 const exerciseLazyOverflowActions = async (fixture, env) => {
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
@@ -61,7 +62,7 @@ const exerciseLazyOverflowActions = async (fixture, env) => {
     p_league_id: fixture.league.id,
     p_player_id: fixture.freeAgentPlayer.id,
   })
-  if (!addError || !/active roster is full/i.test(addError.message)) {
+  if (addError?.code !== 'PA003') {
     throw new Error(`overflow free-agent add was not cap-blocked: ${addError?.message ?? 'succeeded'}`)
   }
 
@@ -132,6 +133,7 @@ export async function runBrowserTradeAcceptScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'trade-accept-before.png')], { timeout: 60_000 })
 
     const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'trade accept button')
+    await confirmTradeAcceptance({ session })
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
@@ -244,8 +246,7 @@ export async function runBrowserTradeFuturePickScenario({
       session,
       [
         'Propose Trade',
-        'DEAL SUMMARY',
-        'EDIT ASSETS SENT BY',
+        'Review',
         'DRAFT PICKS',
         String(fixture.targetFuturePickYear),
         fixture.proposerFuturePick.originalTeamName,
@@ -376,6 +377,7 @@ export async function runBrowserTradeFuturePickAcceptScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'future-pick-accept-before.png')], { timeout: 60_000 })
 
     const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'future-pick trade accept button')
+    await confirmTradeAcceptance({ session })
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForFuturePickTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }
@@ -492,6 +494,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
 
     const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'overflow trade accept button')
+    await confirmTradeAcceptance({ session })
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForOverflowTradeAccepted(fixture)
     debug = { ...debug, acceptClick, accepted }

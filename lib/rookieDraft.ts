@@ -48,6 +48,8 @@ export type RookieDraftState = {
 }
 
 export type RookieProspect = {
+    years_exp?: number | null
+    career_regular_season_games?: number | null
     id: string
     display_name: string
     nba_team: string | null
@@ -229,19 +231,15 @@ export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickIte
 }
 
 export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
-    const { data: picked, error: pickedError } = await supabase
+    const pickedQuery = supabase
         .from('snake_draft_picks')
         .select('player_id')
         .eq('draft_id', draftId)
         .not('player_id', 'is', null)
 
-    if (pickedError) throw pickedError
-
-    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
-
     let q = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, nba_draft_number')
+        .select('id, display_name, nba_team, position, nba_id, nba_draft_number, years_exp, career_regular_season_games')
         .not('nba_draft_number', 'is', null)
         .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })
@@ -252,8 +250,10 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
         q = q.ilike('display_name', `%${query.trim()}%`)
     }
 
-    const { data, error } = await q
+    const [{ data: picked, error: pickedError }, { data, error }] = await Promise.all([pickedQuery, q])
+    if (pickedError) throw pickedError
     if (error) throw error
+    const pickedIds = new Set((picked ?? []).map((p) => p.player_id))
     return (data ?? []).filter((p) => !pickedIds.has(p.id)) as RookieProspect[]
 }
 

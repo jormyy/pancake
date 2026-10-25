@@ -139,8 +139,9 @@ BEGIN
     RAISE EXCEPTION 'Archived leagues are read-only.';
   END IF;
 
+  PERFORM private.assert_trade_window(p_league_id, ARRAY(SELECT pick_id FROM private.parse_multi_team_trade_items(p_items) WHERE pick_id IS NOT NULL));
+
   IF v_league.status NOT IN (
-    'setup'::league_status,
     'drafting'::league_status,
     'active'::league_status,
     'playoffs'::league_status,
@@ -188,6 +189,8 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No active season found.';
   END IF;
+
+  PERFORM private.assert_legal_roster(p_league_id,p_league_season_id,p_proposer_member_id);
 
   SELECT count(*)
     INTO v_rows
@@ -239,7 +242,7 @@ BEGIN
      WHERE faab_amount > 0
      GROUP BY from_member_id
   LOOP
-    v_balance := private.ensure_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
+    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, v_faab.from_member_id);
     IF v_balance < v_faab.amount THEN
       RAISE EXCEPTION 'Offered FAAB exceeds a participant''s available balance.'
         USING ERRCODE = 'P0001';

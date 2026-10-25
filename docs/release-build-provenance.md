@@ -79,11 +79,18 @@ Public copies and document markers belong to the artifact manifest. Do not modif
 Metro can change the entry script's lazy-route map without changing its filename.
 The stamper gives that entry a digest-based URL so returning browsers load the matching route map.
 
-## Edge artifact and projection rollout
+## Edge artifact and database rollout
 
-The configured Edge inventory includes `sync-sleeper-projections`.
-Include it in the stamped Edge artifact with the other functions.
-Apply migrations `20261020000001` through `20261020000007` before deploying that artifact.
-Projection read RPC shapes remain compatible with the existing frontend.
-Source-health evidence covers active Sleeper projections and the separate dormant Sleeper player fallback.
-The [release gates](verification.md#release-gates) require reviewed attestations before this migration range can reach production.
+The configured Edge inventory includes `sync-sleeper-projections` and `sync-player-injuries`.
+Include both in the stamped Edge artifact.
+Apply the approved database migrations before deploying Edge or the frontend.
+The [database release steps](../supabase/RELEASE-DB.md) define the ordered checks and rollback contract.
+Before Edge deployment, an absent injury function can return HTTP 404 without alerts or rapid retries.
+After rollback, that function can remain deployed or be absent; the daily full player sync still refreshes injuries.
+Projection read RPC shapes remain compatible with the deployed frontend.
+Source-health evidence covers active Sleeper projections and the separate dormant player fallback.
+
+Deployed soak seasons read browser provenance from the deployed frontend's `dist/release-provenance.json`.
+Their reports must match `E2E_DEPLOYED_FRONTEND_SHA` and `E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST`.
+The compatibility digest identifies the deployed source rebuilt for local endpoints.
+The startup health loop checks the served frontend marker and Edge health before any scenario starts.

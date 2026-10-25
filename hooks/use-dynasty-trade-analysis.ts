@@ -17,6 +17,7 @@ import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 type Input = {
     enabled: boolean
+    debounceMs?: number
     leagueId: string
     memberId: string
     scoringSettings: Json | null | undefined
@@ -41,6 +42,7 @@ export function useDynastyTradeAnalysis(input: Input): {
     const playerIds = useMemo(() => [...new Set(input.items.flatMap((item) =>
         item.kind === 'player' ? [item.playerId] : [],
     ))].sort(), [input.items])
+    const debounceMs = input.debounceMs ?? 0
     const playerKey = playerIds.join(',')
     const scopeKey = `${input.enabled}:${input.leagueId}:${input.memberId}:${playerKey}`
     const activeScopeRef = useRef(scopeKey)
@@ -58,7 +60,7 @@ export function useDynastyTradeAnalysis(input: Input): {
         }
         setLoading(true)
         setError(null)
-        void (async () => {
+        const fetchInputs = async () => {
             try {
                 const season = await getCurrentSeason(input.leagueId)
                 if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
@@ -77,15 +79,19 @@ export function useDynastyTradeAnalysis(input: Input): {
             } catch (cause) {
                 if (activeScopeRef.current !== scopeKey || sequence.current !== requestId) return
                 setSeasonYear(null)
+                setResultScope(scopeKey)
                 setError(cause instanceof Error ? cause.message : 'Could not load trade values.')
             } finally {
                 if (activeScopeRef.current === scopeKey && sequence.current === requestId) setLoading(false)
             }
-        })()
+        }
+        const timer = debounceMs > 0 ? setTimeout(() => { void fetchInputs() }, debounceMs) : null
+        if (!timer) void fetchInputs()
         return () => {
+            if (timer) clearTimeout(timer)
             if (sequence.current === requestId) sequence.current += 1
         }
-    }, [input.enabled, input.leagueId, input.memberId, playerKey, scopeKey])
+    }, [debounceMs, input.enabled, input.leagueId, input.memberId, playerKey, scopeKey])
 
     const result = useMemo(() => {
         if (!input.enabled || loading || error || input.items.length === 0 || seasonYear == null || resultScope !== scopeKey) return { analysis: null, error: null }
@@ -163,5 +169,10 @@ export function useDynastyTradeAnalysis(input: Input): {
     }, [input.enabled, input.faabBudget, input.items, input.leagueId, input.participants,
         input.scoringSettings, input.teams, rows, seasonYear, resultScope, scopeKey, loading, error])
 
-    return { analysis: result.analysis, seasonYear: resultScope === scopeKey ? seasonYear : null, loading, error: error ?? result.error }
+    return {
+        analysis: result.analysis,
+        seasonYear: resultScope === scopeKey ? seasonYear : null,
+        loading: Boolean(input.enabled && input.leagueId && input.memberId && (loading || resultScope !== scopeKey)),
+        error: resultScope === scopeKey ? error ?? result.error : null,
+    }
 }

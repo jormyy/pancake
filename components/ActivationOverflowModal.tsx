@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, spacing, textStyles } from '@/constants/tokens'
+import { colors, spacing, table, textStyles } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
 import { playerHeadshotUrl } from '@/lib/format'
@@ -13,6 +13,8 @@ export function ActivationOverflowModal({
     pending,
     myLineup,
     saving,
+    irSlots,
+    allowIR = true,
     onDrop,
     onMoveToIR,
     onCancel,
@@ -20,6 +22,8 @@ export function ActivationOverflowModal({
     pending: ActivationOverflowPending
     myLineup: { starters: { player?: LineupPlayer | null }[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] } | null
     saving: boolean
+    irSlots?: number
+    allowIR?: boolean
     onDrop: (rosterPlayerId: string) => void
     onMoveToIR: (rosterPlayerId: string) => void
     onCancel: () => void
@@ -31,7 +35,6 @@ export function ActivationOverflowModal({
         ...myLineup.starters.filter((s): s is { player: LineupPlayer } => !!s.player).map((s) => s.player),
         ...myLineup.bench,
     ]
-
 
     return (
         <Sheet visible onClose={onCancel} title="Active roster full">
@@ -53,11 +56,11 @@ export function ActivationOverflowModal({
                             </Text>
                         </View>
                         <View style={styles.actions}>
-                            {isIREligible(p.injuryStatus) ? (
+                            {allowIR && (irSlots === undefined || myLineup.ir.length - (pending.source === 'ir' ? 1 : 0) < irSlots) && isIREligible(p.injuryStatus) ? (
                                 <Button
                                     title="IR"
                                     size="sm"
-                                    variant="secondary"
+                                    variant="outline"
                                     onPress={() => onMoveToIR(p.rosterPlayerId)}
                                     disabled={saving}
                                     accessibilityLabel={`Move ${p.displayName} to IR`}
@@ -67,7 +70,7 @@ export function ActivationOverflowModal({
                             <Button
                                 title="Drop"
                                 size="sm"
-                                variant="danger"
+                                variant="outline"
                                 onPress={() => onDrop(p.rosterPlayerId)}
                                 disabled={saving}
                                 accessibilityLabel={`Drop ${p.displayName}`}
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        minHeight: 56,
+        minHeight: table.rowHeight,
         paddingVertical: spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,

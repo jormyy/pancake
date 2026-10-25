@@ -30,7 +30,7 @@ it('keeps player and roster summaries width-stable without unknown counts', asyn
     expect(players).not.toContain('Waivers —')
     expect(players).toContain("resultCountLabel ? summaryLine : ''")
     expect(roster).toContain('data ? `${active.length}/${rosterSize} active')
-    expect(players).toContain('minWidth: 240, minHeight: 20')
+    expect(players).toContain('minWidth: 240, minHeight: textStyles.body.lineHeight')
     expect(players).toContain('opacity: listIsInitialLoading ? 0 : 1')
     expect(roster).toContain('opacity: !data ? 0 : 1')
     expect(roster).toContain('minWidth: 240, minHeight: 20')
@@ -85,4 +85,11 @@ it('restores player search cache before effects and preserves its authority gate
     expect(source).toContain('Boolean(enabled && dataKey !== searchParamsKey && !returningPage)')
     expect(source).toContain('validatedKey !== searchParamsKey')
     expect(source).toContain('renderedKeyRef.current === searchParamsKey')
+})
+
+it('keeps the player average season in the reserved summary line', async () => {
+    const source = await read('app/(tabs)/players.tsx')
+    expect(source).not.toMatch(/averageLabel \? <Text/)
+    const summary = source.match(/const summaryLine = ([^\n]+)/)?.[1]
+    expect(summary).toContain('averageLabel')
 })

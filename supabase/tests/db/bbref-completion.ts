@@ -257,9 +257,9 @@ try {
     assert.equal((await readFinals()).length, 0, 'Scoring must not advance the bracket')
     const latestFinalized = Math.max(...scored.map((row: any) => Date.parse(row.finalized_at)))
     assert.ok(Number.isFinite(latestFinalized))
-    const earlyBoundary = await runSeasonBoundary(new Date(latestFinalized + 47 * 3_600_000), leagueId)
+    const earlyBoundary = await runSeasonBoundary(new Date(`${seasonYear - 1}-10-02T13:00:00Z`), leagueId)
     assert.ok(earlyBoundary.every((result) => !result.error))
-    assert.equal((await readFinals()).length, 0, 'The boundary must wait for the correction grace')
+    assert.equal((await readFinals()).length, 0, 'The first date after the last game stays inside the correction window')
 
     const beforeStats = await q(supabase.from('player_game_stats').select('*')
       .eq('game_id', gameDbId!).order('player_id'))
@@ -290,13 +290,13 @@ try {
     console.log(JSON.stringify({ control: 'failed-refresh-preserves-complete-score',
       statsUnchanged: true, markerUnchanged: true, awayWins: true }))
 
-    const afterGrace = await runSeasonBoundary(new Date(latestFinalized + 49 * 3_600_000), leagueId)
-    assert.ok(afterGrace.every((result) => !result.error))
+    const afterWindow = await runSeasonBoundary(new Date(), leagueId)
+    assert.ok(afterWindow.every((result) => !result.error))
     const finals = await readFinals()
-    assert.equal(finals.length, 1, 'An explicit reference after 49 hours must advance the real bracket')
+    assert.equal(finals.length, 1, 'The closed game date correction window allows advancement after recent scoring')
     assert.deepEqual(new Set([finals[0].home_member_id, finals[0].away_member_id]),
       new Set(scored.map((row: any) => row.away_member_id)))
-    console.log(JSON.stringify({ control: 'real-boundary-after-grace', finals: 1, correctWinners: true, fixtureLimit: 'Synthetic historical HTML and accounts; explicit 47/49-hour reference clocks, no real provider access or elapsed wait' }))
+    console.log(JSON.stringify({ control: 'real-boundary-after-correction-window', finals: 1, correctWinners: true, fixtureLimit: 'Synthetic historical HTML and accounts; explicit game date references, no real provider access or elapsed wait' }))
   } finally {
     const errors: string[] = []
     const clean = async (label: string, operation: () => Promise<unknown>) => {

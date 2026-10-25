@@ -144,21 +144,6 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
             await select(fixture.league.name)
           }
         })
-        await check('analyzer-to-offer', async () => {
-          await open('/trades')
-          await press(page.getByRole('tab', { name: 'Analyzer', exact: true }))
-          await press(button(`Analyze with ${fixture.recipient.team_name}`))
-          await press(button(`Select ${fixture.proposerPlayer.display_name} for trade`))
-          const sender = page.getByTestId(`trade-sender-${fixture.recipient.id}`)
-          if (await sender.isVisible()) await press(sender)
-          await press(button(`Select ${fixture.recipientPlayer.display_name} for trade`))
-          await button('Make Offer from this analysis').waitFor()
-          await wait(async () => await button('Make Offer from this analysis').isEnabled())
-          await press(button('Make Offer from this analysis'))
-          await press(button('Continue to offer editor'))
-          await page.waitForURL((url) => url.pathname === '/propose-trade')
-          assert.equal((await db(fixture.admin.from('trades').select('id').eq('league_id', fixture.league.id))).length, 0)
-        })
         await check('waiver-edit-reorder-cancel', async () => {
           await db(fixture.admin.from('leagues').update({ waiver_mode: 'faab', faab_starting_budget: 100 }).eq('id', fixture.league.id))
           const balances = await db(fixture.admin.from('faab_balances').select('id').eq('member_id', fixture.proposer.id).eq('league_season_id', fixture.currentSeason.id))

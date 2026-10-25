@@ -14,7 +14,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
-vi.mock('@/lib/roster', () => ({ isIREligible: () => false, isTaxiEligible: () => false }))
+vi.mock('@/lib/roster', () => ({ isIREligible: () => false }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -39,21 +39,38 @@ const player = (id: string): RosterPlayer => ({
 describe('roster overflow recovery ownership', () => {
     it('disables every recovery action while any roster mutation is in flight', async () => {
         let renderer!: ReactTestRenderer
+        const onDrop = vi.fn()
+        const props = { players: [player('one'), player('two')], excess: 1, irAvailable: false,
+            busyId: 'roster-one', onDrop, onMoveToIR: vi.fn() }
         await act(async () => {
-            renderer = create(React.createElement(RosterTrimBanner, {
-                players: [player('one'), player('two')],
-                excess: 1,
-                irAvailable: false,
-                busyId: 'roster-one',
-                onDrop: vi.fn(),
-                onMoveToIR: vi.fn(),
-            }))
+            renderer = create(React.createElement(RosterTrimBanner, props))
         })
         const dropActions = renderer.root.findAll((node) =>
-            typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Drop '))
+            node.type === ('Pressable' as React.ElementType) && typeof node.props.accessibilityLabel === 'string' && node.props.accessibilityLabel.startsWith('Drop '))
 
         expect(dropActions).toHaveLength(2)
         expect(dropActions.every((node) => node.props.disabled === true)).toBe(true)
+        await act(async () => { renderer.update(React.createElement(RosterTrimBanner, { ...props, busyId: null })) })
+        const ready = renderer.root.findAllByType('Pressable' as React.ElementType)
+        expect(ready).toHaveLength(2)
+        expect(ready.every(node => node.props.disabled === false)).toBe(true)
+        await act(async () => { ready[1].props.onPress() })
+        expect(onDrop).toHaveBeenCalledWith(props.players[1])
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('lists invalid reserve players with Activate and Drop even without active overflow', async () => {
+    const taxi = { ...player('taxi'), is_on_taxi: true }
+    const onActivate = vi.fn()
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(RosterTrimBanner, {
+        players: [], excess: 0, irAvailable: false, busyId: null, onDrop: vi.fn(), onMoveToIR: vi.fn(), onActivate,
+        problems: [{ kind: 'taxi', player: taxi, message: 'taxi no longer qualifies for taxi.' }],
+    })) })
+    const activate = renderer.root.findByProps({ accessibilityLabel: 'Activate taxi' })
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Drop taxi' }).length).toBeGreaterThan(0)
+    await act(async () => activate.props.onPress())
+    expect(onActivate).toHaveBeenCalledWith(taxi)
+    await act(async () => renderer.unmount())
 })

@@ -191,7 +191,11 @@ export async function runPwaUpdateGate({ previousRoot, nextRoot } = {}) {
       if (!registration) throw new Error('Previous registration missing');
       await registration.update(); return 'Update requested';
     })()`])
+    const { targetId: backgroundTarget } = await cdp.send('Target.createTarget', { url: 'about:blank' })
+    await cdp.send('Target.activateTarget', { targetId: backgroundTarget })
     const after = await waitForState(session, state => state.version === next.version && state.timeOrigin > before.timeOrigin && state.appMountedMs !== null && state.mountedText.length > 0)
+    await cdp.send('Target.activateTarget', { targetId: page.targetId })
+    await cdp.send('Target.closeTarget', { targetId: backgroundTarget })
     report.after = after
     record('first automatic reload uses the next controller at the same origin',
       after.origin === before.origin && after.navigationType === 'reload' && after.documentCount === 1 && after.probe?.controllerChanges === 1 && after.probe?.pageHides === 1,

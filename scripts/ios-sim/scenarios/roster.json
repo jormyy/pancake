@@ -1,0 +1,148 @@
+[
+  {
+    "name": "roster-light",
+    "group": "roster-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "player-from-roster-light",
+    "group": "roster-light",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "roster-other-team-light",
+    "group": "roster-light",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Rank 1,"
+        },
+        "expected": {
+          "route": "/team-roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        },
+        "note": "Manager 6 views the first team in the standings."
+      }
+    ],
+    "prepare": [
+      {
+        "tap": "Standings"
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "return-to-app-light",
+    "group": "roster-light",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "roster-dark",
+    "group": "roster-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "tap": "Roster"
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "player-from-roster-dark",
+    "group": "roster-dark",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "tap": "Open {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='View {{rosterPlayer.display_name}} player page']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "roster-other-team-dark",
+    "group": "roster-dark",
+    "from": "/league",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Rank 1,"
+        },
+        "expected": {
+          "route": "/team-roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        },
+        "note": "Manager 6 views the first team in the standings."
+      }
+    ],
+    "prepare": [
+      {
+        "tap": "Standings"
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "return-to-app-dark",
+    "group": "roster-dark",
+    "from": "/roster",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/roster",
+          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

@@ -7,6 +7,7 @@ import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { deleteLeague } from '@/lib/league'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { todayET } from '@/lib/shared/dates'
 import {
     ARCHIVE_LEAGUE_DESCRIPTION,
     commissionerLifecyclePolicy,
@@ -19,11 +20,13 @@ export function useCommissionerAdminActions({
     league,
     refresh,
     onDeleted,
+    scheduleStart,
 }: {
     ownerId: string | null
     league: LeagueInfo | null
     refresh: () => Promise<void>
     onDeleted: () => void
+    scheduleStart?: string | null
 }) {
     const ownerKey = ownerId && league ? `${ownerId}:${league.id}` : null
     const activeOwnerKeyRef = useRef(ownerKey)
@@ -65,6 +68,9 @@ export function useCommissionerAdminActions({
         setBusy((current) => current?.token === mutation.token ? null : current)
     }, [])
 
+    const resetOffered = useRef(false)
+    resetOffered.current = Boolean(scheduleStart && scheduleStart > todayET())
+
     const runAdmin = useCallback(async (
         path: string,
         message: string,
@@ -75,8 +81,11 @@ export function useCommissionerAdminActions({
         const mutation = beginMutation(ownerKey, action)
         if (!mutation) return
         try {
-            await apiPost(path, body)
-            if (ownsMutation(mutation)) showSuccess('Done', message)
+            const result = await apiPost<{ skipped?: boolean }>(path, body)
+            if (!ownsMutation(mutation)) return
+            if (action === 'generate-schedule' && result?.skipped) {
+                showAlert('Schedule already exists', 'A schedule already exists.' + (resetOffered.current ? ' Use Reset & Regenerate Schedule to rebuild it.' : ''), 'info')
+            } else showSuccess('Done', message)
         } catch (error) {
             if (ownsMutation(mutation)) showAlert('Error', getErrorMessage(error))
         } finally {
@@ -93,19 +102,19 @@ export function useCommissionerAdminActions({
         ) : undefined
         const scheduleActions: CommissionerAction[] = [
             { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
-            {
-                id: 'reset-schedule',
+            ...(scheduleStart && scheduleStart > todayET() ? [{
+                id: 'reset-schedule' as const,
                 label: 'Reset & Regenerate Schedule',
-                intent: 'danger',
-                description: 'Deletes every existing matchup and rebuilds the season schedule from scratch.',
+                intent: 'danger' as const,
+                description: 'Rebuilds the season schedule for every current member before the first week starts.',
                 onPress: () => confirmAction(
                     'Reset Schedule',
-                    'This will delete all existing matchups and regenerate. Are you sure?',
+                    'This rebuilds the schedule for every current member. Continue?',
                     () => generateSchedule(true),
                     'Reset',
                     true,
                 ),
-            },
+            }] : []),
         ]
         const playoffActions: CommissionerAction[] = [
             {
@@ -151,21 +160,12 @@ export function useCommissionerAdminActions({
                 true,
             ) : undefined,
         }]
-        const utilityActions: CommissionerAction[] = [
-            { id: 'process-waivers', label: 'Process Waiver Claims', onPress: () => runAdmin('/waivers/process', 'Waiver claims processed.', 'process-waivers') },
-            { id: 'sync-stats', label: 'Sync Player Stats', onPress: () => runAdmin('/sync/stats', 'Stats sync started for the last 7 days.', 'sync-stats', { days: 7 }) },
-            { id: 'sync-scores', label: 'Sync Scores Now', onPress: () => runAdmin('/sync/scores', 'Scores synced.', 'sync-scores') },
-            { id: 'sync-rankings', label: 'Sync Dynasty Rankings', onPress: () => runAdmin('/sync/rankings', 'Dynasty rankings synced.', 'sync-rankings') },
-            { id: 'sync-projections', label: 'Sync Projections', onPress: () => runAdmin('/sync/projections', 'Projections synced.', 'sync-projections') },
-            { id: 'sync-games', label: 'Sync NBA Game Schedule', onPress: () => runAdmin('/sync/schedule', 'Game schedule synced.', 'sync-games') },
-        ]
         return commissionerLifecyclePolicy(league?.status ?? 'setup', {
             playoffActions,
             annualCycleActions,
             scheduleActions,
-            utilityActions,
         })
-    }, [beginMutation, finishMutation, league, ownerKey, ownsMutation, refresh, runAdmin])
+    }, [beginMutation, finishMutation, league, ownerKey, ownsMutation, refresh, runAdmin, scheduleStart])
 
     const handleDeleteLeague = () => {
         if (!league) return

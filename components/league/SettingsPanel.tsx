@@ -39,7 +39,6 @@ function WaiverPriorityGroup({ waiverOrder, myMemberId }: { waiverOrder: WaiverP
                         >
                             <Text style={[styles.waiverRank, isMe && tableStyles.textMe]}>{index + 1}</Text>
                             <Text style={[styles.waiverTeam, isMe && tableStyles.textMe]} numberOfLines={1}>{row.teamName}</Text>
-                            <Text style={[textStyles.meta, styles.waiverManager]} numberOfLines={1}>{row.displayName}</Text>
                         </View>
                     )
                 })}
@@ -56,7 +55,6 @@ export function SettingsPanel({
     onShareInviteCode,
     onOpenBracket,
     onOpenCommissionerSettings,
-    onOpenProfile,
 }: {
     inviteCode?: string | null
     isCommissioner: boolean
@@ -65,7 +63,6 @@ export function SettingsPanel({
     onShareInviteCode: () => void
     onOpenBracket: () => void
     onOpenCommissionerSettings: () => void
-    onOpenProfile: () => void
 }) {
     const { padX } = usePageMetrics()
     const shareInviteAccessibilityLabel = inviteCode ? `Share invite code ${inviteCode}` : 'Share invite code'
@@ -92,7 +89,7 @@ export function SettingsPanel({
 
     return (
         <ScrollView contentContainerStyle={[panelStyles.panelScroll, { paddingHorizontal: padX }]}>
-            <SettingsGroup title="League">
+            <SettingsGroup>
                 <SettingsRow
                     label="Invite code"
                     // Under the label, so Copy and Share keep their room on small phones.
@@ -124,9 +121,6 @@ export function SettingsPanel({
                     <SettingsRow label="Commissioner settings" onPress={onOpenCommissionerSettings} accessibilityLabel="Open commissioner settings" />
                 ) : null}
             </SettingsGroup>
-            <SettingsGroup title="You">
-                <SettingsRow label="Profile & settings" onPress={onOpenProfile} accessibilityLabel="Open profile and settings" />
-            </SettingsGroup>
             <WaiverPriorityGroup waiverOrder={waiverOrder} myMemberId={myMemberId} />
         </ScrollView>
     )
@@ -143,5 +137,4 @@ const styles = StyleSheet.create({
     },
     waiverRank: { width: 24, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted, fontVariant: ['tabular-nums'] as const },
     waiverTeam: { ...textStyles.rowTitle, flex: 1, minWidth: 0 },
-    waiverManager: { flexShrink: 1, textAlign: 'right' },
 })

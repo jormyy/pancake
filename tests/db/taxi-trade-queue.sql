@@ -47,7 +47,7 @@ BEGIN
   EXCEPTION WHEN SQLSTATE 'P0001' THEN err := SQLERRM;
   END;
   IF err IS NOT NULL THEN
-    IF err <> 'Only current rookies can be placed on the taxi squad.' THEN
+    IF err <> 'The career games count is not known yet. This player cannot enter taxi.' THEN
       RAISE EXCEPTION 'Unexpected queue failure: %',err;
     END IF;
     IF (SELECT status FROM trades WHERE id=good)<>'accepted'

@@ -61,9 +61,7 @@ export async function runBrowserTradeScenario({
       session,
       [
         'Propose Trade',
-        'DEAL SUMMARY',
-        'EDIT ASSETS SENT BY',
-        'YOU SEND',
+        'Review',
         `To ${fixture.recipient.team_name}`,
         fixture.proposerPlayer.display_name,
       ],
@@ -93,7 +91,7 @@ export async function runBrowserTradeScenario({
     await browser(session, ['wait', '3500'])
     await assertPageText(session, [
       'Edit Trade',
-      process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') ? '2 teams' : '2 teams · 2 assets routed',
+      process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') ? 'You get' : '2 teams · 2 assets',
       fixture.proposerPlayer.display_name,
     ], 'two-team edit composer prefilled')
     await clickTestId(session, `trade-sender-${fixture.recipient.id}`, 'two-team edit recipient sender tab')
@@ -254,9 +252,7 @@ export async function runBrowserTradePostDeadlineScenario({
       session,
       [
         'Propose Trade',
-        'DEAL SUMMARY',
-        'EDIT ASSETS SENT BY',
-        'YOU SEND',
+        'Review',
         `To ${fixture.recipient.team_name}`,
         fixture.proposerPlayer.display_name,
         'Trades are locked only from the trade deadline until the champion is finalized.',

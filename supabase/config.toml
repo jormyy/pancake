@@ -397,6 +397,9 @@ verify_jwt = false
 [functions.sync-players]
 verify_jwt = false
 
+[functions.sync-player-injuries]
+verify_jwt = false
+
 [functions.sync-projections]
 verify_jwt = false
 

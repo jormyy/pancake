@@ -1,0 +1,170 @@
+[
+  {
+    "name": "player-trade-entry-light",
+    "group": "player-trade-entry",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{tradeTarget.player.display_name}}"
+      },
+      {
+        "tap": "Open {{tradeTarget.player.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade {{tradeTarget.player.display_name}}"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label=\"Trade with {{tradeTarget.teamName}}\"]"
+        }
+      },
+      {
+        "name": "choose-owner",
+        "action": {
+          "tap": "Trade with {{tradeTarget.teamName}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=\"2 teams and 1 routed assets.\"]"
+        }
+      },
+      {
+        "name": "verify-player",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{tradeTarget.teamName}}"
+            },
+            {
+              "tap": "Remove {{tradeTarget.player.display_name}} for trade"
+            },
+            {
+              "tap": "Select {{tradeTarget.player.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} for trade\"]"
+        },
+        "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Trade {{tradeTarget.player.display_name}}\"]"
+        },
+        "note": "Close the draft through the app before the next theme starts."
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "player-trade-entry-dark",
+    "group": "player-trade-entry",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{tradeTarget.player.display_name}}"
+      },
+      {
+        "tap": "Open {{tradeTarget.player.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Trade {{tradeTarget.player.display_name}}"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label=\"Trade with {{tradeTarget.teamName}}\"]"
+        }
+      },
+      {
+        "name": "choose-owner",
+        "action": {
+          "tap": "Trade with {{tradeTarget.teamName}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=\"2 teams and 1 routed assets.\"]"
+        }
+      },
+      {
+        "name": "verify-player",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{tradeTarget.teamName}}"
+            },
+            {
+              "tap": "Remove {{tradeTarget.player.display_name}} for trade"
+            },
+            {
+              "tap": "Select {{tradeTarget.player.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Remove {{tradeTarget.player.display_name}} for trade\"]"
+        },
+        "note": "The first asset tap scrolls the requested row into view. The second restores its selection. The preceding step proves route prefill."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label=\"Trade {{tradeTarget.player.display_name}}\"]"
+        },
+        "note": "Close the draft through the app before the next theme starts."
+      }
+    ],
+    "theme": "dark"
+  }
+]

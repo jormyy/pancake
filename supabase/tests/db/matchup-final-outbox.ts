@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
+import { base64UrlEncode } from '../../functions/_shared/webPush.ts'
 import type { Database } from '../../../types/database.ts'
 
 const api = Deno.env.get('SUPABASE_URL')!
@@ -18,26 +19,27 @@ const members = [crypto.randomUUID(), crypto.randomUUID()]
 const league = crypto.randomUUID(), season = crypto.randomUUID()
 const matchups = Array.from({ length: 3 }, () => crypto.randomUUID())
 const scope = crypto.randomUUID().replaceAll('-', '')
-const homeToken = `ExponentPushToken[${scope}]`
+const homeEndpoint = `https://fcm.googleapis.com/${scope}/home`
+const awayEndpoint = `https://fcm.googleapis.com/${scope}/away`
+const browserKeys = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])
+const p256dh = base64UrlEncode(new Uint8Array(await crypto.subtle.exportKey('raw', browserKeys.publicKey)))
+const subscriptionAuth = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
+const vapid = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify'])
+Deno.env.set('WEB_PUSH_VAPID_PUBLIC_KEY', base64UrlEncode(new Uint8Array(await crypto.subtle.exportKey('raw', vapid.publicKey))))
+Deno.env.set('WEB_PUSH_VAPID_PRIVATE_KEY', (await crypto.subtle.exportKey('jwk', vapid.privateKey)).d!)
+Deno.env.set('WEB_PUSH_VAPID_SUBJECT', 'mailto:owned-test@example.test')
 let year = 0, providerFails = true
-const sends: { to: string; title: string; body: string; data: { matchupId: string } }[] = []
-const tickets: string[] = []
+const sends: { path: string; bytes: number }[] = []
 const provider = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async request => {
   const path = new URL(request.url).pathname
-  const body = await request.json()
-  if (path === '/receipts') {
-    assert.ok(body.ids.every((id: string) => tickets.includes(id)))
-    return Response.json({ data: Object.fromEntries(body.ids.map((id: string) => [id, { status: 'ok' }])) })
-  }
-  assert.equal(path, '/send')
-  sends.push(...body)
-  if (providerFails) return Response.json({ error: 'Owned push outage' }, { status: 503 })
-  const data = body.map(() => { const id = crypto.randomUUID(); tickets.push(id); return { status: 'ok', id } })
-  return Response.json({ data })
+  assert.ok(path === '/home' || path === '/away')
+  assert.equal(request.headers.get('content-encoding'), 'aes128gcm')
+  assert.ok(request.headers.get('authorization')?.startsWith('vapid '))
+  const bytes = (await request.arrayBuffer()).byteLength
+  assert.ok(bytes > 86)
+  sends.push({ path, bytes })
+  return new Response(null, { status: providerFails ? 503 : 201 })
 })
-Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${provider.addr.port}/send`)
-Deno.env.set('EXPO_RECEIPTS_URL', `http://127.0.0.1:${provider.addr.port}/receipts`)
-Deno.env.set('EXPO_RECEIPT_DELAY_SECONDS', '0')
 const nativeServe = Deno.serve
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
 let worker: Deno.HttpServer<Deno.NetAddr> | undefined
@@ -51,8 +53,13 @@ const endpoint = `http://127.0.0.1:${worker.addr.port}`
 const nativeFetch = globalThis.fetch.bind(globalThis)
 const localOrigins = new Set([new URL(api).origin, `http://127.0.0.1:${provider.addr.port}`, endpoint])
 globalThis.fetch = (input, init) => {
-  assert.ok(localOrigins.has(new URL(input instanceof Request ? input.url : input).origin), 'Only owned local services receive requests')
-  return nativeFetch(input, init)
+  const request = new Request(input, init)
+  if (request.url === homeEndpoint || request.url === awayEndpoint) {
+    const path = request.url === homeEndpoint ? '/home' : '/away'
+    return nativeFetch(new Request(`http://127.0.0.1:${provider.addr.port}${path}`, request))
+  }
+  assert.ok(localOrigins.has(new URL(request.url).origin), 'Only owned local services receive requests')
+  return nativeFetch(request)
 }
 async function query<T>(operation: PromiseLike<{ data: T; error: { message: string } | null }>): Promise<T> {
   const { data, error } = await operation
@@ -94,8 +101,9 @@ try {
   await query(admin.from('matchups').insert(matchups.map((id, index) => ({ id, league_id: league, league_season_id: season,
     week_number: index + 1, end_week_number: index === 2 ? 4 : null, home_member_id: members[0], away_member_id: members[1],
     matchup_type: index === 2 ? 'playoff_final' as const : 'regular_season' as const }))))
-  await query(admin.from('profiles').update({ push_token: homeToken }).eq('id', users[0]))
-  await query(admin.from('profiles').update({ push_token: `ExponentPushToken[away-${scope}]` }).eq('id', users[1]))
+  await query(admin.from('web_push_subscriptions').insert(users.map((user_id, side) => ({
+    user_id, endpoint: side ? awayEndpoint : homeEndpoint, p256dh, auth: subscriptionAuth,
+  }))))
   await query(admin.from('notification_preferences').upsert(users.map((user_id, side) => ({ user_id, activity_enabled: !side, trade_enabled: !!side }))))
   const final = await payload(0)
   const gateName = `final-gate-${scope}`
@@ -156,19 +164,17 @@ try {
   queued = await rows()
   assert.equal(queued?.filter(row => row.attempt_count === 1 && row.last_error && !row.delivered_at).length, 3)
   assert.equal(queued?.filter(row => (row as unknown as { suppressed_at: string | null }).suppressed_at && !row.delivered_at).length, 3)
-  assert.ok(sends.every(message => message.to === homeToken), 'Activity opt-outs apply independently of trade preferences')
+  assert.ok(sends.every(message => message.path === '/home'), 'Activity opt-outs apply independently of trade preferences')
   providerFails = false
   const beforeRetry = sends.length
   await new Promise(resolve => setTimeout(resolve, 1200))
   const deliveries = await Promise.all([drain(), drain()])
-  assert.equal(deliveries.reduce((sum, result) => sum + result.notificationsTicketed, 0), 3)
   assert.equal(deliveries.reduce((sum, result) => sum + result.notificationsDelivered, 0), 3)
   queued = await rows(); assert.ok(queued?.every(row => (row.delivered_at || (row as unknown as { suppressed_at: string | null }).suppressed_at) && !row.claim_token && !row.expo_ticket_id))
   assert.equal(sends.length - beforeRetry, 3)
-  assert.equal(new Set(sends.slice(beforeRetry).map(message => message.data.matchupId)).size, 3)
   const finalSendCount = sends.length
   await drain(); assert.equal(sends.length, finalSendCount)
-  console.log(JSON.stringify({ case: 'outage retries once through concurrent workers and real receipts, opt-outs stay private', successfulPushes: 3, discarded: 3, replayPushes: 0 }))
+  console.log(JSON.stringify({ case: 'outage retries once through concurrent workers and web push, opt-outs stay private', successfulPushes: 3, discarded: 3, replayPushes: 0 }))
 } finally {
   await worker.shutdown(); await provider.shutdown()
   globalThis.fetch = nativeFetch

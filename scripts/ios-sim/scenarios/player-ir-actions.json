@@ -1,0 +1,168 @@
+[
+  {
+    "name": "player-claim-ir-light",
+    "group": "player-claim-ir",
+    "from": "/player/{{waiverPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Place on IR']"
+        }
+      },
+      {
+        "name": "active",
+        "action": {
+          "tap": "Place on IR"
+        },
+        "expected": {
+          "text": "DROP A PLAYER (required)"
+        }
+      },
+      {
+        "name": "ir",
+        "action": {
+          "tap": "Place on IR"
+        },
+        "expected": {
+          "text": "Place on IR. No drop required."
+        }
+      }
+    ],
+    "setup": {
+      "waiverIRPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-claim-ir-dark",
+    "group": "player-claim-ir",
+    "from": "/player/{{waiverPlayer.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Place on IR']"
+        }
+      },
+      {
+        "name": "active",
+        "action": {
+          "tap": "Place on IR"
+        },
+        "expected": {
+          "text": "DROP A PLAYER (required)"
+        }
+      },
+      {
+        "name": "ir",
+        "action": {
+          "tap": "Place on IR"
+        },
+        "expected": {
+          "text": "Place on IR. No drop required."
+        }
+      }
+    ],
+    "setup": {
+      "waiverIRPlayer": "{{waiverPlayer.id}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "player-ir-shortcut-light",
+    "group": "player-ir-shortcut",
+    "from": "/player/{{freeAgent.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
+        }
+      }
+    ],
+    "setup": {
+      "irShortcutPlayer": "{{rosterPlayer.id}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-ir-shortcut-dark",
+    "group": "player-ir-shortcut",
+    "from": "/player/{{freeAgent.id}}",
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Move {{rosterPlayer.display_name}} to IR and add player']"
+        }
+      }
+    ],
+    "setup": {
+      "irShortcutPlayer": "{{rosterPlayer.id}}"
+    },
+    "theme": "dark"
+  },
+  {
+    "name": "player-straight-to-ir-light",
+    "group": "player-straight-to-ir",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{outPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{outPlayer.display_name}}"
+        },
+        "expected": {
+          "text": "{{outPlayer.display_name}} added to IR."
+        }
+      }
+    ],
+    "setup": {
+      "freeAgentIRMember": "{{memberId}}",
+      "freeAgentIRPlayer": "{{outPlayer.id}}"
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-straight-to-ir-dark",
+    "group": "player-straight-to-ir",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{outPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{outPlayer.display_name}}"
+        },
+        "expected": {
+          "text": "{{outPlayer.display_name}} added to IR."
+        }
+      }
+    ],
+    "setup": {
+      "freeAgentIRMember": "{{memberId}}",
+      "freeAgentIRPlayer": "{{outPlayer.id}}"
+    },
+    "theme": "dark"
+  }
+]

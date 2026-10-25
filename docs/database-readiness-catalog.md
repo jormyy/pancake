@@ -4,11 +4,13 @@ The catalog gate verifies an attested migration phase without applying migration
 
 ## Scope
 
-The historical audit anchor is `20261005000003` with 329 rows.
-The exact pre-migration phase is 431 rows through `20261020000007`, with 63 pending versions.
-The exact post-migration phase is 494 rows through `20261024000001`, with no pending versions.
-Contract version 2 separates the current pre-migration phase from the historical audit anchor.
-It retains the earlier 329-row and 398-row catalog fingerprints under `historicalPhases`.
+The [release-history attestation](../tests/e2e/release-history-attestations.json) defines the historical anchor with `baselineVersion` and `baselineCount`.
+The [security attestation](../tests/e2e/db-security-catalog-attestations.json) defines the pre-migration count and version in `preMigration`.
+Its `candidateVersion` defines the post-migration head.
+The post-migration count equals the historical baseline count plus the length of `approvedMigrations` in the release-history attestation.
+The pending count equals that total minus `preMigration.count`.
+Contract version 2 separates the recorded pre-migration phase from the historical audit anchor.
+It retains earlier catalog fingerprints under `historicalPhases`.
 The current phase pins do not automatically track live history or the branch head.
 Later migrations require reviewed phase contracts before release.
 
@@ -35,6 +37,9 @@ Later pairings and frontend rollback use the post-migration phase because additi
 Reusable workflows receive the phase explicitly.
 
 ## Maintenance
+
+Use the [local refresh command](release-history-attestations.md) after final migration changes.
+It refreshes post-migration pins and preserves the recorded pre-migration phase.
 
 Changed protected objects require reviewed phase contracts and pinned migration sources.
 Capture evidence from the baseline and an ordered local upgrade.

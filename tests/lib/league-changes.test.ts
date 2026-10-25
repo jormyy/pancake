@@ -151,3 +151,12 @@ it('bounds the initial join wait and releases it when the authenticated stream j
     vi.unstubAllGlobals()
     vi.useRealTimers()
 })
+
+it('broadens a missed resources revision even when its detail is unknown', () => {
+    const receive = vi.fn()
+    const consume = leagueChangeReceiver('league', receive)
+    const resource = (revision: number) => ({ league_id: 'league', topic: 'resources', revision, scopes: null, details: [{ resource: 'future-resource' }] })
+    consume(resource(1))
+    consume(resource(3))
+    expect(receive).toHaveBeenCalledExactlyOnceWith({ topic: 'resources', scopes: null, details: null })
+})

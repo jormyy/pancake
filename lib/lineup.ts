@@ -1,6 +1,5 @@
 export type { LineupPlayer, LineupSlot, LineupContext, RosterSlotPlan, WeekDay } from './lineup/read'
 export {
-    clampDateToWeek,
     getLineupContext,
     getWeekDays,
     getRosterSlotPlan,
@@ -8,6 +7,7 @@ export {
     invalidateCachedRoster,
     setPlayerSlotMoves,
 } from './lineup/read'
+export { clampDateToWeek } from './lineup/date'
 export { autoSetLineup } from './lineup/autoSet'
 export { getLineupMoveTargetState, planLineupMove } from './lineup/movePlan'
-export type { LineupMoveTargetState, LineupSelection } from './lineup/movePlan'
+export type { LineupMoveData, LineupMoveTargetState, LineupSelection } from './lineup/movePlan'

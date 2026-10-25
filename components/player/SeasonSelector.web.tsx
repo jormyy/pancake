@@ -1,4 +1,5 @@
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 type Props = {
     seasons: number[]
@@ -39,8 +40,10 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
             </select>
             <span
                 aria-hidden="true"
-                style={{ position: 'absolute', right: spacing.md, top: 0, bottom: 0, display: 'flex', alignItems: 'center', pointerEvents: 'none', color: colors.textMuted, fontSize: fontSize.xs }}
-            >▾</span>
+                style={{ position: 'absolute', right: spacing.md, top: 0, bottom: 0, display: 'flex', alignItems: 'center', pointerEvents: 'none' }}
+            >
+                <MaterialIcons name="expand-more" size={controlSize.icon.md} color={colors.textMuted} />
+            </span>
         </div>
     )
 }

@@ -74,13 +74,6 @@ export function needsMemberAcceptance(
     return trade.recipientMemberId === memberId && trade.proposerMemberId !== memberId
 }
 
-export function isIncomingTradeForMember(
-    trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
-    memberId: string,
-): boolean {
-    return needsMemberAcceptance(trade, memberId)
-}
-
 export function isOutgoingTradeForMember(
     trade: Pick<TradePerspectiveInput, 'status' | 'proposerMemberId' | 'recipientMemberId' | 'participants'>,
     memberId: string,

@@ -88,72 +88,6 @@ export async function getPlayerProjection(
     return rows[0] ?? null
 }
 
-export async function getProjectionMap({
-    leagueId,
-    seasonYear,
-    gameDate,
-    playerIds,
-}: {
-    leagueId: string
-    seasonYear: number
-    gameDate: string
-    playerIds: string[]
-}): Promise<Map<string, LeagueProjectionRow>> {
-    if (playerIds.length === 0) return new Map()
-    const rows = await getLeagueProjections({
-        leagueId,
-        view: 'today',
-        seasonYear,
-        gameDate,
-        playerIds,
-        limit: Math.min(Math.max(playerIds.length, 1), 1000),
-    })
-    return new Map(rows.map((row) => [row.player_id, row]))
-}
-
-export function projectionFreshnessLabel(fetchedAt: string | null | undefined): string {
-    if (!fetchedAt) return ''
-    const ageMs = Date.now() - new Date(fetchedAt).getTime()
-    if (!Number.isFinite(ageMs) || ageMs < 0) return 'fresh'
-    const minutes = Math.floor(ageMs / 60000)
-    if (minutes < 60) return `${Math.max(1, minutes)}m`
-    const hours = Math.floor(minutes / 60)
-    if (hours < 48) return `${hours}h`
-    return `${Math.floor(hours / 24)}d`
-}
-
-export function projectionViewLabel(view: string | null | undefined): string {
-    switch (view) {
-        case 'today':
-            return 'Today'
-        case 'week_avg':
-            return 'Week Avg'
-        case 'week_total':
-            return 'Week Total'
-        // 'fallback' adds nothing for users beyond the source label ("Season
-        // Avg") and reads as developer jargon, so it renders as no label.
-        default:
-            return ''
-    }
-}
-
-export function compactProjectionStatLine(row: Pick<
-    LeagueProjectionRow,
-    'projection_minutes' | 'projection_points' | 'projection_rebounds' | 'projection_assists' | 'projection_steals' | 'projection_blocks' | 'projection_three_pointers_made' | 'projection_turnovers'
->): string {
-    const parts = [
-        numberPart(row.projection_minutes, 'MIN'),
-        numberPart(row.projection_points, 'PTS'),
-        numberPart(row.projection_rebounds, 'REB'),
-        numberPart(row.projection_assists, 'AST'),
-        numberPart(row.projection_steals, 'STL'),
-        numberPart(row.projection_blocks, 'BLK'),
-        numberPart(row.projection_three_pointers_made, '3PM'),
-        numberPart(row.projection_turnovers, 'TO'),
-    ].filter(Boolean)
-    return parts.join(' / ')
-}
-
 export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_date' | 'next_game_date' | 'next_game_opponent'>): string {
     const opponent = row.next_game_opponent
     const date = row.projection_date ?? row.next_game_date
@@ -166,11 +100,6 @@ export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_
 export function numberOrDash(value: number | null | undefined, digits = 1): string {
     if (value == null || !Number.isFinite(Number(value))) return '-'
     return Number(value).toFixed(digits)
-}
-
-function numberPart(value: number | null | undefined, label: string): string | null {
-    if (value == null || !Number.isFinite(Number(value))) return null
-    return `${Number(value).toFixed(1)} ${label}`
 }
 
 function shortDate(date: string): string {

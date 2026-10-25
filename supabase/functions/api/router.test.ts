@@ -8,18 +8,9 @@ const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
 const tradeRpcRequests: Record<string, unknown>[] = []
-const pushRpcRequests: { path: string; body: unknown }[] = []
-const legacyPushMutations: { query: string; body: unknown }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
-let pushStarted = false
-let pushCredentialRpcMissing = false
-
-const expo = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, () => {
-  pushStarted = true
-  return Response.json({ data: { status: 'ok', id: 'push-test' } })
-})
 
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
@@ -49,17 +40,6 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = commissionerRole ? { role: commissionerRole } : null
   } else if (url.pathname === '/rest/v1/draft_orders' && url.searchParams.get('select') === 'member_id') {
     body = [{ member_id: MEMBER_ID }, { member_id: OTHER_MEMBER_ID }]
-  } else if (url.pathname.startsWith('/rest/v1/rpc/') && url.pathname.includes('push_token')) {
-    pushRpcRequests.push({ path: url.pathname, body: await req.json() })
-    if (pushCredentialRpcMissing) {
-      return Response.json({ code: 'PGRST202', message: 'Could not find the function' }, { status: 404 })
-    }
-    body = url.pathname.endsWith('/register_push_token_atomic') ? null : true
-  } else if (url.pathname === '/rest/v1/profiles' && req.method === 'PATCH') {
-    legacyPushMutations.push({ query: url.searchParams.toString(), body: await req.json() })
-    body = []
-  } else if (url.pathname === '/rest/v1/profiles' && url.searchParams.get('select') === 'push_token') {
-    body = { push_token: 'ExponentPushToken[route-lifecycle]' }
   } else if (url.pathname === '/rest/v1/notification_preferences') {
     body = []
   } else if (url.pathname === '/functions/v1/lineup-optimizer') {
@@ -111,7 +91,6 @@ Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(postgrest.addr as Deno.NetAddr
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 Deno.env.set('E2E_ADMIN_SECRET', 'e2e-test-secret')
 Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'edge-internal-test')
-Deno.env.set('EXPO_PUSH_URL', `http://127.0.0.1:${(expo.addr as Deno.NetAddr).port}`)
 
 const { handleApiRoute } = await import('./router.ts')
 const { assertUuid } = await import('../_shared/apiRuntime.ts')
@@ -162,34 +141,6 @@ Deno.test({
   },
 })
 
-Deno.test({
-  name: 'concurrent push registrations fail closed while credential RPCs are not deployed',
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    pushRpcRequests.length = 0
-    legacyPushMutations.length = 0
-    pushCredentialRpcMissing = true
-    try {
-      const responses = await Promise.all(['a', 'b'].map((suffix) =>
-        handleApiRoute(authedRequest('POST', '/profile/push-token', {
-          token: `ExponentPushToken[rolling-deploy-${suffix}]`,
-          active: true,
-        }))))
-      const bodies = await Promise.all(responses.map((response) => response.json()))
-      if (responses.some((response) => response.status !== 503) ||
-          bodies.some((body) => body.ok !== false) || legacyPushMutations.length !== 0) {
-        throw new Error(`pre-schema push registration did not fail closed: ${JSON.stringify({
-          statuses: responses.map((response) => response.status),
-          bodies,
-          legacyPushMutations,
-        })}`)
-      }
-    } finally {
-      pushCredentialRpcMissing = false
-    }
-  },
-})
 
 Deno.test({
   name: 'rest-of-season lineup optimization is ownership-scoped and invokes one bounded server job',
@@ -265,8 +216,6 @@ Deno.test({
     const routes = [
       ['GET', '/games/today'],
       ['GET', '/players/headshot/1641705'],
-      ['POST', '/profile/push-token'],
-      ['POST', '/profile/push-token/revoke'],
       ['POST', '/league/roster/ir'],
       ['POST', '/league/roster/taxi'],
       ['POST', '/league/lineup/auto-set-season'],
@@ -663,7 +612,7 @@ Deno.test({
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    pushStarted = false
+    postgrestRequests.length = 0
     const response = await handleApiRoute(authedRequest('POST', '/trades/propose', {
       requestId: UUID,
       leagueId: LEAGUE_ID,
@@ -673,80 +622,13 @@ Deno.test({
       offerPlayerIds: [PLAYER_ID],
     }))
     if (response.status !== 200) throw new Error(`expected successful trade proposal, got ${response.status}`)
-    if (pushStarted) throw new Error('trade route bypassed the transactional notification outbox')
-  },
-})
-
-Deno.test({
-  name: 'push token registration rotates a hashed per-device revocation credential',
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    pushRpcRequests.length = 0
-    authenticatedUserId = USER_ID
-    const first = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
-      token: 'ExponentPushToken[test-device]',
-      active: true,
-    }))
-    authenticatedUserId = OTHER_USER_ID
-    const second = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
-      token: 'ExponentPushToken[test-device]',
-      active: true,
-    }))
-    const firstBody = await first.json()
-    const secondBody = await second.json()
-    authenticatedUserId = USER_ID
-
-    if (first.status !== 200 || second.status !== 200 ||
-        !/^[A-Za-z0-9_-]{43}$/.test(firstBody.revocationCredential) ||
-        !/^[A-Za-z0-9_-]{43}$/.test(secondBody.revocationCredential) ||
-        firstBody.revocationCredential === secondBody.revocationCredential) {
-      throw new Error(`expected successful push transfer, got ${first.status}/${second.status}`)
-    }
-    const registrations = pushRpcRequests.filter((entry) => entry.path.endsWith('/register_push_token_atomic'))
-    if (registrations.length !== 2 || registrations.some((entry) => {
-      const body = entry.body as { p_token?: string; p_revocation_hash?: string }
-      return body.p_token !== 'ExponentPushToken[test-device]' || !/^[0-9a-f]{64}$/.test(body.p_revocation_hash ?? '')
-    })) {
-      throw new Error(`registration was not atomic/hashed: ${JSON.stringify(registrations)}`)
-    }
-
-    const revoke = await handleApiRoute(request('POST', '/profile/push-token/revoke', {
-      token: 'ExponentPushToken[test-device]',
-      revocationCredential: secondBody.revocationCredential,
-    }))
-    const revocations = pushRpcRequests.filter((entry) => entry.path.endsWith('/revoke_push_token_atomic'))
-    if (revoke.status !== 200 || revocations.length !== 1 ||
-        (revocations[0].body as { p_revocation_hash?: string }).p_revocation_hash !==
-          (registrations[1].body as { p_revocation_hash?: string }).p_revocation_hash) {
-      throw new Error(`sessionless revocation did not use the current credential: ${JSON.stringify(revocations)}`)
+    if (postgrestRequests.some(entry => /notification_preferences|web_push_subscriptions/.test(entry))) {
+      throw new Error('trade route bypassed the transactional notification outbox')
     }
   },
 })
 
-Deno.test({
-  name: 'push token unregister only clears the requesting owner when the device token still matches',
-  sanitizeOps: false,
-  sanitizeResources: false,
-  fn: async () => {
-    pushRpcRequests.length = 0
-    authenticatedUserId = USER_ID
-    const res = await handleApiRoute(authedRequest('POST', '/profile/push-token', {
-      token: 'ExponentPushToken[test-device]',
-      active: false,
-    }))
 
-    if (res.status !== 200 || pushRpcRequests.length !== 1) {
-      throw new Error(`expected one unregister mutation, got ${res.status}/${pushRpcRequests.length}`)
-    }
-    const mutation = pushRpcRequests[0]
-    const mutationBody = mutation.body as { p_user_id?: string; p_token?: string }
-    if (!mutation.path.endsWith('/clear_push_token_for_user_atomic') ||
-        mutationBody.p_user_id !== USER_ID || mutationBody.p_token !== 'ExponentPushToken[test-device]') {
-      throw new Error(`unregister was not owner/token constrained: ${JSON.stringify(mutation)}`)
-    }
-  },
-})
 
 Deno.test({
   name: 'ordinary commissioners can generate only their requested league schedule',
@@ -847,6 +729,5 @@ Deno.test({
   sanitizeResources: false,
   fn: () => {
     postgrest.shutdown()
-    expo.shutdown()
   },
 })

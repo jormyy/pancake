@@ -51,7 +51,7 @@ export function useAuctionDraftRoomController({
 
     // Bidding — held as raw text so the field can be cleared/typed freely;
     // the value is validated and clamped only on submit (handleBid).
-    const [bidText, setBidText] = useState('1')
+    const [bidText, setBidText] = useState(() => String((initialCache?.state?.openNomination?.currentBidAmount ?? 0) + 1))
     const [bidToTaxi, setBidToTaxi] = useState(false)
     useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
     const [bidding, setBidding] = useState(false)
@@ -77,9 +77,9 @@ export function useAuctionDraftRoomController({
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
     // Track which nomination the bid field was last seeded for, so the 5s poll /
     // realtime refresh never clobbers a value the user is actively typing.
-    const lastNomIdRef = useRef<string | null>(null)
+    const lastNomIdRef = useRef<string | null>(initialCache?.state?.openNomination?.id ?? null)
     // Mirror of bidText so load() can read the current value without a dep.
-    const bidTextRef = useRef('1')
+    const bidTextRef = useRef(bidText)
     const expiryAttemptRef = useRef<{
         key: string; attempts: number; nextAt: number; inFlight: boolean; completed: boolean
     } | null>(null)
@@ -112,7 +112,9 @@ export function useAuctionDraftRoomController({
         setState(cached?.state ?? null)
         setStateOwner(identity)
         setLoadError(null)
-        setBidText('1')
+        const cachedBidText = String((cached?.state?.openNomination?.currentBidAmount ?? 0) + 1)
+        setBidText(cachedBidText)
+        bidTextRef.current = cachedBidText
         bidRequestRef.current = null
         setBidding(false)
         setWithdrawing(false)
@@ -124,7 +126,7 @@ export function useAuctionDraftRoomController({
         setSubmittingNom(false)
         setTimeLeft(0)
         setRealtimeStatus('CONNECTING')
-        lastNomIdRef.current = null
+        lastNomIdRef.current = cached?.state?.openNomination?.id ?? null
         expiryAttemptRef.current = null
         pollRevisionRef.current = undefined
         return () => {
@@ -153,6 +155,7 @@ export function useAuctionDraftRoomController({
                 if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
                 writePersistentCache(cacheKey, { state: s })
                 snapshotRef.current = s
+                pollRevisionRef.current = s?.pollRevision
                 setLoadError(null)
                 // A successful empty read means the room is gone. Read failures throw
                 // and keep the last usable state in the catch path below.
@@ -303,9 +306,10 @@ export function useAuctionDraftRoomController({
     // Countdown tick
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
-        if (!countdownNomination) return
+        if (!countdownNomination || !canRead()) return
 
         const computeDiff = () => {
+            if (!canRead()) return
             const exp = countdownNomination.countdownExpiresAt
             if (!exp) return
             const diff = Math.max(0, Math.floor((new Date(exp).getTime() - Date.now()) / 1000))
@@ -333,14 +337,14 @@ export function useAuctionDraftRoomController({
                 .finally(() => { attempt.inFlight = false })
         }
         // Seed immediately so a fresh nomination doesn't render the urgent
-        // (<=10s) styling for the first 500ms while timeLeft is still 0.
+        // (<=10s) styling for the first second while timeLeft is still 0.
         computeDiff()
-        timerRef.current = setInterval(computeDiff, 500)
+        timerRef.current = setInterval(computeDiff, 1_000)
 
         return () => {
             if (timerRef.current) clearInterval(timerRef.current)
         }
-    }, [countdownNomination, draftId, load, canAct])
+    }, [countdownNomination, draftId, load, canAct, canRead, epoch])
 
     // Player search
     useEffect(() => {

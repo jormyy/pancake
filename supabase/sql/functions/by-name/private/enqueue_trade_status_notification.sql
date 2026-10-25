@@ -25,6 +25,7 @@ BEGIN
     v_title := 'Trade Rejected';
     v_body := 'Your trade offer was declined.';
     v_single_recipient := NEW.proposer_member_id;
+    v_all_participants := COALESCE(NEW.is_multi_team, false);
   ELSIF OLD.status = 'pending'::public.trade_status AND NEW.status = 'withdrawn'::public.trade_status THEN
     v_event_type := 'trade_withdrawn';
     v_title := 'Trade Withdrawn';
@@ -68,6 +69,7 @@ BEGIN
      WHERE participant.trade_id = NEW.id
        AND v_all_participants
        AND (v_event_type <> 'trade_withdrawn' OR participant.member_id <> NEW.proposer_member_id)
+       AND (v_event_type <> 'trade_rejected' OR participant.member_id = NEW.proposer_member_id OR participant.accepted_at IS NOT NULL)
     UNION SELECT v_single_recipient WHERE NOT v_all_participants
   ) AS recipient
   WHERE recipient.member_id IS NOT NULL

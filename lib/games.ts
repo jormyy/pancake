@@ -79,7 +79,7 @@ export type GameDay = {
 }
 
 // One read of a date's slate: the teams whose game has started, each team's
-// opponent, and the regular-season games ordered Final, InProgress, Scheduled.
+// opponent, and the regular-season games.
 // nba_games.game_date is stored in ET, so callers pass an ET date.
 export async function getGameDay(date: string): Promise<GameDay> {
     const { data, error } = await supabase
@@ -104,7 +104,6 @@ export async function getGameDay(date: string): Promise<GameDay> {
     }
     const games = (data ?? [])
         .filter((game) => isRegularSeasonGameId(game.nba_game_id))
-        .sort((a, b) => (a.status < b.status ? -1 : a.status > b.status ? 1 : 0))
         .map(({ game_time: _gameTime, started_at: _startedAt, ...game }) => game)
     return { startedTeams, teamMatchups, games }
 }

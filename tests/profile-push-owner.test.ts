@@ -163,3 +163,15 @@ it('keeps the local-only logout warning after the initiating account signs out',
     await act(async () => { await vi.mocked(confirmAction).mock.calls.at(-1)![2]() })
     expect(showAlert).toHaveBeenCalledWith('Signed out on this device', expect.stringContaining('Other sessions may still be signed in'))
 })
+
+it('reveals profile content without waiting for device controls on the notification screen', async () => {
+    const pending = deferred<'off'>()
+    vi.mocked(getWebPushStatus).mockReturnValueOnce(pending.promise)
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProfileScreen)); mounted = renderer })
+    const content = () => renderer.root.findByType('ScrollView' as React.ElementType)
+    expect(content().props['aria-hidden']).toBe(false)
+    expect(content().props.pointerEvents).toBe('auto')
+    expect(getWebPushStatus).not.toHaveBeenCalled()
+    expect(renderer.root.findAllByType(SettingsRow).some(node => node.props.label === 'Notification settings')).toBe(true)
+})

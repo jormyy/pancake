@@ -34,6 +34,12 @@ DECLARE
   v_faab_balance int;
   v_player_name text;
   v_candidate record;
+  v_to_ir boolean := false;
+  v_ir_count int;
+  v_ir_eligible boolean;
+  v_ir_failure text;
+  v_to_taxi boolean := false;
+  v_taxi_failure text;
 BEGIN
   FOR v_candidate IN
     WITH candidate_groups AS (
@@ -227,7 +233,7 @@ BEGIN
       END;
 
       IF v_league.waiver_mode = 'faab' THEN
-        v_faab_balance := private.ensure_faab_balance(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
+        v_faab_balance := private.available_faab_balance(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
         IF v_faab_balance < v_claim.bid_amount THEN
           v_failure := 'Insufficient FAAB budget for this bid.';
           RETURN QUERY SELECT * FROM private.fail_waiver_claim(
@@ -269,22 +275,41 @@ BEGIN
 
       v_roster_size := v_league.roster_size;
 
-      v_ineligible := private.ineligible_ir_player_names(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
+      SELECT string_agg(problem.message,' ' ORDER BY problem.kind,problem.player_name,problem.roster_player_id)
+        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem;
       IF v_ineligible IS NOT NULL THEN
-        v_failure := format(
-          'You have ineligible players on IR (%s). Activate or drop them before waiver claims can process.',
-          v_ineligible
-        );
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
-          v_claim.id,
-          v_claim.league_id,
-          v_claim.league_season_id,
-          v_claim.member_id,
-          v_claim.player_id,
-          'failed_roster'::waiver_claim_status,
-          v_failure
+          v_claim.id,v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,
+          'failed_roster'::waiver_claim_status,v_ineligible
         );
         RETURN;
+      END IF;
+
+      v_to_ir := false;
+      IF v_claim.to_ir THEN
+        SELECT private.is_ir_designation(injury_status) INTO v_ir_eligible
+          FROM players WHERE id = v_claim.player_id FOR SHARE;
+        SELECT count(*) INTO v_ir_count FROM roster_players AS ir_roster
+         WHERE ir_roster.member_id = v_claim.member_id AND ir_roster.league_season_id = v_claim.league_season_id AND ir_roster.is_on_ir;
+        v_ir_failure := CASE
+          WHEN NOT COALESCE(v_ir_eligible, false) THEN 'Player is no longer IR eligible.'
+          WHEN v_ir_count >= COALESCE(v_league.ir_slots, 2) THEN 'Your IR slots are full.'
+          WHEN v_league.status = 'offseason'::league_status THEN 'IR moves are unavailable in the offseason.'
+          ELSE NULL
+        END;
+        v_to_ir := v_ir_failure IS NULL;
+      END IF;
+
+      v_to_taxi := false;
+      v_taxi_failure := NULL;
+      IF v_claim.to_taxi THEN
+        BEGIN
+          PERFORM private.authorize_taxi_acquisition(v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,'waiver',v_claim.id);
+          PERFORM private.assert_taxi_acquisition_allowed(v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id);
+          v_to_taxi := true;
+        EXCEPTION WHEN SQLSTATE 'P0001' THEN
+          v_taxi_failure := SQLERRM;
+        END;
       END IF;
 
       SELECT count(*)
@@ -296,10 +321,12 @@ BEGIN
          AND rp.is_on_ir = false
          AND rp.is_on_taxi = false;
 
-      v_projected_active_count := v_active_count + 1 - CASE WHEN v_claim.drop_player_id IS NULL THEN 0 ELSE 1 END;
+      v_projected_active_count := v_active_count + CASE WHEN v_to_ir OR v_to_taxi THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_to_ir OR v_to_taxi THEN 0 ELSE 1 END;
 
-      IF v_projected_active_count > COALESCE(v_roster_size, 20) THEN
+      IF NOT v_to_ir AND NOT v_to_taxi AND v_projected_active_count > COALESCE(v_roster_size, 20) THEN
         v_failure := CASE
+          WHEN v_claim.to_ir THEN v_ir_failure || ' Your active roster is full.'
+          WHEN v_claim.to_taxi THEN v_taxi_failure || ' Your active roster is full.'
           WHEN v_claim.drop_player_id IS NULL THEN 'Roster full and no drop player specified.'
           ELSE 'Waiver claim would leave your active roster over the limit.'
         END;
@@ -315,7 +342,7 @@ BEGIN
         RETURN;
       END IF;
 
-      IF v_claim.drop_player_id IS NOT NULL THEN
+      IF v_claim.drop_player_id IS NOT NULL AND NOT v_to_ir AND NOT v_to_taxi THEN
         SELECT validation.roster_player_id, validation.failure_reason
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
@@ -366,15 +393,25 @@ BEGIN
         league_season_id,
         member_id,
         player_id,
-        acquired_via
+        acquired_via,
+        is_on_ir,
+        is_on_taxi
       )
       VALUES (
         v_claim.league_id,
         v_claim.league_season_id,
         v_claim.member_id,
         v_claim.player_id,
-        'waiver'
+        'waiver',
+        v_to_ir,
+        v_to_taxi
       );
+
+      IF v_to_taxi THEN
+        UPDATE public.notification_outbox SET body='Your waiver claim succeeded. Placed on taxi.',
+          data=data || jsonb_build_object('destination','taxi','body','Your waiver claim succeeded. Placed on taxi.')
+        WHERE dedupe_key='waiver_claim_won:' || v_claim.id::text || ':' || v_claim.member_id::text;
+      END IF;
 
       INSERT INTO roster_transactions (
         league_id,
@@ -382,7 +419,8 @@ BEGIN
         member_id,
         player_id,
         transaction_type,
-        related_claim_id
+        related_claim_id,
+        acquired_to_taxi
       )
       VALUES (
         v_claim.league_id,
@@ -390,7 +428,8 @@ BEGIN
         v_claim.member_id,
         v_claim.player_id,
         'waiver_add',
-        v_claim.id
+        v_claim.id,
+        v_to_taxi
       );
 
       UPDATE waiver_wire_log
@@ -429,7 +468,7 @@ BEGIN
         COALESCE(v_player_name, 'Player') || CASE
           WHEN v_league.waiver_mode = 'faab' THEN format(' won for $%s.', v_claim.bid_amount)
           ELSE ' added from waivers.'
-        END,
+        END || CASE WHEN v_to_taxi THEN ' Placed on taxi.' ELSE '' END,
         NULL,
         v_claim.member_id,
         v_claim.player_id,
@@ -485,7 +524,18 @@ BEGIN
       SELECT true, failed.id, failed.member_id, failed.player_id, failed.status, failed.failure_reason
         FROM failed;
       RETURN;
-    EXCEPTION WHEN SQLSTATE 'PW001' OR lock_not_available THEN
+    EXCEPTION WHEN SQLSTATE 'PA008' THEN
+      RETURN QUERY SELECT * FROM private.fail_waiver_claim(
+        v_claim.id,
+        v_claim.league_id,
+        v_claim.league_season_id,
+        v_claim.member_id,
+        v_claim.player_id,
+        'failed_roster'::waiver_claim_status,
+        SQLERRM
+      );
+      RETURN;
+    WHEN SQLSTATE 'PW001' OR lock_not_available THEN
       -- Release this attempt when its team, player, or league is busy.
       -- A batch can already hold a different league in the opposite order.
       CONTINUE;

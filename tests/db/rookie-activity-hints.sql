@@ -1,0 +1,49 @@
+BEGIN;
+DO $$
+DECLARE
+  actor uuid := gen_random_uuid();
+  league uuid := gen_random_uuid();
+  member uuid := gen_random_uuid();
+  season uuid := gen_random_uuid();
+  activity uuid;
+  prior_revision bigint;
+BEGIN
+  INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+  VALUES(actor,'authenticated','authenticated',actor||'@example.test','x',now(),'{}','{}',now(),now());
+  INSERT INTO public.leagues(id,name,slug,commissioner_id,status)
+  VALUES(league,'Activity refresh',league::text,actor,'active');
+  INSERT INTO public.league_members(id,league_id,user_id,role,team_name)
+  VALUES(member,league,actor,'commissioner','Manager');
+  INSERT INTO public.league_seasons(id,league_id,season_year,is_current)
+  VALUES(season,league,2192,true);
+  SELECT COALESCE((SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory'),0) INTO prior_revision;
+  INSERT INTO public.league_activity(league_id,league_season_id,actor_member_id,event_type,title,body)
+  VALUES(league,season,member,'trade_accepted','Trade accepted','Trade completed') RETURNING id INTO activity;
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
+    RAISE EXCEPTION 'Activity must not emit an unsupported inventory detail in this release';
+  END IF;
+  SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
+  UPDATE public.league_activity SET body='Offer revised' WHERE id=activity;
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
+    RAISE EXCEPTION 'Changed activity emits an unsupported hint';
+  END IF;
+  SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
+  DELETE FROM public.league_activity WHERE id=activity;
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
+    RAISE EXCEPTION 'Removed activity emits an unsupported hint';
+  END IF;
+  SELECT hint.revision INTO prior_revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory';
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
+  SELECT league,member,event_type,'Hidden event','Hidden details'
+  FROM unnest(ARRAY['trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated','free_agent_added']) event_type;
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') <> prior_revision THEN
+    RAISE EXCEPTION 'Hidden or private activity publishes an inventory hint';
+  END IF;
+  INSERT INTO public.league_activity(league_id,actor_member_id,event_type,title,body)
+  VALUES(league,member,'trade_accepted','Trade accepted','Trade completed');
+  IF (SELECT hint.revision FROM public.league_change_hints hint WHERE hint.league_id=league AND topic='inventory') IS DISTINCT FROM prior_revision THEN
+    RAISE EXCEPTION 'Season fallback must not emit an unsupported activity hint';
+  END IF;
+END;
+$$;
+ROLLBACK;

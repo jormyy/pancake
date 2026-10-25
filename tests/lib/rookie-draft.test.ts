@@ -56,7 +56,6 @@ describe('rookie draft reads', () => {
             : { data: [], error: null }))
 
         await expect(getRookiePlayers('draft')).rejects.toThrow('picked ids unavailable')
-        expect(mocks.from).not.toHaveBeenCalledWith('players')
     })
 })
 
@@ -67,6 +66,22 @@ describe('rookie draft startup', () => {
         const result = await startRookieDraft('league', { timerSeconds: 600, rounds: 3 })
         expect(result.draft).toMatchObject({ id: 'annual', draftType: 'snake' })
     })
+})
+
+it('starts the bounded prospect read before the picked-player reply arrives', async () => {
+    let finish!: (value: { data: unknown; error: unknown }) => void
+    const pending = new Promise<{ data: unknown; error: unknown }>(resolve => { finish = resolve })
+    const picked = query({ data: [], error: null })
+    picked.then = resolve => pending.then(resolve)
+    const players = query({ data: [{ id: 'picked' }, { id: 'available' }], error: null })
+    mocks.from.mockImplementation((table: string) => table === 'snake_draft_picks' ? picked : players)
+    const result = getRookiePlayers('draft')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(mocks.from).toHaveBeenCalledWith('players')
+    finish({ data: [{ player_id: 'picked' }], error: null })
+    await expect(result).resolves.toEqual([{ id: 'available' }])
+    expect(players.limit).toHaveBeenCalledWith(100)
 })
 
 describe('rookie timer range', () => {

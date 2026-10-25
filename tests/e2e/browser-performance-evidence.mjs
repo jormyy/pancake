@@ -15,7 +15,7 @@ const readyPredicates = {
   'waiver-add-claim': `body.includes('Waiver Claim') && document.querySelector('[aria-label="Submit waiver claim"]') && !body.includes('Loading')`,
   'trade-review-act': `label === 'propose-trade'
     ? document.querySelector('[aria-label="Review trade proposal"]') && !body.includes('Loading trade assets')
-    : document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Trades' && document.querySelector('[role="tablist"]') && !body.includes('Loading trades')`,
+    : document.querySelector('[role="tablist"][aria-label="Trade sections"]') && document.querySelector('[role="tab"][aria-selected="true"]') && !body.includes('Loading trades')`,
   'auction-draft-room': `body.includes('Auction Draft') && (document.querySelector('[aria-label="Increase bid"]') || document.querySelector('[aria-label="Search and nominate a player"]') || document.querySelector('[aria-label="Pause draft"]') || (label === 'draft-room-initial' && document.querySelector('[aria-label="Resume draft"]')))`,
   'rookie-draft-room': `document.querySelector('[aria-label="Show prospects"]') && document.querySelector('[aria-label="Show pick board"]') && !body.includes('Loading prospects')`,
   'dynasty-hub': `document.querySelector('[role="heading"][aria-level="1"]')?.textContent?.trim() === 'Players' && document.querySelector('#players-section-rankings[aria-selected="true"]') && document.querySelector('[aria-label="Search dynasty rankings"]') && /Updated |Not synced yet/.test(body)`,
@@ -382,7 +382,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
       expected: `document.body.innerText.includes('Auto-set lineup')`,
       interaction: 'roster-open-lineup', target: 'Set lineup',
     })
-    await clickUnmeasured(browser, session, '[aria-label="Cancel auto-set"]')
+    await clickUnmeasured(browser, session, '[role="dialog"] [aria-label="Close"]')
     await waitForWorkflowReady(browser, session, workflowId, label)
     return result
   }

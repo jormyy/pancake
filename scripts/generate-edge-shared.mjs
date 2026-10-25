@@ -157,20 +157,16 @@ async function livePollCore() {
   return `${HEADER}${source}`
 }
 
-async function dynastyDecisionEngine() {
-  const source = rewriteImportDeclarations(
-    await read('core/src/dynasty/decisionEngine.ts'),
-    'dynastyDecisionEngine',
-    {
-      '../scoring/formula': './scoringCore.ts',
-      '../scoring/types': './scoringCore.ts',
-    },
-  )
+async function lineupAssignments() {
+  const source = rewriteImportDeclarations(await read('core/src/lineup/assignments.ts'), 'lineupAssignments', {
+    '../positions/lineupSlots': './lineupSlots.ts',
+  })
   return `${HEADER}${source}`
 }
 
 const outputs = [
-  ['supabase/functions/_shared/dynastyDecisionEngine.ts', await dynastyDecisionEngine()],
+  ['supabase/functions/_shared/lineupAssignments.ts', await lineupAssignments()],
+  ['supabase/functions/_shared/lineupSlots.ts', `${HEADER}${await read('core/src/positions/lineupSlots.ts')}`],
   ['supabase/functions/_shared/date.ts', `${HEADER}${await read('core/src/dates/index.ts')}`],
   ['supabase/functions/_shared/gameId.ts', `${HEADER}${await read('core/src/season/gameId.ts')}`],
   ['supabase/functions/_shared/livePoll.ts', await livePollCore()],

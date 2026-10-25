@@ -4,7 +4,7 @@
 SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS lane_local \gset
 \if :lane_local
 \else
-  \quit 2
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 BEGIN;
 UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
@@ -65,6 +65,8 @@ BEGIN
   INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
   SELECT f.l,f.s,p,now()-interval '48 hours'
   WHERE NOT EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL);
+  UPDATE waiver_wire_log SET clears_at=now()
+  WHERE league_id=f.l AND league_season_id=f.s AND player_id=p AND cleared_at IS NULL;
   RETURN public.create_waiver_claim_atomic(f.l,f.m[team],p,drop_id,f.u[team],bid,pref);
 END $$;
 CREATE FUNCTION pg_temp.drain() RETURNS void LANGUAGE plpgsql AS $$
@@ -107,7 +109,7 @@ BEGIN
   PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=c),'exact balance wins');
   PERFORM pg_temp.check_that((SELECT status='failed_priority' AND failure_reason='Insufficient FAAB budget for this bid.' FROM waiver_claims WHERE id=d),'later claim rechecks balance');
   PERFORM pg_temp.check_that((SELECT balance=0 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'exact debit');
-  PERFORM private.ensure_season_faab_balances(f.l,f.s);
+  PERFORM private.ensure_faab_balance(f.l,f.s,member_id) FROM unnest(f.m) member_id;
   PERFORM pg_temp.check_that(private.ensure_faab_balance(f.l,f.s,f.m[1])=0,'ensure never replenishes spent money');
   DELETE FROM faab_balances WHERE member_id=f.m[3] AND league_season_id=f.s;
   PERFORM pg_temp.check_that(private.ensure_faab_balance(f.l,f.s,f.m[3])=100,'lazy balance matches configured budget');
@@ -202,10 +204,10 @@ BEGIN
   c:=pg_temp.claim(f,1,p,10);
   UPDATE players SET injury_status=NULL WHERE id=injured;
   PERFORM pg_temp.drain();
-  PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE 'You have ineligible players on IR (%' FROM waiver_claims WHERE id=c),'IR recovery invalidates pending claim');
+  PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE '%Synthetic Waiver is no longer eligible for IR.%' FROM waiver_claims WHERE id=c),'IR recovery invalidates pending claim');
   PERFORM pg_temp.check_that((SELECT balance=100 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'IR failure keeps FAAB');
   PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s),'IR failure consumes no add');
-  PERFORM pg_temp.expect_error(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)',f.l,f.m[1],p,f.u[1]),'P0001','ineligible players on IR');
+  PERFORM pg_temp.expect_error(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)',f.l,f.m[1],p,f.u[1]),'PA005','Synthetic Waiver is no longer eligible for IR.');
   RAISE NOTICE 'PASS IR eligibility at submission and processing preserves budget and counts';
 END $$;
 DO $$
@@ -244,7 +246,11 @@ BEGIN
   PERFORM public.add_free_agent_atomic(f.m[1],f.l,p);
   SELECT id INTO rid FROM roster_players WHERE league_season_id=f.s AND player_id=p;
   PERFORM public.drop_player_atomic(rid);
-  PERFORM pg_temp.check_that((SELECT clears_at=placed_on_waivers_at+interval '48 hours' FROM waiver_wire_log WHERE league_season_id=f.s AND player_id=p),'drop has exact 48 hours');
+  PERFORM pg_temp.check_that((SELECT clears_at>=placed_on_waivers_at+interval '48 hours'
+    AND (clears_at AT TIME ZONE 'America/New_York')::time=time '03:00'
+    AND ((clears_at AT TIME ZONE 'America/New_York')-interval '1 day') AT TIME ZONE 'America/New_York'
+      < placed_on_waivers_at+interval '48 hours'
+    FROM waiver_wire_log WHERE league_season_id=f.s AND player_id=p),'drop clears at the first 03:00 ET after 48 hours');
   c:=public.create_waiver_claim_atomic(f.l,f.m[2],p,NULL,f.u[2],1);
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='pending' FROM waiver_claims WHERE id=c),'future clear does not process early');
@@ -261,7 +267,7 @@ BEGIN
   SELECT array_agg(id ORDER BY id) INTO old_order FROM league_members WHERE league_id=f.l;
   PERFORM pg_temp.check_that((SELECT array_agg(member_id ORDER BY priority)=old_order FROM waiver_priorities WHERE league_season_id=next_id),'rollover rebuilds order from tied standings and member id');
   PERFORM public.commissioner_adjust_faab_balance_atomic(f.l,f.m[1],6);
-  PERFORM private.ensure_season_faab_balances(f.l,next_id);
+  PERFORM private.ensure_faab_balance(f.l,next_id,member_id) FROM unnest(f.m) member_id;
   PERFORM pg_temp.check_that((SELECT balance=6 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=next_id),'rollover budget applied once');
   PERFORM pg_temp.expect_error(format('SELECT advance_season_atomic(%L)',f.l),'P0001','before advancing season');
   RAISE NOTICE 'PASS drop timing, future processing, pending rollover guard, balance reset/history/idempotence, priority reset';

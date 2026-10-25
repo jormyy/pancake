@@ -1,12 +1,15 @@
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_NOTES_BYTES, utf8ByteLength } from '@pancake/core'
 import { MultiTeamTradeOverview, type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
+import { Button } from '@/components/ui/Button'
 import { ParticipantTradePanel } from '@/components/trades/ParticipantTradePanel'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, textStyles, type WebOnlyViewStyle, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
+import { buildTradeComposerPayload } from '@/lib/trade-composer'
+import type { LeagueStatus } from '@/types/database'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 type MultiTeamTradeBuilderProps = {
@@ -14,9 +17,12 @@ type MultiTeamTradeBuilderProps = {
     items: MultiTeamTradeItemPayload[]
     myMemberId: string
     faabEnabled: boolean
-    notes: string
+    notes?: string
     notesError: string | null
-    expirationDays: string
+    expirationDays?: string
+    leagueStatus?: LeagueStatus | null
+    tradeDeadline?: string | null
+    showTerms?: boolean
     expirationError: string | null
     rosterError: string | null
     rosterLoading: boolean
@@ -32,9 +38,10 @@ type MultiTeamTradeBuilderProps = {
     onPlayerDestinationChange: (memberId: string, playerId: string, toMemberId: string) => void
     onPickDestinationChange: (memberId: string, pickId: string, toMemberId: string) => void
     onFaabChange: (memberId: string, toMemberId: string, value: string) => void
-    onNotesChange: (value: string) => void
-    onExpirationDaysChange: (value: string) => void
+    onNotesChange?: (value: string) => void
+    onExpirationDaysChange?: (value: string) => void
     reviewOnly?: boolean
+    onAnalyze?: () => void
     /** Lets the screen keep the chosen sender tab when it swaps to Review and back. */
     activeParticipantId?: string
     onActiveParticipantChange?: (memberId: string) => void
@@ -45,9 +52,12 @@ export function MultiTeamTradeBuilder({
     items,
     myMemberId,
     faabEnabled,
-    notes,
+    notes = '',
     notesError,
-    expirationDays,
+    expirationDays = '',
+    leagueStatus,
+    tradeDeadline,
+    showTerms = true,
     expirationError,
     rosterError,
     rosterLoading,
@@ -66,6 +76,7 @@ export function MultiTeamTradeBuilder({
     onNotesChange,
     onExpirationDaysChange,
     reviewOnly = false,
+    onAnalyze,
     activeParticipantId: controlledActiveId,
     onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
@@ -78,6 +89,11 @@ export function MultiTeamTradeBuilder({
     const setActiveParticipantId = onActiveParticipantChange ?? setLocalActiveId
     const [overviewExpanded, setOverviewExpanded] = useState(false)
     const notesBytes = utf8ByteLength(notes)
+    const expiresAt = reviewOnly && showTerms ? buildTradeComposerPayload({
+        offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
+        notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
+        leagueStatus, tradeDeadline,
+    }).payload.expiresAt : null
 
     useEffect(() => {
         if (!participants.some((participant) => participant.memberId === activeParticipantId)) {
@@ -169,7 +185,6 @@ export function MultiTeamTradeBuilder({
                 onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
             >
                 <View style={styles.reviewHeading}>
-                    <Text style={styles.reviewEyebrow}>FINAL REVIEW</Text>
                     <Text style={styles.reviewTitle}>
                         {participants.length}-team trade · {items.length} {items.length === 1 ? 'asset' : 'assets'}
                     </Text>
@@ -179,14 +194,15 @@ export function MultiTeamTradeBuilder({
                     items={overviewItems}
                     columns={useColumns}
                 />
-                <View style={styles.reviewTerms}>
-                    <Text style={styles.reviewTermsLabel}>TERMS</Text>
+                {showTerms ? <View style={styles.reviewTerms}>
                     <Text style={styles.reviewTermsValue}>
-                        Expires in {expirationDays} {expirationDays === '1' ? 'day' : 'days'}
+                        {expiresAt ? `Expires ${new Date(expiresAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'No expiry'}
                     </Text>
-                    <Text style={styles.reviewTermsLabel}>NOTE</Text>
-                    <Text style={styles.reviewTermsValue}>{notes.trim() || 'No note added'}</Text>
-                </View>
+                    {notes.trim() ? <>
+                        <Text style={styles.reviewTermsLabel}>NOTE</Text>
+                        <Text style={styles.reviewTermsValue}>{notes.trim()}</Text>
+                    </> : null}
+                </View> : null}
             </View>
             </DeferredContent>
         )
@@ -202,8 +218,9 @@ export function MultiTeamTradeBuilder({
                 <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
             ) : (
                 <>
+                    <View style={styles.summaryRow}>
                     <Pressable
-                        style={[styles.compactSummary, Platform.OS === 'web' && styles.compactSummarySticky]}
+                        style={styles.compactSummary}
                         onPress={() => setOverviewExpanded((expanded) => !expanded)}
                         accessibilityRole="button"
                         accessibilityLabel={`${overviewExpanded ? 'Hide' : 'Show'} deal summary. ${participants.length} teams and ${items.length} routed assets.`}
@@ -212,9 +229,8 @@ export function MultiTeamTradeBuilder({
                         id="trade-deal-summary"
                     >
                         <View style={styles.compactSummaryCopy}>
-                            <Text style={styles.compactSummaryTitle}>DEAL SUMMARY</Text>
                             <Text style={styles.compactSummaryMeta}>
-                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'} routed
+                                {participants.length} teams · {items.length} {items.length === 1 ? 'asset' : 'assets'}
                             </Text>
                         </View>
                         <MaterialIcons
@@ -223,6 +239,9 @@ export function MultiTeamTradeBuilder({
                             color={colors.textSecondary}
                         />
                     </Pressable>
+                    {onAnalyze ? <Button title="Analyze" variant="secondary" size="sm" onPress={onAnalyze} disabled={items.length === 0}
+                        accessibilityLabel="Analyze trade proposal" /> : null}
+                    </View>
                     {overviewExpanded ? (
                         <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
                     ) : null}
@@ -233,7 +252,6 @@ export function MultiTeamTradeBuilder({
                     Remove unavailable routes from the deal summary before making an offer.
                 </Text>
             ) : null}
-            <Text style={styles.sectionLabel}>EDIT ASSETS SENT BY</Text>
             {!useColumns ? (
                 <View
                     style={styles.senderTabs}
@@ -277,6 +295,7 @@ export function MultiTeamTradeBuilder({
                     {panels.find((panel) => panel.key === activeParticipantId) ?? panels[0]}
                 </View>
             )}
+            {showTerms ? <>
             <Text style={styles.sectionLabel}>NOTES (optional)</Text>
             <TextInput
                 style={[styles.notesInput, notesError && styles.notesInputInvalid]}
@@ -285,7 +304,7 @@ export function MultiTeamTradeBuilder({
                 value={notes}
                 onChangeText={(value) => {
                     const nextBytes = utf8ByteLength(value)
-                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange(value)
+                    if (nextBytes <= MAX_TRADE_NOTES_BYTES || nextBytes < notesBytes) onNotesChange?.(value)
                 }}
                 multiline
                 numberOfLines={3}
@@ -315,7 +334,6 @@ export function MultiTeamTradeBuilder({
                     {notesBytes} / {MAX_TRADE_NOTES_BYTES} bytes
                 </Text>
             </View>
-            <Text style={styles.sectionLabel}>TERMS</Text>
             <View style={styles.termsRow}>
                 <View style={styles.termField}>
                     <Text style={styles.termLabel}>Expires in days</Text>
@@ -324,7 +342,7 @@ export function MultiTeamTradeBuilder({
                         value={expirationDays}
                         onChangeText={(value) => {
                             if (/^\d*$/.test(value) && value.length <= String(MAX_TRADE_EXPIRATION_DAYS).length) {
-                                onExpirationDaysChange(value)
+                                onExpirationDaysChange?.(value)
                             }
                         }}
                         maxLength={String(MAX_TRADE_EXPIRATION_DAYS).length}
@@ -347,6 +365,7 @@ export function MultiTeamTradeBuilder({
                     ) : null}
                 </View>
             </View>
+            </> : null}
         </View>
         </DeferredContent>
     )
@@ -355,13 +374,12 @@ export function MultiTeamTradeBuilder({
 const styles = StyleSheet.create({
     routeWarning: { marginHorizontal: spacing.xl, marginTop: spacing.md, color: colors.warningDark, fontSize: fontSize.sm },
     root: { width: '100%', maxWidth: '100%', minWidth: 0 },
-    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing['4xl'] },
-    reviewHeading: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl },
-    reviewEyebrow: { ...textStyles.sectionLabel },
+    reviewRoot: { width: '100%', maxWidth: '100%', minWidth: 0, paddingBottom: spacing.lg },
+    reviewHeading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
     reviewTitle: {
         marginTop: spacing.xs,
-        fontSize: fontSize.xl,
-        fontWeight: fontWeight.extrabold,
+        fontSize: fontSize.sm,
+        fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
     reviewTerms: {
@@ -378,10 +396,10 @@ const styles = StyleSheet.create({
         fontWeight: fontWeight.semibold,
         color: colors.textPrimary,
     },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
     compactSummary: {
-        minHeight: 56,
-        marginTop: spacing.md,
-        marginHorizontal: spacing.xl,
+        flex: 1,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         flexDirection: 'row',
         alignItems: 'center',
@@ -392,13 +410,7 @@ const styles = StyleSheet.create({
         borderColor: uiColors.borderNeutral,
         backgroundColor: uiColors.surfaceAlt,
     },
-    compactSummarySticky: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-    } as unknown as WebOnlyViewStyle,
     compactSummaryCopy: { minWidth: 0, flex: 1 },
-    compactSummaryTitle: { ...textStyles.sectionLabel },
     compactSummaryMeta: {
         marginTop: spacing.xxs,
         fontSize: fontSize.sm,
@@ -408,7 +420,7 @@ const styles = StyleSheet.create({
     sectionLabel: {
         ...textStyles.sectionLabel,
         paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing.lg,
         paddingBottom: spacing.md,
     },
     stack: { gap: spacing.lg, marginBottom: spacing.lg, paddingHorizontal: spacing.xl },
@@ -428,7 +440,7 @@ const styles = StyleSheet.create({
         flexBasis: 96,
         minWidth: 96,
         maxWidth: 200,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.md,
         borderBottomWidth: 2,
         borderBottomColor: colors.borderLight,
@@ -468,7 +480,7 @@ const styles = StyleSheet.create({
     termField: { flexGrow: 1, flexBasis: 150, minWidth: 150, gap: spacing.xs },
     termLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'] },
     termInput: {
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         borderWidth: 1,
         borderColor: uiColors.borderNeutral,
         borderRadius: radii.md,
@@ -480,6 +492,6 @@ const styles = StyleSheet.create({
     },
     termInputInvalid: { borderColor: colors.danger },
     termError: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
-    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: 44, alignItems: 'center' },
+    rosterErrorRow: { paddingHorizontal: spacing.xl, paddingVertical: spacing.lg, minHeight: controlSize.minTouch, alignItems: 'center' },
     rosterErrorText: { color: colors.dangerDark, fontSize: fontSize.md, fontWeight: fontWeight.semibold, textAlign: 'center' },
 })

@@ -3,7 +3,7 @@ import { supabase } from '../../functions/_shared/supabase.ts'
 import { notifyMembers } from '../../functions/_shared/notifications.ts'
 import { normalizeNotificationPreferences } from '../../functions/_shared/notificationsPreferences.ts'
 import { createNotifyMembers } from '../../functions/_shared/notificationDelivery.ts'
-import { deliverTradeNotificationOutbox } from '../../functions/process-trades/outbox.ts'
+import { deliverNotificationOutbox } from '../../functions/process-trades/outbox.ts'
 import { settleTradeNotificationReceipts } from '../../functions/process-trades/receipts.ts'
 
 const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
@@ -39,6 +39,7 @@ const webNotify = createNotifyMembers({
     return { data: data?.map(row => ({ user_id: row.user_id, ...normalizeNotificationPreferences(row) })) ?? null, error }
   },
   profiles: async () => ({ data: [], error: null }),
+  persistExpoTicket: async () => {},
   admitDelivery: async message => await result(supabase.rpc('notif_admit_delivery_atomic', { p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken })) === true,
   beginWebDelivery: async message => {
     await barrier('web_before_reservation')
@@ -55,14 +56,13 @@ const webNotify = createNotifyMembers({
     const response = await fetch(new URL('/web', fake), { method: 'POST', body: JSON.stringify(messages) })
     assert.equal(response.status, 200)
     await barrier('web_after_acceptance')
-    return { sent: 1, failed: 0, pruned: 0 }
+    return { sent: 1, failed: 0, pruned: 0, results: messages.map(({ userId }) => ({ userId, status: 'sent' })) }
   },
   send: () => { throw new Error('Web-only scenario must not send Expo') },
   pushUrl: fake,
 })
 const rows = (await result(supabase.rpc('claim_notification_outbox_atomic', { p_limit: 200, p_lease_seconds: 60 })) ?? []).filter(row => row.id === id)
-await deliverTradeNotificationOutbox(rows, transport === 'web' ? webNotify : notifyMembers,
-  async () => { throw new Error('Production adapter must persist ticket immediately') },
+await deliverNotificationOutbox(rows, transport === 'web' ? webNotify : notifyMembers,
   async row => { assert.equal(await result(supabase.rpc('complete_notification_outbox_atomic', { p_id: row.id, p_claim_token: row.claim_token })), true) },
   async (row, error) => { await result(supabase.rpc('fail_notification_outbox_atomic', { p_id: row.id, p_claim_token: row.claim_token, p_error: error })) },
   async () => { throw new Error('No terminal transport errors expected') })

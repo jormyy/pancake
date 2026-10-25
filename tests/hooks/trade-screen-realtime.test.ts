@@ -2,11 +2,13 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
+import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active' } }))
 
 const mocks = vi.hoisted(() => ({
+    historyRead: vi.fn(),
     callbacks: null as null | {
         trades: () => void
         tradeBlock: () => void
@@ -17,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     subscribe: vi.fn((_name: string, _options: { onStatus?: (status: string) => void }) => ({ topic: 'trades' })),
 }))
 
+vi.mock('@/lib/trades', () => ({ getTradeHistoryForScreen: mocks.historyRead }))
 vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: (callback: () => void) => ({ trigger: callback, cancel: vi.fn() }),
     disposeTableChangeSubscription: mocks.dispose,
@@ -35,6 +38,7 @@ vi.mock('@/lib/trades-realtime', () => ({
 beforeEach(() => {
     vi.clearAllMocks()
     mocks.callbacks = null
+    mocks.historyRead.mockResolvedValue({ trades: [], nextCursor: null, hasMore: false })
 })
 
 describe('trade screen realtime ownership', () => {
@@ -42,7 +46,7 @@ describe('trade screen realtime ownership', () => {
         ['offers', 'trades', 'trades'],
         ['history', 'trades', 'history'],
         ['block', 'tradeBlock', 'block'],
-        ['picks', 'draftPicks', 'picks'],
+        ['block', 'draftPicks', 'picks'],
     ] as const)('retries failed %s change-event reads without another event', async (tab, event, feed) => {
         vi.useFakeTimers()
         const reads = { trades: vi.fn().mockResolvedValue(true), history: vi.fn().mockResolvedValue(true),
@@ -128,7 +132,7 @@ describe('trade screen realtime ownership', () => {
             await act(async () => { renderer.update(React.createElement(Probe, { tab: 'offers' })) })
             await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(1)
-            await act(async () => { renderer.update(React.createElement(Probe, { tab: 'picks' })) })
+            await act(async () => { renderer.update(React.createElement(Probe, { tab: 'block' })) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(2)
             await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
             expect(refreshDraftPicks).toHaveBeenCalledTimes(2)
@@ -260,7 +264,7 @@ describe('trade screen realtime ownership', () => {
 it('reuses verified fresh picks only at the initial join and revalidates after a real gap', async () => {
     const picks = vi.fn().mockResolvedValue(true), trades = vi.fn().mockResolvedValue(true)
     const Probe = () => {
-        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'picks', draftPicksFresh: true,
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: 'block', draftPicksFresh: true,
             refreshDraftPicks: picks, refreshTrades: trades, refreshHistory: trades, refreshTradeBlock: trades })
         return null
     }
@@ -365,4 +369,44 @@ it.each(['visibility', 'focus'] as const)('releases a stalled read across %s sus
         expect(trades).toHaveBeenCalledTimes(2)
         expect(other).not.toHaveBeenCalled()
     } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers(); vi.unstubAllGlobals() }
+})
+
+it('uses one history read per visit when the feed and realtime owner run together', async () => {
+    const other = vi.fn().mockResolvedValue(true)
+    const Probe = ({ tab }: { tab: TradeTabKey }) => {
+        const history = useTradeHistoryFeed('member', 'league', tab === 'history')
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: tab,
+            refreshTrades: other, refreshHistory: history.refresh, refreshTradeBlock: other, refreshDraftPicks: other })
+        return null
+    }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe, { tab: 'offers' })) })
+        await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
+        await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
+        expect(mocks.historyRead).toHaveBeenCalledExactlyOnceWith('member', 'league', 40)
+        await act(async () => screen.update(React.createElement(Probe, { tab: 'offers' })))
+        await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
+        expect(mocks.historyRead).toHaveBeenCalledTimes(2)
+    } finally { await act(async () => screen?.unmount()) }
+})
+
+it('loads newly opened history as soon as an active offers read finishes', async () => {
+    let finishOffers!: (value: boolean) => void
+    const offers = vi.fn().mockReturnValueOnce(new Promise<boolean>(resolve => { finishOffers = resolve })).mockResolvedValue(true)
+    const other = vi.fn().mockResolvedValue(true)
+    const Probe = ({ tab }: { tab: TradeTabKey }) => {
+        const history = useTradeHistoryFeed('member', 'league', tab === 'history')
+        useTradeScreenRealtime({ leagueId: 'league', memberId: 'member', activeTab: tab,
+            refreshTrades: offers, refreshHistory: history.refresh, refreshTradeBlock: other, refreshDraftPicks: other })
+        return null
+    }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe, { tab: 'offers' })) })
+        await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
+        await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
+        await act(async () => finishOffers(true))
+        expect(mocks.historyRead).toHaveBeenCalledExactlyOnceWith('member', 'league', 40)
+    } finally { await act(async () => screen?.unmount()) }
 })

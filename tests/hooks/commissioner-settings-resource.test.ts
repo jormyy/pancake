@@ -127,7 +127,7 @@ describe('commissioner settings resource', () => {
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
         expect(latest.draft.playoffRoundWeeks).toEqual(['', '2', '3'])
-        expect(latest.draft.playoffTotalWeeks).toBe('5')
+        expect(latest.draft.playoffEntrants).toBe('6')
         expect(latest.playoffRoundsNeedReview).toBe(true)
         expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
         await act(async () => { renderer.unmount() })
@@ -285,6 +285,19 @@ describe('commissioner settings resource', () => {
 })
 
 describe('commissioner admin actions', () => {
+    it('does not offer server administrator tools to league commissioners', async () => {
+        let latest!: ReturnType<typeof useCommissionerAdminActions>
+        const Probe = () => {
+            latest = useCommissionerAdminActions({ ownerId: 'user', league: league('league'), refresh: vi.fn(), onDeleted: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect([...latest.lifecycle.actions, ...latest.lowerPriorityActions].map(({ id }) => id))
+            .not.toEqual(expect.arrayContaining([expect.stringMatching(/^(sync-|process-waivers$)/)]))
+        await act(async () => { renderer.unmount() })
+    })
+
     it('exposes action progress while the canonical API request is in flight', async () => {
         const request = deferred<void>()
         mocks.apiPost.mockReturnValue(request.promise)
@@ -296,12 +309,12 @@ describe('commissioner admin actions', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe)) })
-        const processWaivers = latest.lowerPriorityActions.find((action) => action.id === 'process-waivers')
-        expect(processWaivers).toBeDefined()
+        const generateSchedule = latest.lifecycle.actions.find((action) => action.id === 'generate-schedule')
+        expect(generateSchedule).toBeDefined()
         let pending: void | Promise<void> = undefined
-        await act(async () => { pending = processWaivers?.onPress(); await Promise.resolve() })
-        expect(latest.busyAction).toBe('process-waivers')
-        expect(mocks.apiPost).toHaveBeenCalledWith('/waivers/process', {})
+        await act(async () => { pending = generateSchedule?.onPress(); await Promise.resolve() })
+        expect(latest.busyAction).toBe('generate-schedule')
+        expect(mocks.apiPost).toHaveBeenCalledWith('/sync/matchups', { force: false, leagueId: 'league' })
         await act(async () => { request.resolve(); await pending })
         expect(latest.busyAction).toBeNull()
         await act(async () => { renderer.unmount() })
@@ -342,7 +355,7 @@ describe('commissioner admin actions', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { ownerId: 'user-a', leagueId: 'a' })) })
-        const oldAction = latest.lowerPriorityActions.find((action) => action.id === 'process-waivers')
+        const oldAction = latest.lifecycle.actions.find((action) => action.id === 'generate-schedule')
         let oldRequest!: Promise<void>
         await act(async () => { oldRequest = oldAction?.onPress() as Promise<void>; await Promise.resolve() })
 
@@ -350,7 +363,7 @@ describe('commissioner admin actions', () => {
             renderer.update(React.createElement(Probe, { ownerId: 'user-b', leagueId: 'b' }))
         })
         expect(latest.busyAction).toBeNull()
-        const newAction = latest.lowerPriorityActions.find((action) => action.id === 'process-waivers')
+        const newAction = latest.lifecycle.actions.find((action) => action.id === 'generate-schedule')
         await act(async () => { await newAction?.onPress() })
         expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
 

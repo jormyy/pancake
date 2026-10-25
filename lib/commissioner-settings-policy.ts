@@ -5,12 +5,6 @@ export type { LeagueStatus } from '@/types/database'
 export type CommissionerActionId =
     | 'generate-playoffs'
     | 'advance-playoffs'
-    | 'process-waivers'
-    | 'sync-stats'
-    | 'sync-scores'
-    | 'sync-rankings'
-    | 'sync-projections'
-    | 'sync-games'
     | 'generate-schedule'
     | 'reset-schedule'
     | 'advance-season'
@@ -28,7 +22,6 @@ type ActionGroups = {
     playoffActions: CommissionerAction[]
     annualCycleActions: CommissionerAction[]
     scheduleActions: CommissionerAction[]
-    utilityActions: CommissionerAction[]
 }
 
 export const ARCHIVE_LEAGUE_DESCRIPTION =
@@ -68,7 +61,7 @@ export function commissionerLifecyclePolicy(status: LeagueStatus, groups: Action
         }
     })()
 
-    const lowerPriorityActions = [...groups.utilityActions]
+    const lowerPriorityActions: CommissionerAction[] = []
     if (status !== 'playoffs') lowerPriorityActions.push(...groups.playoffActions)
     if (canAdvanceSeason(status) && status !== 'archived') lowerPriorityActions.push(...groups.annualCycleActions)
     if (status === 'playoffs' || status === 'archived') lowerPriorityActions.push(...groups.scheduleActions)

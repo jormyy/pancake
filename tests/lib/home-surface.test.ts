@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { resolveHomeSurface } from '@/lib/home-surface'
+import { describe, expect, it, vi } from 'vitest'
+vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }))
+import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 
 // Review S4: the live-draft card must win over a failed refresh, and a failed
 // refresh must never be shown as "no matchup".
@@ -34,4 +35,38 @@ describe('resolveHomeSurface', () => {
         expect(resolveHomeSurface({ ...base, emptyConfirmed: false, hasMatchup: true })).toBe('matchup')
     })
 
+})
+
+const games = [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }]
+
+it('waits for the initial game read before showing game labels', () => {
+    expect(getGameDisplayState([], 'refreshing').ready).toBe(false)
+    expect(getGameDisplayState([], 'fresh').ready).toBe(true)
+    expect(getGameDisplayState([], 'failed').ready).toBe(true)
+    expect(getGameDisplayState([], 'offline').ready).toBe(true)
+})
+
+it('keeps live labels during a refresh and clears them on failed or offline reads', () => {
+    expect(getGameDisplayState(games, 'fresh').liveTeams).toEqual(new Set(['DEN', 'LAL']))
+    expect(getGameDisplayState(games, 'refreshing')).toEqual(getGameDisplayState(games, 'fresh'))
+    expect(getGameDisplayState(games, 'failed').liveTeams.size).toBe(0)
+    expect(getGameDisplayState(games, 'offline').liveTeams.size).toBe(0)
+    expect(getGameDisplayState([{ ...games[0], status: 'Final' }], 'fresh').liveTeams.size).toBe(0)
+})
+
+
+it('reuses a complete game display only for the same owner, date, players, and read window', () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    const display = {
+        todaysGames: [{ id: 'game', nba_game_id: '0022700001', game_date: '2026-10-24', home_team: 'DEN', away_team: 'LAL', home_score: 10, away_score: 9, status: 'InProgress', game_status_text: 'Q1' }],
+        liveStats: new Map(), startedTeams: new Set(['DEN', 'LAL']), teamMatchups: new Map([['DEN', { opponent: 'LAL', isHome: true }]]),
+    }
+    saveHomeGameDisplay('owner:league:member:season:matchup', '2026-10-24', '["player"]', display)
+    expect(readHomeGameDisplay('owner:league:member:season:matchup', '2026-10-24', '["player"]')).toEqual(display)
+    expect(readHomeGameDisplay('other-owner:league:member:season:matchup', '2026-10-24', '["player"]')).toBeNull()
+    expect(readHomeGameDisplay('owner:league:member:season:matchup', '2026-10-25', '["player"]')).toBeNull()
+    expect(readHomeGameDisplay('owner:league:member:season:matchup', '2026-10-24', '["other-player"]')).toBeNull()
+    clock.mockReturnValue(61_001)
+    expect(readHomeGameDisplay('owner:league:member:season:matchup', '2026-10-24', '["player"]')).toBeNull()
+    clock.mockRestore()
 })

@@ -4,6 +4,7 @@ import {
     buildTwoTeamTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
+    prefillTradeRosterPlan,
     submitMultiTeamTradeComposer,
     submitTradeComposer,
     validateTradeNotes,
@@ -65,30 +66,47 @@ describe('getTradeComposerMode', () => {
     })
 })
 
-describe('prefillTradeComposerFromTrade', () => {
-    it('preserves offer and request sides when editing', () => {
-        const prefill = prefillTradeComposerFromTrade('edit', trade(), NOW_MS)
-
-        expect(prefill.selectedRecipientId).toBe('recipient')
-        expect(prefill.offerPlayerIds).toEqual(['p-offer'])
-        expect(prefill.offerPickIds).toEqual(['pick-offer'])
-        expect(prefill.requestPlayerIds).toEqual(['p-request'])
-        expect(prefill.requestPickIds).toEqual(['pick-request'])
-        expect(prefill.offerFaabInput).toBe('7')
-        expect(prefill.requestFaabInput).toBe('3')
-        expect(prefill.expirationDays).toBe('2')
+describe('source trade roster plan', () => {
+    it.each(['proposer', 'recipient', 'third'])('restores only %s placements and drops', memberId => {
+        const source = trade({
+            isMultiTeam: true,
+            participants: ['proposer', 'recipient', 'third'].map((id, index) => ({ memberId: id, teamName: id, sortOrder: index,
+                isInitiator: index === 0, acceptedAt: null, dropPlayerIds: [`drop-${id}`] })),
+            routedItems: ['proposer', 'recipient', 'third'].flatMap((id, index) => [
+                { kind: 'player' as const, playerId: `taxi-${id}`, playerName: 'Taxi', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id, toTaxi: true },
+                { kind: 'player' as const, playerId: `ir-${id}`, playerName: 'IR', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id, toIR: true },
+                { kind: 'player' as const, playerId: `active-${id}`, playerName: 'Active', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id },
+            ]),
+        })
+        const plan = prefillTradeRosterPlan(source, memberId)
+        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`] })
+        plan.dropPlayerIds.push('new-drop')
+        expect(source.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds).toEqual([`drop-${memberId}`])
     })
 
-    it('reverses sides and FAAB amounts when countering', () => {
-        const prefill = prefillTradeComposerFromTrade('counter', trade(), NOW_MS)
+    it('starts with no drops when the source has no saved participant plan', () => {
+        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
+    })
+})
 
-        expect(prefill.selectedRecipientId).toBe('proposer')
-        expect(prefill.offerPlayerIds).toEqual(['p-request'])
-        expect(prefill.offerPickIds).toEqual(['pick-request'])
-        expect(prefill.requestPlayerIds).toEqual(['p-offer'])
-        expect(prefill.requestPickIds).toEqual(['pick-offer'])
-        expect(prefill.offerFaabInput).toBe('3')
-        expect(prefill.requestFaabInput).toBe('7')
+describe('prefillTradeComposerFromTrade', () => {
+    it('keeps the recipient, note, and remaining expiry when editing', () => {
+        expect(prefillTradeComposerFromTrade('edit', trade(), NOW_MS)).toEqual({
+            selectedRecipientId: 'recipient', notes: 'Make it work', expirationDays: '2',
+        })
+    })
+
+    it('starts a counter with my own blank note', () => {
+        expect(prefillTradeComposerFromTrade('counter', trade(), NOW_MS)).toEqual({
+            selectedRecipientId: 'proposer', notes: '', expirationDays: '2',
+        })
+    })
+
+    it.each(['edit', 'counter'] as const)('preserves no expiry in %s mode', (mode) => {
+        expect(prefillTradeComposerFromTrade(mode, trade({ expiresAt: null }), NOW_MS).expirationDays).toBe('')
     })
 
     it.each(['edit', 'counter'] as const)('fails closed when %s prefills an oversized expiration', (mode) => {
@@ -96,13 +114,13 @@ describe('prefillTradeComposerFromTrade', () => {
             expiresAt: new Date(NOW_MS + (MAX_TRADE_EXPIRATION_DAYS + 1) * DAY_MS).toISOString(),
         }), NOW_MS)
         const draft = buildTradeComposerPayload({
-            offerPlayerIds: prefill.offerPlayerIds,
-            requestPlayerIds: prefill.requestPlayerIds,
-            offerPickIds: prefill.offerPickIds,
-            requestPickIds: prefill.requestPickIds,
+            offerPlayerIds: [],
+            requestPlayerIds: [],
+            offerPickIds: [],
+            requestPickIds: [],
             notes: prefill.notes,
-            offerFaabInput: prefill.offerFaabInput,
-            requestFaabInput: prefill.requestFaabInput,
+            offerFaabInput: '0',
+            requestFaabInput: '0',
             expirationDaysInput: prefill.expirationDays,
         }, NOW_MS)
 
@@ -111,42 +129,26 @@ describe('prefillTradeComposerFromTrade', () => {
         expect(draft.payload.expiresAt).toBeNull()
     })
 
-    it.each(['edit', 'counter'] as const)('fails closed when %s prefills oversized notes', (mode) => {
+    it('fails closed when editing oversized notes', () => {
+        const mode = 'edit'
         const prefill = prefillTradeComposerFromTrade(mode, trade({
             notes: 'n'.repeat(MAX_TRADE_NOTES_BYTES + 1),
         }), NOW_MS)
         const draft = buildTradeComposerPayload({
-            offerPlayerIds: prefill.offerPlayerIds,
-            requestPlayerIds: prefill.requestPlayerIds,
-            offerPickIds: prefill.offerPickIds,
-            requestPickIds: prefill.requestPickIds,
+            offerPlayerIds: [],
+            requestPlayerIds: [],
+            offerPickIds: [],
+            requestPickIds: [],
             notes: prefill.notes,
-            offerFaabInput: prefill.offerFaabInput,
-            requestFaabInput: prefill.requestFaabInput,
+            offerFaabInput: '0',
+            requestFaabInput: '0',
             expirationDaysInput: prefill.expirationDays,
         }, NOW_MS)
 
         expect(draft.notesError).toBe(`Notes must contain at most ${MAX_TRADE_NOTES_BYTES} UTF-8 bytes.`)
     })
 
-    it.each(['edit', 'counter'] as const)('fails closed when %s prefills oversized FAAB', (mode) => {
-        const prefill = prefillTradeComposerFromTrade(mode, trade({
-            proposerFaabAmount: MAX_TRADE_FAAB_AMOUNT + 1,
-            recipientFaabAmount: MAX_TRADE_FAAB_AMOUNT + 1,
-        }), NOW_MS)
-        const draft = buildTradeComposerPayload({
-            offerPlayerIds: prefill.offerPlayerIds,
-            requestPlayerIds: prefill.requestPlayerIds,
-            offerPickIds: prefill.offerPickIds,
-            requestPickIds: prefill.requestPickIds,
-            notes: prefill.notes,
-            offerFaabInput: prefill.offerFaabInput,
-            requestFaabInput: prefill.requestFaabInput,
-            expirationDaysInput: prefill.expirationDays,
-        }, NOW_MS)
 
-        expect(draft.faabError).toBe('FAAB amount cannot exceed 1,000,000.')
-    })
 })
 
 describe('buildTradeComposerPayload', () => {
@@ -401,7 +403,7 @@ describe('submitTradeComposer', () => {
             payload,
         }, { getCurrentSeasonId, proposeTrade, counterTrade, editTrade })
 
-        expect(counterTrade).toHaveBeenCalledWith('trade-1', 'me', payload)
+        expect(counterTrade).toHaveBeenCalledWith('trade-1', 'me', { ...payload, recipientMemberId: 'them' })
         expect(getCurrentSeasonId).not.toHaveBeenCalled()
         expect(proposeTrade).not.toHaveBeenCalled()
         expect(editTrade).not.toHaveBeenCalled()

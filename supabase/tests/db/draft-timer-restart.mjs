@@ -20,12 +20,15 @@ try {
     const reconnected = sql(`SET TIME ZONE '${zone}'; SELECT extract(epoch FROM timer_expires_at) FROM snake_draft_picks WHERE draft_id='${draft}'`)
     assert.equal(reconnected, deadline)
   }
-  sql(`SELECT pause_draft_atomic('${draft}')`)
-  assert.equal(sql(`SELECT status||':'||timer_paused_remaining_seconds FROM drafts WHERE id='${draft}'`), 'paused:604800')
-  sql(`SELECT resume_draft_atomic('${draft}')`)
-  const restored = Number(sql(`SELECT extract(epoch FROM timer_expires_at-clock_timestamp()) FROM snake_draft_picks WHERE draft_id='${draft}'`))
-  assert(restored > 604798 && restored <= 604800)
-  console.log(JSON.stringify({ provenance: 'SYNTHETIC', case: 'seven-day deadline and pause survive fresh processes and viewer zones', passed: true }))
+  for (const remainingSeconds of [604800, 604799]) {
+    sql(`UPDATE snake_draft_picks SET timer_expires_at=clock_timestamp()+make_interval(secs=>${remainingSeconds}) WHERE draft_id='${draft}'`)
+    sql(`SELECT pause_draft_atomic('${draft}')`)
+    assert.match(sql(`SELECT status||':'||timer_paused_remaining_seconds FROM drafts WHERE id='${draft}'`), /^paused:(604799|604800)$/)
+    sql(`SELECT resume_draft_atomic('${draft}')`)
+    const restored = Number(sql(`SELECT extract(epoch FROM timer_expires_at-clock_timestamp()) FROM snake_draft_picks WHERE draft_id='${draft}'`))
+    assert(restored > 604798 && restored <= 604800)
+  }
+  console.log(JSON.stringify({ provenance: 'SYNTHETIC', case: 'seven-day deadline and pause survive fresh processes and viewer zones', passed: true, timerCases: 2 }))
 } finally {
   sql(`DELETE FROM snake_draft_picks WHERE draft_id='${draft}'; DELETE FROM drafts WHERE id='${draft}'; DELETE FROM leagues WHERE id='${league}'; DELETE FROM auth.users WHERE id='${user}';`)
 }

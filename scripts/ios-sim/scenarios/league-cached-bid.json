@@ -1,0 +1,52 @@
+[
+  {
+    "name": "league-cached-bid-light",
+    "group": "league-cached-bid",
+    "from": "/draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Bid amount']"
+        },
+        "note": "The cached room opens with the current minimum bid. Only clock digits may change.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true,
+      "liveStartupAuction": true
+    },
+    "repeat": 2,
+    "theme": "light"
+  },
+  {
+    "name": "league-cached-bid-dark",
+    "group": "league-cached-bid",
+    "from": "/draft-room?draftId={{draftId}}",
+    "steps": [
+      {
+        "action": {
+          "open": "/draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Bid amount']"
+        },
+        "note": "The cached room opens with the current minimum bid. Only clock digits may change.",
+        "allowClock": true
+      }
+    ],
+    "setup": {
+      "draftRoom": "auction",
+      "draftId": "{{draftId}}",
+      "auctionNomination": true,
+      "liveStartupAuction": true
+    },
+    "repeat": 2,
+    "theme": "dark"
+  }
+]

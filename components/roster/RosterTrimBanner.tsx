@@ -1,11 +1,16 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import type { RosterProblem } from '@/lib/roster-problems'
+import { useMemo } from 'react'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
-import { colors, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
+import { Button } from '@/components/ui/Button'
+import { colors, fontSize, fontWeight, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
 import { playerHeadshotUrl } from '@/lib/format'
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
 export function RosterTrimBanner({
     players,
+    problems = [],
+    onActivate,
     excess,
     irAvailable,
     busyId,
@@ -14,6 +19,8 @@ export function RosterTrimBanner({
     onMoveToIR,
 }: {
     players: RosterPlayer[]
+    problems?: RosterProblem[]
+    onActivate?: (player: RosterPlayer) => void
     excess: number
     irAvailable: boolean
     busyId: string | null
@@ -21,14 +28,17 @@ export function RosterTrimBanner({
     dropDisabled?: boolean
     onMoveToIR: (player: RosterPlayer) => void
 }) {
-    if (excess <= 0) return null
+    const recoveryPlayers = useMemo(() => [...new Map([...problems.flatMap(problem => problem.player ? [problem.player] : []), ...(excess > 0 ? players : [])].map(player => [player.id, player])).values()].sort((a, b) =>
+        Number(irAvailable && isIREligible(b.players.injury_status)) - Number(irAvailable && isIREligible(a.players.injury_status)),
+    ), [players, irAvailable, problems, excess])
+    if (excess <= 0 && problems.length === 0) return null
 
     return (
-        <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={`Roster is ${excess} over the active player limit`}>
-            <Text style={styles.title}>Trim roster: {excess} over limit</Text>
-            <Text style={styles.detail}>Lineup changes are locked. Drop players or move eligible players to an open IR slot.</Text>
+        <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={problems.length ? 'Resolve roster problems' : `Roster is ${excess} over the active player limit`}>
+            <Text style={styles.title}>{problems.some(problem => problem.kind !== 'over_limit') ? 'Resolve roster' : `Trim roster: ${excess} over limit`}</Text>
+            <Text style={styles.detail}>{problems.length ? problems.map(problem => problem.message).join(' ') : 'Drop a player or move one to IR to unlock lineup changes.'}</Text>
             <ScrollView style={styles.list} nestedScrollEnabled>
-                {players.map((player) => {
+                {recoveryPlayers.map((player) => {
                     const busy = busyId !== null
                     return (
                         <View key={player.id} style={styles.row}>
@@ -36,7 +46,7 @@ export function RosterTrimBanner({
                                 name={player.players.display_name}
                                 uri={playerHeadshotUrl(player.players.nba_id) ?? undefined}
                                 color={colors.bgMuted}
-                                size={34}
+                                size={36}
                             />
                             <View style={styles.identity}>
                                 <Text style={styles.name} numberOfLines={1}>{player.players.display_name}</Text>
@@ -45,29 +55,26 @@ export function RosterTrimBanner({
                                 </Text>
                             </View>
                             <View style={styles.actions}>
-                                {irAvailable && isIREligible(player.players.injury_status) ? (
-                                    <Pressable
-                                        style={[styles.action, styles.reserveAction]}
+                                {(player.is_on_ir || player.is_on_taxi) && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+                                {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) ? (
+                                    <Button
+                                        title="IR"
+                                        size="sm"
+                                        variant="outline"
                                         onPress={() => onMoveToIR(player)}
                                         disabled={busy}
-                                        accessibilityRole="button"
                                         accessibilityLabel={`Move ${player.players.display_name} to IR`}
-                                        accessibilityState={{ disabled: busy }}
-                                    >
-                                        <Text style={styles.reserveText}>IR</Text>
-                                    </Pressable>
+                                    />
                                 ) : null}
 
-                                <Pressable
-                                    style={[styles.action, styles.dropAction, dropDisabled && { opacity: 0.5 }]}
+                                <Button
+                                    title="Drop"
+                                    size="sm"
+                                    variant="outline"
                                     onPress={() => onDrop(player)}
                                     disabled={busy || dropDisabled}
-                                    accessibilityRole="button"
                                     accessibilityLabel={`Drop ${player.players.display_name}`}
-                                    accessibilityState={{ disabled: busy || dropDisabled }}
-                                >
-                                    <Text style={styles.dropText}>Drop</Text>
-                                </Pressable>
+                                />
                             </View>
                         </View>
                     )
@@ -79,18 +86,18 @@ export function RosterTrimBanner({
 
 const styles = StyleSheet.create({
     banner: {
-        paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.lg,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
         backgroundColor: tints.dangerAction,
         borderBottomWidth: 1,
         borderBottomColor: colors.danger,
         gap: spacing.xs,
     },
-    title: { fontSize: fontSize.md, fontWeight: fontWeight.extrabold, color: colors.dangerDark },
-    detail: { fontSize: fontSize.sm, color: uiColors.dangerText, lineHeight: 19 },
-    list: { maxHeight: 280, marginTop: spacing.sm },
+    title: { ...textStyles.rowTitle, color: colors.dangerDark },
+    detail: { ...textStyles.meta, color: uiColors.dangerText },
+    list: { maxHeight: table.rowHeight * 3, marginTop: spacing.xs },
     row: {
-        minHeight: 58,
+        minHeight: table.rowHeight,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
@@ -98,21 +105,8 @@ const styles = StyleSheet.create({
         borderTopColor: uiColors.dangerBorder,
         paddingVertical: spacing.xs,
     },
-    identity: { flex: 1, minWidth: 100 },
+    identity: { flex: 1, minWidth: 0 },
     name: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
     meta: { fontSize: fontSize.xs, color: colors.textMuted },
     actions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing.xs },
-    action: {
-        minHeight: 44,
-        minWidth: 48,
-        paddingHorizontal: spacing.sm,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: radii.md,
-        borderWidth: 1,
-    },
-    reserveAction: { backgroundColor: colors.bgScreen, borderColor: colors.primaryBorder },
-    reserveText: { color: colors.primaryDark, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-    dropAction: { backgroundColor: colors.danger, borderColor: colors.danger },
-    dropText: { color: colors.onAccent, fontSize: fontSize.xs, fontWeight: fontWeight.bold },
 })

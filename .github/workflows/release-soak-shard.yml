@@ -47,6 +47,10 @@ on:
         description: JSON array of pending migration versions
         required: true
         type: string
+      migration_after_season:
+        description: Last season on the deployed schema and runtimes
+        required: true
+        type: number
       repository_head:
         description: Repository migration head
         required: true
@@ -86,6 +90,7 @@ jobs:
       SOAK_PENDING_FILES: ${{ inputs.pending_files }}
       SOAK_PENDING_VERSIONS: ${{ inputs.pending_versions }}
       SOAK_REPOSITORY_HEAD: ${{ inputs.repository_head }}
+      E2E_MIDLIFE_MIGRATION_AFTER_SEASON: ${{ inputs.migration_after_season }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -115,13 +120,13 @@ jobs:
           [[ "$E2E_SOAK_MIGRATION_PLAN_SHA256" =~ ^[0-9a-f]{64}$ ]]
           [[ "$E2E_DEPLOYED_FRONTEND_SHA" =~ ^[0-9a-f]{40}$ && "$E2E_DEPLOYED_EDGE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$E2E_DEPLOYED_FRONTEND_DIGEST" =~ ^[0-9a-f]{64}$ && "$E2E_DEPLOYED_EDGE_DIGEST" =~ ^[0-9a-f]{64}$ ]]
-          # Every shard re-derives the repository side of the attested plan, so all of
-          # them exercise the same deployed schema and pending range.
           mapfile -t migration_names < <(find supabase/migrations -maxdepth 1 -name '*.sql' -exec basename {} \; | sort)
           node tests/e2e/soak-shard-plan-check.mjs "${migration_names[@]}"
-          printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$SOAK_REPOSITORY_HEAD" >> "$GITHUB_ENV"
-          printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$E2E_DEPLOYED_SCHEMA_VERSION" >> "$GITHUB_ENV"
-          printf 'E2E_MIDLIFE_EXPECTED_VERSIONS=%s\n' "$SOAK_PENDING_VERSIONS" >> "$GITHUB_ENV"
+          {
+            printf 'E2E_MIDLIFE_EXPECTED_VERSION=%s\n' "$SOAK_REPOSITORY_HEAD"
+            printf 'E2E_MIDLIFE_EXPECTED_BASE_VERSION=%s\n' "$E2E_DEPLOYED_SCHEMA_VERSION"
+            printf 'E2E_MIDLIFE_EXPECTED_VERSIONS=%s\n' "$SOAK_PENDING_VERSIONS"
+          } >> "$GITHUB_ENV"
           printf 'previous_state=release-soak-shard-%s-state\n' "$(( ${{ inputs.shard }} - 1 ))" >> "$GITHUB_OUTPUT"
       - name: Download the previous shard state
         if: inputs.shard > 1
@@ -142,55 +147,122 @@ jobs:
               test ! -f "/tmp/pancake-pending-migrations/$name" || mv "/tmp/pancake-pending-migrations/$name" "supabase/migrations/$name"
             done
           }
-          # A restored volume starts as-is; a fresh one starts at the deployed schema. The
-          # pending migrations apply mid-life inside the soak.
           for name in "${pending_names[@]}"; do
             mv "supabase/migrations/$name" "/tmp/pancake-pending-migrations/$name"
           done
           trap restore_pending EXIT
-          supabase start
+          supabase start --exclude edge-runtime
           restore_pending
           trap - EXIT
+          # shellcheck disable=SC1090
           source <(supabase status -o env)
           export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
           export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
           export EXPO_PUBLIC_API_URL="$API_URL/functions/v1/api"
           mkdir -p tests/artifacts/stack
-          printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
-          printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
-          printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
-          printf 'SUPABASE_DB_URL=%s\n' "$DB_URL" >> "$GITHUB_ENV"
-          printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
-          printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
-          printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n' >> "$GITHUB_ENV"
-          printf 'E2E_ENABLE_MIDLIFE_MIGRATION=1\n' >> "$GITHUB_ENV"
-          printf 'FAKE_UPSTREAM_PORT=4555\n' >> "$GITHUB_ENV"
+          {
+            printf 'E2E_SUPABASE_URL=%s\n' "$API_URL"
+            printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY"
+            printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY"
+            printf 'SUPABASE_DB_URL=%s\n' "$DB_URL"
+            printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL"
+            printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n'
+            printf 'E2E_ADMIN_SECRET=local-release-soak-secret\n'
+            printf 'E2E_ENABLE_MIDLIFE_MIGRATION=1\n'
+            printf 'FAKE_UPSTREAM_PORT=4555\n'
+          } >> "$GITHUB_ENV"
           cat > /tmp/pancake-edge.env <<'EOF'
           E2E_ADMIN_SECRET=local-release-soak-secret
           NBA_CDN_BASE_URL=http://host.docker.internal:4555/static/json
           SLEEPER_BASE_URL=http://host.docker.internal:4555/v1
           PLAYER_SYNC_SOURCE=sleeper
-          EXPO_PUSH_URL=http://host.docker.internal:4555/--/api/v2/push/send
           EOF
+          export SUPABASE_DB_URL="$DB_URL"
+          export E2E_SUPABASE_URL="$API_URL"
+          export E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          export E2E_API_BASE_URL="$API_URL/functions/v1/api"
+          E2E_SOAK_RUNTIME="$(node tests/e2e/soak-runtime.mjs --prepare)"
+          export E2E_SOAK_RUNTIME
+          test -n "$E2E_SOAK_RUNTIME"
           candidate_edge="$(PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
           candidate_edge_digest="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$candidate_edge")"
           printf 'E2E_CANDIDATE_EDGE_DIGEST=%s\n' "$candidate_edge_digest" >> "$GITHUB_ENV"
-          supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
-          echo "$!" > /tmp/pancake-edge.pid
           PANCAKE_RELEASE_SHA="$E2E_RELEASE_SHA" \
             EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
             npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
           test "$(node -e "process.stdout.write(require('./dist/release-provenance.json').commitSha)")" = "$E2E_RELEASE_SHA"
           candidate_frontend_digest="$(node -e "process.stdout.write(require('./dist/release-provenance.json').bundleDigest)")"
           printf 'E2E_CANDIDATE_FRONTEND_DIGEST=%s\n' "$candidate_frontend_digest" >> "$GITHUB_ENV"
-          node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
-          for attempt in {1..60}; do
+          deployed_frontend_worktree=/tmp/pancake-deployed-frontend
+          deployed_edge_worktree=/tmp/pancake-deployed-edge
+          if test "${{ inputs.shard }}" = 1 || test "${{ inputs.shard }}" = "${{ inputs.shard_count }}"; then
+            git worktree add --detach "$deployed_frontend_worktree" "$E2E_DEPLOYED_FRONTEND_SHA"
+            git worktree add --detach "$deployed_edge_worktree" "$E2E_DEPLOYED_EDGE_SHA"
+            verified_artifact="$PWD/tests/artifacts/stack/verified-deployed-frontend"
+            node tests/e2e/recover-release-artifact.mjs \
+              --url "$E2E_PRODUCTION_FRONTEND_URL" \
+              --expected-sha "$E2E_DEPLOYED_FRONTEND_SHA" \
+              --expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST" \
+              --output "$verified_artifact" > tests/artifacts/stack/deployed-frontend-artifact.json
+            E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST="$(
+              node -e "process.stdout.write(require('./tests/artifacts/stack/deployed-frontend-artifact.json').bundleDigest)"
+            )"
+            export E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST
+            test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
+            npm ci --prefix "$deployed_frontend_worktree"
+            (
+              cd "$deployed_frontend_worktree"
+              PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
+                EXPO_PUBLIC_SUPABASE_URL="$E2E_SUPABASE_URL" \
+                EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$E2E_SUPABASE_PUBLISHABLE_KEY" \
+                EXPO_PUBLIC_API_URL="$E2E_API_BASE_URL" \
+                EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
+                npm run build:web:release
+            ) > tests/artifacts/stack/deployed-frontend-build.log 2>&1
+            E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST="$(
+              node -e "process.stdout.write(require('$deployed_frontend_worktree/dist/release-provenance.json').bundleDigest)"
+            )"
+            export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST
+            {
+              printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s\n' "$E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST"
+              printf 'E2E_DEPLOYED_FRONTEND_PROVENANCE_PATH=%s\n' "$deployed_frontend_worktree/dist/release-provenance.json"
+              printf 'E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST=%s\n' "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST"
+            } >> "$GITHUB_ENV"
+          fi
+          if test "$E2E_SOAK_RUNTIME" = release; then
+            expected_edge_sha="$E2E_RELEASE_SHA"
+            expected_edge_digest="$candidate_edge_digest"
+            expected_frontend_sha="$E2E_RELEASE_SHA"
+            expected_frontend_digest="$candidate_frontend_digest"
+            web_root=dist
+            supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
+            echo "$!" > /tmp/pancake-edge.pid
+          else
+            expected_edge_sha="$E2E_DEPLOYED_EDGE_SHA"
+            expected_edge_digest="$E2E_DEPLOYED_EDGE_DIGEST"
+            expected_frontend_sha="$E2E_DEPLOYED_FRONTEND_SHA"
+            expected_frontend_digest="$E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST"
+            web_root="$deployed_frontend_worktree/dist"
+            npm ci --prefix "$deployed_edge_worktree" > tests/artifacts/stack/deployed-edge-install.log 2>&1
+            (
+              cd "$deployed_edge_worktree"
+              stamped="$(PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_EDGE_SHA" node scripts/stamp-edge-release-provenance.mjs)"
+              test "$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).edgeArtifactDigest)' "$stamped")" = "$E2E_DEPLOYED_EDGE_DIGEST"
+              exec supabase functions serve --env-file /tmp/pancake-edge.env
+            ) > tests/artifacts/stack/edge.log 2>&1 &
+            echo "$!" > /tmp/pancake-edge.pid
+          fi
+          node tests/e2e/static-web-server.mjs --root="$web_root" --port=8082 > tests/artifacts/stack/web.log 2>&1 &
+          for _attempt in {1..60}; do
             health="$(curl --fail --silent "$API_URL/functions/v1/api/health" 2>/dev/null || true)"
+            frontend="$(curl --fail --silent http://127.0.0.1:8082/release-provenance.json 2>/dev/null || true)"
             if curl --fail --silent http://127.0.0.1:8082 >/dev/null && node -e '
               const health = JSON.parse(process.argv[1])
-              process.exit(health.commitSha === process.argv[2] && health.edgeArtifactDigest === process.argv[3] ? 0 : 1)
-            ' "$health" "$E2E_RELEASE_SHA" "$candidate_edge_digest" 2>/dev/null; then
-              npm run e2e:web-hydration
+              const frontend = JSON.parse(process.argv[4])
+              process.exit(health.commitSha === process.argv[2] && health.edgeArtifactDigest === process.argv[3] &&
+                frontend.commitSha === process.argv[5] && frontend.bundleDigest === process.argv[6] ? 0 : 1)
+            ' "$health" "$expected_edge_sha" "$expected_edge_digest" "$frontend" "$expected_frontend_sha" "$expected_frontend_digest" 2>/dev/null; then
+              if test "$E2E_SOAK_RUNTIME" = release; then npm run e2e:web-hydration; fi
               exit 0
             fi
             sleep 2
@@ -208,6 +280,8 @@ jobs:
         shell: bash
         run: |
           kill "$(cat /tmp/pancake-edge.pid)" 2>/dev/null || true
+          git worktree remove --force /tmp/pancake-deployed-frontend 2>/dev/null || true
+          git worktree remove --force /tmp/pancake-deployed-edge 2>/dev/null || true
           supabase stop
           bash tests/e2e/soak-state.sh save "$RUNNER_TEMP/soak-state-out"
       - name: Hand the soak state to the next shard
@@ -280,31 +354,10 @@ jobs:
             git worktree remove --force "$deployed_edge_worktree" 2>/dev/null || true
           }
           trap cleanup EXIT
-          git worktree add --detach "$deployed_frontend_worktree" "$E2E_DEPLOYED_FRONTEND_SHA"
-          git worktree add --detach "$deployed_edge_worktree" "$E2E_DEPLOYED_EDGE_SHA"
-          verified_artifact="$PWD/tests/artifacts/stack/verified-deployed-frontend"
-          node tests/e2e/recover-release-artifact.mjs \
-            --url "$E2E_PRODUCTION_FRONTEND_URL" \
-            --expected-sha "$E2E_DEPLOYED_FRONTEND_SHA" \
-            --expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST" \
-            --output "$verified_artifact" > tests/artifacts/stack/deployed-frontend-artifact.json
-          export E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST="$(
-            node -e "process.stdout.write(require('./tests/artifacts/stack/deployed-frontend-artifact.json').bundleDigest)"
-          )"
-          test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"
-          npm ci --prefix "$deployed_frontend_worktree"
-          (
-            cd "$deployed_frontend_worktree"
-            PANCAKE_RELEASE_SHA="$E2E_DEPLOYED_FRONTEND_SHA" \
-              EXPO_PUBLIC_SUPABASE_URL="$E2E_SUPABASE_URL" \
-              EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$E2E_SUPABASE_PUBLISHABLE_KEY" \
-              EXPO_PUBLIC_API_URL="$E2E_API_BASE_URL" \
-              EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 \
-              npm run build:web:release
-          ) > tests/artifacts/stack/deployed-frontend-build.log 2>&1
-          export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST="$(
+          E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST="$(
             node -e "process.stdout.write(require('$deployed_frontend_worktree/dist/release-provenance.json').bundleDigest)"
           )"
+          export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST
           node tests/e2e/static-web-server.mjs \
             --root="$deployed_frontend_worktree/dist" --port=8083 \
             > tests/artifacts/stack/deployed-frontend-web.log 2>&1 &
@@ -324,7 +377,6 @@ jobs:
               --pair=deployed-frontend-candidate-edge
 
           stop_edge
-          # The deployed release's stamp script needs its own dependencies (it imports typescript).
           npm ci --prefix "$deployed_edge_worktree" > tests/artifacts/stack/deployed-edge-install.log 2>&1
           (
             cd "$deployed_edge_worktree"

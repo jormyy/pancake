@@ -24,6 +24,7 @@ beforeEach(() => {
         data: {
             id: 'trade-a',
             league_id: 'league-a',
+            league_season_id: 'season-a',
             status: 'pending',
             proposed_at: '2026-07-10T00:00:00Z',
             proposer_member_id: 'member-a',
@@ -63,4 +64,19 @@ describe('trade read enrichment', () => {
         expect(trade?.routedItems).toEqual([expect.objectContaining({ kind: 'player', playerId: 'player-a' })])
         expect(warn).toHaveBeenCalledWith('Could not load optional trade player averages.', expect.any(Error))
     })
+
+    it('uses the sending roster in this season to identify inherited taxi tenure', async () => {
+        const row = (await mocks.maybeSingle()).data
+        row.trade_items[0].players.roster_players = [
+            { league_season_id: 'season-old', member_id: 'member-a', is_on_taxi: true },
+            { league_season_id: 'season-a', member_id: 'member-other', is_on_taxi: true },
+            { league_season_id: 'season-a', member_id: 'member-a', is_on_taxi: false },
+        ]
+        mocks.maybeSingle.mockResolvedValue({ data: row, error: null })
+        mocks.getRosterStatsMaps.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+        expect((await getTradeById('trade-a', 'member-a'))?.routedItems[0]).toMatchObject({ fromTaxi: false })
+        row.trade_items[0].players.roster_players[2].is_on_taxi = true
+        expect((await getTradeById('trade-a', 'member-a'))?.routedItems[0]).toMatchObject({ fromTaxi: true })
+    })
+
 })

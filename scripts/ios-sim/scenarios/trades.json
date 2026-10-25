@@ -1,0 +1,814 @@
+[
+  {
+    "name": "trades-offers-light",
+    "group": "trades-light",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-details-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Show details of trade with "
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Back to trades']):not(:has([aria-label='Open menu'])) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trades"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-history-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tap": "History"
+        },
+        "expected": {
+          "text": "No completed trades yet."
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-league-block-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=league-block"
+        },
+        "expected": {
+          "text": "No league listings yet.",
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      },
+      {
+        "name": "legacy-camel-case",
+        "action": {
+          "open": "/trades?tab=leagueBlock"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-my-block-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=my-block"
+        },
+        "expected": {
+          "selector": "[aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-picks-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=picks"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "removed-analyzer",
+        "action": {
+          "open": "/trades?tab=analyzer"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-composer-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label^='Trade with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "analysis"
+      },
+      {
+        "name": "outlook",
+        "action": {
+          "tap": "Analyze trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "[aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "request",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            }
+          ]
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Edit assets sent by {{otherTeam}}'][aria-selected='true']) [aria-label^='Remove '][aria-label$=' for trade']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        },
+        "name": "review"
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-multi-team-light",
+    "group": "trades-light",
+    "from": "/propose-trade",
+    "steps": [
+      {
+        "action": {
+          "tap": "Use multi-team trade mode"
+        },
+        "expected": {
+          "text": "Choose two or more teams."
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "team"
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-analyzer-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "assets",
+        "action": {
+          "tap": "Edit assets"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "analysis",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-offers-dark",
+    "group": "trades-dark",
+    "from": "/",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades"
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-details-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Show details of trade with "
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Back to trades']):not(:has([aria-label='Open menu'])) [aria-label='Accept trade with {{otherTeam}}']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trades"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-history-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tap": "History"
+        },
+        "expected": {
+          "text": "No completed trades yet."
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-league-block-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=league-block"
+        },
+        "expected": {
+          "text": "No league listings yet.",
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      },
+      {
+        "name": "legacy-camel-case",
+        "action": {
+          "open": "/trades?tab=leagueBlock"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-my-block-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=my-block"
+        },
+        "expected": {
+          "selector": "[aria-label^='List '][aria-label$=' on trade block']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-picks-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "open": "/trades?tab=picks"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      },
+      {
+        "name": "removed-analyzer",
+        "action": {
+          "open": "/trades?tab=analyzer"
+        },
+        "expected": {
+          "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-composer-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label^='Trade with ']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "assets"
+      },
+      {
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        },
+        "name": "analysis"
+      },
+      {
+        "name": "outlook",
+        "action": {
+          "tap": "Analyze trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "back",
+        "action": {
+          "tap": "Back to trade editor"
+        },
+        "expected": {
+          "selector": "[aria-label='Analyze trade proposal']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "request",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            }
+          ]
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Edit assets sent by {{otherTeam}}'][aria-selected='true']) [aria-label^='Remove '][aria-label$=' for trade']"
+        }
+      },
+      {
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        },
+        "name": "review"
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-multi-team-dark",
+    "group": "trades-dark",
+    "from": "/propose-trade",
+    "steps": [
+      {
+        "action": {
+          "tap": "Use multi-team trade mode"
+        },
+        "expected": {
+          "text": "Choose two or more teams."
+        }
+      },
+      {
+        "action": {
+          "tap": "Trade with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        },
+        "name": "team"
+      },
+      {
+        "name": "third-team",
+        "action": {
+          "tapPrefix": "Trade with "
+        },
+        "expected": {
+          "selector": "[aria-label^='Show deal summary. 3 teams']"
+        }
+      },
+      {
+        "name": "asset",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label^='Route {{rosterPlayer.display_name}} to ']"
+        }
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-analyzer-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "assets",
+        "action": {
+          "tap": "Edit assets"
+        },
+        "expected": {
+          "selector": "[aria-label$=' for trade']"
+        }
+      },
+      {
+        "name": "result",
+        "action": {
+          "tap": "Select {{rosterPlayer.display_name}} for trade"
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "analysis",
+        "action": {
+          "tap": "View trade analysis"
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-block-note-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "prepare": [
+      {
+        "tap": "Block"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "List {{rosterPlayer.display_name}} on trade block"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "type",
+        "action": {
+          "fill": "Trade block note for {{rosterPlayer.display_name}}",
+          "value": "Looking for young guards"
+        },
+        "expected": {
+          "value": {
+            "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']",
+            "equals": "Looking for young guards"
+          },
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        },
+        "note": "Typing and keyboard movement follow the manager’s input."
+      },
+      {
+        "name": "save",
+        "action": {
+          "tap": "Save note"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "remove",
+        "action": {
+          "tap": "Remove {{rosterPlayer.display_name}} from trade block"
+        },
+        "expected": {
+          "text": "No listings yet."
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-block-note-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "prepare": [
+      {
+        "tap": "Block"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "List {{rosterPlayer.display_name}} on trade block"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit trade block note for {{rosterPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "type",
+        "action": {
+          "fill": "Trade block note for {{rosterPlayer.display_name}}",
+          "value": "Looking for young guards"
+        },
+        "expected": {
+          "value": {
+            "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']",
+            "equals": "Looking for young guards"
+          },
+          "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
+        },
+        "note": "Typing and keyboard movement follow the manager’s input."
+      },
+      {
+        "name": "save",
+        "action": {
+          "tap": "Save note"
+        },
+        "expected": {
+          "selector": "[aria-label='Edit trade block note for {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "remove",
+        "action": {
+          "tap": "Remove {{rosterPlayer.display_name}} from trade block"
+        },
+        "expected": {
+          "text": "No listings yet."
+        }
+      }
+    ],
+    "theme": "dark"
+  },
+  {
+    "name": "trades-return-light",
+    "group": "trades-light",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "light"
+  },
+  {
+    "name": "trades-return-dark",
+    "group": "trades-dark",
+    "from": "/trades",
+    "steps": [
+      {
+        "action": {
+          "background": true
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label^='Show details of trade with ']"
+        }
+      }
+    ],
+    "theme": "dark"
+  }
+]

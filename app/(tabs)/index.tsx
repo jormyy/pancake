@@ -1,24 +1,28 @@
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
+import { HomeAnnouncementOnEntry } from '@/components/HomeAnnouncementBanner'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
+import { useLeagueAnnouncements } from '@/hooks/use-league-announcements'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import {
-    Platform,
     View,
     Text,
-    Pressable,
     StyleSheet,
     ScrollView,
+    RefreshControl,
     useWindowDimensions,
     type StyleProp,
     type ViewStyle,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WeekOffNotice } from '@/components/WeekOffNotice'
 import { EmptyState } from '@/components/EmptyState'
+import { Button } from '@/components/ui/Button'
 import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { Scoreboard } from '@/components/Scoreboard'
-import { getLineupMoveTargetState, LineupSlot, LineupPlayer, type LineupMoveTargetState } from '@/lib/lineup'
+import { getLineupMoveTargetState, LineupPlayer, type LineupMoveData, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
 import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
@@ -29,44 +33,16 @@ import { AutoSetModal } from '@/components/AutoSetModal'
 import { MatchupColumnHeader, MatchupRow, statLineupWidth } from '@/components/MatchupRow'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
 import { lineupStatColumns, type StatColumn } from '@/lib/score-breakdown'
-import { LeagueSwitcher } from '@/components/LeagueSwitcher'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
 import { useMatchupData } from '@/hooks/use-matchup-data'
-import { resolveHomeSurface } from '@/lib/home-surface'
+import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 import { useLiveStats } from '@/hooks/use-live-stats'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { countLabel, formatPoints } from '@/lib/format'
 import { todayET } from '@/lib/shared/dates'
-import { MotionPressable, MotionView } from '@/components/Motion'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
-function shouldShowScoreboard(selectedDate: string, today: string): boolean {
-    return selectedDate === today
-}
-
-type LineupData = { starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots?: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
-type Sel = { kind: 'starter'; index: number } | { kind: 'bench'; index: number } | { kind: 'ir'; index: number } | { kind: 'taxi'; index: number }
-
-// Mirrors the loaded lineup chrome exactly (header, AUTO control, day
-// selector) so nothing moves when rows hydrate — the rows area stays blank
-// rather than showing a placeholder that differs from the final UI.
-function MatchupLineupLoadingState({ daySelector }: { daySelector?: ReactNode }) {
-    return (
-        <View
-            style={styles.lineupContainer}
-            role="status"
-            aria-busy
-            aria-label="Matchup lineup loading"
-            accessibilityLabel="Matchup lineup loading"
-            accessibilityState={{ busy: true }}
-        >
-            <LineupHeading />
-            {daySelector}
-        </View>
-    )
-}
-
 // The section bands and AUTO control label the lineup on screen; this heading
 // keeps the page outline intact for screen readers.
 function LineupHeading() {
@@ -78,8 +54,9 @@ function LineupHeading() {
 }
 
 export default function HomeScreen() {
-    const { memberships, current, currentLeague: league, setCurrent, membershipValidated, membershipError, refresh: refreshMemberships, loading: leagueLoading } = useLeagueContext()
+    const { memberships, current, currentLeague: league, membershipValidated, membershipError, refresh: refreshMemberships, loading: leagueLoading } = useLeagueContext()
     const { user, loading: authLoading } = useAuth()
+    const announcements = useLeagueAnnouncements(user?.id, league?.id)
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const { padX, usableWidth } = usePageMetrics()
@@ -95,6 +72,21 @@ export default function HomeScreen() {
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh, emptyConfirmed,
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const { refresh: refreshAnnouncements, refreshing: announcementsRefreshing } = announcements
+    const [announcementRevision, setAnnouncementRevision] = useState(0)
+    const homeActivity = useBrowserReadActivity()
+    const lastHomeActivityRevision = useRef(0)
+    const refreshHome = useCallback(async () => {
+        await Promise.all([refresh(), refreshAnnouncements()])
+        setAnnouncementRevision(value => value + 1)
+    }, [refresh, refreshAnnouncements])
+    useEffect(() => {
+        if (!homeActivity.active || homeActivity.revision <= lastHomeActivityRevision.current) return
+        lastHomeActivityRevision.current = homeActivity.revision
+        void refreshHome()
+    }, [homeActivity.active, homeActivity.revision, refreshHome])
+    const refreshingHome = Boolean(matchupRefreshing || announcementsRefreshing)
+    const railPullRefresh = usePullToRefresh(refreshHome, refreshingHome)
     const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })
 
     const livePlayerIds = useMemo(() => [myLineup, oppLineup].flatMap(lineup => lineup ? [
@@ -103,14 +95,23 @@ export default function HomeScreen() {
         ...lineup.ir.map(player => player.playerId),
         ...lineup.taxi.map(player => player.playerId),
     ] : []), [myLineup, oppLineup])
-    const { todaysGames, liveStats, startedTeams, liveTeams, teamMatchups, freshness } = useLiveStats(selectedDate, {
+    const gameScope = JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id])
+    const gamePlayers = useMemo(() => JSON.stringify([...new Set(livePlayerIds)].sort()), [livePlayerIds])
+    const { todaysGames: gameRows = [], liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups, freshness = 'fresh' } = useLiveStats(selectedDate, {
         enabled: Boolean(matchup && league?.id),
-        scope: JSON.stringify([user?.id, league?.id, current?.id, matchup?.seasonId, matchup?.id]),
+        scope: gameScope,
         playerIds: livePlayerIds,
         leagueId: league?.id,
         seasonId: matchup?.seasonId,
         onSilentRefresh: refreshSilently,
     })
+    const gameSnapshot = useMemo(() => ({ todaysGames: gameRows, liveStats: gameStats, startedTeams: gameStartedTeams, teamMatchups: gameMatchups }), [gameRows, gameStats, gameStartedTeams, gameMatchups])
+    const savedGames = useMemo(() => matchup ? readHomeGameDisplay(gameScope, selectedDate, gamePlayers) : null, [matchup, gameScope, selectedDate, gamePlayers])
+    const { todaysGames = [], liveStats, startedTeams, teamMatchups } = !gameRows.length && freshness !== 'fresh' && savedGames ? savedGames : gameSnapshot
+    useEffect(() => {
+        if (matchup?.id && freshness === 'fresh') saveHomeGameDisplay(gameScope, selectedDate, gamePlayers, gameSnapshot)
+    }, [matchup?.id, freshness, gameScope, selectedDate, gamePlayers, gameSnapshot])
+    const { ready: gamesReady, liveTeams } = useMemo(() => getGameDisplayState(todaysGames, freshness), [todaysGames, freshness])
     const actionContext = useMemo(() => matchup && league ? {
         memberId: matchup.myMemberId,
         leagueId: league.id,
@@ -166,18 +167,7 @@ export default function HomeScreen() {
         [myLineup],
     )
 
-    const selectedPlayer = useMemo(() => {
-        if (!myLineup || !selected) return null
-        return selected.kind === 'starter'
-            ? myLineup.starters[selected.index]?.player
-            : selected.kind === 'bench'
-              ? myLineup.bench[selected.index]
-              : selected.kind === 'ir'
-                ? myLineup.ir[selected.index]
-                : myLineup.taxi[selected.index]
-    }, [myLineup, selected])
-
-    const getTargetState = useCallback((to: Sel): LineupMoveTargetState =>
+    const getTargetState = useCallback((to: LineupSelection): LineupMoveTargetState =>
         myLineup && league
             ? getLineupMoveTargetState({
                   lineup: myLineup,
@@ -228,7 +218,7 @@ export default function HomeScreen() {
     const sideInfo = (
         <>
             <AroundLeague matchups={leagueMatchups} compact={narrow} stacked={twoPane} />
-            {shouldShowScoreboard(selectedDate, today) && !dense ? (
+            {selectedDate === today && !dense ? (
                 <View style={styles.scoreboardFooter}>
                     <Scoreboard games={todaysGames} myTeamSet={myTeamSet} compact={compact} freshness={freshness} wrap={twoPane} />
                 </View>
@@ -238,25 +228,12 @@ export default function HomeScreen() {
 
     return (
         <Page title="Matchup" width="full">
-            {Platform.OS !== 'web' && (
-                // The web shell's header has its own league switcher; this row
-                // would duplicate it. Native has no shell header, so it stays.
-                <LeagueSwitcher
-                    memberships={memberships}
-                    currentId={current?.id}
-                    onSelect={(membership) => {
-                        const fullMembership = memberships.find((m) => m.id === membership.id)
-                        if (fullMembership) setCurrent(fullMembership)
-                    }}
-                    compact={compact}
-                />
-            )}
-
             {/* The error card owns the retry when there is no matchup to show; the banner covers a failed refresh over live data. */}
-            {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
+            {error && homeSurface !== 'error' && <ErrorBanner onRetry={refreshHome} />}
 
             {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
-            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || Boolean(myLineup && oppLineup))} busy={matchupRefreshing || lineupLoading}>
+            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={refreshingHome || lineupLoading}>
+            {league ? <HomeAnnouncementOnEntry key={`${user.id}:${league.id}`} loaded={announcements.loaded} revision={announcementRevision} announcements={announcements.announcements} memberId={current?.id} ownerId={user.id} leagueId={league.id} padX={padX} /> : null}
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
@@ -270,6 +247,8 @@ export default function HomeScreen() {
                             getTargetState={getTargetState}
                             onTap={handleTap}
                             saving={saving || autoSetting}
+                            onRefresh={refreshHome}
+                            refreshing={refreshingHome}
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
@@ -288,60 +267,26 @@ export default function HomeScreen() {
                                 <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             ) : null}
                             autoSetControl={
-                                <MotionPressable
-                                    style={styles.autoSetBtn}
-                                    hitSlop={{ top: 9, bottom: 9, left: 8, right: 8 }}
+                                <Button
+                                    title="Auto-set"
+                                    size="sm"
+                                    variant="outline"
                                     onPress={handleAutoSet}
                                     disabled={autoSetting || saving}
-                                    accessibilityRole="button"
                                     accessibilityLabel="Open auto-set lineup options"
-                                    accessibilityState={{ disabled: autoSetting || saving }}
-                                    pressedScale={0.92}
-                                >
-                                    <Text style={styles.autoSetText}>AUTO</Text>
-                                </MotionPressable>
+                                />
                             }
-                            hint={selected ? (
-                                <MotionView style={styles.hint} preset="slide-left">
-                                    <Text style={styles.hintText} numberOfLines={1}>
-                                        {selectedPlayer
-                                            ? `${selectedPlayer.displayName} selected — tap another slot`
-                                            : `Empty slot selected — tap a player's slot`}
-                                    </Text>
-                                    <MotionPressable onPress={() => setSelected(null)} pressedScale={0.9} accessibilityRole="button" accessibilityLabel="Cancel lineup move">
-                                        <Text style={styles.hintCancel}>Cancel</Text>
-                                    </MotionPressable>
-                                </MotionView>
-                            ) : null}
                             footer={twoPane ? null : sideInfo}
                         />
-                    ) : matchupLoading || lineupLoading ? (
-                        <MatchupLineupLoadingState
-                            daySelector={weekDays.length > 0 ? (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
-                            ) : null}
-                        />
-                    ) : (
-                        <>
-                            {weekDays.length > 0 && (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
-                            )}
-                            {lineupError ? (
-                                <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} />
-                            ) : (
-                                <View style={styles.noLineup}>
-                                    <Text style={styles.noLineupText}>No lineup set for this day.</Text>
-                                    <Pressable style={styles.setLineupBtn} onPress={handleAutoSet} disabled={autoSetting}>
-                                        <Text style={styles.setLineupBtnText}>Auto-Set Lineup</Text>
-                                    </Pressable>
-                                </View>
-                            )}
-                        </>
-                    )}
+                    ) : weekDays.length > 0 ? (
+                        <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
+                    ) : null}
                     </View>
                     {twoPane ? (
                         <ScrollView
+                            {...railPullRefresh}
                             style={styles.rail}
+                            refreshControl={<RefreshControl refreshing={refreshingHome} onRefresh={refreshHome} tintColor={colors.primaryDark} />}
                             contentContainerStyle={styles.railContent}
                             showsVerticalScrollIndicator={false}
                         >
@@ -361,8 +306,6 @@ export default function HomeScreen() {
                         onAction={() => { void openDraftRoom() }}
                     />
                 </View>
-            ) : homeSurface === 'loading' ? (
-                <View style={styles.playSurface} />
             ) : homeSurface === 'error' ? (
                 // A failed load is not an empty week: never tell the manager no
                 // matchup exists when the request simply failed (offline, cold cache).
@@ -374,7 +317,7 @@ export default function HomeScreen() {
                         message="Couldn't load your matchup"
                         description="Check your connection and try again. Nothing here is stale data."
                         actionLabel="Retry"
-                        onAction={refresh}
+                        onAction={refreshHome}
                     />
                 </View>
             ) : (
@@ -388,6 +331,8 @@ export default function HomeScreen() {
             <ActivationOverflowModal
                 pending={activationOverflowPending}
                 myLineup={myLineup}
+                irSlots={league?.ir_slots ?? 2}
+                allowIR={league?.status !== 'offseason'}
                 saving={activationOverflowSaving}
                 onDrop={handleOverflowDrop}
                 onMoveToIR={handleOverflowMoveToIR}
@@ -407,9 +352,10 @@ export default function HomeScreen() {
                 visible={autoSetModalVisible}
                 disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(selectedDate) }}
+                onToday={() => { void doAutoSet(todayET()) }}
                 onWholeWeek={() => { void doAutoSet(null) }}
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
+                onEditManually={() => { setAutoSetModalVisible(false); router.push('/lineup') }}
             />
         </Page>
     )
@@ -498,6 +444,8 @@ function MatchupLineupView({
     getTargetState,
     onTap,
     saving,
+    onRefresh,
+    refreshing,
     playingTeams,
     liveStats,
     liveTeams,
@@ -510,15 +458,16 @@ function MatchupLineupView({
     dense,
     daySelector,
     autoSetControl,
-    hint,
     footer,
 }: {
-    myLineup: LineupData
-    oppLineup: LineupData
-    selected: Sel | null
-    getTargetState: (selection: Sel) => LineupMoveTargetState
-    onTap: (sel: Sel) => void
+    myLineup: Required<LineupMoveData>
+    oppLineup: Required<LineupMoveData>
+    selected: LineupSelection | null
+    getTargetState: (selection: LineupSelection) => LineupMoveTargetState
+    onTap: (sel: LineupSelection) => void
     saving: boolean
+    onRefresh: () => Promise<void>
+    refreshing: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
@@ -532,9 +481,10 @@ function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
-    hint?: ReactNode
     footer?: ReactNode
 }) {
+    const pullRefresh = usePullToRefresh(onRefresh, refreshing)
+    const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length, capacity.ir)
     const maxTaxi = Math.max(myLineup.taxi.length, oppLineup.taxi.length, capacity.taxi)
@@ -560,7 +510,8 @@ function MatchupLineupView({
                 key: 'bench' as const,
                 label: 'Bench',
                 count: maxBench,
-                used: `${myLineup.bench.length}/${capacity.bench}`,
+                used: myLineup.starters.some(slot => slot.player) && myLineup.bench.length <= capacity.bench
+                    ? `${myLineup.bench.length}/${capacity.bench}` : null,
                 color: colors.textMuted,
                 rows: Array.from({ length: maxBench }, (_, i) => ({
                     key: `b${i}`,
@@ -614,10 +565,11 @@ function MatchupLineupView({
         <View style={styles.lineupContainer}>
             <LineupHeading />
             {daySelector}
-            {hint}
 
             <ScrollView
+                {...pullRefresh}
                 style={styles.lineupRows}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryDark} />}
                 contentContainerStyle={styles.lineupRowsContent}
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled
@@ -633,36 +585,42 @@ function MatchupLineupView({
                             >
                                 {section.label}
                             </Text>
-                            {section.key === 'starters' && autoSetControl ? autoSetControl : (
+                            {section.key === 'starters' && autoSetControl ? autoSetControl : section.used !== null ? (
                                 <Text style={styles.lineupSectionCount}>{section.used}</Text>
-                            )}
+                            ) : null}
                         </View>
-                        {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
-                        {section.rows.map((row, i) => (
-                            <MatchupRow
-                                key={row.key}
-                                myPlayer={row.myPlayer}
-                                oppPlayer={row.oppPlayer}
-                                slotType={row.slotType}
-                                selKind={row.selKind}
-                                selIndex={row.selIndex}
-                                isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
-                                onTap={onTap}
-                                saving={saving}
-                                playingTeams={playingTeams}
-                                liveStats={liveStats}
-                                liveTeams={liveTeams}
-                                scoringSettings={scoringSettings}
-                                teamMatchups={teamMatchups}
-                                isExtraOppRow={row.isExtraOppRow}
-                                compact={compact}
-                                dense={dense}
-                                motionDelay={i * 18}
-                                targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
-                                statColumns={statColumns}
-                                onOpenDetails={onOpenDetails}
-                            />
-                        ))}
+                        {section.key === 'starters' && noStarters ? (
+                            <Text style={styles.noStarters} accessibilityLabel="No lineups set this day">No lineups set this day</Text>
+                        ) : (
+                            <>
+                                {statColumns ? <MatchupColumnHeader columns={statColumns} /> : null}
+                                {section.rows.map((row, i) => (
+                                    <MatchupRow
+                                        key={row.key}
+                                        myPlayer={row.myPlayer}
+                                        oppPlayer={row.oppPlayer}
+                                        slotType={row.slotType}
+                                        selKind={row.selKind}
+                                        selIndex={row.selIndex}
+                                        isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
+                                        onTap={onTap}
+                                        saving={saving}
+                                        playingTeams={playingTeams}
+                                        liveStats={liveStats}
+                                        liveTeams={liveTeams}
+                                        scoringSettings={scoringSettings}
+                                        teamMatchups={teamMatchups}
+                                        isExtraOppRow={row.isExtraOppRow}
+                                        compact={compact}
+                                        dense={dense}
+                                        motionDelay={i * 18}
+                                        targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
+                                        statColumns={statColumns}
+                                        onOpenDetails={onOpenDetails}
+                                    />
+                                ))}
+                            </>
+                        )}
                     </View>
                 ))}
                 {footer ? <View style={styles.lineupFooter}>{footer}</View> : null}
@@ -750,33 +708,6 @@ const styles = StyleSheet.create({
         fontSize: fontSize['2xs'],
         marginTop: spacing.xs,
     },
-    autoSetBtn: {
-        minHeight: 44,
-        minWidth: 72,
-        paddingHorizontal: spacing.xl,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    autoSetText: { fontSize: fontSize.sm, fontWeight: fontWeight.extrabold, color: colors.textWhite, letterSpacing: 0.6 },
-
-    hint: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.primaryLight,
-        borderWidth: 1,
-        borderColor: colors.primaryBorder,
-        borderRadius: radii.lg,
-        borderCurve: 'continuous' as const,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.sm,
-        marginTop: spacing.md,
-    },
-    hintText: { flex: 1, fontSize: fontSize.sm, color: colors.primaryDark, fontWeight: fontWeight.medium },
-    hintCancel: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark, paddingLeft: spacing.lg, paddingVertical: spacing.md },
-
     lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },
     lineupRowsContent: { paddingTop: spacing.md, paddingBottom: spacing.md },
@@ -821,10 +752,7 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous' as const,
     },
 
-    noLineup: { padding: spacing['4xl'], alignItems: 'center', gap: spacing.lg },
-    noLineupText: { fontSize: fontSize.md, color: colors.textPlaceholder, textAlign: 'center' },
-    setLineupBtn: { paddingHorizontal: spacing['2xl'], paddingVertical: spacing.md, borderRadius: radii.lg, borderCurve: 'continuous' as const, backgroundColor: colors.primary },
-    setLineupBtnText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },
+    noStarters: { ...textStyles.meta, padding: spacing.lg },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

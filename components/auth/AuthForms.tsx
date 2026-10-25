@@ -28,8 +28,7 @@ export function SignInForm({ email, password, loading, error, restorationNotice,
 }) {
     return (
         <AuthScaffold
-            eyebrow="Dynasty hoops"
-            title="Welcome back"
+            title="Sign in"
             hero={SIGN_IN_HERO}
             footer={(
                 <Link href="/(auth)/sign-up" style={signinStyles.link}>
@@ -112,8 +111,7 @@ export function SignUpForm({ email, password, username, displayName, loading, er
 }) {
     return (
         <AuthScaffold
-            eyebrow="Create account"
-            title="Start your dynasty"
+            title="Create account"
             hero={SIGN_UP_HERO}
             footer={(
                 <Link href="/(auth)/sign-in" style={signupStyles.link}>
