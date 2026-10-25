@@ -280,3 +280,17 @@ it('shows the schedule conflict from the server without a success notice', async
         expect(mocks.showSuccess).not.toHaveBeenCalled()
     } finally { await act(async () => screen.unmount()) }
 })
+
+it.each(['2026-10-25', '2026-10-24', null])('reports a skipped schedule without claiming success: %s', async scheduleStart => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z'))
+    mocks.apiPost.mockResolvedValue({ ok: true, skipped: true })
+    let latest!: ReturnType<typeof useCommissionerAdminActions>
+    const Probe = () => { latest = useCommissionerAdminActions({ league: fixture, ownerId: 'user-a', refresh: vi.fn(), onDeleted: vi.fn(), scheduleStart }); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        await act(async () => latest.lifecycle.actions.find(action => action.id === 'generate-schedule')!.onPress())
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
+        expect(mocks.showAlert).toHaveBeenCalledExactlyOnceWith('Schedule already exists', 'A schedule already exists.' + (scheduleStart === '2026-10-25' ? ' Use Reset & Regenerate Schedule to rebuild it.' : ''), 'info')
+    } finally { await act(async () => screen.unmount()); vi.useRealTimers() }
+})

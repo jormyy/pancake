@@ -169,7 +169,7 @@ it('ignores a retained former-member callback before it can dirty the current re
     expect(boundary.invalidate).not.toHaveBeenCalled()
     expect(boundary.support).not.toHaveBeenCalled()
     await act(async () => { boundary.subscription!.watches[0].onChange({ eventType: 'INSERT', new: { member_id: 'second' }, old: {} }); await vi.advanceTimersByTimeAsync(200) })
-    expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['ownership', 'transactions'])
+    expect(boundary.invalidate).toHaveBeenCalledExactlyOnceWith(['ownership', 'claims', 'transactions'])
     expect(boundary.support).toHaveBeenCalledOnce()
 })
 
@@ -213,4 +213,13 @@ it.each(['submit', 'cancel', 'edit', 'reorder'])('refreshes own claims directly 
     })
     expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
     expect(boundary.recover).not.toHaveBeenCalled()
+})
+
+it.each(['INSERT', 'UPDATE', 'DELETE'])('refreshes claims after an own roster %s cancels server claims', async eventType => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        boundary.subscription!.watches[0].onChange({ eventType, new: eventType === 'DELETE' ? {} : { member_id: 'member' }, old: { member_id: 'member' } })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['ownership', 'claims', 'transactions'])
 })

@@ -158,6 +158,7 @@ function RosterTablePlayerItem({
     onPress,
     onLongPress,
     onToggleIR,
+    allowIR,
     onToggleTaxi,
 }: {
     item: RosterPlayer
@@ -169,6 +170,7 @@ function RosterTablePlayerItem({
     onPress: (item: RosterPlayer) => void
     onLongPress?: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
+    allowIR: boolean
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
     const positions = item.players.eligible_positions?.length
@@ -176,7 +178,7 @@ function RosterTablePlayerItem({
         : item.players.position
           ? [item.players.position]
           : []
-    const canIR = item.is_on_ir || isIREligible(item.players.injury_status)
+    const canIR = item.is_on_ir || allowIR && isIREligible(item.players.injury_status)
 
     return (
         <View style={styles.rosterTableRow}>
@@ -479,6 +481,7 @@ export default function RosterScreen() {
         const name = item.players.display_name
 
         if (!item.is_on_ir) {
+            if (currentLeague?.status === 'offseason') return
             if (!isIREligible(item.players.injury_status)) {
                 showAlert('Not IR Eligible', 'Only players with Out or IR designations can be placed on IR.')
                 return
@@ -678,13 +681,12 @@ export default function RosterScreen() {
         setCancellingId(claimId)
         try {
             await cancelWaiverClaim(claimId, current.id)
-            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
             if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         } finally {
             if (isCurrentAction(generation, identity)) setCancellingId(null)
         }
-    }, [current, ownerIdentity, load, isCurrentAction])
+    }, [current, ownerIdentity, isCurrentAction])
 
     const handleEditClaimBid = useCallback(async (claim: WaiverClaim, bidAmount: number) => {
         if (!current) return
@@ -696,11 +698,10 @@ export default function RosterScreen() {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
             })
-            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
             if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
-    }, [current, ownerIdentity, load, isCurrentAction])
+    }, [current, ownerIdentity, isCurrentAction])
 
     const handleReorderClaim = useCallback(async (claimId: string, direction: 'up' | 'down') => {
         if (!current) return
@@ -709,11 +710,10 @@ export default function RosterScreen() {
         if (!identity) return
         try {
             await reorderWaiverClaim(claimId, current.id, direction)
-            if (isCurrentAction(generation, identity)) await load()
         } catch (e) {
             if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
         }
-    }, [current, ownerIdentity, load, isCurrentAction])
+    }, [current, ownerIdentity, isCurrentAction])
 
     const trimBusyId = droppingId ?? togglingId ?? taxiingId
 
@@ -749,7 +749,7 @@ export default function RosterScreen() {
         if (item.is_on_taxi) {
             actions.push({ key: 'taxi', label: 'Activate from taxi squad', icon: 'arrow-upward', onPress: run(() => { void handleToggleTaxi(item) }) })
         } else {
-            if (item.is_on_ir || isIREligible(item.players.injury_status)) {
+            if (item.is_on_ir || currentLeague?.status !== 'offseason' && isIREligible(item.players.injury_status)) {
                 actions.push({
                     key: 'ir',
                     label: item.is_on_ir ? 'Activate from IR' : 'Move to IR',
@@ -845,6 +845,7 @@ export default function RosterScreen() {
                         isBusy={taxiingId === taxiItem.id}
                         onPress={handleOpenRosterPlayer}
                         onToggleIR={handleToggleIR}
+                    allowIR={currentLeague?.status !== 'offseason'}
                         onToggleTaxi={handleToggleTaxi}
                     />
                 )
@@ -873,6 +874,7 @@ export default function RosterScreen() {
                     onPress={handleOpenRosterPlayer}
                     onLongPress={handleDropPrompt}
                     onToggleIR={handleToggleIR}
+                    allowIR={currentLeague?.status !== 'offseason'}
                     onToggleTaxi={handleToggleTaxi}
                 />
             )
@@ -889,13 +891,14 @@ export default function RosterScreen() {
                 onPress={handleOpenRosterPlayer}
                 onLongPress={handleDropPrompt}
                 onToggleIR={handleToggleIR}
+                allowIR={currentLeague?.status !== 'offseason'}
             />
         )
     }, [
         showRosterTable, avgMap, avgStatsMap, taxi, taxiSlots, ir.length, irSlots, lineup.starters.length,
         startersFilled, benchFilled, benchCapacity,
         togglingId, taxiingId, droppingId, cancellingId, claimsDetail,
-        currentLeague?.waiver_mode, current?.team_name, handleOpenRosterPlayer,
+        currentLeague?.waiver_mode, currentLeague?.status, current?.team_name, handleOpenRosterPlayer,
         handleCancelClaim, handleEditClaimBid, handleReorderClaim,
         handleToggleIR, handleToggleTaxi, handleDropPrompt,
     ])
@@ -1007,7 +1010,7 @@ export default function RosterScreen() {
             <RosterTrimBanner
                 players={active}
                 excess={rosterOverflow}
-                irAvailable={ir.length < irSlots}
+                irAvailable={currentLeague?.status !== 'offseason' && ir.length < irSlots}
                 busyId={trimBusyId}
                 onDrop={handleDropPrompt}
                 dropDisabled={!online}
@@ -1071,7 +1074,8 @@ export default function RosterScreen() {
             <ActivationOverflowModal
                 pending={activationPending}
                 myLineup={activationRoster}
-                irSlots={currentLeague?.status === 'offseason' ? 0 : irSlots}
+                irSlots={irSlots}
+                allowIR={currentLeague?.status !== 'offseason'}
                 saving={activationSaving}
                 onDrop={id => resolveActivationOverflow(id, 'drop')}
                 onMoveToIR={id => resolveActivationOverflow(id, 'ir')}

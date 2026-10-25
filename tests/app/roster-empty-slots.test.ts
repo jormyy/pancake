@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
         refresh: vi.fn(),
     },
     push: vi.fn(),
-    online: true,
+    online: true, eligible: false, usableWidth: 358,
     league: { id: 'league-a', roster_size: 20, ir_slots: 2, taxi_slots: 2, status: 'active', waiver_mode: 'rolling' },
 }))
 
@@ -61,7 +61,7 @@ vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => mocks.onlin
 vi.mock('@/hooks/use-focus-async-data', () => ({ useFocusAsyncData: () => mocks.focusData }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/roster', () => ({
-    getRoster: vi.fn(), toggleIR: vi.fn(), toggleTaxi: vi.fn(), dropPlayer: vi.fn(), isIREligible: () => false,
+    getRoster: vi.fn(), toggleIR: vi.fn(), toggleTaxi: vi.fn(), dropPlayer: vi.fn(), isIREligible: () => mocks.eligible,
     activateRosterPlayerWithOverflow: vi.fn(),
 }))
 vi.mock('@/lib/trades', () => ({ getPicksForMember: vi.fn() }))
@@ -89,7 +89,7 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/NoLeagueState', () => ({ NoLeagueState: 'NoLeagueState' }))
 vi.mock('@/components/ui', () => ({
     Button: 'Button', ErrorBanner: 'ErrorBanner', Page: 'Page', PageHeader: 'PageHeader',
-    usePageMetrics: () => ({ padX: 16, usableWidth: 358 }),
+    usePageMetrics: () => ({ padX: 16, usableWidth: mocks.usableWidth }),
 }))
 vi.mock('@/components/roster/RosterItems', () => ({
     ROSTER_SLOT_TAG_WIDTH: 52, RosterClaimItem: 'RosterClaimItem', RosterPickItem: 'RosterPickItem',
@@ -130,6 +130,8 @@ describe('roster empty slots', () => {
     beforeEach(() => {
         vi.clearAllMocks()
         mocks.online = true
+        mocks.eligible = false
+        mocks.usableWidth = 358
         vi.mocked(getRosterStatusChangeLockMessage).mockResolvedValue(null)
         vi.mocked(activateRosterPlayerWithOverflow).mockResolvedValue(undefined)
         vi.mocked(subscribeToTableChanges).mockClear()
@@ -146,6 +148,29 @@ describe('roster empty slots', () => {
         act(() => screen.unmount())
         setLeagueChangesConnected('league-a', false)
         vi.useRealTimers()
+    })
+
+    it.each([358, 1600])('hides every offseason IR move and keeps activation at width %s', async width => {
+        mocks.eligible = true
+        mocks.usableWidth = width
+        mocks.league.status = 'offseason'
+        mocks.league.roster_size = 1
+        const active = { id: 'active', is_on_ir: false, is_on_taxi: false,
+            players: { id: 'active-player', display_name: 'Active', eligible_positions: ['PG'], injury_status: 'Out' } } as RosterPlayer
+        const reserve = { ...active, id: 'reserve', is_on_ir: true, players: { ...active.players, id: 'reserve-player', display_name: 'Reserve' } }
+        mocks.focusData.data = rosterData([active, { ...active, id: 'extra' }, reserve])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        expect(screen.root.findByType('RosterTrimBanner' as React.ElementType).props.irAvailable).toBe(false)
+        if (width === 358) {
+            const rows = screen.root.findAllByType('RosterPlayerItem' as React.ElementType)
+            expect(rows.find(row => row.props.item.id === 'active')!.props.allowIR).toBe(false)
+            await act(async () => rows.find(row => row.props.item.id === 'active')!.props.onPress(active))
+        } else {
+            expect(screen.root.findAllByProps({ accessibilityLabel: 'Move to IR Active' })).toHaveLength(0)
+            expect(screen.root.findAllByProps({ accessibilityLabel: 'Activate Reserve' })).toHaveLength(1)
+            await act(async () => screen.root.findAllByProps({ accessibilityLabel: 'Open Active' })[0].props.onPress())
+        }
+        expect(screen.root.findByType('RosterPlayerSheet' as React.ElementType).props.actions.some((action: { label: string }) => action.label === 'Move to IR')).toBe(false)
     })
 
     it('refreshes the owner claims list after a local claim mutation', async () => {
@@ -240,7 +265,8 @@ describe('roster empty slots', () => {
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
         const picker = screen.root.findByType('ActivationOverflowModal' as React.ElementType)
         expect.soft(picker.props.myLineup.ir.map((player: { rosterPlayerId: string }) => player.rosterPlayerId)).toEqual(['injured'])
-        expect(picker.props.irSlots).toBe(status === 'offseason' ? 0 : 1)
+        expect(picker.props.irSlots).toBe(1)
+        expect(picker.props.allowIR).toBe(status !== 'offseason')
     })
 
     it('keeps the activation choice open if a selected player becomes locked', async () => {

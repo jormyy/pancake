@@ -222,20 +222,19 @@ it('refreshes a loaded Activity panel on selection and browser foreground withou
     } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
 })
 
-it('refreshes visible Activity when its browser window regains focus', async () => {
+it('reads Activity once for foreground visibility and browser focus', async () => {
     const browser = new EventTarget()
+    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' })
     vi.stubGlobal('window', browser)
-    state.history.mockResolvedValueOnce([{ id: 'before' }]).mockResolvedValueOnce([{ id: 'focused' }])
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    const Probe = ({ tab = 'history' }: { tab?: 'history' | 'results' }) => { latest = useLeagueTabResources('league', 'member', tab); return null }
+    vi.stubGlobal('document', page)
     let renderer!: ReactTestRenderer
+    const Probe = () => { useLeagueTabResources('league', 'member', 'history'); return null }
     try {
         await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { page.visibilityState = 'hidden'; page.dispatchEvent(new Event('visibilitychange')) })
+        await act(async () => { page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')) })
         await act(async () => { browser.dispatchEvent(new Event('focus')) })
         expect(state.history).toHaveBeenCalledTimes(2)
-        expect(latest.transactions.map(row => row.id)).toEqual(['focused'])
-        await act(async () => renderer.update(React.createElement(Probe, { tab: 'results' })))
-        await act(async () => { browser.dispatchEvent(new Event('focus')) })
-        expect(state.history).toHaveBeenCalledTimes(2)
+        expect(state.announcements).toHaveBeenCalledTimes(2)
     } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
 })

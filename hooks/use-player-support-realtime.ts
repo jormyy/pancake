@@ -88,7 +88,9 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
                     if (!current()) return
                     invalidateLeagueSnapshot(leagueId, 'supportRaw')
                     const knownOtherPickup = payload?.eventType === 'INSERT' && typeof payload.new.member_id === 'string' && payload.new.member_id !== memberId
-                    changed('ownership', ...(!knownOtherPickup ? ['transactions' as const] : []))
+                    const ownRoster = payload && ('member_id' in payload.new && payload.new.member_id === memberId
+                        || 'member_id' in payload.old && payload.old.member_id === memberId)
+                    changed('ownership', ...(ownRoster ? ['claims' as const] : []), ...(!knownOtherPickup ? ['transactions' as const] : []))
                 } },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => { if (!current()) return; invalidateLeagueSnapshot(leagueId, 'supportRaw'); changed(...ALL_SUPPORT) } },
             ],

@@ -6,13 +6,13 @@ import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 const mocks = vi.hoisted(() => ({
     getJoinableDraft: vi.fn(),
-    push: vi.fn(),
+    push: vi.fn(), dismissTo: vi.fn(),
     showAlert: vi.fn(),
 }))
 
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push, dismissTo: mocks.dismissTo }) }))
 vi.mock('@/lib/draft', () => ({ acquireJoinableDraft: (...args: unknown[]) => ({ promise: mocks.getJoinableDraft(...args), release: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null }) }))
 vi.mock('@/lib/alert', () => ({
@@ -166,7 +166,7 @@ it('keeps the missing-league fallback without starting a draft read', async () =
     await act(async () => { renderer = create(React.createElement(Probe)) })
     await act(async () => { expect(await latest.openDraftRoom()).toBe('missing') })
     expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
-    expect(mocks.push).toHaveBeenCalledWith('/draft')
+    expect(mocks.dismissTo).toHaveBeenCalledExactlyOnceWith('/draft')
     await act(async () => { renderer.unmount() })
 })
 
@@ -186,5 +186,17 @@ it.each([null, { id: 'live', draftType: 'auction' as const }])('keeps a checked 
     await act(async () => { renderer = create(React.createElement(Probe)) })
     expect(latest.draftChecked).toBe(true)
     expect(latest.draft).toEqual(answer)
+    await act(async () => renderer.unmount())
+})
+
+it('dismisses to the draft tab after a missing draft lookup', async () => {
+    mocks.getJoinableDraft.mockResolvedValue(null)
+    let latest!: ReturnType<typeof useDraftRoomLauncher>
+    const Probe = () => { latest = useDraftRoomLauncher('league'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.openDraftRoom() })
+    expect(mocks.dismissTo).toHaveBeenCalledExactlyOnceWith('/draft')
+    expect(mocks.push).not.toHaveBeenCalled()
     await act(async () => renderer.unmount())
 })

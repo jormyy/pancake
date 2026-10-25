@@ -162,7 +162,8 @@ export async function fetchUserLeagues(userId: string) {
         faab_starting_budget,
         trade_veto_mode,
         trade_veto_window_hours,
-        trade_veto_threshold_percent
+        trade_veto_threshold_percent,
+        drafts!drafts_league_id_fkey (draft_type, is_mock, status, league_seasons (is_current))
       )
     `,
         )
@@ -177,10 +178,16 @@ const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['drafting', 'active', 'playof
 
 
 export function isTradingClosed(
-    league: { status: LeagueStatus; trade_deadline?: string | null } | null | undefined,
+    league: {
+        status: LeagueStatus
+        trade_deadline?: string | null
+        drafts?: { draft_type: string; is_mock: boolean; status: string; league_seasons: { is_current: boolean } | null }[]
+    } | null | undefined,
 ): boolean {
     if (!league) return false
     if (!TRADE_OPEN_STATUSES.has(league.status)) return true
+    if (league.drafts?.some(draft => draft.draft_type === 'auction' && !draft.is_mock
+        && draft.league_seasons?.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status))) return true
     if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
     return league.trade_deadline < todayET()

@@ -10,10 +10,10 @@ import { useAuth } from '@/hooks/use-auth'
 export function useCommissionerSettingsController() {
     const { currentLeague: league, isCommissioner, refresh } = useLeagueContext()
     const { user } = useAuth()
-    const { back, replace, canGoBack } = useRouter()
+    const { back, dismissTo, canGoBack } = useRouter()
     const finishSettings = () => {
         if (canGoBack()) back()
-        else replace('/league?tab=settings')
+        else dismissTo('/league?tab=settings')
     }
     const settings = useCommissionerSettingsResource({
         league,
@@ -30,7 +30,7 @@ export function useCommissionerSettingsController() {
         scheduleStart: settings.playoffCalendar?.ranges?.find(week => !settings.playoffCalendar?.skippedWeeks?.includes(week.week_number))?.week_start,
         onDeleted: () => {
             if (canGoBack()) back()
-            else replace('/league')
+            else dismissTo('/league')
         },
     })
 

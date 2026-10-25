@@ -230,6 +230,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     onPress,
     onLongPress,
     onToggleIR,
+    allowIR = true,
 }: {
     item: RosterPlayer
     slotType: string
@@ -241,6 +242,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     onPress: (item: RosterPlayer) => void
     onLongPress: (item: RosterPlayer) => void
     onToggleIR: (item: RosterPlayer) => void
+    allowIR?: boolean
 }) {
     const player = item.players
     const positions = getEligiblePositions(player)
@@ -274,7 +276,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 </View>
             </MotionPressable>
 
-            {(item.is_on_ir || isIREligible(player.injury_status)) ? (
+            {(item.is_on_ir || allowIR && isIREligible(player.injury_status)) ? (
                 <View style={styles.rowActions}>
                     <MotionPressable
                         style={[styles.actionButton, item.is_on_ir && styles.irButtonActive]}

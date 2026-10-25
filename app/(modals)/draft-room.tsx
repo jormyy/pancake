@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import {
     View,
     Text,
@@ -9,7 +10,7 @@ import {
     useWindowDimensions,
 } from 'react-native'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
-import { Redirect, Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { LoadingState, usePageMetrics } from '@/components/ui'
@@ -60,7 +61,11 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
         router.dismissTo('/league?tab=draft')
     }
 
-    if (!draftId) return <Redirect href="/draft" />
+    useEffect(() => {
+        if (!draftId) router.dismissTo('/draft')
+    }, [draftId, router])
+
+    if (!draftId) return null
 
     if (!state) {
         const hasLoadError = loadError != null

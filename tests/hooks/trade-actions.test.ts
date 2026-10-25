@@ -30,6 +30,7 @@ vi.mock('@/lib/alert', () => ({
 
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
 })
 
 const deferred = <Value,>() => {
@@ -89,6 +90,7 @@ describe('useTradeActions', () => {
         await act(async () => { renderer.update(React.createElement(Probe, { enabled: true })) })
         expect(mocks.acceptTrade).not.toHaveBeenCalled()
         expect(onAction).not.toHaveBeenCalled()
+        mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
         await act(async () => { await latest.accept(trade('pending')) })
         expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('pending', 'member-a')
         expect(onAction).toHaveBeenCalledTimes(1)
@@ -259,4 +261,53 @@ it('ignores a saved roster plan after the member changes', async () => {
     await act(async () => { saving.resolve(plan); await pending })
     expect(onRosterPlanSaved).not.toHaveBeenCalled()
     await act(async () => { renderer.unmount() })
+})
+
+it.each([
+    ['disabled', 24, true], ['member_vote', 0, true], ['commissioner', 0, true], ['member_vote', 24, false],
+] as const)('confirms acceptance with its assets and execution timing: %s / %s', async (tradeVetoMode, tradeVetoWindowHours, immediate) => {
+    let confirm!: () => Promise<void>
+    mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+    mocks.acceptTrade.mockResolvedValue(undefined)
+    let latest!: ReturnType<typeof useTradeActions>
+    const onAction = vi.fn()
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', tradeVetoMode, tradeVetoWindowHours, onAction }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const offer = trade('offer')
+    offer.routedItems.push({ kind: 'pick', pickId: 'pick', round: 1, seasonYear: 2027, originalTeamName: 'A', fromMemberId: 'member-a', toMemberId: 'other' },
+        { kind: 'faab', amount: 5, fromMemberId: 'member-a', toMemberId: 'other' })
+    await act(async () => { await latest.accept(offer) })
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    const [title, message] = mocks.confirmAction.mock.calls[0]
+    expect(title).toBe('Accept trade?')
+    expect(message).toContain('Incoming')
+    expect(message).toContain('2027 round 1 pick')
+    expect(message).toContain('$5 FAAB')
+    expect(message.includes('This trade completes immediately.')).toBe(immediate)
+    expect(message).not.toContain('\n')
+    await act(async () => { await confirm() })
+    expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('offer', 'member-a')
+    expect(onAction).toHaveBeenCalledOnce()
+    await act(async () => renderer.unmount())
+})
+
+it.each(['owner', 'offline', 'unmount'])('cancels an open acceptance after %s changes', async change => {
+    let confirm!: () => Promise<void>
+    mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = ({ member = 'member-a', enabled = true }: { member?: string; enabled?: boolean }) => {
+        latest = useTradeActions({ memberId: member, leagueId: 'league-a', enabled, onAction: vi.fn() }); return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.accept(trade('offer')) })
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    await act(async () => {
+        if (change === 'unmount') renderer.unmount()
+        else renderer.update(React.createElement(Probe, { member: change === 'owner' ? 'member-b' : 'member-a', enabled: change !== 'offline' }))
+    })
+    await act(async () => { await confirm() })
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    await act(async () => renderer.unmount())
 })

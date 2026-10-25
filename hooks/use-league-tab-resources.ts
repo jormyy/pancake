@@ -170,15 +170,6 @@ export function useLeagueTabResources(
         return resourcesRef.current[target].refresh()
     }, [resetActivityPagination])
 
-    useEffect(() => {
-        if (typeof window === 'undefined') return
-        const resume = () => {
-            if (admissionRef.current() && resourceTab(activeTabRef.current) === 'history') void refreshTab('history')
-        }
-        window.addEventListener('focus', resume)
-        return () => window.removeEventListener('focus', resume)
-    }, [refreshTab])
-
     useFocusEffect(useCallback(() => {
         focused.current = true
         return () => {
@@ -282,7 +273,7 @@ export function useLeagueTabResources(
         refreshMockRooms,
         standings: standings.data,
         tabError: activeResource?.error ?? undefined,
-        transactions: mergeAnnouncementActivity(history.data.rows, history.data.announcements ?? []),
+        transactions: mergeAnnouncementActivity(history.data.rows, history.data.announcements ?? [], history.data.hasMore),
         waiverOrder: waiverOrder.data,
     }
 }

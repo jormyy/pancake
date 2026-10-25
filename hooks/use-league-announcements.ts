@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
 import { listLeagueAnnouncements, type LeagueAnnouncement } from '@/lib/league-announcements'
-import { deferLeagueRefresh, leagueActivityChanged, listenForLeagueChanges } from '@/lib/league-changes'
-import { sessionGeneration } from '@/lib/session-cache-registry'
+import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
+
+const announcementCache = new Map<string, LeagueAnnouncement[]>()
+onSessionCachesCleared(() => announcementCache.clear())
+const cache = {
+    read: (key: string) => announcementCache.get(key),
+    write: (key: string, rows: LeagueAnnouncement[]) => { announcementCache.set(key, rows) },
+}
 
 const EMPTY_ANNOUNCEMENTS: LeagueAnnouncement[] = []
 
@@ -21,7 +27,7 @@ export function useLeagueAnnouncements(ownerId: string | undefined, leagueId: st
         key,
         EMPTY_ANNOUNCEMENTS,
         useCallback(() => leagueId ? listLeagueAnnouncements(leagueId) : Promise.resolve([]), [leagueId]),
-        undefined,
+        cache,
         () => admission.current(),
     )
     const current = useRef(resource)
@@ -32,27 +38,11 @@ export function useLeagueAnnouncements(ownerId: string | undefined, leagueId: st
         focused.current = true
         const request = current.current
         if (canRead()) void request.refresh()
-        const pending = deferLeagueRefresh(refresh)
-        let registering = true
-        const stop = leagueId ? listenForLeagueChanges(leagueId, change => {
-            if (registering && change.topic === 'catchup') return
-            if (canRead() && leagueActivityChanged(change)) pending.trigger()
-        }) : () => {}
-        registering = false
         return () => {
             focused.current = false
-            stop()
-            pending.cancel()
             request.suspend()
         }
-    }, [leagueId, canRead, refresh]))
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return
-        const resume = () => { if (admission.current()) void refresh() }
-        window.addEventListener('focus', resume)
-        return () => window.removeEventListener('focus', resume)
-    }, [refresh])
+    }, [canRead]))
 
     return {
         announcements: resource.data,

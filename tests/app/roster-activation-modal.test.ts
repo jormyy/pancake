@@ -23,3 +23,25 @@ it.each([0, 1, 2])('offers IR only if one of %s slots remains', async irSlots =>
     expect(buttons.filter(button => button.props.title === 'IR')).toHaveLength(irSlots > 1 ? 1 : 0)
     expect(buttons.filter(button => button.props.title === 'Drop')).toHaveLength(1)
 })
+
+it.each([1, 2])('offers the IR place freed by activating a player with %s occupied slots', async irSlots => {
+    const onMoveToIR = vi.fn()
+    await act(async () => { screen = create(React.createElement(ActivationOverflowModal, {
+        pending: { rosterPlayerId: 'reserve', source: 'ir' },
+        myLineup: { starters: [], bench: [player], ir: Array(irSlots).fill(player), taxi: [] },
+        saving: false, irSlots, onMoveToIR, onDrop: vi.fn(), onCancel: vi.fn(),
+    })) })
+    const button = screen.root.findByProps({ title: 'IR' })
+    await act(async () => button.props.onPress())
+    expect(onMoveToIR).toHaveBeenCalledExactlyOnceWith('active')
+})
+
+it('hides IR swaps during offseason even when activation frees an IR place', async () => {
+    await act(async () => { screen = create(React.createElement(ActivationOverflowModal, {
+        pending: { rosterPlayerId: 'reserve', source: 'ir' },
+        myLineup: { starters: [], bench: [player], ir: [player], taxi: [] },
+        saving: false, irSlots: 1, allowIR: false, onMoveToIR: vi.fn(), onDrop: vi.fn(), onCancel: vi.fn(),
+    })) })
+    expect(screen.root.findAllByProps({ title: 'IR' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ title: 'Drop' })).toHaveLength(1)
+})

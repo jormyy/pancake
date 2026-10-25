@@ -64,3 +64,14 @@ describe('RosterPlayerItem actions', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+it('hides Move to IR during offseason and preserves Activate from IR', async () => {
+    let renderer!: ReactTestRenderer
+    const props = { item, slotType: 'BE', togglingId: null, taxiingId: null, droppingId: null,
+        allowIR: false, onPress: vi.fn(), onLongPress: vi.fn(), onToggleIR: vi.fn() }
+    await act(async () => { renderer = create(React.createElement(RosterPlayerItem, props)) })
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Move Test Player to IR' })).toHaveLength(0)
+    await act(async () => renderer.update(React.createElement(RosterPlayerItem, { ...props, item: { ...item, is_on_ir: true } })))
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Activate Test Player' }).length).toBeGreaterThan(0)
+    await act(async () => renderer.unmount())
+})
