@@ -194,7 +194,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_game_date: new Date().toISOString().slice(0, 10),
     p_week_number: 1,
     p_moves: [],
-  }, 'over the active player limit')
+  }, { code: 'P0001' })
 
   const [freeAgent, proposerExtraOne, proposerExtraTwo] = await findAvailablePlayers(
     fixture.admin,
@@ -251,7 +251,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_items: faabRoutes(fixture),
     p_notes: 'Illegal roster blocks a new offer',
     p_expires_at: null,
-  }, 'active')
+  }, { code: 'PA003' })
   const { data: extraRoster, error: extraLookupError } = await fixture.admin.from('roster_players')
     .select('id').eq('league_season_id', fixture.currentSeason.id).eq('member_id', fixture.proposer.id)
     .eq('player_id', proposerExtraTwo.id).single()
@@ -292,7 +292,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_roster_player_id: taxiRoster.id,
     p_to_taxi: true,
     p_user_id: fixture.users[0].id,
-  }, 'Players can enter taxi only through')
+  }, { code: 'P0001' })
   assert.equal(await activeCount(fixture.proposer.id), 1, 'rejected manual taxi entry changed the active roster')
 
   const { data: dropRoster, error: dropRosterError } = await fixture.admin.from('roster_players')
