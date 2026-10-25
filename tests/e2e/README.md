@@ -84,6 +84,10 @@ node tests/e2e/browser-ci-scenario.mjs --scenario=smoke
 | `npm run e2e:browser-pwa-launch` | Cached shell, handoff, relaunch, and offline boot |
 
 Use the manifest and each scenario's source for additional flags.
+Use the [roster contract](../../docs/roster-lifecycle.md) for taxi eligibility, direct destinations, and roster error codes.
+The [installed-iPhone guide](../../docs/ios-simulator-testing.md#capture-taxi-screens) covers Rookie and Taxi tags and acquisition controls.
+Trade fixtures must use an open trade window and legal participating rosters.
+The public activity feed shows completed trades without pending offers or trade-block changes.
 A route-load screenshot does not prove settlement or full-season behavior.
 Missing paint entries remain unknown; use `npm run e2e:pwa-paint-probe` for diagnosis.
 

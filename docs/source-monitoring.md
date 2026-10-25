@@ -218,23 +218,26 @@ Deletes free reusable space; they do not immediately shrink relation files.
 ESPN supplies names, teams, coarse positions, injuries, and news.
 Sync preserves finer existing position eligibility.
 NBA CDN supplies NBA identities. Existing Sleeper identities remain resolvable.
-A box player whom no NBA id or name joins links to an existing ESPN row only when the box lists him under its side and ESPN lists exactly one row on that side with the same name words in any order, has listed it there since before tip-off and on no other team since, that row has no NBA id, and no other player on that side has those words; a CDN-only row an earlier box made for his NBA id then merges into it.
-No jersey, nickname, prefix or spelling distance is used.
+A box player can join an existing ESPN identity when NBA ID matching fails.
+The match requires the same name words, a unique player on that side, and a corroborating ESPN team listing before tipoff.
+The ESPN row must have no NBA ID and no later conflicting team listing.
+An earlier CDN-only identity then merges into that row.
+The matcher does not use jersey numbers, nicknames, prefixes, or spelling distance.
+
 Truncated master lists fail before replacement.
-ESPN roster pages name only signed players, but a page can answer 200 and still omit one.
-A structurally complete refresh (every NBA team once, each roster nonempty, every athlete identifiable, every record imported) is therefore not proof that anyone left.
-Stored NBA boxes are not proof either: real boxes omit signed players for a game or for months, whether their last listing showed them playing, inactive or not at all.
-No feed the product reads states, with a date, that a player is no longer rostered.
-An omitted player's team changes (`released`) only when his latest stored box since he was last placed on that team is of a regular-season or postseason game his team did not play.
-He was last placed there by ESPN's latest listing of him on that team or his latest stored regular-season or postseason box under it, whichever is later, so a second move proven only by boxes is released too.
-He moves to the side that box lists him under, so he stays startable on its game days; without a stored side his team is cleared.
-Every path that stores a box (sync-stats, the live poll and both CDN backfills) records its sides before the box's own import.
-A merge of two player rows keeps each stored side and the later of their ESPN listings whole, including since when ESPN has listed him on that team, so a box the listing corroborates still links to the survivor.
-The next listing names his team either way.
-Otherwise a team changes only when an ESPN listing names him on another team; his row, IDs, injury, status, ownership and lineups stay either way.
-Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
-The NBA index step runs between the ESPN import and the sweep, so a person whose split rows it merges is read as one row with his listing and his boxes.
-Any listing gap, import failure or NBA index failure skips the sweep, and the run reports the reasons as `releaseSkipped`.
+A complete ESPN refresh does not prove an omitted player left his team.
+Stored boxes can also omit signed players for long periods.
+An omitted player changes team only when a later stored regular-season or postseason box proves a different team context.
+That box must follow his latest ESPN placement or stored box for the old team.
+The player moves to the recorded box side; without a side, his team clears.
+Every box writer records sides before importing its players.
+Identity merges preserve side records and the latest ESPN listing interval.
+A later ESPN listing can update the team again.
+
+Other omitted players retain their team and appear in `releaseHeld` diagnostics.
+The player row, IDs, injury, ownership, and lineups remain intact.
+The NBA identity step runs before the release sweep.
+Any listing gap, import failure, or identity-step failure skips that sweep and records `releaseSkipped` reasons.
 [Roster lifecycle](roster-lifecycle.md#taxi-eligibility-and-trade-plans) owns rookie and career-game taxi eligibility.
 
 `npm run parity:players` compares the public player feeds and writes ignored test artifacts.
@@ -243,7 +246,8 @@ Zero means DNP. One means played, including zero minutes.
 Missing or invalid flags use parsed minutes; missing or malformed minutes indicate DNP.
 Raw stat fields remain stored. Scoring excludes DNP rows.
 Eligible syncs can correct existing rows.
-Completed backfill jobs do not automatically replay. Derived averages follow their own refresh schedule.
+Completed backfill jobs do not automatically replay.
+Current season totals update through database triggers; other derived readers retain their own refresh rules.
 
 ## Recovery
 

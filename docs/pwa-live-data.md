@@ -25,8 +25,14 @@ See [release provenance](release-build-provenance.md) for stamped builds and upd
 `app/player/[id].tsx` presents identity, roster status, season averages, the next-game projection, recent games, and league history.
 Identity includes team, eligible positions, dynasty rank, and injury status when available.
 The compact header shows experience only when space permits.
+Player rows and detail show Rookie and Taxi tags from stored server values.
+Taxi appears only when the league has taxi slots; an unknown non-rookie career count shows no Taxi tag.
+The existing injury badge carries injury status.
+[Roster lifecycle](roster-lifecycle.md#taxi-eligibility-and-trade-plans) defines eligibility and acquisition rules.
 Roster status shows Add for free agents or Claim for players on waivers.
 Owned players have Lineup and Drop controls. Players on another roster have no pickup control.
+Eligible free agents can enter IR or taxi directly through the existing add controls.
+Eligible waiver claims expose destination switches in the existing claim form.
 Actions require an online connection and current membership and roster reads.
 
 Season averages share one compact stat grid.
