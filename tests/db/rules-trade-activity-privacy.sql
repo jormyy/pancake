@@ -41,7 +41,7 @@ BEGIN
     PERFORM pg_temp.check_rules((SELECT count(*) = v_pending_count FROM public.league_activity
       WHERE league_id = v_fixture.league_id AND event_type IN ('trade_offered', 'trade_countered', 'trade_edited', 'trade_expired')),
       'table offer privacy for member ' || v_index);
-    PERFORM pg_temp.check_rules((SELECT count(*) = v_pending_count FROM public.get_league_activity_feed(v_fixture.league_id, 100)
+    PERFORM pg_temp.check_rules((SELECT count(*) = 0 FROM public.get_league_activity_feed(v_fixture.league_id, 100)
       WHERE transaction_type IN ('trade_offered', 'trade_countered', 'trade_edited', 'trade_expired')),
       'feed offer privacy for member ' || v_index);
     PERFORM pg_temp.check_rules((SELECT count(*) = 1 FROM public.league_activity

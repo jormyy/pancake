@@ -4857,12 +4857,14 @@ export type Database = {
         Args: { p_league_id: string; p_limit?: number; p_offset?: number }
         Returns: {
           body: string
+          career_regular_season_games: number
           eligible_positions: string[]
           id: string
           is_system: boolean
           member_id: string
           nba_id: string
           occurred_at: string
+          participant_team_names: string[]
           player_id: string
           player_name: string
           player_position: string
@@ -4871,6 +4873,7 @@ export type Database = {
           team_name: string
           title: string
           transaction_type: string
+          years_exp: number
         }[]
       }
       get_league_projection_rows: {
