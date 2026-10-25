@@ -21,7 +21,7 @@ try {
 const injury = (displayName: string, status = 'Out') => ({ status, athlete: { displayName } })
 const player = (id: string, display_name: string, injury_status: string | null = null) => ({ id, display_name, injury_status, espn_id: id, nba_team: 'BOS' })
 
-async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = { mode: 'injuries' }) {
+async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token') {
   const originalFetch = globalThis.fetch
   const requests: string[] = []
   const writes: { id: string | null; body: Record<string, unknown> }[] = []
@@ -31,13 +31,13 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
     const url = new URL(request.url)
     requests.push(url.pathname)
     if (url.hostname === 'espn.invalid') {
-      if (url.pathname === '/injuries') return Response.json(payload)
+      if (url.pathname === '/injuries') return payload instanceof Response ? payload.clone() : Response.json(payload)
       if (url.pathname === '/teams') return Response.json({})
     }
     assert.equal(url.hostname, 'database.invalid', url.href)
     if (url.pathname === '/rest/v1/sync_runs') {
-      if (request.method === 'POST') return Response.json({ id: 'run' })
       runs.push(await request.json())
+      if (request.method === 'POST') return Response.json({ id: 'run' })
       return Response.json({})
     }
     assert.equal(url.pathname, '/rest/v1/players')
@@ -49,7 +49,7 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
   }
   try {
     const response = await handler!(new Request('http://function.invalid', {
-      method: 'POST', headers: { 'x-internal-function-token': 'fixture-token', 'content-type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { ...(token ? { 'x-internal-function-token': token } : {}), 'content-type': 'application/json' }, body: JSON.stringify(body),
     }))
     return { response, result: await response.json(), requests, writes, runs }
   } finally {
@@ -62,15 +62,16 @@ Deno.test('an afternoon scratch updates the stored injury before the next lineup
   assert.equal(result.response.status, 200)
   assert.deepEqual(result.writes, [{ id: 'eq.scratch', body: { injury_status: 'Out' } }])
   assert.equal(result.result.updated, 1)
+  assert.equal(result.runs[0].function_name, 'sync-player-injuries')
   assert.equal(result.runs.at(-1)?.rows_affected, 1)
   assert.deepEqual(result.requests.filter(path => !path.startsWith('/rest/')), ['/injuries'])
 })
 
-Deno.test('the same name key refreshes NBA players before their ESPN id is linked', async () => {
+Deno.test('players without an ESPN id keep their injury', async () => {
   const scratch = { ...player('unlinked', 'Afternoon Scratch'), espn_id: null }
   const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [scratch])
   assert.equal(result.response.status, 200)
-  assert.deepEqual(result.writes, [{ id: 'eq.unlinked', body: { injury_status: 'Out' } }])
+  assert.deepEqual(result.writes, [])
 })
 
 Deno.test('unchanged injuries fetch once and write no player rows', async () => {
@@ -108,10 +109,33 @@ for (const payload of [{}, { injuries: [] }, { injuries: [{ injuries: [injury('S
   })
 }
 
-for (const body of [{}, { mode: 'injuries', extra: true }, { mode: 'full' }, ['injuries'], null]) {
-  Deno.test(`only the exact injuries mode bypasses the full import: ${JSON.stringify(body)}`, async () => {
-    const result = await refresh({}, [], body)
-    assert.ok(result.requests.includes('/teams'))
-    assert.ok(!result.requests.includes('/injuries'))
+Deno.test('an unlisted player keeps Out and does not make a current player name ambiguous', async () => {
+  const result = await refresh({ injuries: [{ injuries: [injury('Same Name')] }] }, [
+    player('current', 'Same Name'), { ...player('unlisted', 'Same Name Jr.', 'Out'), nba_team: null },
+  ])
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.writes, [{ id: 'eq.current', body: { injury_status: 'Out' } }])
+})
+
+Deno.test('an unlisted player absent from the injury feed keeps Out', async () => {
+  const result = await refresh({ injuries: [{ injuries: [injury('Other Name')] }] }, [
+    { ...player('unlisted', 'Unlisted Player', 'Out'), nba_team: null },
+  ])
+  assert.equal(result.response.status, 200)
+  assert.deepEqual(result.writes, [])
+})
+
+Deno.test('an HTTP injury failure refuses all injury writes', async () => {
+  const result = await refresh(new Response('unavailable', { status: 500 }))
+  assert.equal(result.response.status, 500)
+  assert.deepEqual(result.writes, [])
+  assert.equal(result.runs.at(-1)?.status, 'failed')
+})
+
+for (const [token, status] of [[null, 401], ['wrong-token', 403]] as const) {
+  Deno.test(`injury refresh rejects unauthorized requests with ${status}`, async () => {
+    const result = await refresh({}, [], {}, token)
+    assert.equal(result.response.status, status)
+    assert.deepEqual(result.requests, [])
   })
 }

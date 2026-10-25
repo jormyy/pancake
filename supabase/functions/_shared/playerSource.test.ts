@@ -8,7 +8,7 @@ import { strict as assert } from 'node:assert'
 
 let draftYear = 2025
 
-let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' = 'good'
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' | 'malformed-injury' | 'injuries-down' = 'good'
 
 const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
@@ -68,6 +68,8 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     return Response.json(mode === 'empty-rosters' ? { athletes: [] } : roster)
   }
   if (url.pathname.endsWith('/injuries')) {
+    if (mode === 'injuries-down') return new Response('unavailable', { status: 500 })
+    if (mode === 'malformed-injury') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Team1 Player 2' } }, { status: 'Out' }] }] })
     if (mode === 'missing-injuries') return Response.json({})
     if (mode === 'empty-injuries') return Response.json({ injuries: [] })
     if (mode === 'reshaped-injuries') return Response.json({ data: [] })
@@ -153,20 +155,14 @@ Deno.test({
   },
 })
 
-for (const degraded of ['missing-injuries', 'reshaped-injuries'] as const) {
-  Deno.test(`${degraded} refuses to clear injury designations`, async () => {
-    mode = degraded
-    await expectRefusal(degraded, /^ESPN injuries payload degraded; refusing to write$/)
-  })
-}
-
-for (const degraded of ['empty-injuries', 'unmapped-injuries'] as const) {
-  Deno.test(`${degraded} imports the roster without injury writes and reports failure`, async () => {
+for (const degraded of ['missing-injuries', 'reshaped-injuries', 'empty-injuries', 'unmapped-injuries', 'malformed-injury', 'injuries-down'] as const) {
+  Deno.test(`${degraded} imports all roster records without injury keys and counts a warning`, async () => {
     mode = degraded
     const listing = await fetchEspnPlayerListing()
     assert.equal(listing.records.length, 450)
     assert.ok(listing.records.every(record => !Object.hasOwn(record, 'injury_status')))
-    assert.match((listing as { failure?: string }).failure ?? '', /injur.*(unchanged|preserv)/i)
+    assert.equal(listing.injuryWarnings, 1)
+    assert.equal(listing.failure, null)
   })
 }
 

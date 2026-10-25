@@ -65,3 +65,66 @@ Deno.test({
     }
   },
 })
+
+Deno.test({
+  name: 'private database full imports preserve injuries through malformed and unavailable injury feeds',
+  ignore: Deno.env.get('PANCAKE_DATA_DB_TESTS') !== '1',
+  fn: async () => {
+    const api = new URL(Deno.env.get('SUPABASE_URL')!)
+    const db = new URL(Deno.env.get('SUPABASE_DB_URL')!)
+    for (const target of [api, db]) assert.ok(['localhost', '127.0.0.1'].includes(target.hostname), 'Use a private local stack')
+    const suffix = crypto.randomUUID().replaceAll('-', '')
+    const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
+      'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
+    const athletes = Array.from({ length: 360 }, (_, index) => ({
+      id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${index}`,
+      experience: { years: index === 0 ? 0 : 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
+    }))
+    let injuryMode = 'malformed'
+    const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, request => {
+      const url = new URL(request.url)
+      if (url.pathname === '/teams') return Response.json({ sports: [{ leagues: [{ teams: codes.map((abbreviation, index) => ({ team: { id: String(index), abbreviation } })) }] }] })
+      const team = url.pathname.match(/^\/teams\/(\d+)\/roster$/)?.[1]
+      if (team) return Response.json({ athletes: athletes.slice(Number(team) * 12, Number(team) * 12 + 12) })
+      if (url.pathname === '/injuries') return injuryMode === 'http'
+        ? new Response('unavailable', { status: 500 })
+        : Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Other Player' } }, { status: 'Out' }] }] })
+      if (url.pathname === '/news') return Response.json({ articles: [] })
+      if (url.pathname === '/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
+      return new Response('unavailable', { status: 404 })
+    })
+    const base = `http://127.0.0.1:${upstream.addr.port}`
+    Deno.env.set('PLAYER_SYNC_SOURCE', 'espn')
+    Deno.env.set('ESPN_SITE_BASE_URL', base)
+    Deno.env.set('ESPN_CAREER_BASE_URL', base)
+    Deno.env.set('NBA_CDN_BASE_URL', base)
+    Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'private-data-test')
+    type Handler = (request: Request) => Promise<Response>
+    let handler: Handler | undefined
+    const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
+    Object.defineProperty(Deno, 'serve', { value: (callback: Handler) => { handler = callback } })
+    try { await import('./index.ts') } finally { Object.defineProperty(Deno, 'serve', descriptor) }
+    const { supabase } = await import('../_shared/supabase.ts')
+    const { resolvePlayerImports } = await import('../_shared/playerImports.ts')
+    try {
+      await resolvePlayerImports('espn', [{ provider_id: athletes[0].id, first_name: athletes[0].firstName, last_name: athletes[0].lastName,
+        metadata: { nba_team: 'BOS', years_exp: 0, injury_status: 'Out' } }])
+      for (injuryMode of ['malformed', 'http']) {
+        const response = await handler!(new Request('http://function.invalid', { method: 'POST', headers: { 'x-internal-function-token': 'private-data-test' }, body: JSON.stringify({ mode: 'injuries' }) }))
+        const result = await response.json()
+        assert.equal(response.status, 200, JSON.stringify(result))
+        assert.equal(result.ok, true)
+        assert.equal(result.injuryWarnings, 1)
+        assert.equal(result.careerUnverified, 359)
+        assert.equal(result.updated + result.inserted, 360)
+        const imported = await supabase.from('players').select('nba_team, injury_status, years_exp, career_regular_season_games').eq('espn_id', athletes[0].id).single()
+        assert.ifError(imported.error)
+        assert.deepEqual(imported.data, { nba_team: 'ATL', injury_status: 'Out', years_exp: 0, career_regular_season_games: null })
+      }
+    } finally {
+      const removed = await supabase.from('players').delete().eq('first_name', athletes[0].firstName)
+      assert.ifError(removed.error)
+      await upstream.shutdown()
+    }
+  },
+})

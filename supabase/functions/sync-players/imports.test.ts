@@ -157,13 +157,14 @@ for (const action of ['missing', 'stale', 'ambiguous']) {
 }
 
 for (const injuries of ['empty', 'unmapped'] as const) {
-  Deno.test(`${injuries} injuries allow the rest of the full import and mark its run failed`, async () => {
+  Deno.test(`${injuries} injuries allow the full import and count a warning`, async () => {
     const result = await runSync('espn', new Set(), false, undefined, injuries)
     assert.equal(result.imported.length, 634)
     assert.ok(result.metadata.every(row => !Object.hasOwn(row, 'injury_status')))
     assert.ok(result.newsFetched)
-    assert.equal(result.response.status, 500)
-    assert.equal(result.runs.at(-1)?.status, 'failed')
-    assert.match(result.runs.at(-1)?.error ?? '', /injury_status unchanged/)
+    assert.equal(result.response.status, 200)
+    assert.equal((await result.response.json()).injuryWarnings, 1)
+    assert.equal(result.runs.at(-1)?.status, 'success')
+    assert.equal(result.runs.at(-1)?.error, undefined)
   })
 }

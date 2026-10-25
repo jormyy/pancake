@@ -17,7 +17,7 @@ const player = (id: string, fields: Record<string, unknown> = {}) => ({
   career_regular_season_games: null, career_games_checked_at: null, ...fields,
 })
 
-async function run(players: ReturnType<typeof player>[], payloads: Record<string, unknown>, rostered: string[] = [], lookup: unknown = search, profile: unknown = nba) {
+async function run(players: ReturnType<typeof player>[], payloads: Record<string, unknown>, rostered: string[] = [], lookup: unknown = search, profile: unknown = nba, historical: string[] = []) {
   const originalFetch = globalThis.fetch
   const writes: { id: string | null; body: Record<string, unknown> }[] = []
   const requests: URL[] = []
@@ -34,7 +34,10 @@ async function run(players: ReturnType<typeof player>[], payloads: Record<string
       return Object.hasOwn(payloads, id) ? Response.json(payloads[id]) : new Response('missing', { status: 404 })
     }
     assert.equal(url.hostname, 'database.invalid', url.href)
-    if (url.pathname === '/rest/v1/roster_players') return Response.json(rostered.map((player_id, index) => ({ id: String(index), player_id })))
+    if (url.pathname === '/rest/v1/roster_players') {
+      const ids = url.searchParams.get('league_seasons.is_current') === 'eq.true' ? rostered : [...rostered, ...historical]
+      return Response.json(ids.map((player_id, index) => ({ id: String(index), player_id })))
+    }
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') {
       const body = await request.json()
@@ -75,9 +78,9 @@ Deno.test('unavailable or unverified stats preserve counts and checked times and
     player('empty', { career_regular_season_games: 42 }),
   ], { postseason: { ...beringer, filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '3' }] }, empty: noGames })
   assert.equal(result.updated, 0)
-  assert.equal(result.failures.length, 3)
+  assert.deepEqual(result.failures, [])
+  assert.equal(result.unverified, 3)
   assert.deepEqual(result.writes, [])
-  for (const id of ['missing', 'postseason', 'empty']) assert.ok(result.failures.some(failure => failure.startsWith(`${id}:`)))
 })
 
 Deno.test('counts refresh daily only for NBA-team players and fill rostered free-agent gaps once', async () => {
@@ -99,7 +102,8 @@ Deno.test('ambiguous or non-NBA search matches cannot assign a provider id', asy
   ]) {
     const result = await run([player('beringer', { display_name: 'Joan Beringer', espn_id: null })], {}, [], lookup)
     assert.equal(result.updated, 0)
-    assert.equal(result.failures.length, 1)
+    assert.deepEqual(result.failures, [])
+    assert.equal(result.unverified, 1)
     assert.deepEqual(result.writes, [])
   }
 })
@@ -110,7 +114,8 @@ Deno.test('a provider id owned by another stored player stays untouched', async 
     player('owner', { display_name: 'Another Player', espn_id: '5279133', nba_team: null, career_regular_season_games: 42 }),
   ], {})
   assert.equal(result.updated, 0)
-  assert.equal(result.failures.length, 1)
+  assert.deepEqual(result.failures, [])
+  assert.equal(result.unverified, 1)
   assert.deepEqual(result.writes, [])
 })
 
@@ -135,3 +140,21 @@ for (const displayExperience of ['2nd Season', undefined]) {
     assert.equal(result.writes[0]?.body.career_regular_season_games, 42)
   })
 }
+
+Deno.test('a rookie with unknown games keeps the unknown count without a failure or warning', async () => {
+  const result = await run([player('rookie', { years_exp: 0 })], {})
+  assert.deepEqual(result.failures, [])
+  assert.equal(result.unverified, 0)
+  assert.equal(result.updated, 0)
+  assert.deepEqual(result.writes, [])
+})
+
+Deno.test('historical roster membership does not trigger a free-agent career lookup', async () => {
+  const result = await run([
+    player('current', { nba_team: null }), player('historical', { nba_team: null }),
+  ], { current: beringer, historical: beringer }, ['current'], search, nba, ['historical'])
+  assert.equal(result.updated, 1)
+  assert.deepEqual(result.failures, [])
+  assert.deepEqual(result.requests.filter(url => url.hostname === 'career.invalid').map(url => url.pathname), ['/athletes/current/stats'])
+  assert.deepEqual(result.writes.map(row => row.id), ['eq.current'])
+})
