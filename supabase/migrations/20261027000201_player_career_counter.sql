@@ -59,7 +59,8 @@ DECLARE v_player public.players%ROWTYPE; v_games integer;
 BEGIN
   FOR v_player IN SELECT * FROM public.players WHERE id=ANY(p_player_ids)
     AND career_games_base IS NOT NULL ORDER BY id FOR UPDATE LOOP
-    v_games:=v_player.career_games_base+private.player_career_appearances(v_player.id,v_player.career_games_base_season);
+    v_games:=greatest(v_player.career_games_base+private.player_career_appearances(v_player.id,v_player.career_games_base_season),
+      CASE WHEN v_player.career_regular_season_games>=65 THEN v_player.career_regular_season_games END);
     UPDATE public.players SET career_regular_season_games=v_games
       WHERE id=v_player.id AND career_regular_season_games IS DISTINCT FROM v_games;
   END LOOP;
@@ -74,6 +75,9 @@ BEGIN
     NEW.career_regular_season_games:=NEW.career_games_base+
       private.player_career_appearances(NEW.id,NEW.career_games_base_season);
   ELSIF TG_OP='UPDATE' THEN
+    NEW.career_regular_season_games:=greatest(OLD.career_regular_season_games,NEW.career_regular_season_games);
+  END IF;
+  IF TG_OP='UPDATE' AND OLD.career_regular_season_games>=65 THEN
     NEW.career_regular_season_games:=greatest(OLD.career_regular_season_games,NEW.career_regular_season_games);
   END IF;
   RETURN NEW;
@@ -111,6 +115,7 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   UPDATE public.players SET career_games_base_attempted_at=p_now
   WHERE id=p_player_id AND (career_games_base IS NULL OR career_games_base_source='coverage')
+    AND (career_regular_season_games IS NULL OR career_regular_season_games<65)
     AND (career_games_base_attempted_at IS NULL OR career_games_base_attempted_at<=p_now-interval '7 days');
   RETURN FOUND;
 END;

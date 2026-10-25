@@ -7,6 +7,9 @@ BEGIN
   ELSIF TG_OP='UPDATE' THEN
     NEW.career_regular_season_games:=greatest(OLD.career_regular_season_games,NEW.career_regular_season_games);
   END IF;
+  IF TG_OP='UPDATE' AND OLD.career_regular_season_games>=65 THEN
+    NEW.career_regular_season_games:=greatest(OLD.career_regular_season_games,NEW.career_regular_season_games);
+  END IF;
   RETURN NEW;
 END;
 $$;

@@ -96,6 +96,25 @@ Deno.test('ESPN, rookie and threshold bases skip all further career lookups', as
   assert.deepEqual(result.writes, [])
 })
 
+Deno.test('players at 65 or more games never enter the fetch queue regardless of source', async () => {
+  const rows = [
+    player('legacy-65', { career_regular_season_games: 65 }),
+    player('legacy-veteran', { career_regular_season_games: 331 }),
+    player('coverage-65', { career_regular_season_games: 65, career_games_base: 0, career_games_base_source: 'coverage' }),
+    player('threshold-80', { career_regular_season_games: 80, career_games_base: 0, career_games_base_source: 'threshold' }),
+    player('espn-65', { career_regular_season_games: 65, career_games_base: 64, career_games_base_source: 'espn' }),
+  ]
+  const before = structuredClone(rows)
+  for (const at of [now, new Date('2027-11-01T16:00:00Z')]) {
+    const result = await run(rows, {}, { at })
+    assert.deepEqual({ updated: result.updated, unverified: result.unverified, failures: result.failures },
+      { updated: 0, unverified: 0, failures: [] })
+    assert.deepEqual(result.writes, [])
+    assert.equal(result.requests.filter(url => url.hostname !== 'database.invalid').length, 0)
+    assert.deepEqual(rows, before)
+  }
+})
+
 Deno.test('a one-time fetch stores completed seasons and never refetches the base', async () => {
   const rows = [player('veteran', { career_regular_season_games: 60 })]
   const first = await run(rows, { veteran })
@@ -109,11 +128,11 @@ Deno.test('a one-time fetch stores completed seasons and never refetches the bas
 })
 
 Deno.test('a failed lookup retries only after a week and preserves a known total', async () => {
-  const rows = [player('missing', { career_regular_season_games: 331 })]
+  const rows = [player('missing', { career_regular_season_games: 64 })]
   const first = await run(rows, {})
   assert.equal(first.unverified, 1)
   assert.equal(rows[0].career_games_base, null)
-  assert.equal(rows[0].career_regular_season_games, 331)
+  assert.equal(rows[0].career_regular_season_games, 64)
   const early = await run(rows, {}, { at: new Date('2026-11-01T15:59:59Z') })
   assert.equal(early.requests.filter(url => url.hostname === 'career.invalid').length, 0)
   const due = await run(rows, {}, { at: new Date('2026-11-01T16:00:00Z') })
@@ -132,7 +151,7 @@ Deno.test('missing ESPN identity and experience resolve using the existing trust
 
 Deno.test('the fetch queue puts NBA players first and then sorts by distance from 65 games', async () => {
   const rows = [
-    player('free-near', { nba_team: null, career_regular_season_games: 65 }),
+    player('free-near', { nba_team: null, career_regular_season_games: 63 }),
     player('team-far', { career_regular_season_games: 100 }),
     player('team-below', { career_regular_season_games: 62 }),
     player('team-above', { career_regular_season_games: 66 }),
@@ -144,7 +163,7 @@ Deno.test('the fetch queue puts NBA players first and then sorts by distance fro
     { season: { year: 2020 }, stats: ['200'] }, { season: { year: 2027 }, stats: ['40'] },
   ] }] }
   const payloads = Object.fromEntries(rows.map(row => [row.id, history]))
-  const expected = ['team-above', 'team-near', 'team-below', 'team-far', 'team-unknown', 'free-near']
+  const expected = ['team-near', 'team-below', 'team-unknown', 'free-near']
   for (const id of expected) {
     const result = await run(rows, payloads, { rostered: ['free-near'], maxPlayers: 1 })
     assert.equal(result.updated, 1)
@@ -260,12 +279,12 @@ Deno.test('an ESPN server failure does not retry the career lookup within the sa
 })
 
 Deno.test('a stale ESPN total cannot become the completed-season base', async () => {
-  const rows = [player('stale', { years_exp: 2, career_regular_season_games: 100 })]
+  const rows = [player('stale', { years_exp: 2, career_regular_season_games: 64 })]
   const payload = { filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
-    categories: [{ names: ['gamesPlayed'], totals: ['100'], statistics: [
-      { season: { year: 2026 }, stats: ['99'] }, { season: { year: 2027 }, stats: ['1'] },
+    categories: [{ names: ['gamesPlayed'], totals: ['64'], statistics: [
+      { season: { year: 2026 }, stats: ['63'] }, { season: { year: 2027 }, stats: ['1'] },
     ] }] }
   const result = await run(rows, { stale: payload })
-  assert.equal(rows[0].career_games_base, 99)
+  assert.equal(rows[0].career_games_base, 63)
   assert.equal(result.writes.filter(write => Object.hasOwn(write.body, 'career_regular_season_games')).length, 0)
 })

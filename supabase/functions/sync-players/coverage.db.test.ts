@@ -9,7 +9,7 @@ type CareerCase = {
 type StoredCareer = { id: string; career_regular_season_games: number | null; career_games_base: number | null; career_games_base_season: number | null; career_games_base_source: string | null }
 
 Deno.test({
-  name: 'private database completed-season bases repair returning veterans, holes, stale totals and wrong DNP flags',
+  name: 'private database fetches unknown counts and counts below 65 while preserving known veterans',
   ignore: Deno.env.get('PANCAKE_DATA_DB_TESTS') !== '1',
   fn: async () => {
     const api = new URL(Deno.env.get('SUPABASE_URL')!)
@@ -17,6 +17,11 @@ Deno.test({
     for (const target of [api, db]) assert.ok(['localhost', '127.0.0.1'].includes(target.hostname), 'Use a private local stack')
     const cases: CareerCase[] = JSON.parse(await Deno.readTextFile(new URL('./fixtures/career-base-cases.json', import.meta.url)))
     cases.push({ ...cases[4], name: 'Coverage Cam Christie', legacy: null, base_source: 'coverage' })
+    cases.push({ name: 'Stale threshold', years_exp: 2, legacy: 64, expected: 65, local: [[2025, 32], [2026, 31], [2027, 2]], wrong_dnp: false,
+      espn: { filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
+        categories: [{ names: ['gamesPlayed'], totals: ['64'], statistics: [
+          { season: { year: 2025 }, stats: ['32'] }, { season: { year: 2026 }, stats: ['31'] }, { season: { year: 2027 }, stats: ['1'] },
+        ] }] } })
     const calls: string[] = []
     const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, request => {
       const path = new URL(request.url).pathname
@@ -73,18 +78,22 @@ Deno.test({
         assert.equal(record.career_games_base, test.base_source === 'coverage' ? 0 : null)
       }
       const result = await syncCareerGames(new Date('2026-10-25T16:00:00Z'))
-      assert.deepEqual(result, { updated: cases.length, unverified: 0, failures: [] })
+      const targets = cases.filter(test => test.legacy == null || test.legacy < 65)
+      assert.deepEqual(result, { updated: targets.length, unverified: 0, failures: [] })
       const saved = await supabase.from('players').select('id, career_regular_season_games, career_games_base, career_games_base_season, career_games_base_source, injury_status').in('id', ids)
       assert.ifError(saved.error)
       for (const [i, test] of cases.entries()) {
         const record: StoredCareer = saved.data!.find(candidate => candidate.id === ids[i])!
-        assert.equal(record.career_regular_season_games, test.expected, test.name)
-        assert.equal(record.career_games_base_season, 2026, test.name)
-        assert.equal(record.career_games_base_source, 'espn', test.name)
-        console.log(`PASS: ${test.name}: ${test.expected} career games`)
+        const fetched = test.legacy == null || test.legacy < 65
+        assert.equal(record.career_regular_season_games, fetched ? test.expected : test.legacy, test.name)
+        assert.equal(record.career_games_base_season, fetched ? 2026 : null, test.name)
+        assert.equal(record.career_games_base_source, fetched ? 'espn' : null, test.name)
+        assert.equal(calls.filter(path => path === `/athletes/base-case-${i}/stats`).length, fetched ? 1 : 0, test.name)
+        console.log(`PASS: ${test.name}: ${record.career_regular_season_games} career games`)
       }
       assert.equal(careerRegularSeasonGames(cases[5].espn), 100)
-      assert.equal(saved.data!.find(row => row.id === ids[5])!.career_regular_season_games, 101)
+      assert.equal(saved.data!.find(row => row.id === ids[5])!.career_regular_season_games, 100)
+      assert.equal(saved.data!.find(row => row.id === ids[8])!.career_regular_season_games, 65)
       const previous = calls.length
       assert.deepEqual(await syncCareerGames(new Date('2027-11-01T16:00:00Z')), { updated: 0, unverified: 0, failures: [] })
       assert.equal(calls.length, previous, 'Successful ESPN bases are never refetched, including next season')

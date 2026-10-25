@@ -22,7 +22,8 @@ ORDER BY g.season_year,game_id_prefix;
 SELECT p.id,p.display_name,p.nba_team,p.years_exp,p.career_regular_season_games,
   p.career_games_base,p.career_games_base_season,p.career_games_base_source,
   p.career_games_base_checked_at,p.career_games_base_attempted_at,
-  CASE WHEN p.career_games_base_source='coverage' THEN 'Provisional coverage; ESPN base due'
+  CASE WHEN p.career_regular_season_games>=65 THEN 'Taxi threshold established; no lookup'
+    WHEN p.career_games_base_source='coverage' THEN 'Provisional coverage below 65; ESPN base due'
     WHEN p.career_games_base IS NOT NULL THEN 'Established base; no lookup'
     WHEN p.career_regular_season_games IS NOT NULL THEN 'Preserved legacy count; ESPN base due'
     WHEN f.source IS NOT NULL THEN 'Available fallback: '||f.source
@@ -30,3 +31,13 @@ SELECT p.id,p.display_name,p.nba_team,p.years_exp,p.career_regular_season_games,
 FROM public.players p
 CROSS JOIN LATERAL private.player_career_fallback(p.id,p.years_exp,public.current_season_year_et()) f
 ORDER BY p.display_name,p.id;
+
+SELECT count(*) AS nba_team_queue,
+  count(*) FILTER(WHERE career_regular_season_games IS NULL) AS unknown,
+  count(*) FILTER(WHERE career_regular_season_games<65 AND career_games_base IS NULL) AS known_below_65,
+  count(*) FILTER(WHERE career_regular_season_games<65 AND career_games_base_source='coverage') AS coverage_below_65,
+  count(*) FILTER(WHERE career_games_base_attempted_at IS NULL OR career_games_base_attempted_at<=now()-interval '7 days') AS due_now
+FROM public.players
+WHERE nullif(nba_team,'') IS NOT NULL
+  AND (career_regular_season_games IS NULL OR career_regular_season_games<65)
+  AND (career_games_base IS NULL OR career_games_base_source='coverage');

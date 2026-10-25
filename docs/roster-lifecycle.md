@@ -129,14 +129,16 @@ A second-year player with 64 games qualifies.
 A nonrookie needs a known count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
 The server stores a completed-season base in `career_games_base` and its cutoff in `career_games_base_season`.
-The current total adds regular-season appearances after that cutoff.
+Below 65, the current total adds regular-season appearances after that cutoff.
 An appearance has positive minutes or any positive counting statistic.
 The DNP flag does not decide whether a player appeared.
 The one-time ESPN lookup sums per-season GP through the previous season.
 The current ESPN season and its career total do not set the base.
 This avoids old gaps in our boxes and a delayed ESPN current-game update.
 ESPN, rookie, and threshold bases are never fetched again.
-A coverage base remains due for one successful ESPN lookup because our historical boxes have gaps.
+Players with 65 or more stored games never enter the lookup queue, regardless of base source.
+Their stored counts remain available; exact totals above 65 do not affect taxi eligibility.
+A coverage base below 65 remains due for one successful ESPN lookup because our historical boxes have gaps.
 A successful lookup replaces coverage only when the new total does not lower the stored count.
 Unavailable or lower ESPN totals leave the existing count and base unchanged.
 Failed lookups retry no more than weekly.
@@ -160,6 +162,8 @@ Other missing counts remain unknown.
 A late first appearance alone never proves complete career coverage.
 
 Stats saves, corrections, deletions, game corrections, and merges recount based players within the same transaction.
+Once a stored count reaches 65, later recounts cannot lower it.
+Corrections below 65 still use the recounted total.
 Unbased players retain their existing counts until a base succeeds.
 Replays do not add games twice.
 The deployed daily Edge writer remains compatible and cannot overwrite a based count.

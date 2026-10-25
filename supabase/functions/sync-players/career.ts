@@ -79,7 +79,8 @@ export async function syncCareerGames(now = new Date(), options: CareerSyncOptio
   const started = performance.now()
   const players = await fetchAllPlayers<CareerPlayer>(supabase,
     'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_base, career_games_base_source, career_games_base_attempted_at')
-  const missing = players.filter(player => player.career_games_base == null || player.career_games_base_source === 'coverage')
+  const missing = players.filter(player => (player.career_regular_season_games == null || player.career_regular_season_games < 65)
+    && (player.career_games_base == null || player.career_games_base_source === 'coverage'))
   if (missing.length === 0) return { updated: 0, unverified: 0, failures: [] }
   const targets = missing.filter(player => !player.career_games_base_attempted_at
     || now.getTime() - Date.parse(player.career_games_base_attempted_at) >= 7 * 86400000)
