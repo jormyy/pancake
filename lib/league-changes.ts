@@ -2,7 +2,7 @@ import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
 type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
-type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
+type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'activity' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
 type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null }
 type Listener = (change: LeagueChange) => void
 const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources'])
@@ -52,7 +52,9 @@ export function setLeagueChangesConnected(leagueId: string, ready: boolean): voi
 }
 
 export function notifyLeagueChange(leagueId: string, change: LeagueChange): void {
-    invalidateLeagueSnapshot(leagueId, change.topic)
+    if (change.topic !== 'inventory' || !change.details || change.details.some(detail => detail.resource !== 'activity')) {
+        invalidateLeagueSnapshot(leagueId, change.topic)
+    }
     if (change.topic === 'inventory') {
         const affected = new Set<string>()
         if (!change.details || change.details.some(detail => detail.resource === 'season')) affected.add('supportBroad')
@@ -85,7 +87,7 @@ export function leagueChangeAffects(change: LeagueChange, selection: { seasonId:
 }
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const inventoryResources = new Set(['picks', 'claims', 'waivers', 'priority', 'faab', 'season'])
+const inventoryResources = new Set(['picks', 'claims', 'waivers', 'priority', 'faab', 'season', 'activity'])
 const dailyResources = new Set(['averages', 'projections', 'scoring'])
 
 function resourceDetails(value: unknown, topic: Topic): ResourceDetail[] | null {

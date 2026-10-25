@@ -13,7 +13,6 @@ import {
   backendUrl,
   findAvailablePlayer,
   findAvailablePlayers,
-  postJson,
   todayET,
 } from './soak-backend-support.mjs'
 import {
@@ -403,7 +402,7 @@ export const assertAuctionBidValidation = async ({ supabase, leagueId, season })
   return artifact
 }
 
-const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, fakePort, resourceOwner }) => {
+const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, season, resourceOwner }) => {
   if (!state?.runId || !Array.isArray(state.users) || state.users.length < 3) {
     throw new Error('D.X.1: waiver push scenario requires tests/e2e-state.json from npm run e2e:seed')
   }
@@ -425,19 +424,7 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     throw new Error(`${label}: fixture member/user mismatch for waiver push recipient`)
   }
 
-  const tokenValue = `ExponentPushToken[e2e-waiver-${state.runId}-${season}]`
-  const { data: previousProfile, error: profileReadError } = await supabase
-    .from('profiles').select('push_token').eq('id', recipientUser.id).single()
-  if (profileReadError) throw new Error(`${label} token read: ${profileReadError.message}`)
-  resourceOwner.register(`push token ${recipientUser.id}`, async () => {
-    const { error } = await supabase.from('profiles').update({ push_token: previousProfile.push_token }).eq('id', recipientUser.id)
-    if (error) throw new Error(error.message)
-  })
-  const [{ error: profileError }, { error: leagueError }, { error: priorityError }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .update({ push_token: tokenValue })
-      .eq('id', recipientUser.id),
+  const [{ error: leagueError }, { error: priorityError }] = await Promise.all([
     supabase
       .from('leagues')
       .update({ roster_size: 20 })
@@ -451,7 +438,6 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
         priority: index + 1,
       }))),
   ])
-  if (profileError) throw new Error(`${label} token setup: ${profileError.message}`)
   if (leagueError) throw new Error(`${label} league setup: ${leagueError.message}`)
   if (priorityError) throw new Error(`${label} priority seed: ${priorityError.message}`)
 
@@ -498,36 +484,16 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
 
   await backendJson(env, '/e2e/process-waivers')
 
-  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
-  if (!response.ok) throw new Error(`D.X.1 waiver push capture returned ${response.status}`)
-  const { pushes } = await response.json()
-  const title = 'Waiver Claim Succeeded'
-  const body = `${player.display_name} has been added to your roster.`
-  const match = pushes?.find((push) => (
-    push.body?.to === tokenValue &&
-    push.body?.title === title &&
-    push.body?.body === body
-  ))
-  if (!match) {
-    const [claimRow, rosterRows] = await Promise.all([
-      fetchSingle(supabase, 'waiver_claims', 'id, status, failure_reason, processed_at', { id: claim.id }),
-      fetchAll(supabase, 'roster_players', 'member_id, player_id, acquired_via', {
-        league_id: fixture.league.id,
-        league_season_id: fixture.leagueSeason.id,
-      }),
-    ])
-    await writeFile(
-      path.join(ARTIFACT_ROOT, `season-${season}`, 'waiver-push-debug.json'),
-      `${JSON.stringify({
-        targetLeagueId: leagueId,
-        fixture,
-        claim: claimRow,
-        rosterRows,
-        expected: { tokenValue, title, body },
-        pushes,
-      }, null, 2)}\n`,
-    )
-    throw new Error(`D.X.1: waiver push was not captured for token ${tokenValue}`)
+  const { data: queued, error: queueError } = await supabase
+    .from('notification_outbox')
+    .select('id, member_id, event_type, title, body, category')
+    .eq('dedupe_key', `waiver_result:${claim.id}`)
+    .single()
+  if (queueError) throw new Error(`${label} queue read: ${queueError.message}`)
+  if (queued.member_id !== member.id || queued.category !== 'waiver'
+    || queued.title !== 'Waiver Claim Succeeded'
+    || queued.body !== `${player.display_name} has been added to your roster.`) {
+    throw new Error(`${label}: successful claim did not queue its notification`)
   }
 
   return {
@@ -540,11 +506,11 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
     memberId: member.id,
     playerId: player.id,
     playerName: player.display_name,
-    captured: match,
+    queued,
   }
 }
 
-export const assertDraftPushNotification = async ({ supabase, env, state, season, fakePort, resourceOwner }) => {
+export const assertDraftPushNotification = async ({ supabase, env, state, season, resourceOwner }) => {
   const failures = []
   const label = 'D.X.1'
   const {
@@ -560,29 +526,16 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
   const recipientMember = fixture.members.find((member) => member.id === firstSlot.member_id)
   if (!recipientMember) throw new Error(`${label}: draft push member lookup failed for ${firstSlot.member_id}`)
 
-  const tokenValue = `ExponentPushToken[e2e-draft-${state.runId ?? 'run'}-${season}]`
-  const { data: previousProfile, error: profileReadError } = await supabase
-    .from('profiles').select('push_token').eq('id', recipientMember.user_id).single()
-  if (profileReadError) throw new Error(`${label} draft push token read: ${profileReadError.message}`)
-  resourceOwner.register(`push token ${recipientMember.user_id}`, async () => {
-    const { error } = await supabase.from('profiles').update({ push_token: previousProfile.push_token }).eq('id', recipientMember.user_id)
-    if (error) throw new Error(error.message)
-  })
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ push_token: tokenValue })
-    .eq('id', recipientMember.user_id)
-  if (profileError) throw new Error(`${label} draft push token setup: ${profileError.message}`)
-
-  await postJson(`http://127.0.0.1:${fakePort}/admin/clear-pushes`, {})
   const autoPickResult = await backendJson(env, `/e2e/${draft.id}/auto-pick`, { memberId: firstSlot.member_id })
-
-  const response = await fetch(`http://127.0.0.1:${fakePort}/admin/pushes`)
-  if (!response.ok) throw new Error(`${label} draft push capture returned ${response.status}`)
-  const { pushes } = await response.json()
-  const match = pushes?.find((push) => push.body?.to === tokenValue)
-  if (!match) {
-    failures.push(`${label}: no draft push notification captured for rookie auto-pick to token ${tokenValue}`)
+  const { data: queued, error: queueError } = await supabase
+    .from('notification_outbox')
+    .select('id, member_id, event_type, title, category')
+    .eq('member_id', recipientMember.id)
+    .eq('event_type', 'rookie_draft_pick')
+    .eq('data->>draftId', draft.id)
+  if (queueError) throw new Error(`${label} draft notification queue: ${queueError.message}`)
+  if (queued?.length !== 1 || queued[0].category !== 'draft' || queued[0].title !== 'Rookie Draft Pick Made') {
+    failures.push(`${label}: rookie auto-pick did not queue one draft notification`)
   }
 
   const artifact = {
@@ -594,11 +547,9 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
     expectedFirstEightMemberIds: expectedOrder,
     recipientMemberId: recipientMember.id,
     recipientUserId: recipientMember.user_id,
-    tokenValue,
     rookies,
     autoPickResult,
-    captured: match ?? null,
-    capturedPushes: pushes ?? [],
+    queued,
     failures,
   }
   await writeFile(
@@ -614,11 +565,6 @@ export const assertPushNotifications = async (params) => {
   let primaryError
 
   try {
-    await postJson(`http://127.0.0.1:${params.fakePort}/admin/clear-pushes`, {})
-    // The push pipeline is verified end-to-end by the real, server-emitted waiver
-    // notification. (The former trade-push check drove the removed /notify/trade
-    // endpoint; real trade notifications are now emitted server-side by the
-    // /trades/* routes during the main soak.)
     const waiver = await assertWaiverPushNotification({ ...params, resourceOwner })
 
     await writeFile(

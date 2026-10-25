@@ -184,3 +184,15 @@ it('marks a hidden claim invalidation before any foreground reader can consume i
         expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims'])
     } finally { vi.unstubAllGlobals() }
 })
+
+
+it('ignores activity-only inventory for player availability and rankings', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: seasonId }] })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(boundary.support).not.toHaveBeenCalled()
+    expect(boundary.recover).not.toHaveBeenCalled()
+    expect(boundary.derived).not.toHaveBeenCalled()
+})

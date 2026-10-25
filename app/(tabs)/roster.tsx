@@ -621,8 +621,12 @@ export default function RosterScreen() {
             )
             if (!isCurrentAction(generation, identity)) return
             void load()
-            if (mode === 'season' && result?.failed) {
+            if (result && result.failed > 0) {
                 showAlert('Lineup partly optimized', `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`)
+            } else if (result && result.dates === 0) {
+                showAlert(mode === 'season' ? 'Season is over' : 'No remaining dates', mode === 'season'
+                    ? 'There are no remaining dates this season to optimize.'
+                    : 'There are no remaining dates in this selection to optimize.', 'info')
             } else {
                 showAlert(
                     'Lineup set',

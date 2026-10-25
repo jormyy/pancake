@@ -12,7 +12,7 @@ const dependencies = (overrides: Partial<NotificationBatchDependencies> = {}): N
 
 Deno.test('web push alone supplies durable sent outcomes without a profile or Expo token', async () => {
   const deps = { ...dependencies(),
-    profiles: async () => ({ data: [{ id: 'user-a', push_token: null }], error: null }),
+    profiles: async () => ({ data: [{ id: 'user-a' }], error: null }),
     send: async () => { throw new Error('Unexpected Expo delivery') },
     pushUrl: 'https://push.invalid/send',
   }

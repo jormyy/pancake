@@ -385,3 +385,8 @@ it('saves a changed team name once', async () => {
     expect(mocks.updateTeamName).toHaveBeenCalledExactlyOnceWith('member', 'New Team')
     expect(mocks.refresh).toHaveBeenCalledOnce()
 })
+
+
+it('limits team names to the server maximum while editing', () => {
+    expect(input('Team name').props.maxLength).toBe(40)
+})

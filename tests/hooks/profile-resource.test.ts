@@ -14,7 +14,7 @@ const deferred = <Value,>() => {
     const promise = new Promise<Value>((done) => { resolve = done })
     return { promise, resolve }
 }
-const profile = (id: string) => ({ id, username: id, display_name: id, avatar_url: null, push_token: null, push_token_updated_at: null, created_at: '' })
+const profile = (id: string) => ({ id, username: id, display_name: id, avatar_url: null, created_at: '' })
 
 beforeEach(() => {
     vi.clearAllMocks()

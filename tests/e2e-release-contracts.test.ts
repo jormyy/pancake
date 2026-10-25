@@ -199,7 +199,7 @@ describe('release E2E contracts', () => {
   it('points the soak Edge runtime at the host-side fake upstream through the Docker host alias', async () => {
     // supabase functions serve runs Edge in Docker, where 127.0.0.1 is the container itself.
     const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL', 'EXPO_PUSH_URL']) {
+    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL']) {
       expect(soakWorkflow, name).toMatch(new RegExp(`^\\s+${name}=http://host\\.docker\\.internal:4555/`, 'm'))
     }
     expect(soakWorkflow).not.toContain('=http://127.0.0.1:4555/')

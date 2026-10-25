@@ -11,6 +11,7 @@ export type WebPushAuthority = {
     generation: number
     revocationCredential: string
     ownerId: string | null
+    savedAt?: number
     subscriptionKeys?: { p256dh: string; auth: string }
 }
 

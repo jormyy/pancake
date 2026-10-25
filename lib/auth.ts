@@ -129,7 +129,6 @@ export function getProfile(userId: string, options: { force?: boolean } = {}): P
     const request = Symbol('profile')
     captured.request = request
     const task: Promise<Profile> = (async () => {
-        // Explicit column list — push_token is column-revoked from authenticated
         // (iter 27 Slice C); `select('*')` would 42501 in production.
         const { data, error } = await supabase
             .from('profiles')

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 import { PLAYER_REFERENCE_TABLES, deletePlayersWithReferences } from './e2e/harness-cleanup.mjs'
 import { createDisposableLeagueFromSeedUsers, ensureRosterFixture, ensureSyntheticSeasonWeeks } from './e2e/soak-fixtures.mjs'
 import { createFakeUpstreamServer } from './e2e/fake-upstream.mjs'
@@ -773,9 +774,13 @@ describe('harness cleanup table list', () => {
         const created = new Set<string>()
         const dropped = new Set<string>()
         for (const file of files) {
-            const sql = await readFile(`${dir}/${file}`, 'utf8')
-            for (const m of sql.matchAll(/CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) { created.add(m[1]); dropped.delete(m[1]) }
-            for (const m of sql.matchAll(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/gi)) dropped.add(m[1])
+            const sql = maskSqlNonCode(await readFile(`${dir}/${file}`, 'utf8'))
+            for (const statement of sql.split(';')) {
+                const create = statement.match(/^\s*CREATE TABLE(?: IF NOT EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (create) { created.add(create[1]); dropped.delete(create[1]) }
+                const drop = statement.match(/^\s*DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                if (drop) dropped.add(drop[1])
+            }
         }
         for (const { table } of PLAYER_REFERENCE_TABLES) {
             expect(created.has(table), `${table} was never created`).toBe(true)
@@ -802,7 +807,7 @@ describe('harness cleanup table list', () => {
                 const alter = line.match(/ALTER TABLE(?: ONLY)?(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (create) { table = create[1]; dropped.delete(table) }
                 else if (alter) table = alter[1]
-                const drop = line.match(/DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
+                const drop = line.match(/^\s*DROP TABLE(?: IF EXISTS)?\s+(?:public\.)?([a-z_]+)/i)
                 if (drop) { dropped.add(drop[1]); continue }
                 // "REFERENCES players" with or without "(id)"; the ON DELETE clause may
                 // sit on the next line. Only CASCADE / SET NULL / SET DEFAULT remove the

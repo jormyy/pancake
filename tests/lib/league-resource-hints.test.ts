@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { leagueChangeReceiver, leagueResourceAffects } from '@/lib/league-changes'
+import { leagueChangeReceiver, leagueResourceAffects, leagueSnapshotRevision, notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 
 const season = '10000000-0000-4000-8000-000000000001'
 const detail = { resource: 'claims', season_id: season }
@@ -74,4 +74,27 @@ it('keeps broad invalidation inside its topic and includes future-season picks f
     const futurePick = { topic: 'inventory' as const, scopes: null, details: [{ resource: 'picks' as const, season_id: 'future', member_id: 'mine' }] }
     expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'mine' })).toBe(true)
     expect(leagueResourceAffects(futurePick, ['picks'], { seasonId: season, memberId: 'other' })).toBe(false)
+})
+
+
+it('keeps activity hints narrow and outside roster support resources', () => {
+    const receive = vi.fn()
+    const consume = leagueChangeReceiver('league', receive)
+    const activity = { resource: 'activity' as const, season_id: season }
+    consume(row(1))
+    consume(row(2, [activity]))
+    const change = receive.mock.calls.at(-1)![0]
+    expect(change.details).toEqual([activity])
+    expect(leagueResourceAffects(change, ['activity'])).toBe(true)
+    expect(leagueResourceAffects(change, ['picks', 'claims', 'waivers', 'faab', 'priority', 'season'])).toBe(false)
+})
+
+
+it('keeps roster and pick cache revisions stable for activity-only inventory', () => {
+    setLeagueChangesConnected('activity-cache', true)
+    const domains = ['roster', 'support', 'picks'] as const
+    const before = domains.map(domain => leagueSnapshotRevision('activity-cache', domain))
+    notifyLeagueChange('activity-cache', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: season }] })
+    expect(domains.map(domain => leagueSnapshotRevision('activity-cache', domain))).toEqual(before)
+    setLeagueChangesConnected('activity-cache', false)
 })

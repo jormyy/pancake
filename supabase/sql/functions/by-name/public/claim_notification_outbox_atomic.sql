@@ -27,7 +27,7 @@ BEGIN
   WITH candidates AS (
     SELECT queued.id
       FROM notification_outbox AS queued
-     WHERE queued.category IN ('trade','activity','waiver')
+     WHERE queued.category IN ('trade','activity','waiver','draft')
        AND queued.delivered_at IS NULL
        AND queued.dead_lettered_at IS NULL
        AND queued.expo_ticket_id IS NULL

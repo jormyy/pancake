@@ -279,3 +279,16 @@ it('skips identical projection responses with unchanged lines after game signals
     expect(state.write).toHaveBeenCalledOnce()
     expect(latest.nextProjection?.projection_fantasy_points).toBe(42)
 })
+
+
+it('ignores activity-only inventory without reloading player cards or roster actions', async () => {
+    vi.useFakeTimers()
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const before = reads()
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: 'season' }] })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(reads()).toEqual(before)
+    expect(latest.rosterRevision).toBe(0)
+})

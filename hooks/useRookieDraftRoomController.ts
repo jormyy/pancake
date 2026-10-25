@@ -546,7 +546,6 @@ export function useRookieDraftRoomController({
                 setRosterForDrop([])
                 setTrimOverflow(excess <= 0 ? null : { excess, dropList: active })
                 if (excess <= 0 && draftId) {
-                    await activateRookieDraftLeague(draftId)
                     if (mutationIsCurrent(generation, identity) && completionEpochRef.current === completionEpoch) await load()
                 }
             } else {
@@ -658,10 +657,7 @@ export function useRookieDraftRoomController({
             await dropPlayer(rosterPlayerId, visibleState.draft.leagueSeasonId, draftId)
             if (!mutationIsCurrent(generation, identity)) return
             setRosterOverflow(null)
-            if (draftId) {
-                await activateRookieDraftLeague(draftId)
-                await load()
-            }
+            if (draftId) await load()
         } catch {
             if (mutationIsCurrent(generation, identity)) {
                 setPickError('Could not finish the roster check. Open Roster to confirm the drop and resolve any overflow.')

@@ -38,17 +38,17 @@ BEGIN
   FROM generate_series(1, 2) side;
   PERFORM pg_temp.certify_rules_week(v_fixture.league_id, v_fixture.season_id, 1);
   v_result := public.apply_season_boundary_after_grace(v_fixture.league_id, v_fixture.season_id,
-    'generate', timestamptz '9377-02-10 00:00 America/New_York');
-  PERFORM pg_temp.check_rules(v_result->>'applied' = 'false', '48 hours does not end the regular-season correction window');
+    'generate', timestamptz '9377-02-07 00:00 America/New_York');
+  PERFORM pg_temp.check_rules(v_result->>'applied' = 'false', 'the final game date stays inside the correction window');
   v_result := public.apply_season_boundary_after_grace(v_fixture.league_id, v_fixture.season_id,
-    'generate', timestamptz '9377-02-11 23:59:59 America/New_York');
-  PERFORM pg_temp.check_rules(v_result->>'applied' = 'false', 'five ET dates after the last game still wait');
-  UPDATE public.matchups SET finalized_at = timestamptz '9377-02-11 23:59 America/New_York'
+    'generate', timestamptz '9377-02-07 23:59:59 America/New_York');
+  PERFORM pg_temp.check_rules(v_result->>'applied' = 'false', 'the final game date waits through midnight');
+  UPDATE public.matchups SET finalized_at = timestamptz '9377-02-07 23:59 America/New_York'
   WHERE league_season_id = v_fixture.season_id;
   PERFORM pg_temp.certify_rules_week(v_fixture.league_id, v_fixture.season_id, 1);
   v_result := public.apply_season_boundary_after_grace(v_fixture.league_id, v_fixture.season_id,
-    'generate', timestamptz '9377-02-12 00:00 America/New_York');
-  PERFORM pg_temp.check_rules(v_result->>'applied' = 'true', 'six ET dates after the final regular game unlock seeds despite recent scoring');
+    'generate', timestamptz '9377-02-08 00:00 America/New_York');
+  PERFORM pg_temp.check_rules(v_result->>'applied' = 'true', 'the next ET date unlocks seeds despite recent scoring');
   PERFORM pg_temp.check_rules((SELECT count(*) = 2 FROM public.matchups WHERE league_season_id = v_fixture.season_id
     AND matchup_type <> 'regular_season'), 'correction window creates the bracket once');
 END;

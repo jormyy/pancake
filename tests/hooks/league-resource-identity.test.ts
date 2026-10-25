@@ -2,7 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
-import { notifyLeagueChange } from '@/lib/league-changes'
+import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
@@ -84,12 +84,12 @@ describe('league resource identity', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('keeps resource operations stable and resets history pagination on refresh', async () => {
+    it('keeps resource operations stable and preserves loaded history pages on refresh', async () => {
         const page = (prefix: string) => Array.from({ length: 50 }, (_, index) => ({ id: `${prefix}-${index}` }))
         getLeagueTransactions
             .mockResolvedValueOnce(page('initial'))
             .mockResolvedValueOnce(page('page-two'))
-            .mockResolvedValueOnce(page('refreshed'))
+            .mockResolvedValueOnce([...page('refreshed'), ...page('refreshed-two')])
             .mockResolvedValueOnce(page('page-two-again'))
         let latest!: ReturnType<typeof useLeagueTabResources>
         const Probe = () => {
@@ -108,8 +108,8 @@ describe('league resource identity', () => {
         expect(getLeagueTransactions.mock.calls.map((call) => call.slice(1))).toEqual([
             [50, 0],
             [50, 50],
-            [50, 0],
-            [50, 50],
+            [100, 0],
+            [50, 100],
         ])
         await act(async () => { renderer.unmount() })
     })
@@ -131,10 +131,10 @@ it('keeps pagination aligned when a first-page refresh overlaps load-more', asyn
         let refresh!: Promise<void>
         await act(async () => { refresh = latest.refreshTab('history') })
         await act(async () => { await latest.loadMoreActivity() })
-        await act(async () => { firstPage.resolve(page(0)); await refresh })
+        await act(async () => { firstPage.resolve(page(0).concat(page(50))); await refresh })
         await act(async () => { await latest.loadMoreActivity() })
-        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 50)
-        expect(latest.transactions.map(row => row.id)).toEqual(page(0).concat(page(50)).map(row => row.id))
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 100)
+        expect(latest.transactions.map(row => row.id)).toEqual(page(0).concat(page(50), page(100)).map(row => row.id))
     } finally { await act(async () => { renderer.unmount() }) }
 })
 
@@ -180,7 +180,8 @@ it('keeps the failed history offset across suspension and fences a removed membe
         expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 50, 50)
         expect(latest.transactions.at(-1)?.id).toBe('last')
         await act(async () => { renderer.update(React.createElement(Probe, { member: '', authorized: false })) })
-        await act(async () => { await latest.refreshTab('history'); await latest.loadMoreActivity() })
+        await act(async () => { await latest.refreshTab('history') })
+        await act(async () => { await latest.loadMoreActivity() })
         expect(getLeagueTransactions).toHaveBeenCalledTimes(3)
         expect(latest.transactions).toEqual([])
     } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
@@ -258,5 +259,43 @@ it('reuses the same persistent tab cache after a session generation changes for 
         await act(async () => renderer?.unmount())
         vi.mocked(readPersistentCache).mockImplementation(() => null)
         vi.mocked(writePersistentCache).mockImplementation(() => {})
+    }
+})
+
+
+it('ignores registration catchup, roster events, and inventory unrelated to activity', async () => {
+    vi.useFakeTimers()
+    setLeagueChangesConnected('league', true)
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(1)
+        for (const change of [
+            { topic: 'roster' as const, scopes: null },
+            { topic: 'inventory' as const, scopes: null, details: [{ resource: 'claims' as const, season_id: 'season' }] },
+        ]) {
+            await act(async () => { notifyLeagueChange('league', change); await vi.advanceTimersByTimeAsync(250) })
+        }
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(1)
+        const rows = Array.from({ length: 100 }, (_, index) => ({ id: `row-${index}` }))
+        getLeagueTransactions.mockResolvedValueOnce(rows.slice(0, 50)).mockResolvedValueOnce(rows.slice(50))
+        await act(async () => { await latest.refreshTab('history') })
+        await act(async () => { await latest.loadMoreActivity() })
+        getLeagueTransactions.mockResolvedValueOnce(rows)
+        await act(async () => {
+            notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: [{ resource: 'activity', season_id: 'season' }] })
+            await vi.advanceTimersByTimeAsync(250)
+        })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 100, 0)
+        expect(latest.transactions).toHaveLength(100)
+        await act(async () => { notifyLeagueChange('league', { topic: 'catchup', scopes: null }); await vi.advanceTimersByTimeAsync(250) })
+        expect(getLeagueTransactions).toHaveBeenCalledTimes(5)
+    } finally {
+        await act(async () => renderer?.unmount())
+        setLeagueChangesConnected('league', false)
+        vi.useRealTimers()
     }
 })

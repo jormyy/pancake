@@ -29,7 +29,6 @@ export async function handleE2eRoute(req: Request, path: string): Promise<Respon
       ok: true,
       nbaCdnBaseUrl: Deno.env.get('NBA_CDN_BASE_URL') ?? null,
       sleeperBaseUrl: Deno.env.get('SLEEPER_BASE_URL') ?? null,
-      expoPushUrl: Deno.env.get('EXPO_PUSH_URL') ?? null,
       runtime: 'supabase-edge',
     })
   }

@@ -56,7 +56,7 @@ async function notifyClaimResults(rows: WaiverProcessRow[]): Promise<void> {
   if (notifications.length === 0) return
   const { error } = await supabase.from('notification_outbox')
     .upsert(notifications, { onConflict: 'dedupe_key', ignoreDuplicates: true })
-  if (error) throw error
+  if (error) console.error('[process-waivers] failed to queue claim notifications', error)
 }
 
 async function processWaiverClaims(): Promise<number> {
