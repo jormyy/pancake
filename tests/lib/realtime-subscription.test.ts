@@ -54,7 +54,7 @@ describe('realtime subscriptions', () => {
             { table: 'trade_items', event: 'UPDATE', onChange: itemsChanged },
         ] })
 
-        expect(realtime.channelFactory).toHaveBeenCalledWith('trade-test', { config: { private: true } })
+        expect(realtime.channelFactory).toHaveBeenCalledWith(expect.stringMatching(/^trade-test:/), { config: { private: true } })
         expect(realtime.callbacks.map((entry) => entry.config)).toEqual([
             { event: '*', schema: 'public', table: 'trades', filter: 'league_id=eq.league-1' },
             { event: 'UPDATE', schema: 'public', table: 'trade_items' },
@@ -196,4 +196,14 @@ describe('realtime subscriptions', () => {
             error,
         )
     })
+})
+
+it('uses a different channel topic for duplicate mounts of the same watch', () => {
+    for (let mount = 0; mount < 3; mount++) {
+        subscribeToTableChanges('same-screen', { mode: 'fallback', watches: [{ table: 'trades' }], onChange: vi.fn() })
+    }
+    const topics = realtime.channelFactory.mock.calls.map(call => (call as unknown[])[0])
+    expect(topics).toHaveLength(3)
+    expect(new Set(topics).size).toBe(3)
+    expect(topics.every(topic => typeof topic === 'string' && topic.startsWith('same-screen:'))).toBe(true)
 })

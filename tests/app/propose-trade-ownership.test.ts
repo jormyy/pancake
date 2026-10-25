@@ -103,7 +103,8 @@ vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
     useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
 }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ takeTradeAnalyzerDraft: () => null }))
-vi.mock('@/lib/trade-composer', () => ({
+vi.mock('@/lib/trade-composer', async importOriginal => ({
+    ...await importOriginal<typeof import('@/lib/trade-composer')>(),
     buildTwoTeamTradeComposerPayload: (items: MockTradeItem[]) => ({
         hasOffer: true,
         hasRequest: true,
@@ -207,7 +208,7 @@ beforeEach(() => {
 })
 
 describe('propose trade async ownership', () => {
-    it.each(['two', 'multi'])('recovers %s-team proposal after a definite old-season rejection', async (form) => {
+    it.each([['two', 'P0001'], ['multi', 'P0001'], ['two', 'PT001'], ['multi', 'PT001']])('recovers %s-team proposal after a definite %s rejection', async (form, code) => {
         const send = form === 'multi' ? mocks.submitMultiTeamTradeComposer : mocks.submitTradeComposer
         if (form === 'multi') {
             mocks.participantIds = ['member-a', 'member-b', 'member-c']
@@ -219,7 +220,7 @@ describe('propose trade async ownership', () => {
         }
         send.mockImplementation(async (_input, deps) => {
             if (await deps.getCurrentSeasonId() === 'season-a') {
-                throw new RequestError('No active season found.', { code: 'P0001' })
+                throw new RequestError('No active season found.', { code })
             }
         })
         let renderer!: ReactTestRenderer
@@ -802,4 +803,34 @@ it.each(['two', 'multi'])('prunes removed placements and offered drops before th
     const input = send.mock.calls[0][0]
     expect(form === 'multi' ? input.rosterPlan : input.payload.rosterPlan).toEqual(expected)
     await act(async () => screen.unmount())
+})
+
+it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s mode', async mode => {
+    mocks.params = { [mode === 'edit' ? 'editTradeId' : 'counterTradeId']: 'source' }
+    mocks.context.currentLeague.allow_inactive_trades = true
+    mocks.tradeItems.push(
+        { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'incoming-taxi' },
+        { kind: 'player', fromMemberId: 'member-b', toMemberId: 'member-a', playerId: 'incoming-ir' },
+    )
+    mocks.getTradeById.mockResolvedValue({
+        isMultiTeam: false,
+        routedItems: [
+            { kind: 'player', playerId: 'incoming-taxi', toMemberId: 'member-a', toTaxi: true },
+            { kind: 'player', playerId: 'incoming-ir', toMemberId: 'member-a', toIR: true },
+            { kind: 'player', playerId: 'player-a', toMemberId: 'member-b', toTaxi: true },
+        ],
+        participants: [
+            { memberId: 'member-a', dropPlayerIds: ['keep-drop', 'player-a', 'gone'] },
+            { memberId: 'member-b', dropPlayerIds: ['other-drop'] },
+        ],
+    })
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
+        const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'] }
+        await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+        expect(renderer.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(expected)
+        await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
+        expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan).toEqual(expected)
+    } finally { await act(async () => renderer?.unmount()) }
 })

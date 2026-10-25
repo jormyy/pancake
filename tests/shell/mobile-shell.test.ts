@@ -153,7 +153,8 @@ it.each([
     expect(controls('Playoffs')).toHaveLength(0)
     expect(state.openDraftRoom).not.toHaveBeenCalled()
     await act(async () => controls('Profile & settings')[0].props.onPress())
-    expect(state.push).toHaveBeenCalledWith('/profile')
+    expect(state.dismissTo).toHaveBeenCalledWith('/profile')
+    expect(state.push).not.toHaveBeenCalled()
     expect(controls('Profile & settings')).toHaveLength(0)
 })
 

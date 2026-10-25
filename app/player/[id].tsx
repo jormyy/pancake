@@ -194,7 +194,7 @@ export default function PlayerDetailScreen() {
         disabled: !actionsReady, busy: quickAdd.adding === id, blockedReason: quickAdd.addBlockedReason,
     } : rosterStatus?.status === 'on_waivers' ? {
         label: rosterStatusResource.claimPending ? 'View claim' : 'Claim',
-        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) push('/roster?claims=1'); else void quickAdd.handleClaim({ id, display_name: player.display_name }) } },
+        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) router.dismissTo('/roster?claims=1'); else void quickAdd.handleClaim({ id, display_name: player.display_name }) } },
         disabled: !actionsReady, busy: quickAdd.adding === id,
     } : rosterStatus?.status === 'mine' ? {
         label: 'Lineup', onPress: () => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`),

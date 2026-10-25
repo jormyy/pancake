@@ -4,6 +4,7 @@ import {
     buildTwoTeamTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
+    prefillTradeRosterPlan,
     submitMultiTeamTradeComposer,
     submitTradeComposer,
     validateTradeNotes,
@@ -62,6 +63,32 @@ describe('getTradeComposerMode', () => {
             counterTradeId: 'counter-1',
             sourceTradeId: 'edit-1',
         })
+    })
+})
+
+describe('source trade roster plan', () => {
+    it.each(['proposer', 'recipient', 'third'])('restores only %s placements and drops', memberId => {
+        const source = trade({
+            isMultiTeam: true,
+            participants: ['proposer', 'recipient', 'third'].map((id, index) => ({ memberId: id, teamName: id, sortOrder: index,
+                isInitiator: index === 0, acceptedAt: null, dropPlayerIds: [`drop-${id}`] })),
+            routedItems: ['proposer', 'recipient', 'third'].flatMap((id, index) => [
+                { kind: 'player' as const, playerId: `taxi-${id}`, playerName: 'Taxi', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id, toTaxi: true },
+                { kind: 'player' as const, playerId: `ir-${id}`, playerName: 'IR', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id, toIR: true },
+                { kind: 'player' as const, playerId: `active-${id}`, playerName: 'Active', position: 'PG', nbaTeam: 'BOS',
+                    fromMemberId: ['recipient', 'third', 'proposer'][index], toMemberId: id },
+            ]),
+        })
+        const plan = prefillTradeRosterPlan(source, memberId)
+        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`] })
+        plan.dropPlayerIds.push('new-drop')
+        expect(source.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds).toEqual([`drop-${memberId}`])
+    })
+
+    it('starts with no drops when the source has no saved participant plan', () => {
+        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
     })
 })
 

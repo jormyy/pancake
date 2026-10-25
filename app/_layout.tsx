@@ -15,6 +15,8 @@ import { WebAppShell } from '@/components/navigation/WebTabShell'
 import { LeagueAccessNotice } from '@/components/LeagueAccessNotice'
 import { AuthHydrationFrame } from '@/components/auth/AuthHydrationFrame'
 
+export { RouteErrorBoundary as ErrorBoundary } from '@/components/navigation/RouteErrorBoundary'
+
 export const unstable_settings = {
     anchor: '(tabs)',
 }

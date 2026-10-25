@@ -7,7 +7,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: query.from } }))
 
 describe('one season stat source', () => {
     it.each([
-        [true, 'DEN', 'vs BOS'], [false, 'LAL', '@ LAL'], [null, 'BOS', 'BOS @ LAL'], [undefined, 'LAL', 'BOS @ LAL'],
+        [true, 'DEN', 'vs BOS'], [false, 'LAL', '@ LAL'], [null, 'BOS', '@ LAL'], [undefined, 'LAL', 'vs BOS'],
+        [null, 'DEN', 'BOS @ LAL'], [undefined, null, 'BOS @ LAL'],
     ])('uses the saved game side %s after a trade to %s', (isHome, team, opponent) => {
         const result = summarizePlayerSeason([{ ...seasonLine(), is_home: isHome }], team, null)
         expect(result.games[0].opponent).toBe(opponent)

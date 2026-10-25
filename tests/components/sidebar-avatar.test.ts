@@ -147,3 +147,11 @@ it.each([1440, 390])('keeps the route subtree mounted when authentication change
     expect(screen.root.findByType('Route' as React.ElementType).props.value).toBe('navigation state')
     expect(mounts).toBe(1)
 })
+
+it('dismisses root pages when using a desktop tab link', async () => {
+    mocks.pathname = '/player/player-a'
+    await mount()
+    const links = screen.root.findAllByType('Link' as React.ElementType)
+    expect(links.length).toBeGreaterThan(0)
+    for (const link of links) expect(link.props.dismissTo).toBe(true)
+})

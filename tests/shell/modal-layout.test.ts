@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import ModalsLayout from '@/app/(modals)/_layout'
 
+vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles } }))
 vi.mock('expo-router', () => ({ Stack: Object.assign((props: React.PropsWithChildren) => React.createElement('Stack', props), { Screen: 'Screen' }) }))
 

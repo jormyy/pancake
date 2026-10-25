@@ -1,11 +1,12 @@
 import React from 'react'
+import { StackActions, StackRouter } from '@react-navigation/routers'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import RookieDraftRoomScreen from '@/app/(modals)/rookie-draft-room'
 import DraftRoomScreen from '@/app/(modals)/draft-room'
 
 const mocks = vi.hoisted(() => ({
-    replace: vi.fn(), drop: vi.fn(), trim: vi.fn(),
+    replace: vi.fn(), dismissTo: vi.fn(), drop: vi.fn(), trim: vi.fn(),
     refresh: vi.fn(), hasState: true, loading: false, loadError: null as string | null,
     prospectsLoadError: null as string | null,
     nextMember: null as string | null,
@@ -19,7 +20,7 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' }))
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
-vi.mock('expo-router', () => ({ Redirect: 'Redirect', Stack: { Screen: 'StackScreen' }, useLocalSearchParams: () => ({ draftId: 'draft' }), useRouter: () => ({ replace: mocks.replace }) }))
+vi.mock('expo-router', () => ({ Redirect: 'Redirect', Stack: { Screen: 'StackScreen' }, useLocalSearchParams: () => ({ draftId: 'draft' }), useRouter: () => ({ replace: mocks.replace, dismissTo: mocks.dismissTo }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: false,
 }) }))
@@ -88,16 +89,16 @@ it.each(['overflow', 'trim'] as const)('leaves the %s dialog without changing th
     const exit = dialog!.findAllByType('MotionPressable' as React.ElementType).filter((node) => node.props.accessibilityLabel === 'Back to League')
     expect(exit).toHaveLength(1)
     await act(async () => exit[0].props.onPress())
-    expect(mocks.replace).toHaveBeenCalledWith('/league?tab=draft')
+    expect(mocks.dismissTo).toHaveBeenCalledWith('/league?tab=draft')
     await act(async () => dialog!.props.onRequestClose())
-    expect(mocks.replace).toHaveBeenCalledTimes(2)
+    expect(mocks.dismissTo).toHaveBeenCalledTimes(2)
     expect(mocks.drop).not.toHaveBeenCalled()
     expect(mocks.trim).not.toHaveBeenCalled()
     await act(async () => { screen.update(React.createElement(RookieDraftRoomScreen)) })
     expect(screen.root.findAllByType('Modal' as React.ElementType).filter((node) => node.props.visible)).toHaveLength(1)
 })
 
-it.each([RookieDraftRoomScreen, DraftRoomScreen])('waits for the initial read, then offers a way back from a missing room: %s', async Room => {
+it.each([['rookie', RookieDraftRoomScreen], ['auction', DraftRoomScreen]] as const)('waits for the initial read, then offers a way back from a missing room: %s', async (_name, Room) => {
     mocks.hasState = false; mocks.loading = true
     await act(async () => { screen = create(React.createElement(Room)) })
     expect(screen.root.findAll((node) => node.props.children === 'Draft not found')).toHaveLength(0)
@@ -109,7 +110,7 @@ it.each([RookieDraftRoomScreen, DraftRoomScreen])('waits for the initial read, t
     const buttons = screen.root.findAllByType('Button' as React.ElementType)
     expect(buttons.map(button => button.props.title)).toEqual(['Back to League'])
     await act(async () => buttons[0].props.onPress())
-    expect(mocks.replace).toHaveBeenCalledWith('/league?tab=draft')
+    expect(mocks.dismissTo).toHaveBeenCalledWith('/league?tab=draft')
 })
 
 it('offers retry for an initial draft read failure without claiming the room is missing', async () => {
@@ -139,4 +140,26 @@ it('does not call a failed prospect read an empty draft pool', async () => {
     await act(async () => screen.update(React.createElement(RookieDraftRoomScreen)))
     expect(screen.root.findAllByType('ErrorBanner' as React.ElementType)).toHaveLength(0)
     expect(screen.root.findByType('FlashList' as React.ElementType).props.ListEmptyComponent).not.toBeNull()
+})
+
+it.each([['rookie', RookieDraftRoomScreen], ['auction', DraftRoomScreen]] as const)('returns from a draft to the original tabs tree: %s', async (_name, Room) => {
+    const router = StackRouter({ initialRouteName: '(tabs)' })
+    const options = { routeNames: ['(tabs)', '(modals)'], routeParamList: {}, routeGetIdList: {} }
+    let root = router.getInitialState(options)
+    const originalTabs = root.routes[0].key
+    const dispatch = (action: Parameters<typeof router.getStateForAction>[1]) => {
+        root = router.getStateForAction(root, action, options) ?? root
+    }
+    mocks.replace.mockImplementation(() => dispatch(StackActions.replace('(tabs)', { screen: 'league', params: { tab: 'draft' } })))
+    mocks.dismissTo.mockImplementation(() => dispatch(StackActions.popTo('(tabs)', { screen: 'league', params: { tab: 'draft' } })))
+    await act(async () => { screen = create(React.createElement(Room)) })
+    for (let visit = 0; visit < 2; visit++) {
+        dispatch(StackActions.push('(modals)', { screen: 'draft-room' }))
+        await act(async () => screen.root.findByType('DraftScreenHeader' as React.ElementType).props.onBack())
+        expect(root.routes.map(route => route.name)).toEqual(['(tabs)'])
+        expect(root.routes[0].key).toBe(originalTabs)
+        expect(root.routes[0].params).toEqual({ screen: 'league', params: { tab: 'draft' } })
+        expect(root.index).toBe(0)
+    }
+    expect(mocks.replace).not.toHaveBeenCalled()
 })

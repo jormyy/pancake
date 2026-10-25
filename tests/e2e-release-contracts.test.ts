@@ -56,7 +56,7 @@ describe('release E2E contracts', () => {
       addEventListener: (name: string, listener: (event: { waitUntil: (pending: Promise<unknown>) => void }) => void) => listeners.set(name, listener),
       registration: { showNotification: async (_title: string, options: { tag?: string; renotify?: boolean }) => {
         displayed++
-        expect(options.renotify).not.toBe(true)
+        expect(options.renotify).toBe(true)
         visible.set(options.tag ?? String(displayed), options)
       } },
     } })
