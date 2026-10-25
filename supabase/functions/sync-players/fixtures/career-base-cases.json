@@ -1,0 +1,437 @@
+[
+  {
+    "name": "Mario Hezonja",
+    "years_exp": 6,
+    "legacy": 331,
+    "expected": 331,
+    "local": [
+      [
+        2021,
+        2
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "331"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2020
+              },
+              "teamId": "1",
+              "stats": [
+                "331"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Skal Labissiere",
+    "years_exp": 5,
+    "legacy": 155,
+    "expected": 155,
+    "local": [
+      [
+        2021,
+        6
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "155"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2020
+              },
+              "teamId": "1",
+              "stats": [
+                "155"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Guerschon Yabusele",
+    "years_exp": 4,
+    "legacy": 211,
+    "expected": 211,
+    "local": [
+      [
+        2026,
+        135
+      ],
+      [
+        2027,
+        2
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "211"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2020
+              },
+              "teamId": "1",
+              "stats": [
+                "74"
+              ]
+            },
+            {
+              "season": {
+                "year": 2026
+              },
+              "teamId": "1",
+              "stats": [
+                "135"
+              ]
+            },
+            {
+              "season": {
+                "year": 2027
+              },
+              "teamId": "1",
+              "stats": [
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Andre Jackson Jr.",
+    "years_exp": 3,
+    "legacy": 172,
+    "expected": 172,
+    "local": [
+      [
+        2024,
+        55
+      ],
+      [
+        2025,
+        56
+      ],
+      [
+        2026,
+        56
+      ],
+      [
+        2027,
+        2
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "172"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2024
+              },
+              "teamId": "1",
+              "stats": [
+                "56"
+              ]
+            },
+            {
+              "season": {
+                "year": 2025
+              },
+              "teamId": "1",
+              "stats": [
+                "57"
+              ]
+            },
+            {
+              "season": {
+                "year": 2026
+              },
+              "teamId": "1",
+              "stats": [
+                "57"
+              ]
+            },
+            {
+              "season": {
+                "year": 2027
+              },
+              "teamId": "1",
+              "stats": [
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Cam Christie",
+    "years_exp": 2,
+    "legacy": 69,
+    "expected": 69,
+    "local": [
+      [
+        2025,
+        31
+      ],
+      [
+        2026,
+        31
+      ],
+      [
+        2027,
+        2
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "69"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2025
+              },
+              "teamId": "1",
+              "stats": [
+                "33"
+              ]
+            },
+            {
+              "season": {
+                "year": 2026
+              },
+              "teamId": "1",
+              "stats": [
+                "34"
+              ]
+            },
+            {
+              "season": {
+                "year": 2027
+              },
+              "teamId": "1",
+              "stats": [
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Stale ESPN",
+    "years_exp": 2,
+    "legacy": 100,
+    "expected": 101,
+    "local": [
+      [
+        2025,
+        49
+      ],
+      [
+        2026,
+        50
+      ],
+      [
+        2027,
+        2
+      ]
+    ],
+    "wrong_dnp": false,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "100"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2025
+              },
+              "teamId": "1",
+              "stats": [
+                "49"
+              ]
+            },
+            {
+              "season": {
+                "year": 2026
+              },
+              "teamId": "1",
+              "stats": [
+                "50"
+              ]
+            },
+            {
+              "season": {
+                "year": 2027
+              },
+              "teamId": "1",
+              "stats": [
+                "1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Wrong DNP",
+    "years_exp": 0,
+    "legacy": null,
+    "expected": 2,
+    "local": [
+      [
+        2027,
+        2
+      ]
+    ],
+    "wrong_dnp": true,
+    "espn": {
+      "filters": [
+        {
+          "name": "league",
+          "value": "nba"
+        },
+        {
+          "name": "seasontype",
+          "value": "2"
+        }
+      ],
+      "categories": [
+        {
+          "names": [
+            "gamesPlayed"
+          ],
+          "totals": [
+            "2"
+          ],
+          "statistics": [
+            {
+              "season": {
+                "year": 2027
+              },
+              "teamId": "1",
+              "stats": [
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

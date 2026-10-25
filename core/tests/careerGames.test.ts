@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { careerFirstSeasonYear, careerRegularSeasonGames, careerGamesPrior } from '../src/roster/careerGames'
+import { careerFirstSeasonYear, careerRegularSeasonGames, careerGamesBase } from '../src/roster/careerGames'
 
 const fixture = (name: string) => JSON.parse(readFileSync(new URL(`../../supabase/functions/sync-players/fixtures/${name}.json`, import.meta.url), 'utf8'))
 const regular = (raw: unknown) => ({ filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
@@ -34,22 +34,50 @@ describe('career NBA games', () => {
 })
 
 
-describe('career games before local coverage', () => {
+describe('completed-season career base', () => {
     const payload = (rows: unknown[], total: string) => ({
         filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
         categories: [{ names: ['gamesPlayed'], totals: [total], statistics: rows }],
     })
     const row = (year: number, games: string, teamId?: string) => ({ season: { year }, stats: [games], ...(teamId ? { teamId } : { displayName: `${year} Totals` }) })
 
-    it('adds only seasons before 2020-21 and counts a traded season once', () => {
-        expect(careerGamesPrior(payload([row(2019, '10', '1'), row(2020, '12', '1'), row(2020, '8', '2'), row(2020, '20'), row(2021, '40', '2')], '70'))).toBe(30)
-        expect(careerGamesPrior(fixture('espn-career-beringer'))).toBe(0)
+    it('uses completed seasons even when local coverage starts late or has holes', () => {
+        const cases = fixture('career-base-cases')
+        for (const test of cases) {
+            const current = test.local.filter(([year]: [number, number]) => year === 2027)
+                .reduce((sum: number, [, games]: [number, number]) => sum + games, 0)
+            expect(careerGamesBase(test.espn, 2026), test.name).toBe(test.expected - current)
+        }
     })
 
-    it('refuses incomplete season history and non-regular totals', () => {
-        expect(careerGamesPrior(payload([row(2020, '20', '1')], '70'))).toBeNull()
-        expect(careerGamesPrior(payload([], '70'))).toBeNull()
-        expect(careerGamesPrior({ ...payload([row(2020, '20')], '20'), filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '3' }] })).toBeNull()
-        expect(careerGamesPrior(payload([row(2020, '--')], '20'))).toBeNull()
+    it('counts a traded completed season once', () => {
+        expect(careerGamesBase(payload([row(2025, '10', '1'), row(2026, '12', '1'), row(2026, '8', '2'), row(2026, '20'), row(2027, '40', '2')], '70'), 2026)).toBe(30)
+    })
+
+    it('does not let a stale career total or incomplete current season change the base', () => {
+        expect(careerGamesBase(payload([row(2026, '99', '1'), row(2027, '--', '1')], '100'), 2026)).toBe(99)
+        expect(careerGamesBase(payload([row(2026, '99', '1'), row(2027, '1', '1')], '--'), 2026)).toBe(99)
+    })
+
+    it('rejects a truncated season history instead of replacing a veteran base with zero', () => {
+        expect(careerGamesBase(payload([row(2027, '2', '1')], '331'), 2026)).toBeNull()
+    })
+
+    it('gives a current-season debut a zero completed-season base', () => {
+        expect(careerGamesBase(payload([row(2027, '2', '1')], '2'), 2026)).toBe(0)
+    })
+
+    it('refuses missing season rows and malformed historical games', () => {
+        expect(careerGamesBase(payload([], '70'), 2026)).toBeNull()
+        expect(careerGamesBase(payload([row(2026, '--')], '20'), 2026)).toBeNull()
+        expect(careerGamesBase(payload([{ stats: ['20'] }], '20'), 2026)).toBeNull()
+        expect(careerGamesBase(payload([row(2026, '20', '1'), row(2026, '30')], '30'), 2026)).toBeNull()
+    })
+
+    it('refuses college and postseason histories', () => {
+        for (const filters of [[{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '3' }],
+            [{ name: 'league', value: 'mens-college-basketball' }, { name: 'seasontype', value: '2' }]]) {
+            expect(careerGamesBase({ ...payload([row(2026, '20')], '20'), filters }, 2026)).toBeNull()
+        }
     })
 })

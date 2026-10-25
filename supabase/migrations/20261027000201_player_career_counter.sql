@@ -1,34 +1,67 @@
 ALTER TABLE public.players
-  ADD COLUMN career_games_prior integer CHECK (career_games_prior >= 0),
-  ADD COLUMN career_games_prior_checked_at timestamptz;
+  ADD COLUMN career_games_base integer CHECK (career_games_base>=0),
+  ADD COLUMN career_games_base_season integer CHECK (career_games_base_season>=2020),
+  ADD COLUMN career_games_base_checked_at timestamptz,
+  ADD COLUMN career_games_base_attempted_at timestamptz,
+  ADD COLUMN career_games_base_source text CHECK (career_games_base_source IN ('espn','rookie','coverage','threshold')),
+  ADD CONSTRAINT player_career_base_complete CHECK (
+    (career_games_base IS NULL AND career_games_base_season IS NULL AND career_games_base_source IS NULL AND career_games_base_checked_at IS NULL)
+    OR (career_games_base IS NOT NULL AND career_games_base_season IS NOT NULL AND career_games_base_source IS NOT NULL AND career_games_base_checked_at IS NOT NULL)
+  );
 
-CREATE OR REPLACE FUNCTION private.player_career_values(p_player_id uuid, p_years_exp integer, p_prior integer)
-RETURNS TABLE(prior integer, games integer) LANGUAGE sql STABLE SET search_path = '' AS $$
-  WITH observed AS (
-    SELECT count(*) FILTER (WHERE s.minutes_played > 0 AND NOT s.did_not_play
-      AND g.season_year >= 2021 AND g.game_date >= DATE '2020-12-22')::integer AS games,
-      min(g.season_year) AS first_season
+CREATE OR REPLACE FUNCTION private.player_game_appeared(p_stats player_game_stats)
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
+  SELECT coalesce(p_stats.minutes_played > 0, false) OR coalesce(greatest(
+    p_stats.points,p_stats.rebounds,p_stats.offensive_rebounds,p_stats.defensive_rebounds,
+    p_stats.assists,p_stats.steals,p_stats.blocks,p_stats.turnovers,p_stats.personal_fouls,
+    p_stats.field_goals_made,p_stats.field_goals_attempted,p_stats.three_pointers_made,
+    p_stats.three_pointers_attempted,p_stats.free_throws_made,p_stats.free_throws_attempted) > 0, false);
+$$;
+
+
+CREATE OR REPLACE FUNCTION private.player_career_appearances(p_player_id uuid, p_after_season integer)
+RETURNS integer LANGUAGE sql STABLE SET search_path = '' AS $$
+  SELECT count(*)::integer
+  FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
+  WHERE s.player_id=p_player_id AND g.season_year>p_after_season
+    AND g.game_date>=DATE '2020-12-22'
+    AND public.is_regular_season_game_id(g.nba_game_id) AND private.player_game_appeared(s);
+$$;
+
+
+CREATE OR REPLACE FUNCTION private.player_career_fallback(p_player_id uuid, p_years_exp integer, p_season_year integer)
+RETURNS TABLE(base integer, base_season integer, source text)
+LANGUAGE sql STABLE SET search_path = '' AS $$
+  WITH appeared AS (
+    SELECT g.season_year,g.game_date
     FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
-    WHERE s.player_id=p_player_id AND public.is_regular_season_game_id(g.nba_game_id)
+    WHERE s.player_id=p_player_id AND g.season_year<=p_season_year
+      AND public.is_regular_season_game_id(g.nba_game_id) AND private.player_game_appeared(s)
+  ), coverage AS (
+    SELECT count(*) FILTER(WHERE season_year>=2021 AND game_date>=DATE '2020-12-22') AS games,
+      count(DISTINCT season_year) FILTER(WHERE season_year<p_season_year) AS completed_seasons,
+      count(*) FILTER(WHERE season_year<p_season_year) AS past_games,
+      count(*) FILTER(WHERE season_year<2021 OR game_date<DATE '2020-12-22') AS before_coverage
+    FROM appeared
   ), resolved AS (
-    SELECT games, coalesce(p_prior, CASE WHEN p_years_exp >= 0
-      AND public.current_season_year_et() - p_years_exp >= 2021
-      AND coalesce(first_season, 2021) >= 2021 THEN 0 END) AS prior FROM observed
+    SELECT CASE WHEN p_years_exp=0 AND past_games=0 THEN 'rookie'
+      WHEN p_years_exp>0 AND completed_seasons=p_years_exp AND before_coverage=0 THEN 'coverage'
+      WHEN games>=65 THEN 'threshold' END AS source FROM coverage
   )
-  SELECT prior, CASE WHEN prior IS NOT NULL THEN prior + games WHEN games >= 65 THEN games END FROM resolved;
+  SELECT CASE WHEN source IS NOT NULL THEN 0 END,
+    CASE WHEN source='rookie' THEN p_season_year-1 WHEN source IS NOT NULL THEN 2020 END,source FROM resolved;
 $$;
 
 
 CREATE OR REPLACE FUNCTION private.recount_player_career_games(p_player_ids uuid[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_player public.players%ROWTYPE; v_prior integer; v_games integer;
+DECLARE v_player public.players%ROWTYPE; v_games integer;
 BEGIN
-  FOR v_player IN SELECT * FROM public.players WHERE id=ANY(p_player_ids) ORDER BY id FOR UPDATE LOOP
-    SELECT prior, games INTO v_prior, v_games FROM private.player_career_values(v_player.id,v_player.years_exp,v_player.career_games_prior);
-    UPDATE public.players SET career_games_prior=v_prior, career_regular_season_games=v_games,
-      career_games_prior_checked_at=CASE WHEN v_player.career_games_prior IS NULL AND v_prior IS NOT NULL
-        THEN clock_timestamp() ELSE career_games_prior_checked_at END
-    WHERE id=v_player.id AND (career_games_prior,career_regular_season_games) IS DISTINCT FROM (v_prior,v_games);
+  FOR v_player IN SELECT * FROM public.players WHERE id=ANY(p_player_ids)
+    AND career_games_base IS NOT NULL ORDER BY id FOR UPDATE LOOP
+    v_games:=v_player.career_games_base+private.player_career_appearances(v_player.id,v_player.career_games_base_season);
+    UPDATE public.players SET career_regular_season_games=v_games
+      WHERE id=v_player.id AND career_regular_season_games IS DISTINCT FROM v_games;
   END LOOP;
 END;
 $$;
@@ -36,19 +69,13 @@ $$;
 
 CREATE OR REPLACE FUNCTION private.guard_player_career_games()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_prior integer; v_games integer;
 BEGIN
-  IF TG_OP='INSERT' THEN
-    IF NEW.career_regular_season_games IS NOT NULL THEN RETURN NEW; END IF;
-  ELSIF NEW.years_exp IS NOT DISTINCT FROM OLD.years_exp
-    AND NEW.career_games_prior IS NOT DISTINCT FROM OLD.career_games_prior
-    AND NEW.career_games_checked_at IS NOT DISTINCT FROM OLD.career_games_checked_at THEN
-    RETURN NEW;
+  IF NEW.career_games_base IS NOT NULL THEN
+    NEW.career_regular_season_games:=NEW.career_games_base+
+      private.player_career_appearances(NEW.id,NEW.career_games_base_season);
+  ELSIF TG_OP='UPDATE' THEN
+    NEW.career_regular_season_games:=greatest(OLD.career_regular_season_games,NEW.career_regular_season_games);
   END IF;
-  SELECT prior,games INTO v_prior,v_games FROM private.player_career_values(NEW.id,NEW.years_exp,NEW.career_games_prior);
-  NEW.career_games_prior := v_prior;
-  NEW.career_regular_season_games := v_games;
-  IF v_prior IS NOT NULL AND NEW.career_games_prior_checked_at IS NULL THEN NEW.career_games_prior_checked_at:=clock_timestamp(); END IF;
   RETURN NEW;
 END;
 $$;
@@ -79,27 +106,45 @@ END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION public.claim_player_career_prior_atomic(p_player_id uuid, p_now timestamptz DEFAULT now())
+CREATE OR REPLACE FUNCTION public.claim_player_career_base_atomic(p_player_id uuid, p_now timestamptz DEFAULT now())
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
-  UPDATE public.players SET career_games_prior_checked_at=p_now
-  WHERE id=p_player_id AND (years_exp IS NULL OR (career_games_prior IS NULL AND coalesce(career_regular_season_games,0)<65))
-    AND (career_games_prior_checked_at IS NULL OR career_games_prior_checked_at<=p_now-interval '7 days');
+  UPDATE public.players SET career_games_base_attempted_at=p_now
+  WHERE id=p_player_id AND career_games_base IS NULL
+    AND (career_games_base_attempted_at IS NULL OR career_games_base_attempted_at<=p_now-interval '7 days');
   RETURN FOUND;
 END;
 $$;
 
 
-CREATE OR REPLACE FUNCTION public.complete_player_career_prior_atomic(
-  p_player_id uuid, p_prior integer, p_espn_id text, p_nba_id text
+CREATE OR REPLACE FUNCTION public.complete_player_career_base_atomic(
+  p_player_id uuid, p_espn_id text, p_nba_id text,
+  p_base integer DEFAULT NULL, p_base_season integer DEFAULT NULL,
+  p_season_year integer DEFAULT public.current_season_year_et()
 )
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_player public.players%ROWTYPE; v_source text;
 BEGIN
-  IF p_prior IS NULL OR p_prior<0 THEN RAISE EXCEPTION 'A nonnegative career prior is required.' USING ERRCODE='22023'; END IF;
-  UPDATE public.players SET career_games_prior=p_prior
-  WHERE id=p_player_id AND career_games_prior IS NULL
-    AND espn_id IS NOT DISTINCT FROM nullif(p_espn_id,'') AND nba_id IS NOT DISTINCT FROM nullif(p_nba_id,'');
-  RETURN FOUND;
+  IF p_season_year IS NULL OR p_season_year<2021 OR
+    (p_base IS NULL) IS DISTINCT FROM (p_base_season IS NULL) OR p_base<0 OR
+    (p_base_season IS NOT NULL AND p_base_season<>p_season_year-1) THEN
+    RAISE EXCEPTION 'A completed-season NBA career base is required.' USING ERRCODE='22023';
+  END IF;
+  SELECT * INTO v_player FROM public.players WHERE id=p_player_id FOR UPDATE;
+  IF NOT FOUND OR v_player.career_games_base IS NOT NULL
+    OR v_player.espn_id IS DISTINCT FROM nullif(p_espn_id,'')
+    OR v_player.nba_id IS DISTINCT FROM nullif(p_nba_id,'') THEN RETURN false; END IF;
+  IF p_base IS NULL THEN
+    SELECT base,base_season,source INTO p_base,p_base_season,v_source
+      FROM private.player_career_fallback(p_player_id,v_player.years_exp,p_season_year);
+    IF p_base IS NULL OR p_base+private.player_career_appearances(p_player_id,p_base_season)<v_player.career_regular_season_games THEN RETURN false; END IF;
+  ELSE
+    v_source:='espn';
+  END IF;
+  UPDATE public.players SET career_games_base=p_base,career_games_base_season=p_base_season,
+    career_games_base_source=v_source,career_games_base_checked_at=clock_timestamp()
+  WHERE id=p_player_id;
+  RETURN true;
 END;
 $$;
 
@@ -117,6 +162,7 @@ AS $$
 DECLARE
   v_winner players%ROWTYPE;
   v_loser players%ROWTYPE;
+  v_career players%ROWTYPE;
 BEGIN
   PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF winner_id = loser_id THEN RETURN; END IF;
@@ -133,6 +179,9 @@ BEGIN
     RAISE EXCEPTION 'Cannot merge conflicting provider identities.' USING ERRCODE = '23514';
   END IF;
 
+  SELECT * INTO v_career FROM players WHERE id IN (winner_id,loser_id) AND career_games_base IS NOT NULL
+    ORDER BY (career_games_base_source='espn') DESC,career_games_base_season DESC,career_games_base DESC,id LIMIT 1;
+
   -- Release unique provider links before moving them to the surviving identity.
   UPDATE players SET
     sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
@@ -146,10 +195,12 @@ BEGIN
     nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
     espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
     sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
-    career_games_prior = COALESCE(v_winner.career_games_prior, v_loser.career_games_prior),
-    career_games_prior_checked_at = CASE WHEN v_winner.career_games_prior IS NOT NULL THEN v_winner.career_games_prior_checked_at
-      WHEN v_loser.career_games_prior IS NOT NULL THEN v_loser.career_games_prior_checked_at
-      ELSE GREATEST(v_winner.career_games_prior_checked_at,v_loser.career_games_prior_checked_at) END,
+    career_regular_season_games = greatest(v_winner.career_regular_season_games,v_loser.career_regular_season_games),
+    career_games_base = v_career.career_games_base,
+    career_games_base_season = v_career.career_games_base_season,
+    career_games_base_source = v_career.career_games_base_source,
+    career_games_base_checked_at = v_career.career_games_base_checked_at,
+    career_games_base_attempted_at = greatest(v_winner.career_games_base_attempted_at,v_loser.career_games_base_attempted_at),
     nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
     position = COALESCE(v_winner.position, v_loser.position),
     eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
@@ -342,7 +393,7 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER player_career_guard BEFORE INSERT OR UPDATE OF years_exp,career_games_prior,career_games_checked_at
+CREATE TRIGGER player_career_guard BEFORE INSERT OR UPDATE OF career_regular_season_games,career_games_base,career_games_base_season,career_games_checked_at
   ON public.players FOR EACH ROW EXECUTE FUNCTION private.guard_player_career_games();
 CREATE TRIGGER career_stats_insert AFTER INSERT ON public.player_game_stats
   REFERENCING NEW TABLE AS career_new_rows FOR EACH STATEMENT EXECUTE FUNCTION private.recount_changed_player_careers();
@@ -353,17 +404,27 @@ CREATE TRIGGER career_stats_delete AFTER DELETE ON public.player_game_stats
 CREATE TRIGGER career_game_update AFTER UPDATE OF nba_game_id,season_year,game_date ON public.nba_games
   FOR EACH ROW EXECUTE FUNCTION private.recount_changed_game_careers();
 
-REVOKE ALL ON FUNCTION public.claim_player_career_prior_atomic(uuid,timestamptz) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.complete_player_career_prior_atomic(uuid,integer,text,text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_player_career_prior_atomic(uuid,timestamptz) TO service_role;
-GRANT EXECUTE ON FUNCTION public.complete_player_career_prior_atomic(uuid,integer,text,text) TO service_role;
+REVOKE ALL ON FUNCTION public.claim_player_career_base_atomic(uuid,timestamptz) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.complete_player_career_base_atomic(uuid,text,text,integer,integer,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_player_career_base_atomic(uuid,timestamptz) TO service_role;
+GRANT EXECUTE ON FUNCTION public.complete_player_career_base_atomic(uuid,text,text,integer,integer,integer) TO service_role;
 REVOKE ALL ON FUNCTION private.player_identity_name(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.player_identity_team(text) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION private.player_career_values(uuid,integer,integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.player_game_appeared(public.player_game_stats) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.player_career_appearances(uuid,integer) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION private.player_career_fallback(uuid,integer,integer) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.recount_player_career_games(uuid[]) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.guard_player_career_games() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.recount_changed_player_careers() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION private.recount_changed_game_careers() FROM PUBLIC, anon, authenticated;
 
 SELECT public.merge_duplicate_players();
-SELECT private.recount_player_career_games(ARRAY(SELECT id FROM public.players));
+
+WITH candidates AS (
+  SELECT p.id,f.base,f.base_season,f.source
+  FROM public.players p CROSS JOIN LATERAL private.player_career_fallback(p.id,p.years_exp,public.current_season_year_et()) f
+  WHERE p.career_regular_season_games IS NULL AND f.base IS NOT NULL
+)
+UPDATE public.players p SET career_games_base=c.base,career_games_base_season=c.base_season,
+  career_games_base_source=c.source,career_games_base_checked_at=clock_timestamp()
+FROM candidates c WHERE p.id=c.id;

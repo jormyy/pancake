@@ -115,7 +115,7 @@ Deno.test({
         assert.equal(response.status, 200, JSON.stringify(result))
         assert.equal(result.ok, true)
         assert.equal(result.injuryWarnings, 1)
-        assert.equal(result.careerUnverified, 0)
+        assert.equal(result.careerUnverified, 359)
         assert.equal(result.updated + result.inserted, 360)
         const imported = await supabase.from('players').select('nba_team, injury_status, years_exp, career_regular_season_games').eq('espn_id', athletes[0].id).single()
         assert.ifError(imported.error)

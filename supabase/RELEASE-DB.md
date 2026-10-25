@@ -13,6 +13,9 @@ Apply these follow-up migrations after that baseline, in version order:
 - `20261027000200_player_identity_matching.sql`
 - `20261027000201_player_career_counter.sql`
 
+The counter migration replaces its earlier unpublished rehearsal version.
+Rebuild the rehearsal from the production baseline before applying this revised file.
+
 The first migration limits new pick assets to three future draft classes and corrects pick years in trade-expiry messages.
 It also rejects trades containing retained picks beyond that window.
 The second removes unused, unreferenced picks beyond the third future class.
@@ -44,17 +47,35 @@ The supplied production pattern merges seven rows into six NBA-backed survivors:
 
 The NBA row survives; every compatible provider ID and dependent reference moves through `merge_players`.
 The migration skips any group with conflicting provider IDs.
-Career counts use positive-minute, non-DNP regular-season boxes plus a stored pre-2020-21 prior.
-The migration recounts every player after merging.
-Nic Claxton has 480 stored games in the supplied facts and therefore needs no prior lookup for taxi decisions.
-Older players below 65 observed games remain unknown until a verified prior succeeds.
-The supplied facts do not identify all those players; the read-only audit lists them by name.
-Run `supabase/sql/player-data-audit.sql` against the approved candidate data to review the exact rows and season inventory.
-This query does not certify production data until the release owner executes it there.
+Career totals use a fixed base plus regular-season appearances after the base season.
+An appearance has positive minutes or any positive counting statistic, regardless of its DNP flag.
+The base normally comes from ESPN per-season GP through the previous season.
+Later seasons come from our boxes; ESPN's current-season lag does not remove the latest appearance.
+
+| Existing state | Migration result | Next lookup |
+| --- | --- | --- |
+| Non-null count | Preserve the count exactly; leave base unset | One ESPN completed-season fetch |
+| NULL count; rookie with no earlier appearance | Base 0 through the previous season | None |
+| NULL count; every completed NBA season covered | Base 0 through 2020 | None |
+| NULL count; at least 65 covered appearances | Base 0 through 2020; total is a safe lower bound | None |
+| Other NULL count | Remain unknown | ESPN first; retry failures after at least seven days |
+
+Covered completed seasons must equal `years_exp`.
+A current-season appearance adds one to the number of observed seasons, not to completed experience.
+Any appearance before coverage prevents the complete-coverage fallback.
+A late first stored season never proves a late NBA debut.
+Established bases are never fetched again, including fallback bases.
+After a failed ESPN request, a fallback must not lower an existing count.
+The worker limits each run to 300 players, 16 concurrent jobs, and a 90-second start budget.
+External work for one player has an eight-second deadline.
+Earlier import work also reduces the remaining lookup budget.
+The worker starts no new lookup after 110 seconds of the complete daily sync.
+Current NBA and current roster players run first; deferred work remains due for the next daily run.
+Run `supabase/sql/player-data-audit.sql` against approved candidate data to inspect base sources, missing bases, and season coverage.
 
 The existing Edge and frontend remain compatible throughout the database phase and after rollback.
 Stored years and existing RPC arguments, results, and permissions stay compatible.
-The player table gains nullable prior-count fields.
+The player table gains nullable base, cutoff, source, and lookup-time fields.
 Regenerate the final release and database security attestations after all follow-up migrations are integrated.
 Do not reuse the previous release's approved migration range.
 The reserved `20261027000000` legacy-push cleanup is separate from this pick release.
@@ -86,19 +107,32 @@ These recipes need no new package commands:
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-identity.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-prior.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
 npm run test:db:player-data
 ```
 
-The fixture comparison sums 40 games in 2025-26 and two in 2026-27.
-The new total must equal the pinned ESPN regular-season total of 42 for Joan Beringer.
-Preseason, playoffs, play-in, Cup finals, DNPs, and zero-minute rows contribute zero.
-The prior parser verifies that yearly totals sum to the provider's career total.
-A traded season contributes its season total once.
-The existing regular-season predicate recognizes NBA `002` games and excludes other NBA `00` types.
-Legacy Basketball Reference imports already filter their schedule at the playoff boundary.
-Review their dates in the audit when verifying coverage.
+The fixtures reproduce Mario Hezonja, Skal Labissiere, and Guerschon Yabusele returning after gaps.
+They also model incomplete Andre Jackson Jr. and Cam Christie boxes, ESPN's one-game lag, and incorrect DNP flags.
+Expected totals use completed ESPN seasons plus all later local appearances.
+A valid career total also checks season-history completeness, with one game of tolerance for source lag.
+The migration test starts before the counter migration and proves that seven known counts never decrease.
+It also checks rookie, complete-coverage, threshold, and unknown fallbacks.
+Run that separate transition recipe before the final full reset:
+
+```sh
+supabase db reset --local --version 20261027000200
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-migration.sql
+supabase db reset --local
+```
+
+The transition recipe rolls back its fixtures and migration.
+The existing regular-season filter recognizes NBA `002` games and excludes other NBA `00` types.
+Preseason, playoffs, play-in, and Cup finals contribute zero.
+Zero-minute appearances with a positive counting statistic contribute one.
+Legacy Basketball Reference imports keep the existing schedule filter.
 
 ## Acquisition contract
 

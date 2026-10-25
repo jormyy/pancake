@@ -62,10 +62,10 @@ export function careerFirstSeasonYear(payload: unknown): number | null {
 }
 
 
-export function careerGamesPrior(payload: unknown, coverageSeason = 2021): number | null {
+export function careerGamesBase(payload: unknown, completedSeason: number): number | null {
     const source = nbaCareer(payload)
-    const total = careerRegularSeasonGames(payload)
-    if (!source || total === null) return null
+    if (!source?.filters?.some(filter => filter?.name === 'seasontype' && filter.value === '2')
+        || !Number.isInteger(completedSeason) || completedSeason < 1946) return null
     for (const category of source.categories ?? []) {
         if (!category) continue
         const index = gamesIndex(category)
@@ -73,26 +73,32 @@ export function careerGamesPrior(payload: unknown, coverageSeason = 2021): numbe
         const seasons = new Map<number, { parts: number; total: number | null }>()
         for (const row of category.statistics) {
             const year = row?.season?.year
-            const games = Array.isArray(row?.stats) ? gamesNumber(row.stats[index]) : null
-            if (!Number.isInteger(year) || year! <= 1946 || games === null) return null
-            const season = seasons.get(year!) ?? { parts: 0, total: null }
-            if (/\bTotals$/i.test(row.displayName ?? '')) {
+            if (typeof year !== 'number' || !Number.isInteger(year) || year <= 1946) return null
+            const games = Array.isArray(row.stats) ? gamesNumber(row.stats[index]) : null
+            if (games === null) {
+                if (year > completedSeason) continue
+                return null
+            }
+            const season = seasons.get(year) ?? { parts: 0, total: null }
+            if (/\bTotals?$/i.test(row.displayName ?? '')) {
                 if (season.total !== null && season.total !== games) return null
                 season.total = games
             } else {
                 season.parts += games
             }
-            seasons.set(year!, season)
+            seasons.set(year, season)
         }
-        let sum = 0
-        let prior = 0
+        let base = 0
+        let total = 0
         for (const [year, season] of seasons) {
             if (season.total !== null && season.parts > 0 && season.total !== season.parts) return null
             const games = season.total ?? season.parts
-            sum += games
-            if (year < coverageSeason) prior += games
+            total += games
+            if (year <= completedSeason) base += games
         }
-        return sum === total ? prior : null
+        const reported = careerRegularSeasonGames(payload)
+        if (reported !== null && Math.abs(reported - total) > 1) return null
+        return Number.isSafeInteger(base) && base <= 2147483647 ? base : null
     }
     return null
 }

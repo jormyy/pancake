@@ -19,9 +19,13 @@ FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
 GROUP BY g.season_year,left(g.nba_game_id,3)
 ORDER BY g.season_year,game_id_prefix;
 
-SELECT p.id,p.display_name,p.nba_team,p.years_exp,p.career_games_prior,p.career_games_prior_checked_at,
-  CASE WHEN p.years_exp IS NULL THEN 'Unknown experience and unverified pre-2020-21 prior'
-    ELSE 'Possible pre-2020-21 career, fewer than 65 observed games, unverified prior' END AS reason
-FROM public.players p CROSS JOIN LATERAL private.player_career_values(p.id,p.years_exp,p.career_games_prior) c
-WHERE c.games IS NULL
+SELECT p.id,p.display_name,p.nba_team,p.years_exp,p.career_regular_season_games,
+  p.career_games_base,p.career_games_base_season,p.career_games_base_source,
+  p.career_games_base_checked_at,p.career_games_base_attempted_at,
+  CASE WHEN p.career_games_base IS NOT NULL THEN 'Established base; no lookup'
+    WHEN p.career_regular_season_games IS NOT NULL THEN 'Preserved legacy count; ESPN base due'
+    WHEN f.source IS NOT NULL THEN 'Available fallback: '||f.source
+    ELSE 'Unknown; ESPN base required' END AS state
+FROM public.players p
+CROSS JOIN LATERAL private.player_career_fallback(p.id,p.years_exp,public.current_season_year_et()) f
 ORDER BY p.display_name,p.id;
