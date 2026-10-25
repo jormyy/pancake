@@ -54,7 +54,7 @@ export async function handleE2eRoute(req: Request, path: string): Promise<Respon
     const leagueId = typeof body.leagueId === 'string' ? uuidField(body, 'leagueId') : undefined
     try {
       const results = await generateAllMatchups(Boolean(body.force), leagueId)
-      if (results.some(result => result.skipped)) return json({ error: 'A schedule already exists and the season has started.' }, 409)
+      if (results.some(result => result.skipped)) return json({ ok: true, skipped: true })
     } catch (error) {
       if ((error as { message?: string })?.message === 'The season has started; the schedule can no longer be rebuilt.') {
         return json({ error: 'The season has started; the schedule can no longer be rebuilt.' }, 409)

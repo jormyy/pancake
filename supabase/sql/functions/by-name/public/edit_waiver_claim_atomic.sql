@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION public.edit_waiver_claim_atomic(
   p_drop_player_id uuid DEFAULT NULL,
   p_bid_amount int DEFAULT 0,
   p_claim_order int DEFAULT NULL,
-  p_to_ir boolean DEFAULT false
+  p_to_ir boolean DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
@@ -163,7 +163,7 @@ BEGIN
   END IF;
 
   UPDATE waiver_claims
-     SET to_ir = COALESCE(p_to_ir, false),
+     SET to_ir = COALESCE(p_to_ir, to_ir),
          drop_player_id = p_drop_player_id,
          bid_amount = v_bid_amount,
          claim_order = COALESCE(p_claim_order, claim_order),

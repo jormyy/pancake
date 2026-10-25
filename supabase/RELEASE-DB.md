@@ -4,6 +4,7 @@
 
 Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261020000007`.
+This release advances the database through migration `20261026000500`.
 It still needs 63 migrations from `origin/main`, followed by this release's migrations.
 The Vercel integration publishes the frontend when this release merges into main.
 Do not merge before the database and Edge checks pass.
@@ -72,7 +73,7 @@ public.edit_waiver_claim_atomic(
   p_drop_player_id uuid DEFAULT NULL,
   p_bid_amount integer DEFAULT 0,
   p_claim_order integer DEFAULT NULL,
-  p_to_ir boolean DEFAULT false
+  p_to_ir boolean DEFAULT NULL
 ) RETURNS void
 ```
 
@@ -91,7 +92,9 @@ public.edit_waiver_claim_atomic(
 
 The add RPC stays available to authenticated users and the service role.
 Claim create and edit stay limited to the service role through the authenticated API.
-Both waiver API bodies accept `toIr: boolean`; an omitted value means false.
+Both waiver API bodies accept `toIr: boolean`.
+An omitted create value means false.
+An omitted edit value keeps the stored choice.
 The claim row stores `waiver_claims.to_ir boolean NOT NULL DEFAULT false`.
 
 An IR add keeps the active roster intact and consumes one weekly add.
@@ -190,8 +193,7 @@ No iPhone screen verification runs in this database lane.
 
 - Add an eligible free agent with one `add_free_agent_atomic` call and `p_to_ir=true`.
 - Send `toIr` in waiver create and edit bodies, and read the stored `to_ir` choice.
-- Watch the `player_stats` topic through the existing league hint subscription.
-- Refresh visible player rows when that topic changes.
+- Refresh visible player rows on the score topic.
 - Keep server rule errors and waiver failure reasons visible to the user.
 - Verify the combined release in the installed iPhone Safari app.
 
@@ -341,6 +343,16 @@ DECLARE
   v_limit int := LEAST(GREATEST(COALESCE(p_limit, 100), 0), 200);
   v_lease_seconds int := LEAST(GREATEST(COALESCE(p_lease_seconds, 60), 15), 600);
 BEGIN
+  WITH deleted AS (
+    SELECT queued.id FROM public.notification_outbox queued
+    JOIN public.league_members member ON member.id=queued.member_id
+    JOIN public.leagues league ON league.id=member.league_id AND league.deleted_at IS NOT NULL
+    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL AND queued.suppressed_at IS NULL
+      AND (queued.claimed_at IS NULL OR queued.claimed_at<=now()-make_interval(secs=>v_lease_seconds))
+    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
+  )
+  UPDATE public.notification_outbox queued SET suppressed_at=clock_timestamp(),suppression_reason='league_deleted',
+    claimed_at=NULL,claim_token=NULL FROM deleted WHERE queued.id=deleted.id;
   WITH stale AS (
     SELECT queued.id FROM public.notification_outbox queued
     WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
@@ -371,6 +383,8 @@ BEGIN
       FROM notification_outbox AS queued
      WHERE queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
        AND queued.suppressed_at IS NULL
+       AND EXISTS (SELECT 1 FROM public.league_members member JOIN public.leagues league ON league.id=member.league_id
+         WHERE member.id=queued.member_id AND league.deleted_at IS NULL)
        AND NOT private.notif_is_stale(queued.event_type,queued.data)
        AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
        AND private.notif_preference_enabled((SELECT member.user_id FROM public.league_members member WHERE member.id = queued.member_id),queued.event_type,queued.category)
@@ -496,7 +510,7 @@ BEGIN
     WHERE accepted.status = 'accepted'::public.trade_status
       AND accepted.veto_window_expires_at <= now()
       AND season.is_current
-      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
+      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status, 'drafting'::public.league_status)
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
     WHERE queued.suppressed_at IS NULL
@@ -541,3 +555,6 @@ ALTER TABLE public.notification_outbox
   DROP COLUMN ticketed_at,
   DROP COLUMN receipt_attempt_count;
 ```
+
+The release removes unused tiebreak storage after replacing its SQL writers.
+Deployed Edge and frontend code do not use that table.

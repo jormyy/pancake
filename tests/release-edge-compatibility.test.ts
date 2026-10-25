@@ -120,7 +120,30 @@ it('detects publication drops used by the deployed client', () => {
 })
 
 function rpcNames(source: string) {
-    return new Set([...source.matchAll(/\.rpc\(\s*['"]([a-z_]+)['"]/g)].map(match => `public.${match[1]}`))
+    const file = ts.createSourceFile('consumer.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    const program = ts.createProgram(['consumer.tsx'], { noLib: true, noResolve: true }, {
+        getSourceFile: name => name === file.fileName ? file : undefined,
+        getDefaultLibFileName: () => '', writeFile: () => {}, getCurrentDirectory: () => '',
+        getDirectories: () => [], fileExists: name => name === file.fileName,
+        readFile: name => name === file.fileName ? source : undefined,
+        getCanonicalFileName: name => name, useCaseSensitiveFileNames: () => true, getNewLine: () => '\n',
+    })
+    const checker = program.getTypeChecker()
+    const names = new Set<string>()
+    const visit = (node: ts.Node) => {
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === 'rpc') {
+            const argument = node.arguments[0]
+            const type = argument && checker.getTypeAtLocation(argument)
+            const values = type?.isUnion() ? type.types : type ? [type] : []
+            if (!values.length || values.some(value => !value.isStringLiteral())) {
+                throw new Error(`Unknown non-literal RPC: ${argument?.getText(file) ?? '<missing>'}`)
+            }
+            for (const value of values) if (value.isStringLiteral()) names.add(`public.${value.value}`)
+        }
+        ts.forEachChild(node, visit)
+    }
+    visit(file)
+    return names
 }
 
 function parameters(definition: string) {
@@ -145,14 +168,24 @@ function parameters(definition: string) {
     })
 }
 
+function returns(definition: string) {
+    return definition.match(/\bRETURNS\s+([\s\S]*?)(?=\b(?:LANGUAGE|AS|SECURITY|STABLE|IMMUTABLE|VOLATILE|PARALLEL|COST|ROWS|SET)\b)/i)?.[1]
+        .toLowerCase().replace(/\bint\b/g, 'integer').replace(/\bbool\b/g, 'boolean').replace(/\s+/g, '')
+}
+
 function brokenRpcContracts(sources: string[], deployed: Map<string, string>, merged: Map<string, string>) {
     const called = new Set(sources.flatMap(source => [...rpcNames(source)]))
     return [...deployed].filter(([key]) => called.has(key.split('(')[0])).filter(([key, definition]) => {
         const oldParameters = parameters(definition)
-        return ![...merged].some(([nextKey, nextDefinition]) => {
-            if (nextKey.split('(')[0] !== key.split('(')[0]) return false
+        const replacements = [...merged].filter(([nextKey]) => nextKey.split('(')[0] === key.split('(')[0])
+        const candidates = replacements.filter(([, nextDefinition]) => parameters(nextDefinition)
+            .every(next => next.optional || oldParameters.some(old => !old.optional && old.name === next.name && old.type === next.type)))
+        if (candidates.length > 1 && candidates.some(([, candidate]) => ![...deployed].some(([oldKey, oldDefinition]) =>
+            oldKey.split('(')[0] === key.split('(')[0] && JSON.stringify(parameters(oldDefinition)) === JSON.stringify(parameters(candidate))))) return true
+        return !replacements.some(([, nextDefinition]) => {
             const nextParameters = parameters(nextDefinition)
-            return oldParameters.every(old => nextParameters.some(next => next.name === old.name && next.type === old.type))
+            return returns(definition) === returns(nextDefinition)
+                && oldParameters.every(old => nextParameters.some(next => next.name === old.name && next.type === old.type))
                 && nextParameters.every(next => next.optional || oldParameters.some(old => old.name === next.name && !old.optional))
         })
     }).map(([key]) => key)
@@ -182,6 +215,29 @@ it('checks client-only RPC calls as well as Edge calls', () => {
     const deployed = latestFunctionDefinitionsInSource('CREATE FUNCTION public.client_only(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')
     expect(brokenRpcContracts(["db.rpc('edge_only')"], deployed, new Map())).toEqual([])
     expect(brokenRpcContracts(["db.rpc('client_only', { p_id: id })"], deployed, new Map())).toEqual(['public.client_only'])
+})
+
+it('collects dynamic RPC string unions', () => {
+    expect([...rpcNames("function toggle(name: 'toggle_ir_atomic' | 'toggle_taxi_atomic') { return db.rpc(name) }")].sort())
+        .toEqual(['public.toggle_ir_atomic', 'public.toggle_taxi_atomic'])
+})
+
+it('rejects an unknown dynamic RPC name', () => {
+    expect(() => rpcNames('function unknown(name: string) { return db.rpc(name) }')).toThrow(/Unknown non-literal RPC/)
+})
+
+it('rejects a new overload that accepts deployed required arguments', () => {
+    const deployed = latestFunctionDefinitionsInSource('CREATE FUNCTION public.offer(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')
+    const ambiguous = latestFunctionDefinitionsInSource(`CREATE FUNCTION public.offer(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;
+        CREATE FUNCTION public.offer(p_id uuid,p_optional text DEFAULT NULL) RETURNS void LANGUAGE sql AS $$ SELECT; $$;`)
+    expect(brokenRpcContracts(["db.rpc('offer', { p_id: id })"], deployed, ambiguous)).toEqual(['public.offer'])
+})
+
+it('rejects a changed return contract and accepts normalized return types', () => {
+    const definition = (returns: string) => latestFunctionDefinitionsInSource(`CREATE FUNCTION public.offer(p_id uuid) RETURNS ${returns} LANGUAGE sql AS $$ SELECT; $$;`)
+    expect(brokenRpcContracts(["db.rpc('offer')"], definition('TABLE (id uuid, count integer)'), definition('TABLE (id uuid, count text)')))
+        .toEqual(['public.offer'])
+    expect(brokenRpcContracts(["db.rpc('offer')"], definition('TABLE (id uuid, count integer)'), definition('table(id uuid,count int)'))).toEqual([])
 })
 
 function deployedHintReceiver() {
@@ -214,7 +270,7 @@ it.skipIf(!available)('emits only hint topics and inventory resources accepted b
     }
 })
 
-function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string) {
+function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string, newestMigration: string) {
     const functions = latestFunctionDefinitionsInSource(mainMigrations)
     const newRpc = [...rpcNames(clientSource)].some(name => !functions.has(name))
     const newColumns = ['waiver_claims.to_ir', 'player_game_stats.is_home'].some(column => {
@@ -222,24 +278,33 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
         return clientSource.includes(name) && !new RegExp(`ALTER\\s+TABLE\\s+(?:public\\.)?${table}[\\s\\S]*?ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${name}\\b`, 'i').test(mainMigrations)
     })
     const irArgument = clientSource.includes('p_to_ir') && !parameters(functions.get('public.add_free_agent_atomic') ?? '()').some(parameter => parameter.name === 'p_to_ir')
-    return (newRpc || newColumns || irArgument) && !/^## Release order for this release$/m.test(notes)
+    const section = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
+    const productionHead = section?.match(/Production currently stops at migration `([0-9]+)`/)?.[1]
+    return !section || !productionHead || (newestMigration > productionHead && !section.includes(newestMigration))
+        || (newRpc || newColumns || irArgument) && !section.includes('Database, then Edge, then merge the frontend.')
 }
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
-    const mainFiles = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
-    const main = git('show', ...mainFiles.map(file => `origin/main:${file}`))
+    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    const productionHead = notes.match(/Production currently stops at migration `([0-9]+)`/)?.[1] ?? ''
+    const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
+    const newest = migrations.at(-1)!.split('_')[0]
+    const main = migrations.filter(file => file.split('_')[0] <= productionHead)
+        .map(file => readFileSync(`supabase/migrations/${file}`, 'utf8')).join('\n')
     const files = git('ls-files', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n').filter(file => /\.tsx?$/.test(file))
     const source = files.map(file => readFileSync(file, 'utf8')).join('\n')
-    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
-    expect(requiresDatabaseFirst(main, source, notes)).toBe(false)
-    expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'))).toBe(true)
+    expect(requiresDatabaseFirst(main, source, notes, newest)).toBe(false)
+    expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'), newest)).toBe(true)
+    expect(requiresDatabaseFirst(main, source, notes.replaceAll(newest, 'removed'), newest)).toBe(true)
+    expect(requiresDatabaseFirst(main, source, notes.replace(productionHead, 'missing'), newest)).toBe(true)
 })
 
 function droppedObjectCalls(migration: string, consumers: { file: string; source: string }[]) {
-    const functions = functionLifecycleEventsInSource(migration).filter(event => event.type === 'drop').map(event => event.key.split('.')[1])
-    const tables = [...maskSqlNonCode(migration).matchAll(/DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-z_]+)/gi)].map(match => match[1])
+    const replaced = new Set([...latestFunctionDefinitionsInSource(migration).keys()].map(key => key.split('(')[0]))
+    const functions = functionLifecycleEventsInSource(migration).filter(event => event.type === 'drop' && !replaced.has(event.key.split('(')[0])).map(event => event.key.split('.')[1])
+    const tables = [...maskSqlNonCode(migration).matchAll(/(?:^|;)\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-z_][a-z_0-9]*)/gi)].map(match => match[1])
     return consumers.flatMap(({ file, source }) => [
-        ...functions.filter(name => new RegExp(`(?:\\.rpc\\(\\s*['"]${name}['"]|\\b(?:public\\.|private\\.)?${name}\\s*\\()`).test(source)).map(name => `${file}: function ${name}`),
+        ...functions.filter(name => rpcNames(source).has(`public.${name}`) || new RegExp(`(?:\\.rpc\\(\\s*['"]${name}['"]|\\b(?:public\\.|private\\.)?${name}\\s*\\()`).test(source)).map(name => `${file}: function ${name}`),
         ...tables.filter(name => new RegExp(`(?:\\.from\\(\\s*['"]${name}['"]|\\b(?:FROM|JOIN|UPDATE|INTO)\\s+(?:public\\.)?${name}\\b)`, 'i').test(source)).map(name => `${file}: table ${name}`),
     ])
 }
@@ -253,8 +318,7 @@ it.skipIf(!available)('keeps objects used by deployed Edge, frontend, and cron t
     const migrations = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
     const cron = [...git('show', ...migrations.map(file => `origin/main:${file}`)).matchAll(/\bcron\.schedule\s*\([\s\S]*?\);/gi)].map(match => match[0]).join('\n')
     consumers.push({ file: 'cron', source: cron })
-    const migration = readFileSync('supabase/migrations/20261026000400_server_release_followups.sql', 'utf8')
-    expect(droppedObjectCalls(migration, consumers)).toEqual([])
+    expect(releaseMigrations().flatMap(migration => droppedObjectCalls(migration, consumers))).toEqual([])
 })
 
 it('detects removed functions and tables used by each deployed consumer', () => {
@@ -265,3 +329,19 @@ it('detects removed functions and tables used by each deployed consumer', () => 
         { file: 'cron', source: "SELECT cron.schedule('job','* * * * *','SELECT public.retired_call();');" },
     ])).toEqual(['Edge: function retired_call', 'client: table retired_rows', 'cron: function retired_call'])
 })
+
+it('keeps queued notification replacements equal to their current sources without Expo storage', () => {
+    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    const queued = latestFunctionDefinitionsInSource([...notes.slice(notes.indexOf('## Next release')).matchAll(/```sql\n([\s\S]*?)```/g)].map(match => match[1]).join('\n'))
+    for (const name of ['claim_notification_outbox_atomic', 'invoke_process_trades_if_due']) {
+        const source = readFileSync(`supabase/sql/functions/by-name/public/${name}.sql`, 'utf8')
+        const expected = latestFunctionDefinitionsInSource(withoutExpoQueue(source)).get(`public.${name}`)
+        expect(queued.get(`public.${name}`), name).toBe(expected)
+    }
+})
+
+function withoutExpoQueue(source: string) {
+    return source.replace(/ OR EXISTS \(\s*SELECT 1 FROM public\.notification_outbox queued\s*WHERE queued\.suppressed_at IS NULL\s*AND queued\.delivered_at IS NULL[\s\S]*?queued\.expo_ticket_id IS NOT NULL[\s\S]*?\n  \)(?= THEN)/, '')
+        .replace(/^[ \t]*AND queued\.expo_ticket_id IS NULL\n/gm, '')
+        .replace(/ AND queued\.expo_ticket_id IS NULL/g, '')
+}

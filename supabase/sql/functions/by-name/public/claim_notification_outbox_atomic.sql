@@ -28,6 +28,7 @@ BEGIN
     JOIN public.league_members member ON member.id=queued.member_id
     JOIN public.leagues league ON league.id=member.league_id AND league.deleted_at IS NOT NULL
     WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL AND queued.suppressed_at IS NULL
+      AND queued.expo_ticket_id IS NULL
       AND (queued.claimed_at IS NULL OR queued.claimed_at<=now()-make_interval(secs=>v_lease_seconds))
     ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
   )

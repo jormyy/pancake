@@ -866,7 +866,8 @@ export async function syncScores(leagueId?: string, referenceDate = new Date(), 
     }>((from, to) => {
         let query = supabase
             .from('league_seasons')
-            .select('id, league_id, season_year, is_current, leagues!league_seasons_league_id_fkey ( scoring_settings )')
+            .select('id, league_id, season_year, is_current, leagues!league_seasons_league_id_fkey!inner ( scoring_settings )')
+            .is('leagues.deleted_at', null)
             .order('id')
 
         if (leagueId) query = query.eq('league_id', leagueId)

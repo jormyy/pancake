@@ -14,26 +14,26 @@ BEGIN
     RAISE EXCEPTION 'A trade player is no longer owned by the expected team.' USING ERRCODE='PT001';
   END IF;
   IF EXISTS (SELECT 1 FROM trade_items item JOIN players player ON player.id = item.player_id
-    WHERE item.trade_id = p_trade_id AND item.to_ir AND
+    WHERE item.trade_id = p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id) AND item.to_ir AND
       (item.to_taxi OR NOT private.is_ir_designation(player.injury_status))) THEN
     RAISE EXCEPTION 'Incoming IR players must be Out or IR-designated and cannot also enter taxi.' USING ERRCODE = 'PT001';
   END IF;
   IF EXISTS (SELECT 1 FROM trade_items item JOIN roster_players roster
       ON roster.league_season_id = v_trade.league_season_id AND roster.player_id = item.player_id
-    WHERE item.trade_id = p_trade_id AND item.to_taxi
+    WHERE item.trade_id = p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id) AND item.to_taxi
       AND NOT private.taxi_player_eligible(v_trade.league_id, item.player_id)) THEN
     RAISE EXCEPTION 'Incoming taxi players must be rookies or have fewer than 65 career regular-season games.' USING ERRCODE = 'PT001';
   END IF;
   IF EXISTS (SELECT 1 FROM trade_items item JOIN roster_players roster
     ON roster.league_season_id=v_trade.league_season_id AND roster.player_id=item.player_id
     JOIN league_seasons season ON season.id=roster.league_season_id
-    WHERE item.trade_id=p_trade_id AND item.to_taxi AND v_league.taxi_max_seasons IS NOT NULL
+    WHERE item.trade_id=p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id) AND item.to_taxi AND v_league.taxi_max_seasons IS NOT NULL
       AND season.season_year-private.taxi_start_year(v_trade.league_id,roster.player_id,season.season_year)>=v_league.taxi_max_seasons) THEN
     RAISE EXCEPTION 'Incoming taxi player has reached the taxi tenure limit.' USING ERRCODE='PT001';
   END IF;
   IF EXISTS (SELECT 1 FROM trade_items item JOIN league_member_taxi_exits exit
     ON exit.league_id=v_trade.league_id AND exit.member_id=item.to_member_id AND exit.player_id=item.player_id
-    WHERE item.trade_id=p_trade_id AND item.to_taxi) THEN
+    WHERE item.trade_id=p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id) AND item.to_taxi) THEN
     RAISE EXCEPTION 'A promoted player cannot return to this team taxi squad.' USING ERRCODE='PT001';
   END IF;
   FOR v_team IN SELECT participant.*, member.team_name FROM trade_participants participant

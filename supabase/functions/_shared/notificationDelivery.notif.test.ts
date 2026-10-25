@@ -3,6 +3,13 @@ import { notificationEvents, normalizeNotificationPreferences } from './notifica
 import { strict as assert } from 'node:assert'
 import { deliverNotificationOutbox } from '../process-trades/outbox.ts'
 
+const productionDependencies = {
+  profiles: async () => ({ data: [], error: null }),
+  persistExpoTicket: async () => {},
+  pushUrl: 'http://127.0.0.1/fake',
+  send: async () => { throw new Error('Expo requires a token') },
+}
+
 Deno.test('notification without a delivery route stays retryable', async () => {
   let completed = 0
   let failed = 0
@@ -22,6 +29,7 @@ Deno.test('web delivery does not repeat when Expo retries', async () => {
   let expoSends = 0
   let webState = 'send'
   const dependencies = {
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     profiles: async () => ({ data: [{ id: 'user', push_token: 'fake-token' }], error: null }),
@@ -45,6 +53,7 @@ Deno.test('web delivery does not repeat when Expo retries', async () => {
 
 Deno.test('web-only delivery provides delivery evidence', async () => {
   const notify = createNotifyMembers({
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     profiles: async () => ({ data: [], error: null }),
@@ -65,6 +74,7 @@ for (const event of notificationEvents) {
       master_enabled: true, category_settings: { [event.category]: true }, event_settings: { [event.key]: true },
     }
     const notify = createNotifyMembers({
+    ...productionDependencies,
       members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
       preferences: async () => ({ data: [settings], error: null }),
       profiles: async () => ({ data: [{ id: 'user', push_token: 'fake-token' }], error: null }),
@@ -91,6 +101,7 @@ for (const event of notificationEvents) {
 
 Deno.test('web state failure retains a successful Expo ticket', async () => {
   const notify = createNotifyMembers({
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     profiles: async () => ({ data: [{ id: 'user', push_token: 'fake-token' }], error: null }),
@@ -109,6 +120,7 @@ Deno.test('send admission rechecks draft state after profile lookup and blocks b
   let lookups = 0
   let sends = 0
   const notify = createNotifyMembers({
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [{ user_id: 'user', master_enabled: false, trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true }], error: null }),
     profiles: async () => {
@@ -144,6 +156,7 @@ Deno.test('stored JSON validation keeps malformed settings from enabling default
     assert.deepEqual(settings.event_settings, {})
     const sent: string[] = []
     const notify = createNotifyMembers({
+    ...productionDependencies,
       members: async ids => ({ data: ids.map(id => ({ id, user_id: 'user' })), error: null }),
       preferences: async () => ({ data: [{ user_id: 'user', ...settings }], error: null }),
       profiles: async () => ({ data: [{ id: 'user', push_token: 'fake-token' }], error: null }),
@@ -175,6 +188,7 @@ Deno.test('Expo ticket persists before an unfinished Web Push call', async () =>
   let finishWeb: (() => void) | undefined
   const waiting = new Promise<void>(resolve => { finishWeb = resolve })
   const dependencies = {
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     profiles: async () => ({ data: [{ id: 'user', push_token: 'fake' }], error: null }),
@@ -195,7 +209,7 @@ Deno.test('Expo ticket persists before an unfinished Web Push call', async () =>
 
 Deno.test('outbox counts an already persisted Expo ticket', async () => {
   const result = await deliverNotificationOutbox([{ id: 'expo', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' }],
-    async () => [{ memberId: 'member', status: 'sent', ticketId: 'ticket', pushToken: 'token', ticketRecorded: true }],
+    async () => [{ memberId: 'member', status: 'sent', ticketId: 'ticket', pushToken: 'token' }],
     async () => {}, async () => {}, async () => {})
   assert.equal(result.ticketed, 1)
 })
@@ -205,6 +219,7 @@ Deno.test('Web Push reserves its attempt before Expo can clear the lease', async
   let release: (() => void) | undefined
   const reservation = new Promise<void>(resolve => { release = resolve })
   const pending = createNotifyMembers({
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     profiles: async () => ({ data: [{ id: 'user', push_token: 'fake' }], error: null }),
@@ -228,6 +243,7 @@ for (const [event, category] of [['rookie_draft_pick', 'draft'], ['waiver_claim_
     const settings = { user_id: 'user', trade_enabled: true, waiver_enabled: true, draft_enabled: true, activity_enabled: true,
       master_enabled: true, category_settings: { [category]: true } }
     const notify = createNotifyMembers({
+    ...productionDependencies,
       members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
       preferences: async () => ({ data: [settings], error: null }),
       webPush: async messages => {
@@ -250,6 +266,7 @@ Deno.test('Web Push retries a known failure and reuses saved success after ackno
   let sends = 0
   let state: 'send' | 'delivered' = 'send'
   const notify = createNotifyMembers({
+    ...productionDependencies,
     members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
     preferences: async () => ({ data: [], error: null }),
     beginWebDelivery: async () => state,
@@ -277,6 +294,7 @@ for (const outcome of [
 ] as const) {
   Deno.test(`combined delivery preserves the Web Push ${outcome.status} outcome without an Expo token`, async () => {
     const notify = createNotifyMembers({
+    ...productionDependencies,
       members: async () => ({ data: [{ id: 'member', user_id: 'user' }], error: null }),
       preferences: async () => ({ data: [], error: null }),
       profiles: async () => ({ data: [], error: null }),

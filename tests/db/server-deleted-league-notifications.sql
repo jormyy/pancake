@@ -22,5 +22,28 @@ BEGIN
     'deleted league does not enqueue new notifications');
 END;
 $$;
+DO $$
+DECLARE f record; ticketed uuid; suppressed uuid; lease uuid; before_count bigint;
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(2,9533);
+  PERFORM set_config('app.supabase_url','http://127.0.0.1:1',true);
+  PERFORM set_config('app.edge_internal_token','local-deleted-ticket-test',true);
+  INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category,expo_ticket_id,push_token,ticketed_at)
+    VALUES(gen_random_uuid()::text,f.member_ids[1],'trade_expired','Expired','Expired','{}','trade','deleted-ticket','token',now()) RETURNING id INTO ticketed;
+  UPDATE leagues SET deleted_at=now() WHERE id=f.league_id;
+  PERFORM public.claim_notification_outbox_atomic(p_limit=>100,p_lease_seconds=>60);
+  PERFORM pg_temp.check_rules((SELECT suppressed_at IS NULL FROM notification_outbox WHERE id=ticketed),
+    'deleted league keeps accepted Expo ticket available for its receipt');
+  SELECT claim_token INTO lease FROM public.claim_notification_receipts_atomic(p_limit=>200,p_lease_seconds=>60) WHERE id=ticketed;
+  PERFORM pg_temp.check_rules(lease IS NOT NULL,'deleted league Expo receipt remains claimable');
+  PERFORM public.complete_notification_outbox_atomic(ticketed,lease);
+  INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category,expo_ticket_id,push_token,ticketed_at,suppressed_at,suppression_reason)
+    VALUES(gen_random_uuid()::text,f.member_ids[2],'trade_expired','Expired','Expired','{}','trade','suppressed-ticket','token',now(),now(),'league_deleted') RETURNING id INTO suppressed;
+  SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='process-trades';
+  PERFORM public.invoke_process_trades_if_due();
+  PERFORM pg_temp.check_rules((SELECT count(*)=before_count FROM edge_invocations WHERE function_name='process-trades'),
+    'suppressed Expo ticket does not wake the trade worker');
+END;
+$$;
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

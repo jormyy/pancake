@@ -65,14 +65,20 @@ export async function verifyScheduleRoutes() {
         assert.notEqual(await ids(), previous)
         checks += 4
       }
+      const scheduled = await ids()
+      const skipped = await call(false)
+      assert.equal(skipped.status, 200, `${path} existing schedule before week one`)
+      assert.deepEqual(await skipped.json(), { ok: true, skipped: true })
+      assert.equal(await ids(), scheduled)
+      checks += 3
       await sql(`UPDATE season_weeks SET week_start=(now() AT TIME ZONE 'America/New_York')::date WHERE season_year=${year} AND week_number=1;`)
       const previous = await ids()
       for (const force of [false, true]) {
         const response = await call(force)
         const body = await response.json()
         try {
-          assert.equal(response.status, 409, `${path} after the first scheduled week starts, force=${force}`)
-          assert.deepEqual(body, { error: force ? 'The season has started; the schedule can no longer be rebuilt.' : 'A schedule already exists and the season has started.' })
+          assert.equal(response.status, force ? 409 : 200, `${path} after the first scheduled week starts, force=${force}`)
+          assert.deepEqual(body, force ? { error: 'The season has started; the schedule can no longer be rebuilt.' } : { ok: true, skipped: true })
         } catch (error) { failures.push(`${path}, force=${force}: ${(error as Error).message}`) }
         assert.equal(await ids(), previous)
         checks += 3

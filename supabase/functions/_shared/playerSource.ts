@@ -233,7 +233,14 @@ export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerR
     await injuriesRes.body?.cancel()
     throw new Error(`ESPN injuries ${injuriesRes.status}`)
   }
-  const injuriesByName = extractEspnInjuryStatuses(await injuriesRes.json() as EspnInjuriesPayload)
+  const injuries = await injuriesRes.json() as EspnInjuriesPayload
+  if (!Array.isArray(injuries?.injuries)) {
+    throw new Error('ESPN injuries payload degraded; refusing to write')
+  }
+  const injuriesByName = extractEspnInjuryStatuses(injuries)
+  if (injuriesByName.size === 0) {
+    throw new Error('ESPN injuries payload degraded; refusing to write')
+  }
 
   const records = buildEspnRecords(rosters, injuriesByName)
   if (records.length < MIN_PLAYERS) {

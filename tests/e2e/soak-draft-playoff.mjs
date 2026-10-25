@@ -553,15 +553,6 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
     }
   }
 
-  const { data: rpsRows, error: rpsError } = await supabase
-    .from('rps_challenges')
-    .select('id, member_a_id, member_b_id, winner_member_id, status, context')
-    .eq('league_id', maxFixture.league.id)
-    .eq('league_season_id', maxFixture.leagueSeason.id)
-  if (rpsError) {
-    failures.push(`D.SEA.3: max-points scenario rps_challenges read failed: ${rpsError.message}`)
-  }
-
   const rpsFixture = await createDisposableLeagueFromSeedUsers({
     supabase,
     state,
@@ -582,18 +573,6 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
     failures.push(`D.SEA.3: /playoffs/generate failed for disposable RPS league: ${errorMessage(error)}`)
   }
 
-  const { data: rpsTieRows, error: rpsTieError } = await supabase
-    .from('rps_challenges')
-    .select('id, member_a_id, member_b_id, winner_member_id, status, context')
-    .eq('league_id', rpsFixture.league.id)
-    .eq('league_season_id', rpsFixture.leagueSeason.id)
-  if (rpsTieError) {
-    failures.push(`D.SEA.3: RPS scenario rps_challenges read failed: ${rpsTieError.message}`)
-  }
-  if ((rpsTieRows ?? []).length === 0) {
-    failures.push('D.SEA.3: no rps_challenges were created for standings ties that remain unresolved after wins, points_for, max_possible_points, and points_against')
-  }
-
   const { data: rpsBracket, error: rpsBracketError } = await supabase
     .from('matchups')
     .select('id, week_number, matchup_type, home_member_id, away_member_id, winner_member_id, is_finalized')
@@ -603,8 +582,8 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
   if (rpsBracketError) {
     failures.push(`D.SEA.3: RPS semifinal read failed: ${rpsBracketError.message}`)
   }
-  if ((rpsBracket ?? []).length > 0 && (rpsTieRows ?? []).length === 0) {
-    failures.push(`D.SEA.3: generated ${rpsBracket.length} playoff semifinals even though the four-way tie had no RPS resolution`)
+  if ((rpsBracket ?? []).length !== 2) {
+    failures.push(`D.SEA.3: deterministic four-way tie generated ${rpsBracket?.length ?? 0} semifinals instead of two`)
   }
 
   const artifact = {
@@ -615,7 +594,6 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
       fixtureRows,
       generateResult,
       bracket,
-      rpsChallenges: rpsRows ?? [],
     },
     rpsScenario: {
       disposableLeagueId: rpsFixture.league.id,
@@ -623,7 +601,6 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
       fixtureRows: rpsFixtureRows,
       generateResult: rpsGenerateResult,
       bracket: rpsBracket ?? [],
-      rpsChallenges: rpsTieRows ?? [],
     },
     expected: {
       tiebreakerOrder: [
@@ -631,10 +608,10 @@ export const assertStandingsTiebreakerScenario = async ({ supabase, env, state, 
         'points_for',
         'max_possible_points',
         'points_against',
-        'deterministic_tiebreaker_audit',
+        'deterministic_tiebreaker',
       ],
       maxPointsScenario: 'all four teams are 1-1 with equal points_for; max_possible_points should seed D.SEA.3 Seed 2 first, Seed 4 second, Seed 1 third, Seed 3 fourth',
-      rpsScenario: 'all four teams are 1-1 with equal points_for, max_possible_points, and points_against; completed tiebreaker audit rows should be created while deterministic playoff seeding succeeds',
+      rpsScenario: 'all four teams are 1-1 with equal points_for, max_possible_points, and points_against; deterministic playoff seeding creates two semifinals',
     },
     seeds: maxFixture.members.map((member, index) => ({
       expectedSeed: index + 1,

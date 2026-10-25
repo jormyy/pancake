@@ -37,7 +37,6 @@ BEGIN
   IF v_had_schedule THEN
     DELETE FROM public.matchups WHERE league_season_id = v_season.id;
     -- A changed future schedule gets fresh standings tie evidence at seeding.
-    DELETE FROM public.rps_challenges WHERE league_season_id = v_season.id AND context = 'standings_playoff_tiebreaker';
     PERFORM public.replace_regular_season_matchups_atomic(NEW.id, v_season.id, false,
       private.regular_season_matchup_payload(NEW.id, v_season.id, NEW.playoff_start_week - 1));
     IF v_had_bracket AND NEW.playoff_start_week = 1 THEN
