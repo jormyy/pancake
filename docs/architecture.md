@@ -54,6 +54,8 @@ Odd-team leagues receive regular-season byes.
 Skipped regular weeks retain marked history and do not affect standings.
 See [roster, trade, and season rules](roster-lifecycle.md).
 
+The public activity feed shows completed transactions and announcements, without pending trade offers or trade-block changes.
+Private offers remain in Trades.
 Commissioner announcements appear in a dismissible Home banner and League > Activity.
 Home shows the newest announcement from another member in the last 14 days.
 It must be newer than the last dismissed announcement.

@@ -14,7 +14,6 @@ It does not change app code or the checkout's Supabase configuration.
 5. Run commands from the worktree you want to test.
 
 The runner uses `/opt/homebrew/bin/ffmpeg` for video analysis.
-Appium and XCUITest are already installed on the owner's MacBook.
 The app needs no new runtime dependencies.
 The runner installs existing npm dependencies in its external source copy.
 It does not load the checkout's `.env` files.
@@ -64,7 +63,6 @@ It includes ten managers and draft rooms in season 2027.
 The base league is active and its non-mock startup auction is complete.
 Trades stay open in the base fixture.
 Startup captures reopen that auction and restore its completed state afterward.
-Cached fixtures from the earlier live-startup world require `start --reset`.
 Each team has twenty active players, one IR player, and one taxi player.
 Each team has an open IR slot.
 The player pool includes healthy free agents, Out free agents, and players on waivers.
@@ -187,23 +185,13 @@ Useful options:
 | `--native` | Check native controls and video analysis without Appium web commands |
 
 The default scenario list lives in `scripts/ios-sim/scenarios.json`.
-It contains 21 scenarios and 26 measured steps, plus sign-in.
-The lifecycle group contains two measured steps.
+Read the scenario files and generated report for the current scenario and step counts.
 Each capture clears the installed app's cached pages before sign-in.
 The runner checks the frontend, auth, and Edge health before sign-in and every scenario.
 An unhealthy service stops the run with `stack not healthy`.
 Scenario `theme` values set the stored theme before navigation, without loading Profile content.
 The runner refreshes stale HTML before it waits for its recorder connection.
 Surface files live in `scripts/ios-sim/scenarios/`.
-These files replace the removed subsets:
-
-| Removed files | Replacement |
-| --- | --- |
-| `home-final.json`, `home-manual.json`, `home-timing.json`, `home-optimizer-state.json`, `home-week-off.json` | `home.json` |
-| `player-claim-ir.json` | `player-ir-actions.json` |
-| `player-resolution.json` | `player-controls.json` |
-| `player-lists.json` | `players.json` |
-
 Shared trade scenarios live in `trades.json`.
 `trade-review.json` and `trade-wave2.json` keep their unique cases.
 Use manager 1 for `trade-wave2.json`; its incoming offer belongs to that manager.
@@ -240,7 +228,7 @@ node scripts/ios-sim/run.mjs \
   --scenario taxi
 ```
 
-The file contains 18 scenarios and 52 measured steps.
+The scenario file defines the current capture set.
 Each surface has a light and dark capture in the `taxi` group.
 The Players capture selects **All players** so waiver players appear too.
 

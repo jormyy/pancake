@@ -11,6 +11,7 @@ export type { LeagueMembership }
 const cacheKeyForUser = (userId: string) => `pancake:league-memberships:v1:${userId}`
 const MEMBERSHIP_REFRESH_WINDOW_MS = 250
 const MEMBERSHIP_STALE_MS = 300_000
+const MEMBERSHIP_RETRY_DELAY_MS = 1000
 
 function reuseMemberships(previous: LeagueMembership[], rows: LeagueMembership[]): LeagueMembership[] {
     const byId = new Map(previous.map((row) => [row.id, row]))
@@ -59,7 +60,7 @@ export function useLeagues() {
     const membershipsRef = useRef({ userId, memberships })
     membershipsRef.current = { userId, memberships }
 
-    const read = useCallback(async (options: { force?: boolean } = {}) => {
+    const read = useCallback(async (options: { force?: boolean; retry?: boolean } = {}) => {
         const requestedUserId = user?.id ?? null
         const requestId = ++requestIdRef.current
 
@@ -96,14 +97,17 @@ export function useLeagues() {
             validatedAtRef.current = { userId: requestedUserId, at: Date.now() }
             if (rows.length > 0) writePersistentCache(cacheKey, rows)
             else removePersistentCache(cacheKey)
+            return true
         } catch (e) {
             if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
             const nextError = e instanceof Error ? e : new Error(String(e))
+            const retrying = !options.retry && !hasVisibleRows
             validatedAtRef.current = null
             setResource((current) => current.userId === requestedUserId
-                ? { ...current, loading: false, error: nextError }
+                ? { ...current, loading: retrying, error: retrying ? null : nextError }
                 : current)
             console.error(nextError)
+            return false
         }
     }, [user?.id])
 
@@ -112,12 +116,15 @@ export function useLeagues() {
         let pending = false
         let inFlight: Promise<void> | null = null
         let timer: ReturnType<typeof setTimeout> | null = null
+        let retryTimer: ReturnType<typeof setTimeout> | null = null
         const isCurrent = () => !disposed && activeUserIdRef.current === userId
         const canRefresh = () => onlineRef.current
             && (typeof navigator === 'undefined' || navigator.onLine !== false)
             && (typeof document === 'undefined' || document.visibilityState !== 'hidden')
-        const run = (options: { force?: boolean } = { force: true }): Promise<void> => {
+        const run = (options: { force?: boolean; retry?: boolean } = { force: true }): Promise<void> => {
             if (!isCurrent()) return Promise.resolve()
+            if (retryTimer) clearTimeout(retryTimer)
+            retryTimer = null
             pending = true
             if (userId && !canRefresh()) return Promise.resolve()
             if (inFlight) {
@@ -127,15 +134,22 @@ export function useLeagues() {
             if (timer) clearTimeout(timer)
             timer = null
             const task = (async () => {
+                let failed = false
                 try {
                     let nextOptions = options
                     do {
                         pending = false
-                        await read(nextOptions)
-                        nextOptions = { force: true }
+                        failed = await read(nextOptions) === false
+                        nextOptions = { force: true, retry: options.retry }
                     } while (pending && isCurrent() && canRefresh())
                 } finally {
                     inFlight = null
+                    if (failed && !options.retry && !pending && isCurrent()) {
+                        retryTimer = setTimeout(() => {
+                            retryTimer = null
+                            void run({ force: true, retry: true })
+                        }, MEMBERSHIP_RETRY_DELAY_MS)
+                    }
                 }
             })()
             inFlight = task
@@ -170,6 +184,7 @@ export function useLeagues() {
                 disposed = true
                 pending = false
                 if (timer) clearTimeout(timer)
+                if (retryTimer) clearTimeout(retryTimer)
                 requestIdRef.current += 1
             },
         }

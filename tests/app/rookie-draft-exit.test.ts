@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import RookieDraftRoomScreen from '@/app/(modals)/rookie-draft-room'
 import DraftRoomScreen from '@/app/(modals)/draft-room'
+import { confirmAction } from '@/lib/alert'
 
 const navigationRequire = createRequire(import.meta.resolve('@react-navigation/native'))
 const { StackActions, StackRouter }: Pick<typeof import('@react-navigation/native'), 'StackActions' | 'StackRouter'> = navigationRequire('@react-navigation/routers')
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     nextMember: null as string | null,
     overflow: null as { newPlayerName: string } | null,
     trimOverflow: null as { excess: number; dropList: never[] } | null,
+    isCommissioner: false,
 }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',
@@ -25,7 +27,7 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' 
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('expo-router', () => ({ Redirect: 'Redirect', Stack: { Screen: 'StackScreen' }, useLocalSearchParams: () => ({ draftId: 'draft' }), useRouter: () => ({ replace: mocks.replace, dismissTo: mocks.dismissTo }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
-    current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: false,
+    current: { id: 'member' }, currentLeague: { id: 'league', roster_size: 1 }, isCommissioner: mocks.isCommissioner,
 }) }))
 vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomController: () => ({
     state: mocks.hasState ? { draft: { id: 'draft', leagueId: 'league', status: mocks.overflow || mocks.nextMember ? 'in_progress' : 'completed', isMock: false }, picks: [], orders: [],
@@ -38,7 +40,7 @@ vi.mock('@/hooks/useRookieDraftRoomController', () => ({ useRookieDraftRoomContr
     resolvingOverflow: false, trimOverflow: mocks.trimOverflow, trimmingId: null, memberId: 'member',
     refresh: mocks.refresh, handleTrimDrop: mocks.trim, resolveByDrop: mocks.drop, handlePick: vi.fn(), handleCommissionerPick: vi.fn(),
 }) }))
-vi.mock('@/components/league/draft-room/useDraftAdminControls', () => ({ useDraftAdminControls: () => ({}) }))
+vi.mock('@/lib/draft', () => ({ pauseDraft: vi.fn(), resetDraft: vi.fn(), resumeDraft: vi.fn(), stopDraft: vi.fn() }))
 vi.mock('@/components/league/draft-room/DraftAdminBar', () => ({ DraftAdminBar: 'DraftAdminBar' }))
 vi.mock('@/components/league/draft-room/DraftScreenHeader', () => ({ DraftScreenHeader: 'DraftScreenHeader' }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable' }))
@@ -55,7 +57,7 @@ vi.mock('@/components/league/draft-room/AuctionLivePanel', () => ({ AuctionLiveP
 vi.mock('@/hooks/useAuctionDraftRoomController', () => ({ useAuctionDraftRoomController: () => ({
     state: null, loading: mocks.loading, loadError: mocks.loadError, refresh: mocks.refresh,
 }) }))
-vi.mock('@/lib/alert', () => ({ showSuccess: vi.fn() }))
+vi.mock('@/lib/alert', () => ({ showSuccess: vi.fn(), showAlert: vi.fn(), confirmAction: vi.fn() }))
 vi.mock('@/lib/format', () => ({ countLabel: (count: number, word: string) => `${count} ${word}`, playerHeadshotUrl: () => '' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -63,8 +65,19 @@ let screen: ReactTestRenderer
 beforeEach(() => {
     vi.clearAllMocks(); mocks.overflow = null; mocks.trimOverflow = null; mocks.nextMember = null
     mocks.hasState = true; mocks.loading = false; mocks.loadError = null; mocks.prospectsLoadError = null
+    mocks.isCommissioner = false
 })
 afterEach(async () => { await act(async () => screen?.unmount()) })
+
+it('explains the roster and deadline requirements before stopping a rookie draft', async () => {
+    mocks.isCommissioner = true
+    mocks.nextMember = 'member'
+    await act(async () => { screen = create(React.createElement(RookieDraftRoomScreen)) })
+    await act(async () => screen.root.findByType('DraftAdminBar' as React.ElementType).props.onStop())
+    expect(confirmAction).toHaveBeenCalledWith('Stop draft?',
+        'This ends the rookie draft now. Players already drafted stay on their rosters. The season starts after every roster fits or at the opening-night deadline. This cannot be undone.',
+        expect.any(Function), 'Stop Draft')
+})
 
 it.each(['member', 'other'])('only offers a pick when the manager owns the turn: %s', async (nextMember) => {
     mocks.nextMember = nextMember
