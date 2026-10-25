@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261026000800",
+  "candidateVersion": "20261026000901",
   "common": {
     "functions": [
       {
@@ -554,7 +554,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "6d6ba908d1337e52a84406ab81d4c7e843e88822a966513101ed5838cba9c5a9",
+          "bodySha256": "c7b60201f52719292a2bcc45cb62c1fa2923d6d0412d0103a24f42329c9ea5e4",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -594,7 +594,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
-          "bodySha256": "6f1a5ccd3a6549cef2d04123231c74fb30a31e3abd861562d6234f8dbc72c495",
+          "bodySha256": "cc6757406977552612460ff5a34573531a7f10fc48be5e938ddb7ec7bedc2664",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1281,11 +1281,19 @@
     },
     {
       "filename": "20261026000700_taxi_and_server_rules.sql",
-      "sha256": "e5e2e6a20cb39758bd36db10ff5191f939596598336ee57710fd7fc6d332a6e2"
+      "sha256": "bf5aed4803aa37fca124f3a928fb1ea98f42bd24d5fbfe3165aa0fe3568cccfd"
     },
     {
       "filename": "20261026000800_player_import_injury_and_retired_enums.sql",
       "sha256": "ae56f009998b9fb09edbce303d9bb4f1a57ca6a7039fa90d56b1193f9b97efb3"
+    },
+    {
+      "filename": "20261026000900_roster_and_dispatch_repairs.sql",
+      "sha256": "8b6f0bd9c4bb4f79deef5b3785207956204e54fbe984055383043043b7ae8c0e"
+    },
+    {
+      "filename": "20261026000901_activity_feed_public_rows.sql",
+      "sha256": "790a2db9e57e89ff2372d5d8752eb498df2ee9ccc0a9a07c3c21b1de1cc944de"
     }
   ],
   "preMigration": {

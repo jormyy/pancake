@@ -1862,9 +1862,9 @@
     {
       "name": "taxi_and_server_rules",
       "version": "20261026000700",
-      "statementCount": 52,
-      "statementsSha256": "55aa6ea7ed1a1a4bd2e6e9c47de8c42e8bf1b653ba34253fcb3464756b822cf0",
-      "sha256": "e5e2e6a20cb39758bd36db10ff5191f939596598336ee57710fd7fc6d332a6e2"
+      "statementCount": 53,
+      "statementsSha256": "8e04c97961fb298dc24344f4cceefb7d5d0a400ea6def24fb0a5849369f3e337",
+      "sha256": "bf5aed4803aa37fca124f3a928fb1ea98f42bd24d5fbfe3165aa0fe3568cccfd"
     },
     {
       "name": "player_import_injury_and_retired_enums",
@@ -1872,6 +1872,20 @@
       "statementCount": 6,
       "statementsSha256": "9349361cb38f25b1be393e4007fd0e3fad33a12d8db087ed69bb1d78651b762f",
       "sha256": "ae56f009998b9fb09edbce303d9bb4f1a57ca6a7039fa90d56b1193f9b97efb3"
+    },
+    {
+      "name": "roster_and_dispatch_repairs",
+      "version": "20261026000900",
+      "statementCount": 19,
+      "statementsSha256": "798d7cd2721c5cfcc8e01843177456f1205e9cb24e93ec5477d3472a518aa5a1",
+      "sha256": "8b6f0bd9c4bb4f79deef5b3785207956204e54fbe984055383043043b7ae8c0e"
+    },
+    {
+      "name": "activity_feed_public_rows",
+      "version": "20261026000901",
+      "statementCount": 6,
+      "statementsSha256": "8a4ca12b6c94c62f7a961967bb34e42731a8282482fd1015f8c706c1b9278112",
+      "sha256": "790a2db9e57e89ff2372d5d8752eb498df2ee9ccc0a9a07c3c21b1de1cc944de"
     }
   ]
 }
