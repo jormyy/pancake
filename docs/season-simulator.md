@@ -202,7 +202,8 @@ This check never counts as a fresh replay.
 
 The cron calls the boundary gate every fifteen minutes.
 The gate dispatches once per Eastern date, from 09:00 onward.
-The strict missing-bracket check waits for the first daily dispatch after the 48-hour correction period.
+Bracket creation and advancement start after the Eastern date passes the preceding round's last game date.
+The 48-hour correction period applies only to season rollover.
 It fails at that dispatch time if the expected rows remain absent.
 The calculation follows Eastern daylight saving changes.
 
@@ -351,7 +352,7 @@ It checks each expected claim ID, owner, pending status, processing time, and fa
 Missing claims and changed statuses fail independently.
 Resolved claim checks also use the owners' reads.
 
-Successful conditional drops create another 48-hour waiver hold.
+Successful conditional drops clear at the first 03:00 ET run at or after 48 elapsed hours.
 The real rollover guard requires all pending claims and uncleared holds to settle.
 The harness records that specific boundary refusal only for its declared postseason scenario and league.
 Unclaimed holds expire only when `clears_at < now()` in migration `20260815000006_offseason_waiver_wire_expiry.sql`, line 24.
@@ -604,7 +605,11 @@ These are representative NBA deadline trades, not an audit of every NBA transact
 Every 2025 draftee whose 2025-26 NBA box listings move him to a second team is also a continuity subject (Walter Clayton Jr. UTA to MEM, John Tonje UTA to BOS).
 Each such subject joins a different fantasy member on January 1, starts on his first new-team dates, and must keep his row and owner, follow his new NBA team, and score.
 The run fails if one stays unverified at the end of the season.
-`scripts/season-sim/january-adds.mjs` checks that January 1 setup on a fresh local stack with the season-2 settings (weekly add limit 1, roster size 3): each subject joins a different member through drop_player_atomic and add_free_agent_atomic, the dropped veterans receive waiver holds scheduled to clear after 48 hours, and a second add (PA001) or an add to a full roster (PA003) is refused.
+`scripts/season-sim/january-adds.mjs` checks January 1 setup on a fresh local stack.
+Season 2 has a weekly add limit of 1 and a roster size of 3.
+Each subject joins a different member through `drop_player_atomic` and `add_free_agent_atomic`.
+Each dropped veteran clears at the first 03:00 ET run at or after 48 elapsed hours.
+The check refuses a second add (PA001) or an add to a full roster (PA003).
 It seeds rosters, players and the calendar by SQL, so it does not replace the replay.
 Season ranges and opening-night clock jumps come from the first and last regular-season (002) game days of the pinned NBA schedule.
 
@@ -647,14 +652,13 @@ Every pause checks the exact remaining seconds.
 A receipt wait drives each intervening cron minute and fails after seventy business minutes.
 It reads real outbox availability times instead of assuming immediate Expo receipts.
 
-The origin records fake Expo requests at `/push` and `/receipts` in `evidence/expo-transport.jsonl`.
+The origin retains a legacy Expo recorder at `/push` and `/receipts`.
 It accepts only synthetic replay tokens.
-Owners and one outside user register through `/profile/push-token`.
-The Edge fetch guard refuses every non-task host, HTTPS target, wrong port and embedded credential.
-The transport returns SYNTHETIC tickets and receipts; it does not prove native-device display.
-Each on-clock push records its recipient, event, durable dedupe key and business time.
-`F6-rookie-picks.json` joins those records to actual picks, automatic-pick audits and delivered outbox rows.
-An omitted, duplicate or misdirected event fails the check.
+Expo token registration is removed.
+The replay skips delivery checks until its transport supports web push.
+`F6-rookie-picks.json` records that skip alongside picks, audits, and outbox rows.
+Legacy transport records do not prove web push delivery or device display.
+The Edge fetch guard refuses every non-task host, HTTPS target, wrong port, and embedded credential.
 
 The real replay captures F1 and F2 at week one, mid-season and the champion checkpoint in each season.
 `feature-input-<year>-<checkpoint>.json` contains read-only product-table observations and the independent calendar.

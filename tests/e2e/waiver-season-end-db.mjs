@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { checkWaiverHold } from '../../scripts/season-sim/waiver-scenarios.mjs'
 import { apiTarget, databaseTarget } from '../../scripts/mutation/waivers/targets.mjs'
 
 const db = databaseTarget().href
@@ -109,7 +110,7 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
     log('scored-final', final)
     assert.equal(final.winner_member_id, members[0], 'Real scorer preserves synthetic final winner')
     assert(Date.parse(final.finalized_at) < Date.now()-48*3600000, 'Real final grace has elapsed')
-    assert.equal(sql(`SELECT bool_and(clears_at=placed_on_waivers_at+interval '48 hours') FROM waiver_wire_log WHERE league_season_id=${q(season)}`), 't')
+    for (const hold of json(`SELECT json_agg(w) FROM (SELECT clears_at,placed_on_waivers_at FROM waiver_wire_log WHERE league_season_id=${q(season)}) w`)) checkWaiverHold(hold.clears_at, Date.parse(hold.placed_on_waivers_at))
     assert.equal(await gate('process-waivers', 0, 2), null, 'Waiver cron refuses an early tick')
     const fresh = await gate('process-waivers')
     assert.equal(fresh.worker_status, 'success')

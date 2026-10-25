@@ -93,7 +93,15 @@ export const prepareSoakSeason = async ({ supabase, env, leagueId, season }) => 
   const before = await count('matchups', { league_season_id: season.id })
   // The seed contains one matchup for browser latency. Replace that incomplete
   // fixture through the guarded API, which refuses a started schedule.
-  await backendJson(env, '/e2e/generate-matchups', { leagueId, force: before > 0 && before !== expected })
+  const force = before > 0 && before !== expected
+  if (force) {
+    const { data: first, error } = await supabase.from('season_weeks').select('week_start')
+      .eq('season_year', season.season_year).order('week_number').limit(1).single()
+    if (error || !first?.week_start) throw new Error('Soak schedule requires its first calendar week')
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    if (today >= first.week_start) throw new Error('Cannot rebuild an incomplete schedule after its first week starts')
+  }
+  await backendJson(env, '/e2e/generate-matchups', { leagueId, force })
   const after = await count('matchups', { league_season_id: season.id })
   if (after !== expected) throw new Error(`Soak regular schedule has ${after} matchups; expected ${expected}`)
   // This owned simulation fixture enters its regular season here. Draft/reset

@@ -19,9 +19,13 @@
         "expected": {
           "text": "You're leading"
         },
-        "note": "The display clock changes once per second. Its text box must not resize."
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
       }
-    ]
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{memberId}}"
+    }
   },
   {
     "name": "league-auction-clock-light",
@@ -43,7 +47,8 @@
         "expected": {
           "text": "You're leading"
         },
-        "note": "The display clock changes once per second. Its text box must not resize."
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -82,7 +87,8 @@
         "expected": {
           "selector": "[aria-label='Pause draft']"
         },
-        "note": "One user tap resumes the server clock."
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -121,7 +127,8 @@
         "expected": {
           "selector": "[aria-label='Pause draft']"
         },
-        "note": "One user tap resumes the server clock."
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -144,7 +151,7 @@
     "steps": [
       {
         "action": {
-          "tap": "COMMISSIONER ACTIONS"
+          "reveal": "Generate Playoff Bracket"
         },
         "expected": {
           "text": "Generate Playoff Bracket"
@@ -172,9 +179,13 @@
         "expected": {
           "text": "You're leading"
         },
-        "note": "The display clock changes once per second. Its text box must not resize."
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
       }
-    ]
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{memberId}}"
+    }
   },
   {
     "name": "league-auction-clock-dark",
@@ -196,7 +207,8 @@
         "expected": {
           "text": "You're leading"
         },
-        "note": "The display clock changes once per second. Its text box must not resize."
+        "note": "The display clock changes once per second. Its text box must not resize.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -235,7 +247,8 @@
         "expected": {
           "selector": "[aria-label='Pause draft']"
         },
-        "note": "One user tap resumes the server clock."
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -274,7 +287,8 @@
         "expected": {
           "selector": "[aria-label='Pause draft']"
         },
-        "note": "One user tap resumes the server clock."
+        "note": "One user tap resumes the server clock.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -297,7 +311,7 @@
     "steps": [
       {
         "action": {
-          "tap": "COMMISSIONER ACTIONS"
+          "reveal": "Generate Playoff Bracket"
         },
         "expected": {
           "text": "Generate Playoff Bracket"

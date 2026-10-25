@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { nextWaiverRun } from './waiver-scenarios.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { nbaTradeSetup, rookieListings, rookieMoves } from './two-actions.mjs'
 
@@ -137,7 +138,7 @@ check('Every subject has its owner', c.nbaTradeSubjects.map(row => [row.nbaId, n
 for (const [index, subject] of c.nbaTradeSubjects.entries()) check(`${subject.nbaId} is a free-agent add on its owner's roster`, result.after.roster.filter(row => row.nba_id === subject.nbaId).map(row => [row.member_id, row.acquired_via, row.is_on_ir, row.is_on_taxi]), [[owners[index], 'free_agent', false, false]])
 for (const user of users) check(`Member ${user.memberId} active roster stays full`, active(result.after.roster, user.memberId).length, 3)
 check('Every drafted rookie stays with its owner', draftedRookies.map(row => result.after.roster.filter(roster => roster.nba_id === row.nbaId).map(roster => roster.member_id)), draftedRookies.map(row => [row.owner]))
-check('Only the three owners\' veterans were dropped, to waivers clearing 48 hours later', result.after.waivers.map(row => [row.member_id, row.nba_id, row.clears_at]).sort(), owners.map((owner, index) => [owner, vacated[index], '2026-01-03T14:00:00Z']).sort())
+check('Only the three owners\' veterans were dropped, to waivers clearing on the first eligible 03:00 Eastern run', result.after.waivers.map(row => [row.member_id, row.nba_id, row.clears_at]).sort(), owners.map((owner, index) => [owner, vacated[index], new Date(nextWaiverRun(Date.parse(`${date}T14:00:00Z`) + 48 * 3600000)).toISOString().replace('.000Z', 'Z')]).sort())
 check('Each owner used its one weekly add of week 11', [result.after.adds.map(row => [row.member_id, row.week_number, row.add_count]).sort(), result.after.addWeek], [owners.map(owner => [owner, 11, 1]).sort(), { week_number: 11, resets_at: '2026-01-05T05:00:00Z' }])
 check('Transactions are one drop and one add per owner', result.after.transactions.map(row => [row.member_id, row.nba_id, row.transaction_type]).sort(), owners.flatMap((owner, index) => [[owner, subjects[index].nbaId, 'fa_add'], [owner, vacated[index], 'fa_drop']]).sort())
 check('No drop or add was rejected', calls.filter(row => /drop_player_atomic|add_free_agent_atomic/.test(row.route)).map(row => [row.route.split('/').at(-1), row.status < 300]), owners.flatMap(() => [['drop_player_atomic', true], ['add_free_agent_atomic', true]]))

@@ -8,7 +8,7 @@ import { completeOffseasonTrade } from './trade-scenarios.mjs'
 import { sql } from './local-stack.mjs'
 import { assertClientScores } from './live-checks.mjs'
 import { assertDomain } from './invariants.mjs'
-import { checkChampion, checkAllocation, rookieOrder, checkDraftOrder,checkRealDraftBoard } from './post-oracle.mjs'
+import { checkRoundReady, checkChampion, checkAllocation, rookieOrder, checkDraftOrder,checkRealDraftBoard } from './post-oracle.mjs'
 import {twoPlan} from './two-checks.mjs'
 import { maintenanceTick, rolloverDeadline, waitForRollover } from './maintenance.mjs'
 import { playRookieTurns } from './rookie-turns.mjs'
@@ -92,10 +92,10 @@ export async function finishSeason(c, move, report, checkpoint, { snapshot = asy
     roundStart += length
   }
   const rounds = [...new Set(decided.map(row => row.playoff_round))].sort((a, b) => a - b)
+  const calendar = { weeks: JSON.parse(await sql(`SELECT json_agg(w) FROM season_weeks w WHERE season_year=${c.previousSeasonYear}`)) }
   for (const matchup of decided) {
     const prerequisites = matchup.playoff_round === rounds[0] ? regular : decided.filter(row => row.playoff_round === matchup.playoff_round - 1)
-    const ready = Math.max(...prerequisites.map(row => Date.parse(row.finalized_at))) + 48 * 3600000
-    assert.ok(Date.parse(matchup.created_at) >= ready, 'Bracket creation and advancement must wait 48 hours')
+    checkRoundReady(matchup.created_at, prerequisites, calendar)
   }
   for (const round of rounds.slice(1)) {
     const previous = decided.filter(row => row.playoff_round === round - 1).map(row => row.winner_member_id)

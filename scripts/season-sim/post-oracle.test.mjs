@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkAllocation, checkChampion, checkDraftOrder, rookieOrder, checkPlayoffShape,checkRealDraftBoard } from './post-oracle.mjs'
+import { checkRoundReady, checkAllocation, checkChampion, checkDraftOrder, rookieOrder, checkPlayoffShape,checkRealDraftBoard } from './post-oracle.mjs'
 
 test('independent rookie order, snake reversal and ownership reject corrupt observations', () => {
   const expectedOrder = rookieOrder(['c', 'a', 'b'], [{ member_id: 'a', week_number: 1, wins: 3, points_for: 9 }, { member_id: 'b', week_number: 1, wins: 1, points_for: 10 }])
@@ -17,13 +17,14 @@ test('independent rookie order, snake reversal and ownership reject corrupt obse
   assert.throws(() => checkDraftOrder({ ...input, picks: [{ ...picks[0], member_id: 'wrong' }, ...picks.slice(1)] }), /ownership/)
 })
 
-test('the second-season bracket cannot lose a round, shift its span, or advance before grace',()=>{
+test('the second-season bracket cannot lose a round, shift its span, or advance before the next Eastern date',()=>{
+  const calendar={weeks:[{week_number:22,week_end:'2025-03-30'},{week_number:24,week_end:'2025-04-13'}]}
   const semi={playoff_round:1,week_number:22,end_week_number:22,is_finalized:true,home_points:2,away_points:1,finalized_at:'2025-03-31T05:00:00Z',created_at:'2025-03-26T14:00:00Z'}
-  const rows=[{...semi,home_member_id:'a',away_member_id:'b',winner_member_id:'a'},{...semi,home_member_id:'c',away_member_id:'d',winner_member_id:'c'},{...semi,playoff_round:2,week_number:23,end_week_number:24,home_member_id:'a',away_member_id:'c',winner_member_id:'a',created_at:'2025-04-02T14:00:00Z'}]
-  assert.ok(checkPlayoffShape(rows,4,22,[1,2]).passed)
-  assert.throws(()=>checkPlayoffShape(rows.slice(1),4,22,[1,2]))
-  assert.throws(()=>checkPlayoffShape([...rows.slice(0,2),{...rows[2],end_week_number:25}],4,22,[1,2]))
-  assert.throws(()=>checkPlayoffShape([...rows.slice(0,2),{...rows[2],created_at:semi.finalized_at}],4,22,[1,2]))
+  const rows=[{...semi,home_member_id:'a',away_member_id:'b',winner_member_id:'a'},{...semi,home_member_id:'c',away_member_id:'d',winner_member_id:'c'},{...semi,playoff_round:2,week_number:23,end_week_number:24,home_member_id:'a',away_member_id:'c',winner_member_id:'a',created_at:'2025-03-31T13:00:00Z'}]
+  assert.ok(checkPlayoffShape(rows,4,22,[1,2],calendar).passed)
+  assert.throws(()=>checkPlayoffShape(rows.slice(1),4,22,[1,2],calendar))
+  assert.throws(()=>checkPlayoffShape([...rows.slice(0,2),{...rows[2],end_week_number:25}],4,22,[1,2],calendar))
+  assert.throws(()=>checkPlayoffShape([...rows.slice(0,2),{...rows[2],created_at:'2025-03-31T03:59:59Z'}],4,22,[1,2],calendar))
 })
 
 test('the real draft board rejects missing, synthetic, linked, and ineligible imports',()=>{
@@ -42,4 +43,14 @@ test('allocation and champion checks fail when evidence is missing or changed', 
   checkChampion(final, final)
   assert.throws(() => checkChampion({ ...final, is_finalized: false }, final), /finalize/)
   assert.throws(() => checkChampion(final, { ...final, winner_member_id: 'b' }), /readable/)
+})
+
+
+test('initial bracket generation uses the last regular game date and requires finalized results', () => {
+  const calendar = { weeks: [{ week_number: 21, week_end: '2025-03-23' }] }
+  const regular = [{ week_number: 21, is_finalized: true, finalized_at: '2025-03-24T02:00:00Z' }]
+  checkRoundReady('2025-03-24T13:00:00Z', regular, calendar)
+  assert.throws(() => checkRoundReady('2025-03-24T03:59:59Z', regular, calendar), /Eastern date/)
+  assert.throws(() => checkRoundReady('2025-03-24T13:00:00Z', [{ ...regular[0], is_finalized: false }], calendar), /finalized/)
+  assert.throws(() => checkRoundReady('2025-03-24T13:00:00Z', regular, { weeks: [] }), /calendar/)
 })

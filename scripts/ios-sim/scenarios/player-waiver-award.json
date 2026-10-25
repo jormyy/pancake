@@ -23,7 +23,11 @@
           "text": "Claim Submitted"
         }
       }
-    ]
+    ],
+    "setup": {
+      "waiverClaimMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    }
   },
   {
     "name": "player-waiver-healthy-award",
@@ -37,8 +41,12 @@
         "expected": {
           "selector": "[aria-label=\"Move {{waiverPlayer.display_name}} in lineup\"]"
         },
-        "note": "The local setup makes room, clears the injury, and processes only this due claim. Move in lineup is available only for an active roster player."
+        "note": "An independent fixture creates an active waiver award and restores the roster after capture."
       }
-    ]
+    ],
+    "setup": {
+      "waiverAwardMember": "{{memberId}}",
+      "waiverPlayer": "{{waiverPlayer.id}}"
+    }
   }
 ]

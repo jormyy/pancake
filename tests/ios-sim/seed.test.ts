@@ -208,7 +208,7 @@ function captureDatabase(initial: Record<string, any[]>) {
       let update: object | null = null, insert: any[] | null = null, removing = false
       const result = () => {
         tables[table] ??= []
-        if (insert) tables[table].push(...insert.map(row => ({ id: `capture-${++sequence}`, ...row })))
+        if (insert) tables[table].push(...insert.map(row => ({ ...(table === 'weekly_add_counts' ? {} : { id: `capture-${++sequence}` }), ...row })))
         const rows = tables[table].filter(row => filters.every(filter => filter(row)))
         if (update) for (const row of rows) Object.assign(row, update)
         if (removing) {
@@ -283,5 +283,53 @@ test.each([false, true])('week-off setup owns its skipped-week league and remove
   })
   if (fail) await assert.rejects(capture(), /Capture failed/)
   else assert.equal(await capture(), 'captured')
+  assert.deepEqual(tables, before)
+})
+
+test.each([false, true])('roster trim restores the league limit after success or failure: %s', async fail => {
+  const { admin, tables } = captureDatabase({ leagues: [{ id: 'league', roster_size: 20 }] })
+  const capture = () => fixture.withLeagueSettings(admin, 'league', { roster_size: 19 }, async () => {
+    assert.equal(tables.leagues[0].roster_size, 19)
+    if (fail) throw new Error('Capture failed')
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else await capture()
+  assert.equal(tables.leagues[0].roster_size, 20)
+})
+
+test.each([false, true])('the waiver award owns its active roster state and restores it: %s', async fail => {
+  const roster = { id: 'bench', league_id: 'league', league_season_id: 'season', member_id: 'manager', player_id: 'bench-player', is_on_ir: false, is_on_taxi: false }
+  const { admin, tables } = captureDatabase({ roster_players: [roster], players: [{ id: 'target', injury_status: 'Out' }] })
+  const before = JSON.stringify(tables)
+  const seed = { leagueId: 'league', seasonId: 'season', members: [{ id: 'manager' }], players: Array.from({ length: 11 }, (_, index) => ({ id: index === 10 ? 'bench-player' : `player-${index}` })) }
+  const capture = () => fixture.withWaiverAward(admin, seed, 'manager', 'target', async () => {
+    assert.equal(tables.roster_players.length, 1)
+    assert.equal(tables.roster_players[0].player_id, 'target')
+    assert.equal(tables.roster_players[0].acquired_via, 'waiver')
+    assert.equal(tables.players[0].injury_status, null)
+    if (fail) throw new Error('Capture failed')
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else await capture()
+  assert.equal(JSON.stringify(tables), before)
+})
+
+test.each([false, true])('a straight-to-IR capture restores rosters, add counts, and transactions: %s', async fail => {
+  const { admin, tables } = captureDatabase({
+    players: [{ id: 'target', injury_status: null }],
+    roster_players: [],
+    weekly_add_counts: [{ league_id: 'league', league_season_id: 'season', member_id: 'manager', week_number: 1, add_count: 2 }],
+    roster_transactions: [{ id: 'old', league_id: 'league', league_season_id: 'season', member_id: 'manager', player_id: 'target' }],
+  })
+  const before = structuredClone(tables)
+  const capture = () => fixture.withFreeAgentCapture(admin, { leagueId: 'league', seasonId: 'season', memberId: 'manager', playerId: 'target' }, async () => {
+    assert.equal(tables.players[0].injury_status, 'Out')
+    tables.roster_players.push({ id: 'added', league_id: 'league', league_season_id: 'season', member_id: 'manager', player_id: 'target', is_on_ir: true })
+    tables.weekly_add_counts[0].add_count++
+    tables.roster_transactions.push({ id: 'new', league_id: 'league', league_season_id: 'season', member_id: 'manager', player_id: 'target' })
+    if (fail) throw new Error('Capture failed')
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else await capture()
   assert.deepEqual(tables, before)
 })

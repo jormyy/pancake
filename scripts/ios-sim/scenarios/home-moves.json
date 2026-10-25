@@ -15,7 +15,14 @@
       {
         "name": "move",
         "action": {
-          "tap": "Bench {{benchPlayer.display_name}}"
+          "sequence": [
+            {
+              "tap": "Bench {{benchPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
         },
         "expected": {
           "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
@@ -30,6 +37,9 @@
             },
             {
               "tap": "Bench {{rosterPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{benchPlayer.display_name}}"
             }
           ]
         },
@@ -55,7 +65,14 @@
       {
         "name": "move",
         "action": {
-          "tap": "Bench {{benchPlayer.display_name}}"
+          "sequence": [
+            {
+              "tap": "Bench {{benchPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{rosterPlayer.display_name}}"
+            }
+          ]
         },
         "expected": {
           "selector": "[aria-label='Bench {{rosterPlayer.display_name}}']"
@@ -70,6 +87,9 @@
             },
             {
               "tap": "Bench {{rosterPlayer.display_name}}"
+            },
+            {
+              "reveal": "Bench {{benchPlayer.display_name}}"
             }
           ]
         },

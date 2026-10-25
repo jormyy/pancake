@@ -100,6 +100,23 @@ export async function waitForNativeTransition(driver) {
   }
 }
 
+export async function refreshInstalledPage(driver, origin) {
+  await driver.web(origin, true)
+  const previous = await driver.execute(`const target = arguments[0], previous = performance.timeOrigin;
+    void (async () => {
+      localStorage.clear(); sessionStorage.clear();
+      const registrations = await navigator.serviceWorker?.getRegistrations() ?? [];
+      await Promise.all(registrations.map(registration => registration.unregister()));
+      if (typeof caches !== 'undefined') await Promise.all((await caches.keys()).filter(name => name.startsWith('pancake-')).map(name => caches.delete(name)));
+      location.replace(target);
+    })();
+    return previous`, `${origin}/sign-in`)
+  await waitFor(async () => {
+    await driver.web(origin, true)
+    return driver.execute('return performance.timeOrigin !== arguments[0] && document.readyState === "complete"', previous)
+  })
+}
+
 export async function prepareScenarioPage(server, driver, origin, route, web) {
   server.network(false)
   let previousDocument
@@ -167,6 +184,7 @@ async function runSuite(options) {
       await pause(500)
     }
     const prepare = route => prepareScenarioPage(server, driver, origin, route, web)
+    if (web) await refreshInstalledPage(driver, origin)
     await waitFor(() => server.connected() > 0)
     server.resetAuth(`${origin}/sign-in`)
     await waitFor(() => server.verified() > 0)
@@ -187,12 +205,17 @@ async function runSuite(options) {
     requireContent(report.steps[0])
     const index = options.manager * 22
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
-    const context = { weekOffLeagueName: `Home week-off ${stack.fixture.members[options.manager].id.slice(0, 8)}`, memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
+    const context = { weekOffLeagueName: `Home week-off ${stack.fixture.members[options.manager].id.slice(0, 8)}`, rosterPlanTradeId: stack.fixture.rosterPlanTrade.id, memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, otherMemberId: stack.fixture.members[options.manager ^ 1].id, liveAuctionId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
     const scenarios = JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8'))
     const selected = expandScenarios(scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario))
     assert.ok(selected.length, `Unknown scenario ${options.scenario}`)
     const action = async spec => {
       if (spec.sequence) { for (const item of spec.sequence) await action(item); return }
+      if (spec.reveal) {
+        if (web) return withWeb(() => visibleTapLabel(driver, spec.reveal))
+        await driver.native()
+        return driver.mobile('scroll', { predicateString: `label == ${JSON.stringify(spec.reveal)}`, toVisible: true })
+      }
       if (spec.tap) return tap(spec.tap)
       if (spec.tapPrefix) return tap(spec.tapPrefix, true)
       if (spec.fill) { await fill(spec.fill, spec.value); await pause(800); return }
@@ -228,7 +251,7 @@ async function runSuite(options) {
               const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
               const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
               try {
-                server.arm({ id, expected: step.expected, quietMs: step.quietMs, requireWorker: Boolean(step.action.background || step.action.offline), immediate: !web || Boolean(step.action.open || step.action.background || step.action.offline) })
+                server.arm({ id, expected: step.expected, quietMs: step.quietMs, allowClock: step.allowClock === true, requireWorker: Boolean(step.action.background || step.action.offline), immediate: !web || Boolean(step.action.open || step.action.reveal || step.action.background || step.action.offline) })
                 await server.armed(id)
                 await action(step.action)
                 result.metrics = await server.result(id)

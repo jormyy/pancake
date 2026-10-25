@@ -56,8 +56,8 @@ export async function beginWaivers(c, name, report) {
     await c.rpc(donor, 'drop_player_atomic', { p_roster_player_id: row.id, p_expected_league_season_id: c.leagueSeasonId })
     const hold = (await c.rest(donor, `waiver_wire_log?select=*&league_season_id=eq.${c.leagueSeasonId}&player_id=eq.${row.player_id}&cleared_at=is.null`))[0]
     assert.ok(hold, 'A genuine drop creates a waiver hold')
-    assert.equal(Date.parse(hold.clears_at), at + 48 * 3600000, 'Drop hold lasts exactly 48 hours')
-    targets.push({ player: row.player_id, member: donor.memberId, droppedAt: at, clearsAt: at + 48 * 3600000 })
+    checkWaiverHold(hold.clears_at, at)
+    targets.push({ player: row.player_id, member: donor.memberId, droppedAt: at, clearsAt: Date.parse(hold.clears_at) })
   }
   const active = Object.fromEntries(await Promise.all(users.map(async user => [user.memberId, await roster(c, user)])))
   if (mode === 'faab') {
@@ -181,4 +181,8 @@ export function waiverRosterRefills(users, rosters) {
     assert.ok(active.length < 3, 'Roster refill has room within the declared roster limit')
     return true
   })
+}
+
+export function checkWaiverHold(clearsAt, droppedAt) {
+  assert.equal(Date.parse(clearsAt), nextWaiverRun(droppedAt + 48 * 3600000), 'Drop hold clears on the first 03:00 Eastern run at or after 48 hours')
 }

@@ -279,6 +279,18 @@ export async function withScenarioSetup(stack, setup, action) {
   localUrl(stack.url)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (setup.rosterLimit) return withLeagueSettings(admin, stack.fixture.leagueId, { roster_size: setup.rosterLimit }, action)
+  if (setup.activationMember) return withActivationLineup(admin, stack.fixture, setup.activationMember, action)
+  if (setup.tradePlan) return withTradePlanPlayer(admin, stack.fixture.players[18].id, action)
+  if (setup.freeAgentIRMember) return withFreeAgentCapture(admin, { leagueId: stack.fixture.leagueId,
+    seasonId: stack.fixture.seasonId, memberId: setup.freeAgentIRMember, playerId: setup.freeAgentIRPlayer }, action)
+  if (setup.waiverClaimMember) return withWaiverClaimCapture(admin, { leagueId: stack.fixture.leagueId,
+    seasonId: stack.fixture.seasonId, memberId: setup.waiverClaimMember, playerId: setup.waiverPlayer }, action)
+  if (setup.waiverAwardMember) return withWaiverAward(admin, stack.fixture, setup.waiverAwardMember, setup.waiverPlayer, action)
+  if (setup.liveAuctionLeader) return withAuctionNomination(admin, {
+    draftId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id,
+    memberId: setup.liveAuctionLeader, playerId: stack.fixture.players[220].id,
+  }, action)
   if (setup.waiverIRPlayer || setup.irShortcutPlayer) {
     const playerId = setup.waiverIRPlayer ?? setup.irShortcutPlayer
     assert.ok(stack.fixture.players.some(player => player.id === playerId), 'Unknown IR capture player')
@@ -303,4 +315,98 @@ export async function withScenarioSetup(stack, setup, action) {
     }, action)
   }
   assert.fail('Unknown scenario setup')
+}
+
+export async function withLeagueSettings(admin, leagueId, settings, action) {
+  const previous = await captureData(admin.from('leagues').select(Object.keys(settings).join(',')).eq('id', leagueId).single())
+  try {
+    await captureData(admin.from('leagues').update(settings).eq('id', leagueId))
+    return await action()
+  } finally { await captureData(admin.from('leagues').update(previous).eq('id', leagueId)) }
+}
+
+async function withActivationLineup(admin, fixture, memberId, action) {
+  const index = fixture.members.findIndex(member => member.id === memberId)
+  assert.ok(index >= 0, 'Unknown activation manager')
+  const offset = (7 - new Date(`${fixture.today}T12:00:00Z`).getUTCDay()) % 7
+  const date = new Date(Date.parse(`${fixture.today}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10)
+  const previous = await captureData(admin.from('weekly_lineups').select('*').eq('member_id', memberId).eq('game_date', date))
+  const clear = () => captureData(admin.from('weekly_lineups').delete().eq('member_id', memberId).eq('game_date', date))
+  try {
+    await clear()
+    const slots = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL']
+    await captureData(admin.from('weekly_lineups').insert(fixture.players.slice(index * 22, index * 22 + 10).flatMap((player, position) => position === 1 ? [] : [{
+      league_id: fixture.leagueId, league_season_id: fixture.seasonId, member_id: memberId,
+      player_id: player.id, game_date: date, week_number: 1, slot_type: slots[position],
+    }])))
+    return await action()
+  } finally {
+    await clear()
+    if (previous.length) await captureData(admin.from('weekly_lineups').insert(previous))
+  }
+}
+
+async function withWaiverClaimCapture(admin, { leagueId, seasonId, memberId, playerId }, action) {
+  const read = () => captureData(admin.from('waiver_claims').select('id').eq('member_id', memberId).eq('league_season_id', seasonId).eq('player_id', playerId))
+  const previous = new Set((await read()).map(row => row.id))
+  return withAddCounts(admin, { leagueId, seasonId, memberId }, () => withWaiverIRPlayer(admin, { leagueId, seasonId, playerId }, async () => {
+    try { return await action() }
+    finally {
+      for (const row of await read()) if (!previous.has(row.id)) await captureData(admin.from('waiver_claims').delete().eq('id', row.id))
+    }
+  }))
+}
+
+export async function withWaiverAward(admin, fixture, memberId, playerId, action) {
+  const index = fixture.members.findIndex(member => member.id === memberId)
+  assert.ok(index >= 0, 'Unknown waiver award manager')
+  const dropped = await captureData(admin.from('roster_players').select('*').eq('member_id', memberId)
+    .eq('league_season_id', fixture.seasonId).eq('player_id', fixture.players[index * 22 + 10].id).single())
+  const player = await captureData(admin.from('players').select('injury_status').eq('id', playerId).single())
+  let award
+  try {
+    await captureData(admin.from('roster_players').delete().eq('id', dropped.id))
+    await captureData(admin.from('players').update({ injury_status: null }).eq('id', playerId))
+    award = await captureData(admin.from('roster_players').insert({ league_id: fixture.leagueId,
+      league_season_id: fixture.seasonId, member_id: memberId, player_id: playerId, acquired_via: 'waiver',
+      is_on_ir: false, is_on_taxi: false }).select('id').single())
+    return await action()
+  } finally {
+    if (award) await captureData(admin.from('roster_players').delete().eq('id', award.id))
+    await captureData(admin.from('players').update(player).eq('id', playerId))
+    await captureData(admin.from('roster_players').insert(dropped))
+  }
+}
+
+async function withTradePlanPlayer(admin, playerId, action) {
+  const previous = await captureData(admin.from('players').select('years_exp,nba_draft_number').eq('id', playerId).single())
+  try {
+    await captureData(admin.from('players').update({ years_exp: 0, nba_draft_number: 19 }).eq('id', playerId))
+    return await action()
+  } finally { await captureData(admin.from('players').update(previous).eq('id', playerId)) }
+}
+
+async function withAddCounts(admin, { leagueId, seasonId, memberId }, action) {
+  const scope = query => query.eq('league_id', leagueId).eq('league_season_id', seasonId).eq('member_id', memberId)
+  const previous = await captureData(scope(admin.from('weekly_add_counts').select('*')))
+  try { return await action() }
+  finally {
+    await captureData(scope(admin.from('weekly_add_counts').delete()))
+    if (previous.length) await captureData(admin.from('weekly_add_counts').insert(previous))
+  }
+}
+
+export async function withFreeAgentCapture(admin, { leagueId, seasonId, memberId, playerId }, action) {
+  const read = table => captureData(admin.from(table).select('id').eq('league_id', leagueId)
+    .eq('league_season_id', seasonId).eq('member_id', memberId).eq('player_id', playerId))
+  const previous = Object.fromEntries(await Promise.all(['roster_players', 'roster_transactions'].map(async table => [table, new Set((await read(table)).map(row => row.id))])))
+  assert.equal(previous.roster_players.size, 0, 'The IR capture target must start as a free agent')
+  return withAddCounts(admin, { leagueId, seasonId, memberId }, () => withOutPlayer(admin, playerId, async () => {
+    try { return await action() }
+    finally {
+      for (const table of ['roster_players', 'roster_transactions']) {
+        for (const row of await read(table)) if (!previous[table].has(row.id)) await captureData(admin.from(table).delete().eq('id', row.id))
+      }
+    }
+  }))
 }

@@ -11,19 +11,13 @@
         "open": "/trades"
       },
       {
-        "tap": "Analyzer"
+        "tapPrefix": "Analyze trade from "
       },
       {
-        "tap": "Analyze with {{otherTeam}}"
+        "reveal": "Dynasty trade analysis"
       },
       {
-        "tap": "Select {{rosterPlayer.display_name}} for trade"
-      },
-      {
-        "tap": "View trade analysis"
-      },
-      {
-        "tap": "Offers, 1"
+        "tap": "Back to trades"
       }
     ],
     "steps": [
@@ -39,7 +33,16 @@
       {
         "name": "open",
         "action": {
-          "tap": "Analyzer"
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit assets"
         },
         "expected": {
           "selector": "[aria-label='View trade analysis']"
@@ -68,19 +71,13 @@
         "open": "/trades"
       },
       {
-        "tap": "Analyzer"
+        "tapPrefix": "Analyze trade from "
       },
       {
-        "tap": "Analyze with {{otherTeam}}"
+        "reveal": "Dynasty trade analysis"
       },
       {
-        "tap": "Select {{rosterPlayer.display_name}} for trade"
-      },
-      {
-        "tap": "View trade analysis"
-      },
-      {
-        "tap": "Offers, 1"
+        "tap": "Back to trades"
       }
     ],
     "steps": [
@@ -96,7 +93,16 @@
       {
         "name": "open",
         "action": {
-          "tap": "Analyzer"
+          "tapPrefix": "Analyze trade from "
+        },
+        "expected": {
+          "selector": "[aria-label='Dynasty trade analysis']"
+        }
+      },
+      {
+        "name": "edit",
+        "action": {
+          "tap": "Edit assets"
         },
         "expected": {
           "selector": "[aria-label='View trade analysis']"

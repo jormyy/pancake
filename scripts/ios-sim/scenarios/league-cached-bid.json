@@ -19,7 +19,8 @@
         "expected": {
           "selector": "[aria-label='Bid amount']"
         },
-        "note": "The cached room opens with the current minimum bid. Only clock digits may change."
+        "note": "The cached room opens with the current minimum bid. Only clock digits may change.",
+        "allowClock": true
       }
     ],
     "setup": {
@@ -49,7 +50,8 @@
         "expected": {
           "selector": "[aria-label='Bid amount']"
         },
-        "note": "The cached room opens with the current minimum bid. Only clock digits may change."
+        "note": "The cached room opens with the current minimum bid. Only clock digits may change.",
+        "allowClock": true
       }
     ],
     "setup": {

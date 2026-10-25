@@ -20,7 +20,7 @@
           "tapPrefix": "Tuesday, "
         },
         "expected": {
-          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='Select empty PG slot 1']"
+          "selector": "body:has([aria-current='date'][aria-label^='Tuesday, ']) [aria-label='No lineups set this day']"
         }
       }
     ],

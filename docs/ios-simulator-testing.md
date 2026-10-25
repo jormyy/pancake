@@ -179,6 +179,8 @@ Useful options:
 The default scenario list lives in `scripts/ios-sim/scenarios.json`.
 It contains 21 scenarios and 26 measured steps, plus sign-in.
 The lifecycle group contains two measured steps.
+Each capture clears the installed app's cached pages before sign-in.
+The runner refreshes stale HTML before it waits for its recorder connection.
 Surface files live in `scripts/ios-sim/scenarios/`.
 These files replace the removed subsets:
 
@@ -191,6 +193,16 @@ These files replace the removed subsets:
 
 Shared trade scenarios live in `trades.json`.
 `trade-review.json` and `trade-wave2.json` keep their unique cases.
+Use manager 1 for `trade-wave2.json`; its incoming offer belongs to that manager.
+Use manager 3 for `home.json`; its first score breakdown has no game stats.
+Use manager 0 for home moves and roster dialog captures.
+Use manager 6 for `roster.json` to view another team in the standings.
+Use manager 2 for `league-cached-bid.json`; the bidder must differ from the auction leader.
+Roster dialogs create and restore their roster limit, Sunday lineup, and live auction nomination.
+Waiver captures create separate claim and active award fixtures, then restore the roster.
+Acquisition captures also restore their add counts and transaction rows.
+Steps with `allowClock` record clock digit changes without delaying settlement.
+Clock movement, disappearance, and other text changes still delay settlement.
 The default list has no separate Dynasty tab.
 Its Dynasty scenario follows the legacy bookmark into Players rankings.
 Settings scenarios cover profile editing, password changes, lineup options, and player filters.
@@ -199,6 +211,8 @@ Settings scenarios cover profile editing, password changes, lineup options, and 
 
 Add a JSON row with a unique name, starting route, and measured steps.
 Use `prepare` for setup actions that you do not want to measure.
+Use `reveal` to scroll a labeled control into view without activating it.
+A reveal starts its measurement clock without a tap.
 Use `repeat` with a positive integer to repeat a scenario, including preparation.
 Repeated report names end in `-repeat-1`, `-repeat-2`, and so on.
 Keep each scenario name unique across the surface files.

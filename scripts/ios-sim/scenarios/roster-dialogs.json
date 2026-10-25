@@ -17,7 +17,10 @@
           "selector": "[role='alert'][aria-label^='Roster is ']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "rosterLimit": 19
+    }
   },
   {
     "name": "roster-activation-light",
@@ -47,7 +50,10 @@
         },
         "note": "Use the last day of the week so started games do not lock the taxi player."
       }
-    ]
+    ],
+    "setup": {
+      "activationMember": "{{memberId}}"
+    }
   },
   {
     "name": "roster-taxi-choice-light",
@@ -64,14 +70,18 @@
     "steps": [
       {
         "action": {
-          "tap": "Join Auction Draft"
+          "open": "/draft-room?draftId={{liveAuctionId}}"
         },
         "expected": {
           "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
         },
-        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane."
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane.",
+        "allowClock": true
       }
-    ]
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{otherMemberId}}"
+    }
   },
   {
     "name": "roster-trim-dark",
@@ -91,7 +101,10 @@
           "selector": "[role='alert'][aria-label^='Roster is ']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "rosterLimit": 19
+    }
   },
   {
     "name": "roster-activation-dark",
@@ -121,7 +134,10 @@
         },
         "note": "Use the last day of the week so started games do not lock the taxi player."
       }
-    ]
+    ],
+    "setup": {
+      "activationMember": "{{memberId}}"
+    }
   },
   {
     "name": "roster-taxi-choice-dark",
@@ -138,13 +154,17 @@
     "steps": [
       {
         "action": {
-          "tap": "Join Auction Draft"
+          "open": "/draft-room?draftId={{liveAuctionId}}"
         },
         "expected": {
           "selector": "[role='switch'][aria-label='Receive this auction player into taxi']"
         },
-        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane."
+        "note": "The taxi choice stays fixed. The parent auction countdown updates and changes width outside this lane.",
+        "allowClock": true
       }
-    ]
+    ],
+    "setup": {
+      "liveAuctionLeader": "{{otherMemberId}}"
+    }
   }
 ]
