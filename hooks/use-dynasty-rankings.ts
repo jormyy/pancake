@@ -68,6 +68,7 @@ function playerRow(row: DynastyDecisionInput, result: DynastyAssetResult): Dynas
         eligiblePositions: row.eligible_positions ?? [],
         injuryStatus: row.injury_status,
         yearsExp: row.years_exp,
+        careerGames: row.career_regular_season_games,
         headshotUrl: row.headshot_url,
         nbaId: row.nba_id,
         dynastyRank: row.five_year_rank ?? MAX_RANKINGS,

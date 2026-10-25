@@ -372,3 +372,12 @@ export async function getPlayerSeasonLines(playerId: string, seasonYear: number)
     if (error) throw error
     return data ?? []
 }
+
+export async function getPlayerRowMetadata(playerIds: string[]) {
+    if (playerIds.length === 0) return new Map<string, { nba_team: string | null; injury_status: string | null; years_exp: number | null; career_regular_season_games: number | null }>()
+    const { data, error } = await supabase.from('players')
+        .select('id, nba_team, injury_status, years_exp, career_regular_season_games')
+        .in('id', [...new Set(playerIds)])
+    if (error) throw error
+    return new Map((data ?? []).map(player => [player.id, player]))
+}

@@ -1,10 +1,10 @@
 import { pickLabel } from '@/lib/picks'
-import { PlayerNameLine } from '@/components/player/PlayerNameLine'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { memo } from 'react'
 import { useRouter } from 'expo-router'
-import { Avatar } from '@/components/Avatar'
-import { PosTag } from '@/components/PosTag'
+
+
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
@@ -56,28 +56,18 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
     const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
     return (
         <View style={[styles.blockRow, tile && styles.tile]}>
-            {block.asset.kind === 'player' ? (
-                <Avatar name={block.asset.playerName}
-                    color={colors.bgMuted} textColor={colors.textSecondary} size={36} />
-            ) : (
-                <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{`R${block.asset.round}`}</Text></View>
-            )}
-            <View style={styles.blockInfo}>
-                {block.asset.kind === 'player' ? <PlayerNameLine name={label} textStyle={styles.blockTitle} yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} /> : <Text style={styles.blockTitle}>{label}</Text>}
-                {block.asset.kind === 'player' ? (
-                    <>
-                        <View style={styles.blockMetaRow}>
-                            <Text style={styles.blockMeta}>{block.teamName}</Text>
-                            {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
-                            {positions.map((position) => <PosTag key={position} position={position} />)}
-                        </View>
-                        <Text style={styles.blockContext} numberOfLines={1}>{playerSeasonContextText(block.asset)}</Text>
-                    </>
-                ) : <Text style={styles.blockMeta}>{block.teamName}</Text>}
+            {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
+                <PlayerRowContent name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
+                    yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus}
+                    stats={playerSeasonContextText(block.asset)} />
+                <Text style={styles.blockMeta}>{block.teamName}</Text>
                 {mine ? <TradeBlockNoteEditor item={block} label={label}
                     disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
                     : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
-            </View>
+            </View> : <>
+                <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>{`R${block.asset.round}`}</Text></View>
+                <View style={styles.blockInfo}><Text style={styles.blockTitle}>{label}</Text><Text style={styles.blockMeta}>{block.teamName}</Text></View>
+            </>}
             {mine ? (
                 <Pressable style={styles.blockAction} onPress={() => onRemove(block)}
                     disabled={disabled || blockBusyId === block.id} accessibilityRole="button"
@@ -126,16 +116,8 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     })
     return (
         <View style={[styles.blockRow, tile && styles.tile]}>
-            <Avatar name={player.display_name}
-                color={colors.bgMuted} textColor={colors.textSecondary} size={36} />
-            <View style={styles.blockInfo}>
-                <PlayerNameLine name={player.display_name} textStyle={styles.blockTitle} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
-                <View style={styles.blockMetaRow}>
-                    {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
-                    {positions.map((position) => <PosTag key={position} position={position} />)}
-                </View>
-                <Text style={styles.blockContext} numberOfLines={1}>{context}</Text>
-            </View>
+            <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}

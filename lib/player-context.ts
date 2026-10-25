@@ -13,15 +13,9 @@ export function playerEligiblePositions(player: PlayerContextInput): string[] {
     return player.position ? [player.position] : []
 }
 
-export function playerYearsExperienceLabel(yearsExp?: number | null): string | null {
-    if (yearsExp == null) return null
-    return yearsExp <= 0 ? 'Rookie' : null
-}
-
 export function playerSeasonContextText(player: PlayerContextInput): string {
     return [
         player.avgFantasyPoints != null ? `${formatPoints(player.avgFantasyPoints)} FP` : null,
         player.avgMinutesPlayed != null ? `${formatPoints(player.avgMinutesPlayed)} MIN` : null,
-        playerYearsExperienceLabel(player.yearsExp),
     ].filter(Boolean).join(' · ') || 'No season stats'
 }

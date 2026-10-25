@@ -57,11 +57,11 @@ function recorder(failedUploads = 0) {
       return { ok: true }
     },
   }
-  const scope = vm.createContext({ ...context, window: context })
+  const scope = vm.createContext({ URL, ...context, window: context })
   vm.runInContext(recorderSource, scope)
   const api = (context as typeof context & { __iosRecorder: { begin: (spec: object) => void, finish: (settled: boolean) => unknown } }).__iosRecorder
   const frame = (time: number) => { now = time; const jobs = [...queue.values()]; queue.clear(); for (const job of jobs) job() }
-  return { api, frame, elements, posted, handlers, document, queue, resetEvents, storage, fetch: context.fetch, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
+  return { api, frame, elements, posted, handlers, document, queue, resetEvents, storage, location: context.location, fetch: context.fetch, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
 }
 
 test('recorder waits for real content and records appearance, loss, text, and movement', () => {
@@ -554,4 +554,18 @@ test('theme setup writes its preference before navigation without Profile conten
   await r.message({ type: 'prepare', url: 'http://127.0.0.1:58190/roster', theme: 'dark' })
   assert.equal(r.storage.get('pancake-theme'), 'dark')
   assert.deepEqual(r.resetEvents, ['http://127.0.0.1:58190/roster'])
+})
+
+test.each(['light', 'dark'])('the %s join scenario settles on the visible invite form', async theme => {
+  const scenarios = JSON.parse(await readFile('scripts/ios-sim/scenarios/shell.json', 'utf8'))
+  const scenario = scenarios.find((row: { name: string }) => row.name === `shell-${theme}-leagues`)
+  const expected = scenario.steps.find((step: { name?: string }) => step.name === 'join').expected
+  const r = recorder()
+  r.location.pathname = '/join-league'
+  r.location.href = 'http://127.0.0.1:58190/join-league'
+  r.api.begin({ id: 'join', expected, immediate: true, minimumMs: 1000, quietMs: 0 })
+  r.frame(1)
+  r.frame(100)
+  const result = r.api.finish(true) as { firstContentMs: number | null }
+  assert.notEqual(result.firstContentMs, null)
 })

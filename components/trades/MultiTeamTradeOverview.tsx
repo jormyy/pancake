@@ -1,3 +1,4 @@
+import { PlayerRowContent, type PlayerRowContentProps } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
@@ -16,6 +17,7 @@ export type TradeFlowItem = {
     toMemberId: string
     label: string
     detail?: string | null
+    player?: PlayerRowContentProps
 }
 
 type MultiTeamTradeOverviewProps = {
@@ -79,6 +81,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                     <Text style={styles.empty}>No incoming assets</Text>
                                 ) : incoming.map((item) => (
                                     <View key={item.key} style={styles.assetRow}>
+                                        {item.player ? <PlayerRowContent {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
                                         <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
                                         <View style={styles.assetCopy}>
                                             <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>
@@ -87,6 +90,7 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                                 {item.detail ? ` · ${item.detail}` : ''}
                                             </Text>
                                         </View>
+                                        </>}
                                         {onRemoveItem ? (
                                             <Pressable style={styles.removeAsset}
                                                 onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
@@ -194,7 +198,7 @@ const styles = StyleSheet.create({
     assetRow: {
         minHeight: 34,
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: spacing.sm,
         paddingVertical: spacing.xxs,
     },

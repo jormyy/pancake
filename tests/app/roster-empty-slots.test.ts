@@ -101,7 +101,6 @@ vi.mock('@/components/roster/RosterTrimBanner', () => ({ RosterTrimBanner: 'Rost
 vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 
 vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true

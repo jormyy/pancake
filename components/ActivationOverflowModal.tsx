@@ -1,9 +1,10 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { colors, spacing, table, textStyles } from '@/constants/tokens'
 import { LineupPlayer } from '@/lib/lineup'
 import { isIREligible } from '@/lib/roster'
-import { playerHeadshotUrl } from '@/lib/format'
-import { Avatar } from '@/components/Avatar'
+
+
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 
@@ -42,19 +43,8 @@ export function ActivationOverflowModal({
             <View style={styles.list}>
                 {activePlayers.map((p) => (
                     <View key={p.rosterPlayerId} style={styles.row}>
-                        <Avatar
-                            name={p.displayName}
-                            uri={playerHeadshotUrl(p.nbaId) ?? undefined}
-                            color={colors.bgMuted}
-                            size={36}
-                        />
-                        <View style={styles.info}>
-                            <Text style={textStyles.rowTitle} numberOfLines={1}>{p.displayName}</Text>
-                            <Text style={textStyles.meta}>
-                                {p.nbaTeam ?? 'FA'}
-                                {p.position ? ` · ${p.position}` : ''}
-                            </Text>
-                        </View>
+                        <PlayerRowContent name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam}
+                            positions={p.eligiblePositions} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} />
                         <View style={styles.actions}>
                             {allowIR && (irSlots === undefined || myLineup.ir.length - (pending.source === 'ir' ? 1 : 0) < irSlots) && isIREligible(p.injuryStatus) ? (
                                 <Button

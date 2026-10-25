@@ -144,3 +144,9 @@ it('binds full and incremental reads to the revision used by the fallback poll',
     expect(updated.pollRevision).toBe(await getDraftPollRevision('draft'))
     expect(updated.pollRevision).not.toBe(state.pollRevision)
 })
+
+it('preserves player row metadata in auction history', async () => {
+    rows.nominations = [{ ...nomination, players: { ...nomination.players, years_exp: 2, career_regular_season_games: 64, injury_status: 'Out' } }]
+    const state = await getDraftState('draft')
+    expect(state?.openNomination?.player).toMatchObject({ yearsExp: 2, careerGames: 64, injuryStatus: 'Out' })
+})

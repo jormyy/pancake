@@ -1,9 +1,9 @@
 import { pickLabel, draftYear } from '@/lib/picks'
-import { PlayerNameLine } from '@/components/player/PlayerNameLine'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { Avatar } from '@/components/Avatar'
-import { PosTag } from '@/components/PosTag'
+
+
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
@@ -50,27 +50,12 @@ function PlayerRow({
             testID={testID}
             id={testID}
         >
-            <Avatar
-                name={p.display_name}
-                color={selected ? colors.primary : colors.bgMuted}
-                textColor={selected ? colors.textWhite : colors.textSecondary}
-                size={36}
-            />
-            <View style={styles.playerInfo}>
-                <PlayerNameLine name={p.display_name} textStyle={[styles.playerName, selected && styles.playerNameSelected]} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} />
-                <View style={styles.playerMetaRow}>
-                    {p.nba_team ? <Text style={styles.playerMeta}>{p.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                </View>
-                <Text style={styles.playerContext} numberOfLines={1}>
-                    {blocked && !selected ? 'Remove the earlier route to select this player.' : statText}
-                </Text>
-                {selected && destinationLabel ? (
-                    <Text style={styles.routeMeta} numberOfLines={1}>
-                        To {destinationLabel}
-                    </Text>
-                ) : null}
-            </View>
+            <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+                yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
+                stats={<View>
+                    <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Remove the earlier route to select this player.' : statText}</Text>
+                    {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}
+                </View>} />
             {selected && (
                 <View style={styles.removeBadge} aria-hidden>
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />

@@ -1,3 +1,4 @@
+import { RookiePickRow } from '@/components/league/draft-room/RookiePickRow'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { View } from 'react-native'
@@ -8,13 +9,14 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { PlayerNameLine } from '@/components/player/PlayerNameLine'
+import { RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
+import { AssetList } from '@/components/trades/TradeCard'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
 import { themeVariablesCss } from '@/constants/tokens'
-import { headerPlayer, playerRow } from '../helpers/fixtures'
+import { headerPlayer, playerRow, rosterPlayer } from '../helpers/fixtures'
 
 vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web'), useWindowDimensions: () => ({ width: 390, height: 844 }) }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG', 'SG'] }))
@@ -41,19 +43,25 @@ vi.mock('@/components/ui/Sheet', () => ({ Sheet: () => null }))
 let close: (() => Promise<void>) | undefined
 afterEach(async () => { await close?.(); close = undefined; vi.restoreAllMocks() })
 
-it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('keeps player tags and shell controls aligned at iPhone widths in both browser engines', async () => {
+it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-case', 'ir-case', 'taxi-case', 'trade-case', 'draft-case', 'desktop-case'])('keeps %s in three lines at iPhone widths', async caseId => {
     const directory = process.env.PANCAKE_LAYOUT_OUTPUT ?? await mkdtemp(path.join(tmpdir(), 'pancake-client-layout-'))
     await mkdir(directory, { recursive: true })
     const moduleLoader = Module as typeof Module & { _load: (name: string, ...args: unknown[]) => unknown }
     const originalLoad = moduleLoader._load
     vi.spyOn(moduleLoader, '_load').mockImplementation((name, ...args) => name === '@/assets/images/pancake_logo.png'
         ? { uri: `data:image/png;base64,${readFileSync('assets/images/pancake_logo.png').toString('base64')}` } : originalLoad.call(moduleLoader, name, ...args))
+    const name = 'A Very Long Player Name That Must Truncate'
+    const player = playerRow({ display_name: name, injury_status: 'Out', years_exp: 0, avg_fantasy_points: 50.2 })
+    const roster = rosterPlayer({ players: { ...rosterPlayer().players, ...player } })
     const Fixture = () => React.createElement(WebAppShell, {}, React.createElement(PlayerEligibilityContext.Provider, { value: 2 },
-        React.createElement(View, { style: { padding: 16, gap: 16 } },
-            React.createElement(PlayerSearchItem, { item: playerRow({ display_name: 'An Extremely Long Player Name', injury_status: 'Day-To-Day', years_exp: 0 }), currentMemberId: 'member', ownedMap: new Map([['player-a', { memberId: 'member', teamName: 'My team' }]]), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {}, animate: false }),
-            ...['Out', 'DTD', 'IR'].map(injuryStatus => React.createElement(PlayerSearchItem, { key: injuryStatus, item: playerRow({ display_name: `${injuryStatus} Player With A Long Name`, injury_status: injuryStatus, years_exp: 0, avg_fantasy_points: 50.2, playing_now: injuryStatus === 'DTD' }), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, showCompactStats: false, onAdd: () => {}, onPress: () => {}, animate: false })),
-            ...['Short Name', 'An Extremely Long Player Name That Must Truncate'].map(name => React.createElement(PlayerNameLine, { key: name, name, injuryStatus: 'Day-To-Day', yearsExp: 0 })),
-            React.createElement(PlayerHeader, { player: headerPlayer({ display_name: 'Stephen Curry', years_exp: 0, injury_status: 'Out', dynasty_rank: 12 }), rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true, action: { label: 'Add', onPress: () => {}, disabled: false, busy: false } }),
+        React.createElement(View, { style: { padding: 8, gap: 16 } },
+            React.createElement(View, { testID: 'players-case' }, React.createElement(PlayerSearchItem, { item: player, currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, showStats: caseId === 'desktop-case', showCompactStats: true, onAdd: () => {}, onPress: () => {}, animate: false })),
+            React.createElement(View, { testID: 'roster-case' }, React.createElement(RosterPlayerItem, { item: roster, slotType: 'PG', togglingId: null, taxiingId: null, droppingId: null, avgFpts: 50.2, avgMinutes: 32, onPress: () => {}, onLongPress: () => {}, onToggleIR: () => {}, allowIR: true })),
+            React.createElement(View, { testID: 'ir-case' }, React.createElement(RosterPlayerItem, { item: { ...roster, is_on_ir: true }, slotType: 'IR', togglingId: null, taxiingId: null, droppingId: null, avgFpts: 50.2, avgMinutes: 32, onPress: () => {}, onLongPress: () => {}, onToggleIR: () => {} })),
+            React.createElement(View, { testID: 'taxi-case' }, React.createElement(TaxiPlayerItem, { item: { ...roster, is_on_taxi: true }, taxiingId: null, avgFpts: 50.2, avgMinutes: 32, onPress: () => {}, onToggleTaxi: () => {} })),
+            React.createElement(View, { testID: 'trade-case' }, React.createElement(AssetList, { label: 'Assets', items: [{ kind: 'player', playerId: player.id, playerName: name, nbaTeam: 'LAL', position: 'PG', eligiblePositions: ['PG', 'SG'], yearsExp: 0, injuryStatus: 'Out', avgFantasyPoints: 50.2, avgMinutesPlayed: 32 }] })),
+            React.createElement(View, { testID: 'draft-case' }, React.createElement(RookiePickRow, { item: { overallPick: 1, round: 1, pickInRound: 1, memberId: 'member', teamName: 'A long team name', pickedAt: null, skippedAt: null, skipReason: null, timerExpiresAt: null, player: { id: player.id, displayName: name, nbaId: null, nbaTeam: 'LAL', position: 'PG', yearsExp: 0, careerGames: 0, injuryStatus: 'Out' } }, nextPick: null })),
+            React.createElement(PlayerHeader, { player: headerPlayer({ display_name: 'Stephen Curry', years_exp: 0, injury_status: 'Out', dynasty_rank: 12 }), rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true }),
         )))
     const { AppRegistry } = await vi.importActual<{ AppRegistry: { registerComponent: (name: string, component: () => React.ComponentType) => void; getApplication: (name: string) => { element: React.ReactElement; getStyleElement: () => React.ReactElement } } }>('react-native-web')
     AppRegistry.registerComponent('ClientLayout', () => Fixture)
@@ -63,59 +71,46 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('keeps player tags and shell cont
     for (const engine of [chromium, webkit]) {
         const browser = await engine.launch()
         close = () => browser.close()
-        for (const width of [320, 390, 430]) {
+        for (const width of caseId === 'desktop-case' ? [1024] : [320, 390, 430]) {
             const page = await browser.newPage({ viewport: { width, height: 844 } })
             await page.setContent(html)
-            const geometry = await page.evaluate(() => {
-                const rect = (element: Element) => element.getBoundingClientRect()
-                const controls = ['[data-testid=pancake-brand]', '[aria-label="Switch league"]', '[aria-label="Open menu"]'].map(selector => rect(document.querySelector(selector)!))
-                const lines = Array.from(document.querySelectorAll('[data-testid="player-name-line"]')).map(line => {
-                    const name = line.firstElementChild!
-                    const tags = Array.from(line.children).slice(1)
-                    return { height: rect(line).height, nameHeight: rect(name).height, nameWidth: rect(name).width, tags: tags.map(tag => ({ top: rect(tag).top - rect(name).top, height: rect(tag).height, left: rect(tag).left, right: rect(tag).right })), nameRight: rect(name).right, right: rect(line).right }
+            {
+                const id = caseId === 'desktop-case' ? 'players-case' : caseId
+                expect(await page.getByTestId(id).getByTestId('player-meta-line').count()).toBe(1)
+                expect(await page.getByTestId(id).getByTestId('player-stats-line').count()).toBe(1)
+                const geometry = await page.getByTestId(id).evaluate(root => {
+                    const box = (node: Element) => {
+                        const rect = node.getBoundingClientRect()
+                        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, height: rect.height }
+                    }
+                    const name = root.querySelector('[data-testid="player-name-line"]')!
+                    const meta = root.querySelector('[data-testid="player-meta-line"]')!
+                    const stats = root.querySelector('[data-testid="player-stats-line"]')!
+                    const avatar = root.querySelector('[data-testid="player-row-avatar"]')!
+                    const team = meta.firstElementChild!
+                    const teamClipped = team.scrollWidth > team.clientWidth
+                    const tags = Array.from(meta.querySelectorAll('[aria-label]')).map(tag => ({ label: tag.getAttribute('aria-label'), text: tag.textContent, ...box(tag) }))
+                    const positions = Array.from(meta.querySelectorAll('[data-testid="position-chip"]')).map(box)
+                    const row = root.querySelector('[data-testid="player-row-content"]')!
+                    const action = root.querySelector('[aria-label^="Add "], [aria-label^="Move "], [aria-label^="Activate "]')
+                    return { teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: box(stats), avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
                 })
-                const rows = Array.from(document.querySelectorAll('[aria-label^="Open "]')).filter(card => /Open (Out|DTD|IR) Player/.test(card.getAttribute('aria-label') ?? '')).map(card => {
-                    const avatar = rect(Array.from(card.querySelectorAll('div')).find(element => getComputedStyle(element).borderTopLeftRadius === '18px')!)
-                    const name = rect(card.querySelector('[data-testid="player-name-line"]')!.firstElementChild!)
-                    const metadata = Array.from(card.querySelectorAll('*')).filter(element => element.childElementCount === 0 && /^(LAL|PG|SG|.* (FP|LIVE))$/.test(element.textContent ?? '')).map(element => {
-                        const box = rect(element)
-                        return { top: box.top, bottom: box.bottom }
-                    })
-                    const row = rect(card.parentElement!)
-                    const add = card.parentElement!.querySelector('[aria-label^="Add "]')
-                    return { metadata, label: card.getAttribute('aria-label'), avatar: { width: avatar.width, height: avatar.height, left: avatar.left, right: avatar.right, top: avatar.top, bottom: avatar.bottom }, name: { left: name.left, top: name.top, bottom: name.bottom }, rowHeight: row.height, center: row.top + row.height / 2, avatarCenter: avatar.top + avatar.height / 2, addCenter: add ? rect(add).top + rect(add).height / 2 : null }
-                })
-                const position = document.querySelector('[data-testid="player-position-line"]')!
-                const summary = document.querySelector('[data-testid="player-summary-line"]')!
-                return { rows, controls: controls.map(box => ({ top: box.top, height: box.height })), lines, summaryBelow: rect(summary).top >= rect(position).bottom, overflow: document.documentElement.scrollWidth > innerWidth }
-            })
-            expect(geometry.rows).toHaveLength(3)
-            for (const row of geometry.rows) {
-                expect(row.avatar.width).toBe(36)
-                expect(row.avatar.height).toBe(36)
-                expect(row.avatar.right, row.label ?? '').toBeLessThanOrEqual(row.name.left)
-                expect(row.avatar.top, row.label ?? '').toBeLessThan(row.name.bottom)
-                expect(row.avatar.bottom, row.label ?? '').toBeGreaterThan(row.name.top)
-                expect(row.metadata).toHaveLength(4)
-                expect(row.metadata.every(box => box.top >= row.name.bottom)).toBe(true)
-                expect(Math.max(...row.metadata.map(box => box.top))).toBeLessThan(Math.min(...row.metadata.map(box => box.bottom)))
-                expect(Math.abs(row.avatarCenter - row.center)).toBeLessThanOrEqual(1)
-                if (row.addCenter !== null) {
-                    expect(Math.abs(row.addCenter - row.center)).toBeLessThanOrEqual(1)
-                    expect(row.rowHeight).toBeLessThanOrEqual(52)
-                }
+                expect(geometry.text).toBe(name)
+                expect(geometry.teamClipped).toBe(false)
+                expect(geometry.name.bottom).toBeLessThanOrEqual(geometry.meta.top)
+                expect(geometry.meta.bottom).toBeLessThanOrEqual(geometry.stats.top)
+                expect(geometry.stats.height).toBeLessThanOrEqual(18)
+                expect(geometry.avatar.right).toBeLessThanOrEqual(geometry.name.left)
+                expect(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
+                if (geometry.action) expect(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
+                expect(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], ['T', 'Taxi eligible']])
+                expect(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
+                expect(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)
+                expect(geometry.tags.every(tag => tag.height === geometry.positions[0].height)).toBe(true)
+                expect(geometry.row.right).toBeLessThanOrEqual(width)
+                expect(geometry.overflow).toBe(false)
             }
-            expect(geometry.controls.every(box => box.height === 44 && box.top === geometry.controls[0].top)).toBe(true)
-            for (const line of geometry.lines) {
-                expect(line.height).toBe(line.nameHeight)
-                expect(line.nameWidth).toBeGreaterThan(28)
-                expect(line.tags.every(tag => tag.height === line.nameHeight && tag.top === 0)).toBe(true)
-                expect(line.tags[0].left).toBeGreaterThanOrEqual(line.nameRight)
-                expect(line.tags.at(-1)!.right).toBeLessThanOrEqual(line.right)
-            }
-            expect(geometry.summaryBelow).toBe(true)
-            expect(geometry.overflow).toBe(false)
-            await page.screenshot({ path: `${directory}/${engine.name()}-${width}.png` })
+            await page.screenshot({ path: `${directory}/${caseId}-${engine.name()}-${width}.png` })
             await page.close()
         }
         await browser.close()

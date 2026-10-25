@@ -1,3 +1,4 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
@@ -5,12 +6,12 @@ import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
 import { alpha, colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
-import { playerHeadshotUrl, timeAgo } from '@/lib/format'
+import { timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
+
 import { usePageMetrics } from '@/components/ui'
 
 /** One league transaction. */
@@ -44,22 +45,8 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
 
     return (
         <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
-            <Avatar
-                name={item.playerName}
-                color={colors.bgMuted}
-                size={avatarSize}
-                uri={playerHeadshotUrl(item.nbaId)}
-            />
-            <View style={styles.txInfo}>
-                <View style={styles.txNameRow}>
-                    <Text style={styles.txPlayer} numberOfLines={1}>{item.playerName}</Text>
-                    {item.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                </View>
-                <Text style={styles.txTeam} numberOfLines={1}>
-                    {item.teamName}
-                    {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
-                </Text>
-            </View>
+            <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
+                stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />
                 <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>

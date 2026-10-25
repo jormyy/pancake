@@ -22,6 +22,9 @@ export type WaiverClaim = {
     clearsAt?: string | null
     toIr?: boolean
     toTaxi?: boolean
+    playerTeam?: string | null
+    playerPosition?: string | null
+    playerInjuryStatus?: string | null
     playerYearsExp?: number | null
     playerCareerGames?: number | null
     failureReason: string | null
@@ -178,7 +181,7 @@ export async function getMyWaiverClaims(
             to_ir,
             to_taxi,
             failure_reason,
-            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id, years_exp, career_regular_season_games ),
+            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id, nba_team, position, injury_status, years_exp, career_regular_season_games ),
             drop_player:players!waiver_claims_drop_player_id_fkey ( display_name, nba_id )
         `)
         .eq('member_id', memberId)
@@ -212,6 +215,9 @@ export async function getMyWaiverClaims(
         claimOrder: row.claim_order ?? 1,
         toIr: row.to_ir,
         toTaxi: row.to_taxi,
+        playerTeam: row.claim_player?.nba_team ?? null,
+        playerPosition: row.claim_player?.position ?? null,
+        playerInjuryStatus: row.claim_player?.injury_status ?? null,
         playerYearsExp: row.claim_player?.years_exp ?? null,
         playerCareerGames: row.claim_player?.career_regular_season_games ?? null,
         failureReason: row.failure_reason ?? null,

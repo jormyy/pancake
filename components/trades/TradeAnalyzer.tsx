@@ -247,7 +247,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                     <Text style={styles.copy}>Retry analysis</Text>
                 </Pressable>
             </View> : null}
-            <TradeAnalysisSummary analysis={shownAnalysis} participantName={analysisParticipantName}
+            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} participantName={analysisParticipantName}
                 loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
         </View>
     )

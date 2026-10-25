@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => ({
         participantName: () => 'Team', reset: vi.fn(), participantIds: [] as string[], setParticipantIds: vi.fn(),
         prefillFromTrade: vi.fn(), buildMultiTeamItems: vi.fn<() => MultiTeamTradeItemPayload[]>(() => []), assetsReady: true, participantViews: [] as TradeParticipantView[],
         toggleParticipant: vi.fn(), selectedParticipantIds: new Set(), rosterError: null, rosterLoading: false,
-        avgMap: new Map(), avgStatsMap: new Map(), retry: vi.fn(), toggleParticipantPlayer: vi.fn(),
+        participantRosters: {}, avgMap: new Map(), avgStatsMap: new Map(), retry: vi.fn(), toggleParticipantPlayer: vi.fn(),
         toggleParticipantPick: vi.fn(), setParticipantDestination: vi.fn(), setParticipantPlayerDestination: vi.fn(),
         setParticipantPickDestination: vi.fn(), setParticipantFaab: vi.fn(),
     },

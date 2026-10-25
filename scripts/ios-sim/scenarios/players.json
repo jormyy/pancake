@@ -10,7 +10,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[data-testid='player-name-line'] > [data-testid='player-eligibility-tags']"
+          "selector": "[data-testid='player-meta-line'] > [data-testid='player-eligibility-tags']"
         }
       }
     ],
@@ -230,7 +230,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[data-testid='player-name-line'] > [data-testid='player-eligibility-tags']"
+          "selector": "[data-testid='player-meta-line'] > [data-testid='player-eligibility-tags']"
         }
       }
     ],

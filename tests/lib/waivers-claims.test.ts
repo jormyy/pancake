@@ -68,3 +68,9 @@ it.each(['pending', 'succeeded'])('reports a failed %s read', async status => {
     state.errorStatus = status
     await expect(getMyWaiverClaims('member', 'league')).rejects.toThrow('Claim read failed')
 })
+
+it('preserves player row metadata in claims', async () => {
+    state.rows = [{ ...claim('player', 'pending', 1, 1), claim_player: { display_name: 'Player', nba_team: 'BOS', position: 'PG', injury_status: 'Out', years_exp: 2, career_regular_season_games: 64 } }]
+    const [row] = await getMyWaiverClaims('member', 'league')
+    expect(row).toMatchObject({ playerTeam: 'BOS', playerPosition: 'PG', playerInjuryStatus: 'Out', playerYearsExp: 2, playerCareerGames: 64 })
+})

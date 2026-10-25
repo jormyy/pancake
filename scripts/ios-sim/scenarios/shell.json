@@ -168,7 +168,8 @@
           "tap": "Join with Invite Code"
         },
         "expected": {
-          "route": "/join-league"
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],
@@ -478,7 +479,8 @@
           "tap": "Join with Invite Code"
         },
         "expected": {
-          "route": "/join-league"
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],

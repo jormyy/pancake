@@ -54,7 +54,6 @@ export const playerListStyles = StyleSheet.create({
     },
     tableHeaderHeadshotSpacer: { width: playerRowGeometry.headshot },
     tableHeaderPlayer: { ...textStyles.tableHeader, flex: 1 },
-    tableHeaderOwnership: { ...textStyles.tableHeader, width: playerRowGeometry.statusWidth, textAlign: 'center' },
     tableHeaderStatsGroup: {
         width: playerRowGeometry.statCount * table.statColWidth,
         flexDirection: 'row',

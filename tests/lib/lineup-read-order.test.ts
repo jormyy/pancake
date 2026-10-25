@@ -40,3 +40,10 @@ it('keeps starter and bench indexes stable when the database changes its row ord
     expect(first.bench.map(player => player.playerId)).toEqual(['c', 'd'])
     expect(second).toEqual(first)
 })
+
+it('preserves player row metadata in lineups', async () => {
+    state.roster = [{ id: 'roster', player_id: 'player', is_on_ir: false, is_on_taxi: false, players: { display_name: 'Player', position: 'PG', years_exp: 2, career_regular_season_games: 64, injury_status: 'Out' } }]
+    state.assignments = [{ player_id: 'player', slot_type: 'PG' }]
+    const row = await getWeeklyLineup('member', 'league', 'season', 1, '2099-01-01')
+    expect(row.starters[0].player).toMatchObject({ yearsExp: 2, careerGames: 64, injuryStatus: 'Out' })
+})

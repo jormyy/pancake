@@ -1,3 +1,4 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } from '@/components/dynasty/news-cache'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -12,7 +13,7 @@ import {
     View,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { Avatar } from '@/components/Avatar'
+
 import { EmptyState } from '@/components/EmptyState'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { Card, ErrorBanner, Input, SegmentedControl } from '@/components/ui'
@@ -104,26 +105,13 @@ function RankingRowImpl({
                 <Text style={styles.rankNumberText}>{player.dynastyRank}</Text>
                 {player.rankChange !== 0 ? <RankMovement value={player.rankChange} /> : null}
             </View>
-            {player.isDraftPick ? (
-                <View style={styles.draftBadge}>
-                    <MaterialIcons name="style" size={controlSize.icon.md} color={colors.primaryDark} />
-                </View>
-            ) : <Avatar name={player.displayName} uri={playerAvatarUri(player)} size={table.headerHeight} />}
-            <View style={styles.rankMain}>
-                <View style={styles.rankHeadline}>
-                    <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-                    <Text style={styles.valueText}>Value {valueText}</Text>
-                </View>
-                {!player.isDraftPick ? (
-                    <View style={styles.metaRow}>
-                        <Text style={styles.metaText} numberOfLines={1}>
-                            {[player.sourceTeam ?? player.nbaTeam, positions.join('/')].filter(Boolean).join(' · ')}
-                        </Text>
-                        {player.injuryStatus ? <Text style={styles.injuryText}>{player.injuryStatus}</Text> : null}
-                    </View>
-                ) : null}
-                {support ? <Text style={styles.decisionMeta} numberOfLines={1}>{support}</Text> : null}
-            </View>
+            {player.isDraftPick ? <>
+                <View style={styles.draftBadge}><MaterialIcons name="style" size={controlSize.icon.md} color={colors.primaryDark} /></View>
+                <View style={styles.rankMain}><Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text><Text style={styles.valueText}>Value {valueText}</Text><Text style={styles.decisionMeta}>{support}</Text></View>
+            </> : <PlayerRowContent name={player.displayName} nbaId={player.nbaId} headshotUrl={playerAvatarUri(player)} team={player.sourceTeam ?? player.nbaTeam}
+                positions={positions} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus}
+                stats={`Value ${valueText}${support ? ` · ${support}` : ''}`} />}
+
         </Pressable>
     )
 }
@@ -151,16 +139,7 @@ function NewsRow({ item }: { item: DynastyNewsItem }) {
             <Text style={styles.newsSummary}>{item.summary}</Text>
             {item.playerName ? (
                 <View style={styles.newsPlayerRow}>
-                    <Avatar
-                        name={item.playerName}
-                        uri={playerHeadshotUrl(item.playerNbaId)}
-                        color={colors.bgMuted}
-                        textColor={colors.textSecondary}
-                        size={28}
-                    />
-                    <Text style={styles.newsPlayer} numberOfLines={1}>
-                        {item.playerName}{item.playerTeam ? ` - ${item.playerTeam}` : ''}
-                    </Text>
+                    <PlayerRowContent name={item.playerName} nbaId={item.playerNbaId} team={item.playerTeam} positions={item.playerPosition ? [item.playerPosition] : []} yearsExp={item.playerYearsExp} careerGames={item.playerCareerGames} injuryStatus={item.playerInjuryStatus} />
                 </View>
             ) : null}
         </Pressable>
@@ -381,7 +360,7 @@ const styles = StyleSheet.create({
     },
     rankRow: {
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         paddingVertical: spacing.md,
         gap: spacing.md,
     },
