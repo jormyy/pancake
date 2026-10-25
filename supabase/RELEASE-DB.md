@@ -3,9 +3,11 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261024000001`.
+Production currently stops at migration `20261020000007`.
 This release advances the database through migration `20261026001000`.
-Confirm all published main migrations are applied before the unpublished migrations listed below.
+Production has 431 applied versions; `origin/main` contains 494 migrations.
+The push applies 63 pending main migrations, from `20261020000030` through `20261024000001`, first.
+It then applies the 54 unpublished migrations listed below, in version order.
 The approved plan and [attestations](../docs/release-history-attestations.md) define the exact applied and pending ranges.
 The Vercel integration publishes the frontend when this release merges into main.
 Do not merge before the database and Edge checks pass.
@@ -23,7 +25,9 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Save the migration plan and its attestation before production work.
 2. Confirm the project's scoped production link and inspect `supabase migration list --linked`.
    Run `supabase db push --linked --dry-run` from the frozen release checkout.
-   Confirm applied history matches main and the plan contains only approved unpublished migrations, in version order.
+   Confirm applied history matches the 431-version production baseline.
+   The dry-run must show exactly 117 versions: the 63 pending main migrations, then the 54 unpublished migrations.
+   Verify their names and version order against the approved plan.
    Use the workflow's approved `supabase/predeploy/` index preparation and migration-plan attestation checks.
    Then run `supabase db push --linked --yes` under production approval.
 3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
@@ -49,7 +53,7 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
    If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
 
-The following unpublished migrations follow the deployed main history in version order.
+The following 54 unpublished migrations follow the 63 pending main migrations in version order.
 Compare this list with the frozen checkout and approved plan before deployment.
 
 - `20261024100001_straight_to_ir.sql`
@@ -229,7 +233,7 @@ ALTER TABLE public.waiver_wire_log REPLICA IDENTITY DEFAULT;
 ```
 
 The merged migration range requires new release attestations before deployment.
-The published attestations cover only the deployed main history.
+The published attestations retain the recorded production baseline.
 
 Keep the Expo objects while the deployed Edge release or its rollback can use them.
 The client cannot update `profiles.push_token`; the service role keeps access.
