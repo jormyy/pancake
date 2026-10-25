@@ -86,3 +86,33 @@ it('detects a release definition that would revert main', () => {
     expect(revertedDefinitions([statement(1)], deployed, merged)).toEqual(['public.shared_release_function'])
     expect(revertedDefinitions([statement(1), statement(3)], deployed, merged)).toEqual([])
 })
+
+function subscribedTables(source: string) {
+    const direct = [...source.matchAll(/\.on\(\s*['"]postgres_changes['"]\s*,\s*\{[^}]*?\btable\s*:\s*['"]([a-z_]+)['"]/g)]
+        .map(match => match[1])
+    const watches = [...source.matchAll(/\bwatches\s*:\s*\[([\s\S]*?)\]/g)]
+        .flatMap(match => [...match[1].matchAll(/\btable\s*:\s*['"]([a-z_]+)['"]/g)].map(table => table[1]))
+    return new Set([...direct, ...watches])
+}
+
+function droppedSubscribedTables(migrations: string[], subscribed: Set<string>) {
+    return migrations.flatMap(source => [...maskSqlNonCode(source).matchAll(/ALTER\s+PUBLICATION\s+supabase_realtime\s+DROP\s+TABLE\s+([^;]+);/gi)]
+        .flatMap(statement => statement[1].split(',').map(table => table.trim().replace(/^public\./, '')))
+        .filter(table => subscribed.has(table)))
+}
+
+it.skipIf(!available)('keeps deployed client subscriptions in the Realtime publication', () => {
+    const files = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n')
+        .filter(file => /\.tsx?$/.test(file))
+    const subscribed = subscribedTables(git('show', ...files.map(file => `origin/main:${file}`)))
+    expect([...subscribed]).toEqual(expect.arrayContaining(['weekly_lineups', 'waiver_claims', 'waiver_wire_log']))
+    expect(droppedSubscribedTables(releaseMigrations(), subscribed)).toEqual([])
+})
+
+it('detects publication drops used by the deployed client', () => {
+    const subscribed = subscribedTables(`channel.on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_lineups' }, refresh)`)
+    expect([...subscribedTables(`subscribeToTableChanges('roster', { watches: [{ table: 'waiver_claims' }] })`)]).toEqual(['waiver_claims'])
+    expect(droppedSubscribedTables(['ALTER PUBLICATION supabase_realtime DROP TABLE public.weekly_lineups, public.bids;'], subscribed))
+        .toEqual(['weekly_lineups'])
+    expect(droppedSubscribedTables(['ALTER PUBLICATION supabase_realtime DROP TABLE public.bids;'], subscribed)).toEqual([])
+})

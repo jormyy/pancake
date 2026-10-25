@@ -242,15 +242,19 @@ async function waitOn(pid,blocker,f,settled=()=>false) {
   }
   throw new Error('Actual own statement does not enter the expected wait')
 }
+function assertWaiverResult(result,f) {
+  assert.equal(result.ok,true)
+  assert.deepEqual(result.rows.map(row=>row.claim_id).sort(),(f.cancelClaims?[f.lower]:[f.claim,f.lower]).sort())
+  assert.equal(result.rows.find(row=>row.claim_id===(f.cancelClaims?f.lower:f.claim)).status,'succeeded')
+  if(!f.cancelClaims) assert.equal(result.rows.find(row=>row.claim_id===f.lower).status,'failed_priority')
+}
 async function retryWaiver(f) {
   const w=open(f.control+'-retry-waiver'); await w.query(helpers)
   try {
     const remaining=f.cancelClaims?[f.lower]:[f.claim,f.lower]
     await prepareWaiver(w,f,remaining)
     const r=parse(await w.query(waiverCall(f,remaining)))
-    assert.equal(r.ok,true); assert.equal(r.rows.length,1)
-    assert.equal(r.rows[0].claim_id,f.cancelClaims?f.lower:f.claim)
-    assert.equal(r.rows[0].status,'succeeded')
+    assertWaiverResult(r,f)
     return r
   } finally {await w.close()}
 }
@@ -336,9 +340,7 @@ try {
           if(resultW.ok) {
             if(resultW.rows.length===0) assert.equal(expected,'repaired','Only repaired busy deferral may return no claim')
             else {
-              assert.equal(resultW.rows.length,1)
-              assert.equal(resultW.rows[0].claim_id,f.cancelClaims?f.lower:f.claim)
-              assert.equal(resultW.rows[0].status,'succeeded')
+              assertWaiverResult(resultW,f)
             }
           }
           print('actual-trade-waiver-result',{expected,resultC,resultW})

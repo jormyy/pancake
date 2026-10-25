@@ -15,6 +15,7 @@ type BoundaryMatchup = {
   matchup_type: string
   playoff_round?: number | null
   week_number: number
+  end_week_number?: number | null
   is_finalized: boolean | null
   finalized_at: string | null
   winner_member_id: string | null
@@ -35,6 +36,11 @@ export function summarizeBoundaryFailures(reports: BoundaryLeagueReport[]): stri
   return `${failed.length} of ${reports.length} league(s) failed — ${sample}`
 }
 
+function boundaryErrorMessage(error: unknown): string {
+  if (error instanceof AggregateError) return [error.message, ...error.errors.map(boundaryErrorMessage)].join('; ')
+  return (error as { message?: string } | null)?.message ?? JSON.stringify(error)
+}
+
 function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean {
   let latest: number | null = null
   for (const matchup of matchups) {
@@ -47,29 +53,39 @@ function graceElapsed(matchups: BoundaryMatchup[], referenceDate: Date): boolean
   return referenceDate.getTime() >= latest + BOUNDARY_GRACE_HOURS * 3_600_000
 }
 
-async function regularSeasonCorrectionWindowElapsed(
+async function seasonCorrectionWindow(
   leagueSeasonId: string,
-  playoffStartWeek: number,
+  endWeek: number,
   referenceDate: Date,
-): Promise<boolean> {
+  startWeek = endWeek,
+): Promise<{ ended: boolean; elapsed: boolean }> {
   const { data: season, error: seasonError } = await supabase.from('league_seasons')
     .select('season_year').eq('id', leagueSeasonId).single()
   if (seasonError) throw seasonError
   const { data: week, error: weekError } = await supabase.from('season_weeks')
     .select('week_start, week_end').eq('season_year', season.season_year)
-    .eq('week_number', playoffStartWeek - 1).maybeSingle()
+    .eq('week_number', endWeek).maybeSingle()
   if (weekError) throw weekError
-  if (!week) return false
+  if (!week) return { ended: false, elapsed: false }
+  let firstDate = week.week_start
+  if (startWeek !== endWeek) {
+    const { data: firstWeek, error: firstError } = await supabase.from('season_weeks')
+      .select('week_start').eq('season_year', season.season_year).eq('week_number', startWeek).maybeSingle()
+    if (firstError) throw firstError
+    if (!firstWeek) return { ended: false, elapsed: false }
+    firstDate = firstWeek.week_start
+  }
   const games = await fetchAllPages<{ nba_game_id: string | null; game_date: string; status: string; game_status_text: string | null }>((from, to) => supabase
     .from('nba_games').select('nba_game_id, game_date, status, game_status_text')
-    .eq('season_year', season.season_year).gte('game_date', week.week_start).lte('game_date', week.week_end)
+    .eq('season_year', season.season_year).gte('game_date', firstDate).lte('game_date', week.week_end)
     .order('id').range(from, to))
   const dates = games.filter(game => isRegularSeasonGameId(game.nba_game_id)
     && ['Scheduled', 'InProgress', 'Final'].includes(game.status)
     && !/postpon|cancel|suspend|(^|[^a-z])ppd([^a-z]|$)/i.test(game.game_status_text ?? ''))
     .map(game => game.game_date).sort()
   const lastDate = dates.at(-1) ?? week.week_end
-  return Date.parse(toETDate(referenceDate)) - Date.parse(lastDate) > 86_400_000
+  const elapsed = Date.parse(toETDate(referenceDate)) - Date.parse(lastDate) > 86_400_000
+  return { ended: toETDate(referenceDate) > week.week_end, elapsed }
 }
 
 function allFinalized(matchups: BoundaryMatchup[]): boolean {
@@ -250,7 +266,7 @@ async function processLeagueBoundary(
   const actions: string[] = []
   const matchups = await fetchAllPages<BoundaryMatchup>((from, to) => supabase
     .from('matchups')
-    .select('id, matchup_type, playoff_round, week_number, is_finalized, finalized_at, winner_member_id')
+    .select('id, matchup_type, playoff_round, week_number, end_week_number, is_finalized, finalized_at, winner_member_id')
     .eq('league_id', leagueId)
     .eq('league_season_id', leagueSeasonId)
     .eq('is_voided', false)
@@ -277,7 +293,7 @@ async function processLeagueBoundary(
         return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
       }
     }
-    if (playoffStartWeek > 1 && (!allFinalized(regular) || !await regularSeasonCorrectionWindowElapsed(leagueSeasonId, playoffStartWeek, referenceDate))) return actions
+    if (playoffStartWeek > 1 && (!allFinalized(regular) || !(await seasonCorrectionWindow(leagueSeasonId, playoffStartWeek - 1, referenceDate)).elapsed)) return actions
     const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'generate', referenceDate, regular)
     if (result.applied === true) actions.push('bracket-generated')
     return actions
@@ -294,10 +310,16 @@ async function processLeagueBoundary(
     const latestRound = matchups.reduce((latest, matchup) => Math.max(latest, matchup.playoff_round ?? 0), 0)
     const currentRound = latestRound > 0 ? matchups.filter((matchup) => matchup.playoff_round === latestRound)
       : semifinals.length > 0 ? semifinals : quarterfinals
-    const roundDecided = currentRound.every((m) => m.is_finalized && m.winner_member_id != null)
-    if (currentRound.length === 0 || !roundDecided || !graceElapsed(currentRound, referenceDate)) {
-      return actions
+    if (currentRound.length === 0) return actions
+    const window = await seasonCorrectionWindow(leagueSeasonId,
+      Math.max(...currentRound.map(matchup => matchup.end_week_number ?? matchup.week_number)), referenceDate,
+      Math.min(...currentRound.map(matchup => matchup.week_number)))
+    if (window.ended && !allFinalized(currentRound) && allowUnavailableRefresh) {
+      await syncScores(leagueId, referenceDate, { recoverStats: false })
+      return await processLeagueBoundary(leagueId, leagueSeasonId, leagueStatus, playoffStartWeek, referenceDate, false)
     }
+    const roundDecided = currentRound.every((m) => m.is_finalized && m.winner_member_id != null)
+    if (!roundDecided || !window.elapsed) return actions
     const result = await applyBoundaryWithScoreRefresh(leagueId, leagueSeasonId, 'advance', referenceDate, currentRound)
     if (result.applied === true) actions.push(semifinals.length > 0 ? 'final-created' : latestRound > 0 ? 'round-created' : 'semifinals-created')
     return actions
@@ -421,8 +443,8 @@ export async function runSeasonBoundary(
     return [async () => {
       try {
         const actions = status === 'drafting'
-          ? [...await activateCompletedRookieDraft(season.league_id, season.id),
-            ...await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)]
+          ? [...await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false),
+            ...await activateCompletedRookieDraft(season.league_id, season.id)]
           : status === 'offseason'
           // A commissioner who advanced the season manually leaves the new
           // season without matchups (advanceSeason never generated them).
@@ -440,7 +462,7 @@ export async function runSeasonBoundary(
           )
         reports.push({ leagueId: season.league_id, actions })
       } catch (error) {
-        const message = (error as { message?: string } | null)?.message ?? JSON.stringify(error)
+        const message = boundaryErrorMessage(error)
         console.error(`[season-boundary] league ${season.league_id} failed: ${message}`)
         reports.push({ leagueId: season.league_id, actions: [], error: message })
       }

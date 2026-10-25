@@ -6,7 +6,7 @@ type Offer = { id: string; retry: () => Promise<unknown> }
 const leagues: League[] = []
 async function offer(league: League, action = 'propose', source?: string, multi = false): Promise<Offer> {
   const actor = action === 'counter' ? league.members[2] : league.members[1]
-  const payload = { leagueId: league.id, leagueSeasonId: league.season, recipientMemberId: league.members[2],
+  const payload = { leagueId: league.id, leagueSeasonId: league.season, recipientMemberId: league.members[action === 'counter' ? 1 : 2],
     tradeId: source, offerFaabAmount: 1, requestFaabAmount: 1, expiresAt: '2026-10-25T16:00:00Z',
     participantMemberIds: league.members.slice(1), items: league.members.slice(1).map((from, index, group) => ({ fromMemberId: from, toMemberId: group[(index + 1) % group.length], faabAmount: 1 })) }
   const request = crypto.randomUUID()

@@ -113,6 +113,7 @@ BEGIN
          AND wc.league_id = v_target_league_id
          AND wc.league_season_id = v_target_season_id
        ORDER BY
+         wc.process_date ASC,
          CASE WHEN claim_league.waiver_mode = 'faab' THEN wc.bid_amount END DESC NULLS LAST,
          wp.priority ASC,
          wc.claim_order ASC,

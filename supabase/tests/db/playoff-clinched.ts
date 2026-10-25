@@ -82,7 +82,7 @@ try {
             INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via,acquired_at) VALUES(${q(league)},${q(season)},${q(member)},${q(players[i])},'draft','2024-01-01');`).join('\n')}
           INSERT INTO notification_preferences(user_id,event_settings) SELECT id,(SELECT jsonb_object_agg(event_type,false) FROM notif_event_catalog) FROM unnest(ARRAY[${users.map(q).join(',')}]::uuid[]) id;
           COMMIT;`)
-        await generateMatchups(league, season, 19)
+        await generateMatchups(league, season)
         if (skipped) await sql(`BEGIN; SELECT set_config('request.jwt.claim.sub',${q(users[0])},true); SELECT update_league_settings_atomic(${q(league)},'{"skipped_weeks":[1]}'); COMMIT;`)
         await sql(`UPDATE leagues SET status='active' WHERE id=${q(league)};
           UPDATE matchups SET is_voided=true,is_finalized=false WHERE league_season_id=${q(season)} AND week_number=2 AND home_member_id=(SELECT home_member_id FROM matchups WHERE league_season_id=${q(season)} AND week_number=2 ORDER BY id LIMIT 1);`)

@@ -72,6 +72,7 @@ try {
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     SELECT ${quote(league)},s.id,p.id,now()-interval '49 hours' FROM league_seasons s
     CROSS JOIN players p WHERE s.league_id=${quote(league)} AND s.is_current AND p.id IN(${players.map(quote).join(',')});
+    UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id=${quote(league)};
     COMMIT;`)
   await rpc(clients[0], 'update_league_settings_atomic', { p_league_id: league, p_settings: { skipped_weeks: [1] } })
   assert.equal(sql(`SELECT skipped_weeks::text FROM league_seasons WHERE league_id=${quote(league)} AND is_current`), '{1}')

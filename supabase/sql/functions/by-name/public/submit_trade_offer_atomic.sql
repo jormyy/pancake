@@ -122,7 +122,7 @@ BEGIN
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'dropPlayerIds'))::uuid[]);
   END IF;
   IF v_result IS NOT NULL THEN
-    PERFORM private.validate_trade_rosters(v_result);
+    PERFORM private.validate_trade_rosters(v_result, p_member_id);
   END IF;
   UPDATE private.trade_offer_requests SET completed=true,result_trade_id=v_result
     WHERE user_id=p_user_id AND request_id=p_request_id;

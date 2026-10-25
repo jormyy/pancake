@@ -59,6 +59,8 @@ The player can enter IR after his game starts.
 It rejects offseason IR placement.
 It never grants taxi access.
 
+The waiver worker processes older due runs before newer claims within each league.
+
 At award time, the server rechecks IR eligibility, capacity, and season state.
 A started game does not block an IR award.
 Moving a rostered player into or out of IR stays locked after tipoff.
@@ -244,7 +246,29 @@ The client integration and installed iPhone screen checks remain with the other 
 - `tests/db/straight-to-ir.sql`
 - `types/database.ts`
 
+## Rookie draft deadline
+
+At the opening-night cutoff, completed rookie drafts no longer wait for every team to trim its roster.
+The server moves each team's newest eligible drafted rookies into open taxi slots first.
+Existing roster moves keep priority over automatic taxi placement.
+The league then becomes active even if some teams still exceed the active roster limit.
+Those teams must trim their rosters before adding players or editing lineups.
+The server retains game locks, taxi eligibility, tenure limits, and prior taxi exits.
+Paused drafts still complete through the existing opening-night backstop.
+
 ## Next release
+
+Keep `weekly_lineups`, `waiver_claims`, and `waiver_wire_log` in `supabase_realtime` through this release.
+The deployed Roster screen and its rollback still subscribe to these tables.
+Remove them only after the new client ships and its rollback window closes.
+
+```sql
+ALTER PUBLICATION supabase_realtime DROP TABLE
+  public.weekly_lineups, public.waiver_claims, public.waiver_wire_log;
+ALTER TABLE public.weekly_lineups REPLICA IDENTITY DEFAULT;
+ALTER TABLE public.waiver_claims REPLICA IDENTITY DEFAULT;
+ALTER TABLE public.waiver_wire_log REPLICA IDENTITY DEFAULT;
+```
 
 The merged migration range requires new release attestations before deployment.
 The published attestations cover only the deployed main history.

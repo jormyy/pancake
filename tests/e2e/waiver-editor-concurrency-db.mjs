@@ -248,12 +248,7 @@ async function race(kind, outcome) {
         assert.equal(resultB.ok, true)
       }
       if (!resultB.ok && kind === 'trade') {
-        assert(['40P01', 'P0002'].includes(resultB.sqlstate))
-        if (resultB.sqlstate === 'P0002') {
-          assert.equal(resultA.ok, true)
-          assert.equal(after.claims[0].status, 'cancelled')
-          assert.match(resultB.message, /Pending waiver claim not found/)
-        }
+        assert.equal(resultB.sqlstate, '40P01')
       }
       if (!resultB.ok && kind === 'drop') assert(['40P01', 'P0001'].includes(resultB.sqlstate))
       // Retry only the failed branch. Never claim rollback of the successful peer.
@@ -261,12 +256,12 @@ async function race(kind, outcome) {
         const retry = JSON.parse(await a.query(`BEGIN; ${operationSql(f)} COMMIT;`))
         assert.equal(retry.ok, true); print('actual-operation-retry', { kind, retry })
       }
-      if (!resultB.ok && resultB.sqlstate !== 'P0002') {
+      if (!resultB.ok) {
         const retry = JSON.parse(await b.query(`BEGIN; ${editSql(f, null)} COMMIT;`))
         assert.equal(retry.ok, true); print('actual-editor-retry', { kind, retry })
       }
       const final = await state(f)
-      assert.equal(final.claims[0].status, kind === 'trade' ? 'cancelled' : 'pending'); assert.equal(final.claims[0].drop_player_id, null)
+      assert.equal(final.claims[0].status, 'pending'); assert.equal(final.claims[0].drop_player_id, null)
       if (kind === 'trade') {
         assert.equal(final.trades[0].status, 'completed')
         assert.equal(final.rosters.find(r => r.id === f.rosters[0]).member_id, f.members[1])

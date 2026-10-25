@@ -38,15 +38,13 @@ BEGIN
     league_id,
     league_season_id,
     player_id,
-    dropped_by_member_id,
-    clears_at
+    dropped_by_member_id
   )
   VALUES (
     p_league_id,
     p_league_season_id,
     p_player_id,
-    p_member_id,
-    now() + interval '48 hours'
+    p_member_id
   );
 
   INSERT INTO roster_transactions (
