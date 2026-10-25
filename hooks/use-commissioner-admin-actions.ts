@@ -68,6 +68,9 @@ export function useCommissionerAdminActions({
         setBusy((current) => current?.token === mutation.token ? null : current)
     }, [])
 
+    const resetOffered = useRef(false)
+    resetOffered.current = Boolean(scheduleStart && scheduleStart > todayET())
+
     const runAdmin = useCallback(async (
         path: string,
         message: string,
@@ -78,8 +81,11 @@ export function useCommissionerAdminActions({
         const mutation = beginMutation(ownerKey, action)
         if (!mutation) return
         try {
-            await apiPost(path, body)
-            if (ownsMutation(mutation)) showSuccess('Done', message)
+            const result = await apiPost<{ skipped?: boolean }>(path, body)
+            if (!ownsMutation(mutation)) return
+            if (action === 'generate-schedule' && result?.skipped) {
+                showAlert('Schedule already exists', 'A schedule already exists.' + (resetOffered.current ? ' Use Reset & Regenerate Schedule to rebuild it.' : ''), 'info')
+            } else showSuccess('Done', message)
         } catch (error) {
             if (ownsMutation(mutation)) showAlert('Error', getErrorMessage(error))
         } finally {

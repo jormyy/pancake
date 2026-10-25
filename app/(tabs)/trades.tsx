@@ -135,6 +135,8 @@ function TradesScreen() {
         onAction: load,
         onRosterPlanSaved: updateRosterPlan,
         enabled: !decisionsDisabled,
+        tradeVetoMode: currentLeague?.trade_veto_mode,
+        tradeVetoWindowHours: currentLeague?.trade_veto_window_hours,
     })
     const {
         items: blockItems,

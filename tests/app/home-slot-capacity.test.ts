@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
     setSelected: vi.fn(), doAutoSet: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
     selectedDate: '2026-10-11', lineupError: false,
     freshness: 'fresh',
-    announcementsLoaded: true,
+    announcementsLoaded: true, announcementRead: vi.fn(),
     announcements: [] as { id: string; body: string; league_id: string; published_at: string; author_member_id: string | null }[],
     games: [] as { home_team: string; away_team: string; status: string }[],
 }))
@@ -24,10 +24,10 @@ vi.mock('react-native', () => ({
 }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
-    memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league,
+    memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league, membershipValidated: false,
 }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' }, loading: false }) }))
-vi.mock('@/hooks/use-league-announcements', () => ({ useLeagueAnnouncements: () => ({ announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements }) }))
+vi.mock('@/hooks/use-league-announcements', () => ({ useLeagueAnnouncements: (...args: unknown[]) => { mocks.announcementRead(...args); return { announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements } } }))
 vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     refresh: mocks.refreshHome,
     matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
@@ -180,18 +180,20 @@ it('replaces old rows with one error and leaves the day selector active', async 
     expect(mocks.loadLineups).toHaveBeenCalledWith({ id: 'matchup' }, '2026-10-11')
 })
 
-it('reveals the newest commissioner announcement with the first Home content', async () => {
+it('keeps a warm matchup visible while announcements load and defers a late banner until remount', async () => {
     mocks.announcementsLoaded = false
     await mount()
-    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
     expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
-    mocks.announcements = [{ id: 'newest', body: 'Set your lineup today.', league_id: 'league', published_at: '2026-10-11T15:00:00Z', author_member_id: 'commissioner' }]
+    mocks.announcements = [{ id: 'newest', body: 'Set your lineup today.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
     mocks.announcementsLoaded = true
     await act(async () => screen.update(React.createElement(HomeScreen)))
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
+    await act(async () => screen.unmount())
+    await mount()
     const banner = screen.root.findByProps({ testID: 'home-announcement' })
     expect(banner.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')).toContain('Set your lineup today.')
-    expect(banner.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')).toContain('Oct 11')
     await act(async () => banner.findByProps({ accessibilityLabel: 'Dismiss announcement' }).props.onPress())
     expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
@@ -219,4 +221,27 @@ it('refreshes Home and announcements from the web pull gesture', async () => {
     })
     expect(mocks.refreshHome).toHaveBeenCalledOnce()
     expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+})
+
+it('renders the cached score card offline without an announcement read', async () => {
+    vi.stubGlobal('navigator', { onLine: false })
+    mocks.announcementsLoaded = false
+    try {
+        await mount()
+        expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    } finally { vi.unstubAllGlobals() }
+})
+
+it('starts the membership-checked announcement RPC without waiting for membership revalidation', async () => {
+    await mount()
+    expect(mocks.announcementRead).toHaveBeenCalledWith('user', 'league')
+})
+
+it('keeps the first Home layout when a later announcement read returns a banner', async () => {
+    await mount()
+    const card = screen.root.findByType('ScoreCard' as React.ElementType)
+    mocks.announcements = [{ id: 'late', body: 'Arrived later.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+    await act(async () => screen.update(React.createElement(HomeScreen)))
+    expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
 })

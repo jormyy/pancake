@@ -151,7 +151,7 @@ export function leagueChangeReceiver(leagueId: string, receive: Listener) {
         revisions.set(topic, revision)
         const gap = previous !== undefined && revision > previous + 1n
         const details = ['inventory', 'resources'].includes(topic) ? resourceDetails(row.details, topic) : null
-        if (details?.length === 0) return true
+        if (details?.length === 0 && !gap) return true
         receive({ topic, scopes: gap || ['inventory', 'resources'].includes(topic) ? null : scopes as Scope[] | null,
             ...(['inventory', 'resources'].includes(topic) ? { details: previous !== undefined && !gap ? details : null } : {}),
         })

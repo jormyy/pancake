@@ -1,3 +1,4 @@
+import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-updates'
 import { NotificationPlayerWatch } from '@/components/settings/NotificationPlayerWatch'
 import { canAddToIR } from '@/lib/pickup'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -23,7 +24,7 @@ import { showAlert, confirmAction } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { type MemberTransactionState } from '@/lib/league'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
     ScrollView,
     StyleSheet,
@@ -49,6 +50,11 @@ export default function PlayerDetailScreen() {
 
     const memberId = current?.id
     const leagueId = currentLeague?.id ?? null
+    const claimsRevision = useSyncExternalStore(
+        useCallback(listener => memberId ? listenForMemberClaimsChanges(memberId, listener) : () => {}, [memberId]),
+        useCallback(() => memberId ? memberClaimsRevision(memberId) : 0, [memberId]),
+        () => 0,
+    )
     const ownerIdentity = current?.id && leagueId ? JSON.stringify([sessionOwner(), sessionGeneration(), current.id, leagueId, id]) : null
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
@@ -132,11 +138,11 @@ export default function PlayerDetailScreen() {
 
     useEffect(() => {
         if (!canRead()) return
-        const signal = JSON.stringify([ownerIdentity, rosterRevision])
+        const signal = JSON.stringify([ownerIdentity, rosterRevision, claimsRevision])
         if (rosterStatus && lastStatusSignal.current === signal) return
         lastStatusSignal.current = signal
         void loadRosterStatus()
-    }, [loadRosterStatus, rosterRevision, canRead, ownerIdentity, rosterStatus])
+    }, [loadRosterStatus, rosterRevision, claimsRevision, canRead, ownerIdentity, rosterStatus])
     const actionsReady = membershipValidated && online && rosterStatus !== null && canRead()
     const revealedOwner = useRef<string | null>(null)
     const screenReady = revealedOwner.current === ownerIdentity && ownerIdentity !== null

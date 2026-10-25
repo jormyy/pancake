@@ -3,31 +3,42 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 import type { LeagueAnnouncement } from '@/lib/league-announcements'
 
-function readDismissed(key: string): string[] {
+function readDismissed(key: string): string | null {
     try {
-        const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? '[]')
-        return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+        const value: unknown = JSON.parse(window.localStorage.getItem(key) ?? 'null')
+        return typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null
     } catch {
-        return []
+        return null
     }
 }
 
-export function HomeAnnouncementBanner({ announcements, ownerId, leagueId, padX }: {
+type BannerProps = {
     announcements: LeagueAnnouncement[]
     ownerId: string
+    memberId?: string
     leagueId: string
     padX: number
-}) {
+}
+
+export function HomeAnnouncementOnEntry({ loaded, ...props }: BannerProps & { loaded: boolean }) {
+    const [announcements] = useState(() => loaded ? props.announcements : [])
+    return <HomeAnnouncementBanner {...props} announcements={announcements} />
+}
+
+export function HomeAnnouncementBanner({ announcements, ownerId, memberId, leagueId, padX }: BannerProps) {
     const key = `pancake-announcements-dismissed:${ownerId}:${leagueId}`
     const saved = useMemo(() => readDismissed(key), [key])
-    const [dismissed, setDismissed] = useState({ key, ids: saved })
-    const ids = dismissed.key === key ? dismissed.ids : saved
-    const announcement = [...announcements].sort((left, right) => right.published_at.localeCompare(left.published_at) || right.id.localeCompare(left.id)).find(row => !ids.includes(row.id))
+    const [dismissed, setDismissed] = useState({ key, publishedAt: saved })
+    const publishedAt = dismissed.key === key ? dismissed.publishedAt : saved
+    const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000
+    const announcement = [...announcements].sort((left, right) => right.published_at.localeCompare(left.published_at) || right.id.localeCompare(left.id))
+        .find(row => row.author_member_id !== memberId && Date.parse(row.published_at) >= cutoff
+            && (!publishedAt || Date.parse(row.published_at) > Date.parse(publishedAt)))
     if (!announcement) return null
     const date = new Date(announcement.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
     const dismiss = () => {
-        const next = [...new Set([...ids, announcement.id])].slice(-50)
-        setDismissed({ key, ids: next })
+        const next = announcement.published_at
+        setDismissed({ key, publishedAt: next })
         try { window.localStorage.setItem(key, JSON.stringify(next)) } catch {}
     }
     return <View testID="home-announcement" style={[styles.banner, { marginHorizontal: padX }]}>

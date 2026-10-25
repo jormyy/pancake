@@ -383,3 +383,25 @@ it.each([
         expect(latest.transactions.map(row => row.id)).toEqual(['fresh'])
     } finally { await act(async () => renderer.unmount()); vi.useRealTimers() }
 })
+
+it('waits for older transaction pages before merging their announcements', async () => {
+    setSessionOwner('paged-activity-member')
+    const rows = Array.from({ length: 101 }, (_, index) => ({ id: `transaction-${index}`, occurredAt: new Date(Date.UTC(2026, 9, 24, 12, -index)).toISOString() }))
+    getLeagueTransactions.mockImplementation((_league, limit, offset) => Promise.resolve(rows.slice(offset, offset + limit)))
+    announcements.mockResolvedValue([
+        { id: 'recent', published_at: rows[0].occurredAt },
+        { id: 'middle', published_at: rows[70].occurredAt },
+        { id: 'oldest', published_at: '2026-09-01T00:00:00Z' },
+    ])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.transactions.filter(row => row.transactionType === 'commissioner_announcement').map(row => row.id)).toEqual(['announcement:recent'])
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.transactions.filter(row => row.transactionType === 'commissioner_announcement').map(row => row.id)).toEqual(['announcement:recent', 'announcement:middle'])
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.transactions.filter(row => row.transactionType === 'commissioner_announcement').map(row => row.id)).toEqual(['announcement:recent', 'announcement:middle', 'announcement:oldest'])
+    } finally { await act(async () => renderer.unmount()) }
+})

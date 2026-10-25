@@ -227,6 +227,7 @@ export function useLeagues() {
                 { table: 'league_members', filter: `user_id=eq.${userId}` },
                 ...leagueIds.flatMap((leagueId) => [
                     { table: 'leagues', filter: `id=eq.${leagueId}` },
+                    { table: 'drafts', filter: `league_id=eq.${leagueId}` },
                     { table: 'league_members', filter: `league_id=eq.${leagueId}` },
                 ]),
             ], onChange: () => { if (!disposed) refreshQueue.trigger() }, onReconnect: refreshQueue.run },

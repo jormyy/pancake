@@ -124,19 +124,12 @@ export async function editWaiverClaim(
     updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean },
 ): Promise<void> {
     const generation = sessionGeneration()
-    let toIr = updates.toIr
-    if (toIr === undefined) {
-        const { data, error } = await supabase.from('waiver_claims').select('to_ir')
-            .eq('id', claimId).eq('member_id', memberId).single()
-        if (error) throw error
-        toIr = data.to_ir
-    }
     await apiPost(`/waivers/claims/${claimId}/edit`, {
         memberId,
         dropPlayerId: updates.dropPlayerId,
         bidAmount: updates.bidAmount ?? 0,
         claimOrder: updates.claimOrder ?? null,
-        toIr,
+        ...(updates.toIr !== undefined ? { toIr: updates.toIr } : {}),
     })
     if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }

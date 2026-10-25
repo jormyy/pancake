@@ -14,6 +14,7 @@ export function ActivationOverflowModal({
     myLineup,
     saving,
     irSlots,
+    allowIR = true,
     onDrop,
     onMoveToIR,
     onCancel,
@@ -22,6 +23,7 @@ export function ActivationOverflowModal({
     myLineup: { starters: { player?: LineupPlayer | null }[]; bench: LineupPlayer[]; ir: LineupPlayer[]; taxi: LineupPlayer[] } | null
     saving: boolean
     irSlots?: number
+    allowIR?: boolean
     onDrop: (rosterPlayerId: string) => void
     onMoveToIR: (rosterPlayerId: string) => void
     onCancel: () => void
@@ -54,7 +56,7 @@ export function ActivationOverflowModal({
                             </Text>
                         </View>
                         <View style={styles.actions}>
-                            {(irSlots === undefined || myLineup.ir.length < irSlots) && isIREligible(p.injuryStatus) ? (
+                            {allowIR && (irSlots === undefined || myLineup.ir.length - (pending.source === 'ir' ? 1 : 0) < irSlots) && isIREligible(p.injuryStatus) ? (
                                 <Button
                                     title="IR"
                                     size="sm"

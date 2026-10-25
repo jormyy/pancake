@@ -16,7 +16,7 @@ export default function NotFoundScreen() {
                 message="This page doesn't exist"
                 description="The link may be outdated, or the page may have moved."
                 actionLabel="Back to Home"
-                onAction={() => router.replace('/')}
+                onAction={() => router.dismissTo('/')}
             />
         </Page>
     )

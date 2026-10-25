@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { acceptTrade, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
+import type { TradeVetoMode } from '@/types/app'
 import { getErrorMessage } from '@/lib/shared/errors'
 
 export function useTradeActions({
@@ -9,12 +10,16 @@ export function useTradeActions({
     onAction,
     onRosterPlanSaved,
     enabled = true,
+    tradeVetoMode = 'member_vote',
+    tradeVetoWindowHours = 24,
 }: {
     memberId: string
     leagueId: string
     onAction: () => void | Promise<unknown>
     onRosterPlanSaved?: (tradeId: string, plan: TradeRosterPlan) => void
     enabled?: boolean
+    tradeVetoMode?: TradeVetoMode
+    tradeVetoWindowHours?: number
 }) {
     const enabledRef = useRef(enabled)
     enabledRef.current = enabled
@@ -43,27 +48,6 @@ export function useTradeActions({
         await onComplete()
     }, [onAction])
 
-    const accept = useCallback(async (trade: Trade) => {
-        if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
-        mutationInFlight.current = true
-        const requestId = ++requestSequence.current
-        const ownerIdentity = identity
-        setBusyTradeId(trade.id)
-        try {
-            await acceptTrade(trade.id, memberId)
-            await finishAction(requestId, ownerIdentity)
-        } catch (error) {
-            if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
-                showAlert('Error', getErrorMessage(error) ?? 'Could not accept trade.')
-            }
-        } finally {
-            if (mountedRef.current && requestSequence.current === requestId) {
-                mutationInFlight.current = false
-                setBusyTradeId(null)
-            }
-        }
-    }, [finishAction, identity, leagueId, memberId])
-
     const runTerminalAction = useCallback(async (
         tradeId: string,
         operation: (tradeId: string, memberId: string) => Promise<void>,
@@ -89,6 +73,18 @@ export function useTradeActions({
             }
         }
     }, [finishAction, identity, memberId])
+
+    const accept = useCallback(async (trade: Trade) => {
+        if (!enabledRef.current || !mountedRef.current || !memberId || !leagueId || mutationInFlight.current) return
+        const assets = (direction: 'fromMemberId' | 'toMemberId') => trade.routedItems
+            .filter(item => item[direction] === memberId)
+            .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? `${item.seasonYear} round ${item.round} pick` : `$${item.amount} FAAB`)
+            .join(', ') || 'nothing'
+        const message = `You give: ${assets('fromMemberId')}. You receive: ${assets('toMemberId')}.`
+            + (tradeVetoMode === 'disabled' || tradeVetoWindowHours === 0 ? ' This trade completes immediately.' : '')
+        return confirmAction('Accept trade?', message,
+            () => runTerminalAction(trade.id, acceptTrade, 'Could not accept trade.'), 'Accept', false)
+    }, [leagueId, memberId, runTerminalAction, tradeVetoMode, tradeVetoWindowHours])
 
     const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {
         const playerIds = trade.routedItems.flatMap((item) => item.kind === 'player' && item.toMemberId === memberId &&

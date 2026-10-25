@@ -7,6 +7,7 @@ import { StatsOverview } from '@/components/player/StatsOverview'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { headerPlayer, memberTransactionState } from '@/tests/helpers/fixtures'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const state = vi.hoisted(() => ({
@@ -179,4 +180,35 @@ it('dismisses the player page when viewing an existing claim', async () => {
     await act(async () => action.onPress())
     expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/roster?claims=1')
     expect(state.push).not.toHaveBeenCalled()
+})
+
+it('changes Claim to View claim after this member submits a claim and ignores other members', async () => {
+    state.roster.mockResolvedValue({ status: { status: 'on_waivers' }, transactionState: null, claimPending: false })
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findByType(PlayerHeader).props.action.label).toBe('Claim')
+    await act(async () => notifyMemberClaimsChanged('other'))
+    expect(state.roster).toHaveBeenCalledTimes(1)
+    state.roster.mockResolvedValue({ status: { status: 'on_waivers' }, transactionState: null, claimPending: true })
+    await act(async () => notifyMemberClaimsChanged('member'))
+    expect(state.roster).toHaveBeenCalledTimes(2)
+    expect(screen!.root.findByType(PlayerHeader).props.action.label).toBe('View claim')
+})
+
+it('reloads the claim after returning from the claim sheet while background reads stay paused', async () => {
+    let readable = true
+    state.data.canRead = () => readable
+    state.data.isCurrentRead = () => readable
+    state.roster.mockResolvedValue({ status: { status: 'on_waivers' }, transactionState: null, claimPending: false })
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    readable = false
+    state.data = { ...state.data, readEpoch: 'claim-sheet' }
+    await act(async () => screen!.update(React.createElement(PlayerDetailScreen)))
+    state.roster.mockResolvedValue({ status: { status: 'on_waivers' }, transactionState: null, claimPending: true })
+    await act(async () => notifyMemberClaimsChanged('member'))
+    expect(state.roster).toHaveBeenCalledTimes(1)
+    readable = true
+    state.data = { ...state.data, readEpoch: 'returned' }
+    await act(async () => screen!.update(React.createElement(PlayerDetailScreen)))
+    expect(state.roster).toHaveBeenCalledTimes(2)
+    expect(screen!.root.findByType(PlayerHeader).props.action.label).toBe('View claim')
 })

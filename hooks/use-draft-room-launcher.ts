@@ -62,7 +62,7 @@ export function useDraftRoomLauncher(
         }
         if (!leagueId) {
             pendingRef.current = null
-            if (fallbackOnMissing && !options.renderAuctionInline) router.push(NO_DRAFT_ROUTE)
+            if (fallbackOnMissing && !options.renderAuctionInline) router.dismissTo(NO_DRAFT_ROUTE)
             return Promise.resolve<LaunchResult>('missing')
         }
         const readEpoch = capture()
@@ -90,7 +90,7 @@ export function useDraftRoomLauncher(
                 draftLaunchCache.set(capturedKey, { draft })
                 setRequest({ key: capturedKey, loading: false, error: null, draft, checked: true })
                 if (!draft) {
-                    if (fallbackOnMissing && !options.renderAuctionInline) router.push(NO_DRAFT_ROUTE)
+                    if (fallbackOnMissing && !options.renderAuctionInline) router.dismissTo(NO_DRAFT_ROUTE)
                     return 'missing'
                 }
                 const pathname = draft.draftType === 'snake'

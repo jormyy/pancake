@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useLeagueAnnouncements } from '@/hooks/use-league-announcements'
 import { notifyLeagueChange } from '@/lib/league-changes'
+import { clearSessionCaches } from '@/lib/session-cache-registry'
 import { listLeagueAnnouncements } from '@/lib/league-announcements'
 
 const rpc = vi.hoisted(() => vi.fn())
@@ -16,7 +17,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { rpc } }))
 let screen: ReactTestRenderer
 let latest: ReturnType<typeof useLeagueAnnouncements>
 const Probe = ({ league = 'league', enabled = true }: { league?: string; enabled?: boolean }) => { latest = useLeagueAnnouncements('owner', league, enabled); return null }
-beforeEach(() => { route.focused = true; rpc.mockReset().mockResolvedValue({ data: [], error: null }) })
+beforeEach(() => { clearSessionCaches(); route.focused = true; rpc.mockReset().mockResolvedValue({ data: [], error: null }) })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 it('calls the existing announcement RPC with its exact named argument', async () => {
@@ -93,26 +94,36 @@ it.each([
     { topic: 'roster' as const, scopes: null },
     { topic: 'inventory' as const, scopes: null, details: [{ resource: 'season' as const, season_id: 'season' }] },
     { topic: 'catchup' as const, scopes: null },
-])('refreshes Home announcements on surviving $topic hints', async change => {
+])('does not read Home announcements on unrelated $topic hints', async change => {
     vi.useFakeTimers()
     rpc.mockResolvedValueOnce({ data: [{ id: 'saved' }], error: null }).mockResolvedValueOnce({ data: [{ id: 'fresh' }], error: null })
     await act(async () => { screen = create(React.createElement(Probe)) })
     await act(async () => { notifyLeagueChange('league', change); await vi.advanceTimersByTimeAsync(200) })
-    expect(rpc).toHaveBeenCalledTimes(2)
+    expect(rpc).toHaveBeenCalledTimes(1)
     expect(latest.loaded).toBe(true)
-    expect(latest.announcements[0].id).toBe('fresh')
+    expect(latest.announcements[0].id).toBe('saved')
 })
 
-it('refreshes on browser focus only while Home is focused', async () => {
+it('does not duplicate visibility reads on browser focus', async () => {
     const browser = new EventTarget()
+    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' })
     vi.stubGlobal('window', browser)
-    rpc.mockResolvedValueOnce({ data: [{ id: 'before' }], error: null }).mockResolvedValueOnce({ data: [{ id: 'focused' }], error: null })
+    vi.stubGlobal('document', page)
     await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => { page.visibilityState = 'hidden'; page.dispatchEvent(new Event('visibilitychange')) })
+    await act(async () => { page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')) })
     await act(async () => { browser.dispatchEvent(new Event('focus')) })
     expect(rpc).toHaveBeenCalledTimes(2)
-    expect(latest.announcements[0].id).toBe('focused')
-    route.focused = false
-    await act(async () => screen.update(React.createElement(Probe)))
-    await act(async () => { browser.dispatchEvent(new Event('focus')) })
-    expect(rpc).toHaveBeenCalledTimes(2)
+})
+
+it('seeds remounts from an owner and league cache while the fresh read remains pending', async () => {
+    rpc.mockResolvedValueOnce({ data: [{ id: 'saved' }], error: null })
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => screen.unmount())
+    rpc.mockReturnValueOnce(new Promise(() => {}))
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    expect(latest.loaded).toBe(true)
+    expect(latest.announcements[0].id).toBe('saved')
+    await act(async () => screen.update(React.createElement(Probe, { league: 'other' })))
+    expect(latest.announcements).toEqual([])
 })
