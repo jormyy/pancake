@@ -37,9 +37,9 @@ function recorder(failedUploads = 0) {
   const document = { hidden: false, documentElement: {}, querySelector: () => ({ getAttribute: () => 'fixture-source' }), querySelectorAll: () => elements, addEventListener: (event: string, callback: () => void) => handlers.set(event, callback) }
   const context = {
     document, navigator: { standalone: true, serviceWorker: { getRegistrations: async () => [{ unregister: async () => { resetEvents.push('unregister') } }] } }, innerWidth: 402, innerHeight: 812,
-    location: { href: 'http://127.0.0.1:58190/', pathname: '/', search: '', replace: (url: string) => resetEvents.push(url) },
+    location: { href: 'http://127.0.0.1:58190/', pathname: '/', search: '', assign: (url: string) => resetEvents.push(url), replace: (url: string) => resetEvents.push(url) },
     performance: { now: () => now, timeOrigin: 0 }, Date: { now: () => now },
-    localStorage: { clear: () => {} },
+    localStorage: { clear: () => {}, setItem: (key: string, value: string) => storage.set(key, value) },
     caches: { keys: async () => ['pancake-old-public-shell', 'unrelated'], delete: async (name: string) => { resetEvents.push(name) } },
     sessionStorage: { clear: () => storage.clear(), getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
     getComputedStyle: () => ({ display: 'block', visibility: 'visible', opacity: '1' }),
@@ -61,7 +61,7 @@ function recorder(failedUploads = 0) {
   vm.runInContext(recorderSource, scope)
   const api = (context as typeof context & { __iosRecorder: { begin: (spec: object) => void, finish: (settled: boolean) => unknown } }).__iosRecorder
   const frame = (time: number) => { now = time; const jobs = [...queue.values()]; queue.clear(); for (const job of jobs) job() }
-  return { api, frame, elements, posted, handlers, document, queue, resetEvents, fetch: context.fetch, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
+  return { api, frame, elements, posted, handlers, document, queue, resetEvents, storage, fetch: context.fetch, message: (value: object) => controls[0].onmessage!({ data: JSON.stringify(value) }) }
 }
 
 test('recorder waits for real content and records appearance, loss, text, and movement', () => {
@@ -528,4 +528,30 @@ test('a reused PWA refreshes its cached HTML before waiting for a recorder conne
   }
   await runner.refreshInstalledPage(driver, 'http://127.0.0.1:57331')
   assert.deepEqual(events, ['auth', 'session', 'unregister', 'pancake-old-shell', 'http://127.0.0.1:57331/sign-in'])
+})
+
+test('a dead frontend or backend fails before a capture group starts', async () => {
+  const runner = await import('../../scripts/ios-sim/run.mjs')
+  const check = runner.requireStackHealthy
+  assert.equal(typeof check, 'function')
+  for (const dead of ['57121', '58190']) {
+    const calls: string[] = []
+    await assert.rejects(check({ url: 'http://127.0.0.1:57121' }, 'http://127.0.0.1:58190', async url => {
+      calls.push(String(url))
+      if (String(url).includes(dead)) throw new Error('connection refused')
+      return new Response(null, { status: 200 })
+    }), /stack not healthy/)
+    assert.ok(calls.some(url => url.includes('/auth/v1/health')))
+    assert.ok(calls.some(url => url.includes('/functions/v1/api/health')))
+  }
+  await assert.rejects(check({ url: 'http://127.0.0.1:57121' }, 'http://127.0.0.1:58190',
+    async () => new Response(null, { status: 503 })), /stack not healthy:.*HTTP 503/)
+  await check({ url: 'http://127.0.0.1:57121' }, 'http://127.0.0.1:58190', async () => new Response(null, { status: 200 }))
+})
+
+test('theme setup writes its preference before navigation without Profile content', async () => {
+  const r = recorder()
+  await r.message({ type: 'prepare', url: 'http://127.0.0.1:58190/roster', theme: 'dark' })
+  assert.equal(r.storage.get('pancake-theme'), 'dark')
+  assert.deepEqual(r.resetEvents, ['http://127.0.0.1:58190/roster'])
 })

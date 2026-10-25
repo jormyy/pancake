@@ -12,6 +12,7 @@ function easternDate() {
 
 export function requireCurrentSeed(fixture) {
   assert.equal(fixture.today, easternDate(), 'The fixture date differs from today in Eastern time; run start --reset after other captures stop')
+  assert.equal(fixture.startupAuctionCompleted, true, 'The fixture predates the completed startup auction; run start --reset after other captures stop')
 }
 
 export async function seed({ stack, snapshot, directory }) {
@@ -66,6 +67,8 @@ export async function seed({ stack, snapshot, directory }) {
   })), { onConflict: 'sportsdata_id' }))
   const players = await db(admin.from('players').select('id,display_name,position,nba_team,sleeper_id,sportsdata_id').like('sportsdata_id', 'ios-sim-%').order('sportsdata_id'))
   const drafts = await db(admin.from('drafts').select('id,draft_type').eq('league_id', state.leagueId))
+  await db(admin.from('drafts').update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('league_id', state.leagueId).eq('league_season_id', season.id).eq('draft_type', 'auction').eq('is_mock', false))
   const rookieDraft = drafts.find(draft => draft.draft_type === 'snake')
   const uuid = value => { assert.match(value, /^[a-f0-9-]{36}$/); return `'${value}'` }
   const sql = statement => run('docker', ['exec', `supabase_db_${stackProject}`, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '--set', 'ON_ERROR_STOP=1', '-c', statement])
@@ -108,7 +111,7 @@ export async function seed({ stack, snapshot, directory }) {
   if (!trades.length) for (let index = 0; index < 10; index += 2) await db(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: members[index].id, p_recipient_member_id: members[index + 1].id, p_offer_player_ids: [players[index * 22].id], p_request_player_ids: [players[(index + 1) * 22].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
   const rosterPlanTrade = await seedRosterPlanTrade(admin, { leagueId: state.leagueId, seasonId: season.id, members, players })
   await db(admin.rpc('refresh_player_search_caches'))
-  const result = { ...state, members, rosterPlanTrade, seasonId: season.id, seasonYear: 2027, today, players, drafts, counts: { teams: 10, players: 340, rostered: 220, games: games.length, gameLines, projections: projections.length } }
+  const result = { ...state, members, rosterPlanTrade, seasonId: season.id, seasonYear: 2027, startupAuctionCompleted: true, today, players, drafts, counts: { teams: 10, players: 340, rostered: 220, games: games.length, gameLines, projections: projections.length } }
   await json(path.join(directory, 'complete.json'), result)
   return result
 }
@@ -132,6 +135,27 @@ export async function seedRosterPlanTrade(admin, { leagueId, seasonId, members, 
     p_offer_pick_ids: [], p_request_pick_ids: [], p_notes: notes,
   }))
   return { id, manager, rookiePlayerId, dropPlayerId: players[manager * 22 + 18].id }
+}
+
+export async function withLiveStartupAuction(admin, { leagueId, seasonId }, action) {
+  const league = await captureData(admin.from('leagues').select('status').eq('id', leagueId).single())
+  const drafts = await captureData(admin.from('drafts').select('id,draft_type,status,completed_at')
+    .eq('league_id', leagueId).eq('league_season_id', seasonId).eq('is_mock', false))
+  const auctions = drafts.filter(draft => draft.draft_type === 'auction')
+  assert.equal(auctions.length, 1, 'Startup capture requires one non-mock auction')
+  try {
+    for (const draft of drafts) {
+      if (draft.id === auctions[0].id) await captureData(admin.from('drafts').update({ status: 'in_progress', completed_at: null }).eq('id', draft.id))
+      else if (['in_progress', 'pending', 'paused'].includes(draft.status)) {
+        await captureData(admin.from('drafts').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('id', draft.id))
+      }
+    }
+    await captureData(admin.from('leagues').update({ status: 'drafting' }).eq('id', leagueId))
+    return await action()
+  } finally {
+    for (const { id, status, completed_at } of drafts) await captureData(admin.from('drafts').update({ status, completed_at }).eq('id', id))
+    await captureData(admin.from('leagues').update({ status: league.status }).eq('id', leagueId))
+  }
 }
 
 export async function withAuctionNomination(admin, { draftId, memberId, playerId }, action) {
@@ -288,10 +312,18 @@ export async function withScenarioSetup(stack, setup, action) {
   if (setup.waiverClaimMember) return withWaiverClaimCapture(admin, { leagueId: stack.fixture.leagueId,
     seasonId: stack.fixture.seasonId, memberId: setup.waiverClaimMember, playerId: setup.waiverPlayer }, action)
   if (setup.waiverAwardMember) return withWaiverAward(admin, stack.fixture, setup.waiverAwardMember, setup.waiverPlayer, action)
-  if (setup.liveAuctionLeader) return withAuctionNomination(admin, {
-    draftId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id,
-    memberId: setup.liveAuctionLeader, playerId: stack.fixture.players[220].id,
-  }, action)
+  if (setup.liveStartupAuction || setup.liveAuctionLeader) {
+    const next = { ...setup }
+    delete next.liveStartupAuction
+    delete next.liveAuctionLeader
+    return withLiveStartupAuction(admin, { leagueId: stack.fixture.leagueId, seasonId: stack.fixture.seasonId }, () => {
+      const capture = () => setup.liveAuctionLeader ? withAuctionNomination(admin, {
+        draftId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id,
+        memberId: setup.liveAuctionLeader, playerId: stack.fixture.players[241].id,
+      }, action) : action()
+      return withScenarioSetup(stack, Object.keys(next).length ? next : null, capture)
+    })
+  }
   if (setup.waiverIRPlayer || setup.irShortcutPlayer) {
     const playerId = setup.waiverIRPlayer ?? setup.irShortcutPlayer
     assert.ok(stack.fixture.players.some(player => player.id === playerId), 'Unknown IR capture player')

@@ -3,36 +3,26 @@
     "name": "roster-trim-light",
     "group": "roster-dialogs",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      }
-    ],
     "steps": [
       {
         "action": {
           "tap": "Roster"
         },
         "expected": {
-          "selector": "[role='alert'][aria-label^='Roster is ']"
+          "selector": "[role='alert'][aria-label='Resolve roster problems']"
         }
       }
     ],
     "setup": {
       "rosterLimit": 19
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "roster-activation-light",
     "group": "roster-dialogs",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      },
       {
         "tapPrefix": "Sunday,"
       },
@@ -53,20 +43,13 @@
     ],
     "setup": {
       "activationMember": "{{memberId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "roster-taxi-choice-light",
     "group": "roster-dialogs",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league?tab=auctions"
-      }
-    ],
+    "from": "/league?tab=auctions",
     "steps": [
       {
         "action": {
@@ -81,42 +64,33 @@
     ],
     "setup": {
       "liveAuctionLeader": "{{otherMemberId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "roster-trim-dark",
     "group": "roster-dialogs",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      }
-    ],
     "steps": [
       {
         "action": {
           "tap": "Roster"
         },
         "expected": {
-          "selector": "[role='alert'][aria-label^='Roster is ']"
+          "selector": "[role='alert'][aria-label='Resolve roster problems']"
         }
       }
     ],
     "setup": {
       "rosterLimit": 19
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "roster-activation-dark",
     "group": "roster-dialogs",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      },
       {
         "tapPrefix": "Sunday,"
       },
@@ -137,20 +111,13 @@
     ],
     "setup": {
       "activationMember": "{{memberId}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "roster-taxi-choice-dark",
     "group": "roster-dialogs",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league?tab=auctions"
-      }
-    ],
+    "from": "/league?tab=auctions",
     "steps": [
       {
         "action": {
@@ -165,6 +132,7 @@
     ],
     "setup": {
       "liveAuctionLeader": "{{otherMemberId}}"
-    }
+    },
+    "theme": "dark"
   }
 ]

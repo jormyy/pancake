@@ -2,15 +2,7 @@
   {
     "name": "trades-offers-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -21,20 +13,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-details-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -53,20 +38,13 @@
           "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-history-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -76,20 +54,13 @@
           "text": "No completed trades yet."
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-league-block-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -109,20 +80,13 @@
           "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-my-block-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -132,20 +96,13 @@
           "selector": "[aria-label^='List '][aria-label$=' on trade block']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-picks-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -164,20 +121,13 @@
           "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-composer-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -269,20 +219,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-multi-team-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/propose-trade"
-      }
-    ],
+    "from": "/propose-trade",
     "steps": [
       {
         "action": {
@@ -336,20 +279,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-analyzer-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -386,20 +322,13 @@
           "selector": "[aria-label='Dynasty trade analysis']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-offers-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -410,20 +339,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-details-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -442,20 +364,13 @@
           "selector": "body:has([aria-label='Open menu']) [aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-history-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -465,20 +380,13 @@
           "text": "No completed trades yet."
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-league-block-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -498,20 +406,13 @@
           "selector": "body:has([id='trade-section-block'][aria-selected='true']) [aria-label^='List '][aria-label$=' on trade block']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-my-block-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -521,20 +422,13 @@
           "selector": "[aria-label^='List '][aria-label$=' on trade block']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-picks-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -553,20 +447,13 @@
           "selector": "body:has([id='trade-section-offers'][aria-selected='true']) [aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-composer-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -658,20 +545,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-multi-team-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/propose-trade"
-      }
-    ],
+    "from": "/propose-trade",
     "steps": [
       {
         "action": {
@@ -725,20 +605,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-analyzer-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -775,19 +648,14 @@
           "selector": "[aria-label='Dynasty trade analysis']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-block-note-light",
     "group": "trades-light",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "tap": "Block"
       }
@@ -823,7 +691,7 @@
           },
           "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
         },
-        "note": "Typing and keyboard movement follow the manager\u2019s input."
+        "note": "Typing and keyboard movement follow the manager’s input."
       },
       {
         "name": "save",
@@ -843,19 +711,14 @@
           "text": "No listings yet."
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-block-note-dark",
     "group": "trades-dark",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "tap": "Block"
       }
@@ -891,7 +754,7 @@
           },
           "selector": "textarea[aria-label='Trade block note for {{rosterPlayer.display_name}}']"
         },
-        "note": "Typing and keyboard movement follow the manager\u2019s input."
+        "note": "Typing and keyboard movement follow the manager’s input."
       },
       {
         "name": "save",
@@ -911,20 +774,13 @@
           "text": "No listings yet."
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "trades-return-light",
     "group": "trades-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -935,20 +791,13 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-return-dark",
     "group": "trades-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -959,6 +808,7 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

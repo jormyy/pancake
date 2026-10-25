@@ -2,15 +2,7 @@
   {
     "name": "player-list-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -21,20 +13,13 @@
           "selector": "[aria-label^='Add ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-filters-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -53,20 +38,13 @@
         },
         "name": "sort"
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-search-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -77,19 +55,14 @@
           "selector": "[aria-label='Open {{freeAgent.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-detail-light",
     "group": "player-light",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -105,20 +78,13 @@
           "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-roster-detail-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/roster"
-      }
-    ],
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -138,23 +104,18 @@
         },
         "name": "page"
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-season-light",
     "group": "player-light",
-    "from": "/profile",
+    "from": "/player/{{rosterPlayer.id}}",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{rosterPlayer.id}}"
-      },
       {
         "select": "Season",
         "value": "2027",
-        "option": "2026\u201327"
+        "option": "2026–27"
       }
     ],
     "steps": [
@@ -162,7 +123,7 @@
         "action": {
           "select": "Season",
           "value": "2026",
-          "option": "2025\u201326"
+          "option": "2025–26"
         },
         "expected": {
           "value": {
@@ -173,20 +134,13 @@
           "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-drop-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
@@ -196,20 +150,13 @@
           "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-claim-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -229,19 +176,14 @@
         },
         "name": "select-drop"
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-out-light",
     "group": "player-light",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{outPlayer.display_name}}"
@@ -257,20 +199,13 @@
           "selector": "[aria-label='Add to IR {{outPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-return-light",
     "group": "player-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{rosterPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{rosterPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -281,20 +216,13 @@
           "selector": "select[aria-label='Season']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-list-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -305,20 +233,13 @@
           "selector": "[aria-label^='Add ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-filters-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -337,20 +258,13 @@
         },
         "name": "sort"
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-search-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -361,19 +275,14 @@
           "selector": "[aria-label='Open {{freeAgent.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-detail-dark",
     "group": "player-dark",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -389,20 +298,13 @@
           "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-roster-detail-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/roster"
-      }
-    ],
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -422,23 +324,18 @@
         },
         "name": "page"
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-season-dark",
     "group": "player-dark",
-    "from": "/profile",
+    "from": "/player/{{rosterPlayer.id}}",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{rosterPlayer.id}}"
-      },
       {
         "select": "Season",
         "value": "2027",
-        "option": "2026\u201327"
+        "option": "2026–27"
       }
     ],
     "steps": [
@@ -446,7 +343,7 @@
         "action": {
           "select": "Season",
           "value": "2026",
-          "option": "2025\u201326"
+          "option": "2025–26"
         },
         "expected": {
           "value": {
@@ -457,20 +354,13 @@
           "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-drop-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
@@ -480,20 +370,13 @@
           "selector": "[aria-label='Drop {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-claim-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -513,19 +396,14 @@
         },
         "name": "select-drop"
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-out-dark",
     "group": "player-dark",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{outPlayer.display_name}}"
@@ -541,20 +419,13 @@
           "selector": "[aria-label='Add to IR {{outPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-return-dark",
     "group": "player-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{rosterPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{rosterPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -565,6 +436,7 @@
           "selector": "select[aria-label='Season']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

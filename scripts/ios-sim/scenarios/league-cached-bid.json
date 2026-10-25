@@ -2,15 +2,7 @@
   {
     "name": "league-cached-bid-light",
     "group": "league-cached-bid",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -26,22 +18,16 @@
     "setup": {
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
-      "auctionNomination": true
+      "auctionNomination": true,
+      "liveStartupAuction": true
     },
-    "repeat": 2
+    "repeat": 2,
+    "theme": "light"
   },
   {
     "name": "league-cached-bid-dark",
     "group": "league-cached-bid",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -57,8 +43,10 @@
     "setup": {
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
-      "auctionNomination": true
+      "auctionNomination": true,
+      "liveStartupAuction": true
     },
-    "repeat": 2
+    "repeat": 2,
+    "theme": "dark"
   }
 ]

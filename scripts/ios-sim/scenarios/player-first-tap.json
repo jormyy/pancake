@@ -2,17 +2,11 @@
   {
     "name": "player-first-tap-light",
     "group": "player-first-tap",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
       {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
-      {
         "fill": "Search players",
-        "value": "{{freeAgent.display_name}}"
+        "value": "{{liveFreeAgent.display_name}}"
       },
       {
         "tap": "Search players"
@@ -21,30 +15,25 @@
     "steps": [
       {
         "action": {
-          "tap": "Open {{freeAgent.display_name}}"
+          "tap": "Open {{liveFreeAgent.display_name}}"
         },
         "expected": {
-          "route": "/player/{{freeAgent.id}}",
-          "text": "Live vs LAL \u00b7 50.2 FP so far"
+          "route": "/player/{{liveFreeAgent.id}}",
+          "text": "Live vs LAL · 50.2 FP so far"
         }
       }
     ],
-    "repeat": 10
+    "repeat": 10,
+    "theme": "light"
   },
   {
     "name": "player-first-tap-dark",
     "group": "player-first-tap",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
       {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
-      {
         "fill": "Search players",
-        "value": "{{freeAgent.display_name}}"
+        "value": "{{liveFreeAgent.display_name}}"
       },
       {
         "tap": "Search players"
@@ -53,14 +42,15 @@
     "steps": [
       {
         "action": {
-          "tap": "Open {{freeAgent.display_name}}"
+          "tap": "Open {{liveFreeAgent.display_name}}"
         },
         "expected": {
-          "route": "/player/{{freeAgent.id}}",
-          "text": "Live vs LAL \u00b7 50.2 FP so far"
+          "route": "/player/{{liveFreeAgent.id}}",
+          "text": "Live vs LAL · 50.2 FP so far"
         }
       }
     ],
-    "repeat": 10
+    "repeat": 10,
+    "theme": "dark"
   }
 ]

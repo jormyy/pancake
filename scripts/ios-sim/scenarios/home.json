@@ -2,11 +2,8 @@
   {
     "name": "home-light",
     "group": "home-light",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Roster"
       }
@@ -21,12 +18,13 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-day",
     "group": "home-light",
-    "from": "/profile",
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -48,12 +46,10 @@
     ],
     "prepare": [
       {
-        "tap": "Light"
-      },
-      {
         "tap": "Matchup"
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-breakdown",
@@ -68,7 +64,8 @@
           "selector": "body:not(:has([role='columnheader'])):not(:has([data-testid='score-breakdown-total'])) [aria-label='Scoring rules']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-auto",
@@ -83,7 +80,8 @@
           "selector": "body:has([aria-label='Auto-set today']):not(:has([aria-label='Cancel auto-set']))"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-lineup",
@@ -134,7 +132,8 @@
           "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-lineup-auto",
@@ -149,7 +148,8 @@
           "selector": "body:has([aria-label='Auto-set today']):not(:has([aria-label='Cancel auto-set']))"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-light-return",
@@ -165,16 +165,14 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-dark",
     "group": "home-dark",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
       {
         "tap": "Roster"
       }
@@ -189,12 +187,13 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-day",
     "group": "home-dark",
-    "from": "/profile",
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -216,12 +215,10 @@
     ],
     "prepare": [
       {
-        "tap": "Dark"
-      },
-      {
         "tap": "Matchup"
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-breakdown",
@@ -236,7 +233,8 @@
           "selector": "body:not(:has([role='columnheader'])):not(:has([data-testid='score-breakdown-total'])) [aria-label='Scoring rules']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-auto",
@@ -251,7 +249,8 @@
           "selector": "body:has([aria-label='Auto-set today']):not(:has([aria-label='Cancel auto-set']))"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-lineup",
@@ -302,7 +301,8 @@
           "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-lineup-auto",
@@ -317,7 +317,8 @@
           "selector": "body:has([aria-label='Auto-set today']):not(:has([aria-label='Cancel auto-set']))"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-dark-return",
@@ -333,16 +334,14 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-light-manual-entry",
     "group": "home-light",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Matchup"
       },
@@ -378,16 +377,14 @@
           "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-dark-manual-entry",
     "group": "home-dark",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
       {
         "tap": "Matchup"
       },
@@ -423,16 +420,14 @@
           "selector": "body:has(input[aria-label='Auto-set daily']:checked) [aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-light-selection",
     "group": "home-light",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Matchup"
       }
@@ -455,16 +450,14 @@
           "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-dark-selection",
     "group": "home-dark",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
       {
         "tap": "Matchup"
       }
@@ -487,20 +480,13 @@
           "selector": "[aria-label='Score breakdown for {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-light-optimizer-state",
     "group": "home-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/lineup"
-      }
-    ],
+    "from": "/lineup",
     "steps": [
       {
         "name": "off",
@@ -540,20 +526,13 @@
           "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-dark-optimizer-state",
     "group": "home-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/lineup"
-      }
-    ],
+    "from": "/lineup",
     "steps": [
       {
         "name": "off",
@@ -593,16 +572,14 @@
           "selector": "[aria-label='{{lineupSlot}} {{rosterPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "home-light-week-off",
     "group": "home-light",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Matchup"
       },
@@ -639,16 +616,14 @@
     "setup": {
       "weekOffMember": "{{memberId}}",
       "weekOffName": "{{weekOffLeagueName}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "home-dark-week-off",
     "group": "home-dark",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
       {
         "tap": "Matchup"
       },
@@ -685,16 +660,14 @@
     "setup": {
       "weekOffMember": "{{memberId}}",
       "weekOffName": "{{weekOffLeagueName}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "home-light-timing",
     "group": "home-timing",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Roster"
       }
@@ -710,20 +683,13 @@
         }
       }
     ],
-    "repeat": 5
+    "repeat": 5,
+    "theme": "light"
   },
   {
     "name": "home-light-lineup-auto-timing",
     "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/lineup"
-      }
-    ],
+    "from": "/lineup",
     "steps": [
       {
         "action": {
@@ -734,20 +700,13 @@
         }
       }
     ],
-    "repeat": 5
+    "repeat": 5,
+    "theme": "light"
   },
   {
     "name": "home-dark-lineup-auto-timing",
     "group": "home-timing",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/lineup"
-      }
-    ],
+    "from": "/lineup",
     "steps": [
       {
         "action": {
@@ -758,6 +717,113 @@
         }
       }
     ],
-    "repeat": 5
+    "repeat": 5,
+    "theme": "dark"
+  },
+  {
+    "name": "home-light-lower",
+    "group": "home-light",
+    "from": "/",
+    "theme": "light",
+    "steps": [
+      {
+        "name": "bench",
+        "action": {
+          "revealText": "Bench"
+        },
+        "expected": {
+          "text": "Bench"
+        }
+      },
+      {
+        "name": "ir",
+        "action": {
+          "revealText": "Injured Reserve"
+        },
+        "expected": {
+          "text": "Injured Reserve"
+        }
+      },
+      {
+        "name": "taxi",
+        "action": {
+          "revealText": "Taxi Squad"
+        },
+        "expected": {
+          "text": "Taxi Squad"
+        }
+      },
+      {
+        "name": "other-matchups",
+        "action": {
+          "revealText": "Other matchups"
+        },
+        "expected": {
+          "text": "Other matchups"
+        }
+      },
+      {
+        "name": "scoreboard",
+        "action": {
+          "scrollEnd": true
+        },
+        "expected": {
+          "text": "DEN"
+        }
+      }
+    ]
+  },
+  {
+    "name": "home-dark-lower",
+    "group": "home-dark",
+    "from": "/",
+    "theme": "dark",
+    "steps": [
+      {
+        "name": "bench",
+        "action": {
+          "revealText": "Bench"
+        },
+        "expected": {
+          "text": "Bench"
+        }
+      },
+      {
+        "name": "ir",
+        "action": {
+          "revealText": "Injured Reserve"
+        },
+        "expected": {
+          "text": "Injured Reserve"
+        }
+      },
+      {
+        "name": "taxi",
+        "action": {
+          "revealText": "Taxi Squad"
+        },
+        "expected": {
+          "text": "Taxi Squad"
+        }
+      },
+      {
+        "name": "other-matchups",
+        "action": {
+          "revealText": "Other matchups"
+        },
+        "expected": {
+          "text": "Other matchups"
+        }
+      },
+      {
+        "name": "scoreboard",
+        "action": {
+          "scrollEnd": true
+        },
+        "expected": {
+          "text": "DEN"
+        }
+      }
+    ]
   }
 ]

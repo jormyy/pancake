@@ -2,11 +2,8 @@
   {
     "name": "shell-light-tabs",
     "group": "shell-light",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Roster"
       }
@@ -81,17 +78,13 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-boot",
     "group": "shell-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -102,17 +95,13 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-settings",
     "group": "shell-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -123,7 +112,8 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-menu",
@@ -147,7 +137,8 @@
           "selector": "body:not(:has([role='dialog'])) [aria-label='Open menu']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-leagues",
@@ -163,7 +154,8 @@
           "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-modal",
@@ -179,7 +171,8 @@
           "selector": "body:not(:has([aria-label='Open menu'])) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-matchup",
@@ -195,7 +188,8 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-roster",
@@ -211,7 +205,8 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-players",
@@ -227,7 +222,8 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-trades",
@@ -243,7 +239,8 @@
           "text": "{{otherTeam}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-league",
@@ -259,7 +256,8 @@
           "text": "E2E Team 1"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-return-profile",
@@ -275,7 +273,8 @@
           "text": "{{displayName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-offline",
@@ -287,19 +286,17 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline \u00b7 showing saved data"
+          "text": "Offline · showing saved data"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-dark-tabs",
     "group": "shell-dark",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
       {
         "tap": "Roster"
       }
@@ -374,17 +371,13 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-boot",
     "group": "shell-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -395,17 +388,13 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-settings",
     "group": "shell-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -416,7 +405,8 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-menu",
@@ -440,7 +430,8 @@
           "selector": "body:not(:has([role='dialog'])) [aria-label='Open menu']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-leagues",
@@ -456,7 +447,8 @@
           "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-modal",
@@ -472,7 +464,8 @@
           "selector": "body:not(:has([aria-label='Open menu'])) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-matchup",
@@ -488,7 +481,8 @@
           "text": "{{teamName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-roster",
@@ -504,7 +498,8 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-players",
@@ -520,7 +515,8 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-trades",
@@ -536,7 +532,8 @@
           "text": "{{otherTeam}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-league",
@@ -552,7 +549,8 @@
           "text": "E2E Team 1"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-return-profile",
@@ -568,7 +566,8 @@
           "text": "{{displayName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-dark-offline",
@@ -580,10 +579,11 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline \u00b7 showing saved data"
+          "text": "Offline · showing saved data"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "shell-auth-sign-out",
@@ -656,9 +656,6 @@
     "from": "/profile",
     "prepare": [
       {
-        "tap": "Light"
-      },
-      {
         "tap": "Sign out"
       }
     ],
@@ -672,7 +669,8 @@
           "selector": "input[aria-label='Email']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "shell-light-auth-sign-up",
@@ -688,6 +686,7 @@
           "selector": "input[aria-label='Display name']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   }
 ]

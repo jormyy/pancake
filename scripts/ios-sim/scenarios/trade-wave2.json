@@ -2,15 +2,7 @@
   {
     "name": "trade-roster-plan-light",
     "group": "trade-roster-plan",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -69,20 +61,13 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "trade-roster-plan-dark",
     "group": "trade-roster-plan",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -141,19 +126,14 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "trade-taxi-plan-light",
     "group": "trade-taxi-plan",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "open": "/trades?tradeId={{rosterPlanTradeId}}"
       }
@@ -188,19 +168,14 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "trade-review-plan-light",
     "group": "trade-taxi-plan",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Trade with {{otherTeam}}"
       },
@@ -264,19 +239,14 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "trade-taxi-plan-dark",
     "group": "trade-taxi-plan",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "open": "/trades?tradeId={{rosterPlanTradeId}}"
       }
@@ -311,19 +281,14 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "trade-review-plan-dark",
     "group": "trade-taxi-plan",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Trade with {{otherTeam}}"
       },
@@ -387,19 +352,14 @@
     ],
     "setup": {
       "tradePlan": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "trades-review-light-sample",
     "group": "trade-paired",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Trade with {{otherTeam}}"
       },
@@ -456,19 +416,14 @@
         }
       }
     ],
-    "repeat": 3
+    "repeat": 3,
+    "theme": "light"
   },
   {
     "name": "trades-multi-team-light-sample",
     "group": "trade-paired",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Use multi-team trade mode"
       }
@@ -518,19 +473,14 @@
         }
       }
     ],
-    "repeat": 3
+    "repeat": 3,
+    "theme": "light"
   },
   {
     "name": "trades-multi-team-dark-sample",
     "group": "trade-paired",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Use multi-team trade mode"
       }
@@ -580,20 +530,13 @@
         }
       }
     ],
-    "repeat": 3
+    "repeat": 3,
+    "theme": "dark"
   },
   {
     "name": "trades-analyzer-dark-sample",
     "group": "trade-paired",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "action": {
@@ -631,6 +574,7 @@
         }
       }
     ],
-    "repeat": 3
+    "repeat": 3,
+    "theme": "dark"
   }
 ]

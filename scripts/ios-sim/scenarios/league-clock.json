@@ -2,15 +2,7 @@
   {
     "name": "league-draft-clock-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -25,20 +17,13 @@
     ],
     "setup": {
       "liveAuctionLeader": "{{memberId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-auction-clock-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -55,20 +40,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-auction-pause-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -95,20 +73,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-rookie-pause-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/rookie-draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/rookie-draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -134,20 +105,13 @@
     "setup": {
       "draftRoom": "snake",
       "draftId": "{{draftId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-commissioner-tools-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/commissioner-settings"
-      }
-    ],
+    "from": "/commissioner-settings",
     "steps": [
       {
         "action": {
@@ -157,20 +121,13 @@
           "text": "Generate Playoff Bracket"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-draft-clock-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -185,20 +142,13 @@
     ],
     "setup": {
       "liveAuctionLeader": "{{memberId}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-auction-clock-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -215,20 +165,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-auction-pause-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -255,20 +198,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-rookie-pause-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/rookie-draft-room?draftId={{draftId}}"
-      }
-    ],
+    "from": "/rookie-draft-room?draftId={{draftId}}",
     "steps": [
       {
         "action": {
@@ -294,20 +230,13 @@
     "setup": {
       "draftRoom": "snake",
       "draftId": "{{draftId}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-commissioner-tools-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/commissioner-settings"
-      }
-    ],
+    "from": "/commissioner-settings",
     "steps": [
       {
         "action": {
@@ -317,20 +246,13 @@
           "text": "Generate Playoff Bracket"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-activity-retry-light",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -341,20 +263,13 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-activity-retry-dark",
     "group": "league-clock",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -365,6 +280,7 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

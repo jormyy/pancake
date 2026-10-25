@@ -2,14 +2,8 @@
   {
     "name": "trades-review-light",
     "group": "trade-review",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Trade with {{otherTeam}}"
       },
@@ -71,19 +65,14 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-review-dark",
     "group": "trade-review",
-    "from": "/profile",
+    "from": "/propose-trade",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/propose-trade"
-      },
       {
         "tap": "Trade with {{otherTeam}}"
       },
@@ -145,6 +134,7 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

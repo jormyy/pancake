@@ -2,14 +2,8 @@
   {
     "name": "player-controls-light",
     "group": "player-controls",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "tap": "Show filters"
       },
@@ -48,22 +42,17 @@
           "tap": "Close"
         },
         "expected": {
-          "selector": "[aria-label='Claim {{waiverPlayer.display_name}}']"
+          "selector": "[aria-label^='Claim ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "player-controls-dark",
     "group": "player-controls",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "tap": "Show filters"
       },
@@ -102,30 +91,23 @@
           "tap": "Close"
         },
         "expected": {
-          "selector": "[aria-label='Claim {{waiverPlayer.display_name}}']"
+          "selector": "[aria-label^='Claim ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "player-resolution-light",
     "group": "player-controls",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "dialog": "Resolve IR status",
+          "dialog": "Resolve roster",
           "selector": "[aria-label^='Activate ']"
         }
       },
@@ -142,27 +124,20 @@
     ],
     "setup": {
       "healthyIRMember": "{{memberId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "player-resolution-dark",
     "group": "player-controls",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
           "tap": "Add {{freeAgent.display_name}}"
         },
         "expected": {
-          "dialog": "Resolve IR status",
+          "dialog": "Resolve roster",
           "selector": "[aria-label^='Activate ']"
         }
       },
@@ -179,6 +154,7 @@
     ],
     "setup": {
       "healthyIRMember": "{{memberId}}"
-    }
+    },
+    "theme": "dark"
   }
 ]
