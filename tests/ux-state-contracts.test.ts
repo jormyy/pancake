@@ -301,9 +301,19 @@ describe('edge job bookkeeping', () => {
         expect(producer).toContain("OLD.status IS NOT DISTINCT FROM NEW.status")
         expect(producer).toContain("'waiver_claim_won'")
         expect(producer).toContain("'waiver_claim_lost'")
-        const drain = await read('supabase/functions/process-waivers/drain.ts')
-        const loop = drain.slice(drain.indexOf('for (let batch = 0'), drain.indexOf('return rows'))
-        expect(loop).toContain('await onBatch(batchRows)')
+        const { drainDueClaims, MAX_BATCHES } = await import('../supabase/functions/process-waivers/drain')
+        const batches = [[], ['claim-1'], [], ['claim-2', 'claim-3'], [], [], ['never-fetched']]
+        const processBatch = vi.fn(async () => batches.shift() ?? [])
+        await expect(drainDueClaims(processBatch)).resolves.toEqual(['claim-1', 'claim-2', 'claim-3'])
+        expect(processBatch).toHaveBeenCalledTimes(6)
+        let processedBatches = 0
+        const continuousBatch = async () => {
+            processedBatches += 1
+            if (processedBatches > MAX_BATCHES) throw new Error('Drain exceeds its batch limit')
+            return ['claim']
+        }
+        await expect(drainDueClaims(continuousBatch)).resolves.toHaveLength(MAX_BATCHES)
+        expect(processedBatches).toBe(MAX_BATCHES)
     })
 
     it('the backfill progress poll projects columns instead of select(*)', async () => {
