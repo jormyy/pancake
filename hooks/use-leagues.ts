@@ -60,7 +60,7 @@ export function useLeagues() {
     const membershipsRef = useRef({ userId, memberships })
     membershipsRef.current = { userId, memberships }
 
-    const read = useCallback(async (options: { force?: boolean } = {}) => {
+    const read = useCallback(async (options: { force?: boolean; retry?: boolean } = {}) => {
         const requestedUserId = user?.id ?? null
         const requestId = ++requestIdRef.current
 
@@ -101,9 +101,10 @@ export function useLeagues() {
         } catch (e) {
             if (requestIdRef.current !== requestId || activeUserIdRef.current !== requestedUserId) return
             const nextError = e instanceof Error ? e : new Error(String(e))
+            const retrying = !options.retry && !hasVisibleRows
             validatedAtRef.current = null
             setResource((current) => current.userId === requestedUserId
-                ? { ...current, loading: false, error: nextError }
+                ? { ...current, loading: retrying, error: retrying ? null : nextError }
                 : current)
             console.error(nextError)
             return false
@@ -139,7 +140,7 @@ export function useLeagues() {
                     do {
                         pending = false
                         failed = await read(nextOptions) === false
-                        nextOptions = { force: true }
+                        nextOptions = { force: true, retry: options.retry }
                     } while (pending && isCurrent() && canRefresh())
                 } finally {
                     inFlight = null

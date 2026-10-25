@@ -57,11 +57,14 @@ it('retries a failed first membership read after sign-in once with backoff', asy
     mocks.userId = 'user'
     await render()
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    expect(latest.membershipStatus).toBe('loading')
+    expect(latest.error).toBeNull()
     expect(latest.membershipValidated).toBe(false)
     expect(writePersistentCache).not.toHaveBeenCalled()
 
     await advance(999)
     expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    expect(latest.membershipStatus).toBe('loading')
     await advance(1)
     expect(mocks.fetch).toHaveBeenCalledTimes(2)
     expect(latest.membershipStatus).toBe('available')
@@ -76,17 +79,37 @@ it('retries a failed first membership read after sign-in once with backoff', asy
 it('stops after one failed retry and still allows an explicit refresh', async () => {
     mocks.fetch.mockReset().mockRejectedValue(new Error('Still unavailable'))
     await mount()
+    expect(latest.membershipStatus).toBe('loading')
+    expect(latest.error).toBeNull()
     await advance(1000)
     expect(mocks.fetch).toHaveBeenCalledTimes(2)
     await advance(10_000)
     expect(mocks.fetch).toHaveBeenCalledTimes(2)
     expect(latest.membershipStatus).toBe('unavailable')
+    expect(latest.error?.message).toBe('Still unavailable')
     expect(latest.membershipValidated).toBe(false)
     expect(writePersistentCache).not.toHaveBeenCalled()
     mocks.fetch.mockResolvedValue(rows)
     await act(async () => { await latest.refresh() })
     expect(latest.memberships).toEqual(rows)
     expect(latest.error).toBeNull()
+})
+
+it('stays neutral until a pending retry finishes and reports its failure', async () => {
+    let rejectRetry!: (error: Error) => void
+    mocks.fetch.mockReset().mockRejectedValueOnce(new Error('First read failed'))
+        .mockReturnValueOnce(new Promise((_resolve, reject) => { rejectRetry = reject }))
+    await mount()
+    expect(latest.membershipStatus).toBe('loading')
+    expect(latest.error).toBeNull()
+    await advance(1000)
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    expect(latest.membershipStatus).toBe('loading')
+    expect(latest.error).toBeNull()
+    await act(async () => { rejectRetry(new Error('Retry failed')) })
+    expect(latest.membershipStatus).toBe('unavailable')
+    expect(latest.error?.message).toBe('Retry failed')
+    expect(latest.loading).toBe(false)
 })
 
 it('keeps cached memberships visible until the delayed retry validates them', async () => {

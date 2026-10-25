@@ -51,7 +51,7 @@ beforeEach(() => {
     mocks.width = 1440
     mocks.pathname = '/profile'
     mocks.renders = []
-    mocks.league = { current: null, currentLeague: null, memberships: [], isCommissioner: false }
+    mocks.league = { current: null, currentLeague: null, memberships: [], isCommissioner: false, membershipStatus: 'loading' }
     mocks.read.mockResolvedValue({ avatar_url: 'a.png' })
     mocks.eq.mockResolvedValue({ error: null })
 })
@@ -60,7 +60,9 @@ it.each([1440, 390])('reserves the league switch geometry before identity resolv
     mocks.width = width
     mocks.pathname = '/'
     await mount()
-    const placeholder = screen.root.findAllByType('Text' as React.ElementType).find(node => node.props.children === 'League unavailable')!
+    expect(screen.root.findAllByProps({ children: 'League unavailable' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ children: 'Waiting for league access' })).toHaveLength(0)
+    const placeholder = screen.root.findAllByType('Text' as React.ElementType).find(node => node.props.children === '\u00a0')!
     const beforeSwitch = placeholder.parent!.parent!
     const beforeWrapper = beforeSwitch.parent!
     const flatten = (style: unknown) => Object.assign({}, ...(Array.isArray(style) ? style.filter(Boolean) : [style]))
@@ -77,6 +79,26 @@ it.each([1440, 390])('reserves the league switch geometry before identity resolv
     expect(flatten(titleBox.props.style).height).toBe(before.height)
     expect(flatten(titleBox.parent!.props.style)).toEqual(wrapper)
     expect(before.height).toBe(width === 390 ? 44 : 68)
+})
+
+it.each(['loading', 'available', 'signed-out'])('keeps unresolved league access neutral for %s', async membershipStatus => {
+    mocks.league.membershipStatus = membershipStatus
+    await mount()
+    expect(screen.root.findAllByProps({ children: 'League unavailable' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ children: 'Waiting for league access' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ children: 'No league' })).toHaveLength(0)
+    expect(screen.root.findAllByProps({ 'aria-busy': true })).toHaveLength(1)
+})
+
+it.each([
+    ['empty', 'No league', 'Create or join from League'],
+    ['unavailable', 'League unavailable', 'Waiting for league access'],
+])('shows the confirmed league state for %s', async (membershipStatus, name, detail) => {
+    mocks.league.membershipStatus = membershipStatus
+    await mount()
+    expect(screen.root.findAllByProps({ children: name })).toHaveLength(1)
+    expect(screen.root.findAllByProps({ children: detail })).toHaveLength(1)
+    expect(screen.root.findAllByProps({ 'aria-busy': true })).toHaveLength(0)
 })
 it.each(['/profile', '/player/player-a', '/propose-trade'])('hides the global top bar on the pushed route %s', async pathname => {
     mocks.width = 390
