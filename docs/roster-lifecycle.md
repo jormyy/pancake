@@ -36,6 +36,7 @@ The [backend inventory](supabase-backend-route-inventory.md) maps public action 
 ## IR activation and swaps
 
 Direct free-agent adds and waiver claims can place eligible players straight into IR.
+Straight-to-IR and straight-to-taxi adds are always available without a league opt-in.
 An activation can swap an IR player with an eligible active player when both groups are full.
 The server checks the final roster and applies both moves in one transaction.
 A failed move leaves both players in their original places.
@@ -95,6 +96,8 @@ Setup and the startup auction close trading.
 The server checks this window when managers propose, accept, or settle trades.
 A commissioner trade deadline blocks new offers after that date.
 Pending offers remain private to their parties.
+The public activity feed omits offers, counters, edits, expirations, and trade-block changes.
+Completed trades remain visible with participant names.
 New NBA rookies cannot enter free-agent adds or waiver claims before the league completes its rookie draft.
 
 ## Taxi eligibility and trade plans
@@ -109,14 +112,17 @@ No local box-score count substitutes for a career count.
 
 The server stores career regular-season games in `players.career_regular_season_games`.
 Career counts refresh daily for NBA team players.
-The phone uses the stored count for display tags.
+The phone uses stored experience and career counts for display-only Rookie and Taxi tags.
+Rookie means `years_exp = 0`; Taxi also requires the league to have taxi slots.
+The server remains authoritative for every roster action.
 An unknown count hides the Taxi tag unless `years_exp = 0`.
 Game-day injury refreshes run separately every 15 minutes.
 
 `taxi_start_season_year` records the first taxi season. Trades and season carryover retain that value.
 A missing start uses the earliest recorded taxi roster or acquisition season. Drops and later draft acquisitions do not restart that clock.
 With `taxi_max_seasons = 2`, the third season promotes the player during the existing rollover.
-The player stays owned. An overflowing active roster needs resolution before lineup edits or further restricted transactions.
+The player stays owned. An overflowing active roster blocks restricted acquisitions and trades.
+Existing lineup capacity checks still apply.
 A taxi exit still prevents a return to that team's taxi.
 Players must stay eligible while on taxi.
 New game counts or experience can make a taxi roster illegal.
@@ -138,12 +144,14 @@ Claim edits preserve the stored taxi choice when the caller omits it.
 An ineligible IR player, ineligible taxi player, or excess active player makes a roster illegal.
 The server names ineligible IR and taxi players.
 It reports active roster excess once for the team.
+`PA003` identifies active roster overflow.
 `PA005` identifies ineligible IR players.
 `PA009` identifies ineligible taxi players.
 The server blocks free-agent adds, new claims, claim edits that add, sent trade offers, and trade acceptance.
 Pending claims fail during processing while the roster remains illegal.
 Managers can activate IR or taxi players, move eligible players to IR, drop players, or cancel claims and offers.
-Lineup edits remain allowed unless the existing active roster limit blocks them.
+The acquisition guard does not block lineup edits, activations, or drops.
+Existing lineup capacity, reservation, and game-lock checks still apply.
 The Roster banner offers actions that make the team legal.
 
 ## Trade plans

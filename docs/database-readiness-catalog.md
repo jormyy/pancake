@@ -9,8 +9,8 @@ The [security attestation](../tests/e2e/db-security-catalog-attestations.json) d
 Its `candidateVersion` defines the post-migration head.
 The post-migration count equals the historical baseline count plus the length of `approvedMigrations` in the release-history attestation.
 The pending count equals that total minus `preMigration.count`.
-Contract version 2 separates the current pre-migration phase from the historical audit anchor.
-It retains the earlier 329-row and 398-row catalog fingerprints under `historicalPhases`.
+Contract version 2 separates the recorded pre-migration phase from the historical audit anchor.
+It retains earlier catalog fingerprints under `historicalPhases`.
 The current phase pins do not automatically track live history or the branch head.
 Later migrations require reviewed phase contracts before release.
 

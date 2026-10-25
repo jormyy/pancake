@@ -3,9 +3,10 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261020000007`.
-This release advances the database through migration `20261026000800`.
-It still needs 63 migrations from `origin/main`, followed by this release's migrations.
+Production currently stops at migration `20261024000001`.
+This release advances the database through migration `20261026001000`.
+Confirm all published main migrations are applied before the unpublished migrations listed below.
+The approved plan and [attestations](../docs/release-history-attestations.md) define the exact applied and pending ranges.
 The Vercel integration publishes the frontend when this release merges into main.
 Do not merge before the database and Edge checks pass.
 
@@ -22,7 +23,7 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Save the migration plan and its attestation before production work.
 2. Confirm the project's scoped production link and inspect `supabase migration list --linked`.
    Run `supabase db push --linked --dry-run` from the frozen release checkout.
-   Confirm the plan first contains the missing published main migrations and then the unpublished release migrations, in version order.
+   Confirm applied history matches main and the plan contains only approved unpublished migrations, in version order.
    Use the workflow's approved `supabase/predeploy/` index preparation and migration-plan attestation checks.
    Then run `supabase db push --linked --yes` under production approval.
 3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
@@ -35,6 +36,7 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Stop if any check fails; keep the old frontend and Edge on the compatible migrated database.
 4. Stamp the approved Edge artifact with `PANCAKE_RELEASE_SHA=<reviewed-sha> node scripts/stamp-edge-release-provenance.mjs`.
    Run `supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"` under production approval.
+   Include the new `sync-player-injuries` function in the stamped artifact and deployment.
    Verify `/health` reports the reviewed commit and Edge digest.
    Run the workflow's current-frontend/new-Edge and candidate-frontend/new-Edge readiness checks before merging.
    Confirm one straight-to-taxi add and one straight-to-IR add.
@@ -47,254 +49,161 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
    If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
 
-These are release instructions. This change does not execute production commands or change `vercel.json`.
+The following unpublished migrations follow the deployed main history in version order.
+Compare this list with the frozen checkout and approved plan before deployment.
 
-## Changed RPC signatures
+- `20261024100001_straight_to_ir.sql`
+- `20261024100002_live_player_season_totals.sql`
+- `20261024100003_reconciliation_writes_and_poll_gate.sql`
+- `20261024100004_visible_player_totals.sql`
+- `20261024100005_activity_feed_hide_trade_block.sql`
+- `20261025000030_trade_counterparty.sql`
+- `20261025000031_trade_offer_page_refs.sql`
+- `20261025000040_rookie_member_activation.sql`
+- `20261025000041_activity_change_hints.sql`
+- `20261025000050_avoid_unchanged_score_finalization.sql`
+- `20261025000051_bound_edge_response_reconciliation.sql`
+- `20261025000052_ignore_game_progress_hints.sql`
+- `20261025000053_remove_stale_schedule_descriptions.sql`
+- `20261025000054_reduce_inventory_hint_drain.sql`
+- `20261025000055_drop_retired_server_functions.sql`
+- `20261025000070_scoring_bonus_settings.sql`
+- `20261025000071_waiver_run_order.sql`
+- `20261025000072_trade_waiver_drop_settlement.sql`
+- `20261025000073_trade_activity_privacy.sql`
+- `20261025000074_rookie_acquisition_guard.sql`
+- `20261025000075_playoff_seed_rates.sql`
+- `20261025000076_cancelled_waiver_privacy.sql`
+- `20261025000077_seed_correction_window.sql`
+- `20261025000090_waiver_hold_before_roster_capacity.sql`
+- `20261025000091_rookie_drop_activation.sql`
+- `20261025000092_queue_waiver_notifications.sql`
+- `20261025000093_drop_retired_push_functions.sql`
+- `20261025000094_roster_claim_and_activity_corrections.sql`
+- `20261026000010_accept_server_generated_schedule.sql`
+- `20261026000011_restore_boundary_correction_window.sql`
+- `20261026000012_dispatch_drafting_boundary.sql`
+- `20261026000013_scope_visible_activity_hints.sql`
+- `20261026000014_drop_unused_score_decision.sql`
+- `20261026000015_store_game_team_side.sql`
+- `20261026000030_faab_trade_reservations.sql`
+- `20261026000031_season_offer_and_priority_rules.sql`
+- `20261026000032_trade_offer_roster_validation.sql`
+- `20261026000033_roster_claim_retention.sql`
+- `20261026000034_trade_notification_privacy.sql`
+- `20261026000035_waiver_run_clearance.sql`
+- `20261026000060_team_name_validation.sql`
+- `20261026000061_remove_unused_database_objects.sql`
+- `20261026000080_retire_expo_push_storage.sql`
+- `20261026000100_keep_deployed_edge_push_compatibility.sql`
+- `20261026000101_order_rookie_activation_locks.sql`
+- `20261026000200_merge_main_function_bodies.sql`
+- `20261026000300_server_release_corrections.sql`
+- `20261026000400_server_release_followups.sql`
+- `20261026000500_server_release_repairs.sql`
+- `20261026000700_taxi_and_server_rules.sql`
+- `20261026000800_player_import_injury_and_retired_enums.sql`
+- `20261026000900_roster_and_dispatch_repairs.sql`
+- `20261026000901_activity_feed_public_rows.sql`
+- `20261026001000_remove_e2e_fixture_players.sql`
 
-All existing positional calls work because the new arguments have defaults.
-The old overloads are dropped to keep PostgREST calls clear.
+## Acquisition contract
 
-```sql
-public.add_free_agent_atomic(
-  p_member_id uuid,
-  p_league_id uuid,
-  p_player_id uuid,
-  p_to_ir boolean DEFAULT false,
-  p_to_taxi boolean DEFAULT false
-) RETURNS void
+Existing positional RPC calls remain valid because new arguments have defaults.
+The server removes ambiguous older overloads.
 
-public.create_waiver_claim_atomic(
-  p_league_id uuid,
-  p_member_id uuid,
-  p_player_id uuid,
-  p_drop_player_id uuid DEFAULT NULL,
-  p_user_id uuid DEFAULT NULL,
-  p_bid_amount integer DEFAULT 0,
-  p_claim_order integer DEFAULT NULL,
-  p_to_ir boolean DEFAULT false,
-  p_to_taxi boolean DEFAULT false
-) RETURNS uuid
+| RPC | Added arguments |
+| --- | --- |
+| `add_free_agent_atomic` | `p_to_ir boolean DEFAULT false`, then `p_to_taxi boolean DEFAULT false` |
+| `create_waiver_claim_atomic` | `p_to_ir boolean DEFAULT false`, then `p_to_taxi boolean DEFAULT false` |
+| `edit_waiver_claim_atomic` | `p_to_ir boolean DEFAULT NULL`, then `p_to_taxi boolean DEFAULT NULL` |
 
-public.edit_waiver_claim_atomic(
-  p_claim_id uuid,
-  p_member_id uuid,
-  p_user_id uuid,
-  p_drop_player_id uuid DEFAULT NULL,
-  p_bid_amount integer DEFAULT 0,
-  p_claim_order integer DEFAULT NULL,
-  p_to_ir boolean DEFAULT NULL,
-  p_to_taxi boolean DEFAULT NULL
-) RETURNS void
-```
+Waiver API bodies accept `toIr` and `toTaxi`.
+Omitted create values mean false; omitted edit values preserve the stored destination.
+`waiver_claims.to_ir` and `waiver_claims.to_taxi` are non-null and default to false.
+An add cannot request both destinations.
+Straight-to-IR and straight-to-taxi adds remain available without a league opt-in.
+Both permit eligible acquisitions after tipoff because these players do not score.
+They still consume a weekly add.
+IR requires an Out or IR designation, an open slot, and an allowed season state.
+Taxi requires eligibility, an open unreserved slot, remaining tenure, and no prior exit from that team's taxi.
+
+Every league uses `years_exp = 0` or fewer than 65 career NBA regular-season games.
+A non-rookie needs a known count to enter taxi.
+An unknown count never makes an existing taxi player illegal.
+The retained `leagues.taxi_rule` column supports rollback reads; settings ignore submitted rule values.
+The phone computes Rookie and Taxi display tags from stored server values.
+The server decides whether an acquisition is legal.
+
+At award time, the worker checks the destination again.
+An unavailable IR or taxi destination falls back to active space and any applicable planned drop.
+A claim fails with a clear reason when neither destination fits.
+The worker processes older due runs before newer claims within each league.
+Activity and winning-claim notifications name the taxi destination.
 
 | Code | Meaning |
 | --- | --- |
-| `PA006` | The requested free agent cannot enter IR. |
-| `PA007` | The team's IR slots are full. |
-| `PA005` | An existing IR player must leave IR before another add. |
-| `PA001` | The weekly add limit is reached. |
-| `PA003` | The active roster is full. |
-| `P0001` | Existing season, game lock, or waiver rule rejection. The message gives the reason. |
-| `42501` | The caller does not own the member. |
-| `23505` | The free agent is already rostered. |
-| `P0002` | The league or pending claim does not exist. |
-| `22023` | A claim value is invalid. |
+| `PA001` | Weekly add limit reached |
+| `PA002` | Player remains on waivers |
+| `PA003` | Active roster capacity exceeded |
+| `PA005` | An existing IR player is ineligible |
+| `PA006` | Requested player cannot enter IR |
+| `PA007` | IR capacity exhausted |
+| `PA009` | An existing taxi player is ineligible |
 
-The add RPC stays available to authenticated users and the service role.
-Claim create and edit stay limited to the service role through the authenticated API.
-Both waiver API bodies accept `toIr: boolean`.
-An omitted create value means false.
-An omitted edit value keeps the stored choice.
-The claim row stores `waiver_claims.to_ir boolean NOT NULL DEFAULT false`.
+The shared roster guard reports named IR and taxi problems and one team-level active overflow problem.
+It blocks adds, new claims, claim edits that add, sent offers, and acceptance by the illegal team.
+Pending claims fail while that roster remains illegal.
+The acquisition guard leaves lineup moves, activations, drops, and cancellations available.
+Existing lineup capacity, reservation, and game-lock checks still apply.
+[Roster lifecycle](../docs/roster-lifecycle.md) owns the complete rule contract.
 
-An IR add keeps the active roster intact and consumes one weekly add.
-It requires an Out or IR designation and an open IR slot.
-The player can enter IR after his game starts.
-It rejects offseason IR placement.
-It never grants taxi access.
+## Trades and activity
 
-The waiver worker processes older due runs before newer claims within each league.
+Trading opens in offseason, drafting, active, and playoffs.
+Setup and the startup auction close trading.
+Commissioner deadlines and roster rules still apply.
+The public activity feed omits pending offers, counters, edits, expirations, and trade-block changes.
+Completed trades remain visible with their participants.
+Private offer state remains in the Trades screen.
 
-At award time, the server rechecks IR eligibility, capacity, and season state.
-A started game does not block an IR award.
-Moving a rostered player into or out of IR stays locked after tipoff.
-An unavailable IR placement falls back to the active roster when capacity permits.
-A full active roster fails the claim with `failed_roster` and a clear `failure_reason`.
-An eligible IR award skips any stored drop selection.
+At the opening-night cutoff, completed rookie drafts do not wait for every team to trim its roster.
+The server places the newest eligible drafted rookies into available taxi slots first.
+The league activates even when some teams still exceed their active limit.
+Those teams must fix their rosters before restricted acquisitions or trades.
 
-## Changed RPC behavior with unchanged signatures
+## Data and compatibility
 
-```sql
-public.process_next_waiver_claim_atomic(p_process_date date)
-public.get_league_projection_rows(
-  p_league_id uuid,
-  p_season_year integer DEFAULT public.current_season_year_et(),
-  p_game_date date DEFAULT (now() AT TIME ZONE 'America/New_York')::date,
-  p_view text DEFAULT 'today',
-  p_player_ids uuid[] DEFAULT NULL,
-  p_limit integer DEFAULT 600,
-  p_offset integer DEFAULT 0
-)
-public.refresh_player_search_caches()
-public.invoke_live_poll_if_due()
-analytics.seed_league_fantasy_avgs(p_league_id uuid)
-```
-
-The projection RPC skips games marked InProgress or Final, or whose tipoff or start time has passed.
-Its output columns stay the same.
-The two cache routines return without rebuilding data.
-The live gate returns at once when a current lease exists.
-No new error codes apply to these routines.
-
-## Player stats hint
-
+`search_players` appends `career_regular_season_games integer` without changing earlier result columns.
+`get_visible_player_totals` supplies bounded visible-player statistics.
+`player_game_stats.is_home` preserves the stored game side.
 Live player changes use the existing `score` topic with null scopes and details.
-The new Players tab listens to `score` for its live display refresh during games.
-The existing minute throttle retains the last changed stats for the next flush.
-The deployed client accepts this topic without catchup or disconnect polling.
-No `player_stats` topic or `activity` inventory detail ships in this release.
+The minute throttle keeps pending changes for its next flush.
+No new `player_stats` topic or scoped `activity` inventory detail ships in this release.
 
-## Totals and score parity
+Incremental season totals preserve per-game scoring and existing average read shapes.
+DNP lines and non-regular-season games do not contribute to regular-season averages.
+The projection reader skips started or finished games without changing its result columns.
+Retired search-cache refresh routines remain callable and return without rebuilding data.
+Reconciliation skips unchanged writes, and the live gate returns while a current lease exists.
 
-`analytics.player_season_totals` keeps one row per player and season.
-Statement triggers apply grouped deltas on insert, correction, and deletion.
-The table includes minutes, all counting stats, makes, attempts, and bonus counts.
-Separate value counts preserve the old NULL average behavior.
-DNP lines and games outside the regular season do not contribute.
-Game identity corrections rebuild only the affected players and seasons.
-Game calendar corrections move totals through the existing stat correction path.
+`sync-player-injuries` refreshes injuries each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
+It receives `{}` and records its own `sync_runs` outcome.
+`sync-players` keeps its daily full refresh; it has no injury-only mode.
+Player imports preserve stored injuries when metadata omits `injury_status`; explicit null clears them.
+[Source monitoring](../docs/source-monitoring.md) owns provider schedules and recovery.
 
-The existing average views now read live totals.
-Search, dynasty reads, and projection fallback readers keep their output shapes.
-League coefficients score the totals before sorting or paging.
-Coefficients beyond two decimals use per-game scoring to preserve server rounding.
-Unused double-double and triple-double coefficients still short-circuit.
-Scoring itself continues to use the authoritative game lines.
+The cleanup migrations remove unused tiebreak storage and server routines after replacing their callers.
+They retain objects used by the deployed Edge and frontend through the rollback window.
+The fixture cleanup removes only the E2E player identities defined by its migration.
+Review that migration's predicate with the approved plan before deployment.
 
-## New private functions
+## Verification
 
-These routines are server helpers, with execution limited to the database owner.
-They are not client RPCs and add no custom error codes.
-
-```sql
-private.emit_player_stats_hint(p_years integer[]) RETURNS void
-private.flush_player_stats_hints() RETURNS integer
-private.maintain_player_season_totals() RETURNS trigger
-private.rebuild_game_player_totals() RETURNS trigger
-private.lock_deleted_stat_game() RETURNS trigger
-private.clear_player_season_totals() RETURNS trigger
-```
-
-`private.reconcile_edge_invocations()` keeps its signature and skips unchanged response writes.
-
-## Verification scope
-
-The new checks cover IR rejection rules, weekly add accounting, and waiver award fallbacks.
-They also cover an actual two-connection IR race and authenticated waiver API create and edit.
-Projection checks cover status, tipoff, missing times, and a finished schedule.
-The next-game check fails on the base database after tipoff.
-The average parity oracle rejects altered expected scores and altered totals.
-The hint check proves throttled changes stay queued for a later flush.
-
-The load fixture and report are in `scripts/load/README.md`.
-No iPhone screen verification runs in this database lane.
-
-## Client handoff
-
-- Add an eligible free agent with one `add_free_agent_atomic` call and `p_to_ir=true`.
-- Send `toIr` in waiver create and edit bodies, and read the stored `to_ir` choice.
-- Refresh visible player rows on the score topic.
-- Keep server rule errors and waiver failure reasons visible to the user.
-- Verify the combined release in the installed iPhone Safari app.
-
-The old cache refresh no longer sends an averages resource notice.
-The live stats hint replaces that notice.
-
-
-## Earlier database checks
-
-These results precede migration `20261026000700`.
-
-| Command or scope | Result |
-| --- | --- |
-| `npm run test:db` from a fresh local reset | 154 commands pass; zero failures |
-| Seventeen scoped database commands | Pass |
-| `npm run check:edge-functions` | 254 tests pass; zero failures; four local-only tests skip here |
-| Local-only Sleeper and retention checks in the database chain | Pass |
-| Five scoped JavaScript contract files | 105 tests pass; zero failures |
-| `npm run check:quality` | Pass |
-| `npm run check:db-function-sources` | Pass |
-| `npm run check:db-function-catalog` | Pass |
-| `npm run check:database-types` | Pass |
-| Base and changed load runs, plus both actual Realtime samples | Pass |
-| `git diff --check` | Pass |
-
-The database run uses the CI environment names and a locally served API.
-Its keys come from the isolated stack's status output.
-The base next-game check fails after a game starts; the changed check passes.
-The parity checks reject changed expected scores and corrupt totals.
-The old refresh notice test now checks the live stats notice and its actual Realtime delivery.
-A test selector also runs both broader JavaScript suites; both commands pass.
-Use explicit covering commands for unmapped paths to avoid that extra scope.
-
-The local API and Supabase stack are stopped.
-The original Supabase config is restored.
-No files are staged or committed.
-Do not repeat the full database run unless an integration change affects these paths.
-The client integration and installed iPhone screen checks remain with the other lanes.
-
-## Changed files
-
-- `package.json`
-- `scripts/load/README.md`
-- `scripts/load/after.csv`
-- `scripts/load/before.csv`
-- `scripts/load/realtime-after.csv`
-- `scripts/load/realtime-before.csv`
-- `scripts/load/run.mjs`
-- `scripts/load/seed.sql`
-- `scripts/load/workload.sql`
-- `supabase/RELEASE-DB.md`
-- `supabase/functions/api/waivers.ts`
-- `supabase/migrations/20261024100001_straight_to_ir.sql`
-- `supabase/migrations/20261024100002_live_player_season_totals.sql`
-- `supabase/migrations/20261024100003_reconciliation_writes_and_poll_gate.sql`
-- `supabase/sql/function-catalog.json`
-- `supabase/sql/functions/by-name/analytics/seed_league_fantasy_avgs.sql`
-- `supabase/sql/functions/by-name/private/clear_player_season_totals.sql`
-- `supabase/sql/functions/by-name/private/emit_player_stats_hint.sql`
-- `supabase/sql/functions/by-name/private/flush_player_stats_hints.sql`
-- `supabase/sql/functions/by-name/private/lock_deleted_stat_game.sql`
-- `supabase/sql/functions/by-name/private/maintain_player_season_totals.sql`
-- `supabase/sql/functions/by-name/private/rebuild_game_player_totals.sql`
-- `supabase/sql/functions/by-name/private/reconcile_edge_invocations.sql`
-- `supabase/sql/functions/by-name/public/add_free_agent_atomic.sql`
-- `supabase/sql/functions/by-name/public/create_waiver_claim_atomic.sql`
-- `supabase/sql/functions/by-name/public/edit_waiver_claim_atomic.sql`
-- `supabase/sql/functions/by-name/public/get_league_projection_rows.sql`
-- `supabase/sql/functions/by-name/public/invoke_live_poll_if_due.sql`
-- `supabase/sql/functions/by-name/public/process_next_waiver_claim_atomic.sql`
-- `supabase/sql/functions/by-name/public/refresh_player_search_caches.sql`
-- `supabase/tests/db/league-change-hints.ts`
-- `tests/db/fantasypros-projections.sql`
-- `tests/db/live-player-stats-hints.sql`
-- `tests/db/next-unstarted-game.sql`
-- `tests/db/player-search-cache-refresh.sql`
-- `tests/db/straight-to-ir-api.mjs`
-- `tests/db/straight-to-ir-concurrency.mjs`
-- `tests/db/straight-to-ir.sql`
-- `types/database.ts`
-
-## Rookie draft deadline
-
-At the opening-night cutoff, completed rookie drafts no longer wait for every team to trim its roster.
-The server moves each team's newest eligible drafted rookies into open taxi slots first.
-Existing roster moves keep priority over automatic taxi placement.
-The league then becomes active even if some teams still exceed the active roster limit.
-Those teams must fix their rosters before adds, claims, or trades, including trades during the rookie draft.
-Lineup moves, activations, and drops remain available.
-The server retains game locks, taxi eligibility, tenure limits, and prior taxi exits.
-Paused drafts still complete through the existing opening-night backstop.
+Run the ordered upgrade and compatibility checks against the reviewed migration range.
+Use [verification](../docs/verification.md) for setup and [migration history](../docs/production-migration-history.md) for attestation rules.
+Regenerate final attestations only after all migration changes are integrated.
+Previous run counts do not certify this candidate.
 
 ## Next release
 
@@ -571,73 +480,3 @@ ALTER TABLE public.notification_outbox
   DROP COLUMN ticketed_at,
   DROP COLUMN receipt_attempt_count;
 ```
-
-The release removes unused tiebreak storage after replacing its SQL writers.
-Deployed Edge and frontend code do not use that table.
-
-
-## Taxi acquisitions and legal rosters
-
-Every league uses NBA rookies or fewer than 65 career regular-season games.
-Unknown games counts qualify only for NBA rookies.
-The stored taxi rule stays for rollback reads; settings ignore its submitted value.
-Taxi tenure and team exit history still apply.
-Members can read their league's taxi exit rows.
-
-`add_free_agent_atomic` appends optional `p_to_taxi` after `p_to_ir`.
-Waiver creation appends `p_to_taxi DEFAULT false`; edits append `p_to_taxi DEFAULT NULL`.
-An omitted edit preserves its destination.
-Both destinations together raise `P0001`: `Choose IR or taxi, not both.`
-The Edge waiver routes accept `toTaxi` for creation and edits.
-`waiver_claims.to_taxi` is non-null and defaults to false.
-Taxi acquisitions can occur after tipoff because taxi players do not score.
-An unavailable waiver taxi placement falls back to the active roster and its selected drop.
-A full active roster fails that claim with the taxi refusal reason.
-Activity and winning claim notifications name the taxi destination.
-
-`search_players` appends `career_regular_season_games integer` to its result.
-Existing result columns retain their order and types.
-Old positional RPC calls remain valid.
-
-One private source lists illegal IR players, illegal taxi players, and active roster overflow.
-Unknown career counts do not make existing taxi players illegal.
-A non-rookie with an unknown count cannot enter taxi.
-Active overflow produces one team-level `active_limit` row with no roster-player ID or player names.
-Its message is `Your active roster is N over the limit of M. Drop or move an eligible player to IR.`
-It blocks adds, claim creation and edits, sent trade offers, and acceptance by that team, including during the rookie draft.
-Pending claims fail with the same player names.
-`PA005` still identifies ineligible IR players; `PA009` identifies ineligible taxi players.
-Roster corrections and cancellations remain available.
-
-The injury dispatcher runs each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
-It sends `{}` to the new `sync-player-injuries` Edge function through existing dispatch and invocation records.
-That function calls `syncInjuries()` and records its run as `sync-player-injuries`.
-`sync-players` always runs the full sync and has no injury-only mode.
-Before Edge deployment, a missing injury function returns HTTP 404 harmlessly, without alerts, rapid retries, or readiness failures.
-After rollback, the function can remain deployed because `functions deploy` does not delete it.
-An absent function is also safe; the daily full sync still refreshes injuries.
-Daily career refreshes retain their current schedule.
-
-## Removed tiebreak storage
-
-This release drops `public.rps_challenges`, `public.rps_choice`, and `public.rps_status`.
-Deployed Edge and frontend consumers do not use them.
-Release health and seed tooling must also stop reading it before deployment.
-
-
-## Server cleanup and retries
-
-Player imports keep the stored injury when metadata omits `injury_status`.
-An explicit null clears the injury.
-The delivery queue index excludes suppressed rows and keeps no Expo column dependency.
-Terminal outbox rows expire after 60 days through indexed batches of 500, capped at 20,000 per run.
-Pending rows and recent terminal rows remain.
-Draft reset permits dropped drafted players and refunds their picks.
-A traded or traded-back player still blocks reset while rostered.
-Unused rounds, stopped slots, and prior-year picks become used and expire offers that hold them.
-Offers cannot include past-season picks.
-Trade acceptance and notification drains continue if later league activation fails.
-The waiver worker retries due claims after contention for up to 30 seconds, then fails for reconciliation.
-
-This release also removes unused `name_key(text)`, `update_existing_player_metadata(jsonb)`, and `private.league_week_at_pacific(uuid,timestamptz)`.
-Deployed Edge and frontend callers do not use these routines.
