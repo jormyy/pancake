@@ -6,8 +6,9 @@ import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-chan
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
-const { getLeagueTransactions, getMockDraftRooms } = vi.hoisted(() => ({
+const { getLeagueTransactions, getMockDraftRooms, announcements } = vi.hoisted(() => ({
     getLeagueTransactions: vi.fn(),
+    announcements: vi.fn(),
     getMockDraftRooms: vi.fn(),
 }))
 vi.mock('@react-navigation/native', async () => {
@@ -17,6 +18,8 @@ vi.mock('@react-navigation/native', async () => {
 vi.mock('@/lib/scoring', () => ({ getLeagueStandings: vi.fn(async () => []) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+vi.mock('@/lib/league-announcements', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/league-announcements')>(), listLeagueAnnouncements: announcements }))
 vi.mock('@/lib/transactions', () => ({ getLeagueTransactions }))
 vi.mock('@/lib/rookieDraft', () => ({ getAllLeaguePicks: vi.fn(async () => []) }))
 vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms }))
@@ -36,6 +39,7 @@ const deferred = <Value,>() => {
 beforeEach(() => {
     vi.clearAllMocks()
     getLeagueTransactions.mockResolvedValue([])
+    announcements.mockResolvedValue([])
     getMockDraftRooms.mockResolvedValue([])
 })
 
@@ -323,4 +327,36 @@ it.each([125, 200])('keeps history pageable after a capped refresh with %s remai
         expect(latest.activityHasMore).toBe(remaining >= 150)
         expect(getLeagueTransactions.mock.calls.every(([, limit]) => limit <= 100)).toBe(true)
     } finally { await act(async () => renderer?.unmount()) }
+})
+
+it.each([51, 75, 99])('does not invent another page after refreshing a complete %s-row history', async count => {
+    setSessionOwner('history-owner')
+    const rows = Array.from({ length: count }, (_, index) => ({ id: `row-${index}` }))
+    getLeagueTransactions.mockImplementation((_league, limit, offset) => Promise.resolve(rows.slice(offset, offset + limit)))
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.loadMoreActivity() })
+        expect(latest.activityHasMore).toBe(false)
+        await act(async () => { await latest.refreshTab('history') })
+        expect(getLeagueTransactions).toHaveBeenLastCalledWith('league', 100, 0)
+        expect(latest.activityHasMore).toBe(false)
+    } finally { await act(async () => renderer.unmount()) }
+})
+
+it('merges commissioner announcements into activity by publish time', async () => {
+    setSessionOwner('activity-member')
+    getLeagueTransactions.mockResolvedValue([{ id: 'transaction', occurredAt: '2026-10-24T12:00:00Z' }])
+    announcements.mockResolvedValue([{ id: 'new', body: 'Draft tonight.', published_at: '2026-10-24T15:00:00Z', author_member_id: 'commissioner' }, { id: 'old', body: 'Welcome.', published_at: '2026-10-23T15:00:00Z', author_member_id: null }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(latest.transactions.map(row => row.id)).toEqual(['announcement:new', 'transaction', 'announcement:old'])
+        expect(latest.transactions[0]).toMatchObject({ title: 'Commissioner', body: 'Draft tonight.' })
+        expect(announcements).toHaveBeenCalledWith('league')
+    } finally { await act(async () => renderer.unmount()) }
 })

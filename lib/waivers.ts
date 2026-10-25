@@ -2,6 +2,8 @@ import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 import { apiPost } from '@/lib/shared/api'
+import { sessionGeneration } from '@/lib/session-cache-registry'
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 
 export type WaiverClaim = {
     id: string
@@ -94,6 +96,7 @@ export async function submitWaiverClaim(
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         throw new Error('Connect to the internet to submit a waiver claim.')
     }
+    const generation = sessionGeneration()
     await apiPost('/waivers/claims', {
         memberId,
         leagueId,
@@ -103,10 +106,13 @@ export async function submitWaiverClaim(
         claimOrder: options.claimOrder ?? null,
         toIr: options.toIr ?? false,
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function cancelWaiverClaim(claimId: string, memberId: string): Promise<void> {
+    const generation = sessionGeneration()
     await apiPost(`/waivers/claims/${claimId}/cancel`, { memberId })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function editWaiverClaim(
@@ -117,6 +123,7 @@ export async function editWaiverClaim(
     // player and turn a valid claim into one that fails "roster full".
     updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean },
 ): Promise<void> {
+    const generation = sessionGeneration()
     let toIr = updates.toIr
     if (toIr === undefined) {
         const { data, error } = await supabase.from('waiver_claims').select('to_ir')
@@ -131,6 +138,7 @@ export async function editWaiverClaim(
         claimOrder: updates.claimOrder ?? null,
         toIr,
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
 
 export async function reorderWaiverClaim(
@@ -138,10 +146,12 @@ export async function reorderWaiverClaim(
     memberId: string,
     direction: 'up' | 'down',
 ): Promise<number> {
+    const generation = sessionGeneration()
     const result = await apiPost<{ claimOrder: number }>(`/waivers/claims/${claimId}/reorder`, {
         memberId,
         direction,
     })
+    if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
     return result.claimOrder
 }
 

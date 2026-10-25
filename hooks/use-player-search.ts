@@ -42,7 +42,6 @@ type CachedPage = {
 type TimedPlayerTotals = { row: VisiblePlayerTotals | null; readAt: number }
 type PlayerTotalsSnapshot = { key: string; rows: Map<string, TimedPlayerTotals> }
 const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v2:'
-const ROOKIE_SEARCH_MAX_PAGES = 20
 const MAX_MEMORY_PAGES = 12
 const EMPTY_TEAMS: string[] = []
 
@@ -259,7 +258,8 @@ export function usePlayerSearch(
         )
         if (canRead && !canRead()) throw new Error('Search read is no longer active')
         if (!initialLiveStats || !params.leagueId || players.length === 0) return players
-        const year = params.seasonYear ?? currentSeasonYear()
+        const year = players[0]?.stats_season_year ?? params.seasonYear ?? currentSeasonYear()
+        if (year !== currentSeasonYear()) return players
         const totals = await getVisiblePlayerTotals(params.leagueId, players.map(player => player.id), year)
         if (canRead && !canRead()) throw new Error('Search read is no longer active')
         const totalsByPlayer = new Map(totals.map(row => [row.player_id, row]))
@@ -277,35 +277,6 @@ export function usePlayerSearch(
             return row ? applyVisiblePlayerTotals(player, row, scoring) : player
         })
     }, [initialLiveStats, scoring, options.ownerId, currentMemberId])
-
-    const fetchCompleteResults = useCallback(async (params: PlayerSearchParams, canRead: () => boolean) => {
-        const firstPage = await fetchPage(params, 0, canRead)
-        if (!canRead()) throw new Error('Search read is no longer active')
-        if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage
-
-        // Fetch remaining pages in parallel batches instead of one-by-one —
-        // the rookie pool spans a handful of pages and serial awaits made the
-        // filter feel sluggish.
-        const players = [...firstPage]
-        const pageParams = { ...params, seasonYear: firstPage[0]?.stats_season_year ?? params.seasonYear }
-        const BATCH_SIZE = 4
-        let page = 1
-        while (page < ROOKIE_SEARCH_MAX_PAGES) {
-            if (!canRead()) throw new Error('Search read is no longer active')
-            const batchPages = Math.min(BATCH_SIZE, ROOKIE_SEARCH_MAX_PAGES - page)
-            const batch = await Promise.all(Array.from({ length: batchPages }, (_, i) =>
-                fetchPage(pageParams, (page + i) * PLAYER_SEARCH_PAGE_SIZE, canRead)))
-            if (!canRead()) throw new Error('Search read is no longer active')
-            let done = false
-            for (const nextPage of batch) {
-                players.push(...nextPage)
-                if (nextPage.length < PLAYER_SEARCH_PAGE_SIZE) { done = true; break }
-            }
-            if (done) break
-            page += batchPages
-        }
-        return players
-    }, [fetchPage])
 
     useEffect(() => {
         playersRef.current = players
@@ -387,7 +358,7 @@ export function usePlayerSearch(
         const source = { key: searchParamsKey, revision, requestId, activity: activityEpoch.current, retry: retryToken }
         validatedSource.current = null
         pendingSource.current = source
-        fetchCompleteResults(searchParams, ownsRequest)
+        fetchPage(searchParams, 0, ownsRequest)
             .then((results) => {
                 if (!ownsRequest()) return
                 const hasNext = results.length === PLAYER_SEARCH_PAGE_SIZE
@@ -420,7 +391,7 @@ export function usePlayerSearch(
                 setRefreshing(false)
             })
         return cancel
-    }, [cachePage, enabled, admitted, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchCompleteResults, leagueId])
+    }, [cachePage, enabled, admitted, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchPage, leagueId])
 
     const loadMore = useCallback(async () => {
         if (!enabled || !admitted || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
@@ -464,9 +435,35 @@ export function usePlayerSearch(
         && players[0]?.stats_season_year === currentSeasonYear() - 1
     useEffect(() => {
         if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null || !isFallbackSeason) return
-        const timer = setInterval(() => setRetryToken(token => token + 1), 60_000)
-        return () => clearInterval(timer)
-    }, [enabled, admitted, online, focused, visible, seasonYear, isFallbackSeason])
+        let disposed = false
+        let running = false
+        const requestId = requestSeqRef.current
+        const ownsRequest = () => !disposed && requestSeqRef.current === requestId
+            && renderedKeyRef.current === searchParamsKey && activeRef.current
+        const probe = async () => {
+            if (running || !ownsRequest()) return
+            running = true
+            try {
+                const results = await fetchPage(searchParams, 0, ownsRequest)
+                if (!ownsRequest() || !results.length || results[0].stats_season_year === playersRef.current[0]?.stats_season_year) return
+                loadMoreSeqRef.current += 1
+                const page = { players: results, hasMore: results.length === PLAYER_SEARCH_PAGE_SIZE, offset: 0, savedAt: Date.now() }
+                cachePage(searchParamsKey, page)
+                writePersistentCache(playerSearchCacheKey(searchParamsKey), page)
+                playersRef.current = results
+                offsetRef.current = 0
+                setPlayers(results)
+                setHasMore(page.hasMore)
+                setLoadingMore(false)
+            } catch (cause) {
+                if (ownsRequest()) console.error(cause)
+            } finally {
+                running = false
+            }
+        }
+        const timer = setInterval(() => { void probe() }, 60_000)
+        return () => { disposed = true; clearInterval(timer) }
+    }, [enabled, admitted, online, focused, visible, seasonYear, isFallbackSeason, searchParams, searchParamsKey, fetchPage, cachePage, retryToken])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
     const refreshIfChanged = useCallback(() => {
@@ -542,7 +539,8 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
         setVisibleIds(previous => previous.join(',') === ids.join(',') ? previous : ids)
     }, [])
     const ids = visibleIds.filter(id => players.some(player => player.id === id)).join(',')
-    const year = seasonYear ?? currentSeasonYear()
+    const year = players[0]?.stats_season_year ?? seasonYear ?? currentSeasonYear()
+    const liveSeason = year === currentSeasonYear()
     const key = JSON.stringify([options.ownerKey, leagueId, year])
     const [snapshot, setSnapshot] = useState<PlayerTotalsSnapshot>({ key, rows: new Map() })
     const initialTotals = options.initialTotals
@@ -558,7 +556,7 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
     const latestSnapshot = useRef(mergedSnapshot)
     latestSnapshot.current = mergedSnapshot
     const [now, setNow] = useState(Date.now)
-    const active = options.enabled && browserActive && appActive
+    const active = options.enabled && browserActive && appActive && liveSeason
     const current = useRef({ key, ids, active })
     current.current = { key, ids, active }
     useEffect(() => {
@@ -623,12 +621,13 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
         return () => clearTimeout(timer)
     }, [active, mergedSnapshot, now])
     const rows = useMemo(() => {
+        if (!liveSeason) return players
         const knownLiveTeams = leagueId ? readCachedLiveTeams(leagueId) : null
         return players.map(player => {
             const row = mergedSnapshot.get(player.id)?.row
             if (row) return applyVisiblePlayerTotals(player, row, scoring, now)
             return knownLiveTeams && player.nba_team ? { ...player, playing_now: knownLiveTeams.has(player.nba_team) } : player
         })
-    }, [mergedSnapshot, players, scoring, now, leagueId])
+    }, [mergedSnapshot, players, scoring, now, leagueId, liveSeason])
     return { rows, onViewableItemsChanged }
 }

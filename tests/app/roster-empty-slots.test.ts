@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RosterScreen from '@/app/(tabs)/roster'
 import type { RosterPlayer } from '@/lib/roster'
 import { subscribeToTableChanges } from '@/lib/realtime'
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
@@ -145,6 +146,15 @@ describe('roster empty slots', () => {
         act(() => screen.unmount())
         setLeagueChangesConnected('league-a', false)
         vi.useRealTimers()
+    })
+
+    it('refreshes the owner claims list after a local claim mutation', async () => {
+        vi.useFakeTimers()
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => { notifyMemberClaimsChanged('other-member'); await vi.advanceTimersByTimeAsync(200) })
+        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
+        await act(async () => { notifyMemberClaimsChanged('member-a'); await vi.advanceTimersByTimeAsync(200) })
+        expect(mocks.focusData.refresh).toHaveBeenCalledOnce()
     })
 
     it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports partial failures for %s', async action => {

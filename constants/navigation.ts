@@ -8,6 +8,7 @@ export const SHELL_SECTION_CHILDREN: Partial<Record<string, string[]>> = {
 export const SHELL_BACK_HEADER_ROUTES = [
     '/player/',
     '/profile',
+    '/notification-settings',
     '/lineup',
     '/propose-trade',
     '/claim-player',

@@ -86,3 +86,10 @@ it('restores player search cache before effects and preserves its authority gate
     expect(source).toContain('validatedKey !== searchParamsKey')
     expect(source).toContain('renderedKeyRef.current === searchParamsKey')
 })
+
+it('keeps the player average season in the reserved summary line', async () => {
+    const source = await read('app/(tabs)/players.tsx')
+    expect(source).not.toMatch(/averageLabel \? <Text/)
+    const summary = source.match(/const summaryLine = ([^\n]+)/)?.[1]
+    expect(summary).toContain('averageLabel')
+})

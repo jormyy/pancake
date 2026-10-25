@@ -41,6 +41,7 @@ export function NotificationAnnouncementComposer() {
             </Pressable>
         </View>
         {owned && state.status ? <Text role="status" style={textStyles.meta}>{state.status}</Text> : null}
+        {owned && state.status === 'Published' ? <Text style={textStyles.meta}>Members see this in the app. Only members who turned on Commissioner messages also get a push.</Text> : null}
     </View>
 }
 

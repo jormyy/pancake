@@ -72,7 +72,7 @@ it('shows a single league as a title and restores the switch when another league
 
 it.each([
     '/player/123', '/lineup', '/propose-trade', '/claim-player', '/team-roster', '/change-password',
-    '/commissioner-settings', '/create-league', '/join-league', '/bracket', '/draft', '/draft-room', '/rookie-draft-room', '/profile',
+    '/commissioner-settings', '/create-league', '/join-league', '/bracket', '/draft', '/draft-room', '/rookie-draft-room', '/profile', '/notification-settings',
 ])('keeps bottom navigation while removing the duplicate header on %s', async pathname => {
     state.pathname = pathname
     await render()
@@ -193,4 +193,14 @@ it('reuses the original tabs tree after repeated root-level player visits', asyn
         expect(root.routes.map(route => route.name)).toEqual(['(tabs)'])
         expect(root.routes[0].key).toBe(originalTabs)
     }
+})
+
+it('names the notification settings page in the browser title', async () => {
+    const page = { title: '', getElementById: () => ({}) }
+    vi.stubGlobal('document', page)
+    try {
+        state.pathname = '/notification-settings'
+        await render()
+        expect(page.title).toBe('Notifications · Pancake')
+    } finally { vi.unstubAllGlobals() }
 })

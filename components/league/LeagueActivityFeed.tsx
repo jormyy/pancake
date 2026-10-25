@@ -15,7 +15,7 @@ import { usePageMetrics } from '@/components/ui'
 /** One league transaction. */
 function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
-    const label = TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
+    const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
     const avatarSize = 32
     if (item.isSystem) {
         return (
@@ -28,7 +28,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                 />
                 <View style={styles.txInfo}>
                     <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
-                    <Text style={styles.txTeam} numberOfLines={2}>
+                    <Text style={styles.txTeam} numberOfLines={item.transactionType === 'commissioner_announcement' ? undefined : 2}>
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>

@@ -61,7 +61,7 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
         || !Number.isFinite(saved.savedAt) || saved.savedAt > Date.now() || Date.now() - saved.savedAt > MAX_AGE
         || !validContext(saved.context, scope.day) || saved.context.seasonId !== savedContext!.seasonId
         || saved.context.weekNumber !== savedContext!.weekNumber || saved.context.seasonYear !== savedContext!.seasonYear
-        || saved.date !== savedDate || !Array.isArray(saved.days) || saved.days.length > 7
+        || saved.date !== savedDate || !Array.isArray(saved.days) || saved.days.length > 21
         || !saved.days.some((d) => d.date === savedDate) || saved.days.some((d) => !d || typeof d.date !== 'string'
             || !Array.isArray(d.playingTeams) || d.playingTeams.some((t) => typeof t !== 'string'))
         || !Array.isArray(saved.starters) || saved.starters.length > 64

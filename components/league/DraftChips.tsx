@@ -214,7 +214,10 @@ export function DraftTimerControl({
     const maximum = rookie ? ROOKIE_TIMER_MAX_SECONDS : DRAFT_TIMER_MAX_SECONDS
     const invalidMessage = rookie ? 'Enter 1 minute through 7 days.' : 'Enter 5 through 3600 seconds.'
     const initialUnit = rookie ? selectedValue % 86400 === 0 ? 86400 : selectedValue % 3600 === 0 ? 3600 : 60 : 1
-    const [unit, setUnit] = useState(initialUnit)
+    const [durationUnit, setDurationUnit] = useState({ rookie, unit: initialUnit })
+    if (durationUnit.rookie !== rookie) setDurationUnit({ rookie, unit: initialUnit })
+    const unit = durationUnit.rookie === rookie ? durationUnit.unit : initialUnit
+    const setUnit = (value: number) => setDurationUnit({ rookie, unit: value })
     const unitRef = useRef(unit)
     unitRef.current = unit
     const [customText, setCustomText] = useState('')

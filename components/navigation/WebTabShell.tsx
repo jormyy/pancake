@@ -59,6 +59,7 @@ const PAGE_TITLES: { prefix: string; label: string }[] = [
     { prefix: '/create-league', label: 'Create League' },
     { prefix: '/join-league', label: 'Join League' },
     { prefix: '/change-password', label: 'Change Password' },
+    { prefix: '/notification-settings', label: 'Notifications' },
     { prefix: '/rookie-draft-room', label: 'Rookie Draft' },
     { prefix: '/draft', label: 'Draft Room' },
 ]
@@ -370,7 +371,7 @@ function SidebarNavButton({
 }
 
 // Pages opened from Profile keep it marked as the current place.
-const PROFILE_ROUTES = ['/profile', '/change-password', '/create-league', '/join-league']
+const PROFILE_ROUTES = ['/notification-settings', '/profile', '/change-password', '/create-league', '/join-league']
 function isProfileRoute(pathname: string) {
     return PROFILE_ROUTES.some((route) => pathname.startsWith(route))
 }

@@ -244,3 +244,39 @@ describe('originating screen lifetime', () => {
         expect(mocks.showAlert).not.toHaveBeenCalled()
     })
 })
+
+it.each(['2026-10-23', '2026-10-24', null])('hides schedule reset when the first week is started or unknown: %s', async scheduleStart => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z'))
+    let latest!: ReturnType<typeof useCommissionerAdminActions>
+    const Probe = () => { latest = useCommissionerAdminActions({ league: { ...fixture, status: 'active' }, ownerId: 'user-a', refresh: vi.fn(), onDeleted: vi.fn(), scheduleStart }); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        expect([...latest.lifecycle.actions, ...latest.lowerPriorityActions].some(action => action.id === 'reset-schedule')).toBe(false)
+    } finally { await act(async () => screen.unmount()); vi.useRealTimers() }
+})
+
+it('explains that reset rebuilds the schedule for every current member', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z'))
+    let latest!: ReturnType<typeof useCommissionerAdminActions>
+    const Probe = () => { latest = useCommissionerAdminActions({ league: fixture, ownerId: 'user-a', refresh: vi.fn(), onDeleted: vi.fn(), scheduleStart: '2026-10-25' }); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        await act(async () => latest.lifecycle.actions.find(action => action.id === 'reset-schedule')!.onPress())
+        expect(mocks.confirmAction.mock.calls[0][1]).toContain('every current member')
+    } finally { await act(async () => screen.unmount()); vi.useRealTimers() }
+})
+
+it('shows the schedule conflict from the server without a success notice', async () => {
+    mocks.apiPost.mockRejectedValue(new Error('The regular season has started. The schedule cannot be rebuilt.'))
+    let latest!: ReturnType<typeof useCommissionerAdminActions>
+    const Probe = () => { latest = useCommissionerAdminActions({ league: fixture, ownerId: 'user-a', refresh: vi.fn(), onDeleted: vi.fn() }); return null }
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(Probe)) })
+        await act(async () => latest.lifecycle.actions.find(action => action.id === 'generate-schedule')!.onPress())
+        expect(mocks.showAlert).toHaveBeenCalledWith('Error', 'The regular season has started. The schedule cannot be rebuilt.')
+        expect(mocks.showSuccess).not.toHaveBeenCalled()
+    } finally { await act(async () => screen.unmount()) }
+})

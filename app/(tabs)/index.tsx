@@ -1,3 +1,5 @@
+import { HomeAnnouncementBanner } from '@/components/HomeAnnouncementBanner'
+import { useLeagueAnnouncements } from '@/hooks/use-league-announcements'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import {
     View,
@@ -51,6 +53,7 @@ function LineupHeading() {
 export default function HomeScreen() {
     const { memberships, current, currentLeague: league, membershipValidated, membershipError, refresh: refreshMemberships, loading: leagueLoading } = useLeagueContext()
     const { user, loading: authLoading } = useAuth()
+    const announcements = useLeagueAnnouncements(user?.id, league?.id, membershipValidated !== false)
     const router = useRouter()
     const { width, height } = useWindowDimensions()
     const { padX, usableWidth } = usePageMetrics()
@@ -211,7 +214,8 @@ export default function HomeScreen() {
             {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
 
             {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
-            <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={matchupRefreshing || lineupLoading}>
+            <DeferredContent ready={announcements.loaded && homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={matchupRefreshing || lineupLoading}>
+            {league ? <HomeAnnouncementBanner key={`${user.id}:${league.id}`} announcements={announcements.announcements} ownerId={user.id} leagueId={league.id} padX={padX} /> : null}
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>

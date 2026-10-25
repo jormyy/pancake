@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { PlayerSupportResource } from '@/lib/player-availability'
 import { sessionGeneration } from '@/lib/session-cache-registry'
+import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { invalidateSeasonCache } from '@/lib/shared/season'
@@ -57,6 +58,7 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
             for (const resource of resources) pending.add(resource)
             refresh.trigger()
         }
+        const stopClaims = listenForMemberClaimsChanges(memberId, () => changed('claims', 'transactions'))
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
             if (!current()) return
@@ -102,6 +104,7 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
         return () => {
             disposed = true
             stop()
+            stopClaims()
             refresh.cancel()
             reportRealtimeCleanup('players', unsubscribeFromTableChanges(channel))
         }

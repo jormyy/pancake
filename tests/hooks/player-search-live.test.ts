@@ -137,3 +137,15 @@ it('shows a known live game before visible-row reads and accepts its final statu
     expect(latest.rows[0].playing_now).toBe(false)
     expect(mocks.read).toHaveBeenCalledOnce()
 })
+
+it('keeps fallback averages and never reads current live totals for last-season rows', async () => {
+    const fallback = players.map(row => ({ ...row, stats_season_year: 2026, avg_fantasy_points: 42, games_played: 70 }))
+    mocks.search.mockResolvedValue(fallback)
+    mocks.read.mockResolvedValue([{ player_id: 'a', totals: {}, rounded_fantasy_average: null }])
+    await act(async () => { screen.unmount(); screen = create(React.createElement(SearchProbe)) })
+    await visible()
+    hint()
+    await tick(10_000)
+    expect(mocks.read).not.toHaveBeenCalled()
+    expect(latest.rows[0]).toMatchObject({ avg_fantasy_points: 42, games_played: 70, stats_season_year: 2026 })
+})

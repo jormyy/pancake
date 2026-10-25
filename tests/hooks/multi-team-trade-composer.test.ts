@@ -71,6 +71,7 @@ describe('useMultiTeamTradeComposer', () => {
         expect(getRostersForMembers).toHaveBeenCalledTimes(1)
         expect(getRostersForMembers).toHaveBeenCalledWith(['me', 'other'], 'league')
         expect(getPicksForMembers).toHaveBeenCalledTimes(1)
+        expect(getPicksForMembers).toHaveBeenCalledWith(['me', 'other'], 'league', { tradeableOnly: true })
         expect(latest.displayReady).toBe(true)
         await act(async () => renderer.unmount())
     })

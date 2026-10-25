@@ -12,6 +12,7 @@ vi.mock('@react-navigation/native', async () => {
     } }
 })
 vi.mock('@/lib/scoring', () => ({ getLeagueStandings: state.standings }))
+vi.mock('@/lib/league-announcements', () => ({ listLeagueAnnouncements: async () => [], mergeAnnouncementActivity: (rows: unknown) => rows }))
 vi.mock('@/lib/transactions', () => ({ getLeagueTransactions: state.history }))
 vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms: state.rooms }))
 vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
