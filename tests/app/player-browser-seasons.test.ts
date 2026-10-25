@@ -24,7 +24,6 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
     const games: Row[] = []
     const stats: Row[] = []
     let refreshed = false
-    let watched = false
     const query = (table: string): Query => {
         const value: Query = {
             table, operation: 'select', rows: [],
@@ -52,7 +51,6 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
         if (value.table === 'mv_player_season_averages') {
             return refreshed ? [...new Set(stats.map(row => row.season_year))].map(season_year => ({ season_year })) : []
         }
-        if (value.table === 'player_watches') return watched ? [{ player_id: 'player' }] : []
         return []
     }
     let selectedYear = String(year)
@@ -66,18 +64,13 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
         waitFor: async () => { expect(await seasonSelect.count()).toBe(1) },
         inputValue: async () => selectedYear,
         evaluate: async () => ({ label: 'Season', font: 16 }),
-        selectOption: async (value: string) => { selected.push(value); selectedYear = value; if (value === String(year)) gamePage = 0 },
+        selectOption: async (value: string) => { selected.push(value); selectedYear = value },
     }
-    const log = { getByText: () => ({ count: async () => selectedYear === String(year) ? [15, 30, 31][gamePage] : 1 }) }
+    const log = { getByText: (label: string) => ({ count: async () => label !== 'NYK @ BOS' ? 0 : selectedYear === String(year) ? [15, 30, 31][gamePage] : 1 }) }
     const history = {
         getByText: (label: string) => label === 'Load More'
             ? { click: async () => { historyPage += 1 }, count: async () => historyPage < 2 ? 1 : 0 }
             : { count: async () => [20, 40, 41][historyPage] },
-    }
-    const watch = {
-        isEnabled: async () => true,
-        isChecked: async () => watched,
-        click: async () => { watched = !watched },
     }
     const button = (name: string) => name === 'League history' ? {
         getAttribute: async () => String(expanded),
@@ -93,7 +86,11 @@ it('seeds two averaged seasons and requires Season dropdown interaction', async 
         },
         env: {}, season: 0, target: {},
         page: {
-            getByRole: (role: string) => role === 'combobox' ? seasonSelect : role === 'switch' ? watch : { locator: () => log },
+            getByRole: (role: string) => {
+                if (role === 'combobox') return seasonSelect
+                expect(role).toBe('heading')
+                return { locator: () => log }
+            },
             locator: () => ({ evaluateAll: async () => [] }),
         },
         press: async (control: { click: () => Promise<void> }) => control.click(),

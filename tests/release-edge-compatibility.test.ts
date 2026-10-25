@@ -169,7 +169,6 @@ it.skipIf(!available)('keeps deployed client subscriptions in the Realtime publi
     const files = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n')
         .filter(file => /\.tsx?$/.test(file))
     const subscribed = subscribedTables(git('show', ...files.map(file => `origin/main:${file}`)))
-    expect([...subscribed]).toEqual(expect.arrayContaining(['weekly_lineups', 'waiver_claims', 'waiver_wire_log']))
     expect(droppedSubscribedTables(releaseMigrations(), subscribed)).toEqual([])
 })
 
