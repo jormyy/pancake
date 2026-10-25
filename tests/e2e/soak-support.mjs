@@ -516,10 +516,10 @@ export const setupFuturePickChain = async (supabase, leagueId) => {
   })
   if (members.length < 4) throw new Error('Future-pick chain requires at least four league members')
 
-  let targetYear = currentSeason.season_year + 5
+  let targetYear = currentSeason.season_year + 3
   let targetPick = null
   let member1 = null
-  for (const year of Array.from({ length: 5 }, (_, index) => currentSeason.season_year + 5 - index)) {
+  for (const year of Array.from({ length: 3 }, (_, index) => currentSeason.season_year + 3 - index)) {
     const { data: candidatePicks, error: candidateError } = await withSupabaseRetry('draft_picks target pick lookup', () => supabase
         .from('draft_picks')
         .select('id, current_owner_id, original_owner_id, season_year, round')
@@ -537,7 +537,7 @@ export const setupFuturePickChain = async (supabase, leagueId) => {
     }
   }
   if (!targetPick || !member1) {
-    throw new Error(`No self-owned round 1 pick found within the five-year horizon for league ${leagueId}`)
+    throw new Error(`No self-owned round 1 pick found within the three-year horizon for league ${leagueId}`)
   }
 
   const [member2, member3, member4] = members

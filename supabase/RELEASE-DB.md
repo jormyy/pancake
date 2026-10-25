@@ -3,113 +3,44 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261020000007`.
-This release advances the database through migration `20261026001000`.
-Production has 431 applied versions; `origin/main` contains 494 migrations.
-The push applies 63 pending main migrations, from `20261020000030` through `20261024000001`, first.
-It then applies the 54 unpublished migrations listed below, in version order.
-The approved plan and [attestations](../docs/release-history-attestations.md) define the exact applied and pending ranges.
-The Vercel integration publishes the frontend when this release merges into main.
-Do not merge before the database and Edge checks pass.
+Production currently stops at migration `20261026001000`.
+That baseline includes every migration through `20261026001000_remove_e2e_fixture_players.sql`.
+Keep every published migration unchanged.
+Apply these follow-up migrations after that baseline, in version order:
 
-The existing production workflow requires a commit already on main.
-That requirement cannot establish this release's safe order while merge still deploys the frontend.
-The release operator must run the approved database and Edge phases from the reviewed release commit before merging.
-The owner decides whether to change the deploy integration or approve that separate production run.
-Do not bypass production approvals or merge merely to satisfy the workflow's ancestry check.
+- `20261027000100_three_future_draft_classes.sql`
+- `20261027000101_remove_unreferenced_distant_picks.sql`
 
-1. Freeze the reviewed release commit and record the deployed frontend and Edge provenance.
-   Run `npm ci`, `npm run check:quality`, `npm test`, and `npm run check:edge-functions`.
-   Run `npm run check:db-function-sources`, `npm run check:db-function-catalog`, and the full `npm run test:db` on an isolated stack.
-   Run `npx vitest run tests/release-edge-compatibility.test.ts` and the deployed-to-release soak against the actual migration range.
-   Save the migration plan and its attestation before production work.
-2. Confirm the project's scoped production link and inspect `supabase migration list --linked`.
-   Run `supabase db push --linked --dry-run` from the frozen release checkout.
-   Confirm applied history matches the 431-version production baseline.
-   The dry-run must show exactly 117 versions: the 63 pending main migrations, then the 54 unpublished migrations.
-   Verify their names and version order against the approved plan.
-   Use the workflow's approved `supabase/predeploy/` index preparation and migration-plan attestation checks.
-   Then run `supabase db push --linked --yes` under production approval.
-3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
-   Verify the deployed frontend and old Edge still pass the workflow's post-migration current-release readiness checks.
-   Verify `add_free_agent_atomic` accepts optional `p_to_ir` and `p_to_taxi`.
-   Verify `waiver_claims.to_ir`, `waiver_claims.to_taxi`, `player_game_stats.is_home`, and `get_visible_player_totals` exist.
-   Before Edge deployment, `sync-player-injuries` dispatch can return HTTP 404 harmlessly.
-   This absence must cause no alert, rapid retry, or failed readiness check.
-   Check the deployed client's hint topics and inventory details remain accepted.
-   Stop if any check fails; keep the old frontend and Edge on the compatible migrated database.
-4. Stamp the approved Edge artifact with `PANCAKE_RELEASE_SHA=<reviewed-sha> node scripts/stamp-edge-release-provenance.mjs`.
-   Run `supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"` under production approval.
-   Include the new `sync-player-injuries` function in the stamped artifact and deployment.
-   Verify `/health` reports the reviewed commit and Edge digest.
-   Run the workflow's current-frontend/new-Edge and candidate-frontend/new-Edge readiness checks before merging.
-   Confirm one straight-to-taxi add and one straight-to-IR add.
-   Check waiver claims, visible player totals, trades, and notification delivery.
-   Verify `sync-player-injuries` records its own run and refreshes injuries without a full player sync.
-   If Edge checks fail, restore the recorded old Edge artifact and repeat current-release readiness checks.
-   `supabase functions deploy` does not delete functions absent from the restored artifact.
-   The new `sync-player-injuries` function can stay deployed after rollback or be absent; both states are safe.
-5. Merge only after the database and Edge checks pass.
-   Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
-   If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
+The first migration limits new pick assets to three future draft classes and corrects pick years in trade-expiry messages.
+It also rejects trades containing retained picks beyond that window.
+The second removes unused, unreferenced picks beyond the third future class.
+It discovers every foreign key to `draft_picks` and preserves referenced picks, activity references, used picks, and rookie draft assignments.
+For OFFICIAL LEAGUE at season 2027, the expected cleanup removes 42 picks from seasons 2031 and 2032.
+The remaining future classes are seasons 2028–2030, displayed as draft years 2027–2029.
 
-The following 54 unpublished migrations follow the 63 pending main migrations in version order.
-Compare this list with the frozen checkout and approved plan before deployment.
+The existing Edge and frontend remain compatible throughout the database phase and after rollback.
+Stored years, RPC arguments, RPC results, permissions, and table shapes stay unchanged.
+Regenerate the final release and database security attestations after all follow-up migrations are integrated.
+Do not reuse the previous release's approved migration range.
+The reserved `20261027000000` legacy-push cleanup is separate from this pick release.
 
-- `20261024100001_straight_to_ir.sql`
-- `20261024100002_live_player_season_totals.sql`
-- `20261024100003_reconciliation_writes_and_poll_gate.sql`
-- `20261024100004_visible_player_totals.sql`
-- `20261024100005_activity_feed_hide_trade_block.sql`
-- `20261025000030_trade_counterparty.sql`
-- `20261025000031_trade_offer_page_refs.sql`
-- `20261025000040_rookie_member_activation.sql`
-- `20261025000041_activity_change_hints.sql`
-- `20261025000050_avoid_unchanged_score_finalization.sql`
-- `20261025000051_bound_edge_response_reconciliation.sql`
-- `20261025000052_ignore_game_progress_hints.sql`
-- `20261025000053_remove_stale_schedule_descriptions.sql`
-- `20261025000054_reduce_inventory_hint_drain.sql`
-- `20261025000055_drop_retired_server_functions.sql`
-- `20261025000070_scoring_bonus_settings.sql`
-- `20261025000071_waiver_run_order.sql`
-- `20261025000072_trade_waiver_drop_settlement.sql`
-- `20261025000073_trade_activity_privacy.sql`
-- `20261025000074_rookie_acquisition_guard.sql`
-- `20261025000075_playoff_seed_rates.sql`
-- `20261025000076_cancelled_waiver_privacy.sql`
-- `20261025000077_seed_correction_window.sql`
-- `20261025000090_waiver_hold_before_roster_capacity.sql`
-- `20261025000091_rookie_drop_activation.sql`
-- `20261025000092_queue_waiver_notifications.sql`
-- `20261025000093_drop_retired_push_functions.sql`
-- `20261025000094_roster_claim_and_activity_corrections.sql`
-- `20261026000010_accept_server_generated_schedule.sql`
-- `20261026000011_restore_boundary_correction_window.sql`
-- `20261026000012_dispatch_drafting_boundary.sql`
-- `20261026000013_scope_visible_activity_hints.sql`
-- `20261026000014_drop_unused_score_decision.sql`
-- `20261026000015_store_game_team_side.sql`
-- `20261026000030_faab_trade_reservations.sql`
-- `20261026000031_season_offer_and_priority_rules.sql`
-- `20261026000032_trade_offer_roster_validation.sql`
-- `20261026000033_roster_claim_retention.sql`
-- `20261026000034_trade_notification_privacy.sql`
-- `20261026000035_waiver_run_clearance.sql`
-- `20261026000060_team_name_validation.sql`
-- `20261026000061_remove_unused_database_objects.sql`
-- `20261026000080_retire_expo_push_storage.sql`
-- `20261026000100_keep_deployed_edge_push_compatibility.sql`
-- `20261026000101_order_rookie_activation_locks.sql`
-- `20261026000200_merge_main_function_bodies.sql`
-- `20261026000300_server_release_corrections.sql`
-- `20261026000400_server_release_followups.sql`
-- `20261026000500_server_release_repairs.sql`
-- `20261026000700_taxi_and_server_rules.sql`
-- `20261026000800_player_import_injury_and_retired_enums.sql`
-- `20261026000900_roster_and_dispatch_repairs.sql`
-- `20261026000901_activity_feed_public_rows.sql`
-- `20261026001000_remove_e2e_fixture_players.sql`
+1. Freeze the reviewed commit and record the deployed frontend and Edge artifacts.
+2. Run the focused database recipes and the generated-source, catalog, type, and Edge checks on an isolated stack.
+3. Verify the approved migration plan against the deployed baseline, then apply it through the release workflow.
+4. Check the deployed frontend and Edge against the migrated database before replacing either artifact.
+5. Deploy Edge, verify compatibility, then deploy the frontend.
+6. If deployment fails, restore the old frontend and Edge while keeping the compatible migrated database.
+
+The new focused recipes are:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window-cleanup.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-draft-year.sql
+PANCAKE_PICK_WINDOW_DB_TESTS=1 npx vitest run tests/e2e/pick-window-harness.test.ts
+```
+
+The harness recipe also requires the isolated stack's `E2E_SUPABASE_URL`, `E2E_PANCAKE_SUPABASE_SECRET_KEY`, and `E2E_SUPABASE_PUBLISHABLE_KEY`.
 
 ## Acquisition contract
 

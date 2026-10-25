@@ -30,7 +30,7 @@ BEGIN
                WHEN p_pick_consumed THEN 'The %s round %s pick has been used in the draft.'
                ELSE 'The %s round %s pick is no longer owned by %s.'
              END,
-             pick.season_year,
+             pick.season_year - 1,
              pick.round,
              COALESCE(member.team_name, 'the offering team')
            )

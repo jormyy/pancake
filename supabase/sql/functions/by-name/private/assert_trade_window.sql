@@ -25,6 +25,13 @@ BEGIN
     RAISE EXCEPTION 'Picks from past seasons cannot be traded.' USING ERRCODE='P0001';
   END IF;
   IF EXISTS (
+    SELECT 1 FROM public.draft_picks pick JOIN public.league_seasons season
+      ON season.league_id=pick.league_id AND season.is_current
+    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year>season.season_year+3
+  ) THEN
+    RAISE EXCEPTION 'Only the next three future draft years can be traded.' USING ERRCODE='P0001';
+  END IF;
+  IF EXISTS (
     SELECT 1 FROM public.drafts draft
     JOIN public.league_seasons season ON season.id=draft.league_season_id AND season.is_current
     JOIN public.snake_draft_picks slot ON slot.draft_id=draft.id

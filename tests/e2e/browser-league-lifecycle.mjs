@@ -91,7 +91,7 @@ const createConfirmedUser = async (admin, user) => {
   return { ...user, id: data.user.id }
 }
 
-const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, managerUserId, inviteCode }) => {
+export const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, managerUserId, inviteCode }) => {
   const failures = []
   const { data: league, error: leagueError } = await admin
     .from('leagues')
@@ -141,9 +141,9 @@ const verifyLeagueState = async ({ admin, leagueId, commissionerUserId, managerU
     .select('id', { count: 'exact', head: true })
     .eq('league_id', leagueId)
     .gte('season_year', currentSeasonYear + 1)
-    .lte('season_year', currentSeasonYear + 5)
+    .lte('season_year', currentSeasonYear + 3)
   if (pickError) throw new Error(`D.SET.2 browser pick bank read: ${pickError.message}`)
-  const expectedPickCount = memberCount * 5 * 3
+  const expectedPickCount = memberCount * 3 * 3
   if (pickCount !== expectedPickCount) failures.push(`draft_picks=${pickCount}; expected ${expectedPickCount}`)
 
   return { failures, league, members, currentSeason: season?.[0] ?? null, pickCount }
