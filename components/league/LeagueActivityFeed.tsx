@@ -1,3 +1,4 @@
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
@@ -71,6 +72,8 @@ export function ActivityFeed({
     transactions,
     myMemberId,
     onLoadMore,
+    onRefresh,
+    refreshing,
     hasMore,
     loading,
     loadingMore,
@@ -79,12 +82,15 @@ export function ActivityFeed({
     transactions: TransactionRow[]
     myMemberId?: string
     onLoadMore?: () => void
+    onRefresh?: () => void | Promise<void>
+    refreshing?: boolean
     hasMore?: boolean
     loading?: boolean
     loadingMore?: boolean
     loadMoreError?: string | null
 }) {
     const statusScroll = useScreenStatusScroll()
+    const pullRefresh = usePullToRefresh(onRefresh, Boolean(refreshing), statusScroll.onScroll)
     const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
@@ -161,10 +167,12 @@ export function ActivityFeed({
     return (
         <View style={styles.column}>
             <FlashList
-                onScroll={statusScroll.onScroll}
+                {...pullRefresh}
                 scrollEventThrottle={16}
                 contentContainerStyle={statusScroll.contentStyle()}
                 data={transactions}
+                onRefresh={onRefresh}
+                refreshing={Boolean(refreshing)}
                 keyExtractor={(t) => t.id}
                 ItemSeparatorComponent={ItemSeparator}
                 renderItem={renderItem}

@@ -137,6 +137,8 @@ function LeagueScreen() {
                 transactions={screen.transactions}
                 myMemberId={screen.current?.id}
                 onLoadMore={screen.handleLoadMoreActivity}
+                onRefresh={screen.retryCurrentTab}
+                refreshing={screen.isTabRefreshing}
                 hasMore={screen.activityHasMore && !screen.activityLoadingMore}
                 loading={screen.isTabLoading}
                 loadingMore={screen.activityLoadingMore}

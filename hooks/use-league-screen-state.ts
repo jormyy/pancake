@@ -172,7 +172,7 @@ export function useLeagueScreenState() {
         openTeamRoster: (memberId: string, teamName: string) =>
             push({ pathname: '/(modals)/team-roster', params: { memberId, teamName } }),
         retryActiveDraft: draft.retryActiveDraft,
-        retryCurrentTab: () => currentLeague?.id && tabResources.refreshTab(tab),
+        retryCurrentTab: () => currentLeague?.id ? tabResources.refreshTab(tab) : Promise.resolve(),
         rookieRounds: draft.rookieRounds,
         rookieTimerExpiryBehavior: draft.rookieTimerExpiryBehavior,
         mockNominationMode: mockRooms.mockNominationMode,

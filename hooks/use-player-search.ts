@@ -605,7 +605,7 @@ export function useVisiblePlayerRows(players: PlayerRow[], leagueId: string | nu
         let registering = true
         const stop = listenForLeagueChanges(leagueId, change => {
             if (registering && change.topic === 'catchup') return
-            if (['player_stats', 'game', 'catchup'].includes(change.topic)) schedule()
+            if (['score', 'player_stats', 'game', 'catchup'].includes(change.topic)) schedule()
         })
         registering = false
         if (Date.now() - oldestRead() >= 10_000) schedule()

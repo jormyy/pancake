@@ -1,4 +1,5 @@
 import { HomeAnnouncementBanner } from '@/components/HomeAnnouncementBanner'
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useLeagueAnnouncements } from '@/hooks/use-league-announcements'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import {
@@ -6,6 +7,7 @@ import {
     Text,
     StyleSheet,
     ScrollView,
+    RefreshControl,
     useWindowDimensions,
     type StyleProp,
     type ViewStyle,
@@ -69,6 +71,12 @@ export default function HomeScreen() {
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh, emptyConfirmed,
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const { refresh: refreshAnnouncements, refreshing: announcementsRefreshing } = announcements
+    const refreshHome = useCallback(async () => {
+        await Promise.all([refresh(), refreshAnnouncements()])
+    }, [refresh, refreshAnnouncements])
+    const refreshingHome = Boolean(matchupRefreshing || announcementsRefreshing)
+    const railPullRefresh = usePullToRefresh(refreshHome, refreshingHome)
     const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })
 
     const livePlayerIds = useMemo(() => [myLineup, oppLineup].flatMap(lineup => lineup ? [
@@ -211,10 +219,10 @@ export default function HomeScreen() {
     return (
         <Page title="Matchup" width="full">
             {/* The error card owns the retry when there is no matchup to show; the banner covers a failed refresh over live data. */}
-            {error && homeSurface !== 'error' && <ErrorBanner onRetry={refresh} />}
+            {error && homeSurface !== 'error' && <ErrorBanner onRetry={refreshHome} />}
 
             {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
-            <DeferredContent ready={announcements.loaded && homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={matchupRefreshing || lineupLoading}>
+            <DeferredContent ready={announcements.loaded && homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={refreshingHome || lineupLoading}>
             {league ? <HomeAnnouncementBanner key={`${user.id}:${league.id}`} announcements={announcements.announcements} ownerId={user.id} leagueId={league.id} padX={padX} /> : null}
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
@@ -229,6 +237,8 @@ export default function HomeScreen() {
                             getTargetState={getTargetState}
                             onTap={handleTap}
                             saving={saving || autoSetting}
+                            onRefresh={refreshHome}
+                            refreshing={refreshingHome}
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
@@ -264,7 +274,9 @@ export default function HomeScreen() {
                     </View>
                     {twoPane ? (
                         <ScrollView
+                            {...railPullRefresh}
                             style={styles.rail}
+                            refreshControl={<RefreshControl refreshing={refreshingHome} onRefresh={refreshHome} tintColor={colors.primaryDark} />}
                             contentContainerStyle={styles.railContent}
                             showsVerticalScrollIndicator={false}
                         >
@@ -295,7 +307,7 @@ export default function HomeScreen() {
                         message="Couldn't load your matchup"
                         description="Check your connection and try again. Nothing here is stale data."
                         actionLabel="Retry"
-                        onAction={refresh}
+                        onAction={refreshHome}
                     />
                 </View>
             ) : (
@@ -421,6 +433,8 @@ function MatchupLineupView({
     getTargetState,
     onTap,
     saving,
+    onRefresh,
+    refreshing,
     playingTeams,
     liveStats,
     liveTeams,
@@ -441,6 +455,8 @@ function MatchupLineupView({
     getTargetState: (selection: LineupSelection) => LineupMoveTargetState
     onTap: (sel: LineupSelection) => void
     saving: boolean
+    onRefresh: () => Promise<void>
+    refreshing: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
@@ -456,6 +472,7 @@ function MatchupLineupView({
     autoSetControl?: ReactNode
     footer?: ReactNode
 }) {
+    const pullRefresh = usePullToRefresh(onRefresh, refreshing)
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
     const maxIR = Math.max(myLineup.ir.length, oppLineup.ir.length, capacity.ir)
@@ -539,7 +556,9 @@ function MatchupLineupView({
             {daySelector}
 
             <ScrollView
+                {...pullRefresh}
                 style={styles.lineupRows}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryDark} />}
                 contentContainerStyle={styles.lineupRowsContent}
                 showsVerticalScrollIndicator={false}
                 nestedScrollEnabled

@@ -9,7 +9,7 @@ import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
 import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
-import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueActivityChanged, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -170,6 +170,15 @@ export function useLeagueTabResources(
         return resourcesRef.current[target].refresh()
     }, [resetActivityPagination])
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const resume = () => {
+            if (admissionRef.current() && resourceTab(activeTabRef.current) === 'history') void refreshTab('history')
+        }
+        window.addEventListener('focus', resume)
+        return () => window.removeEventListener('focus', resume)
+    }, [refreshTab])
+
     useFocusEffect(useCallback(() => {
         focused.current = true
         return () => {
@@ -189,16 +198,24 @@ export function useLeagueTabResources(
         }
     }, [isOnline, resetActivityPagination])
 
+    useFocusEffect(useCallback(() => {
+        if (!activeResourceKey) return
+        if (resourceTab(activeTab) === 'history') { resetActivityPagination(); resourcesRef.current.history.invalidate(false) }
+        ensureTab(activeTab)
+    }, [activeResourceKey, activeTab, ensureTab, resetActivityPagination]))
+
+    const browserRevision = useRef(activity.revision)
     useEffect(() => {
+        const resumed = browserRevision.current !== activity.revision
+        browserRevision.current = activity.revision
         if (!admissionRef.current()) {
             for (const resource of Object.values(resourcesRef.current)) resource.suspend()
             suspendActivityPagination()
-        } else if (activeResourceKey) ensureTab(activeTab)
-    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination])
-
-    useFocusEffect(useCallback(() => {
-        if (activeResourceKey) ensureTab(activeTab)
-    }, [activeResourceKey, activeTab, ensureTab]))
+        } else if (activeResourceKey) {
+            if (resumed && resourceTab(activeTab) === 'history') { resetActivityPagination(); resourcesRef.current.history.invalidate(false) }
+            ensureTab(activeTab)
+        }
+    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination, resetActivityPagination])
 
     const loadMoreActivity = useCallback(async () => {
         const resource = resourcesRef.current.history
@@ -238,7 +255,7 @@ export function useLeagueTabResources(
         let registering = true
         const stop = listenForLeagueChanges(leagueId, (change) => {
             if (registering && change.topic === 'catchup') return
-            if (leagueResourceAffects(change, ['activity'])) refresh.trigger()
+            if (leagueActivityChanged(change)) refresh.trigger()
         })
         registering = false
         return () => { stop(); refresh.cancel() }

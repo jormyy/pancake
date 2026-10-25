@@ -117,6 +117,10 @@ export function leagueResourceAffects(change: LeagueChange, resources: ResourceD
         && (!detail.member_id || !selection.memberId || detail.member_id === selection.memberId))
 }
 
+export function leagueActivityChanged(change: LeagueChange): boolean {
+    return change.topic === 'roster' || leagueResourceAffects(change, ['activity', 'season', 'picks', 'waivers', 'priority', 'faab', 'scoring'])
+}
+
 export function leagueChangeReceiver(leagueId: string, receive: Listener) {
     const revisions = new Map<string, bigint>()
     const consume = (row: Record<string, unknown>) => {
