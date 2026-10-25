@@ -213,6 +213,61 @@ The default list has no separate Dynasty tab.
 Its Dynasty scenario follows the legacy bookmark into Players rankings.
 Settings scenarios cover profile editing, password changes, lineup options, and player filters.
 
+## Capture taxi screens
+
+Run the taxi file with a manager that no other capture uses.
+First run `node scripts/ios-sim/stack.mjs start` without reset.
+Stop if its schema check fails.
+The capture command reuses the connection without checking migration compatibility.
+Use this command for the taxi review:
+
+```sh
+node scripts/ios-sim/run.mjs \
+  --device pancake-uitaxi \
+  --port 8511 \
+  --manager 7 \
+  --scenarios scripts/ios-sim/scenarios/taxi.json \
+  --scenario taxi
+```
+
+The file contains 18 scenarios and 48 measured steps.
+Each surface has a light and dark capture in the `taxi` group.
+The Players capture selects **All players** so waiver players appear too.
+
+| Surface | Captures |
+| --- | --- |
+| Players | Rookie and Taxi, Taxi only at 64 games, neither at 65 games |
+| Player detail | Rookie and Taxi tags |
+| Add with active space | Add and Add to taxi, completed taxi add, Taxi squad on Roster |
+| Add with full active roster | Add to taxi above drop choices |
+| Waiver claim | Place on taxi defaults on, active drop requirement, taxi without a drop |
+| Illegal taxi | Named Roster banner with Activate and Drop, blocked add sheet |
+| Healthy IR | Named Roster banner with Activate and Drop, blocked add sheet |
+| Trade with illegal taxi or IR | Trade editor, assets, review, blocked send sheet |
+
+Trade fixtures remove the deadline and mark startup auctions as mock during the capture.
+They restore both values afterward.
+The client permits opening the trade editor while the roster is illegal.
+It opens **Resolve roster** when the user taps **Confirm and send trade**.
+The claim drop heading can read **DROP A PLAYER FOR CLAIM** on compact screens.
+Larger screens use **DROP A PLAYER (required)**.
+
+The taxi fixture sets experience, career games, injuries, and open taxi space explicitly.
+It uses rookies with zero games, non-rookies with 64 games, and veterans with 65 games.
+It sets the active limit from the manager's actual roster.
+The open-space add checks the acquired player's taxi flag in the database.
+Preview and blocked actions must preserve roster rows, transactions, claims, add counts, and sent trade IDs.
+
+Each capture restores player data, league limits, waiver deadlines, and add counts after success or failure.
+It removes capture acquisitions, transactions, claims, activity, and sent offers.
+Acquisition cleanup removes its acquisition context and uses the local draft-reset context to prevent a permanent taxi exit.
+The fixture never activates or drops an existing roster player.
+
+Use only the runner's locks with the shared service.
+Do not reset or stop it during another capture.
+If a required lock stays held for ten minutes, stop waiting and report device captures as pending.
+Run `tests/ios-sim` and parse the scenario file through `expandScenarios` before handing it off.
+
 ## Add a scenario
 
 Add a JSON row with a unique name, starting route, and measured steps.
