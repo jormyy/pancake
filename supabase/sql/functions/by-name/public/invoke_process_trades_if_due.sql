@@ -5,6 +5,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  PERFORM public.notif_scan_due_atomic();
   IF EXISTS (
     SELECT 1 FROM public.trades pending
     WHERE pending.status = 'pending'::public.trade_status
@@ -19,11 +20,13 @@ BEGIN
       AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
-    WHERE queued.category IN ('trade', 'activity', 'waiver', 'draft')
+    WHERE queued.suppressed_at IS NULL
+      AND queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
       AND queued.delivered_at IS NULL
       AND queued.dead_lettered_at IS NULL
       AND queued.expo_ticket_id IS NULL
       AND queued.available_at <= now()
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
       AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - interval '60 seconds')
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued

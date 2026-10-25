@@ -20,6 +20,14 @@ const ESPN_HEADERS = {
 const MIN_TEAMS = 28
 const MIN_PLAYERS = 350
 
+// The franchises a listing must cover before it can name anyone's absence,
+// in players.nba_team codes. Covering them is necessary, not sufficient: a
+// page can answer 200 and still omit a signed player.
+const NBA_TEAM_CODES = [
+  'ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
+  'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS',
+]
+
 // ESPN team abbreviations that differ from the NBA/Sleeper codes stored in
 // players.nba_team.
 const ESPN_TEAM_CODES: Record<string, string> = {
@@ -131,8 +139,36 @@ function eligibleForPosition(position: string | null): string[] {
   return position ? [position] : []
 }
 
+type EspnRoster = { teamCode: string | null; athletes: EspnAthlete[] }
+
+const identified = (athlete: EspnAthlete) => athlete.id != null && Boolean(athlete.firstName || athlete.lastName)
+
+/**
+ * Reasons the fetched rosters cannot name every signed NBA player: a team
+ * missing, repeated or unknown, an empty roster page, or an athlete the
+ * import cannot key. No reasons means only that no gap is visible; a page
+ * that silently omits a player looks the same.
+ */
+export function espnListingGaps(rosters: EspnRoster[]): string[] {
+  const gaps: string[] = []
+  const pages = new Map<string, number>()
+  for (const roster of rosters) {
+    const code = roster.teamCode ?? 'no team code'
+    pages.set(code, (pages.get(code) ?? 0) + 1)
+    if (!NBA_TEAM_CODES.includes(code)) gaps.push(`unexpected team ${code}`)
+    if (roster.athletes.length === 0) gaps.push(`empty roster ${code}`)
+    const unkeyed = roster.athletes.filter((athlete) => !identified(athlete)).length
+    if (unkeyed > 0) gaps.push(`${unkeyed} unidentified athlete(s) on ${code}`)
+  }
+  for (const code of NBA_TEAM_CODES) {
+    const count = pages.get(code) ?? 0
+    if (count !== 1) gaps.push(count === 0 ? `missing roster ${code}` : `${count} rosters for ${code}`)
+  }
+  return gaps
+}
+
 function buildEspnRecords(
-  rosters: { teamCode: string | null; athletes: EspnAthlete[] }[],
+  rosters: EspnRoster[],
   injuriesByName: Map<string, string>,
 ): SourcePlayerRecord[] {
   const athleteName = (athlete: EspnAthlete) =>
@@ -150,7 +186,7 @@ function buildEspnRecords(
   const records: SourcePlayerRecord[] = []
   for (const roster of rosters) {
     for (const athlete of roster.athletes) {
-      if (athlete.id == null || (!athlete.firstName && !athlete.lastName)) continue
+      if (!identified(athlete)) continue
       const espnId = String(athlete.id)
       const position = mapEspnPosition(athlete.position?.abbreviation)
       const name = athleteName(athlete)
@@ -170,7 +206,7 @@ function buildEspnRecords(
   return records
 }
 
-export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
+export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[] }> {
   const teamsRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams`, { headers: ESPN_HEADERS })
   if (!teamsRes.ok) {
     await teamsRes.body?.cancel()
@@ -181,7 +217,7 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
     throw new Error(`ESPN teams payload degraded: ${teams.length} teams (< ${MIN_TEAMS}); refusing to write`)
   }
 
-  const rosters: { teamCode: string | null; athletes: EspnAthlete[] }[] = []
+  const rosters: EspnRoster[] = []
   await runBounded(teams.map((team) => async () => {
     const res = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams/${team.id}/roster`, { headers: ESPN_HEADERS })
     if (!res.ok) {
@@ -203,7 +239,7 @@ export async function fetchEspnPlayerRecords(): Promise<SourcePlayerRecord[]> {
   if (records.length < MIN_PLAYERS) {
     throw new Error(`ESPN player payload degraded: ${records.length} players (< ${MIN_PLAYERS}); refusing to write`)
   }
-  return records
+  return { records, gaps: espnListingGaps(rosters) }
 }
 
 type SourceNewsItem = {

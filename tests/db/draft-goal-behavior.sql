@@ -34,7 +34,7 @@ INSERT INTO public.roster_players (id, league_id, league_season_id, member_id, p
 VALUES ('00000000-0000-0000-0000-000000010501', '00000000-0000-0000-0000-000000010201', '00000000-0000-0000-0000-000000010401', '00000000-0000-0000-0000-000000010301', '00000000-0000-0000-0000-000000010101', 'draft');
 
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, started_at, is_mock, pick_timer_seconds, rounds, timer_expiry_behavior)
-VALUES ('00000000-0000-0000-0000-000000010601', '00000000-0000-0000-0000-000000010201', '00000000-0000-0000-0000-000000010401', 'snake', 'in_progress', now(), true, 5, 1, 'auto_pick');
+VALUES ('00000000-0000-0000-0000-000000010601', '00000000-0000-0000-0000-000000010201', '00000000-0000-0000-0000-000000010401', 'snake', 'in_progress', now(), true, 60, 1, 'auto_pick');
 
 INSERT INTO public.snake_draft_picks (id, draft_id, overall_pick, round, pick_in_round, member_id, timer_expires_at)
 VALUES ('00000000-0000-0000-0000-000000010701', '00000000-0000-0000-0000-000000010601', 1, 1, 1, '00000000-0000-0000-0000-000000010302', now() - interval '1 second');
@@ -78,7 +78,7 @@ INSERT INTO public.league_seasons (id, league_id, season_year, is_current)
 VALUES ('00000000-0000-0000-0000-000000010407', '00000000-0000-0000-0000-000000010207', 2099, true);
 
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, started_at, is_mock, pick_timer_seconds, rounds, timer_expiry_behavior)
-VALUES ('00000000-0000-0000-0000-000000010611', '00000000-0000-0000-0000-000000010207', '00000000-0000-0000-0000-000000010407', 'snake', 'in_progress', now(), true, 5, 1, 'auto_pick');
+VALUES ('00000000-0000-0000-0000-000000010611', '00000000-0000-0000-0000-000000010207', '00000000-0000-0000-0000-000000010407', 'snake', 'in_progress', now(), true, 60, 1, 'auto_pick');
 
 INSERT INTO public.snake_draft_picks (id, draft_id, overall_pick, round, pick_in_round, member_id, timer_expires_at)
 VALUES ('00000000-0000-0000-0000-000000010711', '00000000-0000-0000-0000-000000010611', 1, 1, 1, '00000000-0000-0000-0000-000000010313', now() - interval '1 second');
@@ -156,11 +156,11 @@ VALUES
 
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, started_at, is_mock, pick_timer_seconds, rounds, timer_expiry_behavior)
 VALUES
-  ('00000000-0000-0000-0000-000000010602', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), false, 5, 1, 'skip_pick'),
-  ('00000000-0000-0000-0000-000000010603', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 5, 1, 'pause_draft'),
-  ('00000000-0000-0000-0000-000000010606', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 5, 1, 'commissioner_pick'),
-  ('00000000-0000-0000-0000-000000010609', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 5, 1, 'commissioner_pick'),
-  ('00000000-0000-0000-0000-000000010610', '00000000-0000-0000-0000-000000010206', '00000000-0000-0000-0000-000000010406', 'snake', 'in_progress', now(), false, 5, 1, 'skip_pick');
+  ('00000000-0000-0000-0000-000000010602', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), false, 60, 1, 'skip_pick'),
+  ('00000000-0000-0000-0000-000000010603', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 60, 1, 'pause_draft'),
+  ('00000000-0000-0000-0000-000000010606', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 60, 1, 'commissioner_pick'),
+  ('00000000-0000-0000-0000-000000010609', '00000000-0000-0000-0000-000000010202', '00000000-0000-0000-0000-000000010402', 'snake', 'in_progress', now(), true, 60, 1, 'commissioner_pick'),
+  ('00000000-0000-0000-0000-000000010610', '00000000-0000-0000-0000-000000010206', '00000000-0000-0000-0000-000000010406', 'snake', 'in_progress', now(), false, 60, 1, 'skip_pick');
 
 INSERT INTO public.snake_draft_picks (id, draft_id, overall_pick, round, pick_in_round, member_id, draft_pick_id, timer_expires_at)
 VALUES
@@ -398,8 +398,8 @@ VALUES
 
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, started_at, is_mock, pick_timer_seconds, rounds, timer_expiry_behavior)
 VALUES
-  ('00000000-0000-0000-0000-000000010607', '00000000-0000-0000-0000-000000010204', '00000000-0000-0000-0000-000000010404', 'snake', 'in_progress', now(), false, 5, 1, 'auto_pick'),
-  ('00000000-0000-0000-0000-000000010608', '00000000-0000-0000-0000-000000010205', '00000000-0000-0000-0000-000000010405', 'snake', 'in_progress', now(), false, 5, 1, 'auto_pick');
+  ('00000000-0000-0000-0000-000000010607', '00000000-0000-0000-0000-000000010204', '00000000-0000-0000-0000-000000010404', 'snake', 'in_progress', now(), false, 60, 1, 'auto_pick'),
+  ('00000000-0000-0000-0000-000000010608', '00000000-0000-0000-0000-000000010205', '00000000-0000-0000-0000-000000010405', 'snake', 'in_progress', now(), false, 60, 1, 'auto_pick');
 
 INSERT INTO public.snake_draft_picks (id, draft_id, overall_pick, round, pick_in_round, member_id, draft_pick_id, timer_expires_at)
 VALUES
@@ -466,7 +466,7 @@ VALUES ('00000000-0000-0000-0000-000000010403', '00000000-0000-0000-0000-0000000
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, budget_per_team, started_at, pick_timer_seconds, rounds, pause_reason)
 VALUES
   ('00000000-0000-0000-0000-000000010604', '00000000-0000-0000-0000-000000010203', '00000000-0000-0000-0000-000000010403', 'auction', 'in_progress', 200, now(), 30, null, NULL),
-  ('00000000-0000-0000-0000-000000010605', '00000000-0000-0000-0000-000000010203', '00000000-0000-0000-0000-000000010403', 'snake', 'paused', null, now(), 30, 1, 'manual');
+  ('00000000-0000-0000-0000-000000010605', '00000000-0000-0000-0000-000000010203', '00000000-0000-0000-0000-000000010403', 'snake', 'paused', null, now(), 60, 1, 'manual');
 
 INSERT INTO public.nominations (id, draft_id, nominating_member_id, player_id, nomination_order, status, current_bid_amount, countdown_expires_at)
 VALUES ('00000000-0000-0000-0000-000000010901', '00000000-0000-0000-0000-000000010604', '00000000-0000-0000-0000-000000010305', '00000000-0000-0000-0000-000000010103', 1, 'open', 1, now() + interval '30 seconds');

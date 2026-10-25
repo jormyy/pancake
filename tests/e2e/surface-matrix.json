@@ -61,6 +61,20 @@
       }
     },
     {
+      "id": "notification-settings",
+      "routeLabel": "notification-settings",
+      "source": "app/(modals)/notification-settings.tsx",
+      "path": "/notification-settings",
+      "functionIds": ["notification-settings"],
+      "contracts": {
+        "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session", "profile-data"], "proofIds": ["browser.surface_online", "browser.notification_settings"] },
+        "freshness": { "mode": "required", "dataClassIds": ["profile-data"], "proofIds": ["browser.notification_settings"] },
+        "realtime": { "mode": "not-applicable", "reason": "Account choices refresh on open and retry." },
+        "autoUpdate": { "mode": "required", "dataClassIds": ["profile-data"], "proofIds": ["browser.notification_settings", "browser.surface_reconnect"] },
+        "pwa": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
+      }
+    },
+    {
       "id": "claim-player",
       "routeLabel": "claim-player",
       "source": "app/(modals)/claim-player.tsx",
@@ -412,6 +426,7 @@
   ],
   "functions": [
     { "id": "auth-account", "targetIds": ["auth-sign-in", "auth-sign-up", "change-password", "profile", "background-auth-session"], "happyPathEvidenceIds": ["browser.auth"], "failurePaths": [{ "id": "protected-route-and-invalid-session", "evidenceIds": ["browser.auth"] }], "recoveryPaths": [{ "id": "sign-in-persist-sign-out", "evidenceIds": ["browser.auth"] }] },
+    { "id": "notification-settings", "targetIds": ["notification-settings"], "happyPathEvidenceIds": ["browser.notification_settings"], "failurePaths": [{ "id": "preference-read-and-save-fail-closed", "evidenceIds": ["browser.notification_settings"] }], "recoveryPaths": [{ "id": "retry-read-and-save", "evidenceIds": ["browser.notification_settings"] }] },
     { "id": "profile-settings", "targetIds": ["profile"], "happyPathEvidenceIds": ["browser.auth", "browser.surface_online"], "failurePaths": [{ "id": "profile-read-fails-closed", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "retry-restores-profile", "evidenceIds": ["browser.surface_reconnect"] }] },
     { "id": "league-lifecycle", "targetIds": ["create-league", "join-league", "profile"], "happyPathEvidenceIds": ["browser.league_lifecycle", "backend.league_lifecycle"], "failurePaths": [{ "id": "identity-or-invite-rejected", "evidenceIds": ["backend.league_lifecycle"] }], "recoveryPaths": [{ "id": "create-and-join-refresh-memberships", "evidenceIds": ["browser.league_lifecycle"] }] },
     { "id": "matchup-live", "targetIds": ["matchup-home"], "happyPathEvidenceIds": ["browser.performance", "realtime.delivery"], "failurePaths": [{ "id": "offline-keeps-stale-matchup", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "reconnect-refreshes-matchup", "evidenceIds": ["browser.surface_reconnect"] }] },

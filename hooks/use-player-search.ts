@@ -41,7 +41,8 @@ type CachedPage = {
 }
 type TimedPlayerTotals = { row: VisiblePlayerTotals | null; readAt: number }
 type PlayerTotalsSnapshot = { key: string; rows: Map<string, TimedPlayerTotals> }
-const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v1:'
+const PLAYER_SEARCH_CACHE_PREFIX = 'pancake:player-search:v2:'
+const ROOKIE_SEARCH_MAX_PAGES = 20
 const MAX_MEMORY_PAGES = 12
 const EMPTY_TEAMS: string[] = []
 
@@ -280,7 +281,30 @@ export function usePlayerSearch(
     const fetchCompleteResults = useCallback(async (params: PlayerSearchParams, canRead: () => boolean) => {
         const firstPage = await fetchPage(params, 0, canRead)
         if (!canRead()) throw new Error('Search read is no longer active')
-        return firstPage
+        if (!params.rookiesOnly || firstPage.length < PLAYER_SEARCH_PAGE_SIZE) return firstPage
+
+        // Fetch remaining pages in parallel batches instead of one-by-one —
+        // the rookie pool spans a handful of pages and serial awaits made the
+        // filter feel sluggish.
+        const players = [...firstPage]
+        const pageParams = { ...params, seasonYear: firstPage[0]?.stats_season_year ?? params.seasonYear }
+        const BATCH_SIZE = 4
+        let page = 1
+        while (page < ROOKIE_SEARCH_MAX_PAGES) {
+            if (!canRead()) throw new Error('Search read is no longer active')
+            const batchPages = Math.min(BATCH_SIZE, ROOKIE_SEARCH_MAX_PAGES - page)
+            const batch = await Promise.all(Array.from({ length: batchPages }, (_, i) =>
+                fetchPage(pageParams, (page + i) * PLAYER_SEARCH_PAGE_SIZE, canRead)))
+            if (!canRead()) throw new Error('Search read is no longer active')
+            let done = false
+            for (const nextPage of batch) {
+                players.push(...nextPage)
+                if (nextPage.length < PLAYER_SEARCH_PAGE_SIZE) { done = true; break }
+            }
+            if (done) break
+            page += batchPages
+        }
+        return players
     }, [fetchPage])
 
     useEffect(() => {
@@ -408,6 +432,10 @@ export function usePlayerSearch(
         try {
             const results = await fetchPage(params, nextOffset, () => loadMoreSeqRef.current === requestId && renderedKeyRef.current === paramsKey && activeRef.current)
             if (loadMoreSeqRef.current !== requestId || renderedKeyRef.current !== paramsKey || !activeRef.current) return
+            if (results.length > 0 && results[0].stats_season_year !== playersRef.current[0]?.stats_season_year) {
+                setRetryToken(token => token + 1)
+                return
+            }
             if (results.length > 0) {
                 offsetRef.current = nextOffset
                 const merged = [...playersRef.current, ...results]
@@ -431,6 +459,14 @@ export function usePlayerSearch(
             }
         }
     }, [cachePage, enabled, admitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
+
+    const isFallbackSeason = dataKey === searchParamsKey
+        && players[0]?.stats_season_year === currentSeasonYear() - 1
+    useEffect(() => {
+        if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null || !isFallbackSeason) return
+        const timer = setInterval(() => setRetryToken(token => token + 1), 60_000)
+        return () => clearInterval(timer)
+    }, [enabled, admitted, online, focused, visible, seasonYear, isFallbackSeason])
 
     const retry = useCallback(() => setRetryToken((token) => token + 1), [])
     const refreshIfChanged = useCallback(() => {

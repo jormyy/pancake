@@ -14,6 +14,7 @@ DECLARE
   v_distinct int;
   v_locked int;
   v_updated int;
+  v_input_token jsonb;
 BEGIN
   IF p_matchups IS NULL OR jsonb_typeof(p_matchups) <> 'array' THEN
     RAISE EXCEPTION 'p_matchups must be a JSON array.' USING ERRCODE = '22023';
@@ -44,6 +45,14 @@ BEGIN
   ) SELECT count(*) INTO v_locked FROM locked;
   IF v_locked <> v_requested THEN
     RAISE EXCEPTION 'p_matchups contains rows outside the target league season week.' USING ERRCODE = '22023';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_matchups) item WHERE item ? 'input_token') THEN
+    v_input_token := p_matchups->0->'input_token';
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_matchups) item WHERE item->'input_token' IS DISTINCT FROM v_input_token)
+      OR NOT private.lock_current_score_inputs(p_league_season_id, p_week_number, v_input_token) THEN
+      RAISE EXCEPTION 'Score inputs changed or were not certified. Retry scoring.' USING ERRCODE = 'PT409';
+    END IF;
   END IF;
 
   UPDATE public.matchups AS matchup SET home_points = requested.home_points, away_points = requested.away_points

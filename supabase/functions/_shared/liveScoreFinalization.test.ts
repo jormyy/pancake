@@ -29,8 +29,9 @@ for (const pending of [true, false]) {
     }
     try {
       await syncScores('league', new Date('2026-02-10T14:00:00Z'), { recoverStats: false })
-      const capture = calls.findIndex(call => call.startsWith('capture_score_inputs:'))
-      const pendingRead = calls.findIndex(call => call.startsWith('get_score_sync_games:'))
+      const finalization = calls.slice(calls.findIndex(call => call === 'matchups:end_week_number'))
+      const capture = finalization.findIndex(call => call.startsWith('capture_score_inputs:'))
+      const pendingRead = finalization.findIndex(call => call.startsWith('get_score_sync_games:'))
       assert.ok(pendingRead >= 0, 'finalization checks pending games')
       if (pending) {
         assert.equal(capture, -1, 'pending games must not acquire score input revisions')
@@ -38,8 +39,8 @@ for (const pending of [true, false]) {
         assert.equal(calls.some(call => call.startsWith('matchups:id,end_week_number')), false)
       } else {
         assert.ok(capture > pendingRead, 'cheap pending check precedes capture')
-        assert.ok(calls.findIndex(call => call.startsWith('leagues:')) > capture)
-        assert.ok(calls.findIndex(call => call.startsWith('matchups:id,end_week_number')) > capture)
+        assert.ok(finalization.findIndex(call => call.startsWith('leagues:')) > capture)
+        assert.ok(finalization.findIndex(call => call.startsWith('matchups:id,end_week_number')) > capture)
       }
     } finally { globalThis.fetch = nativeFetch }
   })

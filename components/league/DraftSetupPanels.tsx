@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { View, Text } from 'react-native'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { Button, usePageMetrics } from '@/components/ui'
@@ -57,6 +57,7 @@ export function DraftPanel({
     children: ReactNode
 }) {
     const { padX } = usePageMetrics()
+    const [timerValid, setTimerValid] = useState(true)
     const ready = !activeDraftLoading && !activeDraftError
     const canStartAuction = ready && !activeDraft && currentLeagueStatus === 'setup' && isCommissioner
     const canStartRookie = ready && !activeDraft && currentLeagueStatus === 'offseason' && isCommissioner
@@ -84,6 +85,8 @@ export function DraftPanel({
                         selectedValue={draftTimerSeconds}
                         onSelect={onDraftTimerSecondsChange}
                         groupLabel={canStartAuction ? 'Auction draft timer' : 'Rookie draft timer'}
+                        rookie={canStartRookie}
+                        onValidityChange={setTimerValid}
                     />
                     {canStartAuction ? (
                         <>
@@ -117,7 +120,7 @@ export function DraftPanel({
                     <Button
                         title={canStartAuction ? 'Start Auction Draft' : 'Start Rookie Draft'}
                         onPress={canStartAuction ? onStartDraft : onStartRookieDraft}
-                        disabled={draftLoading}
+                        disabled={draftLoading || !timerValid}
                         accessibilityLabel={startLabel}
                     />
                 </View>

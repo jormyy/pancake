@@ -15,7 +15,7 @@ export async function collect(options) {
   const previous = await readFile(manifestFile, 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })
   const manifest = new Map(previous.trim().split('\n').filter(Boolean).map(line => { const row = JSON.parse(line); return [row.key, row] }))
   const start = options.start ?? season.start
-  assert.ok(start >= season.start && start <= season.end, 'Select a date within the 2025-26 regular season')
+  assert.ok(start >= season.start && start <= season.end, 'Select a date within the pinned regular season')
   const end = options.days ? dates(start, season.end).slice(0, options.days).at(-1) : season.end
   assert.ok(end, 'No days selected')
   let fetched = 0
@@ -60,11 +60,11 @@ export async function collect(options) {
   console.log(JSON.stringify({ event: 'schedule', entries: schedule.length, completed: schedule.filter(game => game.completed).length, postponed: schedule.filter(game => game.status === 'STATUS_POSTPONED').length }))
 
   const allGames = new Map()
-  const count = options.games ?? 1230
+  const count = options.games ?? season.games
   let nextId = 1
   async function worker() {
     while (nextId <= count) {
-      const id = `00225${String(nextId++).padStart(5, '0')}`
+      const id = `${season.prefix}${String(nextId++).padStart(5, '0')}`
       const box = await source(`boxscore-${id}`, `${cdn}/liveData/boxscore/boxscore_${id}.json`, 'nba-boxscore')
       if (!box?.game) continue
       assert.equal(box.game.gameId, id)

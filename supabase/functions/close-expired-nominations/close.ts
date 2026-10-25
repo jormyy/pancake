@@ -1,6 +1,5 @@
 import type { Database } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
-import { queueRookiePickNotification } from '../_shared/notificationDraft.ts'
 
 const CLOSE_BATCH_LIMIT = 100
 
@@ -47,23 +46,9 @@ export async function closeExpiredNominations(): Promise<{
     )
   }
 
-  const pickedDraftIds = [...new Set(snakePickRows.filter(row => row.picked && !row.error_message && !row.error_code).map(row => row.draft_id))]
-  const realDraftIds = new Set<string>()
-  if (pickedDraftIds.length) {
-    const { data: drafts, error: draftError } = await supabase.from('drafts')
-      .select('id').in('id', pickedDraftIds).eq('draft_type', 'snake').eq('is_mock', false)
-    if (draftError) throw draftError
-    for (const draft of drafts ?? []) realDraftIds.add(draft.id)
-  }
-
   for (const result of snakePickRows) {
     if (!result.error_message && !result.error_code) {
-      if (result.picked) {
-        autoPicked += 1
-        if (realDraftIds.has(result.draft_id) && result.player_id) {
-          await queueRookiePickNotification(result.draft_id, result.member_id, result.player_id, result.pick_id)
-        }
-      }
+      if (result.picked) autoPicked += 1
       continue
     }
     failed += 1

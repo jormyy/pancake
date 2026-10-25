@@ -10,9 +10,9 @@ import {
     type NominationOrderMode,
     type RookieTimerExpiryBehavior,
 } from '@/lib/draft'
-import { getActiveRookieDraft, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
+import { getActiveRookieDraft, getRookieStartWarning, reseedRookieDraftPicks, startRookieDraft } from '@/lib/rookieDraft'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
-import { normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
+import { formatDraftDuration, normalizeDraftTimerSeconds, type DraftTimerOption, type RookieRoundOption } from '@/lib/draft-options'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
@@ -59,7 +59,7 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
     }
     const [draftLoadingOwner, setDraftLoadingOwner] = useState<string | null>(null)
     const [nominationMode, setNominationMode] = useState<NominationOrderMode>('user_nominated')
-    const [draftTimerSeconds, setDraftTimerSecondsState] = useState<DraftTimerOption>(30)
+    const [draftTimerSeconds, setDraftTimerSecondsState] = useState<DraftTimerOption>(60)
     const [rookieRounds, setRookieRounds] = useState<RookieRoundOption>(3)
     const [rookieTimerExpiryBehavior, setRookieTimerExpiryBehavior] =
         useState<RookieTimerExpiryBehavior>('auto_pick')
@@ -235,32 +235,38 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
         if (!leagueId || !admissionRef.current()) return
         const capturedLeagueId = leagueId
         const generation = mutationGenerationRef.current
-        confirmAction(
-            'Start Rookie Draft?',
-            `This will begin the rookie snake draft for ${rookieRounds} rounds with a ${draftTimerSeconds}-second timer and ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior].toLowerCase()} timeout behavior. This cannot be undone.`,
-            async () => {
-                if (!ownsAction(capturedLeagueId, generation)) return
-                setDraftLoadingOwner(capturedLeagueId)
-                try {
-                    const result = await startRookieDraft(capturedLeagueId, {
-                        isMock: false,
-                        timerSeconds: draftTimerSeconds,
-                        rounds: rookieRounds,
-                        timerExpiryBehavior: rookieTimerExpiryBehavior,
-                    })
-                    if (ownsAction(capturedLeagueId, generation)) {
-                        openDraftRoom(result.draft.id, result.draft.draftType)
+        const selectedOptions = { isMock: false, timerSeconds: draftTimerSeconds, rounds: rookieRounds, timerExpiryBehavior: rookieTimerExpiryBehavior }
+        setDraftLoadingOwner(capturedLeagueId)
+        try {
+            const warning = await getRookieStartWarning(capturedLeagueId, selectedOptions)
+            if (!ownsAction(capturedLeagueId, generation)) return
+            const warningText = warning.code === 'opening_night_unpublished'
+                ? 'Opening night is not published yet. Its completion cutoff is unknown.'
+                : warning.code === 'opening_night_overrun'
+                    ? `This draft could run past opening night. Unfinished picks will be auto-picked at ${new Date(warning.openingNightCutoff!).toLocaleString()}.`
+                    : 'Unfinished picks will be auto-picked at 09:00 Eastern on opening day.'
+            confirmAction(
+                'Start Rookie Draft?',
+                `${rookieRounds} rounds · ${formatDraftDuration(draftTimerSeconds)} per pick · ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior]}. ${warningText}`,
+                async () => {
+                    if (!ownsAction(capturedLeagueId, generation)) return
+                    setDraftLoadingOwner(capturedLeagueId)
+                    try {
+                        const result = await startRookieDraft(capturedLeagueId, selectedOptions)
+                        if (ownsAction(capturedLeagueId, generation)) openDraftRoom(result.draft.id, result.draft.draftType)
+                    } catch (error) {
+                        if (ownsAction(capturedLeagueId, generation)) showAlert('Could not start rookie draft', error instanceof Error ? error.message : undefined)
+                    } finally {
+                        if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
                     }
-                } catch (error) {
-                    if (ownsAction(capturedLeagueId, generation)) {
-                        showAlert('Could not start rookie draft', error instanceof Error ? error.message : undefined)
-                    }
-                } finally {
-                    if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
-                }
-            },
-            'Start Rookie',
-        )
+                },
+                'Start Rookie',
+            )
+        } catch (error) {
+            if (ownsAction(capturedLeagueId, generation)) showAlert('Could not check opening night', error instanceof Error ? error.message : undefined)
+        } finally {
+            if (ownsAction(capturedLeagueId, generation)) setDraftLoadingOwner(null)
+        }
     }
 
     const handleReseedRookiePicks = async () => {

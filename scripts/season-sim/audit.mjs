@@ -1,12 +1,12 @@
 import path from 'node:path'
 import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
-import { laneDirectory, miniRoot, writeJson } from './common.mjs'
+import { fixtureDirectory, laneDirectory, miniRoot, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { compareFinalCounts } from './snapshots.mjs'
 
 export async function audit(options) {
-  const fixtures = await laneDirectory(options.fixtures ?? path.join(miniRoot, 'fixtures'))
+  const fixtures = await laneDirectory(options.fixtures ?? fixtureDirectory)
   const evidence = await laneDirectory(options.evidence ?? path.join(miniRoot, 'evidence'))
   const store = await fixtureStore(fixtures)
   const games = [...store.manifest.values()].filter(row => row.kind === 'nba-boxscore' && row.status === 200)

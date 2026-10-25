@@ -37,6 +37,12 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     }))))
     await signIn(fixture)
     await open(`/player/${fixture.proposerPlayer.id}`)
+    const watch = page.getByRole('switch', { name: 'Watch player for drops', exact: true })
+    const watchedRows = () => db(fixture.admin.from('player_watches').select('player_id').eq('member_id', fixture.proposer.id).eq('player_id', fixture.proposerPlayer.id))
+    await wait(async () => await watch.isEnabled())
+    assert.equal(await watch.isChecked(), false)
+    await press(watch)
+    await wait(async () => await watch.isChecked() && (await watchedRows()).length === 1)
     const log = page.getByRole('heading', { name: 'Recent games', exact: true }).locator('..')
     const rows = () => log.getByText('@ BOS', { exact: true }).count()
     await wait(async () => await rows() === 15)
@@ -67,8 +73,11 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     await wait(async () => await seasonSelect.inputValue() === String(year - 1) && await rows() === 1)
     await seasonSelect.selectOption(String(year))
     await wait(async () => await seasonSelect.inputValue() === String(year) && await rows() === 15)
+    assert.equal(await watch.isChecked(), true, 'Player watch persists across season changes')
+    await press(watch)
+    await wait(async () => !await watch.isChecked() && (await watchedRows()).length === 0)
     await inspect()
-    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true, selects, seasonChanges: [year - 1, year] }
+    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true, selects, seasonChanges: [year - 1, year], watchPersistsAcrossSeasonChanges: true }
   })
   await check('player-filter-sheets-and-clear', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })

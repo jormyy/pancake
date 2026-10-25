@@ -1,3 +1,22 @@
+\set ON_ERROR_STOP on
+\getenv notif_gate_db SUPABASE_DB_URL
+\getenv notif_gate_port PANCAKE_TEST_DB_PORT
+\if :{?notif_gate_db}
+\else
+  DO $$ BEGIN RAISE EXCEPTION 'SUPABASE_DB_URL is required'; END $$;
+\endif
+\if :{?notif_gate_port}
+\else
+  \set notif_gate_port 54322
+\endif
+SELECT set_config('notif.gate_db', :'notif_gate_db',false) \gset
+SELECT set_config('notif.gate_port', :'notif_gate_port',false) \gset
+DO $$ BEGIN
+  IF current_setting('notif.gate_port') !~ '^[0-9]+$' OR current_setting('notif.gate_db') !~
+    format('^postgres(ql)?://[^/@]+@(127[.]0[.]0[.]1|localhost):%s/[^?]+([?].*)?$',current_setting('notif.gate_port')) THEN
+    RAISE EXCEPTION 'Only the expected loopback database port is allowed';
+  END IF;
+END $$;
 BEGIN;
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'local-trade-gate-test', true);
@@ -24,6 +43,7 @@ DECLARE
   v_trade uuid := gen_random_uuid();
   v_notice uuid;
   v_claim uuid;
+  v_suppressed integer;
 BEGIN
   INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
   VALUES(v_user,'authenticated','authenticated',v_user||'@example.test','x',now(),'{}','{}',now(),now()),
@@ -56,6 +76,16 @@ BEGIN
   UPDATE public.trades SET status='accepted' WHERE id=v_trade;
   PERFORM pg_temp.assert_trade_dispatch('offseason due trade',true);
   UPDATE public.trades SET status='completed' WHERE id=v_trade;
+  PERFORM pg_temp.assert_trade_dispatch('completed trade alerts',true);
+  PERFORM public.claim_notification_outbox_atomic(100,60);
+  SELECT count(*) INTO v_suppressed FROM public.notification_outbox
+  WHERE event_type='league_trade' AND data->>'tradeId'=v_trade::text
+    AND member_id IN (v_member,v_other) AND suppressed_at IS NOT NULL
+    AND suppression_reason='preferences_disabled';
+  IF v_suppressed <> 2 THEN
+    RAISE EXCEPTION 'Expected two suppressed fixture trade alerts, got %',v_suppressed;
+  END IF;
+  PERFORM pg_temp.assert_trade_dispatch('suppressed trade alerts',false);
   INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,category,available_at)
   VALUES(v_trade::text,v_member,'matchup_final','Final','Final','activity',now()+interval '1 second') RETURNING id INTO v_notice;
   PERFORM pg_temp.assert_trade_dispatch('future activity alert',false);

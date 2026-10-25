@@ -8,6 +8,7 @@ import { setSessionOwner } from '@/lib/session-cache-registry'
 const mocks = vi.hoisted(() => ({
     confirmAction: vi.fn(),
     getActiveRookieDraft: vi.fn(),
+    getRookieStartWarning: vi.fn(),
     getJoinableDraft: vi.fn(),
     push: vi.fn(),
     reseedRookieDraftPicks: vi.fn(),
@@ -29,6 +30,7 @@ vi.mock('@/lib/draft', () => ({
 }))
 vi.mock('@/lib/rookieDraft', () => ({
     getActiveRookieDraft: mocks.getActiveRookieDraft,
+    getRookieStartWarning: mocks.getRookieStartWarning,
     reseedRookieDraftPicks: mocks.reseedRookieDraftPicks,
     startRookieDraft: mocks.startRookieDraft,
 }))
@@ -56,6 +58,7 @@ const deferred = <Value,>() => {
 beforeEach(() => {
     vi.clearAllMocks()
     setSessionOwner('actor')
+    mocks.getRookieStartWarning.mockResolvedValue({ code: 'opening_night_unpublished', openingNightCutoff: null })
 })
 
 describe('useLeagueDraftController', () => {
@@ -189,5 +192,34 @@ it('fences same-league member changes and refuses unvalidated draft actions', as
         await act(async () => { await latest.handleJoinDraftRoom(); await latest.handleStartDraft() })
         expect(mocks.push).not.toHaveBeenCalled()
         expect(mocks.confirmAction).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('shows the opening-night warning before any start request', async () => {
+    mocks.getJoinableDraft.mockResolvedValue(null)
+    mocks.getRookieStartWarning.mockResolvedValue({ code: 'opening_night_overrun', openingNightCutoff: '2026-10-20T13:00:00Z' })
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { latest.setDraftTimerSeconds(604800) })
+        await act(async () => { await latest.handleStartRookieDraft() })
+        expect(mocks.getRookieStartWarning).toHaveBeenCalledWith('league', expect.objectContaining({ timerSeconds: 604800 }))
+        expect(mocks.confirmAction.mock.calls.at(-1)?.[1]).toContain('could run past opening night')
+        expect(mocks.startRookieDraft).not.toHaveBeenCalled()
+    } finally { await act(async () => { renderer.unmount() }) }
+})
+
+it('shows unpublished opening night before confirmation', async () => {
+    mocks.getJoinableDraft.mockResolvedValue(null)
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await latest.handleStartRookieDraft() })
+        expect(mocks.confirmAction.mock.calls.at(-1)?.[1]).toContain('not published yet')
+        expect(mocks.startRookieDraft).not.toHaveBeenCalled()
     } finally { await act(async () => { renderer.unmount() }) }
 })

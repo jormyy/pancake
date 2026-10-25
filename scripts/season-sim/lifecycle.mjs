@@ -2,13 +2,14 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 import { createLeagueActions } from './actions.mjs'
-import { miniRoot, writeJson } from './common.mjs'
+import { miniRoot, season, writeJson } from './common.mjs'
+import { shiftDay } from './season-model.mjs'
 import { setClock } from './clock.mjs'
 import { dispatch } from './dispatch.mjs'
 import { sql } from './local-stack.mjs'
 import { startRuntime } from './runtime.mjs'
 
-export async function lifecycle(date = '2025-10-28') {
+export async function lifecycle(date = shiftDay(season.start,7)) {
   const report = { provenance: 'SYNTHETIC', date, completed: [], passed: false }
   const runtime = await startRuntime(`${date}T14:00:00Z`)
   try {

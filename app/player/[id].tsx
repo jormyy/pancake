@@ -1,3 +1,4 @@
+import { NotificationPlayerWatch } from '@/components/settings/NotificationPlayerWatch'
 import { canAddToIR } from '@/lib/pickup'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -271,6 +272,7 @@ export default function PlayerDetailScreen() {
                         backControl={<BackButton onPress={goBack} />}
                         compact={usableWidth < 600}
                     />
+                    <NotificationPlayerWatch playerId={id} />
                     <View style={styles.body}>
                         {twoColumn ? (
                             <View style={styles.columns}>

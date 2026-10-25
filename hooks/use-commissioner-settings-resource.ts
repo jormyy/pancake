@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
 import type { LeagueInfo } from '@/types/app'
 import { fetchUserLeagues, getLeagueMembers, getLeaguePlayoffCalendar, getLineupSlots, updateLeagueConfiguration } from '@/lib/league'
+import { apiPost } from '@/lib/shared/api'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { COMMISSIONER_SCORING_FIELDS } from '@/lib/commissioner-settings-fields'
 import {
     EMPTY_COMMISSIONER_SETTINGS_DRAFT,
+    playoffFit,
     buildCommissionerSettingsChange,
     commissionerHydrationDecision,
     tradeDeadlineDraftValue,
@@ -162,6 +164,12 @@ export function useCommissionerSettingsResource({
         return () => { cancelled = true }
     }, [isCommissioner, leagueId, ownerId, loadAttempt, ownerKey, canRead, capture, isCurrent, markReady, blockActions, epoch])
 
+    const playoffFitPreview = playoffFit(playoffCalendar?.weeks ?? [], Number(draft.playoffWeek), draft.playoffRoundWeeks.map(Number))
+    const playoffFitMessage = playoffFitPreview.status === 'fit' ? `Playoffs end in week ${playoffFitPreview.endWeek} of ${playoffFitPreview.lastAvailableWeek}.`
+        : playoffFitPreview.status === 'calendar-unpublished' ? 'Calendar not published. Playoff changes cannot be saved.'
+        : playoffFitPreview.status === 'invalid-settings' ? 'Enter positive whole weeks for each playoff round.'
+        : `Playoffs need ${playoffFitPreview.requiredWeeks} weeks from week ${draft.playoffWeek}. Last available: week ${playoffFitPreview.lastAvailableWeek}. Choose an earlier start or shorter rounds.`
+
     const updateField = <Key extends keyof CommissionerSettingsDraft>(
         key: Key,
         value: CommissionerSettingsDraft[Key],
@@ -219,6 +227,14 @@ export function useCommissionerSettingsResource({
         setSavingOwnerKey(mutationOwnerKey)
         try {
             if (!await revalidateAuthority() || !ownsMutation()) return
+            if (Object.keys(change.updates).some(key => key.startsWith('playoff_'))) {
+                if (playoffFitPreview.status !== 'fit') throw new Error(playoffFitMessage)
+                const fit = await apiPost<ReturnType<typeof playoffFit>>('/league/playoff-fit', {
+                    leagueId: league.id, start: Number(submittedDraft.playoffWeek), rounds: submittedDraft.playoffRoundWeeks.map(Number),
+                })
+                if (fit.status !== 'fit') throw new Error('Playoffs no longer fit the published calendar. Reload settings.')
+                if (!ownsMutation()) return
+            }
             if (Object.keys(change.updates).length > 0 || change.slotsChanged) {
                 await updateLeagueConfiguration(league.id, change.updates, change.slotUpdates)
             }
@@ -246,6 +262,8 @@ export function useCommissionerSettingsResource({
         loadError: loadOwnerKey === ownerKey ? loadError : null,
         loadState: ownerKey && loadOwnerKey !== ownerKey ? 'loading' : loadState,
         members: ownsDraft ? members : [],
+        playoffFitMessage,
+        playoffFitStatus: playoffFitPreview.status,
         playoffCalendar: ownsDraft ? playoffCalendar : null,
         playoffRoundsNeedReview: ownsDraft && league?.playoff_round_weeks != null &&
             league.playoff_round_weeks.length !== (members.length >= 10 ? 3 : 2) && league.playoff_entrants == null,

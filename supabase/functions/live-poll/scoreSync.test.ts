@@ -14,6 +14,9 @@ let rejectPublication = false
 let certificateReads = 0
 let rosterReads = 0
 let publications: Record<string, unknown>[] = []
+let inputRevision = 1
+let liveWriteFailures: { code: string; message: string }[] = []
+let livePublications: Record<string, unknown>[] = []
 const weeks = [
   { week_number: 1, week_start: '2101-01-01', week_end: '2101-01-07' },
   { week_number: 2, week_start: '2101-01-08', week_end: '2101-01-14' },
@@ -50,7 +53,17 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
     body = members.map(member_id => ({ week_number: 1, member_id }))
   } else if (table === 'capture_score_inputs') {
     if (staleAfterCapture) stale = true
-    body = { 'season:fixture': '1' }
+    body = { 'season:fixture': String(inputRevision) }
+  } else if (table === 'update_score_points_atomic') {
+    const payload = await request.json()
+    livePublications.push(payload)
+    assert.ok(payload.p_matchups.every((row: { input_token: unknown }) =>
+      JSON.stringify(row.input_token) === JSON.stringify({ 'season:fixture': String(inputRevision) })))
+    const failure = liveWriteFailures.shift()
+    if (failure) {
+      inputRevision++
+      return Response.json(failure, { status: 409 })
+    }
   } else if (table === 'get_stale_score_weeks') {
     certificateReads++
     body = stale ? [{ week_number: 1 }] : []
@@ -63,8 +76,9 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
       players: { position: 'PG', eligible_positions: ['PG'] } }))
   } else if (table === 'weekly_lineups') {
     body = members.map((member_id, index) => ({ member_id, player_id: players[index], slot_type: 'UTIL', game_date: '2101-01-03' }))
+      .filter(row => url.searchParams.getAll('slot_type').every(filter => !filter.startsWith('neq.') || row.slot_type !== filter.slice(4)))
   } else if (table === 'player_game_stats') {
-    body = players.map((player_id, index) => ({ player_id, game_date: '2101-01-03', points: index ? 8 : 10,
+    body = players.map((player_id, index) => ({ player_id, game_date: '2101-01-03', points: index ? 8 : 9 + inputRevision,
       nba_games: { nba_game_id: '0022100001', game_time: '2101-01-03T23:00:00Z', started_at: null } }))
   } else if (table === 'finalize_score_week_atomic') {
     publications.push(await request.json())
@@ -89,6 +103,9 @@ function reset() {
   certificateReads = 0
   rosterReads = 0
   publications = []
+  inputRevision = 1
+  liveWriteFailures = []
+  livePublications = []
 }
 const run = () => syncScores(league, new Date('2101-01-10T18:00:00Z'), { recoverStats: false })
 const published = () => (publications[0].p_matchups as Record<string, unknown>[])[0]
@@ -167,6 +184,80 @@ Deno.test('cached maxima still pass through the atomic correction-race guard', a
   assert.equal(rosterReads, 0)
   assert.equal(publications.length, 1)
   assert.deepEqual(published().input_token, { 'season:fixture': '1' })
+})
+
+Deno.test('a live publication retry captures and scores fresh inputs once', async () => {
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  liveWriteFailures = [{ code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.' }]
+  let retries = 0
+  await syncScores(league, new Date('2101-01-07T18:00:00Z'), {
+    recoverStats: false, onPublicationRetry: () => { retries++ },
+  })
+  assert.equal(retries, 1)
+  assert.equal(livePublications.length, 2)
+  const rows = livePublications.map(payload => (payload.p_matchups as Record<string, unknown>[])[0])
+  assert.deepEqual(rows.map(row => [row.home_points, row.input_token]), [
+    [10, { 'season:fixture': '1' }], [11, { 'season:fixture': '2' }],
+  ])
+})
+
+Deno.test('only the exact stale publication guard permits a retry', async () => {
+  for (const failure of [
+    { code: 'PT409', message: 'Provider identity changed' },
+    { code: '22023', message: 'Score inputs changed or were not certified. Retry scoring.' },
+  ]) {
+    reset()
+    finalized = false
+  storedHomePoints = 9
+    liveWriteFailures = [failure]
+    let retries = 0
+    await assert.rejects(() => syncScores(league, new Date('2101-01-07T18:00:00Z'), {
+      recoverStats: false, onPublicationRetry: () => { retries++ },
+    }), /Score sync failed/)
+    assert.equal(retries, 0)
+    assert.equal(livePublications.length, 1)
+  }
+})
+
+Deno.test('a second conflict fails without another retry', async () => {
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  liveWriteFailures = Array.from({ length: 2 }, () => ({
+    code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.',
+  }))
+  let retries = 0
+  await assert.rejects(() => syncScores(league, new Date('2101-01-07T18:00:00Z'), {
+    recoverStats: false, onPublicationRetry: () => { retries++ },
+  }), /Score sync failed/)
+  assert.equal(retries, 1)
+  assert.equal(livePublications.length, 2)
+})
+
+Deno.test('a caller without retry telemetry captures and scores fresh inputs once', async () => {
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  liveWriteFailures = [{ code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.' }]
+  await syncScores(league, new Date('2101-01-07T18:00:00Z'))
+  assert.equal(livePublications.length, 2)
+  const rows = livePublications.map(payload => (payload.p_matchups as Record<string, unknown>[])[0])
+  assert.deepEqual(rows.map(row => [row.home_points, row.input_token]), [
+    [10, { 'season:fixture': '1' }], [11, { 'season:fixture': '2' }],
+  ])
+})
+
+Deno.test('a second conflict without retry telemetry still fails', async () => {
+  reset()
+  finalized = false
+  storedHomePoints = 9
+  liveWriteFailures = Array.from({ length: 2 }, () => ({
+    code: 'PT409', message: 'Score inputs changed or were not certified. Retry scoring.',
+  }))
+  await assert.rejects(() => syncScores(league, new Date('2101-01-07T18:00:00Z')), /Score sync failed/)
+  assert.equal(livePublications.length, 2)
 })
 
 Deno.test({ name: 'close certificate test server', sanitizeOps: false, sanitizeResources: false, fn: () => postgrest.shutdown() })

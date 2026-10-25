@@ -48,10 +48,12 @@ export async function loadNamePlayerResolver(): Promise<NamePlayerResolver> {
 
 export async function resolveCdnPlayers(
   players: { personId: string; displayName: string }[],
+  providerGameId?: string,
 ): Promise<string[]> {
   if (players.length === 0) return []
   const { results } = await resolvePlayerImports('nba_cdn', players.map(player => ({
     provider_id: player.personId, display_name: player.displayName,
+    ...(providerGameId === undefined ? {} : { nba_game_id: providerGameId }),
   })))
   return results.map((result, index) => {
     const { displayName } = players[index]

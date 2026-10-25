@@ -84,6 +84,35 @@ beforeEach(() => {
 })
 
 describe('commissioner settings resource', () => {
+    it('shows fit limits before save and rechecks the server before writing', async () => {
+        mocks.getLineupSlots.mockResolvedValue([])
+        mocks.getLeaguePlayoffCalendar.mockResolvedValue({ seasonYear: 2027, weeks: Array.from({ length: 24 }, (_, index) => index + 1) })
+        const value = league('fit')
+        let latest!: ReturnType<typeof useCommissionerSettingsResource>
+        const Probe = () => {
+            latest = useCommissionerSettingsResource({ league: value, ownerId: 'user', isCommissioner: true, refresh: vi.fn(), onSaved: vi.fn() })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.updateField('playoffWeek', '24') })
+        expect(latest.playoffFitStatus).toBe('does-not-fit')
+        expect(latest.playoffFitMessage).toContain('Last available: week 24')
+        await act(async () => { await latest.save() })
+        expect(mocks.apiPost).not.toHaveBeenCalled()
+        expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+        await act(async () => { latest.updateField('playoffWeek', '23') })
+        expect(latest.playoffFitStatus).toBe('fit')
+        mocks.apiPost.mockResolvedValue({ status: 'does-not-fit', lastAvailableWeek: 23, requiredWeeks: 2, endWeek: 24 })
+        await act(async () => { await latest.save() })
+        expect(mocks.apiPost).toHaveBeenCalledWith('/league/playoff-fit', { leagueId: 'fit', start: 23, rounds: [1, 1] })
+        expect(mocks.updateLeagueConfiguration).not.toHaveBeenCalled()
+        mocks.apiPost.mockResolvedValue({ status: 'fit', lastAvailableWeek: 24, requiredWeeks: 2, endWeek: 24 })
+        await act(async () => { await latest.save() })
+        expect(mocks.updateLeagueConfiguration).toHaveBeenCalledOnce()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('keeps semifinal and final lengths when a tenth member needs a quarterfinal', async () => {
         mocks.getLineupSlots.mockResolvedValue([])
         mocks.getLeagueMembers.mockResolvedValue(Array.from({ length: 10 }, (_, index) => ({ id: String(index), team_name: `Team ${index}` })))

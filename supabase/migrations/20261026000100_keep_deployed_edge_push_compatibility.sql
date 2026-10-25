@@ -29,6 +29,7 @@ BEGIN
          last_error = NULL
    WHERE id = p_id
      AND claim_token = p_claim_token
+     AND suppressed_at IS NULL
      AND delivered_at IS NULL
      AND dead_lettered_at IS NULL
      AND expo_ticket_id IS NULL;
@@ -59,7 +60,8 @@ BEGIN
   WITH candidates AS (
     SELECT queued.id
       FROM notification_outbox AS queued
-     WHERE queued.delivered_at IS NULL
+     WHERE queued.suppressed_at IS NULL
+       AND queued.delivered_at IS NULL
        AND queued.dead_lettered_at IS NULL
        AND queued.expo_ticket_id IS NOT NULL
        AND queued.available_at <= now()

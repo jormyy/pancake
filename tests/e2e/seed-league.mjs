@@ -243,16 +243,19 @@ const seedLatencyFixtures = async (admin, leagueId, members) => {
     .single()
   if (seasonError) throw new Error(`latency fixture season: ${seasonError.message}`)
 
-  const { error: matchupError } = await admin.from('matchups').insert({
-    league_id: leagueId,
-    league_season_id: season.id,
-    week_number: 1,
-    home_member_id: members[0].id,
-    away_member_id: members[1].id,
-    home_points: 0,
-    away_points: 0,
-  })
-  if (matchupError) throw new Error(`latency fixture matchup: ${matchupError.message}`)
+  const matchupCount = process.env.E2E_SOAK_SHARD ? 0 : 1
+  if (matchupCount) {
+    const { error: matchupError } = await admin.from('matchups').insert({
+      league_id: leagueId,
+      league_season_id: season.id,
+      week_number: 1,
+      home_member_id: members[0].id,
+      away_member_id: members[1].id,
+      home_points: 0,
+      away_points: 0,
+    })
+    if (matchupError) throw new Error(`latency fixture matchup: ${matchupError.message}`)
+  }
 
   const startedAt = new Date().toISOString()
   const { data: drafts, error: draftError } = await admin
@@ -312,7 +315,7 @@ const seedLatencyFixtures = async (admin, leagueId, members) => {
   if (budgetError) throw new Error(`latency fixture draft budgets: ${budgetError.message}`)
   if (pickError) throw new Error(`latency fixture rookie picks: ${pickError.message}`)
 
-  return { matchups: 1, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length }
+  return { matchups: matchupCount, drafts: drafts.length, draftOrders: orderRows.length, rookiePicks: pickRows.length }
 }
 
 const main = async () => {

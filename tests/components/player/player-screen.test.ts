@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
 }))
+vi.mock('@/components/settings/NotificationPlayerWatch', () => ({ NotificationPlayerWatch: () => null }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },

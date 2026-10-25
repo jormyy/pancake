@@ -490,7 +490,9 @@ async function finalizeWeekIfComplete(
     if (matchups.some(matchup => (matchup.end_week_number ?? weekNumber) !== endWeek)) {
         throw new Error('The matchup window changed. Retry scoring.')
     }
-    if (matchups.some(matchup => isPlayoffMatchupType(matchup.matchup_type)) && toETDate(referenceDate) <= endDate) return
+    if (toETDate(referenceDate) <= endDate && matchups.some(matchup =>
+        !matchup.is_finalized || isPlayoffMatchupType(matchup.matchup_type)
+    )) return
 
     const lockedTypes = await loadLockedPlayoffTypes(leagueId, leagueSeasonId)
     const decidableMatchups = matchups.filter((m) =>
@@ -605,6 +607,8 @@ async function updateWeekPoints(
     seasonYear: number,
     weekNumber: number,
     settings: Record<string, number>,
+    onPublicationRetry?: () => void,
+    retryPublication = true,
 ): Promise<void> {
     const { data: weekData, error: weekErr } = await supabase
         .from('season_weeks')
@@ -618,6 +622,12 @@ async function updateWeekPoints(
         console.log(`[scores] No season_weeks row for week ${weekNumber}`)
         return
     }
+
+    const { data: liveInputToken, error: liveTokenError } = await supabase.rpc('capture_score_inputs', {
+        p_league_season_id: seasonId,
+        p_week_number: weekNumber,
+    })
+    if (liveTokenError) throw liveTokenError
 
     const allMatchups = await fetchAllPages<MatchupForScore>((from, to) => supabase
         .from('matchups')
@@ -674,6 +684,7 @@ async function updateWeekPoints(
             away_member_id: matchup.away_member_id,
             home_points: homePoints,
             away_points: awayPoints,
+            input_token: liveInputToken,
         }]
     })
 
@@ -685,7 +696,17 @@ async function updateWeekPoints(
         p_week_number: weekNumber,
         p_matchups: updates,
     })
-    if (updateErr) throw updateErr
+    if (updateErr) {
+        if (retryPublication && (
+            updateErr.code === 'PT409' &&
+            updateErr.message === 'Score inputs changed or were not certified. Retry scoring.'
+        )) {
+            onPublicationRetry?.()
+            console.warn(`[scores] Retrying changed inputs for league ${leagueId}, week ${weekNumber}`)
+            return await updateWeekPoints(leagueId, seasonId, seasonYear, weekNumber, settings, onPublicationRetry, false)
+        }
+        throw updateErr
+    }
 }
 
 async function loadWeeksToSync(
@@ -850,7 +871,7 @@ async function syncStatsForCompletedWeeks(
 }
 
 // Update current matchups and replay corrected historical seasons.
-export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean } = {}) {
+export async function syncScores(leagueId?: string, referenceDate = new Date(), options: { recoverStats?: boolean; onPublicationRetry?: () => void } = {}) {
     const seasons = await fetchAllPages<{
         id: string
         league_id: string
@@ -948,7 +969,7 @@ export async function syncScores(leagueId?: string, referenceDate = new Date(), 
             // An overlapping correction must remain newer than this read boundary.
             const scoringReadStartedAt = new Date().toISOString()
             for (const scoreWeek of weeksToSync) {
-                await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings)
+                await updateWeekPoints(season.league_id, season.id, season.season_year, scoreWeek, settings, options.onPublicationRetry)
             }
 
             // Finalize older weeks before newer weeks so cumulative standings for

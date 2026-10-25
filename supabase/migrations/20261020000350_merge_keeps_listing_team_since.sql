@@ -1,0 +1,238 @@
+-- t20 (live): a merge keeps ESPN's team_since with the listing it moves.
+-- Migration 330 moved the merged-away row's private.player_espn_listings row to the survivor with its team
+-- and listed_at but not team_since (migration 320). When the ESPN row is the one merged away, the survivor's
+-- listing has no team_since, and the next ESPN import on the same team keeps coalesce(team_since, listed_at),
+-- so the merge's listed_at becomes his team_since for good. The NBA index step (assign_player_nba_id_atomic)
+-- merges that way, but its survivor holds the NBA id, so his boxes join it by that id. A direct service-role
+-- merge_players(other, espn_row) onto a row with no NBA id leaves a survivor only the box-to-ESPN link can
+-- join: it compares listed_at, the last listing, with the tipoff, refuses a box of a game played since ESPN
+-- first listed him on that team, and the box creates a second row for him.
+
+CREATE OR REPLACE FUNCTION merge_players(winner_id uuid, loser_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_winner players%ROWTYPE;
+  v_loser players%ROWTYPE;
+BEGIN
+  PERFORM pg_advisory_xact_lock(1347174745, 1);
+  IF winner_id = loser_id THEN RETURN; END IF;
+  PERFORM id FROM players WHERE id IN (winner_id, loser_id) ORDER BY id FOR UPDATE;
+  SELECT * INTO v_winner FROM players WHERE id = winner_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  SELECT * INTO v_loser FROM players WHERE id = loser_id;
+  IF NOT FOUND THEN RETURN; END IF;
+
+  IF (v_winner.nba_id IS NOT NULL AND v_loser.nba_id IS NOT NULL AND v_winner.nba_id <> v_loser.nba_id)
+    OR (v_winner.espn_id IS NOT NULL AND v_loser.espn_id IS NOT NULL AND v_winner.espn_id <> v_loser.espn_id)
+    OR (v_winner.sleeper_id IS NOT NULL AND v_loser.sleeper_id IS NOT NULL AND v_winner.sleeper_id <> v_loser.sleeper_id)
+    OR (v_winner.sportsdata_id IS NOT NULL AND v_loser.sportsdata_id IS NOT NULL AND v_winner.sportsdata_id <> v_loser.sportsdata_id) THEN
+    RAISE EXCEPTION 'Cannot merge conflicting provider identities.' USING ERRCODE = '23514';
+  END IF;
+
+  -- Release unique provider links before moving them to the surviving identity.
+  UPDATE players SET
+    sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
+    nba_id = CASE WHEN v_winner.nba_id IS NULL THEN NULL ELSE nba_id END,
+    espn_id = CASE WHEN v_winner.espn_id IS NULL THEN NULL ELSE espn_id END,
+    sportsdata_id = CASE WHEN v_winner.sportsdata_id IS NULL THEN NULL ELSE sportsdata_id END
+  WHERE id = loser_id;
+
+  UPDATE players SET
+    sleeper_id = COALESCE(v_winner.sleeper_id, v_loser.sleeper_id),
+    nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
+    espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
+    sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
+    nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
+    position = COALESCE(v_winner.position, v_loser.position),
+    eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
+      THEN v_loser.eligible_positions ELSE v_winner.eligible_positions END,
+    headshot_url = COALESCE(v_winner.headshot_url, v_loser.headshot_url),
+    jersey_number = COALESCE(v_winner.jersey_number, v_loser.jersey_number),
+    years_exp = COALESCE(v_winner.years_exp, v_loser.years_exp),
+    nba_draft_number = COALESCE(v_winner.nba_draft_number, v_loser.nba_draft_number),
+    -- A backfill stub has no team or position. Its empty injury status is unknown.
+    injury_status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_winner.injury_status, v_loser.injury_status) ELSE v_winner.injury_status END,
+    status = CASE WHEN v_winner.nba_team IS NULL AND v_winner.position IS NULL
+      THEN COALESCE(v_loser.status, v_winner.status) ELSE v_winner.status END,
+    dynasty_rank = COALESCE(v_winner.dynasty_rank, v_loser.dynasty_rank),
+    dynasty_rank_source = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_source ELSE v_winner.dynasty_rank_source END,
+    dynasty_rank_fetched_at = CASE WHEN v_winner.dynasty_rank IS NULL
+      THEN v_loser.dynasty_rank_fetched_at ELSE v_winner.dynasty_rank_fetched_at END
+  WHERE id = winner_id;
+
+  -- The same team's existing taxi acquisition survives a duplicate active/IR
+  -- identity. Normal delete guards and cleanup apply to the redundant row.
+  DELETE FROM roster_players AS canonical
+  USING roster_players AS taxi
+  WHERE canonical.player_id = winner_id
+    AND taxi.player_id = loser_id
+    AND canonical.league_id = taxi.league_id
+    AND canonical.league_season_id = taxi.league_season_id
+    AND canonical.member_id = taxi.member_id
+    AND NOT canonical.is_on_taxi
+    AND taxi.is_on_taxi;
+
+  -- Otherwise, a member who already holds the winner active keeps that row,
+  -- so their listings, lineups, pending drops and offers move to the winner
+  -- before their loser row goes; the roster lifecycle trigger then finds
+  -- nothing of theirs under the old identity. Every other member's state is
+  -- cleared by that trigger when their loser row is deleted below, or moves
+  -- with their roster row when it is re-pointed.
+  DELETE FROM trade_block_items AS stale
+    WHERE stale.player_id = loser_id
+      AND EXISTS (
+        SELECT 1 FROM trade_block_items AS kept
+         WHERE kept.league_id = stale.league_id
+           AND kept.member_id = stale.member_id
+           AND kept.player_id = winner_id
+      );
+  UPDATE trade_block_items AS listing
+     SET player_id = winner_id
+   WHERE listing.player_id = loser_id
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+         JOIN league_seasons AS season ON season.id = own.league_season_id AND season.is_current = true
+        WHERE own.player_id = winner_id AND own.member_id = listing.member_id AND own.league_id = listing.league_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  DELETE FROM weekly_lineups
+    WHERE player_id = loser_id
+      AND (league_id, league_season_id, member_id, game_date) IN (
+        SELECT league_id, league_season_id, member_id, game_date
+          FROM weekly_lineups WHERE player_id = winner_id
+      );
+  UPDATE weekly_lineups AS lineup
+     SET player_id = winner_id
+   WHERE lineup.player_id = loser_id
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = lineup.member_id AND own.league_season_id = lineup.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  UPDATE waiver_claims AS claim
+     SET drop_player_id = winner_id
+   WHERE claim.drop_player_id = loser_id
+     AND claim.status = 'pending'::waiver_claim_status
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = claim.member_id AND own.league_season_id = claim.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  UPDATE trade_items AS item
+     SET player_id = winner_id
+    FROM trades AS trade
+   WHERE trade.id = item.trade_id
+     AND item.player_id = loser_id
+     AND trade.status IN ('pending'::trade_status, 'accepted'::trade_status)
+     AND EXISTS (
+       SELECT 1 FROM roster_players AS own
+        WHERE own.player_id = winner_id AND own.member_id = item.from_member_id AND own.league_season_id = trade.league_season_id
+          AND own.is_on_ir = false AND own.is_on_taxi = false
+     );
+
+  PERFORM private.authorize_taxi_acquisition(league_id,league_season_id,member_id,winner_id,'merge',loser_id)
+    FROM roster_players WHERE player_id=loser_id AND is_on_taxi;
+
+  -- roster_players: drop the loser's rows that already have a winner row in the
+  -- same (league, season), then re-point the rest.
+  DELETE FROM roster_players
+    WHERE player_id = loser_id
+      AND (league_id, league_season_id) IN (
+        SELECT league_id, league_season_id FROM roster_players WHERE player_id = winner_id
+      );
+  UPDATE roster_players SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- Everything still under the loser identity belongs to a re-pointed roster
+  -- row or to history; it moves with the identity.
+  UPDATE trade_block_items SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE weekly_lineups    SET player_id = winner_id WHERE player_id = loser_id;
+
+  DELETE FROM player_projections
+    WHERE player_id = loser_id
+      AND (season_year, week_number) IN (
+        SELECT season_year, week_number FROM player_projections WHERE player_id = winner_id
+      );
+  UPDATE player_projections SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- Keep both original auctions and their bid/transaction links when identities collide.
+  -- One unmarked nomination per draft/player still guards ordinary entry.
+  UPDATE nominations AS loser
+     SET merged_from_player_id = COALESCE(loser.merged_from_player_id,loser_id)
+   WHERE loser.player_id = loser_id
+     AND EXISTS (SELECT 1 FROM nominations AS winner
+       WHERE winner.draft_id=loser.draft_id AND winner.player_id=winner_id);
+  UPDATE nominations SET player_id = winner_id WHERE player_id = loser_id;
+
+  UPDATE waiver_claims       SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE waiver_claims       SET drop_player_id = winner_id WHERE drop_player_id = loser_id;
+  UPDATE waiver_wire_log     SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- One identity cannot be rostered and clearing waivers in the same season.
+  UPDATE waiver_wire_log AS log
+     SET cleared_at = now()
+   WHERE log.player_id = winner_id
+     AND log.cleared_at IS NULL
+     AND EXISTS (
+       SELECT 1
+         FROM roster_players AS roster
+        WHERE roster.league_id = log.league_id
+          AND roster.league_season_id = log.league_season_id
+          AND roster.player_id = winner_id
+     );
+  UPDATE trade_items         SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- A membership keeps the side its box lists him under (the ESPN release sweep moves him to it): the
+  -- survivor's side stays, and a merged-away side fills one the survivor lacks.
+  INSERT INTO private.player_game_memberships(player_id, game_id, first_seen_at, nba_team)
+    SELECT winner_id, game_id, first_seen_at, nba_team FROM private.player_game_memberships WHERE player_id = loser_id
+    ON CONFLICT (player_id, game_id) DO UPDATE
+      SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
+        nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
+
+  -- The time ESPN last listed this person anchors the release sweep's departure evidence, and the time it
+  -- has listed him on that team since gates the box-to-ESPN link, so the survivor keeps the later of the two
+  -- listings whole rather than losing the merged-away one with its row.
+  INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at, team_since)
+    SELECT winner_id, nba_team, listed_at, team_since FROM private.player_espn_listings WHERE player_id = loser_id
+    ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at,
+        team_since = EXCLUDED.team_since
+      WHERE EXCLUDED.listed_at > player_espn_listings.listed_at;
+
+  DELETE FROM player_game_stats
+    WHERE player_id = loser_id
+      AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
+  UPDATE player_game_stats SET player_id = winner_id WHERE player_id = loser_id;
+
+  -- Retain unattributed legacy evidence without using it for eligibility.
+  INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
+    SELECT league_id,winner_id,exited_at FROM league_player_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,player_id) DO UPDATE SET exited_at=LEAST(league_player_taxi_exits.exited_at,EXCLUDED.exited_at);
+  INSERT INTO league_member_taxi_exits(league_id,member_id,player_id,exited_at)
+    SELECT league_id,member_id,winner_id,exited_at FROM league_member_taxi_exits WHERE player_id=loser_id
+    ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
+  DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
+
+  UPDATE dynasty_rankings SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE fantasypros_projection_rows SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
+
+  INSERT INTO player_watches(league_id, member_id, player_id, created_at)
+    SELECT league_id, member_id, winner_id, created_at FROM player_watches
+    WHERE player_id = loser_id ORDER BY member_id
+    ON CONFLICT (member_id, player_id) DO NOTHING;
+
+  DELETE FROM players WHERE id = loser_id;
+END;
+$$;

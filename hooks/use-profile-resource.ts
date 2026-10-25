@@ -3,17 +3,11 @@ import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { getProfile, suspendProfileRead } from '@/lib/auth'
 import {
+    DEFAULT_NOTIFICATION_PREFERENCES,
     getNotificationPreferences,
     type NotificationPreferences,
 } from '@/lib/notification-preferences'
 import type { Profile } from '@/types/database'
-
-const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
-    tradeEnabled: true,
-    waiverEnabled: true,
-    draftEnabled: true,
-    activityEnabled: true,
-}
 
 type ResourceState = {
     ownerId: string | undefined

@@ -30,7 +30,7 @@ import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
 import { usePlayerSearch, useVisiblePlayerRows, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
-import { playerSeasonFilterOptions, seasonLabel } from '@/lib/player-search-state'
+import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-search-state'
 import { todayET } from '@/lib/shared/dates'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
@@ -343,8 +343,8 @@ function PlayerSearchSection() {
             ? `FAAB $${transactionState.faabBalance}`
             : 'Rolling waivers'
         : ''
-    const seasonNote = search.season.value === null ? '' : ` · ${seasonLabel(search.season.value)} stats`
-    const summaryLine = `${resultCountLabel}${seasonNote} · ${addLimitSummary(transactionState)} · ${waiverLine}`
+    const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
+    const summaryLine = `${resultCountLabel} · ${addLimitSummary(transactionState)} · ${waiverLine}`
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -394,9 +394,9 @@ function PlayerSearchSection() {
             <FilterSelect
                 variant={variant}
                 label="Season"
-                value={String(search.season.value ?? SEASON_YEAR)}
+                value={String(search.season.value ?? 'auto')}
                 options={SEASON_FILTERS}
-                onChange={(value) => search.season.setValue(Number(value) === SEASON_YEAR ? null : Number(value))}
+                onChange={(value) => search.season.setValue(value === 'auto' ? null : Number(value))}
             />
         </>
     )
@@ -453,6 +453,7 @@ function PlayerSearchSection() {
                     )}
                 </View>
                 {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
+                {averageLabel ? <Text style={localStyles.summary} testID="players-average-season">{averageLabel}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}

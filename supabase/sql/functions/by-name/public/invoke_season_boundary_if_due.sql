@@ -23,6 +23,7 @@ BEGIN
   -- drafted moves to the next season.
   PERFORM private.roll_setup_league_seasons(p_now);
 
+  -- Drafting leagues can need the rookie-draft backstop.
   IF NOT EXISTS (
     SELECT 1
       FROM public.leagues

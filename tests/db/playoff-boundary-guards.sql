@@ -90,6 +90,9 @@ BEGIN
   PERFORM pg_temp.certify_boundary_fixture(league,season,2);
   result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
   IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after grace'; END IF;
+  PERFORM pg_temp.certify_boundary_fixture(league,season,1);
+  result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
+  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Regular results cannot replace an undecided final'; END IF;
   UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=10,away_points=5,finalized_at=now()
     WHERE league_season_id=season AND matchup_type='playoff_final';
   result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
@@ -98,6 +101,14 @@ BEGIN
   END IF;
   UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_final';
   PERFORM pg_temp.certify_boundary_fixture(league,season,3);
+  UPDATE matchups SET winner_member_id=NULL WHERE league_season_id=season AND matchup_type='playoff_final';
+  PERFORM pg_temp.certify_boundary_fixture(league,season,3);
+  PERFORM pg_temp.certify_boundary_fixture(league,season,1);
+  result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
+  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'A nonempty undecided final cannot pass the boundary gate'; END IF;
+  UPDATE matchups SET winner_member_id=home_member_id,finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_final';
+  PERFORM pg_temp.certify_boundary_fixture(league,season,3);
+  DELETE FROM private.score_week_certificates WHERE league_season_id=season AND week_number=1;
   result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
   IF (result->>'applied')::boolean OR (SELECT count(*) FROM league_seasons WHERE league_id=league)<>1 THEN
     RAISE EXCEPTION 'Rollover consumed a stale regular-season certificate';

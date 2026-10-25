@@ -146,6 +146,7 @@ BEGIN
     AND previous.member_id=current.member_id AND previous.player_id=current.player_id
   WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
+  -- Fill skipped pick years and preserve existing owners.
   INSERT INTO draft_picks (
     league_id,
     season_year,
@@ -155,11 +156,12 @@ BEGIN
   )
   SELECT
     p_league_id,
-    v_far_year,
+    year_value,
     round_value,
     lm.id,
     lm.id
   FROM league_members lm
+  CROSS JOIN generate_series(v_new_year,v_far_year) AS year_value
   CROSS JOIN unnest(ARRAY[1, 2, 3]) AS round_value
   WHERE lm.league_id = p_league_id
   ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
@@ -218,7 +220,7 @@ CREATE OR REPLACE FUNCTION public.start_rookie_draft_atomic(
   p_league_id uuid,
   p_rounds int DEFAULT 3,
   p_is_mock boolean DEFAULT false,
-  p_pick_timer_seconds int DEFAULT 30,
+  p_pick_timer_seconds int DEFAULT 60,
   p_timer_expiry_behavior text DEFAULT 'auto_pick'
 )
 RETURNS jsonb
@@ -240,8 +242,8 @@ BEGIN
   IF p_rounds < 1 OR p_rounds > 3 THEN
     RAISE EXCEPTION 'Rookie draft rounds must be between 1 and 3.';
   END IF;
-  IF p_pick_timer_seconds IS NULL OR p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600 THEN
-    RAISE EXCEPTION 'Draft timer seconds must be between 5 and 3600.'
+  IF p_pick_timer_seconds IS NULL OR p_pick_timer_seconds < 60 OR p_pick_timer_seconds > 604800 THEN
+    RAISE EXCEPTION 'Draft timer seconds must be between 60 and 604800.'
       USING ERRCODE = 'P0001';
   END IF;
   IF v_timer_expiry_behavior NOT IN ('auto_pick', 'skip_pick', 'pause_draft', 'commissioner_pick') THEN
@@ -476,7 +478,7 @@ BEGIN
 
   PERFORM private.arm_next_snake_pick_timer(
     v_draft.id,
-    now() + make_interval(secs => p_pick_timer_seconds)
+    clock_timestamp() + make_interval(secs => p_pick_timer_seconds)
   );
 
   IF NOT v_is_mock THEN

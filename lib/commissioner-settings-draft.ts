@@ -256,3 +256,5 @@ export function buildCommissionerSettingsChange(
             : null,
     }
 }
+
+export { playoffFit } from '@/core/src/season/schedule'

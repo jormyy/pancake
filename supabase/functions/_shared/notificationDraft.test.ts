@@ -5,7 +5,7 @@ Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'draft-notification-test')
 const { closeExpiredNominations } = await import('../close-expired-nominations/close.ts')
 const { runSeasonBoundary } = await import('./seasonBoundary.ts')
 
-Deno.test('the timer queues draft notifications only for successful real rookie picks', async () => {
+Deno.test('the timer leaves durable auto-pick notifications to the database', async () => {
   const nativeFetch = globalThis.fetch
   const queued: Record<string, unknown>[] = []
   globalThis.fetch = async (input, init) => {
@@ -33,23 +33,22 @@ Deno.test('the timer queues draft notifications only for successful real rookie 
     const result = await closeExpiredNominations()
     assert.equal(result.autoPicked, 2)
     assert.equal(result.failed, 1)
-    assert.deepEqual(queued, [{ dedupe_key: 'rookie-pick:picked:owner', member_id: 'owner',
-      event_type: 'rookie_draft_pick', title: 'Rookie Draft Pick Made', body: 'A player has been added to your roster.',
-      data: { draftId: 'real', playerId: 'rookie', pickId: 'picked' }, category: 'draft' }])
+    assert.deepEqual(queued, [])
   } finally { globalThis.fetch = nativeFetch }
 })
 
-Deno.test('the season backstop queues one notification for each completed automatic pick', async () => {
+Deno.test('the season backstop leaves durable auto-pick notifications to the database', async () => {
   const nativeFetch = globalThis.fetch
   const queued: Record<string, unknown>[] = []
   let picked = false
   globalThis.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
     const table = url.pathname.split('/').at(-1)
-    if (table === 'league_seasons') return Response.json(url.searchParams.get('select') === 'season_year'
-      ? { season_year: 2027 } : [{ id: 'season', league_id: 'league', leagues: { status: 'offseason', playoff_start_week: 1 } }])
+    if (table === 'league_seasons') return Response.json(url.searchParams.get('select')?.startsWith('season_year')
+      ? { season_year: 2027, skipped_weeks: [] } : [{ id: 'season', league_id: 'league', leagues: { status: 'offseason', playoff_start_week: 1 } }])
     if (table === 'matchups') return new Response(null, { headers: { 'content-range': '*/0' } })
-    if (table === 'season_weeks') return Response.json({ week_start: '2026-10-20' })
+    if (table === 'season_weeks') return Response.json([{ week_number: 1, week_start: '2026-10-20' }])
+    if (table === 'draft_timer_start_warning') return Response.json({ openingNightCutoff: null })
     if (table === 'drafts') return Response.json([{ id: 'draft', status: 'in_progress' }])
     if (table === 'snake_draft_picks') return init?.method === 'HEAD'
       ? new Response(null, { headers: { 'content-range': '*/0' } })
@@ -62,8 +61,6 @@ Deno.test('the season backstop queues one notification for each completed automa
   try {
     assert.deepEqual(await runSeasonBoundary(new Date('2026-10-24T14:00:00Z')),
       [{ leagueId: 'league', actions: ['rookie-draft-auto-completed'] }])
-    assert.equal(queued.length, 1)
-    assert.deepEqual(queued[0].data, { draftId: 'draft', playerId: 'rookie', pickId: 'pick' })
-    assert.equal(queued[0].category, 'draft')
+    assert.deepEqual(queued, [])
   } finally { globalThis.fetch = nativeFetch }
 })

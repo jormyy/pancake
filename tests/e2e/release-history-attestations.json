@@ -346,6 +346,18 @@
       "name": "update_lineup_slots_atomic_unchecked",
       "identityArguments": "p_league_id uuid, p_slots jsonb",
       "bodySha256": "a730164dea8e0b7daba32478ebba40276e5d1ef5aa82dbb085727bf2ce6ab263"
+    },
+    {
+      "name": "auto_set_lineup_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "8c57fea28c8379a4bfec1e553ac66494223de452b99d716a934c4feecba3c1cc",
+      "version": "20261018000012"
+    },
+    {
+      "name": "set_player_slot_moves_atomic",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
+      "bodySha256": "b8b404ab1d23b5509c5166f85aefbfb1012a45784b81f99f1a8b3baef4c8adc9",
+      "version": "20261018000012"
     }
   ],
   "approvedMigrations": [
@@ -831,6 +843,678 @@
       "sha256": "e5923485429ee02eb027e977fa20648d2b4ee7b3403a879817b4750f02039f29",
       "statementCount": 6,
       "statementsSha256": "f34a09a43192eefb793629b44a1f650de1019a804700dcdd81e004a91fdb4b8d"
+    },
+    {
+      "name": "pre_tipoff_lineups",
+      "version": "20261014000001",
+      "statementCount": 33,
+      "statementsSha256": "5c83e58b0a622fef436f5ce4dce3dc4ff33bfa822c2514d964d8b89498ad3443",
+      "sha256": "e1e73a001a69465be343926163caca94bc9fa998c2f99762b7f3aaa11c531f05"
+    },
+    {
+      "name": "default_daily_lineup_optimizer",
+      "version": "20261014000002",
+      "statementCount": 13,
+      "statementsSha256": "3176cdb426eb4be7f61df55733bccdea14c7239dd0762ff565441862996e98d1",
+      "sha256": "f73f50bae38415d39754e83613cb036cd4d98f06e408437d6b29c9e5104d4b76"
+    },
+    {
+      "name": "dynasty_rules_and_trade_plans",
+      "version": "20261017000001",
+      "statementCount": 86,
+      "statementsSha256": "a072f63e0d47917090bb13aac426da936787624d718760c95988731474718be6",
+      "sha256": "7710976920d2d8a975c20ef38e51faf54451c1645e40af7215c67e434ce45d4c"
+    },
+    {
+      "name": "preserve_history_and_operational_failures",
+      "version": "20261018000001",
+      "statementCount": 6,
+      "statementsSha256": "a777069cdbcf94edc948f84685f7412743a92ae3da63062930d396a5b382edeb",
+      "sha256": "99932e3b688c51a83d7aad09ac6a870cf8877ebbf3d4d479bccd62d2e25462f0"
+    },
+    {
+      "name": "correlate_worker_outcomes_and_retry_dispatch",
+      "version": "20261018000002",
+      "statementCount": 24,
+      "statementsSha256": "72c3dadc35d0eb85119547c4f1a0a38f993c2b0966adee54cecbbf28b24473ed",
+      "sha256": "4fd7787a434abf10a0fcd7f758ba066a83dcf024532ec56fa2192cf4ce7b8011"
+    },
+    {
+      "name": "bound_live_ingestion",
+      "version": "20261018000003",
+      "statementCount": 22,
+      "statementsSha256": "ae58206f2693354a743780328e2b5d52bfcd5cde0749bc445c11ce0bf9f4bafd",
+      "sha256": "9bf4d3403097c5475bf5b653176402f96f399737770449a07a33c4c45f542605"
+    },
+    {
+      "name": "preserve_postponed_game_availability",
+      "version": "20261018000004",
+      "statementCount": 9,
+      "statementsSha256": "13d9abe956e22e3f770017445cde9b9656fd659e899930a0046326870b134dcf",
+      "sha256": "254f88d8e1fb265e8227b4393c3791498bf0150eef45bee0f482d3d6e39373f6"
+    },
+    {
+      "name": "resume_pre_tipoff_optimizer",
+      "version": "20261018000005",
+      "statementCount": 13,
+      "statementsSha256": "3a71be43948e1c9ab4b07661e595730dbe9930cc64f334878f9341f742557212",
+      "sha256": "28854a891c4e4b2739ea361c689a90189c07cda344d309e585d2c09c0c176d07"
+    },
+    {
+      "name": "queue_matchup_final_notifications",
+      "version": "20261018000006",
+      "statementCount": 8,
+      "statementsSha256": "82ebe9be2b86026a4679fb44b514319ff046f6438cf25778aff608dd95143cad",
+      "sha256": "2ba3ab4c7cbac269c73e2f4d8bc651fc55addf579bdf67d04174b877612bb6a4"
+    },
+    {
+      "name": "authorize_rookie_activation_actor",
+      "version": "20261018000007",
+      "statementCount": 7,
+      "statementsSha256": "66ca0c5fe03ecf30fc9982c569bbea6d6f133198bea08364abf48a57d6659f86",
+      "sha256": "7569a59523addced1130cc1fc078b54575ec5aac07d14ef93a916a3f3f53de08"
+    },
+    {
+      "name": "compact_league_change_hints",
+      "version": "20261018000008",
+      "statementCount": 27,
+      "statementsSha256": "6d2246a8ea2ffbded4c7e598ebd2c2796c0c5f44ede6b968758fe10ce902f69e",
+      "sha256": "fa82b8e4eef1de9fceb33621b34af78f542a43d67e5cda95ac0edd27a57bd38a"
+    },
+    {
+      "name": "tab_snapshot_inventory_hints",
+      "version": "20261018000009",
+      "statementCount": 25,
+      "statementsSha256": "4a94c6369f68b9b6fa92852789907092dfdb30f4bcc0a0ef94ab505f88058cbb",
+      "sha256": "e598ae0ba9b1efebf954f8e5b4c4b5d3d6c2dfe642f29b8cfeb74b50ded0bb1c"
+    },
+    {
+      "name": "gate_trade_and_notification_work",
+      "version": "20261018000010",
+      "statementCount": 4,
+      "statementsSha256": "869c0a881212ce68a8067586303a10be12f3231798848130dc1809927fc647f5",
+      "sha256": "a7408fb271bead3d0daf515caa677fc3b226d1d1e8eec5d8048ac30796b90e41"
+    },
+    {
+      "name": "track_search_cache_source_revisions",
+      "version": "20261018000011",
+      "statementCount": 22,
+      "statementsSha256": "424713a69146e1fe7a526119599af4d6ac1b944f9a412d6e2fd08d58508f08b1",
+      "sha256": "4f72ff6f9b5f0ed10ac9b9d4bbc8f7f95b970b5e57898362d98f6568cffb2f5a"
+    },
+    {
+      "name": "harden_function_paths_and_lineup_actor_checks",
+      "version": "20261018000012",
+      "statementCount": 21,
+      "statementsSha256": "2e9964529f536c2a16fe7d7acf0de35b427d10cd9e98a49b4887835aa31a0593",
+      "sha256": "df3465b90299564d3e4f49b9838e12563de15ca4651905045c0a48d761347205"
+    },
+    {
+      "name": "reduce_pg_net_maintenance_frequency",
+      "version": "20261018000013",
+      "statementCount": 1,
+      "statementsSha256": "b0bf6e86d2de0e512b516622ca2e220ab9ca29496680faa9237c9691353f439b",
+      "sha256": "fab1720cbf0f9f67b041d02be42337c6f7ee5df1615debe46083b939a6cfb559"
+    },
+    {
+      "name": "enforce_draft_deadlines_after_lock_waits",
+      "version": "20261018000014",
+      "statementCount": 4,
+      "statementsSha256": "3e8f16aa4ead31a644c4ea0970c9ad5cf9e55877ced6b6731abfac1d1f0ca0f8",
+      "sha256": "80aa710e86c98a698b949026ff4fb266686f8025ce04c11e7ebd500945b593fd"
+    },
+    {
+      "name": "bound_league_inventory_details",
+      "version": "20261018000015",
+      "statementCount": 7,
+      "statementsSha256": "6abfe78740e84620879e385b6b9919158897ea8a5dce2116e8280bbf688b4bdf",
+      "sha256": "a75d9f7245f94acf18d6928ed681c15845b044a5141dad98938bd1c41f491a12"
+    },
+    {
+      "name": "daily_league_resource_hints",
+      "version": "20261018000016",
+      "statementCount": 21,
+      "statementsSha256": "fb2408b95ec1edd4e7655559991db623723ee566bd864b68d796a9a47d8c0afd",
+      "sha256": "713d095eb76934933b2a250d9b76acaff63501e068d84c36633f1febfffc3b36"
+    },
+    {
+      "name": "preserve_non_cdn_score_completion",
+      "version": "20261018000017",
+      "statementCount": 5,
+      "statementsSha256": "a44dcb2b3b903c2212648d806646cb9aab31d19e83839d5738d242f1b3c76412",
+      "sha256": "e8a98574dd4ab94c7d3d7af2bcef4405b602a31eda497a2cc4ff051975a2d011"
+    },
+    {
+      "name": "avoid_inventory_hint_contention",
+      "version": "20261018000018",
+      "statementCount": 17,
+      "statementsSha256": "de6209ae106e8bb9b143c0e163623d8f9ca4eda51896e0d057233aeb5ed9b6ff",
+      "sha256": "6c39036d734aca36fc2a28206c4b4f0c4cbb11a59bb575234fa9d0fc8a356906"
+    },
+    {
+      "name": "live_snapshot_progress",
+      "version": "20261019000001",
+      "statementCount": 8,
+      "statementsSha256": "4d372105a7914fb5cbe595ac21c1d59ff2a4a0c028c92a6634480da2f7e88d9c",
+      "sha256": "2199a8b56612a68ba8cd75ec0a772d33d5cbebc29ee5fa8fdbc9f81d89fb33cf"
+    },
+    {
+      "name": "pre_tipoff_scheduled_start",
+      "version": "20261019000002",
+      "statementCount": 1,
+      "statementsSha256": "6cab11d34d51722a387305f8f9dc06b098e159ea089a3cc3d85d689774c78dfd",
+      "sha256": "ee0b908bfe3c65cbcc58e610a4dc69f236d1b7f9cc37b51bc86d7a0c84da41f8"
+    },
+    {
+      "name": "correct_reviewed_cdn_player_identity",
+      "version": "20261019000003",
+      "statementCount": 1,
+      "statementsSha256": "4c3dcf0b245471ae224041dc91b15c724cd82a64e732bb1728e9714718e83048",
+      "sha256": "75fbedc151d269a1474233d04056eccfedaba69c60c031ebe62925351438bf41"
+    },
+    {
+      "name": "stale_score_weeks_distinct",
+      "version": "20261019100001",
+      "statementCount": 3,
+      "statementsSha256": "90541b6ae8af822abc9ae43e9239dbe65bb6b8c8f7ac68f75b06c65e583ade28",
+      "sha256": "6553450905dcb2e28b077e27ecf9d042d4d34edda52c11bcc6d17c7f2ff3f23e"
+    },
+    {
+      "name": "preserve_rebuilt_standings_certificates",
+      "version": "20261019120001",
+      "statementCount": 1,
+      "statementsSha256": "64497fc5968762bd937aed0d2bc88dac0a6314aa772c8eda0cd4d1cce2216778",
+      "sha256": "13199ce75b10680ff83f02fd0b96e6bfcb5a1863e8e7870d1a234feca5e0352d"
+    },
+    {
+      "name": "sleeper_projections",
+      "version": "20261020000001",
+      "statementCount": 24,
+      "statementsSha256": "fd839269d14fca96f12c9ad8cc17b0af4742bdccac4b598f7ff1aaf663140057",
+      "sha256": "b7e45eaba3183c870a7a8ea3fc7e534891e1c181c350fa0530c763ea0dab99b1"
+    },
+    {
+      "name": "sleeper_projection_readers_and_schedule",
+      "version": "20261020000002",
+      "statementCount": 10,
+      "statementsSha256": "74b8af7d444e30fd37cc406f63d16e69b05c9f1431d6018a041c888044bbedbd",
+      "sha256": "32bad0efacaadc6ca06caad4a9c9db4444fda0bd576cd96b4ea65a60c68e856d"
+    },
+    {
+      "name": "bounded_operational_and_projection_cleanup",
+      "version": "20261020000003",
+      "statementCount": 16,
+      "statementsSha256": "fed686bc6b8bbe356d43884e78ceb213491b9f9598b8bfebb478a02f48438052",
+      "sha256": "3a35f339ef8a078eddaa0729d7ecadf8c07e94bca1523b56c8a9c591880af790"
+    },
+    {
+      "name": "recover_projection_sync_and_compaction",
+      "version": "20261020000004",
+      "statementCount": 4,
+      "statementsSha256": "c797e3b4161f3d353a8d6b0e1f6d5941fe512ba46d0b08a4a2a59fc9163e25fd",
+      "sha256": "32e145a70b78e8a30960186720766adc14bc7d9b90baa02de58a9ac676483bd1"
+    },
+    {
+      "name": "replace_sleeper_snapshots_and_prune_crashes",
+      "version": "20261020000005",
+      "statementCount": 9,
+      "statementsSha256": "e8dc483da66c48a0e40185c6b0fcf7dfacafb53b6a789937daea057158891e8d",
+      "sha256": "c637e34554e73252366859aaa757e1c701b730bc01632789b32a3094cda75634"
+    },
+    {
+      "name": "preserve_filtered_and_historical_sleeper_rows",
+      "version": "20261020000006",
+      "statementCount": 2,
+      "statementsSha256": "3f17d8d1c05c6107fa824170e30ea2cf6087440a92189b1f8b6ca09b3a4a8292",
+      "sha256": "39815409c6991d370b03c5bbf2f618c10a9d7ca90a5f3bae15a8cfd3df27d529"
+    },
+    {
+      "name": "guard_sleeper_snapshot_coverage",
+      "version": "20261020000007",
+      "statementCount": 1,
+      "statementsSha256": "403ebd32c1726e289b753d0cf9b2f3b4fabc734dab0bf8e6531684ac27dfe1b9",
+      "sha256": "9edf29cbce0414d8635e86683fca063b15fee4fd1ec277684458e18424d96a33"
+    },
+    {
+      "name": "schedule_idle_score_recovery",
+      "version": "20261020000030",
+      "statementCount": 5,
+      "statementsSha256": "0f86678c0729ae49cb090d2dd6434533ffdf0ea39d92fe25d7d5c2d8eb81e4c2",
+      "sha256": "82fcc54662fa6a24d5def5a7b70e42c9abb281c5af7bd811302d62ccd6097187"
+    },
+    {
+      "name": "certify_live_score_publication",
+      "version": "20261020000031",
+      "statementCount": 5,
+      "statementsSha256": "583bbc2c5abd520fd3acb4fc5dcceb2ad4ad846a73d567c8f210072d3202b2b0",
+      "sha256": "9b6e1d0771da08d220caab13693b866568e91e82547e3622d863a219b9d6dfdb"
+    },
+    {
+      "name": "share_idle_score_revision_reads",
+      "version": "20261020000032",
+      "statementCount": 5,
+      "statementsSha256": "0251ecf5d61d63f1e49a692dc46c16b33f8395f52770961114ad3c525089fbf2",
+      "sha256": "2e11658e3b0c15efd864c64eb99a37b218ba24c5d1d4430f31a437d0762a990c"
+    },
+    {
+      "name": "poll_delayed_tipoffs",
+      "version": "20261020000033",
+      "statementCount": 5,
+      "statementsSha256": "8dad580ab29d7530c984ed4a6347bef58100f82da638df0a6b6504b2137742ae",
+      "sha256": "b561f88db8b7198ec30c697223f3f9b9ef8e11d807c930f8b2a4f2bcafcfbb92"
+    },
+    {
+      "name": "ignore_stats_freshness_revisions",
+      "version": "20261020000034",
+      "statementCount": 1,
+      "statementsSha256": "ba6b14bbc36ad789157e1f4c4fcbdd52b5e6454ba9d771d81a2c8687c19caf00",
+      "sha256": "e88c297ccd5cef09e7be17921277a9a31b85417a3f64c9342dcf95b215c07d0d"
+    },
+    {
+      "name": "preserve_live_unavailable_markers",
+      "version": "20261020000035",
+      "statementCount": 1,
+      "statementsSha256": "6d1458b9cf3d3bbc0dec8fe36d90e513097390e224ac111ea74b94905b5ea830",
+      "sha256": "5d4e8112fbcc5736165eab97c8f9ebdf9dfce4174bb480838663a6ed68d4e4f4"
+    },
+    {
+      "name": "skip_unchanged_score_finalization",
+      "version": "20261020000036",
+      "statementCount": 1,
+      "statementsSha256": "145b7f72ab6dd7e1cd5454217e9a6b0f79498c32645c9836e4c34535387011f4",
+      "sha256": "c64d89a84a68d97466f88c4a9489642870a07d638354810dcac48311b7d1394f"
+    },
+    {
+      "name": "fill_rollover_pick_years",
+      "version": "20261020000060",
+      "statementCount": 1,
+      "statementsSha256": "34f41009f94ed2b65d43a978ca5951ce364af9da0653cd581e7903e0881f09d2",
+      "sha256": "6a0bf59a9425fee934cb60578f5e6188d8b81fc3d64418f7489cefef86e1febe"
+    },
+    {
+      "name": "recover_rookie_backstop",
+      "version": "20261020000061",
+      "statementCount": 2,
+      "statementsSha256": "1d46af672dc56d363890a43bafc46faaad3b7ad39a86869d382ed923fb9f4bbe",
+      "sha256": "40e122ccdf5550218e223214dc690524c30b62b7b1e286441f4995a0ad4a5fc6"
+    },
+    {
+      "name": "calendar_ingestion_contracts",
+      "version": "20261020000062",
+      "statementCount": 1,
+      "statementsSha256": "d911e652bbb486da3ed959922cdf4ae0ba74acb2de31a7531214b2757bd7e486",
+      "sha256": "b35d084b4235afdf985ec183be7f0f83a69a83eeb781fb292f3cc3c9f133ab89"
+    },
+    {
+      "name": "balanced_season_matchups",
+      "version": "20261020000063",
+      "statementCount": 4,
+      "statementsSha256": "06fd97cf272dcb4a2e96e7a1cfbf8130e3ed44c7cdab862cdcc0fc0cfd84f6c2",
+      "sha256": "4dcccd5ea9738d465284cf2989177cd112a25a2349b5414dad21f96e305e81f0"
+    },
+    {
+      "name": "playoff_clinched",
+      "version": "20261020000064",
+      "statementCount": 4,
+      "statementsSha256": "8e5680c7b3a199a47d0538eb75579df655d8e253c435eacc5fcc5bceeeeea123",
+      "sha256": "5f7f90b90ac275fd163bb03ff18340f331077f531faf8f8cab99cfcacaba09f5"
+    },
+    {
+      "name": "preserve_player_identity_support_and_game_locks",
+      "version": "20261020000130",
+      "statementCount": 3,
+      "statementsSha256": "fd973b0bd68c4619d79ccbf16ffcdbb04db2971d8d83b65553c5da83d63d9c5b",
+      "sha256": "cb4797b5b60077c10252bdefeb7bd891774bb1d62a29229c27e293b17f85d9ef"
+    },
+    {
+      "name": "record_verified_player_game_membership",
+      "version": "20261020000131",
+      "statementCount": 9,
+      "statementsSha256": "8609519a5fc6f15f0236934d0fce0033cef26f71c15eb5173b3acfffbd383244",
+      "sha256": "dfc21c7e46f86705179595a3dc4d4699934b42ec79f355fda9e6920fa1c6fe7f"
+    },
+    {
+      "name": "order_player_import_locks",
+      "version": "20261020000132",
+      "statementCount": 1,
+      "statementsSha256": "cc64455954cd36e167fa257b8293de23080b1912e48f5f42ea8fe25c423ed015",
+      "sha256": "49a525da3c02b2d23792ce6d4cb60b5a7c21c7f190d6aa4513056180d2df45ec"
+    },
+    {
+      "name": "notification_preferences_delivery",
+      "version": "20261020000160",
+      "statementCount": 32,
+      "statementsSha256": "4fe115b6d6cac596bab6531bcef342cb5c78b05692cfb6f1f99a63dfb9418c56",
+      "sha256": "21ff496e4b47ff936b611724c575e92aff493a9f723d2c2e4c00215f015bfcb6"
+    },
+    {
+      "name": "notification_event_producers",
+      "version": "20261020000161",
+      "statementCount": 42,
+      "statementsSha256": "bc99c0975a542e760018922efe24bfb533654c2c1e148e7787302be3c838cafe",
+      "sha256": "07293fa03b0f5e924dedcb71da048ce8524324574e10242b19c2857c1a8a9a9c"
+    },
+    {
+      "name": "notification_trade_recipient_guard",
+      "version": "20261020000162",
+      "statementCount": 2,
+      "statementsSha256": "d1aacf9612386299bc429b09a6152c6aafee69688184f0b5aac852a3ff34cce8",
+      "sha256": "b972f2d29d771cf7704ffe0d3259064f4b21d60ca3b87825b9da2896383af7e9"
+    },
+    {
+      "name": "notification_preference_value_types",
+      "version": "20261020000163",
+      "statementCount": 3,
+      "statementsSha256": "4da05d52c8580e57837f55355710a45137bcd820e6aa568271bc63ae69d88ccb",
+      "sha256": "05a1a238ebf2e11647242fc0e0207cf9bac27c943a0465434d6432bc2934b81b"
+    },
+    {
+      "name": "notification_outbox_categories",
+      "version": "20261020000164",
+      "statementCount": 3,
+      "statementsSha256": "2ae2613ba52aa3f0e7eb77989a7b72be481078993b587000d26c2a928d975c43",
+      "sha256": "ec87baec3556d53a5910f87dbcf55851e41202226ef35c92f245bc8c54cb0658"
+    },
+    {
+      "name": "notification_dispatch_schedule",
+      "version": "20261020000165",
+      "statementCount": 1,
+      "statementsSha256": "08b91dfb565565ceabf48942ea0ccf7be0162515cd63b5dc0981b206be5c9541",
+      "sha256": "c279daacca059f409bb07ec2d7b132f7d409a54abbc33b6f2e9630aedde1ec9d"
+    },
+    {
+      "name": "notification_claim_member_alias",
+      "version": "20261020000166",
+      "statementCount": 1,
+      "statementsSha256": "cad9b490fe16993726dda17c71ddfc227ad49a58d339fcc962630b7a38ed805b",
+      "sha256": "7807e21a91cffeae086ba0cd3ce971244f66c7a99cf53ee2fe2dc8de7c9263d7"
+    },
+    {
+      "name": "notification_matchup_scanner_span",
+      "version": "20261020000167",
+      "statementCount": 1,
+      "statementsSha256": "000692b9e7cd660d6fa78a9412ce37aae752c21348b0746c23dac1536c0a6770",
+      "sha256": "fd5895538c9980a0608828cb079a26db3342fc49b3fbd234d5684292ac20a444"
+    },
+    {
+      "name": "notification_trade_scope_metadata",
+      "version": "20261020000168",
+      "statementCount": 2,
+      "statementsSha256": "63967c2e888af92086b9234a0579160636f89a5e4ac4da27cf71ffd7e2d85d21",
+      "sha256": "6f6eb8f23d69fe62b3e0199739b31051186cc39bf0cf32eb168ee0ef6eb566cb"
+    },
+    {
+      "name": "notification_waiver_settlement",
+      "version": "20261020000169",
+      "statementCount": 1,
+      "statementsSha256": "f8553abd1e74770edc22bfdb7e6617dccf413154c1c52c4a84f9eac08a0b9414",
+      "sha256": "bbdf5510faa1168c08bf1d0f4403ea7c02408a957aac1e847ba8ec24217f54ce"
+    },
+    {
+      "name": "notification_send_time_staleness",
+      "version": "20261020000170",
+      "statementCount": 6,
+      "statementsSha256": "a07bc01117ec69310827a2774950b8c46c9835c7ecfc6bb4d94e7a6cbc95fe3a",
+      "sha256": "e81d6688240da78b9f5fcb49f63fa2d520417d068cd7a742c38b400c3a11eaf7"
+    },
+    {
+      "name": "notification_stale_member_alias",
+      "version": "20261020000171",
+      "statementCount": 1,
+      "statementsSha256": "246ce46ad3157a1f3a0fcdc9855e00b554eb810812ec0d3acf337d534316ee44",
+      "sha256": "ffcc9a66a954aeb761126469936d70a330bd4cee5e3a913146c6033f6fc4032d"
+    },
+    {
+      "name": "notification_flexible_playoff_seeds",
+      "version": "20261020000172",
+      "statementCount": 3,
+      "statementsSha256": "0bed5765319e246e6af5b50a0c1791dabaf04e07c96dc098b6629d35b8611559",
+      "sha256": "891ec58c4d40f5d091c09ebcc1fa3548fe0c39e1794cea78988a3d5dce9643ce"
+    },
+    {
+      "name": "notification_stale_reason_priority",
+      "version": "20261020000173",
+      "statementCount": 2,
+      "statementsSha256": "4a5d1467d21694774b5592ae36cbc03ebe08d6a0dcc30038ada2d0ab4733d1e6",
+      "sha256": "4ed1a8a20c3ad635e658dc593648f882609829c98b4696ec0596a35ee7842d33"
+    },
+    {
+      "name": "notification_remaining_sources",
+      "version": "20261020000174",
+      "statementCount": 37,
+      "statementsSha256": "ad28aa38797be13980b3f8eb5a1cce316a91d86ba10e430f67515192f950a19d",
+      "sha256": "3ebe3a1fe1c5ce58a297bcd80ccb72bf5ee74de7bd4a70e79ea302a3171bc517"
+    },
+    {
+      "name": "notification_draft_wake",
+      "version": "20261020000175",
+      "statementCount": 3,
+      "statementsSha256": "0264111603fcb235c4790b4069b144e4ae2ac8c81932aa3a8601eff1ee28d06a",
+      "sha256": "b98ea25dbf447f37fcfe28b4f1c00a1b03813d6acb777ad1481d783c6bea463d"
+    },
+    {
+      "name": "notification_transport_persistence",
+      "version": "20261020000176",
+      "statementCount": 3,
+      "statementsSha256": "2393d3e80ce86ba9cc9e353077a922d5ce630b487a7731f85816a7877d419e76",
+      "sha256": "cd7e7a732fc248b33249cde0433e0d643dee79482cc6ecef490a9f50361b906c"
+    },
+    {
+      "name": "notification_admission_time",
+      "version": "20261020000177",
+      "statementCount": 2,
+      "statementsSha256": "c09dbfc9749c1e4c1ff49e4840bc56e4be2d61ca3f652ac192e1ec71d94a9fc8",
+      "sha256": "b91170440ed672774600769a65792d29451dfb79f948b7063c86f9e5321ab4f8"
+    },
+    {
+      "name": "notification_announcement_history",
+      "version": "20261020000178",
+      "statementCount": 2,
+      "statementsSha256": "2d8e6fbc3e9c079254812bad4e7d72d626d625a193efda59fdeeee60999b5fd0",
+      "sha256": "98d5795638ab6c50d4030950c135f1b7ade68f648212a516df3794c24f80cceb"
+    },
+    {
+      "name": "notification_pause_deferral",
+      "version": "20261020000179",
+      "statementCount": 7,
+      "statementsSha256": "5daf3fec9617fc34229e618fe374b9414f55bf5161d927010ef792f09377fc81",
+      "sha256": "ff5237bec3e516f40bb22634283ce14547bf06d9c3f8b66711ba2f9d7c33d17c"
+    },
+    {
+      "name": "rookie_draft_long_timers",
+      "version": "20261020000200",
+      "statementCount": 18,
+      "statementsSha256": "c9d4b48866a8e2e0654af73a302b5ee3b5c8b6c1d0185b23aabddb39f0d5da1d",
+      "sha256": "3be7935af2aa965f8ab0194b27d7850a988ea8be466c6bc6242ed2f637bfd974"
+    },
+    {
+      "name": "draft_cutoff_atomic_results",
+      "version": "20261020000201",
+      "statementCount": 1,
+      "statementsSha256": "2187918f6c16a5108017563ead7adc21de5f059ea4a4b5917dad5d3807c48e60",
+      "sha256": "10c905c5669a55692a0552416e5059f146144c8bfdb9a3e5ac070565075e5978"
+    },
+    {
+      "name": "draft_arm_after_lock",
+      "version": "20261020000202",
+      "statementCount": 2,
+      "statementsSha256": "204512e63d15a268f10145085ce5e6fe41625161e1cc1028dbd3bd7a97cc1c24",
+      "sha256": "5c10d7c24198240cf65f64898d0f11e2cee3e3de0cd4d7ccde045bf1d11ceb16"
+    },
+    {
+      "name": "draft_timer_insert_default",
+      "version": "20261020000203",
+      "statementCount": 1,
+      "statementsSha256": "c879b1ef83e494f027b20d4dd385f95b68757063f083f861a4d0b84a2a585cb0",
+      "sha256": "b29a073b878df03fb813a002fd19d1f8346ff504873094fa48a9c15336657eed"
+    },
+    {
+      "name": "mock_rookie_timer_range",
+      "version": "20261020000204",
+      "statementCount": 2,
+      "statementsSha256": "9c11ca5283ea93a98c6705a3f520bb5a7431f2943f68fbaaf5ea07b1f27a1912",
+      "sha256": "83873741058a2c970a6c138db79baf9b98745e9e93fabdd6e9f5274948534bf5"
+    },
+    {
+      "name": "draft_completion_search_path",
+      "version": "20261020000205",
+      "statementCount": 1,
+      "statementsSha256": "ad9f8d25dfe28606f6e9a2de522e843dc9638239f09342783d8473aa37802ea3",
+      "sha256": "253364f79fca8069bcba7b1209a42b284a581e218bf3910355e6022e91ec0e2d"
+    },
+    {
+      "name": "complete_skipped_rookie_picks_at_opening",
+      "version": "20261020000206",
+      "statementCount": 2,
+      "statementsSha256": "f8c6fab9008e7392bbac81b3fc43cdc4d63ec9b8afa244c2a305c00a2d7299ea",
+      "sha256": "023d94c0b1604565287b1b64af0840b2a59c74987c7e65ab2751aab3a2e8e78e"
+    },
+    {
+      "name": "players_fp_season",
+      "version": "20261020000230",
+      "statementCount": 7,
+      "statementsSha256": "f981f3148af78f0d821b65ab3fb525643a9d819c6b2a518d4edf684109a8b2f5",
+      "sha256": "50a95d38054cd06521abcf68334cee5094f29efdaa8d3e67d1ed72ec05bd5765"
+    },
+    {
+      "name": "players_current_source_averages",
+      "version": "20261020000231",
+      "statementCount": 4,
+      "statementsSha256": "637e11ed2367ab4945e2bd9a9e8da5b505dcd09678580c91054b53953c28171b",
+      "sha256": "a299e3d7bcbb1285e95d6cf90cdc0a7c4a86bf86ceadd60f6a2ee792d3870837"
+    },
+    {
+      "name": "transfer_player_watches_on_merge",
+      "version": "20261020000250",
+      "statementCount": 1,
+      "statementsSha256": "0d255e2c8bba7df127e63198c708ffc5f033288a84889dcb3cd6c70540bcc18b",
+      "sha256": "4e49f8b1caf655b3709c09f136f5cda5ef0e44a642e8ad5e1dc07a98cfcb1f73"
+    },
+    {
+      "name": "notification_first_scoring_day",
+      "version": "20261020000251",
+      "statementCount": 3,
+      "statementsSha256": "40db48ca1bc3ce58742034d285e089e8b2ae23d73e330079e39924e5296904f9",
+      "sha256": "ba8e5bb8127d1543efd255748968e7d88761bbdbcaecd8ccde7b95d8e84cdbf8"
+    },
+    {
+      "name": "notification_strict_faab_outbid",
+      "version": "20261020000252",
+      "statementCount": 1,
+      "statementsSha256": "9419d288fd7a7fd72645e6e391f3a02ff4ae639619c5c85ef2108930b95fd861",
+      "sha256": "263869fef4cba70a0b67d868de6b1c2cd1144e39485b3e4136aad9b62ff74ea3"
+    },
+    {
+      "name": "notification_explicit_draft_resume",
+      "version": "20261020000253",
+      "statementCount": 2,
+      "statementsSha256": "c74142dd14617bea7561da8df8784e6156fc0571f48c5d19c9efde130cf88113",
+      "sha256": "d5b2aff84ad623b6b6cff00d1852db5eb0d1160f3e5d5bda995c570c02d1d6cf"
+    },
+    {
+      "name": "notification_absence_rejoin_resume",
+      "version": "20261020000254",
+      "statementCount": 1,
+      "statementsSha256": "34996424d04f14b58248e3cfcf8a6800cb27eff24caefc675ae27465ced58c11",
+      "sha256": "5359d5ffbfc25b83e979195645dcb138d24eb90fd5f001e669f2f4a7dc744b12"
+    },
+    {
+      "name": "mock_room_deadline_retention",
+      "version": "20261020000260",
+      "statementCount": 3,
+      "statementsSha256": "48b6d59f517d6cbaa67661ed7d682dd5b5f18c1751a8128acc4e2d64a4c7a52d",
+      "sha256": "932ff2fe63e1b063b86549fd8dcff2aa285ec70c6030fe5987b541cf0aa43544"
+    },
+    {
+      "name": "notification_auction_turns",
+      "version": "20261020000280",
+      "statementCount": 5,
+      "statementsSha256": "8a02ec7cf026ae2eb42774673ec245c671b1899db0016df7c9105c34db29038f",
+      "sha256": "bda1148a4acb0db1901abfbbc5383d7fcdfadbba216a289af2b97a608d6ea1f2"
+    },
+    {
+      "name": "notification_auction_settled_turns",
+      "version": "20261020000305",
+      "statementCount": 3,
+      "statementsSha256": "ac22ee884841905eb00341a329d948e066fc2eada3ce2886ebfa84e8746ad278",
+      "sha256": "7236470bd0bd0d88032c5c206e103d4c72dd41caf9ca382b12c6253b90ed6975"
+    },
+    {
+      "name": "release_unlisted_espn_players",
+      "version": "20261020000315",
+      "statementCount": 1,
+      "statementsSha256": "0a70e1cea99781c34574a169792fe44b5e0b4de66e7f440629b09000c43cbd17",
+      "sha256": "c50edd1f6e3247d80671638914726b26dee128073640d54d3226cb45f9ab5c9f"
+    },
+    {
+      "name": "hold_unproven_espn_releases",
+      "version": "20261020000316",
+      "statementCount": 5,
+      "statementsSha256": "5fcd85618282dd4fa03491513cc3e51e35e9e26b767bd46ee9f19ccd1624561a",
+      "sha256": "cad15c2d96a0ab654edb69faae4d48393d0096f54dafa69dc457d74adbb92c59"
+    },
+    {
+      "name": "hold_releases_after_inactive_listings",
+      "version": "20261020000317",
+      "statementCount": 1,
+      "statementsSha256": "4cfdf37c4e34ec78a1d47f8097d28e0bd046b787721140425172caac2a93d944",
+      "sha256": "99b3e26b5200ffec5c750dfb636ad3e5b7f406d06cf322b490492aea47e98dd7"
+    },
+    {
+      "name": "hold_espn_omissions_without_departure_evidence",
+      "version": "20261020000318",
+      "statementCount": 1,
+      "statementsSha256": "3762da80a4059d79f47438a50aa715cba29ccc92fed9dc42a021fe689493d1a6",
+      "sha256": "6003149079b08b6762a01989bffd907873f1d09ea5a9259206cdfcca0e09880b"
+    },
+    {
+      "name": "release_to_box_side",
+      "version": "20261020000319",
+      "statementCount": 3,
+      "statementsSha256": "e702b5de72440e342cfe99561dc40e3539a310ed15a3d92613d754a3e50d7523",
+      "sha256": "69915e45e338be205eeb41f1f849f014e17b0a8535bcd9e30a1a783a1e131f8f"
+    },
+    {
+      "name": "link_box_players_on_corroborated_listing",
+      "version": "20261020000320",
+      "statementCount": 3,
+      "statementsSha256": "efd64cb9e749b851750c9732b0e9facb6f45e329271283dfc7bd2ca5552f7183",
+      "sha256": "87cbb1c4b052c6e408bdeb56d97d2ad0c69ba462fb3c76433acbf9dab1771e78"
+    },
+    {
+      "name": "merge_keeps_box_side_and_listing",
+      "version": "20261020000330",
+      "statementCount": 1,
+      "statementsSha256": "79155e19484fb6e744da96abdffee6e54a389cad67b5d1ac37ffab4082853396",
+      "sha256": "3dd026dc189f129d5a01f6be793313d3596e296cd8fe86cc065177da884afb39"
+    },
+    {
+      "name": "release_after_a_box_placed_him",
+      "version": "20261020000340",
+      "statementCount": 1,
+      "statementsSha256": "4d504818661f3f6222a7764e5cc08081b6dcd196f67ddab16befb25735a1eae7",
+      "sha256": "106a21b64f2a0a85397dc9fdac09dfafb4158fd6449cc2a9315360749444f52b"
+    },
+    {
+      "name": "merge_keeps_listing_team_since",
+      "version": "20261020000350",
+      "statementCount": 1,
+      "statementsSha256": "9e2d5eddad3058b17b9f711f20e9301912f8ea3bf7794db20895bafe1534a246",
+      "sha256": "5a3fa722e15910df0628e93eb80b9d1fd06b98292f276f0505d589da97d48f61"
+    },
+    {
+      "name": "balance_preseason_skipped_matchups",
+      "version": "20261023000001",
+      "statementCount": 1,
+      "statementsSha256": "3b60db85028a7925d2fd1c62738e8af4c2a72689aeee9ef09f7cd61a319db223",
+      "sha256": "35a51e864b4cd4cd27ca7534a73bc86356fdef3b944269e32e0fa64b5cc2a2e7"
+    },
+    {
+      "name": "link_reviewed_rookie_identities",
+      "version": "20261024000001",
+      "statementCount": 3,
+      "statementsSha256": "8640efcfa14c0182a5cdcc94a21ecb78af1c2c7f202a359d4a870a5eedab5129",
+      "sha256": "e1fa122e4d74d761fb62c8bd5a7143d5d6410b7b7e639d1fe754cfb5ed4dcdaf"
     }
   ]
 }

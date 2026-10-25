@@ -42,3 +42,17 @@ Deno.test('score planning shares one calendar read per year and reloads on the n
     globalThis.fetch = nativeFetch
   }
 })
+
+Deno.test('game dates follow all fourteen stored merged-week days and the next week boundary', async () => {
+  const { weekNumberForGameDate } = await import('./scoreShared.ts')
+  const weeks = [
+    { week_number: 17, week_start: '2026-02-09', week_end: '2026-02-22' },
+    { week_number: 18, week_start: '2026-02-23', week_end: '2026-03-01' },
+  ]
+  for (let day = 9; day <= 22; day++) {
+    assert.equal(weekNumberForGameDate(`2026-02-${String(day).padStart(2, '0')}`, weeks), 17)
+  }
+  assert.equal(weekNumberForGameDate('2026-02-23', weeks), 18)
+  assert.equal(weekNumberForGameDate('2026-03-01', weeks), 18)
+  assert.equal(weekNumberForGameDate('2026-03-02', weeks), null)
+})

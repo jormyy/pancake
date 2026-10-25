@@ -46,7 +46,7 @@ VALUES ('00000000-0000-0000-0000-0000000f0401', 'Cron', 'Gate', 'DAL', 'SF', 2, 
 INSERT INTO public.drafts (id, league_id, league_season_id, draft_type, status, budget_per_team, started_at, pick_timer_seconds, rounds)
 VALUES
   ('00000000-0000-0000-0000-0000000f0601', '00000000-0000-0000-0000-0000000f0101', '00000000-0000-0000-0000-0000000f0301', 'auction', 'in_progress', 10, now(), 30, NULL),
-  ('00000000-0000-0000-0000-0000000f0602', '00000000-0000-0000-0000-0000000f0101', '00000000-0000-0000-0000-0000000f0301', 'snake', 'in_progress', NULL, now(), 30, 1);
+  ('00000000-0000-0000-0000-0000000f0602', '00000000-0000-0000-0000-0000000f0101', '00000000-0000-0000-0000-0000000f0301', 'snake', 'in_progress', NULL, now(), 60, 1);
 INSERT INTO public.draft_budgets (draft_id, member_id, initial_budget, remaining)
 VALUES ('00000000-0000-0000-0000-0000000f0601', '00000000-0000-0000-0000-0000000f0201', 10, 10);
 INSERT INTO public.nominations (id, draft_id, nominating_member_id, player_id, nomination_order, status, current_bid_amount, current_bidder_id, countdown_expires_at)

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { maintenanceTick, waitForRollover } from './maintenance.mjs'
+import { maintenanceTick, rolloverDeadline, waiverBoundaryDeferral, waitForRollover } from './maintenance.mjs'
 
 test('daily maintenance expires waivers before the season boundary through production dispatchers', async () => {
   const calls = []
@@ -32,4 +32,26 @@ test('a blocked boundary is never accepted merely because its HTTP response is 2
   assert.equal((await maintenanceTick(async statement => statement.includes('season_boundary') ? [failed] : [], async () => '')).length, 1)
   await assert.rejects(waitForRollover({ start: 0, deadline: 30 * 60000, oldSeason: 'old', move: async () => {}, tick: async () => [failed], current: async () => 'old' }), /did not roll over.*2 ticks/)
   await assert.rejects(maintenanceTick(async () => [{ ...failed, content: '{"leagues":[{"error":"unrelated backend failure"}]}' }], async () => ''), /unexpected maintenance failure/)
+})
+
+const settledWaivers = { name: 'postseason-pending', checked: true, processAt: Date.parse('2026-04-15T07:00:00Z'), input: { claims: [{ id: 'winner', drop: 'old-player' }] }, expected: { claims: { winner: 'succeeded' } }, targets: [{ clearsAt: Date.parse('2026-04-14T14:00:00Z') }] }
+
+test('successful conditional drops extend the rollover bound through their own waiver holds', () => {
+  const start = Date.parse('2026-04-13T14:06:00Z'), ready = Date.parse('2026-04-15T04:08:00Z')
+  assert.equal(rolloverDeadline(start, ready, [settledWaivers]), Date.parse('2026-04-19T09:00:00Z'))
+  assert.equal(rolloverDeadline(start, ready, []), ready + 26 * 3600000)
+})
+
+test('a processed postseason batch can still block the boundary with new conditional-drop holds', () => {
+  const context = { leagueId: 'league', waiverScenarios: [settledWaivers] }
+  const outcome = { function_name: 'season-boundary', worker_status: 'failed', status_code: 200, content: JSON.stringify({ leagues: [{ leagueId: 'league', error: 'Resolve pending waiver claims and waiver holds before advancing season.' }] }) }
+  assert.equal(waiverBoundaryDeferral(outcome, context, Date.parse('2026-04-15T13:00:00Z')), true)
+  assert.equal(waiverBoundaryDeferral(outcome, context, Date.parse('2026-04-19T13:00:00Z')), false)
+  assert.equal(waiverBoundaryDeferral({ ...outcome, content: '{"leagues":[{"leagueId":"other","error":"Resolve pending waiver claims and waiver holds before advancing season."}]}' }, context, Date.parse('2026-04-15T13:00:00Z')), false)
+})
+
+test('an unclaimed conditional-drop hold expires on the first daily run strictly after its clear time', () => {
+  const context = { leagueId: 'league', waiverScenarios: [settledWaivers] }
+  const outcome = { function_name: 'season-boundary', worker_status: 'failed', status_code: 200, content: JSON.stringify({ leagues: [{ leagueId: 'league', error: 'Resolve pending waiver claims and waiver holds before advancing season.' }] }) }
+  assert.equal(waiverBoundaryDeferral(outcome, context, Date.parse('2026-04-18T13:00:00Z')), true)
 })

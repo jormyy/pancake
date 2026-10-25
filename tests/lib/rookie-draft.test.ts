@@ -5,6 +5,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: mocks.from, removeChannel: 
 vi.mock('@/lib/shared/api', () => ({ apiPost: mocks.apiPost }))
 vi.mock('@/lib/realtime', () => ({ subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn() }))
 
+import { validateRookieTimerSeconds } from '@/lib/draft-options'
 import { getRookieDraftPollRevision, getRookieDraftState, getRookiePlayers, startRookieDraft } from '@/lib/rookieDraft'
 
 function query(result: { data: unknown; error: unknown }) {
@@ -81,4 +82,14 @@ it('starts the bounded prospect read before the picked-player reply arrives', as
     finish({ data: [{ player_id: 'picked' }], error: null })
     await expect(result).resolves.toEqual([{ id: 'available' }])
     expect(players.limit).toHaveBeenCalledWith(100)
+})
+
+describe('rookie timer range', () => {
+    it.each([60, 604800])('accepts %s seconds', value => {
+        expect(validateRookieTimerSeconds(value)).toBe(value)
+    })
+    it.each([5, 30, 59, 604801, 60.5, NaN])('rejects %s before a request', async value => {
+        await expect(startRookieDraft('league', { timerSeconds: value })).rejects.toThrow('1 minute and 7 days')
+        expect(mocks.apiPost).not.toHaveBeenCalled()
+    })
 })

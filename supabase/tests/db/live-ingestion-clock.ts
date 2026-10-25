@@ -32,7 +32,8 @@ const game = crypto.randomUUID()
 const users: string[] = []
 const gameId = `002${String(crypto.getRandomValues(new Uint32Array(1))[0] % 100000000).padStart(8,'0')}`
 const personIds = [String(900000000+crypto.getRandomValues(new Uint32Array(1))[0]),String(900000000+crypto.getRandomValues(new Uint32Array(1))[0])]
-const date = new Date().toLocaleDateString('en-CA',{ timeZone:'America/New_York' })
+const today = new Date().toLocaleDateString('en-CA',{ timeZone:'America/New_York' })
+const date = new Date(Date.parse(`${today}T12:00:00Z`)-86400000).toISOString().slice(0,10)
 let year = 0
 let crash: Deno.ChildProcess | null = null
 const ownedHolders = new Set<string>()
@@ -102,6 +103,7 @@ try {
   for(let index=1;index<ticks.length;index++)assert.ok(ticks[index].at-ticks[index-1].at>=18000 && ticks[index].at-ticks[index-1].at<=24000)
   assert.equal(state.requests.filter(row=>row.kind==='boxscore').length,6)
   assert.equal(await homePoints(),16)
+  assert.equal((await query(supabase.from('matchups').select('is_finalized').eq('league_season_id',season).single()))?.is_finalized,false)
   assert.equal((await sql(`SELECT count(*) FROM live_poll_leases WHERE lock_key=779001`)),'0')
   console.log(JSON.stringify({case:'real 20-second ingestion',runtime:useEdge?'Supabase Edge':'Deno HTTP + local Supabase',result,gapsMs:ticks.slice(1).map((row,index)=>row.at-ticks[index].at),homePoints:await homePoints()}))
 

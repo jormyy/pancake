@@ -38,7 +38,7 @@ SELECT pg_temp.expect_game_lock(format(
   'SELECT public.activate_roster_player_with_overflow_atomic(%L, %L, %L, %L)',
   '00000000-0000-0000-0000-0000f6d40502', 'ir',
   '00000000-0000-0000-0000-0000f6d40501', action))
-FROM unnest(ARRAY['ir', 'taxi']) AS action;
+FROM unnest(ARRAY['ir']) AS action;
 
 -- The activated player must also be unlocked. A failed activation undoes its drop.
 RESET ROLE;

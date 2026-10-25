@@ -1,135 +1,788 @@
 {
-  "version": 1,
+  "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261011000062",
+  "candidateVersion": "20261024000001",
   "common": {
     "functions": [
       {
-        "anonExecute": true,
-        "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
-        "authenticatedExecute": true,
-        "bodySha256": "7fd824ddeb4713e803a0ac37970426ca652bb5678c72b44541f7d31250d85c1b",
-        "config": [
-          "search_path=public"
-        ],
-        "identityArguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid",
-        "language": "sql",
-        "name": "clear_future_unlocked_lineups",
+        "name": "claim_cron_dispatch",
         "owner": "postgres",
-        "publicExecute": true,
-        "result": "void",
-        "schema": "private",
-        "securityDefiner": true,
-        "serviceRoleExecute": true,
-        "strict": false,
-        "volatility": "v"
-      },
-      {
-        "anonExecute": false,
-        "arguments": "",
-        "authenticatedExecute": false,
-        "bodySha256": "c54c8e41236f642ff95e9a03d3c1a173da435022f4d2663e9f8822b71328c403",
-        "config": [
-          "search_path=public"
-        ],
-        "identityArguments": "",
-        "language": "plpgsql",
-        "name": "sync_roster_linked_state",
-        "owner": "postgres",
-        "publicExecute": false,
-        "result": "trigger",
-        "schema": "private",
-        "securityDefiner": true,
-        "serviceRoleExecute": false,
-        "strict": false,
-        "volatility": "v"
-      },
-      {
-        "anonExecute": false,
-        "arguments": "",
-        "authenticatedExecute": false,
-        "bodySha256": "b9d10dc223299906c836a8c3144796d9af8fb3b0d89b388c544ad4817bf33f27",
         "config": [
           "search_path=\"\""
         ],
-        "identityArguments": "",
+        "result": "boolean",
+        "schema": "private",
+        "strict": false,
         "language": "plpgsql",
+        "arguments": "p_job_key text, p_period_key text",
+        "bodySha256": "982fe3545ddca48430810ef36aad7a08cc64d8686518414df9bca3b633df2384",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_job_key text, p_period_key text",
+        "serviceRoleExecute": false,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "clear_future_unlocked_lineups",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "private",
+        "strict": false,
+        "language": "sql",
+        "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
+        "bodySha256": "7fd824ddeb4713e803a0ac37970426ca652bb5678c72b44541f7d31250d85c1b",
+        "volatility": "v",
+        "anonExecute": true,
+        "publicExecute": true,
+        "securityDefiner": true,
+        "identityArguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": true
+      },
+      {
+        "name": "reconcile_edge_invocations",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "integer",
+        "schema": "private",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "",
+        "bodySha256": "ea9f4e0a97df1f1c283e607b801863cf7a14d92509d6e860d780c08dedec86ca",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "",
+        "serviceRoleExecute": false,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "sync_roster_linked_state",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "trigger",
+        "schema": "private",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "",
+        "bodySha256": "7c43bda52da27f2a94e2d4ee8d5f4c7d7679ea967e3f522903d14bb4cfb36fd5",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "",
+        "serviceRoleExecute": false,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "activate_rookie_draft_league_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "boolean",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_draft_id uuid",
+        "bodySha256": "e4bea177703978fbc71584f5afbb79d959b872033f0bcb78889e3381ef4f71e4",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_draft_id uuid",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": true
+      },
+      {
+        "name": "drop_player_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "sql",
+        "arguments": "p_roster_player_id uuid",
+        "bodySha256": "b69be46f75e704a822c1569778819ddf10b9f702a09dd2a532f5a3a8709cb653",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_roster_player_id uuid",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": true
+      },
+      {
+        "name": "drop_player_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "sql",
+        "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid",
+        "bodySha256": "0837fbf8d69c458cfdcafa272da9dd9e5a1405412096d72dee57a4ad8e45500e",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_roster_player_id uuid, p_expected_league_season_id uuid",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": true
+      },
+      {
+        "name": "drop_player_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+        "bodySha256": "7b02ea90f93f521b88fb8a053d7bb41dcfdd1c4beb6a8c4998b3bab2bd355df3",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": true
+      },
+      {
+        "name": "edit_waiver_claim_atomic",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer",
+        "bodySha256": "66310db876561110587e8b1f826217e1f4b07b0314e21ec612dc1d856e0266ac",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": false
+      },
+      {
         "name": "handle_new_auth_user",
         "owner": "postgres",
-        "publicExecute": false,
+        "config": [
+          "search_path=\"\""
+        ],
         "result": "trigger",
         "schema": "public",
-        "securityDefiner": true,
-        "serviceRoleExecute": false,
         "strict": false,
-        "volatility": "v"
+        "language": "plpgsql",
+        "arguments": "",
+        "bodySha256": "b9d10dc223299906c836a8c3144796d9af8fb3b0d89b388c544ad4817bf33f27",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "",
+        "serviceRoleExecute": false,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "invoke_dynasty_ranking_views_at_et_time",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+        "bodySha256": "36baf073e8040ea50b6f7b8bcfa6dbfd63b28727db03d3ef5c25727b4e095a19",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_hour integer, p_minute integer, p_now timestamp with time zone",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "invoke_edge_function",
+        "owner": "postgres",
+        "config": [
+          "search_path=\"\""
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "function_name text, body jsonb DEFAULT '{}'::jsonb",
+        "bodySha256": "bd77eb75a2f2ce7705c0ee40369dcb02287ac7f98638181e3865c553e930d553",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "function_name text, body jsonb",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "invoke_edge_function_at_et_time",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "void",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+        "bodySha256": "1914e542280cc3848bba031f042827c1639116035f18925d5951e442ef59d8c5",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_function_name text, p_hour integer, p_minute integer, p_now timestamp with time zone",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": false
+      },
+      {
+        "name": "renew_live_poll_lease",
+        "owner": "postgres",
+        "config": [
+          "search_path=public"
+        ],
+        "result": "boolean",
+        "schema": "public",
+        "strict": false,
+        "language": "plpgsql",
+        "arguments": "p_lock_key bigint, p_holder_id uuid, p_ttl_seconds integer DEFAULT 90",
+        "bodySha256": "720fe54cca73e30e509d12d879096b530d9bb5a51f828a3ded77b26846d1c941",
+        "volatility": "v",
+        "anonExecute": false,
+        "publicExecute": false,
+        "securityDefiner": true,
+        "identityArguments": "p_lock_key bigint, p_holder_id uuid, p_ttl_seconds integer",
+        "serviceRoleExecute": true,
+        "authenticatedExecute": false
       }
     ],
     "triggers": [
       {
+        "name": "compact_change_delete",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER compact_change_delete AFTER DELETE ON public.roster_players REFERENCING OLD TABLE AS old_rows FOR EACH STATEMENT EXECUTE FUNCTION private.emit_league_change()",
+        "functionName": "emit_league_change",
+        "functionSchema": "private"
+      },
+      {
+        "name": "compact_change_insert",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER compact_change_insert AFTER INSERT ON public.roster_players REFERENCING NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION private.emit_league_change()",
+        "functionName": "emit_league_change",
+        "functionSchema": "private"
+      },
+      {
+        "name": "compact_change_update",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER compact_change_update AFTER UPDATE ON public.roster_players REFERENCING OLD TABLE AS old_rows NEW TABLE AS new_rows FOR EACH STATEMENT EXECUTE FUNCTION private.emit_league_change()",
+        "functionName": "emit_league_change",
+        "functionSchema": "private"
+      },
+      {
+        "name": "enforce_taxi_lifecycle",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER enforce_taxi_lifecycle BEFORE INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.enforce_taxi_lifecycle()",
+        "functionName": "enforce_taxi_lifecycle",
+        "functionSchema": "private"
+      },
+      {
+        "name": "prevent_accepted_or_inactive_roster_move",
+        "enabled": "O",
         "definition": "CREATE TRIGGER prevent_accepted_or_inactive_roster_move BEFORE UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
-        "enabled": "O",
         "functionName": "prevent_accepted_or_inactive_roster_move",
-        "functionSchema": "private",
-        "name": "prevent_accepted_or_inactive_roster_move"
+        "functionSchema": "private"
       },
       {
+        "name": "prevent_accepted_trade_asset_roster_delete",
+        "enabled": "O",
         "definition": "CREATE TRIGGER prevent_accepted_trade_asset_roster_delete BEFORE DELETE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_trade_asset_roster_delete()",
-        "enabled": "O",
         "functionName": "prevent_accepted_trade_asset_roster_delete",
-        "functionSchema": "private",
-        "name": "prevent_accepted_trade_asset_roster_delete"
+        "functionSchema": "private"
       },
       {
+        "name": "prevent_uncleared_waiver_free_agent_add",
+        "enabled": "O",
         "definition": "CREATE TRIGGER prevent_uncleared_waiver_free_agent_add BEFORE INSERT ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_uncleared_waiver_free_agent_add()",
-        "enabled": "O",
         "functionName": "prevent_uncleared_waiver_free_agent_add",
-        "functionSchema": "private",
-        "name": "prevent_uncleared_waiver_free_agent_add"
+        "functionSchema": "private"
       },
       {
-        "definition": "CREATE TRIGGER sync_roster_linked_state AFTER DELETE OR UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.sync_roster_linked_state()",
+        "name": "score_revision_season",
         "enabled": "O",
+        "definition": "CREATE TRIGGER score_revision_season AFTER INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.track_score_input_revision('season', 'league_season_id,member_id,player_id,acquired_at,is_on_ir,is_on_taxi')",
+        "functionName": "track_score_input_revision",
+        "functionSchema": "private"
+      },
+      {
+        "name": "sync_roster_linked_state",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER sync_roster_linked_state AFTER DELETE OR UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.sync_roster_linked_state()",
         "functionName": "sync_roster_linked_state",
-        "functionSchema": "private",
-        "name": "sync_roster_linked_state"
+        "functionSchema": "private"
+      },
+      {
+        "name": "z_clear_taxi_acquisition_context",
+        "enabled": "O",
+        "definition": "CREATE TRIGGER z_clear_taxi_acquisition_context AFTER INSERT OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.clear_taxi_acquisition_context()",
+        "functionName": "clear_taxi_acquisition_context",
+        "functionSchema": "private"
       }
     ],
     "policies": [
       {
-        "check": null,
-        "command": "SELECT",
         "name": "waiver_wire_log_select_visible_league_rows",
-        "permissive": "PERMISSIVE",
+        "check": null,
         "roles": [
           "authenticated"
         ],
-        "using": "((league_id IN ( SELECT private.my_league_ids() AS my_league_ids)) AND ((cleared_at IS NOT NULL) OR (clears_at > now())))"
+        "using": "((league_id IN ( SELECT private.my_league_ids() AS my_league_ids)) AND ((cleared_at IS NOT NULL) OR (clears_at > now())))",
+        "command": "SELECT",
+        "permissive": "PERMISSIVE"
       }
     ],
     "tables": [
       {
-        "anonSelect": false,
-        "authenticatedSelect": true,
-        "forceRls": false,
-        "name": "waiver_wire_log",
-        "policies": 1,
         "rls": true,
-        "serviceRoleSelect": true
+        "name": "cron_dispatch_state",
+        "forceRls": false,
+        "policies": 0,
+        "anonSelect": false,
+        "serviceRoleSelect": true,
+        "authenticatedSelect": false
+      },
+      {
+        "rls": true,
+        "name": "edge_invocations",
+        "forceRls": false,
+        "policies": 0,
+        "anonSelect": false,
+        "serviceRoleSelect": true,
+        "authenticatedSelect": false
+      },
+      {
+        "rls": true,
+        "name": "waiver_wire_log",
+        "forceRls": false,
+        "policies": 1,
+        "anonSelect": false,
+        "serviceRoleSelect": true,
+        "authenticatedSelect": true
+      },
+      {
+        "rls": true,
+        "name": "web_push_subscriptions",
+        "forceRls": false,
+        "policies": 0,
+        "anonSelect": false,
+        "serviceRoleSelect": true,
+        "authenticatedSelect": false
       }
     ],
     "indexes": [
       {
-        "definition": "CREATE INDEX profiles_push_token_lookup ON public.profiles USING btree (push_token) WHERE (push_token IS NOT NULL)",
+        "name": "idx_edge_invocations_reconciled_at",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_edge_invocations_reconciled_at ON public.edge_invocations USING btree (reconciled_at)"
+      },
+      {
+        "name": "idx_edge_invocations_unreconciled",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_edge_invocations_unreconciled ON public.edge_invocations USING btree (queued_at) WHERE (reconciled_at IS NULL)"
+      },
+      {
+        "name": "idx_projection_sync_runs_started_at",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_projection_sync_runs_started_at ON public.projection_sync_runs USING btree (started_at)"
+      },
+      {
+        "name": "idx_standings_season_member_week",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_standings_season_member_week ON public.standings USING btree (league_season_id, member_id, week_number DESC)"
+      },
+      {
+        "name": "idx_sync_runs_started_at",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX idx_sync_runs_started_at ON public.sync_runs USING btree (started_at)"
+      },
+      {
         "name": "profiles_push_token_lookup",
         "ready": true,
-        "valid": true
+        "valid": true,
+        "definition": "CREATE INDEX profiles_push_token_lookup ON public.profiles USING btree (push_token) WHERE (push_token IS NOT NULL)"
+      },
+      {
+        "name": "web_push_subscriptions_user_id_idx",
+        "ready": true,
+        "valid": true,
+        "definition": "CREATE INDEX web_push_subscriptions_user_id_idx ON public.web_push_subscriptions USING btree (user_id, updated_at DESC)"
       }
     ]
   },
   "phases": {
     "pre-migration": {
       "functions": [
+        {
+          "name": "lineup_game_started",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "boolean",
+          "schema": "private",
+          "strict": false,
+          "language": "sql",
+          "arguments": "p_player_id uuid, p_game_date date",
+          "bodySha256": "711da75c4721472b6dce039a5d5c4bbc48b33847daac1621db13d8eba31a3d67",
+          "volatility": "s",
+          "anonExecute": true,
+          "publicExecute": true,
+          "securityDefiner": false,
+          "identityArguments": "p_player_id uuid, p_game_date date",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": true
+        },
+        {
+          "name": "invoke_live_poll_if_due",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "792a0ef2d52595861db99996db5c4f960e2b0efdacfe7c370891ff6c5bd5b6d9",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_season_boundary_if_due",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "3fc97ad3b76f1082b40739b75025628acf7edc9cd89bdc01264daca64177ddae",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "tables": [],
+      "indexes": []
+    },
+    "post-migration": {
+      "functions": [
+        {
+          "name": "lineup_game_started",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "boolean",
+          "schema": "private",
+          "strict": false,
+          "language": "sql",
+          "arguments": "p_player_id uuid, p_game_date date",
+          "bodySha256": "dd622d3852a072617635b1b1f2dfe6e8b83c0cff94d1f9aace5d24baa5e96584",
+          "volatility": "s",
+          "anonExecute": true,
+          "publicExecute": true,
+          "securityDefiner": false,
+          "identityArguments": "p_player_id uuid, p_game_date date",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": true
+        },
+        {
+          "name": "invoke_live_poll_if_due",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "6a30421ce0544a6e42e9fa85dc9281212fc394055e46574452af9b84e6da44f0",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_season_boundary_if_due",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "97bb4fe68d6f58af6f9beb5e18459d9f86116dc3a7e26049024146a582e4b2f0",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        }
+      ],
+      "triggers": [],
+      "policies": [],
+      "tables": [],
+      "indexes": []
+    }
+  },
+  "sourceMigrations": [
+    {
+      "filename": "20260627000003_scoring_cron_auction_startup.sql",
+      "sha256": "dad6d6b8d5af6513369c4dc23debd50253c9ec2460ce51e9d5b4ae0be1310df2"
+    },
+    {
+      "filename": "20260630000014_draft_lifecycle_rpcs.sql",
+      "sha256": "5cf343240ff22174b16b76d162c0df8d4caf951298a355f0c8d4e4009ec281db"
+    },
+    {
+      "filename": "20260701000004_dynasty_waivers_and_add_limits.sql",
+      "sha256": "79c6f88619caec3184dcbd0bf1692f12bd79c618db6192184faab940c80ed73e"
+    },
+    {
+      "filename": "20260709100037_auth_profile_metadata.sql",
+      "sha256": "11d2b415411dd050542dd42d39f3b93958ca09eeae95196f12d113813ca9618b"
+    },
+    {
+      "filename": "20260814000001_gate_idle_cron_work.sql",
+      "sha256": "b452e4b14bc4590460bf28e43b253c91bf9b2b8b3f1f04f944c229fad507a950"
+    },
+    {
+      "filename": "20260815000007_season_boundary_offseason_gate.sql",
+      "sha256": "5050f391d2af53ad1144b5d29f3050d6395b3fa8289e400d8dc81cc7556d6bc3"
+    },
+    {
+      "filename": "20260815000009_edge_invoker_url_vault_fallback.sql",
+      "sha256": "d4ebb1896a865e2b200241171eb599f8a5bc05fda800cd71fabb3e84af9d5e40"
+    },
+    {
+      "filename": "20260817000005_remove_legacy_dynasty_rankings.sql",
+      "sha256": "7db8370550e884073f08a1bc156eead6894de2576876c0e9f93ddb89c4e74719"
+    },
+    {
+      "filename": "20260827000012_limit_predicate_lineup_lock_and_draft_reservation.sql",
+      "sha256": "2cdf54d1d0890f51f186e6cbe6303d736e5b06f0555f093dc63f10660d1c4c95"
+    },
+    {
+      "filename": "20260827000014_ir_predicate_private_expiry_and_accept_lock_order.sql",
+      "sha256": "b19e759f4262ec42c7b1eec8288a06767470b6cdd3a0a2521b338288c4338f8a"
+    },
+    {
+      "filename": "20260912000003_scheduling_catchup_and_durable_invocations.sql",
+      "sha256": "db1a8084a109c516c3cd1b05c06fdfa6b556c13c8a8e63cb8ae51738eb346b8a"
+    },
+    {
+      "filename": "20260921000002_internal_scheduling_rls_and_rule_copy.sql",
+      "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e"
+    },
+    {
+      "filename": "20261005000003_league_season_rules.sql",
+      "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d"
+    },
+    {
+      "filename": "20261008000001_reuse_numeric_scoring_coefficients.sql",
+      "sha256": "5e230acb5e3d989f3a2c4f9526e57bcf53ef6c5031bd5214bed160aafc8767cb"
+    },
+    {
+      "filename": "20261008000002_optimizer_setting_context_writes.sql",
+      "sha256": "50b207494aabcb05437702b6bec735412cf0dc10177567a11f0cf603f1c3513e"
+    },
+    {
+      "filename": "20261009000002_health_search_score_reuse.sql",
+      "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
+    },
+    {
+      "filename": "20261009000003_projection_team_calendar.sql",
+      "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
+    },
+    {
+      "filename": "20261010000001_trade_veto_read_policy.sql",
+      "sha256": "eab5ff35effb7d6bf13d8e6358205ca63e0b05c9160a11673443b63407a5b984"
+    },
+    {
+      "filename": "20261011000010_lock_historical_lineups_and_game_participation.sql",
+      "sha256": "a439116da86a73ed278118dccaa1f0d23449ce125a73d0e57ff45366057c0108"
+    },
+    {
+      "filename": "20261011000017_permanent_taxi_exit_policy.sql",
+      "sha256": "634191e211f9d6c893ce266bdfb64189f33a5497822ca3f56a2e786706330402"
+    },
+    {
+      "filename": "20261011000029_certify_score_input_revisions.sql",
+      "sha256": "96108d4623e28f2418f9d7d958c524629474b38108b35491607e54da40844d12"
+    },
+    {
+      "filename": "20261011000036_bind_roster_drop_to_expected_season.sql",
+      "sha256": "c51096a7cf28b4e314c1370ffb367be03592339fbfbfb7d6480d2369942a840e"
+    },
+    {
+      "filename": "20261011000038_guard_rookie_overflow_drops.sql",
+      "sha256": "eaa962143e809ebf7b2deb790fb0966ce10e85460ef489a57adb4da37d5828a0"
+    },
+    {
+      "filename": "20261011000056_serialize_waiver_edits_with_roster_moves.sql",
+      "sha256": "21311924889de5cd71b973401379e128505f99626dc2ced543a9eddcc30cf24a"
+    },
+    {
+      "filename": "20261011000058_draft_reset_activation_serialization.sql",
+      "sha256": "de2c007d614d376448a743dd34ebc879ff72585ac283fd170e1cf95a7b8ec7d6"
+    },
+    {
+      "filename": "20261017000001_dynasty_rules_and_trade_plans.sql",
+      "sha256": "7710976920d2d8a975c20ef38e51faf54451c1645e40af7215c67e434ce45d4c"
+    },
+    {
+      "filename": "20261018000002_correlate_worker_outcomes_and_retry_dispatch.sql",
+      "sha256": "4fd7787a434abf10a0fcd7f758ba066a83dcf024532ec56fa2192cf4ce7b8011"
+    },
+    {
+      "filename": "20261018000003_bound_live_ingestion.sql",
+      "sha256": "9bf4d3403097c5475bf5b653176402f96f399737770449a07a33c4c45f542605"
+    },
+    {
+      "filename": "20261020000032_share_idle_score_revision_reads.sql",
+      "sha256": "2e11658e3b0c15efd864c64eb99a37b218ba24c5d1d4430f31a437d0762a990c"
+    },
+    {
+      "filename": "20261020000061_recover_rookie_backstop.sql",
+      "sha256": "40e122ccdf5550218e223214dc690524c30b62b7b1e286441f4995a0ad4a5fc6"
+    },
+    {
+      "filename": "20261020000131_record_verified_player_game_membership.sql",
+      "sha256": "dfc21c7e46f86705179595a3dc4d4699934b42ec79f355fda9e6920fa1c6fe7f"
+    }
+  ],
+  "preMigration": {
+    "count": 431,
+    "version": "20261020000007"
+  },
+  "historicalPhases": {
+    "pre-migration": {
+      "functions": [
+        {
+          "anonExecute": true,
+          "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
+          "authenticatedExecute": true,
+          "bodySha256": "7fd824ddeb4713e803a0ac37970426ca652bb5678c72b44541f7d31250d85c1b",
+          "config": [
+            "search_path=public"
+          ],
+          "identityArguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid",
+          "language": "sql",
+          "name": "clear_future_unlocked_lineups",
+          "owner": "postgres",
+          "publicExecute": true,
+          "result": "void",
+          "schema": "private",
+          "securityDefiner": true,
+          "serviceRoleExecute": true,
+          "strict": false,
+          "volatility": "v"
+        },
+        {
+          "anonExecute": false,
+          "arguments": "",
+          "authenticatedExecute": false,
+          "bodySha256": "c54c8e41236f642ff95e9a03d3c1a173da435022f4d2663e9f8822b71328c403",
+          "config": [
+            "search_path=public"
+          ],
+          "identityArguments": "",
+          "language": "plpgsql",
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "publicExecute": false,
+          "result": "trigger",
+          "schema": "private",
+          "securityDefiner": true,
+          "serviceRoleExecute": false,
+          "strict": false,
+          "volatility": "v"
+        },
+        {
+          "anonExecute": false,
+          "arguments": "",
+          "authenticatedExecute": false,
+          "bodySha256": "b9d10dc223299906c836a8c3144796d9af8fb3b0d89b388c544ad4817bf33f27",
+          "config": [
+            "search_path=\"\""
+          ],
+          "identityArguments": "",
+          "language": "plpgsql",
+          "name": "handle_new_auth_user",
+          "owner": "postgres",
+          "publicExecute": false,
+          "result": "trigger",
+          "schema": "public",
+          "securityDefiner": true,
+          "serviceRoleExecute": false,
+          "strict": false,
+          "volatility": "v"
+        },
         {
           "name": "lineup_game_started",
           "owner": "postgres",
@@ -371,9 +1024,58 @@
           "authenticatedExecute": false
         }
       ],
-      "triggers": [],
-      "policies": [],
+      "triggers": [
+        {
+          "definition": "CREATE TRIGGER prevent_accepted_or_inactive_roster_move BEFORE UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
+          "enabled": "O",
+          "functionName": "prevent_accepted_or_inactive_roster_move",
+          "functionSchema": "private",
+          "name": "prevent_accepted_or_inactive_roster_move"
+        },
+        {
+          "definition": "CREATE TRIGGER prevent_accepted_trade_asset_roster_delete BEFORE DELETE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_trade_asset_roster_delete()",
+          "enabled": "O",
+          "functionName": "prevent_accepted_trade_asset_roster_delete",
+          "functionSchema": "private",
+          "name": "prevent_accepted_trade_asset_roster_delete"
+        },
+        {
+          "definition": "CREATE TRIGGER prevent_uncleared_waiver_free_agent_add BEFORE INSERT ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_uncleared_waiver_free_agent_add()",
+          "enabled": "O",
+          "functionName": "prevent_uncleared_waiver_free_agent_add",
+          "functionSchema": "private",
+          "name": "prevent_uncleared_waiver_free_agent_add"
+        },
+        {
+          "definition": "CREATE TRIGGER sync_roster_linked_state AFTER DELETE OR UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.sync_roster_linked_state()",
+          "enabled": "O",
+          "functionName": "sync_roster_linked_state",
+          "functionSchema": "private",
+          "name": "sync_roster_linked_state"
+        }
+      ],
+      "policies": [
+        {
+          "check": null,
+          "command": "SELECT",
+          "name": "waiver_wire_log_select_visible_league_rows",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "((league_id IN ( SELECT private.my_league_ids() AS my_league_ids)) AND ((cleared_at IS NOT NULL) OR (clears_at > now())))"
+        }
+      ],
       "tables": [
+        {
+          "anonSelect": false,
+          "authenticatedSelect": true,
+          "forceRls": false,
+          "name": "waiver_wire_log",
+          "policies": 1,
+          "rls": true,
+          "serviceRoleSelect": true
+        },
         {
           "rls": true,
           "name": "cron_dispatch_state",
@@ -403,6 +1105,12 @@
         }
       ],
       "indexes": [
+        {
+          "definition": "CREATE INDEX profiles_push_token_lookup ON public.profiles USING btree (push_token) WHERE (push_token IS NOT NULL)",
+          "name": "profiles_push_token_lookup",
+          "ready": true,
+          "valid": true
+        },
         {
           "name": "idx_edge_invocations_reconciled_at",
           "ready": true,
@@ -443,6 +1151,66 @@
     },
     "post-migration": {
       "functions": [
+        {
+          "anonExecute": true,
+          "arguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid DEFAULT NULL::uuid",
+          "authenticatedExecute": true,
+          "bodySha256": "7fd824ddeb4713e803a0ac37970426ca652bb5678c72b44541f7d31250d85c1b",
+          "config": [
+            "search_path=public"
+          ],
+          "identityArguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid",
+          "language": "sql",
+          "name": "clear_future_unlocked_lineups",
+          "owner": "postgres",
+          "publicExecute": true,
+          "result": "void",
+          "schema": "private",
+          "securityDefiner": true,
+          "serviceRoleExecute": true,
+          "strict": false,
+          "volatility": "v"
+        },
+        {
+          "anonExecute": false,
+          "arguments": "",
+          "authenticatedExecute": false,
+          "bodySha256": "c54c8e41236f642ff95e9a03d3c1a173da435022f4d2663e9f8822b71328c403",
+          "config": [
+            "search_path=public"
+          ],
+          "identityArguments": "",
+          "language": "plpgsql",
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "publicExecute": false,
+          "result": "trigger",
+          "schema": "private",
+          "securityDefiner": true,
+          "serviceRoleExecute": false,
+          "strict": false,
+          "volatility": "v"
+        },
+        {
+          "anonExecute": false,
+          "arguments": "",
+          "authenticatedExecute": false,
+          "bodySha256": "b9d10dc223299906c836a8c3144796d9af8fb3b0d89b388c544ad4817bf33f27",
+          "config": [
+            "search_path=\"\""
+          ],
+          "identityArguments": "",
+          "language": "plpgsql",
+          "name": "handle_new_auth_user",
+          "owner": "postgres",
+          "publicExecute": false,
+          "result": "trigger",
+          "schema": "public",
+          "securityDefiner": true,
+          "serviceRoleExecute": false,
+          "strict": false,
+          "volatility": "v"
+        },
         {
           "name": "lineup_game_started",
           "owner": "postgres",
@@ -726,6 +1494,34 @@
       ],
       "triggers": [
         {
+          "definition": "CREATE TRIGGER prevent_accepted_or_inactive_roster_move BEFORE UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
+          "enabled": "O",
+          "functionName": "prevent_accepted_or_inactive_roster_move",
+          "functionSchema": "private",
+          "name": "prevent_accepted_or_inactive_roster_move"
+        },
+        {
+          "definition": "CREATE TRIGGER prevent_accepted_trade_asset_roster_delete BEFORE DELETE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_trade_asset_roster_delete()",
+          "enabled": "O",
+          "functionName": "prevent_accepted_trade_asset_roster_delete",
+          "functionSchema": "private",
+          "name": "prevent_accepted_trade_asset_roster_delete"
+        },
+        {
+          "definition": "CREATE TRIGGER prevent_uncleared_waiver_free_agent_add BEFORE INSERT ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_uncleared_waiver_free_agent_add()",
+          "enabled": "O",
+          "functionName": "prevent_uncleared_waiver_free_agent_add",
+          "functionSchema": "private",
+          "name": "prevent_uncleared_waiver_free_agent_add"
+        },
+        {
+          "definition": "CREATE TRIGGER sync_roster_linked_state AFTER DELETE OR UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.sync_roster_linked_state()",
+          "enabled": "O",
+          "functionName": "sync_roster_linked_state",
+          "functionSchema": "private",
+          "name": "sync_roster_linked_state"
+        },
+        {
           "name": "enforce_taxi_lifecycle",
           "enabled": "O",
           "definition": "CREATE TRIGGER enforce_taxi_lifecycle BEFORE INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.enforce_taxi_lifecycle()",
@@ -747,8 +1543,28 @@
           "functionSchema": "private"
         }
       ],
-      "policies": [],
+      "policies": [
+        {
+          "check": null,
+          "command": "SELECT",
+          "name": "waiver_wire_log_select_visible_league_rows",
+          "permissive": "PERMISSIVE",
+          "roles": [
+            "authenticated"
+          ],
+          "using": "((league_id IN ( SELECT private.my_league_ids() AS my_league_ids)) AND ((cleared_at IS NOT NULL) OR (clears_at > now())))"
+        }
+      ],
       "tables": [
+        {
+          "anonSelect": false,
+          "authenticatedSelect": true,
+          "forceRls": false,
+          "name": "waiver_wire_log",
+          "policies": 1,
+          "rls": true,
+          "serviceRoleSelect": true
+        },
         {
           "rls": true,
           "name": "cron_dispatch_state",
@@ -778,6 +1594,12 @@
         }
       ],
       "indexes": [
+        {
+          "definition": "CREATE INDEX profiles_push_token_lookup ON public.profiles USING btree (push_token) WHERE (push_token IS NOT NULL)",
+          "name": "profiles_push_token_lookup",
+          "ready": true,
+          "valid": true
+        },
         {
           "name": "idx_edge_invocations_reconciled_at",
           "ready": true,
@@ -816,107 +1638,5 @@
         }
       ]
     }
-  },
-  "sourceMigrations": [
-    {
-      "filename": "20260627000003_scoring_cron_auction_startup.sql",
-      "sha256": "dad6d6b8d5af6513369c4dc23debd50253c9ec2460ce51e9d5b4ae0be1310df2"
-    },
-    {
-      "filename": "20260630000014_draft_lifecycle_rpcs.sql",
-      "sha256": "5cf343240ff22174b16b76d162c0df8d4caf951298a355f0c8d4e4009ec281db"
-    },
-    {
-      "filename": "20260701000004_dynasty_waivers_and_add_limits.sql",
-      "sha256": "79c6f88619caec3184dcbd0bf1692f12bd79c618db6192184faab940c80ed73e"
-    },
-    {
-      "filename": "20260709100037_auth_profile_metadata.sql",
-      "sha256": "11d2b415411dd050542dd42d39f3b93958ca09eeae95196f12d113813ca9618b"
-    },
-    {
-      "filename": "20260814000001_gate_idle_cron_work.sql",
-      "sha256": "b452e4b14bc4590460bf28e43b253c91bf9b2b8b3f1f04f944c229fad507a950"
-    },
-    {
-      "filename": "20260815000007_season_boundary_offseason_gate.sql",
-      "sha256": "5050f391d2af53ad1144b5d29f3050d6395b3fa8289e400d8dc81cc7556d6bc3"
-    },
-    {
-      "filename": "20260815000009_edge_invoker_url_vault_fallback.sql",
-      "sha256": "d4ebb1896a865e2b200241171eb599f8a5bc05fda800cd71fabb3e84af9d5e40"
-    },
-    {
-      "filename": "20260817000005_remove_legacy_dynasty_rankings.sql",
-      "sha256": "7db8370550e884073f08a1bc156eead6894de2576876c0e9f93ddb89c4e74719"
-    },
-    {
-      "filename": "20260827000012_limit_predicate_lineup_lock_and_draft_reservation.sql",
-      "sha256": "2cdf54d1d0890f51f186e6cbe6303d736e5b06f0555f093dc63f10660d1c4c95"
-    },
-    {
-      "filename": "20260827000014_ir_predicate_private_expiry_and_accept_lock_order.sql",
-      "sha256": "b19e759f4262ec42c7b1eec8288a06767470b6cdd3a0a2521b338288c4338f8a"
-    },
-    {
-      "filename": "20260912000003_scheduling_catchup_and_durable_invocations.sql",
-      "sha256": "db1a8084a109c516c3cd1b05c06fdfa6b556c13c8a8e63cb8ae51738eb346b8a"
-    },
-    {
-      "filename": "20260921000002_internal_scheduling_rls_and_rule_copy.sql",
-      "sha256": "6f0072fd5d666300dfbdb2efe47c5c39287894c998e5a8678268f8305b74d69e"
-    },
-    {
-      "filename": "20261005000003_league_season_rules.sql",
-      "sha256": "d11d915450b0b45656f3d56ddd2ca690199da5739986b720a70dc58e8f7f496d"
-    },
-    {
-      "filename": "20261008000001_reuse_numeric_scoring_coefficients.sql",
-      "sha256": "5e230acb5e3d989f3a2c4f9526e57bcf53ef6c5031bd5214bed160aafc8767cb"
-    },
-    {
-      "filename": "20261008000002_optimizer_setting_context_writes.sql",
-      "sha256": "50b207494aabcb05437702b6bec735412cf0dc10177567a11f0cf603f1c3513e"
-    },
-    {
-      "filename": "20261009000002_health_search_score_reuse.sql",
-      "sha256": "1a6c5e3109155f02b9f0254426e28d60d521b8b7d7c87f612d7dc6fc92f0275d"
-    },
-    {
-      "filename": "20261009000003_projection_team_calendar.sql",
-      "sha256": "ba268fba2fadc64160cf1ae730d362873fd97e6c2da00ac30629ddce2449cbff"
-    },
-    {
-      "filename": "20261010000001_trade_veto_read_policy.sql",
-      "sha256": "eab5ff35effb7d6bf13d8e6358205ca63e0b05c9160a11673443b63407a5b984"
-    },
-    {
-      "filename": "20261011000010_lock_historical_lineups_and_game_participation.sql",
-      "sha256": "a439116da86a73ed278118dccaa1f0d23449ce125a73d0e57ff45366057c0108"
-    },
-    {
-      "filename": "20261011000017_permanent_taxi_exit_policy.sql",
-      "sha256": "634191e211f9d6c893ce266bdfb64189f33a5497822ca3f56a2e786706330402"
-    },
-    {
-      "filename": "20261011000029_certify_score_input_revisions.sql",
-      "sha256": "96108d4623e28f2418f9d7d958c524629474b38108b35491607e54da40844d12"
-    },
-    {
-      "filename": "20261011000036_bind_roster_drop_to_expected_season.sql",
-      "sha256": "c51096a7cf28b4e314c1370ffb367be03592339fbfbfb7d6480d2369942a840e"
-    },
-    {
-      "filename": "20261011000038_guard_rookie_overflow_drops.sql",
-      "sha256": "eaa962143e809ebf7b2deb790fb0966ce10e85460ef489a57adb4da37d5828a0"
-    },
-    {
-      "filename": "20261011000056_serialize_waiver_edits_with_roster_moves.sql",
-      "sha256": "21311924889de5cd71b973401379e128505f99626dc2ced543a9eddcc30cf24a"
-    },
-    {
-      "filename": "20261011000058_draft_reset_activation_serialization.sql",
-      "sha256": "de2c007d614d376448a743dd34ebc879ff72585ac283fd170e1cf95a7b8ec7d6"
-    }
-  ]
+  }
 }

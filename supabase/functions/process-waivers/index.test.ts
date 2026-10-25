@@ -8,7 +8,7 @@ const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
 Object.defineProperty(Deno, 'serve', { value: (callback: typeof handler) => { handler = callback } })
 try { await import('./index.ts') } finally { Object.defineProperty(Deno, 'serve', descriptor) }
 
-Deno.test('waiver results enter the durable outbox with one key per resolved claim', async () => {
+Deno.test('waiver processing leaves result notifications to the database triggers', async () => {
   const nativeFetch = globalThis.fetch
   const queued: Record<string, unknown>[] = []
   let batches = 0
@@ -34,14 +34,12 @@ Deno.test('waiver results enter the durable outbox with one key per resolved cla
   try {
     const response = await handler(new Request('http://localhost', { headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
     assert.equal(response.status, 200)
-    assert.deepEqual(queued.map(row => row.dedupe_key).sort(), ['waiver_result:full', 'waiver_result:lost', 'waiver_result:won'])
-    assert.ok(queued.every(row => row.category === 'waiver' && row.member_id === 'member'))
-    assert.ok(queued.find(row => row.dedupe_key === 'waiver_result:won')?.body === 'Player has been added to your roster.')
-    assert.ok(String(queued.find(row => row.dedupe_key === 'waiver_result:lost')?.body).includes('Higher priority'))
+    assert.deepEqual(await response.json(), { ok: true, processed: 4 })
+    assert.deepEqual(queued, [])
   } finally { globalThis.fetch = nativeFetch }
 })
 
-Deno.test('notification queue failures do not stop later waiver batches or log expiry', async () => {
+Deno.test('waiver batches and expiry do not depend on an Edge notification write', async () => {
   const nativeFetch = globalThis.fetch
   const nativeError = console.error
   const errors: unknown[][] = []
@@ -71,9 +69,8 @@ Deno.test('notification queue failures do not stop later waiver batches or log e
     assert.equal(response.status, 200)
     assert.deepEqual(await response.json(), { ok: true, processed: 2 })
     assert.equal(batches, 4)
-    assert.equal(queued, 2)
+    assert.equal(queued, 0)
     assert.equal(expired, true)
-    assert.ok(errors.some(args => args[0] === '[process-waivers] failed to queue claim notifications'
-      && (args[1] as { message: string }).message === 'Queue unavailable'))
+    assert.deepEqual(errors, [])
   } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
 })
