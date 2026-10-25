@@ -103,7 +103,9 @@ Every league uses one taxi rule: `years_exp = 0` or fewer than 65 career NBA reg
 Draft position does not affect eligibility.
 An undrafted rookie qualifies.
 A second-year player with 64 games qualifies.
-A nonrookie with an unknown count does not qualify. No local box-score count substitutes for a career count.
+A nonrookie needs a known count to enter taxi.
+An unknown count never makes an existing taxi player illegal.
+No local box-score count substitutes for a career count.
 
 The server stores career regular-season games in `players.career_regular_season_games`.
 Career counts refresh daily for NBA team players.
@@ -121,6 +123,8 @@ New game counts or experience can make a taxi roster illegal.
 
 Eligible players can enter taxi through drafts, trades, free-agent adds, or waiver claims.
 Straight-to-taxi adds check eligibility, slots, tenure, and prior exits.
+Accepted trades hold their incoming taxi slots until settlement.
+Adds cannot use those slots, and claims fall back to active space or their planned drop.
 An add cannot request both IR and taxi.
 IR stays the automatic destination for eligible Out free agents.
 Straight-to-taxi adds remain allowed after the player's game starts.
@@ -132,7 +136,8 @@ Claim edits preserve the stored taxi choice when the caller omits it.
 ## Legal roster gate
 
 An ineligible IR player, ineligible taxi player, or excess active player makes a roster illegal.
-The server lists each problem and names the affected players.
+The server names ineligible IR and taxi players.
+It reports active roster excess once for the team.
 `PA005` identifies ineligible IR players.
 `PA009` identifies ineligible taxi players.
 The server blocks free-agent adds, new claims, claim edits that add, sent trade offers, and trade acceptance.
@@ -146,6 +151,7 @@ The Roster banner offers actions that make the team legal.
 Legacy trades can complete above the active roster limit.
 That owner can drop players and keep scoring existing lineups.
 The legal roster gate blocks new offers and acceptance until the active count fits.
+During the rookie draft, an over-limit team must use taxi, IR, or a drop before sending or accepting a trade.
 Free-agent adds and starting-lineup edits require the active count to return within the limit.
 
 `allow_inactive_trades` enables IR and taxi assets and strict trade plans.

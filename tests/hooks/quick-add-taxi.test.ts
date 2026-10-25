@@ -4,10 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { playerRow, rosterPlayer } from '../helpers/fixtures'
 
-const mocks = vi.hoisted(() => ({ gate: vi.fn(), add: vi.fn(), success: vi.fn(), changed: vi.fn() }))
+const mocks = vi.hoisted(() => ({ gate: vi.fn(), add: vi.fn(), success: vi.fn(), changed: vi.fn(), alert: vi.fn() }))
 vi.mock('@/lib/roster', () => ({ dropAndAddFreeAgent: vi.fn() }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadRosterAddGate: mocks.gate, addFreeAgentOrRequestDrop: mocks.add, resolveRosterAddIRConflict: vi.fn() }))
-vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: mocks.success, confirmAction: vi.fn() }))
+vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: vi.fn() }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 let latest: ReturnType<typeof useQuickAdd>
@@ -52,4 +52,15 @@ it('opens roster resolution for PA009 even when refreshed display data has no kn
     await act(async () => latest.handleAdd(playerRow()))
     expect(latest.irModal?.serverMessage).toBe('Server taxi problem')
     expect(latest.dropPickerPlayer).toBeNull()
+})
+
+it('shows the server refusal when an accepted trade holds the last taxi slot', async () => {
+    const message = 'Your taxi squad is full (1 slots). Accepted trades hold 1 taxi slot(s).'
+    mocks.add.mockRejectedValue({ code: 'P0001', message })
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => latest.handleAdd(player))
+    await act(async () => latest.handleAddToTaxi())
+    expect(mocks.alert).toHaveBeenCalledWith('Error', message)
+    expect(mocks.success).not.toHaveBeenCalled()
+    expect(latest.dropPickerPlayer?.id).toBe(player.id)
 })

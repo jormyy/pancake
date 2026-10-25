@@ -1,7 +1,23 @@
 BEGIN;
 ALTER TABLE public.waiver_claims ADD COLUMN to_taxi boolean NOT NULL DEFAULT false;
 ALTER TABLE public.waiver_claims ADD CONSTRAINT waiver_claim_destination CHECK (NOT (to_ir AND to_taxi));
-UPDATE public.leagues SET taxi_rule='rookies_or_64_games';
+CREATE OR REPLACE FUNCTION private.notif_league_trigger()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  m record;
+  v_occurrence text := NEW.id::text || ':' || gen_random_uuid()::text;
+  v_ignored text[] := ARRAY['id','created_at','updated_at','status','deleted_at','deleted_by','invite_code','slug','taxi_rule'];
+BEGIN
+  IF (to_jsonb(OLD) - v_ignored) IS NOT DISTINCT FROM (to_jsonb(NEW) - v_ignored) THEN RETURN NEW; END IF;
+  FOR m IN SELECT id FROM public.league_members WHERE league_id = NEW.id LOOP
+    PERFORM private.notif_enqueue('league_settings_changed',v_occurrence,NEW.id,m.id,jsonb_build_object('leagueId',NEW.id));
+  END LOOP;
+  RETURN NEW;
+END;
+$$;
+UPDATE public.leagues SET taxi_rule='rookies_or_64_games' WHERE taxi_rule IS DISTINCT FROM 'rookies_or_64_games';
 ALTER TABLE public.leagues ALTER COLUMN taxi_rule SET DEFAULT 'rookies_or_64_games';
 ALTER TABLE private.taxi_acquisition_context DROP CONSTRAINT taxi_acquisition_context_source_check;
 ALTER TABLE private.taxi_acquisition_context ADD CONSTRAINT taxi_acquisition_context_source_check
@@ -2289,7 +2305,7 @@ BEGIN
     WHERE game_date=v_today AND status NOT IN ('Cancelled','Postponed');
   IF (p_now AT TIME ZONE 'America/New_York')::time < time '11:00' OR v_last_tipoff IS NULL OR p_now>v_last_tipoff THEN RETURN; END IF;
   IF private.claim_cron_dispatch('et:player-injuries',date_bin(interval '15 minutes',p_now,timestamptz '2000-01-01 00:00 UTC')::text) THEN
-    PERFORM private.invoke_claimed_edge_function('et:player-injuries','sync-players','{"mode":"injuries"}'::jsonb);
+    PERFORM private.invoke_claimed_edge_function('et:player-injuries','sync-player-injuries','{}'::jsonb);
   END IF;
 END;
 $$;

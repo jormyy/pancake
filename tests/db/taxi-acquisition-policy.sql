@@ -240,9 +240,9 @@ BEGIN
     AND EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=pg_temp.taxi_id('life-league')
     AND member_id=pg_temp.taxi_id('life-a') AND player_id=pg_temp.taxi_id('life-activate')),'real activation records that team exit');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_activate,pg_temp.taxi_id('user-a')),
-    'P0001','only through a draft or trade','manual taxi reentry is denied');
+    'P0001','through a draft, trade, free-agent add or waiver claim','manual taxi reentry is denied');
   PERFORM pg_temp.taxi_fails(format('SELECT public.toggle_taxi_atomic(%L,true,%L)',v_manual,pg_temp.taxi_id('user-a')),
-    'P0001','only through a draft or trade','manual first taxi entry is denied');
+    'P0001','through a draft, trade, free-agent add or waiver claim','manual first taxi entry is denied');
   PERFORM pg_temp.taxi_fails(format('UPDATE roster_players SET is_on_taxi=true WHERE id=%L',v_manual),
     'P0001','only through a draft or trade','direct status write cannot forge taxi entry');
   PERFORM pg_temp.taxi_fails(format('INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via,is_on_taxi)

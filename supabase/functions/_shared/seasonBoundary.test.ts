@@ -17,7 +17,7 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asy
     assert.equal(url.searchParams.get('league_season_id'), 'eq.current-season')
     assert.equal(url.searchParams.get('draft_type'), 'eq.snake')
     assert.equal(url.searchParams.get('is_mock'), 'eq.false')
-    assert.equal(url.searchParams.get('status'), 'eq.completed')
+    assert.equal(url.searchParams.get('status'), 'in.(completed,cancelled)')
     data = completed ? [{ id: 'completed-rookie' }] : []
   }
   if (url.pathname.startsWith('/rest/v1/rpc/')) {

@@ -131,7 +131,6 @@ BEGIN
 
   IF p_to_taxi THEN
     PERFORM private.authorize_taxi_acquisition(p_league_id,v_season_id,p_member_id,p_player_id,'free_agent',p_player_id);
-    PERFORM private.assert_taxi_acquisition_allowed(p_league_id,v_season_id,p_member_id,p_player_id);
   END IF;
 
   INSERT INTO roster_players (

@@ -50,7 +50,7 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_draft.draft_type <> 'snake'::draft_type OR v_draft.status <> 'completed'::draft_status THEN
+  IF v_draft.draft_type <> 'snake'::draft_type OR v_draft.status NOT IN ('completed'::draft_status,'cancelled'::draft_status) THEN
     RETURN false;
   END IF;
 
@@ -72,7 +72,7 @@ BEGIN
      AND player_id IS NULL
      AND skipped_at IS NULL;
 
-  IF v_unfilled_picks > 0 THEN
+  IF v_unfilled_picks > 0 AND v_draft.status<>'cancelled' THEN
     RETURN false;
   END IF;
 

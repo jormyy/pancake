@@ -61,7 +61,6 @@
     "private.guard_nba_game_identity()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_trade_plan_reservations()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.guard_waiver_plan_reservations()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
-    "private.ineligible_ir_player_names(uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.invalidate_removed_game_stats()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.invoke_claimed_edge_function(text,text,jsonb)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_commissioner(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

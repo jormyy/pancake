@@ -124,11 +124,10 @@ export async function createWorld() {
       }
     }
     const link = async () => {
-      const { resolveCdnPlayers, loadCdnPlayerResolver } = await import('../../functions/_shared/playerResolver.ts')
-      const resolver = await loadCdnPlayerResolver()
+      const { resolveCdnPlayers } = await import('../../functions/_shared/playerResolver.ts')
       assert.equal(picks.filter(pick => pick.personId).length, 57)
       for (const pick of picks.filter(pick => pick.personId)) {
-        assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: pick.personId!, displayName: pick.identities![0].name }]), [byPick.get(pick.pick)])
+        assert.deepEqual(await resolveCdnPlayers([{ personId: pick.personId!, displayName: pick.identities![0].name }]), [byPick.get(pick.pick)])
       }
     }
     const merge = async () => {

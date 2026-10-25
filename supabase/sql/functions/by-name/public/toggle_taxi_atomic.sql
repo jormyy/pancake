@@ -35,7 +35,7 @@ BEGIN
     JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
     JOIN leagues AS league ON league.id = draft.league_id AND league.status = 'drafting'
    WHERE draft.league_id = v_league_id
-     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status = 'completed'
+     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status IN ('completed','cancelled')
    ORDER BY draft.created_at DESC LIMIT 1;
   IF v_rookie_draft_id IS NOT NULL THEN
     PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);
@@ -87,7 +87,8 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_league.status NOT IN ('drafting'::league_status, 'active'::league_status, 'playoffs'::league_status) THEN
+  IF v_league.status NOT IN ('drafting'::league_status, 'active'::league_status, 'playoffs'::league_status)
+    AND NOT (v_league.status='offseason' AND p_to_taxi=false) THEN
     RAISE EXCEPTION 'Roster moves are only allowed during a draft or active/playoff season.'
       USING ERRCODE = 'P0001';
   END IF;
@@ -115,7 +116,7 @@ BEGIN
   v_roster_size := COALESCE(v_league.roster_size, 20);
 
   IF p_to_taxi THEN
-    RAISE EXCEPTION 'Players can enter taxi only through a draft or trade acquisition.'
+    RAISE EXCEPTION 'Players enter taxi through a draft, trade, free-agent add or waiver claim.'
       USING ERRCODE = 'P0001';
   ELSE
     SELECT count(*)

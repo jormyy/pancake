@@ -187,7 +187,7 @@ BEGIN
   BEGIN
     PERFORM public.toggle_taxi_atomic('00000000-0000-0000-0000-0000000a0503', true, ids.user_a);
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
-    IF SQLERRM NOT LIKE '%only through a draft or trade%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%through a draft, trade, free-agent add or waiver claim%' THEN RAISE; END IF;
     rejected := true;
   END;
   IF NOT rejected OR pg_temp.listing_count(ids.member_a, ids.rookie) <> 1

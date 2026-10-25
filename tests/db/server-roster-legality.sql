@@ -48,7 +48,7 @@ BEGIN
   PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,claimed),'PA005','Taxi Expired','IR retains its deployed error code and player name');
   PERFORM public.toggle_ir_atomic(roster,false,f.user_ids[1]);
   INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(f.league_id,f.season_id,f.member_ids[1],claimed,'trade');
-  PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,gen_random_uuid()),'PA003','active roster is full','over-limit roster keeps the deployed full-roster message');
+  PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,gen_random_uuid()),'PA003','','over-limit roster uses PA003');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

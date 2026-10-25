@@ -21,6 +21,9 @@ DECLARE
   v_veto_window_hours int;
   v_item_faab_amount int;
   v_balance int;
+  v_taxi_count int;
+  v_taxi_incoming int;
+  v_taxi_held int;
 BEGIN
   -- Read first, lock parties and players in the order every roster mutation
   -- uses, then lock the trade row: a drop that expires this offer holds the
@@ -154,6 +157,21 @@ BEGIN
   END IF;
 
   PERFORM private.assert_legal_roster(v_trade.league_id,v_trade.league_season_id,p_accepting_member_id);
+
+  IF NOT v_league.allow_inactive_trades THEN
+    SELECT count(*) INTO v_taxi_incoming FROM trade_items
+      WHERE trade_id=p_trade_id AND to_member_id=p_accepting_member_id AND player_id IS NOT NULL AND to_taxi;
+    IF v_taxi_incoming>0 THEN
+      SELECT count(*) INTO v_taxi_count FROM roster_players WHERE league_id=v_trade.league_id
+        AND league_season_id=v_trade.league_season_id AND member_id=p_accepting_member_id AND is_on_taxi;
+      SELECT count(*) INTO v_taxi_held FROM trade_items item JOIN trades trade ON trade.id=item.trade_id
+        WHERE trade.id<>p_trade_id AND trade.league_id=v_trade.league_id AND trade.league_season_id=v_trade.league_season_id
+          AND trade.status='accepted' AND item.to_member_id=p_accepting_member_id AND item.player_id IS NOT NULL AND item.to_taxi;
+      IF v_taxi_count+v_taxi_incoming+v_taxi_held>COALESCE(v_league.taxi_slots,0) THEN
+        RAISE EXCEPTION 'Your taxi squad is full (% slots). Accepted trades hold % taxi slot(s).',COALESCE(v_league.taxi_slots,0),v_taxi_held USING ERRCODE='P0001';
+      END IF;
+    END IF;
+  END IF;
 
   FOR v_from_member, v_item_faab_amount IN
     SELECT

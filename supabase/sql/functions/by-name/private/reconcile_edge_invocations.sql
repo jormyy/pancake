@@ -48,6 +48,8 @@ BEGIN
           error = 'worker did not finish within 10 minutes' WHERE id = v_row.sync_run_id;
         UPDATE public.edge_invocations SET worker_status = 'failed' WHERE id = v_row.id;
       END IF;
+    ELSIF v_row.function_name='sync-player-injuries' AND v_row.response_status=404 THEN
+      NULL;
     ELSIF v_row.response_status BETWEEN 200 AND 299 AND v_error IS NULL THEN
       NULL;
     ELSE
@@ -83,6 +85,7 @@ BEGIN
       IF EXISTS (
         SELECT 1 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
          AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
+         AND NOT (function_name='sync-player-injuries' AND status_code IS NOT DISTINCT FROM 404 AND worker_status IS NULL)
          AND (worker_status = 'failed' OR (worker_status IS NULL
            AND (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299)))
       ) THEN

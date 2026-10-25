@@ -234,7 +234,7 @@ async function activateCompletedRookieDraft(leagueId: string, leagueSeasonId: st
     .eq('league_season_id', leagueSeasonId)
     .eq('draft_type', 'snake')
     .eq('is_mock', false)
-    .eq('status', 'completed')
+    .in('status', ['completed', 'cancelled'])
     .order('created_at', { ascending: false })
     .limit(1)
   if (error) throw error

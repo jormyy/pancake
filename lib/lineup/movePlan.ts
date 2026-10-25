@@ -135,7 +135,7 @@ export function planLineupMove({
         const activePlayer = selectedPlayer(lineup, activeSelection)
 
         if (activePlayer) {
-            return { kind: 'invalid', title: 'Taxi entry restricted', message: 'Players enter taxi only through a draft or trade. Activate taxi players into an empty active slot.' }
+            return { kind: 'invalid', title: 'Taxi entry restricted', message: 'Players enter taxi through a draft, trade, free-agent add or waiver claim.' }
         }
 
         if (taxiPlayer && !activePlayer && activeRosterCount(lineup) >= (league.roster_size ?? 20)) {

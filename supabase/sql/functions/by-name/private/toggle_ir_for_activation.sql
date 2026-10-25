@@ -34,7 +34,7 @@ BEGIN
     JOIN league_seasons AS season ON season.id = draft.league_season_id AND season.is_current
     JOIN leagues AS league ON league.id = draft.league_id AND league.status = 'drafting'
    WHERE draft.league_id = v_league_id
-     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status = 'completed'
+     AND draft.draft_type = 'snake' AND NOT draft.is_mock AND draft.status IN ('completed','cancelled')
    ORDER BY draft.created_at DESC LIMIT 1;
   IF v_rookie_draft_id IS NOT NULL THEN
     PERFORM pg_advisory_xact_lock(hashtext(v_rookie_draft_id::text), 0);

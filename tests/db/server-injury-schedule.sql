@@ -13,7 +13,7 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM injury_dispatches WHERE job='et:player-injuries'),'injuries waits until eleven ET');
   PERFORM public.invoke_edge_function_at_et_time('sync-players',6,0,(game_day+time '11:00') AT TIME ZONE 'America/New_York');
   PERFORM public.invoke_edge_function_at_et_time('sync-players',6,0,(game_day+time '11:01') AT TIME ZONE 'America/New_York');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM injury_dispatches WHERE name='sync-players' AND body='{"mode":"injuries"}'::jsonb AND job='et:player-injuries'),'game-day quarter hour uses the dispatcher and exact injuries body');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM injury_dispatches WHERE name='sync-player-injuries' AND body='{}'::jsonb AND job='et:player-injuries'),'game-day quarter hour uses the dispatcher and exact injuries body');
   PERFORM public.invoke_edge_function_at_et_time('sync-players',6,0,(game_day+time '11:15') AT TIME ZONE 'America/New_York');
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM injury_dispatches WHERE job='et:player-injuries'),'next quarter hour dispatches');
   PERFORM public.invoke_edge_function_at_et_time('sync-players',6,0,(game_day+time '22:01') AT TIME ZONE 'America/New_York');

@@ -106,7 +106,7 @@ BEGIN
 
   -- Context and inactive-target denials run while a genuine active overflow exists.
   FOREACH v_case IN ARRAY ARRAY['wrong_owner','wrong_expected_season','historical_row',
-    'old_draft','wrong_league','missing_expected_season','mock','cancelled','pending',
+    'old_draft','wrong_league','missing_expected_season','mock','pending',
     'auction','ir_target','taxi_target','missing_draft'] LOOP
     UPDATE public.drafts SET is_mock=false,draft_type='snake',status='completed' WHERE id=v_draft;
     v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',
@@ -119,7 +119,6 @@ BEGIN
       WHEN 'wrong_league' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_rows[1],v_season,v_foreign_draft);
       WHEN 'missing_expected_season' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,NULL::uuid,%L::uuid)',v_rows[1],v_draft);
       WHEN 'mock' THEN UPDATE public.drafts SET is_mock=true WHERE id=v_draft;
-      WHEN 'cancelled' THEN UPDATE public.drafts SET status='cancelled' WHERE id=v_draft;
       WHEN 'pending' THEN UPDATE public.drafts SET status='pending' WHERE id=v_draft;
       WHEN 'auction' THEN UPDATE public.drafts SET draft_type='auction' WHERE id=v_draft;
       WHEN 'ir_target' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_rows[5],v_season,v_draft);
@@ -150,7 +149,7 @@ BEGIN
 
   -- Every permitted draft phase gets a real successful authenticated mutation.
   -- The deliberate exception rolls back each positive mutation to its baseline.
-  FOREACH v_case IN ARRAY ARRAY['in_progress','paused','completed'] LOOP
+  FOREACH v_case IN ARRAY ARRAY['in_progress','paused','completed','cancelled'] LOOP
     BEGIN
       UPDATE public.drafts SET status=v_case::draft_status WHERE id=v_draft;
       v_code:=pg_temp.call_as('authenticated',v_user,

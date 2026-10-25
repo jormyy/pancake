@@ -158,7 +158,8 @@ describe('planLineupMove', () => {
             from: { kind: 'bench', index: 0 },
             to: { kind: 'taxi', index: 0 },
         })
-        expect(availableTaxi).toMatchObject({ kind: 'invalid', title: 'Taxi entry restricted' })
+        expect(availableTaxi).toMatchObject({ kind: 'invalid', title: 'Taxi entry restricted',
+            message: 'Players enter taxi through a draft, trade, free-agent add or waiver claim.' })
     })
 })
 
