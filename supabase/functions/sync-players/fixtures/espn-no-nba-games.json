@@ -1,0 +1,12 @@
+{
+  "filters": [
+    {
+      "name": "league",
+      "value": "nba"
+    }
+  ],
+  "_source": {
+    "origin": "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/5105571/stats?seasontype=2",
+    "fields": "Only fields used by the parser are retained."
+  }
+}

@@ -6,7 +6,9 @@ import { strict as assert } from 'node:assert'
 // Completeness contract: only a listing that covers every NBA team with
 // identifiable athletes has no gaps, so only it can release unlisted players.
 
-let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' = 'good'
+let draftYear = 2025
+
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' = 'good'
 
 const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
@@ -56,7 +58,14 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
   }
   if (url.pathname.includes('/roster')) {
     const teamId = url.pathname.split('/teams/')[1]?.split('/')[0] ?? '0'
-    return Response.json(mode === 'empty-rosters' ? { athletes: [] } : goodRosterFor(teamId))
+    const roster = goodRosterFor(teamId)
+    if (mode === 'missing-experience') {
+      const athletes = roster.athletes.map((athlete, index) => ({ ...athlete, experience: undefined,
+        ...(index === 0 ? { draft: { year: draftYear } } : index === 1 ? { debutYear: 2024 } : {}),
+      }))
+      return Response.json({ athletes, season: { year: 2026 } })
+    }
+    return Response.json(mode === 'empty-rosters' ? { athletes: [] } : roster)
   }
   if (url.pathname.endsWith('/injuries')) {
     if (mode === 'missing-injuries') return Response.json({})
@@ -144,12 +153,41 @@ Deno.test({
   },
 })
 
-for (const degraded of ['missing-injuries', 'empty-injuries', 'reshaped-injuries', 'unmapped-injuries'] as const) {
+for (const degraded of ['missing-injuries', 'reshaped-injuries'] as const) {
   Deno.test(`${degraded} refuses to clear injury designations`, async () => {
     mode = degraded
     await expectRefusal(degraded, /^ESPN injuries payload degraded; refusing to write$/)
   })
 }
+
+for (const degraded of ['empty-injuries', 'unmapped-injuries'] as const) {
+  Deno.test(`${degraded} imports the roster without injury writes and reports failure`, async () => {
+    mode = degraded
+    const listing = await fetchEspnPlayerListing()
+    assert.equal(listing.records.length, 450)
+    assert.ok(listing.records.every(record => !Object.hasOwn(record, 'injury_status')))
+    assert.match((listing as { failure?: string }).failure ?? '', /injur.*(unchanged|preserv)/i)
+  })
+}
+
+Deno.test('missing source experience derives a rookie from draft year and a veteran from NBA debut', async () => {
+  mode = 'missing-experience'
+  const { records } = await fetchEspnPlayerListing()
+  assert.equal(records.find(record => record.espn_id === 'ath-1-0')?.years_exp, 0)
+  assert.equal(records.find(record => record.espn_id === 'ath-1-1')?.years_exp, 1)
+  assert.equal(records.find(record => record.espn_id === 'ath-1-2')?.years_exp, null)
+})
+
+Deno.test('a new draft class is rookie data before the NBA season changes', async () => {
+  mode = 'missing-experience'
+  draftYear = 2026
+  try {
+    const { records } = await fetchEspnPlayerListing()
+    assert.equal(records.find(record => record.espn_id === 'ath-1-0')?.years_exp, 0)
+  } finally {
+    draftYear = 2025
+  }
+})
 
 Deno.test('the source recovers with no manual action', async () => {
   mode = 'good'

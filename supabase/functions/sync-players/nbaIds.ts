@@ -3,6 +3,7 @@ import { fetchWithRetry } from '../_shared/retry.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { resolvePlayerImports } from '../_shared/playerImports.ts'
 import { fetchAllPlayers } from './players.ts'
+import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
@@ -11,7 +12,7 @@ const CHUNK = 500
 // Fetch the NBA CDN player index and populate nba_id for any players missing it.
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
 // (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
-export async function syncNBAIds(): Promise<{ mapped: number; merged: number; failures: string[] }> {
+export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; merged: number; failures: string[] }> {
   console.log('[sync-players] Syncing NBA person IDs from CDN index...')
 
   const res = await fetchWithRetry(NBA_PLAYER_INDEX_URL, {
@@ -104,6 +105,26 @@ export async function syncNBAIds(): Promise<{ mapped: number; merged: number; fa
   const { error: mergeErr } = await supabase.rpc('merge_duplicate_players')
   if (mergeErr) failures.push(`merge_duplicate_players: ${mergeErr.message}`)
   else console.log('[sync-players] Dedup complete.')
+
+  const firstYearIndex = headers.indexOf('FROM_YEAR')
+  const draftYearIndex = headers.indexOf('DRAFT_YEAR')
+  const experience = new Map<string, number>()
+  const seasonYear = currentSeasonYear(now)
+  for (const row of rows) {
+    const firstYear = Number(row[firstYearIndex] || row[draftYearIndex])
+    if (Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= seasonYear) {
+      experience.set(String(row[pidIdx]), Math.max(0, seasonYear - 1 - firstYear))
+    }
+  }
+  if (experience.size > 0) {
+    const current = await fetchAllPlayers<{ id: string; nba_id: string | null; years_exp: number | null }>(supabase, 'id, nba_id, years_exp')
+    for (const player of current) {
+      if (!player.nba_id || player.years_exp != null || !experience.has(player.nba_id)) continue
+      const { error } = await supabase.from('players').update({ years_exp: experience.get(player.nba_id)! })
+        .eq('id', player.id).eq('nba_id', player.nba_id).is('years_exp', null)
+      if (error) failures.push(`NBA experience ${player.id}: ${error.message}`)
+    }
+  }
 
   return { mapped, merged: mergedBeforeUpdate, failures }
 }

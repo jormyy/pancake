@@ -78,6 +78,7 @@ async function runSync(feed: Feed = {}) {
       runs.push(await request.json())
       return Response.json({})
     }
+    if (url.pathname === '/rest/v1/roster_players') return Response.json([])
     if (url.pathname === '/rest/v1/players') return Response.json(feed.index && url.searchParams.get('select')?.includes('nba_id') ? [indexed] : [])
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') {
       sequence.push('dedup')

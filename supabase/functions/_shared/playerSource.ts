@@ -4,6 +4,7 @@
 import { fetchWithRetry } from './retry.ts'
 import { runBounded } from './runBounded.ts'
 import { normalizeName } from './nameMatch.ts'
+import { currentSeasonYear } from './season.ts'
 
 const ESPN_SITE_BASE_URL = Deno.env.get('ESPN_SITE_BASE_URL') ??
   'https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba'
@@ -56,7 +57,7 @@ type SourcePlayerRecord = {
   position: string | null
   eligible_positions: string[]
   status: string | null
-  injury_status: string | null
+  injury_status?: string | null
   years_exp: number | null
 }
 
@@ -89,10 +90,13 @@ type EspnAthlete = {
   position?: { abbreviation?: string }
   status?: { type?: string }
   experience?: { years?: number }
+  draft?: { year?: number }
+  debutYear?: number
 }
 
 type EspnRosterPayload = {
   athletes?: EspnAthlete[]
+  season?: { year?: number }
 }
 
 type EspnInjuriesPayload = {
@@ -124,7 +128,8 @@ function extractEspnInjuryStatuses(payload: EspnInjuriesPayload): Map<string, st
       const name = athlete?.displayName ??
         [athlete?.firstName, athlete?.lastName].filter(Boolean).join(' ')
       const mapped = mapEspnInjuryStatus(injury.status)
-      if (name && mapped) byName.set(normalizeName(name), mapped)
+      const key = name ? normalizeName(name) : ''
+      if (key && mapped) byName.set(key, mapped)
     }
   }
   return byName
@@ -139,7 +144,7 @@ function eligibleForPosition(position: string | null): string[] {
   return position ? [position] : []
 }
 
-type EspnRoster = { teamCode: string | null; athletes: EspnAthlete[] }
+type EspnRoster = { teamCode: string | null; athletes: EspnAthlete[]; seasonYear?: number }
 
 const identified = (athlete: EspnAthlete) => athlete.id != null && Boolean(athlete.firstName || athlete.lastName)
 
@@ -169,7 +174,7 @@ export function espnListingGaps(rosters: EspnRoster[]): string[] {
 
 function buildEspnRecords(
   rosters: EspnRoster[],
-  injuriesByName: Map<string, string>,
+  injuriesByName: Map<string, string> | null,
 ): SourcePlayerRecord[] {
   const athleteName = (athlete: EspnAthlete) =>
     normalizeName(athlete.fullName ?? `${athlete.firstName ?? ''} ${athlete.lastName ?? ''}`)
@@ -198,15 +203,42 @@ function buildEspnRecords(
         position,
         eligible_positions: eligibleForPosition(position),
         status: athlete.status?.type === 'active' ? 'Active' : 'Inactive',
-        injury_status: nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null,
-        years_exp: typeof athlete.experience?.years === 'number' ? athlete.experience.years : null,
+        ...(injuriesByName ? { injury_status: nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null } : {}),
+        years_exp: yearsExperience(athlete, roster.seasonYear ?? currentSeasonYear()),
       })
     }
   }
   return records
 }
 
-export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[] }> {
+function yearsExperience(athlete: EspnAthlete, seasonYear: number): number | null {
+  const years = athlete.experience?.years
+  if (typeof years === 'number' && Number.isInteger(years) && years >= 0) return years
+  const firstYear = athlete.debutYear ?? athlete.draft?.year
+  return typeof firstYear === 'number' && Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= seasonYear
+    ? Math.max(0, seasonYear - 1 - firstYear) : null
+}
+
+export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, string> | null; failure: string | null }> {
+  const response = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`, { headers: ESPN_HEADERS })
+  if (!response.ok) {
+    await response.body?.cancel()
+    throw new Error(`ESPN injuries ${response.status}`)
+  }
+  const injuries = await response.json() as EspnInjuriesPayload
+  if (!Array.isArray(injuries?.injuries) || injuries.injuries.some(team => !team || !Array.isArray(team.injuries)
+    || team.injuries.some(injury => !injury || typeof injury.status !== 'string' || !injury.athlete
+      || !(injury.athlete.displayName || injury.athlete.firstName || injury.athlete.lastName)))) {
+    throw new Error('ESPN injuries payload degraded; refusing to write')
+  }
+  const statuses = extractEspnInjuryStatuses(injuries)
+  if (statuses.size === 0) {
+    return { statuses: null, failure: 'ESPN injuries has no mapped statuses; injury_status unchanged' }
+  }
+  return { statuses, failure: null }
+}
+
+export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[]; failure: string | null }> {
   const teamsRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams`, { headers: ESPN_HEADERS })
   if (!teamsRes.ok) {
     await teamsRes.body?.cancel()
@@ -225,28 +257,16 @@ export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerR
       throw new Error(`ESPN roster ${team.abbreviation} ${res.status}`)
     }
     const payload = await res.json() as EspnRosterPayload
-    rosters.push({ teamCode: mapEspnTeam(team.abbreviation), athletes: payload.athletes ?? [] })
+    rosters.push({ teamCode: mapEspnTeam(team.abbreviation), athletes: payload.athletes ?? [], seasonYear: payload.season?.year })
   }), 6)
 
-  const injuriesRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`, { headers: ESPN_HEADERS })
-  if (!injuriesRes.ok) {
-    await injuriesRes.body?.cancel()
-    throw new Error(`ESPN injuries ${injuriesRes.status}`)
-  }
-  const injuries = await injuriesRes.json() as EspnInjuriesPayload
-  if (!Array.isArray(injuries?.injuries)) {
-    throw new Error('ESPN injuries payload degraded; refusing to write')
-  }
-  const injuriesByName = extractEspnInjuryStatuses(injuries)
-  if (injuriesByName.size === 0) {
-    throw new Error('ESPN injuries payload degraded; refusing to write')
-  }
+  const { statuses, failure } = await fetchEspnInjuries()
 
-  const records = buildEspnRecords(rosters, injuriesByName)
+  const records = buildEspnRecords(rosters, statuses)
   if (records.length < MIN_PLAYERS) {
     throw new Error(`ESPN player payload degraded: ${records.length} players (< ${MIN_PLAYERS}); refusing to write`)
   }
-  return { records, gaps: espnListingGaps(rosters) }
+  return { records, gaps: espnListingGaps(rosters), failure }
 }
 
 type SourceNewsItem = {
