@@ -77,7 +77,7 @@ Deno.test({
     const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
       'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
     const athletes = Array.from({ length: 360 }, (_, index) => ({
-      id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${index}`,
+      id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${String.fromCharCode(65 + Math.floor(index / 26))}${String.fromCharCode(65 + index % 26)}`,
       experience: { years: index === 0 ? 0 : 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
     }))
     let injuryMode = 'malformed'
@@ -119,7 +119,7 @@ Deno.test({
         assert.equal(result.updated + result.inserted, 360)
         const imported = await supabase.from('players').select('nba_team, injury_status, years_exp, career_regular_season_games').eq('espn_id', athletes[0].id).single()
         assert.ifError(imported.error)
-        assert.deepEqual(imported.data, { nba_team: 'ATL', injury_status: 'Out', years_exp: 0, career_regular_season_games: null })
+        assert.deepEqual(imported.data, { nba_team: 'ATL', injury_status: 'Out', years_exp: 0, career_regular_season_games: 0 })
       }
     } finally {
       const removed = await supabase.from('players').delete().eq('first_name', athletes[0].firstName)

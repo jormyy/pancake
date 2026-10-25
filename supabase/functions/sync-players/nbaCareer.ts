@@ -3,9 +3,10 @@ import { currentSeasonYear } from '../_shared/season.ts'
 
 const NBA_COM_BASE_URL = Deno.env.get('NBA_COM_BASE_URL') ?? 'https://www.nba.com'
 
-export async function fetchNbaCareerProfile(nbaId: string, now: Date): Promise<{ years: number | null; noGames: boolean }> {
+export async function fetchNbaCareerProfile(nbaId: string, now: Date, signal?: AbortSignal): Promise<{ years: number | null; noGames: boolean }> {
   const response = await fetchWithRetry(`${NBA_COM_BASE_URL}/player/${encodeURIComponent(nbaId)}`, {
     headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://www.nba.com/' },
+    signal,
   }, { attemptTimeoutMs: 5000 })
   if (!response.ok) {
     await response.body?.cancel()

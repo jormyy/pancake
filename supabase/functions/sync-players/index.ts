@@ -19,6 +19,7 @@ const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 
 serveInternal('sync-players', async (req) => {
   const result = await recordSyncRun('sync-players', async () => {
+    const started = performance.now()
     const imported = PLAYER_SYNC_SOURCE === 'sleeper'
       ? await syncPlayers()
       : await importPlayersFromEspn()
@@ -28,7 +29,7 @@ serveInternal('sync-players', async (req) => {
     const nbaIds = await syncNBAIds()
     const players = await releaseEspnOmissions(imported, nbaIds.failures)
     const news = await syncDynastyNews()
-    const career = await syncCareerGames()
+    const career = await syncCareerGames(new Date(), { budgetMs: Math.max(0, 110000 - (performance.now() - started)) })
     const failures = [...players.failures, ...nbaIds.failures, ...news.failures, ...career.failures]
     const failure = failures.length > 0
       ? `sync-players had ${failures.length} failure(s): ${failures.join('; ')}`

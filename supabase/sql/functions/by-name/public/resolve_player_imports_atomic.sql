@@ -29,6 +29,7 @@ DECLARE
   v_words text[];
   v_link uuid;
   v_linked text;
+  v_team text;
 BEGIN
   IF p_source IS NULL OR p_source NOT IN ('espn', 'espn_release', 'sleeper', 'nba_cdn', 'nba_index', 'nba_draft')
      OR p_records IS NULL OR jsonb_typeof(p_records) <> 'array'
@@ -146,6 +147,7 @@ BEGIN
       OR (p_source IN ('nba_cdn', 'nba_index') AND p.nba_id = ANY(v_providers))
       OR p.id = ANY(v_player_ids)
       OR private.player_import_name_key(p.display_name) = ANY(v_name_keys)
+      OR private.player_identity_name(p.display_name) = ANY(ARRAY(SELECT private.player_identity_name(k) FROM unnest(v_name_keys) k))
       OR (p_source = 'nba_draft' AND p.nba_draft_number IS NOT NULL)
     ORDER BY p.id FOR UPDATE;
   FOR v_record IN SELECT value FROM jsonb_array_elements(p_records) LOOP
@@ -186,6 +188,7 @@ BEGIN
         OR jsonb_typeof(v_record->'nba_team') IS DISTINCT FROM 'string' OR btrim(v_record->>'nba_team') = '') THEN
       RAISE EXCEPTION 'A box side needs its NBA game and a team code.' USING ERRCODE = '22023';
     END IF;
+    v_team := private.player_identity_team(CASE WHEN p_source = 'nba_cdn' THEN v_record->>'nba_team' ELSE v_metadata->>'nba_team' END);
     v_id := NULL;
     v_action := 'updated';
     v_linked := NULL;
@@ -264,12 +267,20 @@ BEGIN
       END IF;
       IF v_id IS NULL THEN
         v_matches := NULL;
-        IF p_source <> 'nba_draft' THEN
-          SELECT array_agg(id) INTO v_matches FROM players WHERE lower(display_name) = lower(v_name);
-        END IF;
-        IF coalesce(cardinality(v_matches), 0) <> 1 THEN
+        IF v_team IS NOT NULL AND p_source IN ('espn', 'sleeper', 'nba_cdn') THEN
           SELECT array_agg(id) INTO v_matches FROM players
-            WHERE private.player_import_name_key(display_name) = private.player_import_name_key(v_name);
+            WHERE private.player_identity_name(display_name) = private.player_identity_name(v_name)
+              AND private.player_identity_team(nba_team) = v_team
+              AND (CASE p_source WHEN 'espn' THEN espn_id WHEN 'sleeper' THEN sleeper_id ELSE nba_id END) IS NULL;
+        END IF;
+        IF coalesce(cardinality(v_matches), 0) = 0 AND p_source <> 'nba_draft' THEN
+          SELECT array_agg(id) INTO v_matches FROM players WHERE lower(display_name) = lower(v_name)
+            AND (v_team IS NULL OR nba_team IS NULL OR private.player_identity_team(nba_team) = v_team);
+        END IF;
+        IF coalesce(cardinality(v_matches), 0) = 0 THEN
+          SELECT array_agg(id) INTO v_matches FROM players
+            WHERE private.player_import_name_key(display_name) = private.player_import_name_key(v_name)
+              AND (v_team IS NULL OR nba_team IS NULL OR private.player_identity_team(nba_team) = v_team);
         END IF;
         IF cardinality(v_matches) > 1 THEN
           IF p_source = 'nba_draft' THEN

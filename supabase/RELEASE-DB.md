@@ -10,6 +10,11 @@ Apply these follow-up migrations after that baseline, in version order:
 
 - `20261027000100_three_future_draft_classes.sql`
 - `20261027000101_remove_unreferenced_distant_picks.sql`
+- `20261027000200_player_identity_matching.sql`
+- `20261027000201_player_career_counter.sql`
+
+The counter migration replaces its earlier unpublished rehearsal version.
+Rebuild the rehearsal from the production baseline before applying this revised file.
 
 The first migration limits new pick assets to three future draft classes and corrects pick years in trade-expiry messages.
 It also rejects trades containing retained picks beyond that window.
@@ -18,8 +23,59 @@ It discovers every foreign key to `draft_picks` and preserves referenced picks, 
 For OFFICIAL LEAGUE at season 2027, the expected cleanup removes 42 picks from seasons 2031 and 2032.
 The remaining future classes are seasons 2028–2030, displayed as draft years 2027–2029.
 
+The March backfill reads one capped player page and matches names exactly before inserting missing players.
+Its lookup ignores team aliases and misses hyphen/space variants.
+The June importer removes `sleeper_id` from name-matched updates, leaving those rows unlinked.
+Its name key removes hyphens but preserves spaces, so `Jones-Garcia` and `Jones Garcia` differ.
+The old automatic merge only handles a shared NBA or Sleeper ID.
+These paths leave separate source rows without a shared ID to trigger a merge.
+Historical deployment logs are unavailable here, so they cannot identify which missed read created every individual duplicate.
+
+The player migrations link new sources by a unique normalized name and NBA team.
+Names use letters only; team aliases include `SA` → `SAS`.
+Ambiguous names retain the review path, and conflicting source IDs never merge.
+The supplied production pattern merges seven rows into six NBA-backed survivors:
+
+| Survivor | Merged source rows | Team |
+| --- | --- | --- |
+| David Jones Garcia | Sleeper David Jones-Garcia; legacy sportsdata David Jones-Garcia | SAS, including legacy SA |
+| Joan Beringer | Sleeper Joan Beringer | MIN |
+| Nic Claxton | Sleeper Nic Claxton | CHI |
+| Taelon Peter | Sleeper Taelon Peter | IND |
+| Trevon Scott | Sleeper Trevon Scott | BKN |
+| Will Richard | Sleeper Will Richard | GSW |
+
+The NBA row survives; every compatible provider ID and dependent reference moves through `merge_players`.
+The migration skips any group with conflicting provider IDs.
+Career totals use a fixed base plus regular-season appearances after the base season.
+An appearance has positive minutes or any positive counting statistic, regardless of its DNP flag.
+The base normally comes from ESPN per-season GP through the previous season.
+Later seasons come from our boxes; ESPN's current-season lag does not remove the latest appearance.
+
+| Existing state | Migration result | Next lookup |
+| --- | --- | --- |
+| Non-null count | Preserve the count exactly; leave base unset | One ESPN completed-season fetch |
+| NULL count; rookie with no earlier appearance | Base 0 through the previous season | None |
+| NULL count; every completed NBA season covered | Base 0 through 2020 | None |
+| NULL count; at least 65 covered appearances | Base 0 through 2020; total is a safe lower bound | None |
+| Other NULL count | Remain unknown | ESPN first; retry failures after at least seven days |
+
+Covered completed seasons must equal `years_exp`.
+A current-season appearance adds one to the number of observed seasons, not to completed experience.
+Any appearance before coverage prevents the complete-coverage fallback.
+A late first stored season never proves a late NBA debut.
+Established bases are never fetched again, including fallback bases.
+After a failed ESPN request, a fallback must not lower an existing count.
+The worker limits each run to 300 players, 16 concurrent jobs, and a 90-second start budget.
+External work for one player has an eight-second deadline.
+Earlier import work also reduces the remaining lookup budget.
+The worker starts no new lookup after 110 seconds of the complete daily sync.
+Current NBA and current roster players run first; deferred work remains due for the next daily run.
+Run `supabase/sql/player-data-audit.sql` against approved candidate data to inspect base sources, missing bases, and season coverage.
+
 The existing Edge and frontend remain compatible throughout the database phase and after rollback.
-Stored years, RPC arguments, RPC results, permissions, and table shapes stay unchanged.
+Stored years and existing RPC arguments, results, and permissions stay compatible.
+The player table gains nullable base, cutoff, source, and lookup-time fields.
 Regenerate the final release and database security attestations after all follow-up migrations are integrated.
 Do not reuse the previous release's approved migration range.
 The reserved `20261027000000` legacy-push cleanup is separate from this pick release.
@@ -31,7 +87,7 @@ The reserved `20261027000000` legacy-push cleanup is separate from this pick rel
 5. Deploy Edge, verify compatibility, then deploy the frontend.
 6. If deployment fails, restore the old frontend and Edge while keeping the compatible migrated database.
 
-The new focused recipes are:
+The focused pick recipes are:
 
 ```sh
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window.sql
@@ -41,6 +97,42 @@ PANCAKE_PICK_WINDOW_DB_TESTS=1 npx vitest run tests/e2e/pick-window-harness.test
 ```
 
 The harness recipe also requires the isolated stack's `E2E_SUPABASE_URL`, `E2E_PANCAKE_SUPABASE_SECRET_KEY`, and `E2E_SUPABASE_PUBLISHABLE_KEY`.
+
+## Player data verification
+
+Use the private stack described in `docs/verification.md`.
+These recipes need no new package commands:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-identity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
+npm run test:db:player-data
+```
+
+The fixtures reproduce Mario Hezonja, Skal Labissiere, and Guerschon Yabusele returning after gaps.
+They also model incomplete Andre Jackson Jr. and Cam Christie boxes, ESPN's one-game lag, and incorrect DNP flags.
+Expected totals use completed ESPN seasons plus all later local appearances.
+A valid career total also checks season-history completeness, with one game of tolerance for source lag.
+The migration test starts before the counter migration and proves that seven known counts never decrease.
+It also checks rookie, complete-coverage, threshold, and unknown fallbacks.
+Run that separate transition recipe before the final full reset:
+
+```sh
+supabase db reset --local --version 20261027000200
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-migration.sql
+supabase db reset --local
+```
+
+The transition recipe rolls back its fixtures and migration.
+The existing regular-season filter recognizes NBA `002` games and excludes other NBA `00` types.
+Preseason, playoffs, play-in, and Cup finals contribute zero.
+Zero-minute appearances with a positive counting statistic contribute one.
+Legacy Basketball Reference imports keep the existing schedule filter.
 
 ## Acquisition contract
 

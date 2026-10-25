@@ -1,10 +1,10 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
+import { workFetch } from '../_shared/workContext.ts'
 import { runBounded } from '../_shared/runBounded.ts'
-import { careerFirstSeasonYear, careerRegularSeasonGames } from '../_shared/careerGames.ts'
+import { careerFirstSeasonYear, careerGamesBase } from '../_shared/careerGames.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
-import { toETDate } from '../_shared/date.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fetchAllPlayers, PLAYER_PAGE } from './players.ts'
 import { fetchNbaCareerProfile } from './nbaCareer.ts'
@@ -16,7 +16,7 @@ const ESPN_SEARCH_BASE_URL = Deno.env.get('ESPN_SEARCH_BASE_URL') ??
 
 type CareerPlayer = {
   id: string; display_name: string; espn_id: string | null; nba_id: string | null; nba_team: string | null
-  years_exp: number | null; career_regular_season_games: number | null; career_games_checked_at: string | null
+  years_exp: number | null; career_regular_season_games: number | null; career_games_base: number | null; career_games_base_attempted_at: string | null
 }
 
 async function rosteredPlayerIds(): Promise<Set<string>> {
@@ -34,7 +34,7 @@ async function rosteredPlayerIds(): Promise<Set<string>> {
   }
 }
 
-async function linkEspnId(player: CareerPlayer, players: CareerPlayer[]): Promise<string> {
+async function linkEspnId(player: CareerPlayer, players: CareerPlayer[], signal: AbortSignal): Promise<string> {
   const name = normalizeName(player.display_name)
   if (players.filter(row => normalizeName(row.display_name) === name).length !== 1) {
     throw new Error('ESPN lookup has an ambiguous stored name')
@@ -43,7 +43,7 @@ async function linkEspnId(player: CareerPlayer, players: CareerPlayer[]): Promis
   url.searchParams.set('query', player.display_name)
   url.searchParams.set('type', 'player')
   url.searchParams.set('limit', '50')
-  const response = await fetchWithRetry(url, undefined, { attemptTimeoutMs: 5000 })
+  const response = await fetchWithRetry(url, { signal }, { attemptTimeoutMs: 4000 })
   if (!response.ok) {
     await response.body?.cancel()
     throw new Error(`ESPN lookup ${response.status}`)
@@ -56,7 +56,7 @@ async function linkEspnId(player: CareerPlayer, players: CareerPlayer[]): Promis
   const espnId = ids[0]
   if (players.some(row => row.id !== player.id && row.espn_id === espnId)) throw new Error('ESPN lookup identity already belongs to another player')
   let query = supabase.from('players').update({ espn_id: espnId }).eq('id', player.id)
-    .eq('display_name', player.display_name).is('espn_id', null)
+    .eq('display_name', player.display_name).is('espn_id', null).abortSignal(signal)
   if (player.nba_id) query = query.eq('nba_id', player.nba_id)
   const { data, error } = await query.select('id, espn_id')
   if (error) throw error
@@ -65,8 +65,8 @@ async function linkEspnId(player: CareerPlayer, players: CareerPlayer[]): Promis
   return espnId
 }
 
-async function fetchEspnExperience(espnId: string, now: Date): Promise<number | null> {
-  const response = await fetchWithRetry(`${ESPN_CAREER_BASE_URL}/athletes/${espnId}`, undefined, { attemptTimeoutMs: 5000 })
+async function fetchEspnExperience(espnId: string, now: Date, signal: AbortSignal): Promise<number | null> {
+  const response = await fetchWithRetry(`${ESPN_CAREER_BASE_URL}/athletes/${espnId}`, { signal }, { attemptTimeoutMs: 4000 })
   if (!response.ok) {
     await response.body?.cancel()
     throw new Error(`ESPN athlete biography ${response.status}`)
@@ -85,70 +85,88 @@ async function fetchEspnExperience(espnId: string, now: Date): Promise<number | 
   return year !== null && year > 1946 && year <= currentSeasonYear(now) ? Math.max(0, currentSeasonYear(now) - 1 - year) : null
 }
 
-export async function syncCareerGames(now = new Date()): Promise<{ updated: number; unverified: number; failures: string[] }> {
+type CareerSyncOptions = { maxPlayers?: number; budgetMs?: number; lookupTimeoutMs?: number }
+
+export async function syncCareerGames(now = new Date(), options: CareerSyncOptions = {}): Promise<{ updated: number; unverified: number; failures: string[] }> {
+  const maxPlayers = Math.min(300, Math.max(0, options.maxPlayers ?? 300))
+  const budgetMs = Math.min(90000, Math.max(0, options.budgetMs ?? 90000))
+  const timeoutMs = Math.min(8000, Math.max(1, options.lookupTimeoutMs ?? 8000))
+  const started = performance.now()
   const players = await fetchAllPlayers<CareerPlayer>(supabase,
-    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_checked_at')
-  if (players.length === 0) return { updated: 0, unverified: 0, failures: [] }
+    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_base, career_games_base_attempted_at')
+  const missing = players.filter(player => player.career_games_base == null)
+  if (missing.length === 0) return { updated: 0, unverified: 0, failures: [] }
   const rostered = await rosteredPlayerIds()
-  const targets = players.filter(player => {
-    const missing = player.career_regular_season_games == null || player.years_exp == null
-    if (player.nba_team) return missing || !player.career_games_checked_at || toETDate(new Date(player.career_games_checked_at)) !== toETDate(now)
-    return rostered.has(player.id) && missing
-  })
+  const targets = missing.filter(player => !player.career_games_base_attempted_at
+    || now.getTime() - Date.parse(player.career_games_base_attempted_at) >= 7 * 86400000)
+    .sort((a, b) => Number(Boolean(b.nba_team || rostered.has(b.id))) - Number(Boolean(a.nba_team || rostered.has(a.id)))
+      || (a.career_games_base_attempted_at ?? '').localeCompare(b.career_games_base_attempted_at ?? '')
+      || Number(b.years_exp === 0) - Number(a.years_exp === 0)
+      || Number(Boolean(b.espn_id)) - Number(Boolean(a.espn_id)) || a.id.localeCompare(b.id))
+    .slice(0, maxPlayers)
   let updated = 0
-  let unverified = 0
+  let unverified = missing.length
   const failures: string[] = []
   await runBounded(targets.map(player => async () => {
-    const problems: string[] = []
-    let espnId = player.espn_id
-    if (!espnId) {
-      try { espnId = await linkEspnId(player, players) }
-      catch (error) { problems.push(errorMessage(error)) }
+    if (performance.now() - started >= budgetMs) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(new Error('Career base lookup deadline exceeded')), timeoutMs)
+    const signal = controller.signal
+    try {
+      const claim = await supabase.rpc('claim_player_career_base_atomic', { p_player_id: player.id, p_now: now.toISOString() }).abortSignal(AbortSignal.timeout(4000))
+      if (claim.error) { failures.push(`${player.id}: ${claim.error.message}`); return }
+      if (!claim.data) return
+      const problems: string[] = []
+      let espnId = player.espn_id
+      if (!espnId) {
+        try { espnId = await linkEspnId(player, players, signal) }
+        catch (error) { problems.push(errorMessage(error)) }
+      }
+      let payload: unknown = null
+      if (espnId) {
+        try {
+          const response = await workFetch(`${ESPN_CAREER_BASE_URL}/athletes/${espnId}/stats?seasontype=2`, { signal })
+          if (!response.ok) {
+            await response.body?.cancel()
+            throw new Error(`ESPN career stats ${response.status}`)
+          }
+          payload = await response.json()
+        } catch (error) { problems.push(errorMessage(error)) }
+      }
+      const season = currentSeasonYear(now)
+      const base = careerGamesBase(payload, season - 1)
+      let years = player.years_exp
+      const firstSeason = careerFirstSeasonYear(payload)
+      if (years == null && firstSeason !== null && firstSeason <= season) years = season - firstSeason
+      if (base == null && years == null && espnId) {
+        try { years = await fetchEspnExperience(espnId, now, signal) }
+        catch (error) { problems.push(errorMessage(error)) }
+      }
+      if (base == null && player.nba_id && years == null) {
+        try { years = (await fetchNbaCareerProfile(player.nba_id, now, signal)).years }
+        catch (error) { problems.push(errorMessage(error)) }
+      }
+      if (player.years_exp == null && years != null) {
+        let query = supabase.from('players').update({ years_exp: years }).eq('id', player.id).is('years_exp', null).abortSignal(AbortSignal.timeout(4000))
+        query = espnId ? query.eq('espn_id', espnId) : query.is('espn_id', null)
+        if (player.nba_id) query = query.eq('nba_id', player.nba_id)
+        const { data, error } = await query.select('id')
+        if (error) failures.push(`${player.id}: ${error.message}`)
+        else if (data?.length !== 1) failures.push(`${player.id}: Player identity changed before experience update`)
+      }
+      const saved = await supabase.rpc('complete_player_career_base_atomic', {
+        p_player_id: player.id, p_espn_id: espnId ?? '', p_nba_id: player.nba_id ?? '', p_season_year: season,
+        ...(base == null ? {} : { p_base: base, p_base_season: season - 1 }),
+      }).abortSignal(AbortSignal.timeout(4000))
+      if (saved.error) failures.push(`${player.id}: ${saved.error.message}`)
+      else if (saved.data) { updated++; unverified-- }
+      else if (base != null) failures.push(`${player.id}: Player identity changed before base update`)
+      else console.warn(`[sync-players] career ${player.id}: ${[...problems, 'NBA career base is unverified'].join('; ')}`)
+    } catch (error) {
+      console.warn(`[sync-players] career ${player.id}: ${errorMessage(error)}`)
+    } finally {
+      clearTimeout(timer)
     }
-    let payload: unknown = null
-    if (espnId) {
-      try {
-        const response = await fetchWithRetry(`${ESPN_CAREER_BASE_URL}/athletes/${espnId}/stats?seasontype=2`, undefined, { attemptTimeoutMs: 5000 })
-        if (!response.ok) {
-          await response.body?.cancel()
-          throw new Error(`ESPN career stats ${response.status}`)
-        }
-        payload = await response.json()
-      } catch (error) { problems.push(errorMessage(error)) }
-    }
-    let years = player.years_exp
-    const firstSeason = careerFirstSeasonYear(payload)
-    if (years == null && firstSeason !== null && firstSeason <= currentSeasonYear(now)) years = currentSeasonYear(now) - firstSeason
-    if (years == null && espnId) {
-      try { years = await fetchEspnExperience(espnId, now) }
-      catch (error) { problems.push(errorMessage(error)) }
-    }
-    const rookie = years === 0 && (player.career_regular_season_games ?? 0) === 0 ? 0 : null
-    let games = careerRegularSeasonGames(payload, rookie)
-    if (player.nba_id && (years == null || games == null)) {
-      try {
-        const profile = await fetchNbaCareerProfile(player.nba_id, now)
-        years ??= profile.years
-        if (games == null && profile.noGames && (player.career_regular_season_games ?? 0) === 0) games = 0
-        if (games == null && years === 0 && (player.career_regular_season_games ?? 0) === 0) games = careerRegularSeasonGames(payload, 0)
-      } catch (error) { problems.push(errorMessage(error)) }
-    }
-    if ((games == null && years !== 0) || years == null) {
-      unverified++
-      console.warn(`[sync-players] career ${player.id}: ${[...problems, 'NBA career data is unverified'].join('; ')}`)
-    }
-    if (games == null && (player.years_exp != null || years == null)) return
-    let query = supabase.from('players').update({
-      ...(games != null ? { career_regular_season_games: games, career_games_checked_at: now.toISOString() } : {}),
-      ...(player.years_exp == null && years != null ? { years_exp: years } : {}),
-    }).eq('id', player.id)
-    query = espnId ? query.eq('espn_id', espnId) : query.is('espn_id', null)
-    if (player.nba_id) query = query.eq('nba_id', player.nba_id)
-    if (player.years_exp == null && years != null) query = query.is('years_exp', null)
-    const { data, error } = await query.select('id')
-    if (error) failures.push(`${player.id}: ${error.message}`)
-    else if (data?.length !== 1) failures.push(`${player.id}: Player identity changed before career update`)
-    else updated++
-  }), 6)
+  }), 16)
   return { updated, unverified, failures }
 }
