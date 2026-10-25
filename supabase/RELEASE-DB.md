@@ -56,7 +56,7 @@ Later seasons come from our boxes; ESPN's current-season lag does not remove the
 | --- | --- | --- |
 | Non-null count | Preserve the count exactly; leave base unset | One ESPN completed-season fetch |
 | NULL count; rookie with no earlier appearance | Base 0 through the previous season | None |
-| NULL count; every completed NBA season covered | Base 0 through 2020 | None |
+| NULL count; every completed NBA season covered | Provisional base 0 through 2020 | One successful ESPN completed-season fetch |
 | NULL count; at least 65 covered appearances | Base 0 through 2020; total is a safe lower bound | None |
 | Other NULL count | Remain unknown | ESPN first; retry failures after at least seven days |
 
@@ -64,13 +64,18 @@ Covered completed seasons must equal `years_exp`.
 A current-season appearance adds one to the number of observed seasons, not to completed experience.
 Any appearance before coverage prevents the complete-coverage fallback.
 A late first stored season never proves a late NBA debut.
-Established bases are never fetched again, including fallback bases.
-After a failed ESPN request, a fallback must not lower an existing count.
+ESPN, rookie, and threshold bases are never fetched again.
+Coverage bases need one successful ESPN lookup because historical boxes have gaps.
+The lookup replaces coverage with the completed-season ESPN base and recounts later local appearances.
+Unavailable ESPN data leaves coverage unchanged and permits another attempt after at least seven days.
+Any base lookup that would lower the stored total is rejected, preserving the count for a later attempt.
 The worker limits each run to 300 players, 16 concurrent jobs, and a 90-second start budget.
 External work for one player has an eight-second deadline.
 Earlier import work also reduces the remaining lookup budget.
 The worker starts no new lookup after 110 seconds of the complete daily sync.
-Current NBA and current roster players run first; deferred work remains due for the next daily run.
+Players on an NBA team run first, then those closest to 65 stored games.
+Unknown counts follow known counts within each group; the oldest attempts break ties.
+Deferred work remains due for the next daily run.
 Run `supabase/sql/player-data-audit.sql` against approved candidate data to inspect base sources, missing bases, and season coverage.
 
 The existing Edge and frontend remain compatible throughout the database phase and after rollback.
@@ -109,6 +114,7 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-coverage-upgrade.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
 npm run test:db:player-data
@@ -117,6 +123,8 @@ npm run test:db:player-data
 The fixtures reproduce Mario Hezonja, Skal Labissiere, and Guerschon Yabusele returning after gaps.
 They also model incomplete Andre Jackson Jr. and Cam Christie boxes, ESPN's one-game lag, and incorrect DNP flags.
 Expected totals use completed ESPN seasons plus all later local appearances.
+A coverage fixture moves from 64 stored games to 69 after its ESPN lookup.
+The recipes also prove weekly retry, nondecreasing upgrades, and no repeat lookup after success.
 A valid career total also checks season-history completeness, with one game of tolerance for source lag.
 The migration test starts before the counter migration and proves that seven known counts never decrease.
 It also checks rookie, complete-coverage, threshold, and unknown fallbacks.

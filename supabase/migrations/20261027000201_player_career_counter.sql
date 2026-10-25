@@ -110,7 +110,7 @@ CREATE OR REPLACE FUNCTION public.claim_player_career_base_atomic(p_player_id uu
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
   UPDATE public.players SET career_games_base_attempted_at=p_now
-  WHERE id=p_player_id AND career_games_base IS NULL
+  WHERE id=p_player_id AND (career_games_base IS NULL OR career_games_base_source='coverage')
     AND (career_games_base_attempted_at IS NULL OR career_games_base_attempted_at<=p_now-interval '7 days');
   RETURN FOUND;
 END;
@@ -131,16 +131,18 @@ BEGIN
     RAISE EXCEPTION 'A completed-season NBA career base is required.' USING ERRCODE='22023';
   END IF;
   SELECT * INTO v_player FROM public.players WHERE id=p_player_id FOR UPDATE;
-  IF NOT FOUND OR v_player.career_games_base IS NOT NULL
+  IF NOT FOUND OR (v_player.career_games_base IS NOT NULL AND v_player.career_games_base_source<>'coverage')
     OR v_player.espn_id IS DISTINCT FROM nullif(p_espn_id,'')
     OR v_player.nba_id IS DISTINCT FROM nullif(p_nba_id,'') THEN RETURN false; END IF;
+  IF p_base IS NULL AND v_player.career_games_base_source='coverage' THEN RETURN false; END IF;
   IF p_base IS NULL THEN
     SELECT base,base_season,source INTO p_base,p_base_season,v_source
       FROM private.player_career_fallback(p_player_id,v_player.years_exp,p_season_year);
-    IF p_base IS NULL OR p_base+private.player_career_appearances(p_player_id,p_base_season)<v_player.career_regular_season_games THEN RETURN false; END IF;
+    IF p_base IS NULL THEN RETURN false; END IF;
   ELSE
     v_source:='espn';
   END IF;
+  IF p_base+private.player_career_appearances(p_player_id,p_base_season)<v_player.career_regular_season_games THEN RETURN false; END IF;
   UPDATE public.players SET career_games_base=p_base,career_games_base_season=p_base_season,
     career_games_base_source=v_source,career_games_base_checked_at=clock_timestamp()
   WHERE id=p_player_id;

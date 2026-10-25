@@ -13,7 +13,7 @@ const { syncCareerGames } = await import('./career.ts')
 const now = new Date('2026-10-25T16:00:00Z')
 const player = (id: string, fields: Record<string, unknown> = {}) => ({
   id, espn_id: id, display_name: `Fixture ${id}`, nba_id: null, nba_team: 'BOS', years_exp: 10,
-  career_regular_season_games: null, career_games_base: null, career_games_base_attempted_at: null, ...fields,
+  career_regular_season_games: null, career_games_base: null, career_games_base_source: null as string | null, career_games_base_attempted_at: null, ...fields,
 })
 const veteran = {
   filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
@@ -62,8 +62,9 @@ async function run(players: ReturnType<typeof player>[], payloads: Record<string
       assert.equal(body.p_espn_id, row.espn_id ?? '')
       assert.equal(body.p_nba_id, row.nba_id ?? '')
       if (options.refuseSave) return Response.json(false)
-      if (body.p_base == null && ((row.career_regular_season_games ?? 0) > 0 || row.years_exp !== 0)) return Response.json(false)
+      if (body.p_base == null && (row.career_games_base != null || (row.career_regular_season_games ?? 0) > 0 || row.years_exp !== 0)) return Response.json(false)
       row.career_games_base = body.p_base ?? 0
+      row.career_games_base_source = body.p_base == null ? 'rookie' : 'espn'
       return Response.json(true)
     }
     assert.equal(url.pathname, '/rest/v1/players')
@@ -84,10 +85,11 @@ async function run(players: ReturnType<typeof player>[], payloads: Record<string
   }
 }
 
-Deno.test('every player with a base skips all further career lookups', async () => {
+Deno.test('ESPN, rookie and threshold bases skip all further career lookups', async () => {
   const result = await run([
-    player('known', { career_games_base: 20 }), player('rookie', { years_exp: 0, career_games_base: 0 }),
-    player('threshold', { career_games_base: 0, career_regular_season_games: 65 }),
+    player('known', { career_games_base: 20, career_games_base_source: 'espn' }),
+    player('rookie', { years_exp: 0, career_games_base: 0, career_games_base_source: 'rookie' }),
+    player('threshold', { career_games_base: 0, career_games_base_source: 'threshold', career_regular_season_games: 65 }),
   ], {})
   assert.equal(result.updated, 0)
   assert.equal(result.requests.filter(url => url.hostname !== 'database.invalid').length, 0)
@@ -128,14 +130,55 @@ Deno.test('missing ESPN identity and experience resolve using the existing trust
   assert.equal(result.requests.filter(url => url.hostname === 'search.invalid').length, 1)
 })
 
-Deno.test('bounded work prioritizes current roster players and later processes free agents', async () => {
-  const rows = [player('absent', { nba_team: null }), player('current', { nba_team: null })]
-  const first = await run(rows, { current: veteran, absent: veteran }, { rostered: ['current'], maxPlayers: 1 })
-  assert.equal(first.updated, 1)
-  assert.deepEqual(first.requests.filter(url => url.hostname === 'career.invalid').map(url => url.pathname), ['/athletes/current/stats'])
-  const second = await run(rows, { absent: veteran }, { maxPlayers: 1 })
-  assert.equal(second.updated, 1)
-  assert.ok(second.requests.some(url => url.pathname === '/athletes/absent/stats'))
+Deno.test('the fetch queue puts NBA players first and then sorts by distance from 65 games', async () => {
+  const rows = [
+    player('free-near', { nba_team: null, career_regular_season_games: 65 }),
+    player('team-far', { career_regular_season_games: 100 }),
+    player('team-below', { career_regular_season_games: 62 }),
+    player('team-above', { career_regular_season_games: 66 }),
+    player('team-unknown'),
+    player('team-near', { career_regular_season_games: 64, career_games_base: 0, career_games_base_source: 'coverage',
+      career_games_base_attempted_at: '2026-10-01T00:00:00Z' }),
+  ]
+  const history = { ...veteran, categories: [{ ...veteran.categories[0], totals: ['240'], statistics: [
+    { season: { year: 2020 }, stats: ['200'] }, { season: { year: 2027 }, stats: ['40'] },
+  ] }] }
+  const payloads = Object.fromEntries(rows.map(row => [row.id, history]))
+  const expected = ['team-above', 'team-near', 'team-below', 'team-far', 'team-unknown', 'free-near']
+  for (const id of expected) {
+    const result = await run(rows, payloads, { rostered: ['free-near'], maxPlayers: 1 })
+    assert.equal(result.updated, 1)
+    assert.deepEqual(result.requests.filter(url => url.hostname === 'career.invalid').map(url => url.pathname), [`/athletes/${id}/stats`])
+  }
+})
+
+Deno.test('a coverage base gets one successful ESPN upgrade and no later refetch', async () => {
+  const rows = [player('holes', { career_regular_season_games: 64, career_games_base: 0, career_games_base_source: 'coverage' })]
+  const payload = { ...veteran, categories: [{ ...veteran.categories[0], totals: ['69'], statistics: [
+    { season: { year: 2026 }, stats: ['68'] }, { season: { year: 2027 }, stats: ['1'] },
+  ] }] }
+  const upgraded = await run(rows, { holes: payload })
+  assert.equal(upgraded.updated, 1)
+  assert.equal(rows[0].career_games_base, 68)
+  assert.equal(rows[0].career_games_base_source, 'espn')
+  assert.deepEqual(upgraded.writes[1].body, { p_player_id: 'holes', p_base: 68, p_base_season: 2026,
+    p_espn_id: 'holes', p_nba_id: '', p_season_year: 2027 })
+  const repeated = await run(rows, { holes: payload }, { at: new Date('2027-11-01T16:00:00Z') })
+  assert.equal(repeated.requests.filter(url => url.hostname === 'career.invalid').length, 0)
+})
+
+Deno.test('an unavailable ESPN history retains coverage and retries no sooner than a week', async () => {
+  const rows = [player('coverage', { career_regular_season_games: 64, career_games_base: 0, career_games_base_source: 'coverage' })]
+  const unavailable = await run(rows, {})
+  assert.equal(unavailable.updated, 0)
+  assert.equal(rows[0].career_games_base_source, 'coverage')
+  assert.equal(rows[0].career_games_base, 0)
+  assert.equal(rows[0].career_regular_season_games, 64)
+  assert.equal(unavailable.requests.filter(url => url.hostname === 'career.invalid').length, 1)
+  const early = await run(rows, {}, { at: new Date('2026-11-01T15:59:59Z') })
+  assert.equal(early.requests.filter(url => url.hostname === 'career.invalid').length, 0)
+  const due = await run(rows, {}, { at: new Date('2026-11-01T16:00:00Z') })
+  assert.equal(due.requests.filter(url => url.hostname === 'career.invalid').length, 1)
 })
 
 Deno.test('a per-run limit and expired budget leave unstarted players unclaimed', async () => {

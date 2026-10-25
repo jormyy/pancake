@@ -3,7 +3,7 @@ import { careerRegularSeasonGames } from '../_shared/careerGames.ts'
 
 type CareerCase = {
   name: string; years_exp: number; legacy: number | null; expected: number
-  local: [number, number][]; wrong_dnp: boolean; espn: unknown
+  local: [number, number][]; wrong_dnp: boolean; espn: unknown; base_source?: 'coverage'
 }
 
 type StoredCareer = { id: string; career_regular_season_games: number | null; career_games_base: number | null; career_games_base_season: number | null; career_games_base_source: string | null }
@@ -16,6 +16,7 @@ Deno.test({
     const db = new URL(Deno.env.get('SUPABASE_DB_URL')!)
     for (const target of [api, db]) assert.ok(['localhost', '127.0.0.1'].includes(target.hostname), 'Use a private local stack')
     const cases: CareerCase[] = JSON.parse(await Deno.readTextFile(new URL('./fixtures/career-base-cases.json', import.meta.url)))
+    cases.push({ ...cases[4], name: 'Coverage Cam Christie', legacy: null, base_source: 'coverage' })
     const calls: string[] = []
     const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, request => {
       const path = new URL(request.url).pathname
@@ -56,12 +57,20 @@ Deno.test({
       })))
       assert.ifError((await supabase.from('nba_games').insert(games)).error)
       assert.ifError((await supabase.from('player_game_stats').insert(stats)).error)
+      for (const [i, test] of cases.entries()) {
+        if (test.base_source !== 'coverage') continue
+        const fallback = await supabase.rpc('complete_player_career_base_atomic', {
+          p_player_id: ids[i], p_espn_id: `base-case-${i}`, p_nba_id: '', p_season_year: 2027,
+        })
+        assert.ifError(fallback.error)
+        assert.equal(fallback.data, true)
+      }
       const before = await supabase.from('players').select('id, career_regular_season_games, career_games_base').in('id', ids)
       assert.ifError(before.error)
       for (const [i, test] of cases.entries()) {
         const record: Pick<StoredCareer, 'id' | 'career_regular_season_games' | 'career_games_base'> = before.data!.find(candidate => candidate.id === ids[i])!
-        assert.equal(record.career_regular_season_games, test.legacy, `${test.name}: preserve count before base fetch`)
-        assert.equal(record.career_games_base, null)
+        assert.equal(record.career_regular_season_games, test.base_source === 'coverage' ? 64 : test.legacy, `${test.name}: preserve count before base fetch`)
+        assert.equal(record.career_games_base, test.base_source === 'coverage' ? 0 : null)
       }
       const result = await syncCareerGames(new Date('2026-10-25T16:00:00Z'))
       assert.deepEqual(result, { updated: cases.length, unverified: 0, failures: [] })
@@ -78,7 +87,7 @@ Deno.test({
       assert.equal(saved.data!.find(row => row.id === ids[5])!.career_regular_season_games, 101)
       const previous = calls.length
       assert.deepEqual(await syncCareerGames(new Date('2027-11-01T16:00:00Z')), { updated: 0, unverified: 0, failures: [] })
-      assert.equal(calls.length, previous, 'Established bases are never refetched, including next season')
+      assert.equal(calls.length, previous, 'Successful ESPN bases are never refetched, including next season')
       const correction = stats.find(row => row.player_id === ids[6] && row.minutes_played === 0)!
       assert.ifError((await supabase.from('player_game_stats').update({ points: 0 }).eq('game_id', correction.game_id)).error)
       const corrected = await supabase.from('players').select('career_regular_season_games').eq('id', ids[6]).single()

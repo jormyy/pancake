@@ -6,7 +6,7 @@ import { careerFirstSeasonYear, careerGamesBase } from '../_shared/careerGames.t
 import { normalizeName } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { errorMessage } from '../_shared/responses.ts'
-import { fetchAllPlayers, PLAYER_PAGE } from './players.ts'
+import { fetchAllPlayers } from './players.ts'
 import { fetchNbaCareerProfile } from './nbaCareer.ts'
 
 const ESPN_CAREER_BASE_URL = Deno.env.get('ESPN_CAREER_BASE_URL') ??
@@ -16,22 +16,7 @@ const ESPN_SEARCH_BASE_URL = Deno.env.get('ESPN_SEARCH_BASE_URL') ??
 
 type CareerPlayer = {
   id: string; display_name: string; espn_id: string | null; nba_id: string | null; nba_team: string | null
-  years_exp: number | null; career_regular_season_games: number | null; career_games_base: number | null; career_games_base_attempted_at: string | null
-}
-
-async function rosteredPlayerIds(): Promise<Set<string>> {
-  const ids = new Set<string>()
-  let after: string | null = null
-  while (true) {
-    let query = supabase.from('roster_players').select('id, player_id, league_seasons!inner(is_current)')
-      .eq('league_seasons.is_current', true).order('id').limit(PLAYER_PAGE)
-    if (after) query = query.gt('id', after)
-    const { data, error } = await query
-    if (error) throw error
-    for (const row of data ?? []) ids.add(row.player_id)
-    if (!data || data.length < PLAYER_PAGE) return ids
-    after = data[data.length - 1].id
-  }
+  years_exp: number | null; career_regular_season_games: number | null; career_games_base: number | null; career_games_base_source: string | null; career_games_base_attempted_at: string | null
 }
 
 async function linkEspnId(player: CareerPlayer, players: CareerPlayer[], signal: AbortSignal): Promise<string> {
@@ -93,16 +78,15 @@ export async function syncCareerGames(now = new Date(), options: CareerSyncOptio
   const timeoutMs = Math.min(8000, Math.max(1, options.lookupTimeoutMs ?? 8000))
   const started = performance.now()
   const players = await fetchAllPlayers<CareerPlayer>(supabase,
-    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_base, career_games_base_attempted_at')
-  const missing = players.filter(player => player.career_games_base == null)
+    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_base, career_games_base_source, career_games_base_attempted_at')
+  const missing = players.filter(player => player.career_games_base == null || player.career_games_base_source === 'coverage')
   if (missing.length === 0) return { updated: 0, unverified: 0, failures: [] }
-  const rostered = await rosteredPlayerIds()
   const targets = missing.filter(player => !player.career_games_base_attempted_at
     || now.getTime() - Date.parse(player.career_games_base_attempted_at) >= 7 * 86400000)
-    .sort((a, b) => Number(Boolean(b.nba_team || rostered.has(b.id))) - Number(Boolean(a.nba_team || rostered.has(a.id)))
-      || (a.career_games_base_attempted_at ?? '').localeCompare(b.career_games_base_attempted_at ?? '')
-      || Number(b.years_exp === 0) - Number(a.years_exp === 0)
-      || Number(Boolean(b.espn_id)) - Number(Boolean(a.espn_id)) || a.id.localeCompare(b.id))
+    .sort((a, b) => Number(Boolean(b.nba_team)) - Number(Boolean(a.nba_team))
+      || (a.career_regular_season_games == null ? Infinity : Math.abs(a.career_regular_season_games - 65))
+        - (b.career_regular_season_games == null ? Infinity : Math.abs(b.career_regular_season_games - 65))
+      || (a.career_games_base_attempted_at ?? '').localeCompare(b.career_games_base_attempted_at ?? '') || a.id.localeCompare(b.id))
     .slice(0, maxPlayers)
   let updated = 0
   let unverified = missing.length
@@ -160,7 +144,7 @@ export async function syncCareerGames(now = new Date(), options: CareerSyncOptio
       }).abortSignal(AbortSignal.timeout(4000))
       if (saved.error) failures.push(`${player.id}: ${saved.error.message}`)
       else if (saved.data) { updated++; unverified-- }
-      else if (base != null) failures.push(`${player.id}: Player identity changed before base update`)
+      else if (base != null) failures.push(`${player.id}: Player identity changed or career base would lower the stored count`)
       else console.warn(`[sync-players] career ${player.id}: ${[...problems, 'NBA career base is unverified'].join('; ')}`)
     } catch (error) {
       console.warn(`[sync-players] career ${player.id}: ${errorMessage(error)}`)

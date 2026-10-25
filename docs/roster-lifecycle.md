@@ -135,19 +135,24 @@ The DNP flag does not decide whether a player appeared.
 The one-time ESPN lookup sums per-season GP through the previous season.
 The current ESPN season and its career total do not set the base.
 This avoids old gaps in our boxes and a delayed ESPN current-game update.
-Once a player has a base, the worker never fetches career stats for that player again.
+ESPN, rookie, and threshold bases are never fetched again.
+A coverage base remains due for one successful ESPN lookup because our historical boxes have gaps.
+A successful lookup replaces coverage only when the new total does not lower the stored count.
+Unavailable or lower ESPN totals leave the existing count and base unchanged.
 Failed lookups retry no more than weekly.
 The worker attempts at most 300 players per run, with 16 concurrent jobs and a 90-second start budget.
 Each player's external lookups stop after eight seconds.
 Earlier sync work reduces the remaining lookup budget.
-Current NBA and current roster players take priority.
+Players on an NBA team run first, followed by players closest to 65 stored career games.
+Within each group, unknown counts follow known counts; the oldest attempts break ties.
 Unstarted players keep their place for the next daily run.
 
 The migration preserves every existing non-null count and leaves its base unset.
 Those players keep their count until an ESPN base lookup or a fallback that does not lower the count.
 For missing counts, a verified rookie gets base zero through the previous season.
 That requires no observed appearance before the current season.
-Otherwise, complete covered experience gets base zero through 2020.
+Otherwise, complete covered experience gets a provisional base of zero through 2020.
+That coverage base stays usable while its one-time ESPN lookup is pending.
 Completed covered seasons must equal `years_exp`; a current-season appearance adds one additional season.
 A player with at least 65 covered appearances also gets base zero through 2020.
 This last value is a lower bound that keeps taxi decisions correct.

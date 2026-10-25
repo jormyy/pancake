@@ -22,7 +22,8 @@ ORDER BY g.season_year,game_id_prefix;
 SELECT p.id,p.display_name,p.nba_team,p.years_exp,p.career_regular_season_games,
   p.career_games_base,p.career_games_base_season,p.career_games_base_source,
   p.career_games_base_checked_at,p.career_games_base_attempted_at,
-  CASE WHEN p.career_games_base IS NOT NULL THEN 'Established base; no lookup'
+  CASE WHEN p.career_games_base_source='coverage' THEN 'Provisional coverage; ESPN base due'
+    WHEN p.career_games_base IS NOT NULL THEN 'Established base; no lookup'
     WHEN p.career_regular_season_games IS NOT NULL THEN 'Preserved legacy count; ESPN base due'
     WHEN f.source IS NOT NULL THEN 'Available fallback: '||f.source
     ELSE 'Unknown; ESPN base required' END AS state
