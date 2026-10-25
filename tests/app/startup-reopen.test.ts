@@ -42,6 +42,7 @@ vi.mock('@/components/ui', () => ({
     Button: 'button', Input: 'input',
 }))
 vi.mock('@/components/auth/AuthScaffold', () => ({ AuthScaffold: ({ children }: React.PropsWithChildren) => children }))
+vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/LeagueAccessNotice', () => ({ LeagueAccessNotice: () => null }))
 vi.mock('@/components/navigation/WebTabShell', () => ({
     WebAppShell: ({ children }: React.PropsWithChildren) => { useBootShellHandoff(); return children },

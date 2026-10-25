@@ -1,9 +1,12 @@
 import React from 'react'
-import { StackActions, StackRouter } from '@react-navigation/routers'
+import { createRequire } from 'node:module'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import RookieDraftRoomScreen from '@/app/(modals)/rookie-draft-room'
 import DraftRoomScreen from '@/app/(modals)/draft-room'
+
+const navigationRequire = createRequire(import.meta.resolve('@react-navigation/native'))
+const { StackActions, StackRouter }: Pick<typeof import('@react-navigation/native'), 'StackActions' | 'StackRouter'> = navigationRequire('@react-navigation/routers')
 
 const mocks = vi.hoisted(() => ({
     replace: vi.fn(), dismissTo: vi.fn(), drop: vi.fn(), trim: vi.fn(),
@@ -148,7 +151,8 @@ it.each([['rookie', RookieDraftRoomScreen], ['auction', DraftRoomScreen]] as con
     let root = router.getInitialState(options)
     const originalTabs = root.routes[0].key
     const dispatch = (action: Parameters<typeof router.getStateForAction>[1]) => {
-        root = router.getStateForAction(root, action, options) ?? root
+        const next = router.getStateForAction(root, action, options)
+        if (next) root = router.getRehydratedState(next, options)
     }
     mocks.replace.mockImplementation(() => dispatch(StackActions.replace('(tabs)', { screen: 'league', params: { tab: 'draft' } })))
     mocks.dismissTo.mockImplementation(() => dispatch(StackActions.popTo('(tabs)', { screen: 'league', params: { tab: 'draft' } })))
