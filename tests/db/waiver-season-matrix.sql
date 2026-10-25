@@ -4,7 +4,7 @@
 SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS lane_local \gset
 \if :lane_local
 \else
-  \quit 2
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 BEGIN;
 UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
@@ -204,10 +204,10 @@ BEGIN
   c:=pg_temp.claim(f,1,p,10);
   UPDATE players SET injury_status=NULL WHERE id=injured;
   PERFORM pg_temp.drain();
-  PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE 'You have ineligible players on IR (%' FROM waiver_claims WHERE id=c),'IR recovery invalidates pending claim');
+  PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE '%Synthetic Waiver is no longer eligible for IR.%' FROM waiver_claims WHERE id=c),'IR recovery invalidates pending claim');
   PERFORM pg_temp.check_that((SELECT balance=100 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'IR failure keeps FAAB');
   PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s),'IR failure consumes no add');
-  PERFORM pg_temp.expect_error(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)',f.l,f.m[1],p,f.u[1]),'P0001','ineligible players on IR');
+  PERFORM pg_temp.expect_error(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)',f.l,f.m[1],p,f.u[1]),'PA005','Synthetic Waiver is no longer eligible for IR.');
   RAISE NOTICE 'PASS IR eligibility at submission and processing preserves budget and counts';
 END $$;
 DO $$

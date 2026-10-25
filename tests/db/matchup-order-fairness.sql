@@ -1,9 +1,10 @@
+\set ON_ERROR_STOP on
 \getenv post_order_db SUPABASE_DB_URL
 \getenv post_order_port PANCAKE_TEST_DB_PORT
 \if :{?post_order_db}
 \else
   \echo SUPABASE_DB_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?post_order_port}
 \else

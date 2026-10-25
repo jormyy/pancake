@@ -4,7 +4,7 @@
 
 Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261020000007`.
-This release advances the database through migration `20261026000700`.
+This release advances the database through migration `20261026000800`.
 It still needs 63 migrations from `origin/main`, followed by this release's migrations.
 The Vercel integration publishes the frontend when this release merges into main.
 Do not merge before the database and Edge checks pass.
@@ -603,13 +603,15 @@ Daily career refreshes retain their current schedule.
 
 ## Removed tiebreak storage
 
-This release drops `public.rps_challenges`.
-Deployed Edge and frontend consumers do not call it.
+This release drops `public.rps_challenges`, `public.rps_choice`, and `public.rps_status`.
+Deployed Edge and frontend consumers do not use them.
 Release health and seed tooling must also stop reading it before deployment.
 
 
 ## Server cleanup and retries
 
+Player imports keep the stored injury when metadata omits `injury_status`.
+An explicit null clears the injury.
 The delivery queue index excludes suppressed rows and keeps no Expo column dependency.
 Terminal outbox rows expire after 60 days through indexed batches of 500, capped at 20,000 per run.
 Pending rows and recent terminal rows remain.

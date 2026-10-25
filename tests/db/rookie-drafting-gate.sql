@@ -1,3 +1,4 @@
+\set ON_ERROR_STOP on
 \getenv post_test_api_url SUPABASE_URL
 \getenv post_test_db_url SUPABASE_DB_URL
 \getenv post_test_api_port PANCAKE_TEST_API_PORT
@@ -5,12 +6,12 @@
 \if :{?post_test_api_url}
 \else
   \echo SUPABASE_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?post_test_db_url}
 \else
   \echo SUPABASE_DB_URL is required
-  \quit 3
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 \if :{?post_test_api_port}
 \else

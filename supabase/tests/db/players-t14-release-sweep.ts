@@ -80,7 +80,10 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
   if (box && boxes.has(box[1])) return Response.json({ game: boxes.get(box[1]) })
-  if (route.startsWith('/career/')) return Response.json({})
+  if (/^\/career\/athletes\/[^/]+\/stats$/.test(route)) return Response.json({
+    filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
+    categories: [{ names: ['gamesPlayed'], totals: ['120'] }],
+  })
   return new Response('synthetic provider has no such route', { status: 404 })
 })
 const origin = `http://127.0.0.1:${originPort}`
@@ -196,7 +199,8 @@ try {
   const lines = boxed.map((listed, index) => ({ personId: person + index, name: `Synthetic ${listed.last}`, played: '1', status: 'ACTIVE',
     statistics: { minutes: 'PT20M00.00S', points: 10, reboundsTotal: 0, reboundsOffensive: 0, reboundsDefensive: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0,
       foulsPersonal: 0, fieldGoalsMade: 0, fieldGoalsAttempted: 0, threePointersMade: 0, threePointersAttempted: 0, freeThrowsMade: 0, freeThrowsAttempted: 0, plusMinusPoints: 0 } }))
-  await sql(`INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,home_score,away_score,game_status_text)
+  await sql(`UPDATE players SET career_games_checked_at=clock_timestamp()-interval '1 day' WHERE id=${q(xId)};
+    INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status,home_score,away_score,game_status_text)
     VALUES(${q(final)},${q(finalId)},${year},1,${q(today)},clock_timestamp(),'MIN','BOS','Final',100,90,'Final')`)
   boxes.set(finalId, { gameId: finalId, gameStatus: 3, gameStatusText: 'Final', homeTeam: { teamTricode: 'MIN', score: 100, players: lines.slice(0, 17) },
     awayTeam: { teamTricode: 'BOS', score: 90, players: lines.slice(17) } })
@@ -227,7 +231,8 @@ try {
     if (skipped) assert.deepEqual([body.released, body.releaseHeld], [0, { unproven: 0, unclaimed: 0 }], `${label}: a skipped sweep reports nobody`)
   }
 
-  assert.equal(await sql(`SELECT p.updated_at > g.game_time FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
+  assert.equal(await sql(`SELECT p.updated_at > g.game_time AND p.career_games_checked_at > g.game_time
+    FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',
     'The refreshes since the box rewrote his row, so updated_at no longer dates his last listing')
 
   // Refresh 2 is complete and successful without X.
