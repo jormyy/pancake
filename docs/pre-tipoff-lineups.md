@@ -17,7 +17,9 @@ Games with the same tipoff share one dispatch across all enabled teams.
 The open window also checks a fingerprint of rosters, injuries, games, scoring, slots, and projection inputs.
 Changed inputs open a new revision. Unchanged inputs do not repeat a completed run.
 The window stays open through the first minute after tipoff to handle news at the start.
-Each run loads current injuries and projections for today's Eastern Time date.
+Each run loads stored injuries and projections for today's Eastern Time date.
+Injury status refreshes every 15 minutes on game days.
+Career game counts refresh daily for NBA team players.
 The worker and `private.pre_tipoff_input_fingerprint` both use `get_league_projection_rows`.
 [Source monitoring](source-monitoring.md#projection-readers) defines per-game source precedence and fingerprint inputs.
 Only healthy players with games can enter unlocked starter slots.

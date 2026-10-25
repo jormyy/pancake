@@ -23,6 +23,7 @@ import { startRealtimeProbe } from './realtime-probe.mjs'
 import { saveSnapshot, waitForSnapshotWorkers } from './checkpoints.mjs'
 import { runNextSeason } from './next-season.mjs'
 import { tradeScenarios } from './trade-scenarios.mjs'
+import { beginTaxiAcquisitions, verifyTaxiAcquisitions } from './taxi-scenarios.mjs'
 import { applyOverlay, functionFingerprint } from './overlay.mjs'
 import { assertWaiverRollover, beginWaivers, verifyWaivers } from './waiver-scenarios.mjs'
 import { acceptanceGaps } from './report-summary.mjs'
@@ -225,6 +226,7 @@ export async function replay(options = {}) {
     }
     if (realPlan) report.firstCalendar = await assertTwoCalendar(context, profile,!!deferredCalendarError)
     const trades = tradeScenarios(context, report.actions, move)
+    const taxiDate = await sql(`SELECT week_start FROM season_weeks WHERE season_year=${context.seasonYear} AND week_number=2`)
     for (const date of selected) {
       activeDate = date
       const began = Date.now()
@@ -238,8 +240,10 @@ export async function replay(options = {}) {
       previousTeams = teams.teams
       day.nbaTeams = { checked: teams.checked, changes: teams.changes }
       await verifyWaivers(context, report)
+      await verifyTaxiAcquisitions(context, report)
       if (!options.resume && date === start) await beginWaivers(context, 'season-one-faab', report)
       if (date === season.end) await beginWaivers(context, 'postseason-pending', report)
+      if (!options['late-season'] && date === taxiDate) await beginTaxiAcquisitions(context, report)
       if (realPlan) { await nbaTradeSetup(context,date,realPlan); await allStarLimit(context,date,profile,report) }
       await prepareLineups(context, date, day)
       if(realPlan&&day.lineups.week)await rookieLineups(context,date,day.lineups.week,today,store,report)
@@ -261,6 +265,7 @@ export async function replay(options = {}) {
       day.live = today.length ? await assertClientScores(context, { previous: observed }) : null
       if (day.live) observed = { ...observed, ...day.live.observations }
       await verifyWaivers(context, report)
+      await verifyTaxiAcquisitions(context, report)
       day.weekly = await assertClosedWeeks(context, next, verifiedWeeks)
       day.coverage = assertLiveCoverage(runtime.origin.coverage, today, plan)
       if(realPlan&&!report.featureCheckpoints.some(row=>row.year===context.seasonYear&&row.label==='mid-season')&&profile.calendar.weeks.find(row=>row.week_start<=date&&row.week_end>=date)?.week_number>=Math.floor(profile.playoffStart/2))await captureSeasonFeatures(context,profile,'mid-season',report)

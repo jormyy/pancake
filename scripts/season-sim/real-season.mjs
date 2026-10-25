@@ -8,7 +8,7 @@ import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
 import { assertFinals, assertLeaguePoints } from './assertions.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
-import { assertLiveCoverage } from './invariants.mjs'
+import { assertLiveCoverage, assertTaxiTransactions } from './invariants.mjs'
 import { assertTwoCalendar, assertTwoDay } from './two-checks.mjs'
 import { activateRealRookies, nbaTradeSetup, allStarLimit, realRookieActions, rookieLineups, rookieListings, rookieMoves } from './two-actions.mjs'
 import { assertSkippedWeek } from './skipped-week.mjs'
@@ -148,6 +148,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     day.skippedWeek = await assertSkippedWeek(c,1)
     for(const pick of [...report.actions.tradeDeadline.transferredPicks,{id:report.offseasonTrade.pickId,owner:report.offseasonTrade.owner},{id:report.offseasonTrade.counterPickId,owner:report.offseasonTrade.counterOwner}])assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`),pick.owner,'Traded future picks retain their owners through the second real season')
     assert.equal(await digest(),before,'Real second-season play preserves all settled first-season history')
+    day.taxi = await assertTaxiTransactions(c)
     day.wallSeconds=(Date.now()-dayBegan)/1000
     days.push(day)
     console.log(JSON.stringify({realSeasonDate:date,games:day.finals.games,wallSeconds:day.wallSeconds}))

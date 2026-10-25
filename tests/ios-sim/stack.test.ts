@@ -10,7 +10,7 @@ const fixture = await vi.hoisted(async () => {
   const { mkdtemp } = await import('node:fs/promises')
   const { tmpdir } = await import('node:os')
   const directory = await mkdtemp(`${tmpdir()}/ios-stack-start-`)
-  return { directory, run: vi.fn(), seed: vi.fn(), spawn: vi.fn() }
+  return { directory, run: vi.fn(), seed: vi.fn(), spawn: vi.fn(), afterCopy: vi.fn() }
 })
 
 vi.mock('../../scripts/ios-sim/common.mjs', async importOriginal => ({
@@ -20,7 +20,18 @@ vi.mock('../../scripts/ios-sim/common.mjs', async importOriginal => ({
   run: fixture.run,
   ready: vi.fn(),
 }))
-vi.mock('../../scripts/ios-sim/build.mjs', () => ({ sourceSnapshot: async () => ({ snapshot: path.join(fixture.directory, 'source') }) }))
+vi.mock('../../scripts/ios-sim/build.mjs', () => ({ sourceSnapshot: async (action = (value: unknown) => value) => {
+  const { cp, mkdir, rm, writeFile } = await import('node:fs/promises')
+  const lock = path.join(fixture.directory, 'snapshot.lock')
+  const snapshot = path.join(fixture.directory, 'snapshot')
+  await mkdir(lock)
+  await writeFile(path.join(lock, 'proof'), 'locked')
+  await rm(snapshot, { recursive: true, force: true })
+  await cp(path.join(fixture.directory, 'source'), snapshot, { recursive: true })
+  await fixture.afterCopy()
+  try { return await action({ snapshot }) }
+  finally { await rm(lock, { recursive: true }) }
+} }))
 vi.mock('../../scripts/ios-sim/seed.mjs', () => ({ seed: fixture.seed, requireCurrentSeed: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawn: fixture.spawn }))
 
@@ -98,4 +109,55 @@ test('only an explicit reset removes existing seed data and the owned database',
   await assert.rejects(readFile(data), { code: 'ENOENT' })
   assert.ok(fixture.run.mock.calls.some(([command, args]) => command === 'supabase' && args.join(' ') === `stop --workdir ${stack} --no-backup`))
   assert.equal(JSON.parse(await readFile(path.join(stack, 'local-stack.json'), 'utf8')).project, project)
+})
+
+test('an unchanged start keeps the running Edge worker', async () => {
+  const first = await startStack()
+  await startStack()
+  assert.equal(fixture.spawn.mock.calls.length, 1)
+  assert.ok(!vi.mocked(process.kill).mock.calls.some(([pid, signal]) => pid === first.functionsPid && signal === 'SIGTERM'))
+  assert.equal(JSON.parse(await readFile(path.join(stack, 'local-stack.json'), 'utf8')).functionsPid, first.functionsPid)
+  assert.equal(fixture.run.mock.calls.filter(([command, args]) => command === 'supabase' && args[0] === 'migration').length, 1)
+})
+
+test('an untracked migration is refused before stopping Edge or copying sources', async () => {
+  const first = await startStack()
+  await writeFile(path.join(source, 'supabase/migrations/002-untracked.sql'), 'SELECT 2;')
+  await assert.rejects(startStack(), /Shared schema differs/)
+  assert.ok(!vi.mocked(process.kill).mock.calls.some(([pid, signal]) => pid === first.functionsPid && signal === 'SIGTERM'))
+  await assert.rejects(readFile(path.join(stack, 'supabase/migrations/002-untracked.sql')), { code: 'ENOENT' })
+  assert.equal(fixture.spawn.mock.calls.length, 1)
+})
+
+test('migration filenames and contents both identify the existing schema', async () => {
+  await startStack()
+  await rm(path.join(source, 'supabase/migrations/001.sql'))
+  await writeFile(path.join(source, 'supabase/migrations/002.sql'), 'SELECT 1;')
+  await assert.rejects(startStack(), /Shared schema differs/)
+})
+
+test('a changed migration is refused before stopping the running Edge worker', async () => {
+  const first = await startStack()
+  await writeFile(path.join(source, 'supabase/migrations/001.sql'), 'SELECT 9;')
+  await assert.rejects(startStack(), /Shared schema differs/)
+  assert.ok(!vi.mocked(process.kill).mock.calls.some(([pid, signal]) => pid === first.functionsPid && signal === 'SIGTERM'))
+  assert.equal(await readFile(path.join(stack, 'supabase/migrations/001.sql'), 'utf8'), 'SELECT 1;')
+})
+
+test('startup keeps the source snapshot locked through copying and seed reads', async () => {
+  fixture.seed.mockImplementationOnce(async ({ snapshot }: { snapshot: string }) => {
+    await readFile(path.join(fixture.directory, 'snapshot.lock/proof'))
+    assert.equal(await readFile(path.join(stack, 'supabase/functions/api/index.ts'), 'utf8'), await readFile(path.join(snapshot, 'supabase/functions/api/index.ts'), 'utf8'))
+    return { password: 'fixture-password', users: [], leagueId: 'fixture-league' }
+  })
+  await startStack()
+})
+
+test('schema identity comes from the copied snapshot when the checkout changes during startup', async () => {
+  fixture.afterCopy.mockImplementationOnce(async () => {
+    await writeFile(path.join(source, 'supabase/migrations/001.sql'), 'SELECT 9;')
+  })
+  await startStack()
+  assert.equal(await readFile(path.join(stack, 'supabase/migrations/001.sql'), 'utf8'), 'SELECT 1;')
+  await assert.rejects(startStack(), /Shared schema differs/)
 })

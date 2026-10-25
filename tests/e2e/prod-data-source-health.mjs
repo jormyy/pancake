@@ -27,7 +27,6 @@ const CORE_TABLES = [
   'profiles',
   'roster_players',
   'roster_transactions',
-  'rps_challenges',
   'season_weeks',
   'snake_draft_picks',
   'standings',

@@ -63,3 +63,14 @@ test('structured extractor failures are counted even in older checkpoints',()=>{
   const result=summarizeRun({...run,featureCheckpoints:[{year:2025,label:'week-1',f1:{status:'FAILED',error:'unbalanced'}}],playersEvidence:[{year:2025,label:'after-first-final',status:'FAILED',error:'missing average'}]})
   assert.equal(result.invariantFailures,2)
 })
+
+test('taxi acceptance requires a completed straight add and processed taxi claim', () => {
+  assert.equal(acceptanceAreas(run)['taxi acquisitions'], 'not measured')
+  assert.ok(acceptanceGaps(run).includes('Unverified: taxi acquisitions'))
+  assert.equal(acceptanceAreas({ ...run, taxiAcquisition: { passed: true } })['taxi acquisitions'], 'not measured')
+  const measured = { passed: true, checked: true, straightAdd: true, claimSubmitted: true }
+  assert.equal(acceptanceAreas({ ...run, taxiAcquisition: measured })['taxi acquisitions'], 'pass')
+  for (const field of Object.keys(measured)) {
+    assert.equal(acceptanceAreas({ ...run, taxiAcquisition: { ...measured, [field]: false } })['taxi acquisitions'], 'not measured')
+  }
+})
