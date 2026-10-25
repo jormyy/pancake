@@ -51,6 +51,9 @@ BEGIN
   );
   v_far_year := v_new_year + 5;
 
+  UPDATE draft_picks SET is_used=true,used_at=now()
+    WHERE league_id=p_league_id AND season_year<v_new_year AND NOT is_used;
+
   IF EXISTS (
     SELECT 1
       FROM league_seasons

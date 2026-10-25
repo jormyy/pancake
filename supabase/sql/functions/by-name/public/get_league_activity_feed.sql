@@ -72,7 +72,7 @@ BEGIN
       tx.occurred_at,
       false AS is_system,
       NULL::text AS title,
-      NULL::text AS body
+      CASE WHEN tx.acquired_to_taxi AND tx.transaction_type IN ('fa_add','waiver_add') THEN 'Player added to taxi.' ELSE NULL END::text AS body
     FROM roster_transactions AS tx
     JOIN current_season ON current_season.id = tx.league_season_id
     LEFT JOIN league_members AS member ON member.id = tx.member_id

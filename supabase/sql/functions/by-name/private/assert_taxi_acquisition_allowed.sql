@@ -11,14 +11,21 @@ BEGIN
     RAISE EXCEPTION 'This player has left your team''s taxi squad and cannot return to it, even after reacquisition or a season change.' USING ERRCODE='P0001';
   END IF;
   IF NOT private.taxi_player_eligible(p_league_id,p_player_id) THEN
-    RAISE EXCEPTION 'Only current rookies can be placed on the taxi squad.' USING ERRCODE='P0001';
+    IF EXISTS (SELECT 1 FROM players WHERE id=p_player_id AND career_regular_season_games IS NULL) THEN
+      RAISE EXCEPTION 'The career games count is not known yet. This player cannot enter taxi.' USING ERRCODE='P0001';
+    END IF;
+    RAISE EXCEPTION 'Taxi requires an NBA rookie or fewer than 65 career regular-season games.' USING ERRCODE='P0001';
   END IF;
   IF EXISTS (SELECT 1 FROM leagues league JOIN league_seasons season ON season.id=p_season_id
     WHERE league.id=p_league_id AND league.taxi_max_seasons IS NOT NULL
       AND season.season_year-private.taxi_start_year(p_league_id,p_player_id,season.season_year)>=league.taxi_max_seasons) THEN
     RAISE EXCEPTION 'This player has reached the taxi tenure limit.' USING ERRCODE='P0001';
   END IF;
-  IF private.roster_status_game_started(p_player_id) THEN
+  IF private.roster_status_game_started(p_player_id) AND NOT EXISTS (
+    SELECT 1 FROM private.taxi_acquisition_context c WHERE c.transaction_id=pg_current_xact_id()
+      AND c.league_id=p_league_id AND c.league_season_id=p_season_id
+      AND c.member_id=p_member_id AND c.player_id=p_player_id AND c.source IN ('free_agent','waiver')
+  ) THEN
     RAISE EXCEPTION 'This player''s game has already started. No roster status changes are allowed for that slate.' USING ERRCODE='P0001';
   END IF;
   SELECT taxi_slots INTO v_slots FROM leagues WHERE id=p_league_id FOR UPDATE;

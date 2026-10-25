@@ -16,7 +16,7 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 57780, onListen: () => 
   return new Response('Unknown pinned source', { status: 404 })
 })
 const { syncDraftOrder } = await import('../../functions/sync-draft-order/lib.ts')
-const { loadCdnPlayerResolver, resolveCdnPlayers } = await import('../../functions/_shared/playerResolver.ts')
+const { resolveCdnPlayers } = await import('../../functions/_shared/playerResolver.ts')
 const { syncNBAIds } = await import('../../functions/sync-players/nbaIds.ts')
 const { picks } = await fixture<{ picks: Rookie[] }>('rookies-2025.json')
 const { players: veterans } = await fixture<{ players: (Identity & { personId: string; team: string })[] }>('veterans-2024.json')
@@ -32,7 +32,6 @@ try {
     await sql('SELECT jsonb_agg(to_jsonb(p)) FROM players p WHERE nba_draft_number IS NOT NULL'))
   assert.equal(board.length, 59)
   const byPick = new Map(board.map(player => [player.nba_draft_number, player.id]))
-  const resolver = await loadCdnPlayerResolver()
   const games = new Map<string, Rookie[]>()
   for (const pick of picks) {
     if (!pick.personId) continue
@@ -40,13 +39,13 @@ try {
     for (const identity of pick.identities) {
       assert.ok(identity.firstName && identity.familyName)
       const incoming: (Identity & { personId: string; displayName: string })[] = [{ ...identity, personId: pick.personId, displayName: identity.name }]
-      assert.deepEqual(await resolveCdnPlayers(resolver, incoming), [byPick.get(pick.pick)])
+      assert.deepEqual(await resolveCdnPlayers(incoming), [byPick.get(pick.pick)])
     }
     for (const game of pick.games ?? []) games.set(game.gameId, [...games.get(game.gameId) ?? [], pick])
   }
   let appearances = 0
   for (const [gameId, rookies] of games) {
-    const actual = await resolveCdnPlayers(resolver, rookies.map(pick => ({ ...pick.identities![0], personId: pick.personId!, displayName: pick.identities![0].name })))
+    const actual = await resolveCdnPlayers(rookies.map(pick => ({ ...pick.identities![0], personId: pick.personId!, displayName: pick.identities![0].name })))
     assert.deepEqual(actual, rookies.map(pick => byPick.get(pick.pick)), `Identity changes in ${gameId}`)
     appearances += actual.length
   }

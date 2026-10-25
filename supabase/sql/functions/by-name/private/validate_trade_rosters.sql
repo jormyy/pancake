@@ -18,6 +18,12 @@ BEGIN
       (item.to_taxi OR NOT private.is_ir_designation(player.injury_status))) THEN
     RAISE EXCEPTION 'Incoming IR players must be Out or IR-designated and cannot also enter taxi.' USING ERRCODE = 'PT001';
   END IF;
+  IF EXISTS (SELECT 1 FROM trade_items item JOIN players player ON player.id=item.player_id
+    WHERE item.trade_id=p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id)
+      AND item.to_taxi AND player.career_regular_season_games IS NULL
+      AND NOT private.taxi_player_eligible(v_trade.league_id,item.player_id)) THEN
+    RAISE EXCEPTION 'The career games count is not known yet. This player cannot enter taxi.' USING ERRCODE='PT001';
+  END IF;
   IF EXISTS (SELECT 1 FROM trade_items item JOIN roster_players roster
       ON roster.league_season_id = v_trade.league_season_id AND roster.player_id = item.player_id
     WHERE item.trade_id = p_trade_id AND (p_only_member_id IS NULL OR item.to_member_id=p_only_member_id) AND item.to_taxi

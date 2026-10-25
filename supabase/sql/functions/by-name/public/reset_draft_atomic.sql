@@ -55,11 +55,11 @@ BEGIN
       UNION ALL
       SELECT player_id, winning_member_id FROM nominations WHERE draft_id=p_draft_id AND status='sold'
     ) drafted
-    WHERE NOT EXISTS (SELECT 1 FROM roster_players roster
+    WHERE EXISTS (SELECT 1 FROM roster_players roster
       WHERE roster.league_season_id=v_draft.league_season_id AND roster.player_id=drafted.player_id
-        AND roster.member_id=drafted.member_id AND roster.acquired_via='draft')
+        AND (roster.member_id<>drafted.member_id OR roster.acquired_via<>'draft'))
   ) THEN
-    RAISE EXCEPTION 'Players from this draft changed teams. Reverse those moves before resetting the draft.';
+    RAISE EXCEPTION 'A player from this draft was traded, so this draft can no longer be reset.';
   END IF;
 
   IF v_draft.draft_type = 'auction' THEN

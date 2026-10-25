@@ -8,5 +8,9 @@ SELECT pg_temp.check_rules(to_regprocedure('public.clear_ineligible_taxi_players
 SELECT pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.league_activity'::regclass
   AND tgname IN ('compact_inventory_insert','compact_inventory_update','compact_inventory_delete')),
   'activity has no unused inventory triggers');
+SELECT pg_temp.check_rules(to_regprocedure('public.name_key(text)') IS NULL
+  AND to_regprocedure('public.update_existing_player_metadata(jsonb)') IS NULL
+  AND to_regprocedure('private.league_week_at_pacific(uuid,timestamptz)') IS NULL,
+  'unused name, metadata, and Pacific week functions are absent');
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

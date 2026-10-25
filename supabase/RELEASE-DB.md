@@ -4,7 +4,7 @@
 
 Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261020000007`.
-This release advances the database through migration `20261026000500`.
+This release advances the database through migration `20261026000700`.
 It still needs 63 migrations from `origin/main`, followed by this release's migrations.
 The Vercel integration publishes the frontend when this release merges into main.
 Do not merge before the database and Edge checks pass.
@@ -52,7 +52,8 @@ public.add_free_agent_atomic(
   p_member_id uuid,
   p_league_id uuid,
   p_player_id uuid,
-  p_to_ir boolean DEFAULT false
+  p_to_ir boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
 ) RETURNS void
 
 public.create_waiver_claim_atomic(
@@ -63,7 +64,8 @@ public.create_waiver_claim_atomic(
   p_user_id uuid DEFAULT NULL,
   p_bid_amount integer DEFAULT 0,
   p_claim_order integer DEFAULT NULL,
-  p_to_ir boolean DEFAULT false
+  p_to_ir boolean DEFAULT false,
+  p_to_taxi boolean DEFAULT false
 ) RETURNS uuid
 
 public.edit_waiver_claim_atomic(
@@ -73,7 +75,8 @@ public.edit_waiver_claim_atomic(
   p_drop_player_id uuid DEFAULT NULL,
   p_bid_amount integer DEFAULT 0,
   p_claim_order integer DEFAULT NULL,
-  p_to_ir boolean DEFAULT NULL
+  p_to_ir boolean DEFAULT NULL,
+  p_to_taxi boolean DEFAULT NULL
 ) RETURNS void
 ```
 
@@ -201,7 +204,9 @@ The old cache refresh no longer sends an averages resource notice.
 The live stats hint replaces that notice.
 
 
-## Final check results
+## Earlier database checks
+
+These results precede migration `20261026000700`.
 
 | Command or scope | Result |
 | --- | --- |
@@ -284,6 +289,9 @@ The server retains game locks, taxi eligibility, tenure limits, and prior taxi e
 Paused drafts still complete through the existing opening-night backstop.
 
 ## Next release
+
+Drop `leagues.taxi_rule` after the deployed client and its rollback retire.
+Every league now uses NBA rookies or fewer than 65 career regular-season games.
 
 Add the dedicated `player_stats` topic and scoped `activity` inventory resource only after the deployed receiver accepts them.
 Keep this release's Players tab subscribed to `score` until that change ships.
@@ -558,3 +566,59 @@ ALTER TABLE public.notification_outbox
 
 The release removes unused tiebreak storage after replacing its SQL writers.
 Deployed Edge and frontend code do not use that table.
+
+
+## Taxi acquisitions and legal rosters
+
+Every league uses NBA rookies or fewer than 65 career regular-season games.
+Unknown games counts qualify only for NBA rookies.
+The stored taxi rule stays for rollback reads; settings ignore its submitted value.
+Taxi tenure and team exit history still apply.
+Members can read their league's taxi exit rows.
+
+`add_free_agent_atomic` appends optional `p_to_taxi` after `p_to_ir`.
+Waiver creation appends `p_to_taxi DEFAULT false`; edits append `p_to_taxi DEFAULT NULL`.
+An omitted edit preserves its destination.
+Both destinations together raise `P0001`: `Choose IR or taxi, not both.`
+The Edge waiver routes accept `toTaxi` for creation and edits.
+`waiver_claims.to_taxi` is non-null and defaults to false.
+Taxi acquisitions can occur after tipoff because taxi players do not score.
+An unavailable waiver taxi placement falls back to the active roster and its selected drop.
+A full active roster fails that claim with the taxi refusal reason.
+Activity and winning claim notifications name the taxi destination.
+
+`search_players` appends `career_regular_season_games integer` to its result.
+Existing result columns retain their order and types.
+Old positional RPC calls remain valid.
+
+One private source lists illegal IR players, illegal taxi players, and active roster overflow.
+It blocks adds, claim creation and edits, sent trade offers, and acceptance by that team.
+Pending claims fail with the same player names.
+`PA005` still identifies ineligible IR players; `PA009` identifies ineligible taxi players.
+Roster corrections and cancellations remain available.
+
+The injury dispatcher runs each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
+It sends exactly `{"mode":"injuries"}` to `sync-players` through the existing dispatch and invocation records.
+Daily career refreshes retain their current schedule.
+
+## Removed tiebreak storage
+
+This release drops `public.rps_challenges`.
+Deployed Edge and frontend consumers do not call it.
+Release health and seed tooling must also stop reading it before deployment.
+
+
+## Server cleanup and retries
+
+The delivery queue index excludes suppressed rows and keeps no Expo column dependency.
+Terminal outbox rows expire after 60 days through indexed batches of 500, capped at 20,000 per run.
+Pending rows and recent terminal rows remain.
+Draft reset permits dropped drafted players and refunds their picks.
+A traded or traded-back player still blocks reset while rostered.
+Unused rounds, stopped slots, and prior-year picks become used and expire offers that hold them.
+Offers cannot include past-season picks.
+Trade acceptance and notification drains continue if later league activation fails.
+The waiver worker retries due claims after contention for up to 30 seconds, then fails for reconciliation.
+
+This release also removes unused `name_key(text)`, `update_existing_player_metadata(jsonb)`, and `private.league_week_at_pacific(uuid,timestamptz)`.
+Deployed Edge and frontend callers do not use these routines.

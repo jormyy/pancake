@@ -23,6 +23,7 @@ async function createClaim(
     p_bid_amount: bidAmount,
     p_claim_order: claimOrder ?? undefined,
     p_to_ir: optionalBooleanField(body, 'toIr') ?? false,
+    p_to_taxi: optionalBooleanField(body, 'toTaxi') ?? false,
   })
   if (error) throwDb(error)
 }
@@ -45,6 +46,7 @@ async function editClaim(userId: string, claimId: string, body: Record<string, u
     p_bid_amount: optionalIntegerField(body, 'bidAmount', { min: 0 }) ?? 0,
     p_claim_order: optionalIntegerField(body, 'claimOrder', { min: 1 }) ?? undefined,
     p_to_ir: optionalBooleanField(body, 'toIr') ?? undefined,
+    p_to_taxi: optionalBooleanField(body, 'toTaxi') ?? undefined,
   })
   if (error) throwDb(error)
 }

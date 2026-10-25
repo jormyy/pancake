@@ -175,7 +175,7 @@ BEGIN
   FOR target IN SELECT namespace.nspname AS schema_name,relation.relname AS table_name
     FROM pg_class relation JOIN pg_namespace namespace ON namespace.oid=relation.relnamespace
     WHERE relation.relkind IN ('r','p') AND (
-      namespace.nspname='public' AND relation.relname NOT IN ('sync_runs','edge_invocations','projection_sync_runs','fantasypros_projection_rows','sleeper_projection_rows')
+      namespace.nspname='public' AND relation.relname NOT IN ('sync_runs','edge_invocations','projection_sync_runs','fantasypros_projection_rows','sleeper_projection_rows','notification_outbox')
       OR namespace.nspname='private' AND relation.relname='retired_score_inputs'
     )
   LOOP

@@ -21,6 +21,7 @@ Deno.test('waiver processing leaves result notifications to the database trigger
       { claim_id: 'full', member_id: 'member', player_id: 'player', status: 'failed_roster', processed: true },
       { claim_id: 'cancelled', member_id: 'member', player_id: 'player', status: 'cancelled', processed: true },
     ] : [])
+    if (url.pathname.endsWith('/count_due_waiver_claims')) return Response.json(0)
     if (url.pathname.endsWith('/players')) return Response.json([{ id: 'player', display_name: 'Player' }])
     if (url.pathname.endsWith('/notification_outbox')) {
       assert.equal(request.method, 'POST')
@@ -55,6 +56,7 @@ Deno.test('waiver batches and expiry do not depend on an Edge notification write
       return Response.json(batches > 2 ? [] : [{ claim_id: `claim-${batches}`, member_id: 'member', player_id: 'player',
         status: 'succeeded', processed: true }])
     }
+    if (table === 'count_due_waiver_claims') return Response.json(0)
     if (table === 'players') return Response.json([{ id: 'player', display_name: 'Player' }])
     if (table === 'notification_outbox') {
       queued++

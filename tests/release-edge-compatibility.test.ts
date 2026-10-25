@@ -16,19 +16,6 @@ function releaseMigrations() {
         .sort().map(file => readFileSync(file, 'utf8'))
 }
 
-it.skipIf(!available)('keeps deployed Edge RPCs available in every release migration', () => {
-    const edge = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions').split('\n')
-        .filter(file => file.endsWith('.ts') && !file.endsWith('.test.ts'))
-        .map(file => ({ file, source: git('show', `origin/main:${file}`) }))
-    const dropped = new Set(releaseMigrations().flatMap(source => {
-        const replaced = new Set([...latestFunctionDefinitionsInSource(source).keys()].map(key => key.split('(')[0]))
-        return functionLifecycleEventsInSource(source).filter(event => event.type === 'drop' && !replaced.has(event.key)).map(event => event.key)
-    }))
-    const broken = edge.flatMap(({ file, source }) => [...source.matchAll(/\.rpc\(\s*['"]([a-z_]+)['"]/g)]
-        .filter(match => dropped.has(`public.${match[1]}`)).map(match => `${file}: ${match[1]}`))
-    expect(broken, `Dropped release functions: ${[...dropped].join(', ')}`).toEqual([])
-})
-
 it.skipIf(!available)('keeps deployed Edge profile and receipt columns through the database phase', () => {
     const changes = releaseMigrations().map(source => maskSqlNonCode(source)).join('\n')
     const used = new Set(['profiles.push_token', 'profiles.push_token_revocation_hash',
@@ -184,8 +171,11 @@ function brokenRpcContracts(sources: string[], deployed: Map<string, string>, me
             oldKey.split('(')[0] === key.split('(')[0] && JSON.stringify(parameters(oldDefinition)) === JSON.stringify(parameters(candidate))))) return true
         return !replacements.some(([, nextDefinition]) => {
             const nextParameters = parameters(nextDefinition)
-            return returns(definition) === returns(nextDefinition)
-                && oldParameters.every(old => nextParameters.some(next => next.name === old.name && next.type === old.type))
+            const oldReturn = returns(definition)
+            const nextReturn = returns(nextDefinition)
+            const compatibleReturn = oldReturn === nextReturn || oldReturn?.startsWith('table(') && nextReturn?.startsWith(`${oldReturn.slice(0, -1)},`)
+            return compatibleReturn
+                && oldParameters.every((old, index) => nextParameters[index]?.name === old.name && nextParameters[index]?.type === old.type)
                 && nextParameters.every(next => next.optional || oldParameters.some(old => old.name === next.name && !old.optional))
         })
     }).map(([key]) => key)
@@ -273,7 +263,7 @@ it.skipIf(!available)('emits only hint topics and inventory resources accepted b
 function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string, newestMigration: string) {
     const functions = latestFunctionDefinitionsInSource(mainMigrations)
     const newRpc = [...rpcNames(clientSource)].some(name => !functions.has(name))
-    const newColumns = ['waiver_claims.to_ir', 'player_game_stats.is_home'].some(column => {
+    const newColumns = ['waiver_claims.to_ir', 'waiver_claims.to_taxi', 'player_game_stats.is_home'].some(column => {
         const [table, name] = column.split('.')
         return clientSource.includes(name) && !new RegExp(`ALTER\\s+TABLE\\s+(?:public\\.)?${table}[\\s\\S]*?ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${name}\\b`, 'i').test(mainMigrations)
     })
@@ -299,25 +289,33 @@ it.skipIf(!available)('documents database-first release order for new client dep
     expect(requiresDatabaseFirst(main, source, notes.replace(productionHead, 'missing'), newest)).toBe(true)
 })
 
-function droppedObjectCalls(migration: string, consumers: { file: string; source: string }[]) {
+function droppedObjectCalls(migration: string, consumers: { file: string; source: string; quotedNames?: boolean }[]) {
     const replaced = new Set([...latestFunctionDefinitionsInSource(migration).keys()].map(key => key.split('(')[0]))
     const functions = functionLifecycleEventsInSource(migration).filter(event => event.type === 'drop' && !replaced.has(event.key.split('(')[0])).map(event => event.key.split('.')[1])
-    const tables = [...maskSqlNonCode(migration).matchAll(/(?:^|;)\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-z_][a-z_0-9]*)/gi)].map(match => match[1])
-    return consumers.flatMap(({ file, source }) => [
-        ...functions.filter(name => rpcNames(source).has(`public.${name}`) || new RegExp(`(?:\\.rpc\\(\\s*['"]${name}['"]|\\b(?:public\\.|private\\.)?${name}\\s*\\()`).test(source)).map(name => `${file}: function ${name}`),
-        ...tables.filter(name => new RegExp(`(?:\\.from\\(\\s*['"]${name}['"]|\\b(?:FROM|JOIN|UPDATE|INTO)\\s+(?:public\\.)?${name}\\b)`, 'i').test(source)).map(name => `${file}: table ${name}`),
+    const tables = [...maskSqlNonCode(migration).matchAll(/(?:^|;)\s*DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([^;]+);/gi)]
+        .flatMap(match => match[1].replace(/\s+(?:CASCADE|RESTRICT)\s*$/i, '').split(','))
+        .map(name => name.trim().split('.').at(-1)!)
+    return consumers.flatMap(({ file, source, quotedNames }) => [
+        ...functions.filter(name => quotedNames && source.match(new RegExp(`[\x27\x22\x60]${name}[\x27\x22\x60]`)) || !quotedNames && rpcNames(source).has(`public.${name}`) || new RegExp(`(?:\\.rpc\\(\\s*['"]${name}['"]|\\b(?:public\\.|private\\.)?${name}\\s*\\()`).test(source)).map(name => `${file}: function ${name}`),
+        ...tables.filter(name => quotedNames && source.match(new RegExp(`[\x27\x22\x60]${name}[\x27\x22\x60]`)) || new RegExp(`(?:\\.from\\(\\s*['"]${name}['"]|\\b(?:FROM|JOIN|UPDATE|INTO)\\s+(?:public\\.)?${name}\\b)`, 'i').test(source)).map(name => `${file}: table ${name}`),
     ])
 }
 
-it.skipIf(!available)('keeps objects used by deployed Edge, frontend, and cron through the server migration', () => {
+it.skipIf(!available)('keeps objects used by deployed consumers and release tooling through the server migration', () => {
     const paths = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n')
         .filter(file => /\.tsx?$/.test(file) && !file.endsWith('.test.ts'))
-    const consumers = ['supabase/functions/', 'client'].map(group => ({ file: group,
+    const consumers: { file: string; source: string; quotedNames?: boolean }[] = ['supabase/functions/', 'client'].map(group => ({ file: group,
         source: git('show', ...paths.filter(file => group === 'client' ? !file.startsWith('supabase/') : file.startsWith(group)).map(file => `origin/main:${file}`)),
     }))
     const migrations = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
     const cron = [...git('show', ...migrations.map(file => `origin/main:${file}`)).matchAll(/\bcron\.schedule\s*\([\s\S]*?\);/gi)].map(match => match[0]).join('\n')
     consumers.push({ file: 'cron', source: cron })
+    for (const root of ['tests/e2e', 'scripts', '.github/workflows']) {
+        for (const entry of readdirSync(root, { recursive: true })) {
+            const file = `${root}/${entry}`
+            if (/\.(?:[cm]?[jt]sx?|ya?ml|sh)$/.test(file)) consumers.push({ file, source: readFileSync(file, 'utf8'), quotedNames: true })
+        }
+    }
     expect(releaseMigrations().flatMap(migration => droppedObjectCalls(migration, consumers))).toEqual([])
 })
 
@@ -345,3 +343,20 @@ function withoutExpoQueue(source: string) {
         .replace(/^[ \t]*AND queued\.expo_ticket_id IS NULL\n/gm, '')
         .replace(/ AND queued\.expo_ticket_id IS NULL/g, '')
 }
+
+
+it('preserves positional arguments and permits appended search columns', () => {
+    const definition = (args: string, result = 'void') => latestFunctionDefinitionsInSource(`CREATE FUNCTION public.offer(${args}) RETURNS ${result} LANGUAGE sql AS $$ SELECT; $$;`)
+    const deployed = definition('p_id uuid, p_ir boolean DEFAULT false')
+    expect(brokenRpcContracts(["db.rpc('offer')"], deployed, definition('p_id uuid, p_ir boolean DEFAULT false, p_taxi boolean DEFAULT false'))).toEqual([])
+    expect(brokenRpcContracts(["db.rpc('offer')"], deployed, definition('p_id uuid, p_taxi boolean DEFAULT false, p_ir boolean DEFAULT false'))).toEqual(['public.offer'])
+    expect(brokenRpcContracts(["db.rpc('offer')"], definition('p_id uuid', 'TABLE(id uuid)'), definition('p_id uuid', 'TABLE(id uuid, career_regular_season_games int)'))).toEqual([])
+})
+
+it('detects quoted dropped names in release scripts and workflows', () => {
+    expect(droppedObjectCalls('DROP TABLE public.retired_rows, analytics.old_totals; DROP FUNCTION public.retired_call();', [
+        { file: 'tests/e2e/health.mjs', source: "const tables = ['retired_rows']", quotedNames: true },
+        { file: '.github/workflows/release.yml', source: "run: check 'retired_call'", quotedNames: true },
+        { file: 'scripts/bench.mjs', source: "db.schema('analytics').from('old_totals')", quotedNames: true },
+    ])).toEqual(['tests/e2e/health.mjs: table retired_rows', '.github/workflows/release.yml: function retired_call', 'scripts/bench.mjs: table old_totals'])
+})

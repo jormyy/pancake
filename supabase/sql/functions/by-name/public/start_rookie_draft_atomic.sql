@@ -268,6 +268,8 @@ BEGIN
   );
 
   IF NOT v_is_mock THEN
+    UPDATE draft_picks SET is_used=true,used_at=now()
+      WHERE league_id=p_league_id AND season_year=v_season.season_year AND round>p_rounds AND NOT is_used;
     UPDATE leagues
        SET status = 'drafting'
      WHERE id = p_league_id

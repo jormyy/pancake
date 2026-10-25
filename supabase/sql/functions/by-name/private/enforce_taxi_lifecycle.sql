@@ -25,7 +25,7 @@ BEGIN
        WHERE transaction_id=pg_current_xact_id() AND league_id=NEW.league_id
          AND league_season_id=NEW.league_season_id AND member_id=NEW.member_id AND player_id=NEW.player_id;
       IF NOT FOUND THEN
-        RAISE EXCEPTION 'Players can enter taxi only through a draft or trade acquisition.' USING ERRCODE='P0001';
+        RAISE EXCEPTION 'Players can enter taxi only through a draft or trade acquisition, a free-agent add, or a waiver claim.' USING ERRCODE='P0001';
       END IF;
       SELECT season_year INTO v_year FROM league_seasons WHERE id=NEW.league_season_id;
       SELECT taxi_max_seasons INTO v_cap FROM leagues WHERE id=NEW.league_id;
@@ -51,7 +51,7 @@ BEGIN
       ELSIF v_context.source='merge' AND TG_OP='UPDATE' THEN
         v_continuity := OLD.is_on_taxi AND OLD.player_id=v_context.related_id
           AND (OLD.league_id,OLD.league_season_id,OLD.member_id)=(NEW.league_id,NEW.league_season_id,NEW.member_id);
-      ELSIF v_context.source IN ('draft','trade') THEN
+      ELSIF v_context.source IN ('draft','trade','free_agent','waiver') THEN
         IF NOT EXISTS (SELECT 1 FROM league_seasons WHERE id=NEW.league_season_id AND league_id=NEW.league_id AND is_current) THEN
           RAISE EXCEPTION 'Taxi acquisitions require the current season.' USING ERRCODE='P0001';
         END IF;

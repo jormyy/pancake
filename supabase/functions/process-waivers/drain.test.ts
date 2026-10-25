@@ -42,3 +42,27 @@ Deno.test('the batch backstop bounds a run that never comes back empty', async (
   assertEquals(calls, MAX_BATCHES, 'batch calls')
   assertEquals(rows.length, MAX_BATCHES, 'processed rows')
 })
+
+Deno.test('two empty batches retry while a due claim remains', async () => {
+  const run = batches([[], [], ['contended-claim'], [], []])
+  let waits = 0
+  const rows = await drainDueClaims(run.processBatch, async () => run.calls() < 3 ? 1 : 0, {
+    sleep: async () => { waits++ }, now: () => waits * 1000,
+  })
+  assertEquals(rows, ['contended-claim'], 'claim settled after contention')
+  assertEquals(waits, 1, 'retry delay')
+})
+
+Deno.test('persistent due claims fail the run after the retry deadline', async () => {
+  let elapsed = 0
+  let failed = false
+  try {
+    await drainDueClaims(async () => [], async () => 1, {
+      sleep: async () => { elapsed += 1000 }, now: () => elapsed,
+    })
+  } catch (error) {
+    failed = error instanceof Error && error.message.includes('due waiver claims')
+  }
+  assertEquals(failed, true, 'unfinished due claims trigger reconciliation')
+  assertEquals(elapsed, 30000, 'retry budget')
+})

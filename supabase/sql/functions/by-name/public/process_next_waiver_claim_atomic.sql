@@ -38,6 +38,8 @@ DECLARE
   v_ir_count int;
   v_ir_eligible boolean;
   v_ir_failure text;
+  v_to_taxi boolean := false;
+  v_taxi_failure text;
 BEGIN
   FOR v_candidate IN
     WITH candidate_groups AS (
@@ -273,20 +275,12 @@ BEGIN
 
       v_roster_size := v_league.roster_size;
 
-      v_ineligible := private.ineligible_ir_player_names(v_claim.league_id, v_claim.league_season_id, v_claim.member_id);
+      SELECT string_agg(problem.message,' ' ORDER BY problem.kind,problem.player_name,problem.roster_player_id)
+        INTO v_ineligible FROM private.roster_problems(v_claim.league_id,v_claim.league_season_id,v_claim.member_id) problem;
       IF v_ineligible IS NOT NULL THEN
-        v_failure := format(
-          'You have ineligible players on IR (%s). Activate or drop them before waiver claims can process.',
-          v_ineligible
-        );
         RETURN QUERY SELECT * FROM private.fail_waiver_claim(
-          v_claim.id,
-          v_claim.league_id,
-          v_claim.league_season_id,
-          v_claim.member_id,
-          v_claim.player_id,
-          'failed_roster'::waiver_claim_status,
-          v_failure
+          v_claim.id,v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,
+          'failed_roster'::waiver_claim_status,v_ineligible
         );
         RETURN;
       END IF;
@@ -306,6 +300,18 @@ BEGIN
         v_to_ir := v_ir_failure IS NULL;
       END IF;
 
+      v_to_taxi := false;
+      v_taxi_failure := NULL;
+      IF v_claim.to_taxi THEN
+        BEGIN
+          PERFORM private.authorize_taxi_acquisition(v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id,'waiver',v_claim.id);
+          PERFORM private.assert_taxi_acquisition_allowed(v_claim.league_id,v_claim.league_season_id,v_claim.member_id,v_claim.player_id);
+          v_to_taxi := true;
+        EXCEPTION WHEN SQLSTATE 'P0001' THEN
+          v_taxi_failure := SQLERRM;
+        END;
+      END IF;
+
       SELECT count(*)
         INTO v_active_count
         FROM roster_players AS rp
@@ -315,11 +321,12 @@ BEGIN
          AND rp.is_on_ir = false
          AND rp.is_on_taxi = false;
 
-      v_projected_active_count := v_active_count + CASE WHEN v_to_ir THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_to_ir THEN 0 ELSE 1 END;
+      v_projected_active_count := v_active_count + CASE WHEN v_to_ir OR v_to_taxi THEN 0 ELSE 1 END - CASE WHEN v_claim.drop_player_id IS NULL OR v_to_ir OR v_to_taxi THEN 0 ELSE 1 END;
 
-      IF NOT v_to_ir AND v_projected_active_count > COALESCE(v_roster_size, 20) THEN
+      IF NOT v_to_ir AND NOT v_to_taxi AND v_projected_active_count > COALESCE(v_roster_size, 20) THEN
         v_failure := CASE
           WHEN v_claim.to_ir THEN v_ir_failure || ' Your active roster is full.'
+          WHEN v_claim.to_taxi THEN v_taxi_failure || ' Your active roster is full.'
           WHEN v_claim.drop_player_id IS NULL THEN 'Roster full and no drop player specified.'
           ELSE 'Waiver claim would leave your active roster over the limit.'
         END;
@@ -335,7 +342,7 @@ BEGIN
         RETURN;
       END IF;
 
-      IF v_claim.drop_player_id IS NOT NULL AND NOT v_to_ir THEN
+      IF v_claim.drop_player_id IS NOT NULL AND NOT v_to_ir AND NOT v_to_taxi THEN
         SELECT validation.roster_player_id, validation.failure_reason
           INTO v_drop_roster_id, v_failure
           FROM private.validate_waiver_claim_drop_player(
@@ -387,7 +394,8 @@ BEGIN
         member_id,
         player_id,
         acquired_via,
-        is_on_ir
+        is_on_ir,
+        is_on_taxi
       )
       VALUES (
         v_claim.league_id,
@@ -395,8 +403,15 @@ BEGIN
         v_claim.member_id,
         v_claim.player_id,
         'waiver',
-        v_to_ir
+        v_to_ir,
+        v_to_taxi
       );
+
+      IF v_to_taxi THEN
+        UPDATE public.notification_outbox SET body='Your waiver claim succeeded. Placed on taxi.',
+          data=data || jsonb_build_object('destination','taxi','body','Your waiver claim succeeded. Placed on taxi.')
+        WHERE dedupe_key='waiver_claim_won:' || v_claim.id::text || ':' || v_claim.member_id::text;
+      END IF;
 
       INSERT INTO roster_transactions (
         league_id,
@@ -404,7 +419,8 @@ BEGIN
         member_id,
         player_id,
         transaction_type,
-        related_claim_id
+        related_claim_id,
+        acquired_to_taxi
       )
       VALUES (
         v_claim.league_id,
@@ -412,7 +428,8 @@ BEGIN
         v_claim.member_id,
         v_claim.player_id,
         'waiver_add',
-        v_claim.id
+        v_claim.id,
+        v_to_taxi
       );
 
       UPDATE waiver_wire_log
@@ -451,7 +468,7 @@ BEGIN
         COALESCE(v_player_name, 'Player') || CASE
           WHEN v_league.waiver_mode = 'faab' THEN format(' won for $%s.', v_claim.bid_amount)
           ELSE ' added from waivers.'
-        END,
+        END || CASE WHEN v_to_taxi THEN ' Placed on taxi.' ELSE '' END,
         NULL,
         v_claim.member_id,
         v_claim.player_id,

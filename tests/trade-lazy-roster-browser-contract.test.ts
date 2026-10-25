@@ -31,6 +31,7 @@ describe('Sleeper lazy roster-limit contracts', () => {
             'private/validate_waiver_claim_drop_player.sql',
             'public/drop_player_atomic__uuid_uuid_uuid.sql',
             'public/toggle_ir_atomic.sql',
+            'private/toggle_ir_for_activation.sql',
             'public/toggle_taxi_atomic.sql',
         ].map((file) => read(`supabase/sql/functions/by-name/${file}`)).join('\n')
         const computePoints = read('supabase/sql/functions/by-name/public/compute_fantasy_points.sql')

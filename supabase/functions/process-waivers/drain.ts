@@ -1,28 +1,29 @@
 export const PROCESS_BATCH_LIMIT = 100
-// Drain every due claim in one daily run: keep pulling batches until two in a
-// row come back empty. The batch cap bounds one loop iteration, not the day's
-// total; MAX_BATCHES only backstops a pathological non-terminating loop.
 export const MAX_BATCHES = 100
+
+type RetryClock = { sleep: (milliseconds: number) => Promise<void>; now: () => number }
 
 export async function drainDueClaims<Row>(
   processBatch: () => Promise<Row[]>,
+  countDue: () => Promise<number> = async () => 0,
+  clock: RetryClock = { sleep: milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)), now: Date.now },
 ): Promise<Row[]> {
   const rows: Row[] = []
-  let emptyBatches = 0
-  for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
-    const batchRows = await processBatch()
-    if (batchRows.length === 0) {
-      // A batch also comes back empty when the claim its first step picked was
-      // settled after the candidate scan (a member cancelling it, or a
-      // concurrent run finishing that league) while other claims are still
-      // due. A fresh batch scans past it, so only a second empty batch in a row
-      // means nothing is left that this run can lock.
-      emptyBatches += 1
-      if (emptyBatches === 2) break
-      continue
+  const deadline = clock.now() + 30000
+  while (true) {
+    let emptyBatches = 0
+    for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
+      const batchRows = await processBatch()
+      if (batchRows.length === 0) {
+        emptyBatches += 1
+        if (emptyBatches === 2) break
+      } else {
+        emptyBatches = 0
+        rows.push(...batchRows)
+      }
     }
-    emptyBatches = 0
-    rows.push(...batchRows)
+    if (await countDue() === 0) return rows
+    if (clock.now() >= deadline) throw new Error('Unprocessed due waiver claims remain after retries.')
+    await clock.sleep(1000)
   }
-  return rows
 }
