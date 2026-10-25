@@ -1,3 +1,4 @@
+import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
@@ -128,7 +129,7 @@ export function ParticipantTradePanel({
                         )
                     })}
                     {selectedPicks.map((pick) => {
-                        const label = `${pick.seasonYear} Round ${pick.round}`
+                        const label = pickLabel(pick.seasonYear, pick.round)
                         return (
                             <View key={`pick:${pick.pickId}`} style={styles.selectedRouteRow}>
                                 <Text style={styles.selectedRouteName} numberOfLines={2}>{label}</Text>

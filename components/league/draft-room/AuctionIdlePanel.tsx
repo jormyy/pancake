@@ -1,4 +1,4 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import { FlashList } from '@shopify/flash-list'
 import { useRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native'
@@ -68,8 +68,7 @@ export function AuctionIdlePanel({
                             <Avatar name={item.display_name ?? 'Player'} color={colors.bgMuted}
                                 uri={playerHeadshotUrl(item.nba_id)} size={32} />
                             <View style={styles.playerCopy}>
-                                <Text style={styles.playerResultName}>{item.display_name}</Text>
-                            <PlayerEligibilityTags yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
+                                <PlayerNameLine name={item.display_name ?? 'Player'} textStyle={styles.playerResultName} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
                                 <Text style={styles.playerResultMeta}>{draftPlayerMeta([
                                     item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
                                     item.nba_team, item.position, draftAgeLabel(item.age),

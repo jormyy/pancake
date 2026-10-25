@@ -1,3 +1,4 @@
+import { pickLabel } from '@/lib/picks'
 import { getGameDay } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -92,7 +93,7 @@ export function useTradeActions({
         if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
         const assets = (direction: 'fromMemberId' | 'toMemberId') => trade.routedItems
             .filter(item => item[direction] === memberId)
-            .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? `${item.seasonYear} round ${item.round} pick` : `$${item.amount} FAAB`)
+            .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? `${pickLabel(item.seasonYear, item.round)} pick` : `$${item.amount} FAAB`)
             .join(', ') || 'nothing'
         const everyoneAccepted = (!trade.isMultiTeam || trade.participants.length > 0) && trade.participants.every(participant => participant.memberId === memberId || participant.acceptedAt != null)
         let gamesClear = false

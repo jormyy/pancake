@@ -93,3 +93,11 @@ describe('rookie timer range', () => {
         expect(mocks.apiPost).not.toHaveBeenCalled()
     })
 })
+
+it('loads the fantasy season for the rookie draft year label', async () => {
+    const draft = query({ data: { id: 'draft', league_id: 'league', league_season_id: 'season', league_seasons: { is_current: true, season_year: 2028 } }, error: null })
+    mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : query({ data: [], error: null }))
+    const state = await getRookieDraftState('draft')
+    expect(state?.draft.seasonYear).toBe(2028)
+    expect(draft.select).toHaveBeenCalledWith(expect.stringContaining('league_seasons(is_current, season_year)'))
+})

@@ -1,3 +1,4 @@
+import { pickLabel } from '@/lib/picks'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
@@ -113,7 +114,7 @@ export function MultiTeamTradeBuilder({
         const label = item.kind === 'player'
             ? player?.players.display_name ?? assetLabels?.get(assetKey) ?? 'Player'
             : item.kind === 'pick'
-                ? pick ? `${pick.seasonYear} Round ${pick.round}` : assetLabels?.get(assetKey) ?? 'Draft pick'
+                ? pick ? pickLabel(pick.seasonYear, pick.round) : assetLabels?.get(assetKey) ?? 'Draft pick'
                 : `$${item.faabAmount} FAAB`
         const sender = participants.find((participant) => participant.memberId === item.fromMemberId)
         const available = item.kind === 'player'
