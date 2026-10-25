@@ -575,7 +575,7 @@ export const assertLeagueLifecycleScenario = async ({ supabase, env, state, seas
   }
   const seasonYear = currentSeasons[0]?.season_year ?? currentSeasonYear()
   const minPickYear = seasonYear + 1
-  const maxPickYear = seasonYear + 5
+  const maxPickYear = seasonYear + 3
   const pickKeys = new Set(picks.map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}:${pick.current_owner_id}`))
   for (const member of members) {
     for (let year = minPickYear; year <= maxPickYear; year += 1) {
@@ -585,7 +585,7 @@ export const assertLeagueLifecycleScenario = async ({ supabase, env, state, seas
       }
     }
   }
-  const expectedPickCount = members.length * 5 * 3
+  const expectedPickCount = members.length * 3 * 3
   if (picks.length !== expectedPickCount) {
     failures.push(`${label}: draft_picks count=${picks.length}; expected ${expectedPickCount}`)
   }

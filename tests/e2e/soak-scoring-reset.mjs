@@ -434,7 +434,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
 
   const pickRows = []
   for (const member of fixture.members) {
-    for (let seasonYear = fixtureSeasonYear + 1; seasonYear <= fixtureSeasonYear + 5; seasonYear += 1) {
+    for (let seasonYear = fixtureSeasonYear + 1; seasonYear <= fixtureSeasonYear + 3; seasonYear += 1) {
       for (let round = 1; round <= 3; round += 1) {
         pickRows.push({
           league_id: fixture.league.id,
@@ -618,7 +618,7 @@ export const assertSeasonResetScenario = async ({ supabase, env, state, season, 
   }
 
   const pickKeys = new Set(horizonPicks.map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}:${pick.current_owner_id}`))
-  for (let seasonYear = newYear + 1; seasonYear <= newYear + 5; seasonYear += 1) {
+  for (let seasonYear = newYear + 1; seasonYear <= newYear + 3; seasonYear += 1) {
     for (let round = 1; round <= 3; round += 1) {
       for (const member of fixture.members) {
         const key = `${seasonYear}:${round}:${member.id}:${member.id}`
