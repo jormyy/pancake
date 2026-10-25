@@ -8,11 +8,11 @@ import { colors, spacing, textStyles } from '@/constants/tokens'
 export function PlayerEligibilityTags({ yearsExp, careerGames }: { yearsExp?: number | null; careerGames?: number | null }) {
     const taxiSlots = useContext(PlayerEligibilityContext)
     return <View style={styles.tags} testID="player-eligibility-tags">
-        {yearsExp === 0 ? <Badge label="Rookie" color={colors.textMuted} /> : null}
-        {taxiSlots > 0 && isTaxiEligible(yearsExp ?? null, careerGames ?? null) ? <Badge label="Taxi" color={colors.primaryDark} /> : null}
+        {yearsExp === 0 ? <Badge inline label="Rookie" color={colors.textMuted} /> : null}
+        {taxiSlots > 0 && isTaxiEligible(yearsExp ?? null, careerGames ?? null) ? <Badge inline label="Taxi" color={colors.primaryDark} /> : null}
     </View>
 }
 
 const styles = StyleSheet.create({
-    tags: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: textStyles.body.lineHeight, width: spacing['6xl'] * 2, flexShrink: 0, overflow: 'hidden' },
+    tags: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: textStyles.rowTitle.lineHeight, flexShrink: 0, overflow: 'hidden' },
 })

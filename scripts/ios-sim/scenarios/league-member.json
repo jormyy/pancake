@@ -33,6 +33,15 @@
         "expected": {
           "selector": "[aria-label='E2E Player001']"
         }
+      },
+      {
+        "name": "draft-year",
+        "action": {
+          "open": "/rookie-draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "text": "2026 Mock Rookie Draft"
+        }
       }
     ],
     "setup": {
@@ -106,6 +115,15 @@
         },
         "expected": {
           "selector": "[aria-label='E2E Player001']"
+        }
+      },
+      {
+        "name": "draft-year",
+        "action": {
+          "open": "/rookie-draft-room?draftId={{draftId}}"
+        },
+        "expected": {
+          "text": "2026 Mock Rookie Draft"
         }
       }
     ],

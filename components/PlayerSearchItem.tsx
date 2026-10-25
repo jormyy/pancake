@@ -1,4 +1,4 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { memo } from 'react'
@@ -6,9 +6,8 @@ import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatPoints } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 import { blockedActionProps } from '@/lib/a11y'
@@ -82,6 +81,7 @@ function PlayerSearchItemImpl({
     const statusBadge = currentMemberId && (!isFA || showStats) ? (
         <View style={[
             styles.statusBadge,
+            showStats && styles.statusCell,
             !showStats && styles.statusBadgeNarrow,
             isMe && styles.statusBadgeMe,
             isWaiver && styles.statusBadgeWaiver,
@@ -103,6 +103,32 @@ function PlayerSearchItemImpl({
         </View>
     ) : null
 
+    const avatar = <PlayerAvatar name={item.display_name} nbaId={item.nba_id} color={colors.bgMuted} size={HEADSHOT} />
+    const playerDetails = <>
+        <View style={styles.playerMetaRow}>
+            {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
+            {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
+            {denseProjectionRow && projectionGame ? (
+                <Text style={styles.playerMeta} numberOfLines={1}>{projectionGame}</Text>
+            ) : null}
+            {!showStats ? <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]} numberOfLines={1}>
+                {statMode === 'projection' ? numberOrDash(item.projection_fantasy_points) : formatPoints(stats[0]?.value)} {item.playing_now ? 'LIVE' : 'FP'}
+            </Text> : null}
+        </View>
+        {!showStats && showCompactStats ? (
+            <View style={styles.compactStats}>
+                {compactStats.map((stat) => (
+                    <View key={stat.label} style={styles.compactStat}>
+                        <Text style={styles.compactStatLabel}>{stat.label}</Text>
+                        <Text style={[styles.compactStatValue, stat.highlight && styles.compactStatValuePrimary]}>
+                            {formatPoints(stat.value)}
+                        </Text>
+                    </View>
+                ))}
+            </View>
+        ) : null}
+    </>
+
     const content = (
         <>
             <Pressable
@@ -112,59 +138,19 @@ function PlayerSearchItemImpl({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
-                <PlayerAvatar name={item.display_name} nbaId={item.nba_id} color={colors.bgMuted} size={HEADSHOT} />
+                {showStats ? avatar : null}
 
                 <View style={styles.playerInfo}>
-                    {denseProjectionRow ? (
-                        <View style={styles.nameScoreRow}>
-                            <Text style={[styles.playerName, styles.playerNameDense]} numberOfLines={1}>
-                                {item.display_name}
-                            </Text>
-                            <Text style={styles.denseScore} numberOfLines={1}>
-                                {numberOrDash(item.projection_fantasy_points)} FP
-                            </Text>
-                        </View>
-                    ) : (
-                        <Text style={styles.playerName} numberOfLines={1}>{item.display_name}</Text>
-                    )}
-                    <View style={styles.playerMetaRow}>
-                        {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
-                        {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
-                        <PlayerEligibilityTags yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
-                        {item.injury_status ? (
-                            <Badge
-                                label={item.injury_status}
-                                color={INJURY_COLORS[item.injury_status] ?? colors.textMuted}
-                                variant="solid"
-                            />
-                        ) : null}
-                        {denseProjectionRow && projectionGame ? (
-                            <Text style={styles.playerMeta} numberOfLines={1}>{projectionGame}</Text>
-                        ) : null}
-                        {!showStats ? statusBadge : null}
+                    <View style={styles.nameScoreRow}>
+                        <PlayerNameLine name={item.display_name} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}>{!showStats ? statusBadge : null}</PlayerNameLine>
                     </View>
-                    {!showStats && showCompactStats ? (
-                        <View style={styles.compactStats}>
-                            {compactStats.map((stat) => (
-                                <View key={stat.label} style={styles.compactStat}>
-                                    <Text style={styles.compactStatLabel}>{stat.label}</Text>
-                                    <Text style={[styles.compactStatValue, stat.highlight && styles.compactStatValuePrimary]}>
-                                        {formatPoints(stat.value)}
-                                    </Text>
-                                </View>
-                            ))}
-                        </View>
-                    ) : null}
+                    {showStats ? playerDetails : <View style={styles.playerDetailsRow}>
+                        {avatar}
+                        <View style={styles.playerInfo}>{playerDetails}</View>
+                    </View>}
                 </View>
 
                 {denseProjectionRow || !showStats ? null : statusBadge}
-
-                {!showStats && !denseProjectionRow ? (
-                    <View style={styles.fpCol}>
-                        <Text style={styles.fpValue} numberOfLines={1}>{formatPoints(stats[0]?.value)}</Text>
-                        <Text style={[styles.fpLabel, item.playing_now && styles.liveLabel]}>{item.playing_now ? 'LIVE' : 'FP'}</Text>
-                    </View>
-                ) : null}
 
                 {showStats ? (
                     <View style={styles.statsGrid}>
@@ -309,23 +295,16 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     playerCardNarrow: { paddingRight: spacing.xs },
+    playerDetailsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xxs },
     playerCardDense: { paddingVertical: spacing.sm, paddingRight: spacing.xs, gap: spacing.md },
     playerInfo: { flex: 1, minWidth: 0 },
-    playerName: { ...textStyles.rowTitle },
-    playerNameDense: { flexShrink: 1 },
     nameScoreRow: {
         flexDirection: 'row',
-        alignItems: 'baseline',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        gap: spacing.md,
+        gap: spacing.xs,
     },
-    denseScore: {
-        flexShrink: 0,
-        fontSize: fontSize.lg,
-        fontWeight: fontWeight.extrabold,
-        color: colors.primaryDark,
-        fontVariant: ['tabular-nums'],
-    },
+    playerMetaScore: { ...textStyles.meta, fontWeight: fontWeight.bold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xxs },
     playerMeta: { fontSize: fontSize['2sm'], color: colors.textMuted },
     liveLabel: { color: colors.success, fontWeight: fontWeight.bold },
@@ -345,9 +324,6 @@ const styles = StyleSheet.create({
     },
     compactStatValuePrimary: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     experienceText: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.success },
-    fpCol: { alignItems: 'flex-end', width: spacing['4xl'] * 2, gap: spacing.xxs },
-    fpValue: { fontSize: fontSize.lg, fontWeight: fontWeight.extrabold, color: colors.primaryDark, fontVariant: ['tabular-nums'] },
-    fpLabel: { ...textStyles.tableHeader, width: '100%', textAlign: 'right', marginTop: -spacing.xxs },
     statsGrid: {
         width: 10 * table.statColWidth,
         flexDirection: 'row',
@@ -367,14 +343,18 @@ const styles = StyleSheet.create({
     },
     statusBadge: {
         paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xxs,
+        height: textStyles.rowTitle.lineHeight,
+        justifyContent: 'center',
+        paddingVertical: 0,
+        flexShrink: 0,
         borderRadius: radii.sm,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgMuted,
         width: 90,
         alignItems: 'center',
     },
-    statusBadgeNarrow: { width: 'auto', minWidth: spacing['5xl'] },
+    statusCell: { backgroundColor: 'transparent' },
+    statusBadgeNarrow: { width: 'auto', paddingHorizontal: spacing.xs, maxWidth: spacing['4xl'] * 2 },
     statusBadgeMe: { backgroundColor: colors.successLight },
     statusBadgeWaiver: { backgroundColor: colors.infoLight },
     statusBadgeFA: { backgroundColor: colors.bgMuted },

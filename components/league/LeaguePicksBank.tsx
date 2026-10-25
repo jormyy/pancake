@@ -1,3 +1,4 @@
+import { pickLabel, draftYear } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
@@ -52,13 +53,13 @@ type PicksBankItem =
     | { type: 'pick'; pick: LeaguePickItem; id: string }
 
 function PicksBankYearHeader({ year }: { year: number }) {
-    return <SectionHeader label={String(year)} decorative />
+    return <SectionHeader label={String(draftYear(year))} decorative />
 }
 
 function pickRowLabel(pick: LeaguePickItem, isMine: boolean) {
     const owner = isMine ? 'You' : pick.currentTeamName
     const tradeState = pick.originalOwnerMemberId !== pick.currentOwnerMemberId ? 'traded pick' : 'original pick'
-    return `${pick.seasonYear} round ${pick.round}, from ${pick.originalTeamName}, owner ${owner}, ${tradeState}`
+    return `${pickLabel(pick.seasonYear, pick.round)}, from ${pick.originalTeamName}, owner ${owner}, ${tradeState}`
 }
 
 function PicksBankRow({
@@ -95,7 +96,7 @@ function PicksBankRow({
                 style={[styles.picksBankRound, compact && styles.picksBankRoundCompact, mine && tableStyles.textMe]}
                 numberOfLines={1}
             >
-                {compact ? `${pick.seasonYear} R${pick.round}` : `R${pick.round}`}
+                {compact ? `${draftYear(pick.seasonYear)} R${pick.round}` : `R${pick.round}`}
             </Text>
             <View style={styles.picksBankFromWrap}>
                 <Text style={[styles.picksBankFrom, mine && tableStyles.textMe]} numberOfLines={1}>
@@ -352,7 +353,7 @@ export function PicksBankList({
     })
     const originalPicks = myMemberId ? picks.filter((pick) => pick.originalOwnerMemberId === myMemberId) : []
     const retainedPicks = originalPicks.filter((pick) => pick.currentOwnerMemberId === myMemberId)
-    const years = originalPicks.map((pick) => pick.seasonYear)
+    const years = originalPicks.map((pick) => draftYear(pick.seasonYear))
     const firstYear = Math.min(...years)
     const lastYear = Math.max(...years)
     const yearRange = firstYear === lastYear ? String(firstYear) : `${firstYear}–${lastYear}`

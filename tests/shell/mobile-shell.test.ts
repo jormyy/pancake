@@ -14,6 +14,7 @@ const state = vi.hoisted(() => {
     }
 })
 
+vi.mock('react-dom', () => ({ createPortal: (children: React.ReactNode) => children }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value, flatten: (value: unknown) => value },
@@ -41,7 +42,7 @@ vi.mock('@/components/ui/Sheet', () => ({ Sheet: ({ visible, children, ...props 
 
 let screen: ReactTestRenderer
 const render = async () => {
-    await act(async () => { screen = create(React.createElement(WebAppShell, {}, React.createElement('Content'))) })
+    await act(async () => { screen = create(React.createElement(WebAppShell, {}, React.createElement('Content')), { createNodeMock: () => ({ getBoundingClientRect: () => ({ left: 56, top: 0, width: 280, height: 44 }), focus: vi.fn() }) }) })
 }
 const controls = (label: string) => screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityLabel === label)
 
@@ -60,9 +61,9 @@ beforeEach(() => {
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.restoreAllMocks() })
 
-it('shows a single league as a title and restores the switch when another league becomes available', async () => {
+it('opens the switch with one league and keeps it when another league becomes available', async () => {
     await render()
-    expect(controls('Switch league')).toHaveLength(0)
+    expect(controls('Switch league')).toHaveLength(1)
     expect(screen.root.findAll(node => node.type === ('Text' as React.ElementType) && node.props.children === 'Sunday Dynasty')).toHaveLength(1)
     state.memberships = [state.current, { ...state.current, id: 'member-2', leagues: { id: 'league-2', name: 'Second League' } }]
     await act(async () => screen.update(React.createElement(WebAppShell)))
@@ -202,5 +203,19 @@ it('names the notification settings page in the browser title', async () => {
         state.pathname = '/notification-settings'
         await render()
         expect(page.title).toBe('Notifications · Pancake')
+    } finally { vi.unstubAllGlobals() }
+})
+
+it.each(['Join with Invite Code', 'Create a League'])('opens the existing %s flow from the single-league menu', async label => {
+    vi.stubGlobal('document', { body: {}, title: '', getElementById: () => ({}), addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    try {
+        await render()
+        await act(async () => controls('Switch league')[0].props.onPress())
+        expect(controls('Switch to Sunday Dynasty')[0].props.accessibilityState.selected).toBe(true)
+        expect(controls('Join or create a league')).toHaveLength(1)
+        await act(async () => controls('Join or create a league')[0].props.onPress())
+        await act(async () => controls(label)[0].props.onPress())
+        expect(state.push).toHaveBeenCalledExactlyOnceWith(label === 'Create a League' ? '/(modals)/create-league' : '/(modals)/join-league')
     } finally { vi.unstubAllGlobals() }
 })

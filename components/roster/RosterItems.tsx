@@ -1,6 +1,7 @@
+import { pickLabel, draftYear } from '@/lib/picks'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
@@ -11,7 +12,6 @@ import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
 import { Avatar } from '@/components/Avatar'
-import { InjuryBadge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
@@ -56,19 +56,16 @@ function PlayerMetaLine({
     positions,
     avgFpts,
     avgMinutes,
-    eligibility,
 }: {
     team: string | null | undefined
     positions: string[]
     avgFpts?: number
     avgMinutes?: number | null
-    eligibility: Pick<RosterPlayer['players'], 'years_exp' | 'career_regular_season_games'>
 }) {
     return (
         <View style={styles.metaRow}>
             {team ? <Text style={styles.meta}>{team}</Text> : null}
             {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-            <PlayerEligibilityTags yearsExp={eligibility.years_exp} careerGames={eligibility.career_regular_season_games} />
             {avgFpts != null || avgMinutes != null ? (
                 <Text style={styles.averages}>
                     {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
@@ -129,10 +126,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     size={ROW_AVATAR}
                 />
                 <View style={styles.info}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
-                    </View>
-                    <PlayerEligibilityTags yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames} />
+                    <PlayerNameLine name={claim.playerName} textStyle={styles.name} yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames} />
                     <Text style={styles.meta} numberOfLines={2}>
                         {[
                             claim.toTaxi ? 'To taxi' : claim.toIr ? 'To IR' : null,
@@ -218,12 +212,12 @@ export const RosterPickItem = memo(function RosterPickItem({
         <MotionView style={styles.row} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
-                    &apos;{String(pick.seasonYear).slice(2)}
+                    &apos;{String(draftYear(pick.seasonYear)).slice(2)}
                 </Text>
             </View>
             <View style={styles.info}>
                 <Text style={styles.name}>
-                    {pick.seasonYear} Round {pick.round}
+                    {pickLabel(pick.seasonYear, pick.round)}
                 </Text>
                 {!isOwn ? (
                     <Text style={styles.meta}>via {pick.originalTeamName}</Text>
@@ -282,11 +276,8 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 />
 
                 <View style={styles.info}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
-                        <InjuryBadge status={player.injury_status} />
-                    </View>
-                    <PlayerMetaLine eligibility={player} team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
+                    <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
+                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 
@@ -340,12 +331,8 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             />
 
             <View style={styles.info}>
-                <View style={styles.nameRow}>
-                    <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
-                    <InjuryBadge status={player.injury_status} />
-                </View>
+                <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
                 <PlayerMetaLine
-                    eligibility={player}
                     team={player.nba_team}
                     positions={positions}
                     avgFpts={avgFpts}
@@ -393,10 +380,8 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 />
 
                 <View style={styles.info}>
-                    <View style={styles.nameRow}>
-                        <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
-                    </View>
-                    <PlayerMetaLine eligibility={player} team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
+                    <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
+                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 
@@ -462,7 +447,6 @@ const styles = StyleSheet.create({
     rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
 
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 },
     name: { ...textStyles.rowTitle, flexShrink: 1 },
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     meta: { ...textStyles.meta, color: colors.textSecondary },

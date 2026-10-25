@@ -57,7 +57,7 @@ export const styles = StyleSheet.create({
         height: controlSize.minTouch,
     },
     brandMarkCompact: {
-        width: layout.shell.crestSize,
+        width: controlSize.minTouch,
         height: controlSize.minTouch,
     },
     brandTitle: {
@@ -122,11 +122,6 @@ export const styles = StyleSheet.create({
     leagueSwitchLightHover: {
         backgroundColor: colors.bgSubtle,
     },
-    leagueSwitchStatic: {
-        backgroundColor: 'transparent',
-        borderColor: 'transparent',
-        paddingHorizontal: 0,
-    },
     leagueNameLight: {
         color: colors.textPrimary,
         fontWeight: fontWeight.bold,
@@ -157,6 +152,7 @@ export const styles = StyleSheet.create({
         boxShadow: shadows.lg,
     } as WebOnlyViewStyle,
     leagueMenuItem: {
+        minHeight: controlSize.minTouch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.lg,

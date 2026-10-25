@@ -1,3 +1,4 @@
+import { pickLabel } from '@/lib/picks'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
     analyzeDynastyTrade,
@@ -138,7 +139,7 @@ export function useDynastyTradeAnalysis(input: Input): {
                     asset: {
                         kind: 'pick',
                         id: pick.pickId,
-                        label: `${pick.seasonYear} Round ${pick.round} · ${pick.originalTeamName}`,
+                        label: `${pickLabel(pick.seasonYear, pick.round)} · ${pick.originalTeamName}`,
                         seasonYear: pick.seasonYear,
                         round: pick.round,
                         slot: null,
