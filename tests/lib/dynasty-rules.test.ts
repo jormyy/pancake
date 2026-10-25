@@ -20,14 +20,11 @@ describe('career regular-season games', () => {
         expect(careerRegularSeasonGames({})).toBeNull()
     })
 
-    it('preserves legacy eligibility and applies the exact opt-in games boundary', () => {
-        expect(isTaxiEligible(null, 0)).toBe(false)
-        expect(isTaxiEligible(1, 0)).toBe(true)
-        expect(isTaxiEligible(null, 0, null, true)).toBe(true)
-        expect(isTaxiEligible(null, 0, 82, true)).toBe(true)
-        expect(isTaxiEligible(null, 5, 64, true)).toBe(true)
-        expect(isTaxiEligible(null, 1, 64, true)).toBe(true)
-        expect(isTaxiEligible(1, 1, 65, true)).toBe(false)
-        expect(isTaxiEligible(null, 1, null, true)).toBe(false)
+    it('uses the exact games boundary without a league option', () => {
+        expect(isTaxiEligible(0, null)).toBe(true)
+        expect(isTaxiEligible(0, 82)).toBe(true)
+        expect(isTaxiEligible(5, 64)).toBe(true)
+        expect(isTaxiEligible(1, 65)).toBe(false)
+        expect(isTaxiEligible(1, null)).toBe(false)
     })
 })

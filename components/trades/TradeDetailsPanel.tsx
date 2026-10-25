@@ -78,7 +78,7 @@ export function TradeDetailsPanel({
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
             {trade.status === 'pending' && !currentLeague?.allow_inactive_trades && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
                 item.kind === 'player' && item.toMemberId === myMemberId && (item.toTaxi ||
-                    (currentLeague?.taxi_slots ?? 0) > 0 && isTradeTaxiEligible(item, currentLeague?.taxi_rule === 'rookies_or_64_games')) ? [<TaxiAcquisitionChoice
+                    (currentLeague?.taxi_slots ?? 0) > 0 && isTradeTaxiEligible(item)) ? [<TaxiAcquisitionChoice
                     key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
                     label={`Receive ${item.playerName} into taxi`}
                     onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}

@@ -13,6 +13,7 @@ export const RULE_CODES = {
     rosterFull: 'PA003',
     /** add_free_agent_atomic: players on IR who no longer qualify block the add */
     ineligibleIr: 'PA005',
+    ineligibleTaxi: 'PA009',
 } as const
 
 export function errorCode(error: unknown): string | undefined {

@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { HomeAnnouncementBanner } from '@/components/HomeAnnouncementBanner'
+import { HomeAnnouncementBanner, HomeAnnouncementOnEntry } from '@/components/HomeAnnouncementBanner'
 import type { LeagueAnnouncement } from '@/lib/league-announcements'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: (value: unknown) => value } }))
@@ -66,5 +66,14 @@ it('uses the dismissed publish time across replacement IDs and keeps another lea
     await act(async () => screen.update(React.createElement(HomeAnnouncementBanner, { ...props, announcements: [{ ...announcements[1], id: 'replacement' }] })))
     expect(screen.root.findAllByType('View' as React.ElementType)).toHaveLength(0)
     await act(async () => screen.update(React.createElement(HomeAnnouncementBanner, { ...props, leagueId: 'other' })))
+    expect(text()).toContain('Draft tonight.')
+})
+
+
+it('keeps passive arrivals still and shows new rows after an explicit refresh without remounting', async () => {
+    await act(async () => { screen = create(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true, announcements: [], revision: 0 })) })
+    await act(async () => screen.update(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true, revision: 0 })))
+    expect(text()).not.toContain('Draft tonight.')
+    await act(async () => screen.update(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true, revision: 1 })))
     expect(text()).toContain('Draft tonight.')
 })

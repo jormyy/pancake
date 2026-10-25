@@ -39,7 +39,7 @@ describe('direct client write update protection', () => {
         const request = addFreeAgent('member', 'league', 'player', toIr)
         expect(isPwaUpdateHeld()).toBe(true)
         expect(rpc).toHaveBeenCalledWith('add_free_agent_atomic', {
-            p_member_id: 'member', p_league_id: 'league', p_player_id: 'player', p_to_ir: toIr ?? false,
+            p_member_id: 'member', p_league_id: 'league', p_player_id: 'player', p_to_ir: toIr ?? false, p_to_taxi: false,
         })
         const result = error ? expect(request).rejects.toThrow('Roster full') : expect(request).resolves.toBeUndefined()
         reply.resolve({ error })

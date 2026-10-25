@@ -33,7 +33,7 @@ it.each(['pending', 'completed'])('keeps picks available before or after the dra
 })
 
 it.each(['pending', 'in_progress', 'paused'])('closes trading during a current startup auction: %s', status => {
-    expect(isTradingClosed({ status: 'drafting', drafts: [{ draft_type: 'auction', is_mock: false, status, league_seasons: { is_current: true } }] })).toBe(true)
+    expect(isTradingClosed({ status: 'drafting', hasStartupAuction: ['pending', 'in_progress', 'paused'].includes(status) })).toBe(true)
 })
 
 it.each([
@@ -42,7 +42,7 @@ it.each([
     { draft_type: 'auction', is_mock: false, status: 'completed', league_seasons: { is_current: true } },
     { draft_type: 'auction', is_mock: false, status: 'paused', league_seasons: { is_current: false } },
 ])('keeps rookie, mock, completed and historical drafts open: %j', draft => {
-    expect(isTradingClosed({ status: 'drafting', drafts: [draft] })).toBe(false)
+    expect(isTradingClosed({ status: 'drafting', hasStartupAuction: draft.draft_type === 'auction' && !draft.is_mock && draft.league_seasons.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status) })).toBe(false)
 })
 
 it('gets auction trade status in the existing membership query without another read', async () => {

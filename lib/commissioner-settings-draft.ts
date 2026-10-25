@@ -4,7 +4,6 @@ import type { LeagueStatus } from '@/types/database'
 
 export type CommissionerSettingsDraft = {
     teamLimit?: string
-    taxiRule?: 'drafted_rookies' | 'rookies_or_64_games'
     taxiMaxSeasons?: string
     allowInactiveTrades?: boolean
     playoffEntrants: string
@@ -48,7 +47,7 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
 }
 
 const DRAFT_SCALAR_FIELDS = [
-    'teamLimit', 'taxiRule', 'taxiMaxSeasons', 'allowInactiveTrades', 'playoffEntrants', 'playoffRoundCount',
+    'teamLimit', 'taxiMaxSeasons', 'allowInactiveTrades', 'playoffEntrants', 'playoffRoundCount',
     'rosterSize',
     'irSlots',
     'taxiSlots',
@@ -186,7 +185,6 @@ export function buildCommissionerSettingsChange(
         if (count == null || count < 2) return { error: 'Team limit must be at least 2.' }
         updates.team_limit = count
     }
-    if (draft.taxiRule !== baseline.taxiRule) updates.taxi_rule = draft.taxiRule
     if (draft.taxiMaxSeasons !== baseline.taxiMaxSeasons) {
         const cap = parseStrictInteger(draft.taxiMaxSeasons ?? '')
         if (cap == null || cap < 1 || cap > 2) return { error: 'Taxi tenure must be 1 or 2 seasons.' }

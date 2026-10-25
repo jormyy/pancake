@@ -51,6 +51,7 @@ vi.mock('@/components/AutoSetModal', () => ({ AutoSetModal: 'AutoSetModal' }))
 vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal: 'ActivationOverflowModal' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
+vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 const claim = { id: 'claim', dropPlayerId: null }
@@ -78,4 +79,16 @@ it.each(['cancel', 'edit', 'reorder'])('makes one roster read after claim %s', a
     expect(mocks.post).toHaveBeenCalledTimes(1)
     expect(mocks.roster).toHaveBeenCalledTimes(2)
     expect(mocks.claims).toHaveBeenCalledTimes(2)
+})
+
+it('keeps Cancel disabled after success until refreshed claims remove the row', async () => {
+    await act(async () => { screen = create(React.createElement(RosterScreen)) })
+    const row = () => screen.root.findByType('RosterClaimItem' as React.ElementType)
+    await act(async () => { await row().props.onCancel('claim') })
+    expect(row().props.cancellingId).toBe('claim')
+    await act(async () => { await row().props.onCancel('claim') })
+    expect(mocks.post).toHaveBeenCalledTimes(1)
+    mocks.claims.mockResolvedValue([])
+    await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+    expect(screen.root.findAllByType('RosterClaimItem' as React.ElementType)).toHaveLength(0)
 })

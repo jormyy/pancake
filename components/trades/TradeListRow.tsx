@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { memo } from 'react'
 import { useRouter } from 'expo-router'
@@ -68,6 +69,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
                         <View style={styles.blockMetaRow}>
                             <Text style={styles.blockMeta}>{block.teamName}</Text>
                             {block.asset.nbaTeam ? <Text style={styles.blockMeta}>{block.asset.nbaTeam}</Text> : null}
+                            <PlayerEligibilityTags yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} />
                             {positions.map((position) => <PosTag key={position} position={position} />)}
                             {block.asset.injuryStatus ? <Badge label={block.asset.injuryStatus}
                                 color={INJURY_COLORS[block.asset.injuryStatus] ?? colors.textMuted} variant="solid" /> : null}
@@ -133,6 +135,7 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
                 <Text style={styles.blockTitle}>{player.display_name}</Text>
                 <View style={styles.blockMetaRow}>
                     {player.nba_team ? <Text style={styles.blockMeta}>{player.nba_team}</Text> : null}
+                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
                     {positions.map((position) => <PosTag key={position} position={position} />)}
                     {player.injury_status ? <Badge label={player.injury_status}
                         color={INJURY_COLORS[player.injury_status] ?? colors.textMuted} variant="solid" /> : null}

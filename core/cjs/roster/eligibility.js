@@ -14,6 +14,6 @@ function isDTD(injuryStatus) {
         return false;
     return injuryStatus.toLowerCase() === 'dtd';
 }
-function isTaxiEligible(nbaDraftNumber, yearsExp, careerGames = null, extended = false) {
-    return extended ? yearsExp === 0 || (careerGames != null && careerGames < 65) : nbaDraftNumber != null && yearsExp === 0;
+function isTaxiEligible(yearsExp, careerGames) {
+    return yearsExp === 0 || (careerGames != null && careerGames < 65);
 }

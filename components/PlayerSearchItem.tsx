@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
 import { memo } from 'react'
@@ -5,7 +6,6 @@ import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatPoints } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { Badge } from '@/components/Badge'
@@ -130,11 +130,7 @@ function PlayerSearchItemImpl({
                     <View style={styles.playerMetaRow}>
                         {item.nba_team && <Text style={styles.playerMeta}>{item.nba_team}</Text>}
                         {getEligiblePositions(item).map((pos: string) => <PosTag key={pos} position={pos} />)}
-                        {playerYearsExperienceLabel(item.years_exp) && (
-                            <Text style={styles.experienceText}>
-                                {playerYearsExperienceLabel(item.years_exp)}
-                            </Text>
-                        )}
+                        <PlayerEligibilityTags yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
                         {item.injury_status ? (
                             <Badge
                                 label={item.injury_status}

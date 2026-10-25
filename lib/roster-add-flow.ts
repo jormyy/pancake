@@ -1,11 +1,13 @@
 import { assertReadActive } from '@/lib/shared/read-admission'
-import { isIneligibleIR } from '@/lib/format'
+import { getRosterProblems, type RosterProblem } from '@/lib/roster-problems'
 import {
     activateRosterPlayerWithOverflow,
     addFreeAgent,
     getPlayerRosterContext,
     getRoster,
     toggleIR,
+    toggleTaxi,
+    getTaxiExitPlayerIds,
     type PlayerRosterStatus,
     type RosterOccupancy,
     type RosterPlayer,
@@ -20,12 +22,12 @@ export async function loadRosterAddGate(
     memberId: string,
     leagueId: string,
     excludeRosterId?: string,
-): Promise<{ roster: RosterPlayer[]; ineligible: RosterPlayer[] }> {
-    const roster = await getRoster(memberId, leagueId)
-    return {
-        roster,
-        ineligible: roster.filter((player) => isIneligibleIR(player) && player.id !== excludeRosterId),
-    }
+    rosterSize = 20,
+    includeTaxiExits = false,
+): Promise<{ roster: RosterPlayer[]; ineligible: RosterPlayer[]; problems: RosterProblem[]; taxiExitIds: Set<string> }> {
+    const [roster, taxiExitIds] = await Promise.all([getRoster(memberId, leagueId), includeTaxiExits ? getTaxiExitPlayerIds(memberId, leagueId) : Promise.resolve(new Set<string>())])
+    const problems = getRosterProblems(roster, rosterSize).filter(problem => !problem.player || problem.player.id !== excludeRosterId)
+    return { roster, taxiExitIds, problems, ineligible: problems.flatMap(problem => problem.player ? [problem.player] : []) }
 }
 
 /** The member's weekly add state, or null when it cannot load: a pickup still goes to the server, which explains any block. */
@@ -67,9 +69,11 @@ export async function addFreeAgentOrRequestDrop(
     playerId: string,
     roster: RosterPlayer[],
     toIr = false,
+    toTaxi = false,
 ): Promise<{ status: 'added' } | { status: 'roster_full'; activeRoster: RosterPlayer[] }> {
     try {
-        await addFreeAgent(memberId, leagueId, playerId, toIr)
+        if (toTaxi) await addFreeAgent(memberId, leagueId, playerId, toIr, toTaxi)
+        else await addFreeAgent(memberId, leagueId, playerId, toIr)
         return { status: 'added' }
     } catch (error) {
         if (errorCode(error) !== RULE_CODES.rosterFull) throw error
@@ -85,11 +89,13 @@ export async function resolveRosterAddIRConflict({
     leagueId,
     activatePlayer,
     dropPlayer,
+    rosterSize = 20,
 }: {
     memberId: string
     leagueId: string
     activatePlayer: RosterPlayer
     dropPlayer?: RosterPlayer
+    rosterSize?: number
 }): Promise<
     | { status: 'locked'; message: string }
     | { status: 'resolved'; roster: RosterPlayer[]; remaining: RosterPlayer[] }
@@ -98,7 +104,9 @@ export async function resolveRosterAddIRConflict({
     if (lockMessage) return { status: 'locked', message: lockMessage }
 
     if (dropPlayer) {
-        await activateRosterPlayerWithOverflow(activatePlayer.id, 'ir', dropPlayer.id, 'drop')
+        await activateRosterPlayerWithOverflow(activatePlayer.id, activatePlayer.is_on_taxi ? 'taxi' : 'ir', dropPlayer.id, 'drop')
+    } else if (activatePlayer.is_on_taxi) {
+        await toggleTaxi(activatePlayer.id, false)
     } else {
         await toggleIR(activatePlayer.id, false)
     }
@@ -107,6 +115,6 @@ export async function resolveRosterAddIRConflict({
     return {
         status: 'resolved',
         roster,
-        remaining: roster.filter((player) => isIneligibleIR(player)),
+        remaining: getRosterProblems(roster, rosterSize).flatMap(problem => problem.player ? [problem.player] : []),
     }
 }

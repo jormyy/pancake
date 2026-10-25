@@ -163,6 +163,7 @@ export async function addFreeAgent(
     leagueId: string,
     playerId: string,
     toIr = false,
+    toTaxi = false,
 ): Promise<void> {
     return withPwaMutation('addFreeAgent', async () => {
         // Atomic: validate caller ownership, waiver hold, roster-cap, and insert
@@ -171,12 +172,14 @@ export async function addFreeAgent(
         // window between drop_player_atomic's commit and another tab's
         // getPlayerRosterContext refresh, letting a second user scoop a player off
         // waivers and breaking queued waiver_claims.
-        const { error } = await supabase.rpc('add_free_agent_atomic', {
+        const args = {
             p_member_id: memberId,
             p_league_id: leagueId,
             p_player_id: playerId,
             p_to_ir: toIr,
-        })
+            p_to_taxi: toTaxi,
+        }
+        const { error } = await supabase.rpc('add_free_agent_atomic', args)
 
         if (error) {
             if (error.code === '23505') throw rpcError(error, 'This player is already on a roster.')
@@ -291,4 +294,12 @@ export async function activateRosterPlayerWithLineup({
 
         if (error) throw rpcError(error)
     })
+}
+
+
+export async function getTaxiExitPlayerIds(memberId: string, leagueId: string): Promise<Set<string>> {
+    const { data, error } = await supabase.from('league_member_taxi_exits').select('player_id')
+        .eq('member_id', memberId).eq('league_id', leagueId)
+    if (error) throw error
+    return new Set((data ?? []).map(row => row.player_id))
 }

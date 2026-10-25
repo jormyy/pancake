@@ -1,3 +1,4 @@
+import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { HomeAnnouncementOnEntry } from '@/components/HomeAnnouncementBanner'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useLeagueAnnouncements } from '@/hooks/use-league-announcements'
@@ -13,7 +14,7 @@ import {
     type ViewStyle,
 } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { WeekOffNotice } from '@/components/WeekOffNotice'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/Button'
@@ -72,9 +73,18 @@ export default function HomeScreen() {
         error, refresh, emptyConfirmed,
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
     const { refresh: refreshAnnouncements, refreshing: announcementsRefreshing } = announcements
+    const [announcementRevision, setAnnouncementRevision] = useState(0)
+    const homeActivity = useBrowserReadActivity()
+    const lastHomeActivityRevision = useRef(0)
     const refreshHome = useCallback(async () => {
         await Promise.all([refresh(), refreshAnnouncements()])
+        setAnnouncementRevision(value => value + 1)
     }, [refresh, refreshAnnouncements])
+    useEffect(() => {
+        if (!homeActivity.active || homeActivity.revision <= lastHomeActivityRevision.current) return
+        lastHomeActivityRevision.current = homeActivity.revision
+        void refreshHome()
+    }, [homeActivity.active, homeActivity.revision, refreshHome])
     const refreshingHome = Boolean(matchupRefreshing || announcementsRefreshing)
     const railPullRefresh = usePullToRefresh(refreshHome, refreshingHome)
     const homeSurface = resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })
@@ -223,7 +233,7 @@ export default function HomeScreen() {
 
             {lineupError ? <ErrorBanner message="Couldn't load this day. Tap to retry." onRetry={() => { void handleDaySelect(selectedDate) }} /> : null}
             <DeferredContent ready={homeSurface !== 'loading' && (homeSurface !== 'matchup' || lineupError || Boolean(myLineup && oppLineup && gamesReady))} busy={refreshingHome || lineupLoading}>
-            {league ? <HomeAnnouncementOnEntry key={`${user.id}:${league.id}`} loaded={announcements.loaded} announcements={announcements.announcements} memberId={current?.id} ownerId={user.id} leagueId={league.id} padX={padX} /> : null}
+            {league ? <HomeAnnouncementOnEntry key={`${user.id}:${league.id}`} loaded={announcements.loaded} revision={announcementRevision} announcements={announcements.announcements} memberId={current?.id} ownerId={user.id} leagueId={league.id} padX={padX} /> : null}
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>

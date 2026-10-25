@@ -6,6 +6,6 @@ export function isTradeableRosterPlayer(player: RosterPlayer, allowInactive = fa
     return allowInactive || !player.is_on_ir && !player.is_on_taxi
 }
 
-export function isTradeTaxiEligible(player: Extract<TradeItem, { kind: 'player' }>, extended = false): boolean {
-    return isTaxiEligible(player.nbaDraftNumber ?? null, player.yearsExp ?? null, player.careerGames ?? null, extended)
+export function isTradeTaxiEligible(player: Extract<TradeItem, { kind: 'player' }>): boolean {
+    return isTaxiEligible(player.yearsExp ?? null, player.careerGames ?? null)
 }

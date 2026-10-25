@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import {
     View,
     Text,
@@ -477,6 +478,7 @@ function ProspectRow({
             <View style={styles.resultInfo}>
                 <View style={styles.resultNameRow}>
                     <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
+                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
                     {player.nba_draft_number != null && (
                         <PosTag position={player.position ?? '?'} />
                     )}

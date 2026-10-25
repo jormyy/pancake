@@ -1,3 +1,7 @@
+import { getRosterProblems } from '@/lib/roster-problems'
+import { useRosterLegality } from '@/hooks/use-roster-legality'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
@@ -207,9 +211,10 @@ function RosterTablePlayerItem({
                                 <Badge label={item.players.injury_status} color={INJURY_COLORS[item.players.injury_status] ?? colors.textMuted} variant="solid" />
                             ) : null}
                         </View>
-                        <Text style={styles.rosterTableMeta} numberOfLines={1}>
-                            {[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}
-                        </Text>
+                        <View style={styles.rosterTableNameRow}>
+                            <Text style={styles.rosterTableMeta} numberOfLines={1}>{[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}</Text>
+                            <PlayerEligibilityTags yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} />
+                        </View>
                     </View>
                 </View>
                 <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
@@ -373,6 +378,10 @@ export default function RosterScreen() {
     const roster = useMemo(() => data?.roster ?? EMPTY_ROSTER, [data?.roster])
     const picks = useMemo(() => data?.picks ?? EMPTY_PICKS, [data?.picks])
     const claims = useMemo(() => data?.claims ?? EMPTY_CLAIMS, [data?.claims])
+    useEffect(() => {
+        if (cancellingId && !claims.some(claim => claim.id === cancellingId)) setCancellingId(null)
+    }, [claims, cancellingId])
+    const rosterLegality = useRosterLegality({ memberId: current?.id, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: refresh })
     const pendingClaimCount = claims.filter((claim) => claim.status === 'pending').length
     const avgMap = useMemo(() => data?.avgMap ?? EMPTY_AVG_MAP, [data?.avgMap])
     const avgStatsMap = useMemo(() => data?.avgStatsMap ?? EMPTY_STATS_MAP, [data?.avgStatsMap])
@@ -674,7 +683,7 @@ export default function RosterScreen() {
     }, [ownerIdentity, load, isCurrentAction])
 
     const handleCancelClaim = useCallback(async (claimId: string) => {
-        if (!current) return
+        if (!current || cancellingId !== null) return
         const generation = actionGenerationRef.current
         const identity = ownerIdentity
         if (!identity) return
@@ -682,11 +691,12 @@ export default function RosterScreen() {
         try {
             await cancelWaiverClaim(claimId, current.id)
         } catch (e) {
-            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
-        } finally {
-            if (isCurrentAction(generation, identity)) setCancellingId(null)
+            if (isCurrentAction(generation, identity)) {
+                setCancellingId(null)
+                showAlert('Error', getErrorMessage(e))
+            }
         }
-    }, [current, ownerIdentity, isCurrentAction])
+    }, [current, ownerIdentity, isCurrentAction, cancellingId])
 
     const handleEditClaimBid = useCallback(async (claim: WaiverClaim, bidAmount: number) => {
         if (!current) return
@@ -694,14 +704,28 @@ export default function RosterScreen() {
         const identity = ownerIdentity
         if (!identity) return
         try {
+            if (!await rosterLegality.check(roster)) return
             await editWaiverClaim(claim.id, current.id, {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
             })
         } catch (e) {
-            if (isCurrentAction(generation, identity)) showAlert('Error', getErrorMessage(e))
+            if (isCurrentAction(generation, identity) && !await rosterLegality.report(e)) showAlert('Error', getErrorMessage(e))
         }
-    }, [current, ownerIdentity, isCurrentAction])
+    }, [current, ownerIdentity, isCurrentAction, rosterLegality, roster])
+
+    const handleEditClaimTaxi = useCallback(async (claim: WaiverClaim, toTaxi: boolean) => {
+        if (!current || Boolean(claim.toTaxi) === toTaxi) return
+        const generation = actionGenerationRef.current
+        const identity = ownerIdentity
+        if (!identity) return
+        try {
+            if (!await rosterLegality.check(roster)) return
+            await editWaiverClaim(claim.id, current.id, { dropPlayerId: claim.dropPlayerId, bidAmount: claim.bidAmount, toTaxi, ...(toTaxi ? { toIr: false } : {}) })
+        } catch (error) {
+            if (isCurrentAction(generation, identity) && !await rosterLegality.report(error)) showAlert('Error', getErrorMessage(error))
+        }
+    }, [current, ownerIdentity, isCurrentAction, rosterLegality, roster])
 
     const handleReorderClaim = useCallback(async (claimId: string, direction: 'up' | 'down') => {
         if (!current) return
@@ -820,6 +844,7 @@ export default function RosterScreen() {
                     waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
                     onCancel={handleCancelClaim}
                     onEditBid={handleEditClaimBid}
+                    onEditTaxi={handleEditClaimTaxi}
                     onReorder={handleReorderClaim}
                 />
             )
@@ -899,7 +924,7 @@ export default function RosterScreen() {
         startersFilled, benchFilled, benchCapacity,
         togglingId, taxiingId, droppingId, cancellingId, claimsDetail,
         currentLeague?.waiver_mode, currentLeague?.status, current?.team_name, handleOpenRosterPlayer,
-        handleCancelClaim, handleEditClaimBid, handleReorderClaim,
+        handleCancelClaim, handleEditClaimBid, handleEditClaimTaxi, handleReorderClaim,
         handleToggleIR, handleToggleTaxi, handleDropPrompt,
     ])
 
@@ -960,6 +985,7 @@ export default function RosterScreen() {
                                 waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
                                 onCancel={handleCancelClaim}
                                 onEditBid={handleEditClaimBid}
+                    onEditTaxi={handleEditClaimTaxi}
                                 onReorder={handleReorderClaim}
                             />
                         </View>
@@ -1009,12 +1035,14 @@ export default function RosterScreen() {
 
             <RosterTrimBanner
                 players={active}
+                problems={getRosterProblems(roster, rosterSize)}
+                onActivate={player => { if (player.is_on_taxi) void handleToggleTaxi(player); else void handleToggleIR(player) }}
                 excess={rosterOverflow}
-                irAvailable={currentLeague?.status !== 'offseason' && ir.length < irSlots}
+                irAvailable={ir.length < irSlots}
                 busyId={trimBusyId}
                 onDrop={handleDropPrompt}
                 dropDisabled={!online}
-                onMoveToIR={(player) => { void handleToggleIR(player) }}
+                onMoveToIR={(player) => { void rosterLegality.modalProps.onMoveToIR(player) }}
             />
 
             <DeferredContent ready={data != null} busy={loading || refreshing}>
@@ -1071,6 +1099,7 @@ export default function RosterScreen() {
                 onRestOfSeason={() => { void runAutoSet('season') }}
                 onEditManually={() => { setAutoSetVisible(false); push('/(modals)/lineup') }}
             />
+            {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
             <ActivationOverflowModal
                 pending={activationPending}
                 myLineup={activationRoster}

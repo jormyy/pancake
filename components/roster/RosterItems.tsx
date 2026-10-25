@@ -1,11 +1,13 @@
-import { memo, useEffect, useState, type ReactNode } from 'react'
-import { View, Text, StyleSheet, TextInput } from 'react-native'
+import { isTaxiEligible } from '@pancake/core'
+import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
+import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
-import { playerYearsExperienceLabel } from '@/lib/player-context'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
 import { Avatar } from '@/components/Avatar'
@@ -54,18 +56,19 @@ function PlayerMetaLine({
     positions,
     avgFpts,
     avgMinutes,
-    extra,
+    eligibility,
 }: {
     team: string | null | undefined
     positions: string[]
     avgFpts?: number
     avgMinutes?: number | null
-    extra?: string | null
+    eligibility: Pick<RosterPlayer['players'], 'years_exp' | 'career_regular_season_games'>
 }) {
     return (
         <View style={styles.metaRow}>
             {team ? <Text style={styles.meta}>{team}</Text> : null}
             {positions.map((pos) => <PosTag key={pos} position={pos} />)}
+            <PlayerEligibilityTags yearsExp={eligibility.years_exp} careerGames={eligibility.career_regular_season_games} />
             {avgFpts != null || avgMinutes != null ? (
                 <Text style={styles.averages}>
                     {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
@@ -73,7 +76,6 @@ function PlayerMetaLine({
                     {avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null}
                 </Text>
             ) : null}
-            {extra ? <Text style={styles.meta}>{extra}</Text> : null}
         </View>
     )
 }
@@ -84,15 +86,19 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     waiverMode = 'rolling',
     onCancel,
     onEditBid,
+    onEditTaxi,
     onReorder,
 }: {
     claim: WaiverClaim
     cancellingId: string | null
     waiverMode?: 'rolling' | 'faab'
     onCancel: (id: string) => void
+    onEditTaxi?: (claim: WaiverClaim, toTaxi: boolean) => void
     onEditBid: (claim: WaiverClaim, bidAmount: number) => void
     onReorder: (id: string, direction: 'up' | 'down') => void
 }) {
+    const taxiSlots = useContext(PlayerEligibilityContext)
+    const taxiEligible = taxiSlots > 0 && isTaxiEligible(claim.playerYearsExp ?? null, claim.playerCareerGames ?? null)
     const isPending = claim.status === 'pending'
     const usesFaab = waiverMode === 'faab'
     const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
@@ -123,9 +129,13 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     size={ROW_AVATAR}
                 />
                 <View style={styles.info}>
-                    <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.name} numberOfLines={1}>{claim.playerName}</Text>
+                    </View>
+                    <PlayerEligibilityTags yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames} />
                     <Text style={styles.meta} numberOfLines={2}>
                         {[
+                            claim.toTaxi ? 'To taxi' : claim.toIr ? 'To IR' : null,
                             claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
                             usesFaab ? `Bid $${claim.bidAmount}` : null,
                         ].filter(Boolean).join(' · ')}
@@ -147,6 +157,10 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     </MotionPressable>
                 ) : null}
             </View>
+            {isPending && taxiEligible && onEditTaxi ? <View style={styles.claimEditRow}>
+                <Text style={styles.meta}>Place on taxi</Text>
+                <Switch value={claim.toTaxi ?? false} onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} accessibilityLabel={`Place ${claim.playerName} on taxi`} disabled={cancellingId === claim.id} />
+            </View> : null}
             {isPending ? (
                 <View style={styles.claimEditRow}>
                     {usesFaab ? (
@@ -272,7 +286,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                         <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
                         <InjuryBadge status={player.injury_status} />
                     </View>
-                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
+                    <PlayerMetaLine eligibility={player} team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 
@@ -309,7 +323,6 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
     const headshotUri = playerHeadshotUrl(player.nba_id)
-    const yearsLabel = player.years_exp != null && player.years_exp <= 0 ? playerYearsExperienceLabel(player.years_exp) : null
 
     return (
         <MotionPressable
@@ -332,11 +345,11 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
                     <InjuryBadge status={player.injury_status} />
                 </View>
                 <PlayerMetaLine
+                    eligibility={player}
                     team={player.nba_team}
                     positions={positions}
                     avgFpts={avgFpts}
                     avgMinutes={avgMinutes}
-                    extra={yearsLabel}
                 />
             </View>
             <Text style={styles.chevron} aria-hidden>›</Text>
@@ -380,8 +393,10 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 />
 
                 <View style={styles.info}>
-                    <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
-                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
+                    <View style={styles.nameRow}>
+                        <Text style={styles.name} numberOfLines={1}>{player.display_name}</Text>
+                    </View>
+                    <PlayerMetaLine eligibility={player} team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
                 </View>
             </MotionPressable>
 

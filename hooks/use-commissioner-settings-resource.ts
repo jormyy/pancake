@@ -35,7 +35,6 @@ function remoteDraft(
     if (roundInputs.length > roundCount) roundInputs.shift()
     return {
         teamLimit: String(league.team_limit ?? 10),
-        taxiRule: league.taxi_rule ?? 'drafted_rookies',
         taxiMaxSeasons: league.taxi_max_seasons == null ? '' : String(league.taxi_max_seasons),
         allowInactiveTrades: league.allow_inactive_trades ?? false,
         playoffEntrants: String(league.playoff_entrants ?? (memberCount >= 10 ? 6 : 4)),

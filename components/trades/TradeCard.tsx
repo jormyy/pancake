@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
@@ -118,6 +119,7 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
                     <Text style={styles.assetName} numberOfLines={1}>{item.playerName}</Text>
                     <View style={styles.assetMetaRow}>
                         {item.nbaTeam ? <Text style={styles.assetMeta}>{item.nbaTeam}</Text> : null}
+                        <PlayerEligibilityTags yearsExp={item.yearsExp} careerGames={item.careerGames} />
                         {item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
                         {item.injuryStatus ? (

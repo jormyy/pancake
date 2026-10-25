@@ -51,3 +51,13 @@ describe('commissioner scoring bonus inputs', () => {
         }
     })
 })
+
+
+it('keeps Taxi Tenure and removes the league eligibility toggle', async () => {
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(CommissionerSettingsScreen)) })
+    const text = renderer.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')
+    expect(text).toContain('Taxi Tenure')
+    expect(text).not.toContain('Taxi: rookie or fewer than 65 NBA games')
+    await act(async () => renderer.unmount())
+})

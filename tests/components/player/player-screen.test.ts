@@ -103,7 +103,7 @@ it('never removes, relabels or disables Add during status refresh, failure, or u
     await act(async () => { reject(new Error('unavailable')); await refresh })
     expect(button().props.disabled).toBe(false)
     await act(async () => button().props.onPress())
-    expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A', injury_status: null })
+    expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ id: 'player', display_name: 'Player A', injury_status: null, years_exp: 2 }))
 })
 
 it('reads known roster status only for roster signals and exposes retry after a cold failure', async () => {
@@ -159,7 +159,7 @@ it('keeps Add to IR visible during roster refresh and passes the injury designat
     await act(async () => { void state.refresh!() })
     expect(action().props.disabled).toBe(false)
     await act(async () => action().props.onPress())
-    expect(state.add).toHaveBeenCalledWith({ id: 'player', display_name: 'Player A', injury_status: 'Out' })
+    expect(state.add).toHaveBeenCalledWith(expect.objectContaining({ id: 'player', display_name: 'Player A', injury_status: 'Out', years_exp: 2 }))
 })
 
 it("opens a trade for another team's player from the main action", async () => {

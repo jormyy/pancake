@@ -1,3 +1,5 @@
+import { useRosterLegality } from '@/hooks/use-roster-legality'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
@@ -387,6 +389,7 @@ export default function ProposeTradeScreen() {
     )
     const canSubmit = canAct() && online && !submitting && Boolean(retainedAttempt || canSubmitNew)
 
+    const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: composer.retry })
     const handleSubmit = useCallback(async () => {
         if (!canAct() || !ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
         const submission = { ownerIdentity, token: Symbol('trade-submission') }
@@ -401,6 +404,8 @@ export default function ProposeTradeScreen() {
                 setMembersError('You no longer belong to this league.')
                 return
             }
+            if (!await rosterLegality.check()) return
+            if (!isCurrent(generation) || !ownsOwner(ownerIdentity)) return
             writeEpoch.current = generation
             let attempt = retainedAttemptRef.current
             if (attempt?.ownerIdentity !== ownerIdentity || attempt.intent !== intent) attempt = null
@@ -471,7 +476,7 @@ export default function ProposeTradeScreen() {
                     retainedAttemptRef.current = null
                     invalidateSeasonCache(leagueId)
                 }
-                showAlert('Error', getErrorMessage(error) ?? 'Could not propose trade.')
+                if (!await rosterLegality.report(error)) showAlert('Error', getErrorMessage(error) ?? 'Could not propose trade.')
             }
         } finally {
             if (submissionRef.current === submission) {
@@ -480,7 +485,7 @@ export default function ProposeTradeScreen() {
             }
         }
     }, [
-        capture, isCurrent, canAct, blockActions, user?.id,
+        rosterLegality, capture, isCurrent, canAct, blockActions, user?.id,
         rosterPlan,
         currentLeague?.allow_inactive_trades,
         back,
@@ -540,6 +545,7 @@ export default function ProposeTradeScreen() {
         return (
             <PageFrame style={styles.container}>
                 <View style={styles.emptyCenter}><Text style={styles.emptyText}>No active league.</Text></View>
+                {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
             </PageFrame>
         )
     }
@@ -605,7 +611,7 @@ export default function ProposeTradeScreen() {
                                 return [{ ...item, fromTaxi: rosterPlayer?.is_on_taxi === true, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
                             })}
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
-                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting} extendedTaxi={currentLeague.taxi_rule === 'rookies_or_64_games'}
+                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
                             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
                         <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
@@ -613,6 +619,7 @@ export default function ProposeTradeScreen() {
                     </View>
                     </DeferredContent>
                 </ScrollView>
+                {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
             </PageFrame>
         )
     }
@@ -719,6 +726,7 @@ export default function ProposeTradeScreen() {
               {sideBySide ? <View style={styles.rail}>{verdict}</View> : null}
             </ScrollView>
             </DeferredContent>
+            {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
         </PageFrame>
     )
 }

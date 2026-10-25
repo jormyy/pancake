@@ -46,7 +46,7 @@ describe('offline roster mutation admission', () => {
         await submit()
         expect(apiPost).toHaveBeenCalledTimes(2)
         const payload = {
-            memberId: 'member', leagueId: 'league', playerId: 'player', dropPlayerId: 'drop', bidAmount: 3, claimOrder: 2, toIr: toIr ?? false,
+            memberId: 'member', leagueId: 'league', playerId: 'player', dropPlayerId: 'drop', bidAmount: 3, claimOrder: 2, toIr: toIr ?? false, toTaxi: false,
         }
         expect(apiPost).toHaveBeenNthCalledWith(1, '/waivers/claims', payload)
         expect(apiPost).toHaveBeenNthCalledWith(2, '/waivers/claims', payload)

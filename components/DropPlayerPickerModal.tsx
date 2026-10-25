@@ -18,10 +18,12 @@ type Props = {
     onDrop: (rp: RosterPlayer) => void
     irMoveCandidates?: RosterPlayer[]
     onMoveToIR?: (rp: RosterPlayer) => void
+    onAdd?: () => void
+    onAddToTaxi?: () => void
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR }: Props) {
+export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi }: Props) {
     const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
@@ -30,6 +32,10 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
     return (
         <Sheet visible={visible} onClose={close} title={title}>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            {onAdd || onAddToTaxi ? <View style={styles.row}>
+                {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null} /> : null}
+                {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null} /> : null}
+            </View> : null}
             {irMoveCandidates.length > 0 && onMoveToIR ? (
                 <View style={styles.list}>
                     {irOptions.map(rp => (

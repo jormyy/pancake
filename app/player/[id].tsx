@@ -156,7 +156,8 @@ export default function PlayerDetailScreen() {
         onChanged: loadRosterStatus,
         transactionState: pickupState,
         irSlots: currentLeague?.ir_slots ?? 2,
-        allowIR: currentLeague?.status !== 'offseason',
+        taxiSlots: currentLeague?.taxi_slots ?? 0,
+        rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
     })
 
@@ -196,11 +197,11 @@ export default function PlayerDetailScreen() {
         label: 'Retry', onPress: () => { void loadRosterStatus() }, disabled: !membershipValidated || !online, busy: false,
     } : rosterStatus?.status === 'free_agent' ? {
         label: currentLeague?.status !== 'offseason' && canAddToIR(player.injury_status, ownsRosterStatus ? pickupStateResource.roster ?? [] : [], currentLeague?.ir_slots ?? 2) ? 'Add to IR' : 'Add',
-        onPress: () => { if (actionsReady) void quickAdd.handleAdd({ id, display_name: player.display_name, injury_status: player.injury_status }) },
+        onPress: () => { if (actionsReady) void quickAdd.handleAdd(player) },
         disabled: !actionsReady, busy: quickAdd.adding === id, blockedReason: quickAdd.addBlockedReason,
     } : rosterStatus?.status === 'on_waivers' ? {
         label: rosterStatusResource.claimPending ? 'View claim' : 'Claim',
-        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) router.dismissTo('/roster?claims=1'); else void quickAdd.handleClaim({ id, display_name: player.display_name }) } },
+        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) router.dismissTo('/roster?claims=1'); else void quickAdd.handleClaim(player) } },
         disabled: !actionsReady, busy: quickAdd.adding === id,
     } : rosterStatus?.status === 'mine' ? {
         label: 'Lineup', onPress: () => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`),
@@ -309,8 +310,10 @@ export default function PlayerDetailScreen() {
                 title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
                 subtitle="Roster full"
                 roster={quickAdd.myRoster}
-                dropping={quickAdd.dropping}
+                dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
+                onAdd={quickAdd.taxiAvailable && quickAdd.canAddActive ? quickAdd.handleAddActive : undefined}
+                onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}
                 onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
@@ -318,11 +321,15 @@ export default function PlayerDetailScreen() {
 
             <IRResolutionModal
                 visible={quickAdd.irModal !== null}
+                serverMessage={quickAdd.irModal?.serverMessage}
                 ineligibleIR={quickAdd.irModal?.ineligible ?? []}
                 activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={quickAdd.handleIRActivate}
+                onDrop={quickAdd.handleResolutionDrop}
+                onMoveToIR={quickAdd.handleResolutionMoveToIR}
+                irAvailable={(quickAdd.irModal?.roster ?? []).filter(player => player.is_on_ir).length < (currentLeague?.ir_slots ?? 2)}
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
                 onCancel={() => quickAdd.setIrModal(null)}
             />

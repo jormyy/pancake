@@ -1,3 +1,4 @@
+import type { RosterProblem } from '@/lib/roster-problems'
 import { useMemo } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Avatar } from '@/components/Avatar'
@@ -8,6 +9,8 @@ import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
 export function RosterTrimBanner({
     players,
+    problems = [],
+    onActivate,
     excess,
     irAvailable,
     busyId,
@@ -16,6 +19,8 @@ export function RosterTrimBanner({
     onMoveToIR,
 }: {
     players: RosterPlayer[]
+    problems?: RosterProblem[]
+    onActivate?: (player: RosterPlayer) => void
     excess: number
     irAvailable: boolean
     busyId: string | null
@@ -23,15 +28,15 @@ export function RosterTrimBanner({
     dropDisabled?: boolean
     onMoveToIR: (player: RosterPlayer) => void
 }) {
-    const recoveryPlayers = useMemo(() => [...players].sort((a, b) =>
+    const recoveryPlayers = useMemo(() => [...new Map([...problems.flatMap(problem => problem.player ? [problem.player] : []), ...(excess > 0 ? players : [])].map(player => [player.id, player])).values()].sort((a, b) =>
         Number(irAvailable && isIREligible(b.players.injury_status)) - Number(irAvailable && isIREligible(a.players.injury_status)),
-    ), [players, irAvailable])
-    if (excess <= 0) return null
+    ), [players, irAvailable, problems, excess])
+    if (excess <= 0 && problems.length === 0) return null
 
     return (
-        <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={`Roster is ${excess} over the active player limit`}>
-            <Text style={styles.title}>Trim roster: {excess} over limit</Text>
-            <Text style={styles.detail}>Drop a player or move one to IR to unlock lineup changes.</Text>
+        <View style={styles.banner} accessibilityRole="alert" accessibilityLabel={problems.length ? 'Resolve roster problems' : `Roster is ${excess} over the active player limit`}>
+            <Text style={styles.title}>{problems.some(problem => problem.kind !== 'over_limit') ? 'Resolve roster' : `Trim roster: ${excess} over limit`}</Text>
+            <Text style={styles.detail}>{problems.length ? problems.map(problem => problem.message).join(' ') : 'Drop a player or move one to IR to unlock lineup changes.'}</Text>
             <ScrollView style={styles.list} nestedScrollEnabled>
                 {recoveryPlayers.map((player) => {
                     const busy = busyId !== null
@@ -50,7 +55,8 @@ export function RosterTrimBanner({
                                 </Text>
                             </View>
                             <View style={styles.actions}>
-                                {irAvailable && isIREligible(player.players.injury_status) ? (
+                                {(player.is_on_ir || player.is_on_taxi) && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
+                                {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) ? (
                                     <Button
                                         title="IR"
                                         size="sm"
