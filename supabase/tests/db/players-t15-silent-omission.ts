@@ -177,6 +177,13 @@ try {
     return response.body
   }
   const optimize = async (label: string) => {
+    const projections = await json<{ player_id: string; projection_source: string; projection_fantasy_points: number }[]>(`SELECT coalesce(jsonb_agg(jsonb_build_object('player_id',player_id,'projection_source',projection_source,
+      'projection_fantasy_points',projection_fantasy_points) ORDER BY player_id),'[]')
+      FROM get_league_projection_rows(p_league_id=>${q(league)},p_season_year=>${year},p_game_date=>${q(gameDay)},p_view=>'today',
+        p_player_ids=>ARRAY[${[xId, wId, ...yIds].map(q)}]::uuid[],p_limit=>${yIds.length + 2},p_offset=>0)`)
+    assert.equal(projections.length, yIds.length + 2, `${label}: every rostered player has a projection`)
+    assert.ok(projections.every(row => row.projection_source === 'internal' && row.projection_fantasy_points === 10), `${label}: projections tie before player IDs break the tie`)
+    observations.push({ case: 'optimizer-projection-inputs', label, projections })
     const response = await invoke(optimizer, { date: gameDay })
     assert.equal(response.status, 200, `${label}: ${JSON.stringify(response.body)}`)
     assert.equal(response.body.failed, 0, `${label}: ${JSON.stringify(response.body)}`)
@@ -208,7 +215,9 @@ try {
   const claimed = await json<{ results: { player_id: string; action: string }[] }>(`SELECT resolve_player_imports_atomic('sleeper',${q(JSON.stringify([{ provider_id: `t15-${run}-sleeper-w`,
     first_name: 'Synthetic', last_name: wLast, metadata: { nba_team: 'MIN', position: 'PG', eligible_positions: ['PG'], status: 'Active', injury_status: null, years_exp: 3 } }]))}::jsonb)`)
   assert.deepEqual(claimed.results.map(result => [result.player_id, result.action]), [[wId, 'updated']])
-  await sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(${q(league)},${q(season)},${q(member)},${q(wId)},'draft');`)
+  await sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(${q(league)},${q(season)},${q(member)},${q(wId)},'draft');
+    INSERT INTO player_projections(player_id,season_year,week_number,projected_stat_points)
+      SELECT id,${year},1,10 FROM unnest(ARRAY[${[xId, wId, ...yIds].map(q)}]::uuid[]) id;`)
 
   // MIN's final box lists X (inactive, injured) and W (played); BOS's side lists its guards but not R or Z.
   const minBox = await finalBox('MIN', 'BOS', [...on('MIN').map(played), line(x.person, x.last, false), line(wPerson, wLast, true)], [...on('BOS').map(played), ...ys.map(played)])
@@ -280,6 +289,7 @@ try {
     await sql(`DELETE FROM leagues WHERE id=${q(league)};
       DELETE FROM player_game_stats WHERE game_id IN (${games.map(q)});
       DELETE FROM nba_games WHERE id IN (${games.map(q)});
+      DELETE FROM player_projections WHERE season_year=${year} AND player_id IN (${[xId, wId, ...yIds].map(q)});
       ${year ? `DELETE FROM season_weeks WHERE season_year=${year};` : ''}
       DELETE FROM players WHERE id IN (${[xId, wId, ...yIds].map(q)}) OR espn_id LIKE ${q(`t15-${run}-%`)};
       DELETE FROM profiles WHERE id=${q(user)};

@@ -5,7 +5,6 @@ import { serveInternal } from '../_shared/serve.ts'
 import { fetchEspnNews, fetchEspnPlayerListing } from '../_shared/playerSource.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
-import { isInjuriesOnlyRequest, syncInjuries } from './injuries.ts'
 import { importPlayerChunk } from './imports.ts'
 import { syncNBAIds } from './nbaIds.ts'
 import { releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
@@ -19,12 +18,7 @@ const CHUNK = 500
 const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 
 serveInternal('sync-players', async (req) => {
-  const injuriesOnly = await isInjuriesOnlyRequest(req)
   const result = await recordSyncRun('sync-players', async () => {
-    if (injuriesOnly) {
-      const injuries = await syncInjuries()
-      return { result: injuries, rowsAffected: injuries.updated, failure: injuries.failure }
-    }
     const imported = PLAYER_SYNC_SOURCE === 'sleeper'
       ? await syncPlayers()
       : await importPlayersFromEspn()
@@ -47,9 +41,11 @@ serveInternal('sync-players', async (req) => {
         releaseSkipped: players.releaseSkipped,
         releaseHeld: players.releaseHeld,
         ambiguousSkipped: players.ambiguousSkipped,
+        injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
         merged: nbaIds.merged,
         careerGamesUpdated: career.updated,
+        careerUnverified: career.unverified,
         newsUpserted: news.upserted,
         newsFailures: news.failures,
         failure,
@@ -62,19 +58,19 @@ serveInternal('sync-players', async (req) => {
 })
 
 type PlayerImportTotals = {
-  updated: number; inserted: number; ambiguousSkipped: number; failures: string[]
+  updated: number; inserted: number; ambiguousSkipped: number; injuryWarnings: number; failures: string[]
   listing: { records: ListedPlayer[]; gaps: string[] } | null
 }
 type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing'> & { released: number; releaseSkipped: string[]; releaseHeld: HeldReleases }
 
 async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
   console.log('[sync-players] Fetching from ESPN...')
-  const { records, gaps, failure } = await fetchEspnPlayerListing()
+  const { records, gaps, injuryWarnings } = await fetchEspnPlayerListing()
 
   let updated = 0
   let inserted = 0
   let ambiguousSkipped = 0
-  const failures: string[] = failure ? [failure] : []
+  const failures: string[] = []
   for (let offset = 0; offset < records.length; offset += CHUNK) {
     try {
       const result = await importPlayerChunk('espn', records.slice(offset, offset + CHUNK).map((record) => ({
@@ -89,7 +85,7 @@ async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] ESPN: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures, listing: { records, gaps } }
+  return { updated, inserted, ambiguousSkipped, injuryWarnings, failures, listing: { records, gaps } }
 }
 
 async function releaseEspnOmissions(imported: PlayerImportTotals, indexFailures: string[]): Promise<PlayerSyncTotals> {
@@ -141,7 +137,7 @@ async function syncPlayers(): Promise<PlayerImportTotals> {
     } catch (error) { failures.push(`import chunk ${offset}: ${errorMessage(error)}`) }
   }
   console.log(`[sync-players] Sleeper: ${updated} updated, ${inserted} inserted, ${ambiguousSkipped} ambiguous skipped, ${failures.length} import failure(s).`)
-  return { updated, inserted, ambiguousSkipped, failures, listing: null }
+  return { updated, inserted, ambiguousSkipped, injuryWarnings: 0, failures, listing: null }
 }
 
 // Sleeper sometimes returns "Scrambled" as a catch-all when injury data is uncertain — treat as null

@@ -6,7 +6,7 @@ import { strict as assert } from 'node:assert'
 // (players-t17-silent-omission.ts), so a complete refresh without X holds him: he keeps MIN, his row, ids,
 // injury, ownership and lineups, the optimizer keeps starting him on MIN game days, and the run reports
 // him as held (unproven). A later listing on BOS, positive evidence of a move, re-teams the same row. An
-// incomplete or failed refresh (a team missing, a roster error, an injuries error, a failed import chunk)
+// incomplete or failed refresh (a team missing, a roster error, a failed import chunk)
 // skips the sweep and says why. Those that reach the career-games step rewrite his row after the box, so
 // nothing may date his last listing by players.updated_at. X shares five PG-eligible starter slots with
 // five playing BOS guards and sorts first on ties, so while he keeps a team that plays he takes a slot
@@ -215,11 +215,10 @@ try {
     assert.deepEqual(await ownership(xId), owned, `${label}: X's ownership is unchanged`)
     assert.deepEqual(await lineups(xId), lined, `${label}: X's lineups are unchanged`)
   }
-  // A roster or injuries error fails the run before any import, so it reports no receipt at all.
+  // A roster error fails the run before any import, so it reports no receipt at all.
   const incomplete: [string, Feed, number, string[] | undefined][] = [
     ['a team missing from the teams payload', { athletes: withoutX, teams: codes.filter(code => code !== 'UTAH') }, 200, ['missing roster UTA']],
     ['a roster error', { athletes: withoutX, failRoster: 'DEN' }, 500, undefined],
-    ['an injuries error', { athletes: withoutX, failInjuries: true }, 500, undefined],
     ['a failed import chunk', { athletes: withoutX, blankName: true }, 500, ['1 import failure(s)']],
   ]
   for (const [label, next, status, skipped] of incomplete) {
@@ -230,6 +229,21 @@ try {
     assert.deepEqual(body.releaseSkipped, skipped, `${label}: the sweep is skipped and the run says why`)
     if (skipped) assert.deepEqual([body.released, body.releaseHeld], [0, { unproven: 0, unclaimed: 0 }], `${label}: a skipped sweep reports nobody`)
   }
+
+  const injuries = () => json<{ id: string; injury_status: string | null }[]>(`SELECT coalesce(jsonb_agg(jsonb_build_object('id',id,'injury_status',injury_status) ORDER BY id),'[]')
+    FROM players WHERE espn_id LIKE ${q(`t14-${run}-%`)}`)
+  const storedInjuries = await injuries()
+  assert.ok(storedInjuries.some(row => row.id !== xId && row.injury_status === 'Out'), 'An imported player has an injury to preserve')
+  const injuryOutage = await refresh('an injuries error', { athletes: withoutX, failInjuries: true }, 200)
+  assert.equal(injuryOutage.ok, true)
+  assert.equal(injuryOutage.failure, null)
+  assert.equal(injuryOutage.injuryWarnings, 1)
+  assert.equal(injuryOutage.updated, withoutX.length)
+  assert.equal(injuryOutage.inserted, 0)
+  assert.deepEqual([injuryOutage.released, injuryOutage.releaseSkipped, injuryOutage.releaseHeld], [0, [], { unproven: 1, unclaimed: 0 }])
+  assert.deepEqual(await injuries(), storedInjuries, 'An injury-feed outage preserves injuries on imported and omitted rows')
+  await unchanged('an injuries error')
+  observations.push({ case: 'injury-feed-outage', receipt: injuryOutage, injuriesPreserved: storedInjuries.length })
 
   assert.equal(await sql(`SELECT p.updated_at > g.game_time AND p.career_games_checked_at > g.game_time
     FROM players p, nba_games g WHERE p.id=${q(xId)} AND g.id=${q(final)}`), 't',

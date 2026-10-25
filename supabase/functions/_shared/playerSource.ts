@@ -5,6 +5,7 @@ import { fetchWithRetry } from './retry.ts'
 import { runBounded } from './runBounded.ts'
 import { normalizeName } from './nameMatch.ts'
 import { currentSeasonYear } from './season.ts'
+import { errorMessage } from './responses.ts'
 
 const ESPN_SITE_BASE_URL = Deno.env.get('ESPN_SITE_BASE_URL') ??
   'https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba'
@@ -238,7 +239,7 @@ export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, strin
   return { statuses, failure: null }
 }
 
-export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[]; failure: string | null }> {
+export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[]; failure: string | null; injuryWarnings: number }> {
   const teamsRes = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/teams`, { headers: ESPN_HEADERS })
   if (!teamsRes.ok) {
     await teamsRes.body?.cancel()
@@ -260,13 +261,25 @@ export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerR
     rosters.push({ teamCode: mapEspnTeam(team.abbreviation), athletes: payload.athletes ?? [], seasonYear: payload.season?.year })
   }), 6)
 
-  const { statuses, failure } = await fetchEspnInjuries()
+  let statuses: Map<string, string> | null = null
+  let injuryWarnings = 0
+  try {
+    const injuries = await fetchEspnInjuries()
+    statuses = injuries.statuses
+    if (injuries.failure) {
+      injuryWarnings++
+      console.warn(`[sync-players] ${injuries.failure}`)
+    }
+  } catch (error) {
+    injuryWarnings++
+    console.warn(`[sync-players] ${errorMessage(error)}; injury_status unchanged`)
+  }
 
   const records = buildEspnRecords(rosters, statuses)
   if (records.length < MIN_PLAYERS) {
     throw new Error(`ESPN player payload degraded: ${records.length} players (< ${MIN_PLAYERS}); refusing to write`)
   }
-  return { records, gaps: espnListingGaps(rosters), failure }
+  return { records, gaps: espnListingGaps(rosters), failure: null, injuryWarnings }
 }
 
 type SourceNewsItem = {
