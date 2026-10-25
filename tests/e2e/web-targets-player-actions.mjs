@@ -75,7 +75,15 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     await signIn(fixture)
     await open('/players')
     await page.getByRole('textbox', { name: 'Search players', exact: true }).fill(fixture.proposerPlayer.display_name)
-    if (target.mobile) await press(button('Show filters'))
+    if (target.mobile) {
+      const filters = page.getByRole('dialog', { name: 'Filters', exact: true })
+      await press(button('Show filters'))
+      assert.equal(await filters.isVisible(), true, 'One tap must leave the filter sheet open')
+      await press(filters.getByRole('button', { name: 'Close', exact: true }))
+      await filters.waitFor({ state: 'hidden' })
+      await press(button('Show filters'))
+      assert.equal(await filters.isVisible(), true, 'The filter sheet must also stay open when reopened')
+    }
     const selected = []
     for (const label of ['Availability', 'Position', 'Health', 'Game today', 'Experience', 'Season', ...(target.mobile ? ['Sort'] : [])]) {
       const trigger = page.getByRole('button', { name: new RegExp(`^${label}:`) }).last()

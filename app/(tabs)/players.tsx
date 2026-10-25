@@ -430,7 +430,6 @@ function PlayerSearchSection() {
                         <Pressable
                             style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
                             onPress={() => setFiltersOpen(true)}
-                            onPressIn={() => setFiltersOpen(true)}
                             accessibilityRole="button"
                             accessibilityLabel="Show filters"
                         >
