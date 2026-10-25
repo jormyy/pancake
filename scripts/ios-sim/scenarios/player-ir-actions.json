@@ -160,6 +160,10 @@
           "text": "{{outPlayer.display_name}} added to IR."
         }
       }
-    ]
+    ],
+    "setup": {
+      "freeAgentIRMember": "{{memberId}}",
+      "freeAgentIRPlayer": "{{outPlayer.id}}"
+    }
   }
 ]

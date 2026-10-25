@@ -5,8 +5,12 @@ import { setupBrowserPlayoffLeague } from './browser-playoff-gameplay.mjs'
 
 export async function auditWebCommissionerActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect }) {
   const field = (label) => page.getByText(label, { exact: true }).locator('..').locator('input')
-  const run = (name, action) => check(name, async () => {
+  const run = (name, action, beforeSeason = false) => check(name, async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
+    if (beforeSeason) {
+      fixture.currentSeason.season_year = 2198
+      await db(fixture.admin.from('league_seasons').update({ season_year: 2198 }).eq('id', fixture.currentSeason.id))
+    }
     await ensureWebActionCalendar(fixture)
     await signIn(fixture)
     return { leagueId: fixture.league.id, ...await action(fixture) }
@@ -71,7 +75,7 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     }
     return { scheduleRows: (await rows()).length, regenerated: true, adminGate: errors,
       limitation: 'Global sync happy paths need a local admin allowlist and controlled provider responses. These checks prove denied-state recovery.' }
-  })
+  }, true)
   await run('commissioner-utility-success-feedback', async () => {
     await open('/commissioner-settings')
     const operations = []

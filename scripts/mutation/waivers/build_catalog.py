@@ -1,5 +1,6 @@
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,7 +40,11 @@ add('faab', 'private.ensure_faab_balance', 'COALESCE(v_starting_budget, 100)', '
 add('faab', 'private.ensure_faab_balance', 'IF FOUND THEN\n    RETURN v_balance;', 'IF FOUND THEN\n    RETURN v_balance + 1;', 'CONST balance -> balance+1', 'Overstate existing available balance')
 add('faab', 'private.seed_faab_balances_for_season', 'league.faab_starting_budget\n', 'league.faab_starting_budget + 1\n', 'CONST budget -> budget+1', 'Wrong season seed')
 add('faab', 'private.seed_faab_balances_for_member', 'league.faab_starting_budget\n', 'league.faab_starting_budget + 1\n', 'CONST budget -> budget+1', 'Wrong new-member seed')
-add('faab', 'private.ensure_season_faab_balances', 'DO NOTHING;', 'DO UPDATE SET balance = EXCLUDED.balance;', 'STMT-REPLACE no-op -> reset balance', 'Repeated ensure replenishes spent FAAB')
+rows.append(dict(id='waiv-faab-11', area='faab', symbol='private.ensure_season_faab_balances',
+                 file='supabase/migrations/20260701000003_dynasty_transactions_schema.sql', line=389,
+                 operator='STMT-REPLACE no-op -> reset balance', original='DO NOTHING;',
+                 mutated='DO UPDATE SET balance = EXCLUDED.balance;',
+                 notes='Retired: the season FAAB ensure function is removed', retired=True))
 add('faab', 'public.commissioner_adjust_faab_balance_atomic', 'SET balance = EXCLUDED.balance,', 'SET balance = faab_balances.balance + EXCLUDED.balance,', 'AOR assignment -> addition', 'Adjustment incorrectly adds instead of sets')
 add('waiver-order', p, 'wp.priority ASC,', 'wp.priority DESC,', 'ORDER ASC -> DESC', 'Reverse waiver tiebreak priority')
 add('waiver-order', p, 'wc.claim_order ASC,', 'wc.claim_order DESC,', 'ORDER ASC -> DESC', 'Reverse member preferences')
@@ -80,8 +85,8 @@ add('waiver-order', p, "'playoffs'::league_status", "'setup'::league_status", 'C
 add('waiver-order', p, "'offseason'::league_status", "'setup'::league_status", 'CONST', 'Offseason claims never become worker candidates', 0)
 add('waiver-order', 'public.expire_waiver_wire_logs', "'playoffs'::league_status", "'setup'::league_status", 'CONST', 'Unclaimed playoff drops never expire')
 add('waiver-limits', 'public.expire_waiver_wire_logs', 'AND NOT EXISTS (', 'AND EXISTS (', 'NEG', 'Expire pending holds while retaining unclaimed holds')
-add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTERVAL '2 days'", 'CONST', 'Use calendar days instead of elapsed hours across DST')
-add('skipped-week', 'public.set_waiver_clears_at', "INTERVAL '48 hours'", "INTERVAL '47 hours'", 'CONST', 'Clear one elapsed hour too early across DST')
+add('skipped-week', 'public.set_waiver_clears_at', "interval '48 hours'", "interval '2 days'", 'CONST', 'Use calendar days instead of elapsed hours across DST')
+add('skipped-week', 'public.set_waiver_clears_at', "interval '48 hours'", "interval '47 hours'", 'CONST', 'Clear one elapsed hour too early across DST')
 add('skipped-week', 'private.weekly_add_limit_reset_label', 'AT TIME ZONE private.add_week_timezone()', "AT TIME ZONE 'UTC'", 'CONST', 'Render DST-week resets in UTC instead of ET')
 add('skipped-week', 'private.current_add_week', '(v_week_end + 1)::timestamp AT TIME ZONE v_zone', "(v_week_end + 1)::timestamp AT TIME ZONE 'UTC'", 'CONST', 'Reset the DST week at UTC midnight')
 rows.append(dict(id='waiv-waiver-order-19', area='waiver-order',
@@ -116,5 +121,5 @@ oracles['boundary'] = [
     ['dst', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/waiver-dst-boundaries.sql']],
 ]
 oracles['allstar'] = [['merged-limits', ['psql', '{db}', '-X', '-v', 'ON_ERROR_STOP=1', '-f', 'tests/db/limits-all-star-week.sql']]]
-(ROOT / 'scripts/mutation/waivers/catalog.json').write_text(json.dumps({'provenance':'SYNTHETIC', 'oracles':oracles,'mutants':rows},indent=2)+'\n')
+(Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'scripts/mutation/waivers/catalog.json').write_text(json.dumps({'provenance':'SYNTHETIC', 'oracles':oracles,'mutants':rows},indent=2)+'\n')
 print(f'{len(rows)} mutants')

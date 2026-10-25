@@ -66,7 +66,7 @@ function installRecorder() {
   const sameRect = (a, b) => ['x', 'y', 'width', 'height'].every(key => Math.abs(a[key] - b[key]) < 0.5)
   const emit = (kind, before, after, now) => {
     active.events.push({ kind, timeMs: now - active.startedAt, element: after ?? before, before: before ?? null, after: after ?? null })
-    active.lastChange = now
+    if (kind !== 'clock') active.lastChange = now
   }
   const sample = () => {
     try {
@@ -86,7 +86,10 @@ function installRecorder() {
           if (!after) emit('disappear', before, null, now)
           else {
             if (!sameRect(before.rect, after.rect)) emit('rect', before, after, now)
-            if (before.text !== after.text || before.label !== after.label || before.role !== after.role) emit('content', before, after, now)
+            if (before.text !== after.text || before.label !== after.label || before.role !== after.role) {
+              const clock = active.allowClock && sameRect(before.rect, after.rect) && before.label === after.label && before.role === after.role && [before.text, after.text].every(text => /^(?:\d{1,3}:\d{2}(?::\d{2})?|\d+ s)$/.test(text))
+              emit(clock ? 'clock' : 'content', before, after, now)
+            }
           }
         }
         for (const [id, after] of current) if (!previous.has(id)) emit('appear', null, after, now)

@@ -14,7 +14,7 @@ import * as runner from '../../scripts/ios-sim/run.mjs'
 import { resolveOptions } from '../../scripts/ios-sim/run.mjs'
 import { buildFixture } from './build-fixture.mjs'
 import { resolveFile, serve } from '../../scripts/ios-sim/server.mjs'
-import { stackConfig } from '../../scripts/ios-sim/stack.mjs'
+import { copyStackSources, stackConfig } from '../../scripts/ios-sim/stack.mjs'
 
 class Element {
   tagName = 'DIV'
@@ -478,3 +478,54 @@ test('an exact web tap waits for its control instead of falling through to an ea
   assert.equal(await runner.visibleTapLabel(driver, 'Open menu'), 'Open menu')
   assert.equal(reads, 2)
 }, 1000)
+
+
+test('stack refresh removes deleted migrations and functions before copying the checkout', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-stack-copy-'))
+  try {
+    for (const root of ['source', 'stack']) for (const name of ['migrations', 'functions']) {
+      await mkdir(path.join(directory, root, 'supabase', name), { recursive: true })
+      await writeFile(path.join(directory, root, 'supabase', name, root === 'source' ? 'current.sql' : 'stale.sql'), 'SELECT 1;')
+    }
+    await copyStackSources(path.join(directory, 'source'), path.join(directory, 'stack'))
+    for (const name of ['migrations', 'functions']) {
+      await assert.rejects(readFile(path.join(directory, 'stack', 'supabase', name, 'stale.sql')), { code: 'ENOENT' })
+      assert.equal(await readFile(path.join(directory, 'stack', 'supabase', name, 'current.sql'), 'utf8'), 'SELECT 1;')
+    }
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
+
+test.each(['minutes', 'seconds'].flatMap(format => [false, true].map(moved => ({ format, moved }))))('clock digits settle only when allowed and their box stays fixed: $format $moved', ({ format, moved }) => {
+  const r = recorder()
+  r.elements[0].text = format === 'minutes' ? '01:00' : '3600 s'
+  r.api.begin({ id: 'clock', expected: { text: format === 'minutes' ? ':' : ' s' }, allowClock: true, immediate: true, minimumMs: 3500, quietMs: 1200, maximumMs: 4000 })
+  r.frame(1)
+  for (let i = 1; i <= 4; i++) {
+    r.elements[0].text = format === 'minutes' ? `00:${60 - i}` : `${3600 - i} s`
+    if (moved) r.elements[0].y += 1
+    r.frame(i * 1000)
+  }
+  r.frame(4001)
+  const result = r.posted[0] as { settled: boolean; events: { kind: string }[] }
+  assert.equal(result.settled, !moved)
+  assert.ok(result.events.some(event => event.kind === (moved ? 'rect' : 'clock')))
+})
+
+test('a reused PWA refreshes its cached HTML before waiting for a recorder connection', async () => {
+  const events: string[] = []
+  const performance = { timeOrigin: 1 }
+  const browser = {
+    performance, document: { readyState: 'complete' },
+    localStorage: { clear: () => events.push('auth') },
+    sessionStorage: { clear: () => events.push('session') },
+    navigator: { serviceWorker: { getRegistrations: async () => [{ unregister: async () => events.push('unregister') }] } },
+    caches: { keys: async () => ['pancake-old-shell', 'unrelated'], delete: async (name: string) => events.push(name) },
+    location: { replace: (url: string) => { events.push(url); performance.timeOrigin = 2 } },
+  }
+  const driver = {
+    web: async () => true,
+    execute: async (script: string, ...args: unknown[]) => vm.runInNewContext(`(function() { ${script} }).apply(null, supplied)`, { ...browser, supplied: args }),
+  }
+  await runner.refreshInstalledPage(driver, 'http://127.0.0.1:57331')
+  assert.deepEqual(events, ['auth', 'session', 'unregister', 'pancake-old-shell', 'http://127.0.0.1:57331/sign-in'])
+})

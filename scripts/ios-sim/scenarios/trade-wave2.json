@@ -14,7 +14,7 @@
     "steps": [
       {
         "action": {
-          "tapPrefix": "Show details of trade with "
+          "open": "/trades?tradeId={{rosterPlanTradeId}}"
         },
         "expected": {
           "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
@@ -66,7 +66,10 @@
           "text": "Choose drops"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trade-roster-plan-dark",
@@ -83,7 +86,7 @@
     "steps": [
       {
         "action": {
-          "tapPrefix": "Show details of trade with "
+          "open": "/trades?tradeId={{rosterPlanTradeId}}"
         },
         "expected": {
           "selector": "body:has([aria-label='Back to trades']) [aria-label='Accept trade with {{otherTeam}}']"
@@ -135,7 +138,10 @@
           "text": "Choose drops"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trade-taxi-plan-light",
@@ -149,7 +155,7 @@
         "open": "/trades"
       },
       {
-        "tapPrefix": "Show details of trade with "
+        "open": "/trades?tradeId={{rosterPlanTradeId}}"
       }
     ],
     "steps": [
@@ -179,7 +185,10 @@
           "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trade-review-plan-light",
@@ -211,7 +220,7 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
         }
       },
       {
@@ -252,7 +261,10 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trade-taxi-plan-dark",
@@ -266,7 +278,7 @@
         "open": "/trades"
       },
       {
-        "tapPrefix": "Show details of trade with "
+        "open": "/trades?tradeId={{rosterPlanTradeId}}"
       }
     ],
     "steps": [
@@ -296,7 +308,10 @@
           "selector": "[aria-label='Keegan Carter 19: active'][aria-checked='true']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trade-review-plan-dark",
@@ -328,7 +343,7 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
         }
       },
       {
@@ -369,7 +384,10 @@
           "selector": "[aria-label^='Show details of trade with ']"
         }
       }
-    ]
+    ],
+    "setup": {
+      "tradePlan": true
+    }
   },
   {
     "name": "trades-review-light-sample",
@@ -414,7 +432,7 @@
           "tap": "Review trade proposal"
         },
         "expected": {
-          "text": "Gets"
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
         }
       },
       {
@@ -579,15 +597,15 @@
     "steps": [
       {
         "action": {
-          "tap": "Analyzer"
+          "tapPrefix": "Analyze trade from "
         },
         "expected": {
-          "selector": "[aria-label^='Analyze with ']"
+          "selector": "[aria-label='Dynasty trade analysis']"
         }
       },
       {
         "action": {
-          "tap": "Analyze with {{otherTeam}}"
+          "tap": "Edit assets"
         },
         "expected": {
           "selector": "[aria-label$=' for trade']"

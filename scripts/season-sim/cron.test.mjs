@@ -31,7 +31,8 @@ test('clock jumps execute every intervening minute with no missing gate ticks', 
   assert.equal(samples.length, 6)
   assert.equal(counts['nba-live-poll'], 3)
   assert.equal(counts['season-boundary'], 1)
-  assert.equal(counts['nba-process-trades'], 2)
+  assert.equal(counts['notification-dispatch-minute'], 6)
+  assert.equal(counts['nba-process-trades'], undefined)
   assert.equal(statements.length, 6)
   assert.equal(moves.at(-1), from + 6 * 60000)
   await assert.rejects(advanceCron({ from: 1, to: 0, move: async () => {}, invoke: async () => {} }), /backwards/)
@@ -68,8 +69,9 @@ test('cadence profiles retain each real production minute and internal wake', as
   assert.ok(rows.every(row => row.wallSeconds >= 0))
 })
 
-test('the Players averages production refresh runs at its installed daily cadence',()=>{
-  assert.ok(cronCommands(Date.parse('2024-10-22T12:40:00Z')).some(row=>row.jobname==='refresh-player-search-caches'))
+test('the replay omits retired jobs and polls projections every fifteen minutes',()=>{
+  assert.ok(!productionJobs.some(row=>['refresh-player-search-caches','nba-process-trades'].includes(row.jobname)))
+  assert.ok(cronCommands(Date.parse('2024-10-22T12:45:00Z')).some(row=>row.jobname==='nba-sync-projections'))
 })
 
 test('the notification outbox uses the real per-minute production gate',()=>{

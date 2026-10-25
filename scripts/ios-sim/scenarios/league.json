@@ -550,7 +550,7 @@
         },
         "expected": {
           "route": "/profile",
-          "text": "This device"
+          "text": "Notification settings"
         }
       }
     ]
@@ -1106,7 +1106,7 @@
         },
         "expected": {
           "route": "/profile",
-          "text": "This device"
+          "text": "Notification settings"
         }
       }
     ]

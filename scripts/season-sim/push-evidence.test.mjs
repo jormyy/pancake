@@ -1,10 +1,13 @@
-import assert from'node:assert/strict'
-import test from'node:test'
-import{readFile}from'node:fs/promises'
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { registerPushOwners } from './push-evidence.mjs'
 
-test('owner token registration uses the authenticated product route and keeps outside users separate',async()=>{
-  const source=await readFile(new URL('./push-evidence.mjs',import.meta.url),'utf8')
-  assert.match(source,/c\.api\(user,'\/profile\/push-token'/)
-  assert.match(source,/c\.api\(outside,'\/profile\/push-token'/)
-  assert.doesNotMatch(source,/UPDATE profiles|register_push_token_atomic/)
+test('removed Expo signup is skipped and cannot count as device delivery evidence', async () => {
+  const calls = []
+  const context = { users: [{ id: 'owner', memberId: 'member' }], api: async (...args) => { calls.push(args); throw new Error('Removed Expo signup route') } }
+  const result = await registerPushOwners(context, { API_URL: 'http://127.0.0.1:57221' })
+  assert.deepEqual(calls, [])
+  assert.equal(result.status, 'SKIPPED')
+  assert.match(result.reason, /web push/)
+  assert.deepEqual(context.pushOwners, [])
 })

@@ -45,6 +45,14 @@ export function stackConfig(source) {
     .replace('pancake-local-edge-auth-probe-token', internalToken)
 }
 
+export async function copyStackSources(snapshot, destination) {
+  for (const directory of ['migrations', 'functions']) {
+    const target = path.join(destination, 'supabase', directory)
+    await rm(target, { recursive: true, force: true })
+    await cp(path.join(snapshot, 'supabase', directory), target, { recursive: true })
+  }
+}
+
 async function stopFunctions(state) {
   if (!state?.functionsPid) return
   const command = await run('ps', ['-p', String(state.functionsPid), '-o', 'command=']).catch(() => '')
@@ -78,7 +86,7 @@ async function startStack({ reset = false } = {}) {
     const migrationHash = digest((await Promise.all(migrationFiles.map(file => readFile(path.join(repo, file))))).map(contents => digest(contents)).join(':'))
     assert.ok(!state || state.migrationHash === migrationHash, 'Shared schema differs. Stop the users of this stack before using start --reset.')
     if (!state) {
-      for (const directory of ['migrations', 'functions']) await cp(path.join(snapshot, 'supabase', directory), path.join(stackRoot, 'supabase', directory), { recursive: true })
+      await copyStackSources(snapshot, stackRoot)
       await writeFile(path.join(stackRoot, 'supabase/config.toml'), stackConfig(await readFile(path.join(repo, 'supabase/config.toml'), 'utf8')))
     }
     await mkdir(path.join(stackRoot, 'types'), { recursive: true })

@@ -532,7 +532,8 @@ describe('full simulated season loop', () => {
             bodies.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ok: true }) }
         })
         let reads = 0
-        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
+        const client = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
             'matchups.select': () => ({ count: ++reads === 1 ? 1 : 95, error: null }) })
         await prepareSoakSeason({ supabase: client, env, leagueId: 'league', season })
         expect(bodies).toEqual([{ leagueId: 'league', force: true }])
@@ -543,15 +544,28 @@ describe('full simulated season loop', () => {
         vi.stubGlobal('fetch', async (_url: string, options: { body: string }) => {
             bodies.push(JSON.parse(options.body)); return { ok: true, json: async () => ({ ok: true }) }
         })
-        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
+        const client = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
             'matchups.select': { count: 95, error: null } })
         await prepareSoakSeason({ supabase: client, env, leagueId: 'league', season })
         expect(bodies).toEqual([{ leagueId: 'league', force: false }])
-        const partial = fakeClient({ 'league_members.select': { count: 10, error: null },
+        const partial = fakeClient({ 'season_weeks.select': { data: { week_start: '2029-10-15' }, error: null },
+            'league_members.select': { count: 10, error: null },
             'matchups.select': { count: 1, error: null } })
         await expect(prepareSoakSeason({ supabase: partial, env, leagueId: 'league', season })).rejects.toThrow('expected 95')
         vi.stubGlobal('fetch', async () => ({ ok: false, status: 400, text: async () => 'current schedule has started' }))
         await expect(prepareSoakSeason({ supabase: partial, env, leagueId: 'league', season })).rejects.toThrow('schedule has started')
+    })
+    it('refuses to force an incomplete schedule once the first week starts', async () => {
+        const request = vi.fn(async () => ({ ok: true, json: async () => ({ ok: true }) }))
+        let reads = 0
+        vi.stubGlobal('fetch', request)
+        const client = fakeClient({ 'league_members.select': { count: 10, error: null },
+            'matchups.select': () => ({ count: ++reads === 1 ? 1 : 95, error: null }),
+            'season_weeks.select': { data: { week_start: '2020-10-19' }, error: null } })
+        await expect(prepareSoakSeason({ supabase: client, env, leagueId: 'league', season }))
+            .rejects.toThrow('first week starts')
+        expect(request).not.toHaveBeenCalled()
     })
     const legacyGames = [
         { id: 'legacy-1', nba_game_id: 'FAKE0001', season_year: 2027, week_number: 1,

@@ -157,7 +157,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     const ending = { actions: {}, phaseTimings: [], featureCheckpoints:report.featureCheckpoints }
     report.secondSeasonEnd = await finishSeason(c,move,ending,checkpoint,{ stopAfterChampion:true,snapshot:async(name,...args)=>snapshot(`season-${profile.year}-${name}`,...args) })
     report.secondChampion = ending.champion
-    report.secondPlayoffs=checkPlayoffShape(await c.rest(c.users[0],`matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=neq.regular_season&is_voided=eq.false`),c.users.length,profile.playoffStart,[1,2])
+    report.secondPlayoffs=checkPlayoffShape(await c.rest(c.users[0],`matchups?select=*&league_season_id=eq.${c.leagueSeasonId}&matchup_type=neq.regular_season&is_voided=eq.false`),c.users.length,profile.playoffStart,[1,2],profile.calendar)
   }
   await capturePlayers(c,'requested-end',report)
   report.realRookieCoverage=checkRealCoverage(profile,days,checked,plan.draft.rookies,report.realInputChecks.filter(row=>row.year===profile.year).flatMap(row=>row.identities).filter(row=>plan.draft.rookies.some(rookie=>rookie.nbaId===row.nbaId)),{through,games})
