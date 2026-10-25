@@ -1886,6 +1886,13 @@
       "statementCount": 6,
       "statementsSha256": "8a4ca12b6c94c62f7a961967bb34e42731a8282482fd1015f8c706c1b9278112",
       "sha256": "790a2db9e57e89ff2372d5d8752eb498df2ee9ccc0a9a07c3c21b1de1cc944de"
+    },
+    {
+      "name": "remove_e2e_fixture_players",
+      "version": "20261026001000",
+      "statementCount": 1,
+      "statementsSha256": "820006bfe288f03cb5c94add5f7e3da82a970c972d7db22b3f1d2704bad6714c",
+      "sha256": "e0296d90091c91da40d6e241a1d74677008f42670462d08cf5d56734d845374d"
     }
   ]
 }

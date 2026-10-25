@@ -53,6 +53,7 @@ npm start
 npm run check:quality
 npm test
 npm run test:db
+npm run perf:budget
 ```
 
 The [verification guide](docs/verification.md) covers database, Edge, browser, and release checks.

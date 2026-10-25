@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261026000901",
+  "candidateVersion": "20261026001000",
   "common": {
     "functions": [
       {
@@ -1294,6 +1294,10 @@
     {
       "filename": "20261026000901_activity_feed_public_rows.sql",
       "sha256": "790a2db9e57e89ff2372d5d8752eb498df2ee9ccc0a9a07c3c21b1de1cc944de"
+    },
+    {
+      "filename": "20261026001000_remove_e2e_fixture_players.sql",
+      "sha256": "e0296d90091c91da40d6e241a1d74677008f42670462d08cf5d56734d845374d"
     }
   ],
   "preMigration": {
