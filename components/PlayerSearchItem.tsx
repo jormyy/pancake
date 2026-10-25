@@ -114,6 +114,7 @@ function PlayerSearchItemImpl({
             {!showStats ? <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]} numberOfLines={1}>
                 {statMode === 'projection' ? numberOrDash(item.projection_fantasy_points) : formatPoints(stats[0]?.value)} {item.playing_now ? 'LIVE' : 'FP'}
             </Text> : null}
+            {!showStats ? statusBadge : null}
         </View>
         {!showStats && showCompactStats ? (
             <View style={styles.compactStats}>
@@ -138,16 +139,13 @@ function PlayerSearchItemImpl({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
-                {showStats ? avatar : null}
+                {avatar}
 
                 <View style={styles.playerInfo}>
                     <View style={styles.nameScoreRow}>
-                        <PlayerNameLine name={item.display_name} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}>{!showStats ? statusBadge : null}</PlayerNameLine>
+                        <PlayerNameLine name={item.display_name} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} />
                     </View>
-                    {showStats ? playerDetails : <View style={styles.playerDetailsRow}>
-                        {avatar}
-                        <View style={styles.playerInfo}>{playerDetails}</View>
-                    </View>}
+                    {playerDetails}
                 </View>
 
                 {denseProjectionRow || !showStats ? null : statusBadge}
@@ -295,7 +293,6 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     playerCardNarrow: { paddingRight: spacing.xs },
-    playerDetailsRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xxs },
     playerCardDense: { paddingVertical: spacing.sm, paddingRight: spacing.xs, gap: spacing.md },
     playerInfo: { flex: 1, minWidth: 0 },
     nameScoreRow: {
