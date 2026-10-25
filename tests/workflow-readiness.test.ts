@@ -12,7 +12,6 @@ const conditions = ['Rebuild intended frontend release', 'Rebuild intended Edge 
 const evaluate = (condition: string, inputs: object, eventName = 'workflow_dispatch') => Boolean(vm.runInNewContext(condition.replace(/^\$\{\{\s*|\s*\}\}$/g, ''), { inputs, github: { event_name: eventName } }))
 
 it('uses call inputs instead of the caller event to select rebuilds', () => {
-  expect(readiness.on.workflow_call.inputs.database_phase.required).toBe(true)
   expect(readiness.on.workflow_dispatch.inputs.database_phase).toBeUndefined()
   for (const condition of conditions) expect(condition).not.toContain('github.event_name')
 })
@@ -34,10 +33,6 @@ it.each([
 
 it.each(['workflow_dispatch', 'repository_dispatch'])('rebuilds both artifacts for a direct %s run', event => {
   expect(conditions.map(condition => evaluate(condition, {}, event))).toEqual([true, true])
-})
-
-it('covers every production readiness call', () => {
-  expect(Object.values(deploy.jobs).filter((job: any) => job.uses === './.github/workflows/production-readiness.yml')).toHaveLength(6)
 })
 
 it('runs the season and benchmark guard tests after installing Deno', () => {

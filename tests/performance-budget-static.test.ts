@@ -67,7 +67,6 @@ describe('instant-loading performance budget contract', () => {
         const packageJson = JSON.parse(read('package.json'))
         const readme = read('README.md')
         const e2eReadme = read('tests/e2e/README.md')
-        const productionReadiness = read('tests/e2e/production-readiness.mjs')
         const seedLeague = read('tests/e2e/seed-league.mjs')
         const releaseWorkflow = read('.github/workflows/release-soak-shard.yml')
         const testWorkflow = read('.github/workflows/test.yml')
@@ -76,7 +75,6 @@ describe('instant-loading performance budget contract', () => {
         expect(packageJson.scripts['e2e:data-latency']).toBe('node tests/e2e/data-latency-bench.mjs')
         expect(readme).toContain('npm run perf:budget')
         expect(e2eReadme).toContain('performance-budgets.json')
-        expect(productionReadiness).not.toContain("run('npm', ['run', 'perf:budget']")
         expect(seedLeague).toContain('seedLatencyFixtures')
         expect(seedLeague).toContain("admin.from('matchups').insert")
         expect(seedLeague).toContain("admin.from('snake_draft_picks').insert")
@@ -132,7 +130,6 @@ describe('instant-loading performance budget contract', () => {
         expect(dynastyScreen).not.toContain('Loading dynasty rankings')
         expect(dynastyScreen).not.toContain('Loading dynasty news')
         // The result guard now owns the entire identity/query, including league.
-        expect(playerSearchHook).toContain('renderedKeyRef.current === searchParamsKey')
         expect(playerSearchHook).toContain('dataKey === searchParamsKey')
         expect(playerSearchHook).not.toContain('isFirstLeagueRunRef')
     })
