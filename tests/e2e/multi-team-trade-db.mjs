@@ -208,7 +208,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_member_id: fixture.recipient.id,
     p_league_id: fixture.league.id,
     p_player_id: freeAgent.id,
-  }, 'active roster is full')
+  }, 'over the active player limit')
 
   const { error: injuryError } = await fixture.admin.from('players')
     .update({ injury_status: 'Out' }).eq('id', fixture.recipientPlayer.id)

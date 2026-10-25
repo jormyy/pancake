@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { resolveReleaseProvenance, validateReleaseProvenance } from './release-provenance.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
+import { REQUIRED_MUTATION_SCENARIOS } from './release-mutation-compatibility.mjs'
 
 const ROOT = process.cwd()
 const MANIFEST_PATH = path.join(ROOT, 'tests/e2e/performance-budgets.json')
@@ -406,10 +407,21 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
 }
 
 /** @param {any} manifest @param {any[]} reports @param {number} expectedSeasons @param {ReleaseProvenance} [expectedProvenance] */
-export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined) => {
+export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined, deployedSeasons = 0) => {
   const failures = []
   const byKey = new Map(reports.map((report) => [`${report.scenario}:${report.season}`, report]))
   for (let season = 1; season <= expectedSeasons; season += 1) {
+    if (season <= deployedSeasons) {
+      for (const scenario of REQUIRED_MUTATION_SCENARIOS) {
+        const retained = byKey.get(`${scenario}:${season}`)
+        if (retained?.status !== 'PASS' || retained?.result?.status !== 'PASS') {
+          failures.push(`season ${season}: retained deployed ${scenario} report is missing or failed`)
+        } else {
+          failures.push(...validateReleaseProvenance(retained, expectedProvenance, `season ${season} retained ${scenario}`))
+        }
+      }
+      continue
+    }
     for (const [scenario, reportPath] of [['smoke', 'tests/e2e-browser-report.md'], ['performance', 'tests/e2e-browser-perf-report.md']]) {
       const retained = byKey.get(`${scenario}:${season}`)
       if (!retained) {
@@ -517,12 +529,17 @@ const main = async () => {
     const retainedReports = []
     const registryRoot = browserArtifactPath('artifacts', 'registry')
     for (let season = 1; season <= requiredSeasonReports; season += 1) {
-      for (const scenario of ['smoke', 'performance']) {
+      for (const scenario of new Set(['smoke', 'performance', ...REQUIRED_MUTATION_SCENARIOS])) {
         const reportPath = path.join(registryRoot, `${scenario}-season-${season}.json`)
         if (existsSync(reportPath)) retainedReports.push(readJsonFile(reportPath))
       }
     }
-    reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports, expectedProvenance))
+    const deployedSeasons = Number(process.env.E2E_SOAK_DEPLOYED_SEASONS ?? 0)
+    if (!Number.isInteger(deployedSeasons) || deployedSeasons < 0 || deployedSeasons >= requiredSeasonReports) {
+      reportFailures.push('Deployed season count must leave at least one release season')
+    } else {
+      reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports, expectedProvenance, deployedSeasons))
+    }
   }
 
   await writeReport({ manifest, manifestFailures, reportFailures, reportPresent, dataReportPresent })

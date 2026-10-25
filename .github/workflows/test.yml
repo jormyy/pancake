@@ -37,6 +37,9 @@ jobs:
       - name: Repository quality gates
         run: npm run check:quality
 
+      - name: Verify release migration attestations
+        run: node scripts/regenerate-release-history-attestations.mjs --check
+
       - name: Run app and core tests
         run: npm run test:workspaces
 
