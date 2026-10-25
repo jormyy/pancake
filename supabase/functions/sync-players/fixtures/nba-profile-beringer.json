@@ -1,0 +1,20 @@
+{
+  "props": {
+    "pageProps": {
+      "player": {
+        "info": {
+          "PERSON_ID": 1642866,
+          "DISPLAY_FIRST_LAST": "Joan Beringer",
+          "SEASON_EXP": 1,
+          "FROM_YEAR": 2025,
+          "GAMES_PLAYED_FLAG": "Y",
+          "DRAFT_YEAR": "2025"
+        }
+      }
+    }
+  },
+  "_source": {
+    "origin": "https://www.nba.com/player/1642866",
+    "fields": "Only fields used by the parser are retained."
+  }
+}

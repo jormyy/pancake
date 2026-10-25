@@ -5,6 +5,7 @@ import { serveInternal } from '../_shared/serve.ts'
 import { fetchEspnNews, fetchEspnPlayerListing } from '../_shared/playerSource.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
+import { isInjuriesOnlyRequest, syncInjuries } from './injuries.ts'
 import { importPlayerChunk } from './imports.ts'
 import { syncNBAIds } from './nbaIds.ts'
 import { releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
@@ -18,7 +19,12 @@ const CHUNK = 500
 const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 
 serveInternal('sync-players', async (req) => {
+  const injuriesOnly = await isInjuriesOnlyRequest(req)
   const result = await recordSyncRun('sync-players', async () => {
+    if (injuriesOnly) {
+      const injuries = await syncInjuries()
+      return { result: injuries, rowsAffected: injuries.updated, failure: injuries.failure }
+    }
     const imported = PLAYER_SYNC_SOURCE === 'sleeper'
       ? await syncPlayers()
       : await importPlayersFromEspn()
@@ -48,7 +54,7 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted,
+      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted + career.updated,
       failure,
     }
   }, req)
@@ -63,18 +69,18 @@ type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing'> & { released: number
 
 async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
   console.log('[sync-players] Fetching from ESPN...')
-  const { records, gaps } = await fetchEspnPlayerListing()
+  const { records, gaps, failure } = await fetchEspnPlayerListing()
 
   let updated = 0
   let inserted = 0
   let ambiguousSkipped = 0
-  const failures: string[] = []
+  const failures: string[] = failure ? [failure] : []
   for (let offset = 0; offset < records.length; offset += CHUNK) {
     try {
       const result = await importPlayerChunk('espn', records.slice(offset, offset + CHUNK).map((record) => ({
         provider_id: record.espn_id, first_name: record.first_name, last_name: record.last_name,
         metadata: { nba_team: record.nba_team, position: record.position, eligible_positions: record.eligible_positions,
-          status: record.status, injury_status: record.injury_status, years_exp: record.years_exp },
+          status: record.status, ...(Object.hasOwn(record, 'injury_status') ? { injury_status: record.injury_status } : {}), years_exp: record.years_exp },
       })), offset)
       updated += result.updated
       inserted += result.inserted

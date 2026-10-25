@@ -1,0 +1,19 @@
+{
+  "count": 1,
+  "pageIndex": 1,
+  "pageSize": 50,
+  "pageCount": 1,
+  "items": [
+    {
+      "id": "5279133",
+      "displayName": "Joan Beringer",
+      "type": "player",
+      "sport": "basketball",
+      "league": "nba"
+    }
+  ],
+  "_source": {
+    "origin": "https://site.web.api.espn.com/apis/common/v3/search?query=Joan%20Beringer&limit=5&type=player",
+    "fields": "Only fields used by the parser are retained."
+  }
+}

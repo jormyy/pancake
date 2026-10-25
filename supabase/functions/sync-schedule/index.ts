@@ -2,69 +2,36 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchSeasonSchedule } from '../_shared/nba.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
-import { buildScheduleSyncPlan, type ScheduleGameRow } from '../_shared/schedule.ts'
+import { buildScheduleSyncPlan } from '../_shared/schedule.ts'
 
 
 serveInternal('sync-schedule', async (req) => {
   const result = await recordSyncRun('sync-schedule', async () => {
     const result = await syncSchedule()
-    return { result, rowsAffected: result.updated + result.inserted + result.weeks }
+    return { result, rowsAffected: result.games + result.weeks }
   }, req)
   return Response.json({ ok: true, ...result })
 })
 
-async function syncSchedule(): Promise<{ updated: number; inserted: number; weeks: number }> {
+async function syncSchedule(): Promise<{ games: number; weeks: number }> {
   console.log('[sync-schedule] Fetching schedule from NBA CDN...')
   const raw = await fetchSeasonSchedule()
-  if (!raw.length) { console.log('[sync-schedule] No schedule data.'); return { updated: 0, inserted: 0, weeks: 0 } }
+  if (!raw.length) { console.log('[sync-schedule] No schedule data.'); return { games: 0, weeks: 0 } }
 
   const plan = buildScheduleSyncPlan(raw, new Date(), true)
   if (plan.offseasonStale) {
     console.log('[sync-schedule] Offseason: CDN still serves last season; skipping until the new schedule is published.')
-    return { updated: 0, inserted: 0, weeks: 0 }
+    return { games: 0, weeks: 0 }
   }
-  if (!plan.regularSeason.length) { console.log('[sync-schedule] No regular season games.'); return { updated: 0, inserted: 0, weeks: 0 } }
-  if (!plan.seasonStart) { console.log('[sync-schedule] No regular season start date.'); return { updated: 0, inserted: 0, weeks: 0 } }
-  if (!plan.rows.length) { console.log('[sync-schedule] No schedule rows.'); return { updated: 0, inserted: 0, weeks: 0 } }
-
-  // Paginate to avoid PostgREST max_rows cap (>1000 games across seasons)
-  const existing: { id: string; game_date: string; home_team: string; away_team: string; nba_game_id: string | null }[] = []
-  const PAGE = 1000
-  let from = 0
-  while (true) {
-    const { data, error: fetchErr } = await supabase
-      .from('nba_games')
-      .select('id, game_date, home_team, away_team, nba_game_id')
-      .range(from, from + PAGE - 1)
-    if (fetchErr) throw fetchErr
-    if (!data || data.length === 0) break
-    existing.push(...data)
-    if (data.length < PAGE) break
-    from += PAGE
-  }
-
-  const byNbaGameId = new Map<string, string>()
-  for (const g of existing) {
-    if (g.nba_game_id) byNbaGameId.set(g.nba_game_id, g.id)
-  }
-
-  const toUpdate: (ScheduleGameRow & { id: string })[] = []
-  const toInsert: ScheduleGameRow[] = []
-
-  for (const game of plan.rows) {
-    const existingId = byNbaGameId.get(game.nba_game_id)
-    if (existingId) {
-      toUpdate.push({ id: existingId, ...game })
-    } else {
-      toInsert.push(game)
-    }
-  }
+  if (!plan.regularSeason.length) { console.log('[sync-schedule] No regular season games.'); return { games: 0, weeks: 0 } }
+  if (!plan.seasonStart) { console.log('[sync-schedule] No regular season start date.'); return { games: 0, weeks: 0 } }
+  if (!plan.rows.length) { console.log('[sync-schedule] No schedule rows.'); return { games: 0, weeks: 0 } }
 
   const { data: weeks, error: writeError } = await supabase.rpc('publish_nba_schedule_atomic', {
     p_season_year: plan.seasonYear!, p_games: plan.rows, p_weeks: plan.weeks,
   })
   if (writeError) throw writeError
 
-  console.log(`[sync-schedule] ${toUpdate.length} updated, ${toInsert.length} inserted.`)
-  return { updated: toUpdate.length, inserted: toInsert.length, weeks }
+  console.log(`[sync-schedule] ${plan.rows.length} games published, ${weeks} weeks changed.`)
+  return { games: plan.rows.length, weeks }
 }

@@ -1,0 +1,87 @@
+{
+  "resource": "playerindex",
+  "parameters": {
+    "LeagueID": "00",
+    "Season": "2026-27",
+    "Historical": 0,
+    "TeamID": null,
+    "Country": null,
+    "College": null,
+    "DraftYear": null,
+    "DraftPick": null,
+    "PlayerPosition": null,
+    "Height": null,
+    "Weight": null,
+    "Active": null,
+    "AllStar": null
+  },
+  "resultSets": [
+    {
+      "name": "PlayerIndex",
+      "headers": [
+        "PERSON_ID",
+        "PLAYER_LAST_NAME",
+        "PLAYER_FIRST_NAME",
+        "PLAYER_SLUG",
+        "TEAM_ID",
+        "TEAM_SLUG",
+        "IS_DEFUNCT",
+        "TEAM_CITY",
+        "TEAM_NAME",
+        "TEAM_ABBREVIATION",
+        "JERSEY_NUMBER",
+        "POSITION",
+        "HEIGHT",
+        "WEIGHT",
+        "COLLEGE",
+        "COUNTRY",
+        "DRAFT_YEAR",
+        "DRAFT_ROUND",
+        "DRAFT_NUMBER",
+        "ROSTER_STATUS",
+        "FROM_YEAR",
+        "TO_YEAR",
+        "PTS",
+        "REB",
+        "AST",
+        "STATS_TIMEFRAME",
+        "SUPPLEMENTAL_STATUS"
+      ],
+      "rowSet": [
+        [
+          1642866,
+          "Beringer",
+          "Joan",
+          "joan-beringer",
+          1610612750,
+          "timberwolves",
+          0,
+          "Minnesota",
+          "Timberwolves",
+          "MIN",
+          "19",
+          "F",
+          "7-0",
+          "230",
+          "Cedevita Olimpija (Slovenia)",
+          "France",
+          2025,
+          1,
+          17,
+          1.0,
+          "2025",
+          "2026",
+          null,
+          null,
+          null,
+          "Season",
+          0
+        ]
+      ]
+    }
+  ],
+  "_source": {
+    "origin": "tests/fixtures/identity/player-index.json",
+    "fields": "Only fields used by the parser are retained."
+  }
+}
