@@ -215,7 +215,7 @@ async function main() {
     const jobs = phase === 'reads' ? 'none' : flags.get('--jobs') ?? 'all'
     if (!['none','sql','all'].includes(jobs)) throw Error('Unknown job mode')
     let handlers: Map<string,(request: Request) => Promise<Response>> | undefined
-    const edgeNames = ['live-poll','sync-scores','process-waivers','process-trades','lineup-optimizer','season-boundary','sync-stats','sync-schedule','sync-players','close-expired-nominations','sync-projections','sync-rankings','sync-draft-order']
+    const edgeNames = ['live-poll','sync-scores','process-waivers','process-trades','lineup-optimizer','season-boundary','sync-stats','sync-schedule','sync-players','sync-player-injuries','close-expired-nominations','sync-projections','sync-rankings','sync-draft-order']
     if (jobs !== 'none') {
       await clock('--clock')
       clockInstalled = true
@@ -291,7 +291,7 @@ async function main() {
     if (jobs === 'all') for (const [name, body] of [
       ['live-poll', {}], ['sync-scores', { date: '2026-03-14T12:00:00Z' }], ['process-waivers', {}], ['process-trades', {}],
       ['lineup-optimizer', { date: '2026-03-14' }], ['season-boundary', { date: '2026-03-14T12:00:00Z' }],
-      ['sync-stats', { date: '2026-03-14' }], ['sync-schedule', {}], ['sync-players', {}],
+      ['sync-stats', { date: '2026-03-14' }], ['sync-schedule', {}], ['sync-players', {}], ['sync-player-injuries', {}],
       ['close-expired-nominations',{}],['sync-projections',{}],['sync-rankings-POINT_3',{view:'POINT_3'}],
       ['sync-rankings-ROOKIE',{view:'ROOKIE'}],['sync-rankings-POINT_5',{view:'POINT_5'}],['sync-draft-order',{seasonYear:2025}],
       ['sync-stats-published-day-including-preparation',{date:'2026-03-12'}],

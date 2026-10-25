@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { resolveSoakShard } from './soak-shards.mjs'
 import { databaseTarget } from '../../scripts/mutation/waivers/targets.mjs'
 import { REQUIRED_MUTATION_SCENARIOS } from './release-mutation-compatibility.mjs'
+import { BACKEND_SCENARIO_MANIFEST } from './backend-scenario-manifest.mjs'
 import { BROWSER_SCENARIO_MANIFEST } from './browser-scenario-manifest.mjs'
 import { validateAppliedMigrationDelta } from './release-soak-migration-plan.mjs'
 
@@ -27,7 +28,8 @@ export const soakRuntimeSchemaFailures = ({ runtime, appliedVersion, deployedVer
 export const soakBrowserArgs = (args, season, deployedSeasons) => {
   if (soakRuntimeForSeason(season, deployedSeasons) === 'release') return args
   const allowed = new Set(REQUIRED_MUTATION_SCENARIOS)
-  return { ...args, ...Object.fromEntries(BROWSER_SCENARIO_MANIFEST.map(({ id, flag }) => [flag, Boolean(args[flag]) && allowed.has(id)])) }
+  return { ...args, push: false, ...Object.fromEntries([...BROWSER_SCENARIO_MANIFEST, ...BACKEND_SCENARIO_MANIFEST]
+    .map(({ id, flag }) => [flag, Boolean(args[flag]) && allowed.has(id)])) }
 }
 
 export const preparedMigrationFailures = (report, { deployedVersion, repositoryHead, pendingVersions }) => {

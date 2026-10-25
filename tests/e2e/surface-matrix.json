@@ -368,7 +368,7 @@
     },
     {
       "id": "background-source-sync",
-      "sources": ["supabase/functions/sync-schedule/index.ts", "supabase/functions/sync-players/index.ts", "supabase/functions/sync-projections/index.ts", "supabase/functions/sync-rankings/index.ts", "supabase/functions/sync-draft-order/index.ts", "supabase/functions/sync-scores/index.ts", "supabase/functions/sync-stats/index.ts", "supabase/functions/live-poll/index.ts"],
+      "sources": ["supabase/functions/sync-schedule/index.ts", "supabase/functions/sync-players/index.ts", "supabase/functions/sync-player-injuries/index.ts", "supabase/functions/sync-projections/index.ts", "supabase/functions/sync-rankings/index.ts", "supabase/functions/sync-draft-order/index.ts", "supabase/functions/sync-scores/index.ts", "supabase/functions/sync-stats/index.ts", "supabase/functions/live-poll/index.ts"],
       "functionIds": ["source-sync-recovery"],
       "contracts": {
         "cache": { "mode": "not-applicable", "reason": "Sources write validated server truth, not browser cache." },

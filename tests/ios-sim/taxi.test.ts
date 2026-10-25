@@ -55,7 +55,7 @@ function database(existingLog = false) {
     },
   }
   const statements: string[] = []
-  const execute = async (command: string, args: string[]) => {
+  const execute = async (command: string, args: string[] = []) => {
     assert.equal(command, 'docker')
     assert.equal(args[1], 'supabase_db_pancake_ios_shared')
     const sql = args.at(-1)!

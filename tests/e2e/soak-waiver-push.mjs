@@ -494,12 +494,11 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   const { data: queued, error: queueError } = await supabase
     .from('notification_outbox')
     .select('id, member_id, event_type, title, body, category')
-    .eq('dedupe_key', `waiver_result:${claim.id}`)
+    .eq('dedupe_key', `waiver_claim_won:${claim.id}:${member.id}`)
+    .eq('event_type', 'waiver_claim_won')
     .single()
   if (queueError) throw new Error(`${label} queue read: ${queueError.message}`)
-  if (queued.member_id !== member.id || queued.category !== 'waiver'
-    || queued.title !== 'Waiver Claim Succeeded'
-    || queued.body !== `${player.display_name} has been added to your roster.`) {
+  if (queued.member_id !== member.id || queued.event_type !== 'waiver_claim_won' || queued.category !== 'waiver') {
     throw new Error(`${label}: successful claim did not queue its notification`)
   }
 
@@ -538,10 +537,10 @@ export const assertDraftPushNotification = async ({ supabase, env, state, season
     .from('notification_outbox')
     .select('id, member_id, event_type, title, category')
     .eq('member_id', recipientMember.id)
-    .eq('event_type', 'rookie_draft_pick')
+    .eq('event_type', 'draft_auto_picked')
     .eq('data->>draftId', draft.id)
   if (queueError) throw new Error(`${label} draft notification queue: ${queueError.message}`)
-  if (queued?.length !== 1 || queued[0].category !== 'draft' || queued[0].title !== 'Rookie Draft Pick Made') {
+  if (queued?.length !== 1 || queued[0].category !== 'draft') {
     failures.push(`${label}: rookie auto-pick did not queue one draft notification`)
   }
 

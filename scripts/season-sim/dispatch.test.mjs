@@ -23,3 +23,14 @@ test('production-only dispatch still rejects a manual scorer before executing SQ
     else process.env.SEASON_SIM_PRODUCTION_ONLY = previous
   }
 })
+
+test('production-only dispatch rejects direct injury refreshes before executing SQL', async () => {
+  const previous = process.env.SEASON_SIM_PRODUCTION_ONLY
+  process.env.SEASON_SIM_PRODUCTION_ONLY = '1'
+  try {
+    await assert.rejects(dispatch("SELECT public.invoke_edge_function('sync-player-injuries')", { defer: true }, async () => { throw new Error('SQL must not execute') }), /forbids direct/)
+  } finally {
+    if (previous == null) delete process.env.SEASON_SIM_PRODUCTION_ONLY
+    else process.env.SEASON_SIM_PRODUCTION_ONLY = previous
+  }
+})

@@ -218,7 +218,10 @@ Settings scenarios cover profile editing, password changes, lineup options, and 
 Run the taxi file with a manager that no other capture uses.
 First run `node scripts/ios-sim/stack.mjs start` without reset.
 Stop if its schema check fails.
-The capture command reuses the connection without checking migration compatibility.
+The capture command checks migration names, contents, and the applied migration set before reusing the shared connection.
+A mismatch refuses capture before fixture access.
+Stop other users before rebuilding the stack with `start --reset`.
+A separate stack must apply this checkout's exact migration set before capture.
 Use this command for the taxi review:
 
 ```sh

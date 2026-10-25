@@ -62,7 +62,7 @@ const exerciseLazyOverflowActions = async (fixture, env) => {
     p_league_id: fixture.league.id,
     p_player_id: fixture.freeAgentPlayer.id,
   })
-  if (!addError || !/over the active player limit/i.test(addError.message)) {
+  if (addError?.code !== 'PA003') {
     throw new Error(`overflow free-agent add was not cap-blocked: ${addError?.message ?? 'succeeded'}`)
   }
 
