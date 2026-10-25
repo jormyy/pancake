@@ -1,16 +1,16 @@
 import { createNotifyMembers } from './notificationDelivery.ts'
 import { notificationEvents, normalizeNotificationPreferences } from './notificationsPreferences.ts'
 import { strict as assert } from 'node:assert'
-import { deliverTradeNotificationOutbox } from '../process-trades/outbox.ts'
+import { deliverNotificationOutbox } from '../process-trades/outbox.ts'
 
 Deno.test('notification without a delivery route stays retryable', async () => {
   let completed = 0
   let failed = 0
-  const result = await deliverTradeNotificationOutbox([
+  const result = await deliverNotificationOutbox([
     { id: 'outbox', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' },
   ], async () => [{ memberId: 'member', status: 'skipped', reason: 'missing_push_token' }],
   async () => { completed++ }, async () => { failed++ },
-  async () => { throw new Error('No dead letter expected') }, undefined, async () => { throw new Error('No ticket expected') })
+  async () => { throw new Error('No dead letter expected') })
   assert.equal(completed, 0, 'Missing transport cannot be called delivered')
   assert.equal(failed, 1)
   assert.equal(result.failed, 1)
@@ -161,11 +161,11 @@ Deno.test('stored JSON validation keeps malformed settings from enabling default
 })
 
 Deno.test('web-only success counts as delivered and never discarded', async () => {
-  const result = await deliverTradeNotificationOutbox([
+  const result = await deliverNotificationOutbox([
     { id: 'web', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' },
   ], async () => [{ memberId: 'member', status: 'sent', channel: 'web' }],
   async () => {}, async (_, error) => { throw new Error(error) },
-  async (_, error) => { throw new Error(error) }, undefined, async () => { throw new Error('No Expo ticket expected') })
+  async (_, error) => { throw new Error(error) })
   assert.equal(result.discarded, 0)
   assert.equal(result.delivered, 1)
 })
@@ -193,12 +193,11 @@ Deno.test('Expo ticket persists before an unfinished Web Push call', async () =>
   }
 })
 
-Deno.test('outbox does not record an already persisted Expo ticket twice', async () => {
-  let writes = 0
-  await deliverTradeNotificationOutbox([{ id: 'expo', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' }],
+Deno.test('outbox counts an already persisted Expo ticket', async () => {
+  const result = await deliverNotificationOutbox([{ id: 'expo', claim_token: 'lease', member_id: 'member', title: 'Title', body: 'Body', data: {}, category: 'trade' }],
     async () => [{ memberId: 'member', status: 'sent', ticketId: 'ticket', pushToken: 'token', ticketRecorded: true }],
-    async () => {}, async () => {}, async () => {}, undefined, async () => { writes++ })
-  assert.equal(writes, 0)
+    async () => {}, async () => {}, async () => {})
+  assert.equal(result.ticketed, 1)
 })
 
 Deno.test('Web Push reserves its attempt before Expo can clear the lease', async () => {

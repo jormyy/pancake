@@ -15,6 +15,8 @@ CREATE TEMP TABLE clearance_claim AS
 SELECT public.create_waiver_claim_atomic(f.league_id, f.member_ids[1], entry.player_id, NULL, f.user_ids[1]) AS id
 FROM clearance_fixture f CROSS JOIN clearance_entries entry WHERE NOT entry.cleared;
 
+UPDATE public.waiver_claims SET process_date='1900-01-03' WHERE id=(SELECT id FROM clearance_claim);
+
 \if :{?waiver_clearance_migration}
 \i :waiver_clearance_migration
 \else
@@ -27,6 +29,8 @@ SELECT pg_temp.check_rules((SELECT clears_at = '1900-01-04 08:00+00'::timestampt
 SELECT pg_temp.check_rules((SELECT clears_at = '1900-01-03 12:00+00'::timestamptz
   FROM public.waiver_wire_log WHERE player_id = (SELECT player_id FROM clearance_entries WHERE cleared)),
   'the migration preserves processed waiver history');
+SELECT pg_temp.check_rules((SELECT process_date='1900-01-04' FROM public.waiver_claims
+  WHERE id=(SELECT id FROM clearance_claim)), 'pending claims sort with their rescheduled run');
 SELECT count(*) FROM public.process_due_waiver_claims_atomic(p_process_date := '1900-01-04', p_limit := 100);
 SELECT pg_temp.check_rules((SELECT status = 'succeeded' FROM public.waiver_claims
   WHERE id = (SELECT id FROM clearance_claim)), 'existing claims process in the rescheduled run');

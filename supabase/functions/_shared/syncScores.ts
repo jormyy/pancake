@@ -72,7 +72,6 @@ type StandingSnapshot = {
     points_for: number
     points_against: number
     max_possible_points: number
-    waiver_priority: number
 }
 
 type PreviousStandingSnapshot = StandingSnapshot & {
@@ -91,7 +90,6 @@ type StandingSnapshotUpsertRow = {
     points_for: number
     points_against: number
     max_possible_points: number
-    waiver_priority: number
 }
 
 type MatchupResult = MatchupForFinalization & {
@@ -234,7 +232,7 @@ async function buildStandingsSnapshotRows(
 
     const previousRows = await fetchAllPages<PreviousStandingSnapshot>((from, to) => supabase
         .from('standings')
-        .select('member_id, wins, losses, ties, points_for, points_against, max_possible_points, waiver_priority, week_number')
+        .select('member_id, wins, losses, ties, points_for, points_against, max_possible_points, week_number')
         .eq('league_id', leagueId)
         .eq('league_season_id', leagueSeasonId)
         .lt('week_number', weekNumber)
@@ -288,16 +286,6 @@ async function buildStandingsSnapshotRows(
         }
     }
 
-    const waiverRows = await fetchAllPages<{ member_id: string; priority: number }>((from, to) => supabase
-        .from('waiver_priorities')
-        .select('member_id, priority')
-        .eq('league_id', leagueId)
-        .eq('league_season_id', leagueSeasonId)
-        .in('member_id', memberIds)
-        .order('member_id')
-        .range(from, to))
-    const waiverPriorityByMember = new Map(waiverRows.map((row) => [row.member_id, row.priority]))
-
     const standingsByMember = new Map<string, StandingSnapshot>()
     for (const memberId of memberIds) {
         const previous = previousByMember.get(memberId)
@@ -309,7 +297,6 @@ async function buildStandingsSnapshotRows(
             points_for: Number(previous?.points_for ?? 0),
             points_against: Number(previous?.points_against ?? 0),
             max_possible_points: Number(previous?.max_possible_points ?? 0),
-            waiver_priority: waiverPriorityByMember.get(memberId) ?? previous?.waiver_priority ?? 0,
         })
     }
 

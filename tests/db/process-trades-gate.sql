@@ -18,13 +18,16 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='nba-process-trades') THEN
+  RAISE EXCEPTION 'Duplicate trade cron remains';
+END IF; END $$;
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'local-trade-gate-test', true);
 CREATE FUNCTION pg_temp.assert_trade_dispatch(p_label text, p_expected boolean) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_before bigint; v_command text; v_after bigint;
 BEGIN
   SELECT count(*) INTO v_before FROM public.edge_invocations WHERE function_name='process-trades';
-  SELECT command INTO STRICT v_command FROM cron.job WHERE jobname='nba-process-trades';
+  SELECT command INTO STRICT v_command FROM cron.job WHERE jobname='notification-dispatch-minute';
   EXECUTE v_command;
   SELECT count(*) INTO v_after FROM public.edge_invocations WHERE function_name='process-trades';
   IF (v_after > v_before) IS DISTINCT FROM p_expected THEN

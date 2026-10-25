@@ -170,17 +170,23 @@ try {
     const row = { id, league_id: league, league_season_id: season, member_id: members[0], ...details }
     const wire = table === 'waiver_wire_log' ? { id, league_id: league, league_season_id: season, ...details } : row
     await sql(`INSERT INTO public.${table} (${Object.keys(wire).join(',')}) VALUES (${Object.values(wire).map(value => typeof value === 'number' ? value : `'${value}'`).join(',')})`)
+    if (table === 'waiver_claims') {
+      assert.equal((await hint('inventory')).revision, before.revision, 'pending claims do not emit league hints')
+      assert.deepEqual(await q(clients[1].from('waiver_claims').select('id').eq('id', id)), [])
+      await new Promise(resolve => setTimeout(resolve, 200))
+      assert.ok(!messages[1].some(row => row.topic === 'inventory' && Number(row.revision) > before.revision), 'pending claim timing stays private')
+      await q(admin.from(table).delete().eq('id', id))
+      assert.equal((await hint('inventory')).revision, before.revision, 'pending claim deletion stays private')
+      checks += 4
+      continue
+    }
     assert.equal((await hint('inventory')).revision, before.revision + 1, `${table} insert`)
     const resource = { waiver_claims: 'claims', waiver_priorities: 'priority', waiver_wire_log: 'waivers', faab_balances: 'faab' }[table]
     const detail = { resource, season_id: season, ...(['priority', 'faab'].includes(resource) ? { member_id: members[0] } : {}) }
     assert.deepEqual(Reflect.get(await hint('inventory'), 'details'), [detail])
-    if (resource === 'priority' || resource === 'claims') {
+    if (resource === 'priority') {
       await waitFor(() => messages[1].some(row => row.topic === 'inventory' && row.revision === before.revision + 1), `${resource} detail misses the other manager`)
       assert.deepEqual(Reflect.get(messages[1].find(row => row.topic === 'inventory' && row.revision === before.revision + 1)!, 'details'), [detail]); checks++
-    }
-    if (table === 'waiver_claims') {
-      assert.deepEqual(await q(clients[1].from('waiver_claims').select('id').eq('id', id)), [])
-      assert.ok(!JSON.stringify(await hint('inventory')).includes(members[0])); checks += 2
     }
     await q(admin.from(table).delete().eq('id', id))
     assert.equal((await hint('inventory')).revision, before.revision + 2, `${table} delete`)
@@ -195,24 +201,24 @@ try {
   await q(admin.from('league_seasons').delete().in('id', extraSeasons.map(row => row.id)))
   assert.equal(Reflect.get(await hint('inventory'), 'details'), null); checks += 2
   const resourcesBeforeLive = await hint('resources')
-  const beforeLiveStats = await q(admin.from('league_change_hints').select('revision').eq('league_id', league).eq('topic', 'player_stats').maybeSingle())
-  await sql(`UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id='${league}' AND topic='player_stats'`)
+  const beforeLiveStats = await q(admin.from('league_change_hints').select('revision').eq('league_id', league).eq('topic', 'score').maybeSingle())
+  await sql(`UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id='${league}' AND topic='score'`)
   await q(admin.from('player_game_stats').update({ points: 5 }).eq('game_id', game))
   await sql('SELECT public.refresh_player_search_caches()')
   assert.deepEqual(await hint('resources'), resourcesBeforeLive)
   await sql('SELECT private.flush_player_stats_hints()')
-  const firstLiveStats = await hint('player_stats')
+  const firstLiveStats = await hint('score')
   assert.equal(firstLiveStats.revision, (beforeLiveStats?.revision ?? 0) + 1)
   assert.equal(firstLiveStats.scopes, null)
   assert.equal(firstLiveStats.details, null)
-  await waitFor(() => messages[0].some(row => row.topic === 'player_stats' && row.revision === firstLiveStats.revision)
-    && messages[1].some(row => row.topic === 'player_stats' && row.revision === firstLiveStats.revision), 'Live player stats hint misses a league member')
+  await waitFor(() => messages[0].some(row => row.topic === 'score' && row.revision === firstLiveStats.revision)
+    && messages[1].some(row => row.topic === 'score' && row.revision === firstLiveStats.revision), 'Live player stats hint misses a league member')
   await q(admin.from('player_game_stats').update({ points: 6 }).eq('game_id', game))
   await sql('SELECT private.flush_player_stats_hints()')
-  assert.equal((await hint('player_stats')).revision, firstLiveStats.revision)
+  assert.equal((await hint('score')).revision, firstLiveStats.revision)
   assert.equal(await sql(`SELECT count(*) FROM private.player_stats_hint_pending WHERE league_id='${league}'`), '1')
-  await sql(`UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id='${league}' AND topic='player_stats'; SELECT private.flush_player_stats_hints()`)
-  assert.equal((await hint('player_stats')).revision, firstLiveStats.revision + 1)
+  await sql(`UPDATE public.league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id='${league}' AND topic='score'; SELECT private.flush_player_stats_hints()`)
+  assert.equal((await hint('score')).revision, firstLiveStats.revision + 1)
   await sql('SELECT public.refresh_player_search_caches()')
   assert.deepEqual(await hint('resources'), resourcesBeforeLive); checks += 9
   const beforeScoring = await hint('resources')

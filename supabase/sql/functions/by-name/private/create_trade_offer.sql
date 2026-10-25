@@ -115,8 +115,9 @@ BEGIN
     RAISE EXCEPTION 'Archived leagues are read-only.';
   END IF;
 
+  PERFORM private.assert_trade_window(p_league_id, v_offer_pick_ids || v_request_pick_ids);
+
   IF v_league.status NOT IN (
-    'setup'::league_status,
     'drafting'::league_status,
     'active'::league_status,
     'playoffs'::league_status,

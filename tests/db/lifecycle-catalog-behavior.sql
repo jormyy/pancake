@@ -560,7 +560,7 @@ BEGIN
          'withdraw_auction_nomination_atomic', 'make_snake_pick_atomic', 'auto_pick_snake_pick_atomic',
          'commissioner_snake_pick_atomic', 'start_rookie_draft_atomic', 'reseed_rookie_draft_picks_atomic',
          'advance_season_atomic', 'toggle_ir_atomic', 'toggle_taxi_atomic', 'expire_waiver_wire_logs',
-         'clear_ineligible_taxi_players', 'replace_regular_season_matchups_atomic',
+         'replace_regular_season_matchups_atomic',
          'generate_playoff_bracket_atomic', 'advance_playoff_bracket_atomic', 'try_live_poll_lease',
          'release_live_poll_lease', 'invoke_edge_function', 'invoke_edge_function_at_et_time',
          'invoke_projection_sync_if_due', 'merge_players', 'merge_duplicate_players',

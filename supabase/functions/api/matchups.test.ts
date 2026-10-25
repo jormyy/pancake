@@ -3,6 +3,7 @@ import { strict as assert } from 'node:assert'
 const calls: Array<{ name: string; body: Record<string, unknown> }> = []
 const queries: URLSearchParams[] = []
 let reject = false
+let rpcResult = { inserted: 19, skipped: false }
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
   if (url.pathname === '/rest/v1/league_seasons') {
@@ -11,7 +12,7 @@ const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, 
   }
   if (!url.pathname.startsWith('/rest/v1/rpc/')) throw new Error('Schedule generation must not load league members')
   calls.push({ name: url.pathname.split('/').at(-1)!, body: await req.json() })
-  return reject ? Response.json({ message: 'League is locked' }, { status: 400 }) : Response.json(null)
+  return reject ? Response.json({ message: 'League is locked' }, { status: 400 }) : Response.json(rpcResult)
 })
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(postgrest.addr as Deno.NetAddr).port}`)
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
@@ -19,7 +20,7 @@ const { generateMatchups, generateAllMatchups } = await import('./matchups.ts')
 
 Deno.test('matchup generation delegates the schedule to SQL without loading members or sending pairings', async () => {
   calls.length = 0
-  await generateMatchups('league-a', 'season-a')
+  assert.deepEqual(await generateMatchups('league-a', 'season-a'), rpcResult)
   assert.deepEqual(calls, [{ name: 'replace_regular_season_matchups_atomic', body: {
     p_league_id: 'league-a', p_league_season_id: 'season-a', p_force: false, p_matchups: [],
   } }])
@@ -42,6 +43,12 @@ Deno.test('bulk matchup generation targets current seasons and preserves the req
   assert.equal(calls[0].body.p_league_season_id, 'season-a')
   assert.equal(calls[0].body.p_force, true)
   assert.deepEqual(calls[0].body.p_matchups, [])
+})
+
+Deno.test('matchup generation returns skipped schedules to its caller', async () => {
+  rpcResult = { inserted: 0, skipped: true }
+  try { assert.deepEqual(await generateAllMatchups(false, 'league-a'), [rpcResult]) }
+  finally { rpcResult = { inserted: 19, skipped: false } }
 })
 
 Deno.test({ name: 'close matchups test server', sanitizeOps: false, sanitizeResources: false, fn: () => postgrest.shutdown() })

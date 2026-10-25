@@ -10,7 +10,7 @@ export const OUTBOX_MAX_CLAIMS_PER_RUN = 20
 export const OUTBOX_DRAIN_BUDGET_MS = 20_000
 const OUTBOX_MUTATION_CONCURRENCY = OUTBOX_CLAIM_LIMIT
 
-export type TradeNotificationOutboxRow = {
+export type NotificationOutboxRow = {
   id: string
   claim_token: string
   member_id: string
@@ -21,13 +21,13 @@ export type TradeNotificationOutboxRow = {
 }
 
 type DeliveryCounts = { ticketed?: number; delivered: number; failed: number; discarded: number; deadLettered: number }
-type Complete = (row: TradeNotificationOutboxRow) => Promise<void>
-type Fail = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
-type DeadLetter = (row: TradeNotificationOutboxRow, error: string) => Promise<void>
+type Complete = (row: NotificationOutboxRow) => Promise<void>
+type Fail = (row: NotificationOutboxRow, error: string) => Promise<void>
+type DeadLetter = (row: NotificationOutboxRow, error: string) => Promise<void>
 
 const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
-function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
+function messageFor(row: NotificationOutboxRow): NotificationMessage {
   if (row.category !== 'activity' && !Object.hasOwn(notificationCategories, row.category)) throw new Error(`Unsupported notification outbox category: ${row.category}`)
   const data = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
     ? row.data as Record<string, unknown>
@@ -42,14 +42,13 @@ function messageFor(row: TradeNotificationOutboxRow): NotificationMessage {
   }
 }
 
-export async function deliverTradeNotificationOutbox(
-  rows: TradeNotificationOutboxRow[],
+export async function deliverNotificationOutbox(
+  rows: NotificationOutboxRow[],
   notify: NotifyMembers,
   complete: Complete,
   fail: Fail,
   deadLetter: DeadLetter,
   suppress?: Complete,
-  recordTicket?: (row: TradeNotificationOutboxRow, ticketId: string, pushToken: string) => Promise<void>,
 ): Promise<DeliveryCounts> {
   if (rows.length === 0) return { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }
 
@@ -72,10 +71,6 @@ export async function deliverTradeNotificationOutbox(
         return
       }
       if (result?.status === 'sent' && result.ticketId && result.pushToken) {
-        if (!result.ticketRecorded) {
-          if (!recordTicket) throw new Error('Expo ticket persistence is required')
-          await recordTicket(row, result.ticketId, result.pushToken)
-        }
         ticketed += 1
         return
       }
@@ -112,9 +107,9 @@ export async function deliverTradeNotificationOutbox(
 // interval for every ten messages. Keep claiming while each batch fills and
 // settles without a retryable failure; any failure ends the run so the
 // existing retry backoff, not this loop, decides when that row is tried again.
-export async function drainTradeNotificationOutbox(
-  claim: () => Promise<TradeNotificationOutboxRow[]>,
-  deliver: (rows: TradeNotificationOutboxRow[]) => Promise<DeliveryCounts>,
+export async function drainNotificationOutbox(
+  claim: () => Promise<NotificationOutboxRow[]>,
+  deliver: (rows: NotificationOutboxRow[]) => Promise<DeliveryCounts>,
   now: () => number = Date.now,
 ): Promise<DeliveryCounts> {
   const totals: DeliveryCounts = { delivered: 0, failed: 0, discarded: 0, deadLettered: 0 }

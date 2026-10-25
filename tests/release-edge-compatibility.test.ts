@@ -1,3 +1,5 @@
+import { runInNewContext } from 'node:vm'
+import ts from 'typescript'
 import { execFileSync, spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
 import { expect, it } from 'vitest'
@@ -115,4 +117,120 @@ it('detects publication drops used by the deployed client', () => {
     expect(droppedSubscribedTables(['ALTER PUBLICATION supabase_realtime DROP TABLE public.weekly_lineups, public.bids;'], subscribed))
         .toEqual(['weekly_lineups'])
     expect(droppedSubscribedTables(['ALTER PUBLICATION supabase_realtime DROP TABLE public.bids;'], subscribed)).toEqual([])
+})
+
+function rpcNames(source: string) {
+    return new Set([...source.matchAll(/\.rpc\(\s*['"]([a-z_]+)['"]/g)].map(match => `public.${match[1]}`))
+}
+
+function parameters(definition: string) {
+    const source = maskSqlNonCode(definition)
+    const open = source.indexOf('(')
+    const segments: string[] = []
+    let depth = 1, start = open + 1
+    for (let index = start; index < source.length; index++) {
+        if (source[index] === '(') depth++
+        if (source[index] === ')') depth--
+        if (depth === 0 || source[index] === ',' && depth === 1) {
+            segments.push(definition.slice(start, index).trim())
+            start = index + 1
+            if (depth === 0) break
+        }
+    }
+    return segments.filter(Boolean).filter(segment => !/^OUT\b/i.test(segment)).map(segment => {
+        const declaration = segment.replace(/^(?:IN|INOUT|VARIADIC)\s+/i, '')
+        const [name, ...type] = declaration.split(/\s+/)
+        return { name, type: type.join(' ').replace(/\s+(?:DEFAULT|=)[\s\S]*$/i, '').toLowerCase()
+            .replace(/\bint\b/g, 'integer').replace(/\bbool\b/g, 'boolean'), optional: /\s(?:DEFAULT\s|=)/i.test(declaration) }
+    })
+}
+
+function brokenRpcContracts(sources: string[], deployed: Map<string, string>, merged: Map<string, string>) {
+    const called = new Set(sources.flatMap(source => [...rpcNames(source)]))
+    return [...deployed].filter(([key]) => called.has(key.split('(')[0])).filter(([key, definition]) => {
+        const oldParameters = parameters(definition)
+        return ![...merged].some(([nextKey, nextDefinition]) => {
+            if (nextKey.split('(')[0] !== key.split('(')[0]) return false
+            const nextParameters = parameters(nextDefinition)
+            return oldParameters.every(old => nextParameters.some(next => next.name === old.name && next.type === old.type))
+                && nextParameters.every(next => next.optional || oldParameters.some(old => old.name === next.name && !old.optional))
+        })
+    }).map(([key]) => key)
+}
+
+it.skipIf(!available)('preserves deployed Edge and client RPC argument contracts', () => {
+    const files = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions', 'app', 'components', 'contexts', 'hooks', 'lib')
+        .split('\n').filter(file => /\.tsx?$/.test(file) && !file.endsWith('.test.ts'))
+    const deployed = canonicalDefinitions('origin/main')
+    const merged = canonicalDefinitions()
+    for (const group of ['supabase/functions/', 'client']) {
+        const selected = files.filter(file => group === 'client' ? !file.startsWith('supabase/') : file.startsWith(group))
+        const sources = [git('show', ...selected.map(file => `origin/main:${file}`))]
+        expect(brokenRpcContracts(sources, deployed, merged), `${group} RPC contracts`).toEqual([])
+    }
+})
+
+it('rejects a replacement RPC with a new required argument', () => {
+    const deployed = latestFunctionDefinitionsInSource('CREATE FUNCTION public.offer(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')
+    const broken = latestFunctionDefinitionsInSource('CREATE FUNCTION public.offer(p_id uuid, p_required text) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')
+    expect(brokenRpcContracts(["db.rpc('offer', { p_id: id })"], deployed, broken)).toEqual(['public.offer'])
+    const compatible = latestFunctionDefinitionsInSource("CREATE FUNCTION public.offer(p_id uuid, p_required text DEFAULT NULL) RETURNS void LANGUAGE sql AS $$ SELECT; $$;")
+    expect(brokenRpcContracts(["db.rpc('offer', { p_id: id })"], deployed, compatible)).toEqual([])
+})
+
+it('checks client-only RPC calls as well as Edge calls', () => {
+    const deployed = latestFunctionDefinitionsInSource('CREATE FUNCTION public.client_only(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT; $$;')
+    expect(brokenRpcContracts(["db.rpc('edge_only')"], deployed, new Map())).toEqual([])
+    expect(brokenRpcContracts(["db.rpc('client_only', { p_id: id })"], deployed, new Map())).toEqual(['public.client_only'])
+})
+
+function deployedHintReceiver() {
+    const source = git('show', 'origin/main:lib/league-changes.ts').replace(/^import .*$/gm, 'const onSessionCachesCleared = () => {}')
+    const exports: Record<string, unknown> = {}
+    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports })
+    return exports.leagueChangeReceiver as (league: string, receive: (change: Record<string, unknown>) => void) => (row: Record<string, unknown>) => boolean
+}
+
+it.skipIf(!available)('emits only hint topics and inventory resources accepted by the deployed client', () => {
+    const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
+        .map(file => readFileSync(`supabase/migrations/${file}`, 'utf8')).join('\n')
+    const check = [...migrations.matchAll(/ADD\s+CONSTRAINT\s+league_change_hints_topic_check\s+CHECK\s*\(topic\s+IN\s*\(([^)]+)\)/gi)].at(-1)!
+    const topics = [...check[1].matchAll(/'([^']+)'/g)].map(match => match[1])
+    const emitter = readFileSync('supabase/sql/functions/by-name/private/emit_league_inventory_change.sql', 'utf8')
+    const resources = [...new Set([...emitter.matchAll(/'resource'\s*,\s*'([^']+)'/g)].map(match => match[1]))]
+    const league = '11111111-1111-4111-8111-111111111111'
+    const season = '22222222-2222-4222-8222-222222222222'
+    const receiver = deployedHintReceiver()
+    for (const topic of topics) {
+        const consume = receiver(league, () => {})
+        expect.soft(consume({ league_id: league, topic, revision: 1, scopes: null, details: null }), topic).toBe(true)
+    }
+    for (const resource of resources) {
+        const changes: Record<string, unknown>[] = []
+        const consume = receiver(league, change => changes.push(change))
+        const details = [{ resource, season_id: season, ...(['picks', 'priority', 'faab'].includes(resource) ? { member_id: season } : {}) }]
+        for (const revision of [1, 2]) consume({ league_id: league, topic: 'inventory', revision, scopes: null, details })
+        expect.soft(changes.at(-1)?.details, resource).toEqual(details)
+    }
+})
+
+function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string) {
+    const functions = latestFunctionDefinitionsInSource(mainMigrations)
+    const newRpc = [...rpcNames(clientSource)].some(name => !functions.has(name))
+    const newColumns = ['waiver_claims.to_ir', 'player_game_stats.is_home'].some(column => {
+        const [table, name] = column.split('.')
+        return clientSource.includes(name) && !new RegExp(`ALTER\\s+TABLE\\s+(?:public\\.)?${table}[\\s\\S]*?ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${name}\\b`, 'i').test(mainMigrations)
+    })
+    const irArgument = clientSource.includes('p_to_ir') && !parameters(functions.get('public.add_free_agent_atomic') ?? '()').some(parameter => parameter.name === 'p_to_ir')
+    return (newRpc || newColumns || irArgument) && !/^## Release order for this release$/m.test(notes)
+}
+
+it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
+    const mainFiles = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
+    const main = git('show', ...mainFiles.map(file => `origin/main:${file}`))
+    const files = git('ls-files', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n').filter(file => /\.tsx?$/.test(file))
+    const source = files.map(file => readFileSync(file, 'utf8')).join('\n')
+    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    expect(requiresDatabaseFirst(main, source, notes)).toBe(false)
+    expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'))).toBe(true)
 })

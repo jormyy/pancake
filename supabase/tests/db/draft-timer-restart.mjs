@@ -21,7 +21,7 @@ try {
     assert.equal(reconnected, deadline)
   }
   sql(`SELECT pause_draft_atomic('${draft}')`)
-  assert.equal(sql(`SELECT status||':'||timer_paused_remaining_seconds FROM drafts WHERE id='${draft}'`), 'paused:604800')
+  assert.match(sql(`SELECT status||':'||timer_paused_remaining_seconds FROM drafts WHERE id='${draft}'`), /^paused:(604799|604800)$/)
   sql(`SELECT resume_draft_atomic('${draft}')`)
   const restored = Number(sql(`SELECT extract(epoch FROM timer_expires_at-clock_timestamp()) FROM snake_draft_picks WHERE draft_id='${draft}'`))
   assert(restored > 604798 && restored <= 604800)

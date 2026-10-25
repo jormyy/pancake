@@ -3152,7 +3152,7 @@ export type Database = {
           points_against?: number
           points_for?: number
           ties?: number
-          waiver_priority: number
+          waiver_priority?: number
           week_number: number
           wins?: number
         }
@@ -4588,7 +4588,6 @@ export type Database = {
           total_items: number
         }[]
       }
-      clear_ineligible_taxi_players: { Args: never; Returns: number }
       clear_push_token_for_user_atomic: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean

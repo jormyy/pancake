@@ -48,5 +48,8 @@ BEGIN
     to_ir = item.player_id = ANY(p_ir_player_ids)
   WHERE item.trade_id = p_trade_id AND item.to_member_id = p_member_id AND item.player_id IS NOT NULL;
   UPDATE trade_participants SET drop_player_ids = p_drop_player_ids WHERE trade_id = p_trade_id AND member_id = p_member_id;
+  IF EXISTS (SELECT 1 FROM trade_participants WHERE trade_id=p_trade_id AND member_id=p_member_id AND accepted_at IS NOT NULL) THEN
+    PERFORM private.validate_trade_rosters(p_trade_id, p_member_id);
+  END IF;
 END;
 $$;

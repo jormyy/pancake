@@ -25,7 +25,7 @@ export type NotificationDeliveryFailureCode =
 
 type NotificationDeliveryResult =
   | { status: 'sent'; ticketRecorded?: boolean; ticketId?: string; pushToken?: string; channel?: 'web' }
-  | { status: 'skipped'; reason: 'preferences_disabled' | 'missing_push_token' | 'durably_suppressed' | 'no_subscription' | 'gone' }
+  | { status: 'skipped'; reason: 'preferences_disabled' | 'no_device' | 'missing_push_token' | 'durably_suppressed' | 'no_subscription' | 'gone' }
   | { status: 'failed'; retryable: boolean; error: string }
 
 export type NotificationMessage = {
@@ -103,7 +103,7 @@ type ExpoNotificationBatchDependencies = {
   profiles: (userIds: string[]) => Promise<LookupResult<Array<{ id: string; push_token: string | null }>>>
   persistExpoTicket?: (message: NotificationMessage, ticketId: string, pushToken: string) => Promise<void>
   admitDelivery?: (message: NotificationMessage) => Promise<boolean>
-  beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted'>
+  beginWebDelivery?: (message: NotificationMessage, userId: string) => Promise<'send' | 'delivered' | 'attempted' | 'no_device'>
   finishWebDelivery?: (message: NotificationMessage, sent: boolean) => Promise<void>
   invalidateToken?: (userId: string, token: string) => Promise<LookupResult<boolean>>
   send: (url: string, init: RequestInit) => Promise<Response>
@@ -362,6 +362,11 @@ export function createNotifyMembers(
       if (!reservation) return
       const { message, webMessage, state } = reservation
       try {
+        if (state === 'no_device') {
+          const pending = results.find(item => item.memberId === message.memberId && item.status === 'skipped' && item.reason === 'missing_push_token')
+          if (pending) results.splice(results.indexOf(pending), 1, { memberId: message.memberId, status: 'skipped', reason: 'no_device' })
+          return
+        }
         let sent = state === 'delivered'
         let webOutcome: NotificationBatchResult | undefined
         if (state === 'send') {
@@ -436,6 +441,10 @@ function createWebNotifyMembers(dependencies: WebNotificationBatchDependencies):
       }
       if (message.delivery && dependencies.beginWebDelivery) {
         const state = await dependencies.beginWebDelivery(message, userId)
+        if (state === 'no_device') {
+          results.push({ memberId: message.memberId, status: 'skipped', reason: 'no_device' })
+          continue
+        }
         if (state === 'delivered') {
           results.push({ memberId: message.memberId, status: 'sent' })
           continue

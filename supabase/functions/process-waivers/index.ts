@@ -25,7 +25,7 @@ async function processWaiverClaims(): Promise<number> {
     })
     if (error) throw error
     return data ?? []
-  }, async () => {})
+  })
 
   const { error: expiredErr } = await supabase.rpc('expire_waiver_wire_logs')
   if (expiredErr) throw expiredErr

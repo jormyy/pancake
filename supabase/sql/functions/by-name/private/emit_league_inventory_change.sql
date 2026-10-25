@@ -23,7 +23,7 @@ BEGIN
         FROM changed pick LEFT JOIN public.league_seasons season
           ON season.league_id=pick.league_id AND season.season_year=pick.season_year$details$;
     WHEN 'waiver_claims' THEN
-      v_details := $details$SELECT league_id,jsonb_build_object('resource','claims','season_id',league_season_id) AS detail FROM changed$details$;
+      v_details := $details$SELECT league_id,jsonb_build_object('resource','claims','season_id',league_season_id) AS detail FROM changed WHERE status NOT IN ('pending','cancelled')$details$;
     WHEN 'waiver_wire_log' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','waivers','season_id',league_season_id) AS detail FROM changed$details$;
     WHEN 'waiver_priorities' THEN
@@ -31,12 +31,7 @@ BEGIN
     WHEN 'faab_balances' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','faab','season_id',league_season_id,'member_id',member_id) AS detail FROM changed$details$;
     WHEN 'league_activity' THEN
-      v_details := $details$SELECT activity.league_id,jsonb_build_object('resource','activity',
-        'season_id',COALESCE(activity.league_season_id,season.id)) AS detail
-        FROM changed activity LEFT JOIN public.league_seasons season
-          ON season.league_id=activity.league_id AND season.is_current
-        WHERE activity.event_type NOT IN ('trade_offered','trade_countered','trade_edited',
-          'trade_expired','trade_block_updated','free_agent_added')$details$;
+      RETURN NULL;
     WHEN 'league_seasons' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','season','season_id',id) AS detail FROM changed$details$;
     ELSE

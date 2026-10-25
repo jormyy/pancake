@@ -1,5 +1,46 @@
 # Release database contract
 
+## Release order for this release
+
+Database, then Edge, then merge the frontend.
+Production currently stops at migration `20261020000007`.
+It still needs 63 migrations from `origin/main`, followed by this release's migrations.
+The Vercel integration publishes the frontend when this release merges into main.
+Do not merge before the database and Edge checks pass.
+
+The existing production workflow requires a commit already on main.
+That requirement cannot establish this release's safe order while merge still deploys the frontend.
+The release operator must run the approved database and Edge phases from the reviewed release commit before merging.
+The owner decides whether to change the deploy integration or approve that separate production run.
+Do not bypass production approvals or merge merely to satisfy the workflow's ancestry check.
+
+1. Freeze the reviewed release commit and record the deployed frontend and Edge provenance.
+   Run `npm ci`, `npm run check:quality`, `npm test`, and `npm run check:edge-functions`.
+   Run `npm run check:db-function-sources`, `npm run check:db-function-catalog`, and the full `npm run test:db` on an isolated stack.
+   Run `npx vitest run tests/release-edge-compatibility.test.ts` and the deployed-to-release soak against the actual migration range.
+   Save the migration plan and its attestation before production work.
+2. Confirm the project's scoped production link and inspect `supabase migration list --linked`.
+   Run `supabase db push --linked --dry-run` from the frozen release checkout.
+   Confirm the plan first contains the missing published main migrations and then the unpublished release migrations, in version order.
+   Use the workflow's approved `supabase/predeploy/` index preparation and migration-plan attestation checks.
+   Then run `supabase db push --linked --yes` under production approval.
+3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
+   Verify the deployed frontend and old Edge still pass the workflow's post-migration current-release readiness checks.
+   Verify `add_free_agent_atomic` accepts optional `p_to_ir`, `waiver_claims.to_ir` and `player_game_stats.is_home` exist, and `get_visible_player_totals` exists.
+   Check the deployed client's hint topics and inventory details remain accepted.
+   Stop if any check fails; keep the old frontend and Edge on the compatible migrated database.
+4. Stamp the approved Edge artifact with `PANCAKE_RELEASE_SHA=<reviewed-sha> node scripts/stamp-edge-release-provenance.mjs`.
+   Run `supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"` under production approval.
+   Verify `/health` reports the reviewed commit and Edge digest.
+   Run the workflow's current-frontend/new-Edge and candidate-frontend/new-Edge readiness checks before merging.
+   Confirm straight-to-IR adds, waiver claims, visible player totals, trades, and notification delivery work.
+   If Edge checks fail, restore the recorded old Edge artifact and repeat current-release readiness checks.
+5. Merge only after the database and Edge checks pass.
+   Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
+   If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
+
+These are release instructions. This change does not execute production commands or change `vercel.json`.
+
 ## Changed RPC signatures
 
 All existing positional calls work because the new arguments have defaults.
@@ -94,27 +135,11 @@ No new error codes apply to these routines.
 
 ## Player stats hint
 
-The topic name is `player_stats` in `public.league_change_hints`.
-The existing Realtime publication carries this row.
-The payload has the usual row fields:
-
-```json
-{
-  "league_id": "<league UUID>",
-  "topic": "player_stats",
-  "revision": 1,
-  "scopes": null,
-  "details": null,
-  "updated_at": "<timestamp>"
-}
-```
-
-A changed current-season stat queues a hint for each active or playoff league in that season.
-Free-agent stat changes also queue hints.
-A minute job sends at most one hint per minute for each league.
-A suppressed final change stays queued until the next permitted flush.
-Clients use the hint to refresh their visible player rows.
-The hint contains no player pool or stat payload.
+Live player changes use the existing `score` topic with null scopes and details.
+The new Players tab listens to `score` for its live display refresh during games.
+The existing minute throttle retains the last changed stats for the next flush.
+The deployed client accepts this topic without catchup or disconnect polling.
+No `player_stats` topic or `activity` inventory detail ships in this release.
 
 ## Totals and score parity
 
@@ -257,6 +282,12 @@ The server retains game locks, taxi eligibility, tenure limits, and prior taxi e
 Paused drafts still complete through the existing opening-night backstop.
 
 ## Next release
+
+Add the dedicated `player_stats` topic and scoped `activity` inventory resource only after the deployed receiver accepts them.
+Keep this release's Players tab subscribed to `score` until that change ships.
+Drop `standings.waiver_priority` after old Edge writers and their rollback window retire.
+Live waiver order already uses `waiver_priorities`.
+
 
 Keep `weekly_lineups`, `waiver_claims`, and `waiver_wire_log` in `supabase_realtime` through this release.
 The deployed Roster screen and its rollback still subscribe to these tables.

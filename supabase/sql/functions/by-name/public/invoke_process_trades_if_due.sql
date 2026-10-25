@@ -17,7 +17,7 @@ BEGIN
     WHERE accepted.status = 'accepted'::public.trade_status
       AND accepted.veto_window_expires_at <= now()
       AND season.is_current
-      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
+      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status, 'drafting'::public.league_status)
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
     WHERE queued.suppressed_at IS NULL

@@ -2,7 +2,7 @@ BEGIN;
 DO $$
 DECLARE v_name text;
 BEGIN
-  FOREACH v_name IN ARRAY ARRAY['public.counter_trade_atomic','public.counter_multi_team_trade_atomic',
+  FOREACH v_name IN ARRAY ARRAY['public.clear_ineligible_taxi_players','public.counter_trade_atomic','public.counter_multi_team_trade_atomic',
     'public.edit_trade_atomic','public.edit_multi_team_trade_atomic','private.ensure_season_faab_balances',
     'private.invalidate_player_search_cache','public.defer_notification_receipt_atomic'] LOOP
     IF EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname||'.'||p.proname=v_name) THEN

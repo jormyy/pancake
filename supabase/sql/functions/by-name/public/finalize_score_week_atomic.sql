@@ -227,8 +227,7 @@ BEGIN
     ties,
     points_for,
     points_against,
-    max_possible_points,
-    waiver_priority
+    max_possible_points
   )
   SELECT
     p_league_id,
@@ -241,8 +240,7 @@ BEGIN
     standing.ties,
     standing.points_for,
     standing.points_against,
-    standing.max_possible_points,
-    standing.waiver_priority
+    standing.max_possible_points
   FROM jsonb_to_recordset(p_standings) AS standing(
     member_id uuid,
     created_at timestamptz,
@@ -251,8 +249,7 @@ BEGIN
     ties int,
     points_for numeric,
     points_against numeric,
-    max_possible_points numeric,
-    waiver_priority int
+    max_possible_points numeric
   )
   ON CONFLICT (league_id, league_season_id, member_id, week_number)
   DO UPDATE SET

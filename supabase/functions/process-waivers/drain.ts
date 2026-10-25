@@ -6,7 +6,6 @@ export const MAX_BATCHES = 100
 
 export async function drainDueClaims<Row>(
   processBatch: () => Promise<Row[]>,
-  onBatch: (rows: Row[]) => Promise<void>,
 ): Promise<Row[]> {
   const rows: Row[] = []
   let emptyBatches = 0
@@ -24,10 +23,7 @@ export async function drainDueClaims<Row>(
     }
     emptyBatches = 0
     rows.push(...batchRows)
-    // Each batch is already committed by the RPC. Notify as soon as it lands so
-    // a worker killed mid-drain leaves at most one batch of applied claims
-    // without their notifications, not the whole run.
-    await onBatch(batchRows)
+
   }
   return rows
 }
