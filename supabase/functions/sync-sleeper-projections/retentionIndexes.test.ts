@@ -5,10 +5,14 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   const db = Deno.env.get('SUPABASE_DB_URL')!
   assert.ok(['localhost', '127.0.0.1'].includes(new URL(db).hostname))
   const source = await Deno.readTextFile(new URL('../../sql/functions/by-name/public/prune_unbounded_history.sql', import.meta.url))
-  const logDeletes = [...source.matchAll(/WITH victims AS \([\s\S]*?\) DELETE FROM public\.(sync_runs|edge_invocations) r USING victims v WHERE r.id=v.id;/g)].map((match) => match[0])
+  const deletes = source.match(/WITH victims AS \([\s\S]*?\) DELETE FROM public\.[a-z_]+[^;]+;/g) ?? []
+  const logDeletes = deletes.filter(statement => /DELETE FROM public\.(sync_runs|edge_invocations) /.test(statement))
   assert.equal(logDeletes.length, 4)
+  const outboxDelete = deletes.find(statement => statement.includes('DELETE FROM public.notification_outbox '))
+  assert.ok(outboxDelete)
   const quoted = (value: string) => `'${value.replaceAll("'", "''")}'`
   const plans = logDeletes.map((statement, index) => `SELECT pg_temp.check_plan(${quoted(statement)},${quoted(['sync_runs_retention_success', 'sync_runs_retention_failed', 'edge_invocations_retention_success', 'edge_invocations_retention_failed'][index])});`)
+  plans.push(`SELECT pg_temp.check_plan(${quoted(outboxDelete)},'notification_outbox_terminal_retention');`)
   plans.push(`SELECT pg_temp.check_plan('SELECT runid FROM cron.job_run_details WHERE runid>0 ORDER BY runid LIMIT 1000','job_run_details_pkey');`)
   plans.push(`SELECT pg_temp.check_plan('SELECT id FROM public.sleeper_projection_rows WHERE game_date<current_date-7 ORDER BY game_date,id LIMIT 10000','sleeper_projection_rows_date');`)
   plans.push(`SELECT pg_temp.check_plan('SELECT id FROM public.fantasypros_projection_rows WHERE run_id=''11111111-0000-0000-0000-000000000001'' ORDER BY id LIMIT 500 FOR UPDATE SKIP LOCKED','fantasypros_projection_rows_run');`)
@@ -33,6 +37,13 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
     INSERT INTO retention_plans VALUES(plan);
   END;
   $$;
+  INSERT INTO auth.users(id,email) VALUES('11111111-0000-0000-0000-000000000004','outbox-index@example.test');
+  INSERT INTO public.leagues(id,name,slug,commissioner_id) VALUES('11111111-0000-0000-0000-000000000005','Outbox index','outbox-index','11111111-0000-0000-0000-000000000004');
+  INSERT INTO public.league_members(id,league_id,user_id,role) VALUES('11111111-0000-0000-0000-000000000003','11111111-0000-0000-0000-000000000005','11111111-0000-0000-0000-000000000004','commissioner');
+  INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,data,category,created_at,available_at,delivered_at)
+  SELECT gen_random_uuid()::text,'11111111-0000-0000-0000-000000000003','trade_completed','Fixture','Fixture','{}','trade',
+    now()-interval '90 days',now()-interval '90 days',now()-CASE WHEN n<=400 THEN interval '70 days' ELSE interval '1 hour' END
+  FROM generate_series(1,50400) n;
   INSERT INTO public.sync_runs(function_name,started_at,finished_at,status,error)
   SELECT 'index-fixture-'||(n%100),now()-interval '1 hour',now()-interval '1 hour',
     CASE WHEN n%2=0 THEN 'success' ELSE 'failed' END,CASE WHEN n%2=0 THEN NULL ELSE 'fixture' END
@@ -67,6 +78,7 @@ Deno.test({ name: 'retention statements use indexes on populated local tables', 
   SELECT 'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',current_date FROM generate_series(1,10000);
   INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,fetched_at,source_player_name,normalized_player_name,match_status)
   SELECT '11111111-0000-0000-0000-000000000001','daily','https://www.fantasypros.com/nba/projections/daily-overall.php',n,now(),'Fixture','fixture','unmatched' FROM generate_series(1,1000) n;
+  ANALYZE public.notification_outbox;
   ANALYZE public.sync_runs;
   ANALYZE public.edge_invocations;
   ANALYZE cron.job_run_details;

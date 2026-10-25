@@ -33,13 +33,20 @@ BEGIN
     SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM roster_players r WHERE league_id=f.league_id),
       'picks',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM draft_picks p WHERE league_id=f.league_id)) INTO before_state;
     PERFORM pg_temp.reject_rules(format('SELECT public.reset_draft_atomic(%L,%L)',draft,f.user_ids[1]),
-      'Players from this draft changed teams. Reverse those moves before resetting the draft.',kind||' reset refuses a moved player');
+      'A player from this draft was traded, so this draft can no longer be reset.',kind||' reset refuses a moved player');
     PERFORM pg_temp.check_rules(before_state=jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM roster_players r WHERE league_id=f.league_id),
       'picks',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM draft_picks p WHERE league_id=f.league_id)),kind||' refused reset preserves rosters and picks');
-    UPDATE roster_players SET member_id=f.member_ids[1],acquired_via='draft' WHERE player_id=rookie AND league_season_id=f.season_id;
-    PERFORM public.reset_draft_atomic(p_draft_id=>draft,p_actor_user_id=>f.user_ids[1]);
-    PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=f.season_id)
-      AND NOT EXISTS(SELECT 1 FROM draft_picks WHERE rookie_draft_id=draft),kind||' original ownership permits reset');
+    offer:=gen_random_uuid();
+    INSERT INTO trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id,status,accepted_at,veto_window_expires_at)
+      VALUES(offer,f.league_id,f.season_id,f.member_ids[2],f.member_ids[1],'accepted',now(),now()-interval '1 hour');
+    INSERT INTO trade_participants(trade_id,member_id,sort_order,is_initiator,accepted_at)
+      VALUES(offer,f.member_ids[2],0,true,now()),(offer,f.member_ids[1],1,false,now());
+    INSERT INTO trade_items(trade_id,side,player_id,from_member_id,to_member_id)
+      VALUES(offer,'proposer',rookie,f.member_ids[2],f.member_ids[1]);
+    PERFORM public.complete_accepted_trade_atomic(offer);
+    PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[1] AND acquired_via='trade' FROM roster_players WHERE player_id=rookie AND league_season_id=f.season_id),kind||' trade-back retains trade provenance');
+    PERFORM pg_temp.reject_rules(format('SELECT public.reset_draft_atomic(%L,%L)',draft,f.user_ids[1]),
+      'A player from this draft was traded, so this draft can no longer be reset.',kind||' reset also refuses a traded-back player');
   END LOOP;
 END;
 $$;
@@ -62,6 +69,29 @@ BEGIN
     'untouched draft removes drafted players');
   PERFORM pg_temp.check_rules((SELECT NOT is_used AND used_at IS NULL AND rookie_draft_id IS NULL FROM draft_picks WHERE id=pick),
     'untouched draft refunds the rookie pick');
+END;
+$$;
+DO $$
+DECLARE f record; rookie uuid:=gen_random_uuid(); draft uuid:=gen_random_uuid(); pick uuid:=gen_random_uuid();
+BEGIN
+  SELECT * INTO f FROM pg_temp.rules_fixture(2,9536,'drafting');
+  INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number)
+    VALUES(rookie,'Dropped','Rookie','PG',ARRAY['PG'],0,1);
+  INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds)
+    VALUES(draft,f.league_id,f.season_id,'snake','in_progress',false,1);
+  INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
+    VALUES(f.league_id,f.season_id,f.member_ids[1],rookie,'draft');
+  INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id,is_used,used_at,rookie_draft_id)
+    VALUES(pick,f.league_id,9536,1,f.member_ids[1],f.member_ids[1],true,now(),draft);
+  INSERT INTO snake_draft_picks(draft_id,member_id,round,pick_in_round,overall_pick,player_id,picked_at,draft_pick_id)
+    VALUES(draft,f.member_ids[1],1,1,1,rookie,now(),pick);
+  PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
+  PERFORM public.drop_player_atomic((SELECT id FROM roster_players WHERE league_season_id=f.season_id AND player_id=rookie),f.season_id,NULL);
+  PERFORM public.reset_draft_atomic(p_draft_id=>draft,p_actor_user_id=>f.user_ids[1]);
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=f.season_id),
+    'dropped drafted player removes drafted players');
+  PERFORM pg_temp.check_rules((SELECT NOT is_used AND used_at IS NULL AND rookie_draft_id IS NULL FROM draft_picks WHERE id=pick),
+    'dropped drafted player refunds the rookie pick');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

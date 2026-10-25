@@ -16,6 +16,9 @@ AS $$
 DECLARE
   v_now timestamp := timezone('America/New_York', p_now);
 BEGIN
+  IF p_function_name='sync-players' AND p_hour=6 AND p_minute=0 THEN
+    PERFORM public.invoke_player_injuries_if_due(p_now);
+  END IF;
   -- Due from the target ET time onward, dispatched at most once per ET day.
   -- Equality on the minute skipped the whole day whenever pg_cron ran late.
   IF v_now::time < make_time(p_hour, p_minute, 0) THEN

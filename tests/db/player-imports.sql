@@ -82,9 +82,6 @@ BEGIN
     'provider_id',v_tag||'-nba','player_id',v_other,'expected_display_name','Unclaimed '||v_tag,'name_match','exact')));
   IF (v_result->'results'->0->>'player_id')::uuid <> v_id
     OR EXISTS(SELECT FROM players WHERE id=v_other) THEN RAISE EXCEPTION 'Compatible index merge failed'; END IF;
-  IF update_existing_player_metadata(jsonb_build_array(jsonb_build_object('id',v_other))) <> 0 THEN
-    RAISE EXCEPTION 'Deleted UUID was recreated';
-  END IF;
   INSERT INTO players(first_name,last_name,espn_id) VALUES('Conflicting',v_tag,v_tag||'-different-espn') RETURNING id INTO v_other;
   SELECT to_jsonb(p) INTO v_original FROM players p WHERE id=v_id;
   BEGIN

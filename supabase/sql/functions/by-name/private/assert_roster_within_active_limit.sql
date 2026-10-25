@@ -31,14 +31,9 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  SELECT count(*)
-    INTO v_active_count
-    FROM roster_players
-   WHERE league_id = p_league_id
-     AND league_season_id = p_league_season_id
-     AND member_id = p_member_id
-     AND is_on_ir = false
-     AND is_on_taxi = false;
+  SELECT count(*) INTO v_active_count
+  FROM private.roster_problems(p_league_id,p_league_season_id,p_member_id)
+  WHERE kind='active_limit';
 
   IF v_active_count > v_roster_size THEN
     RAISE EXCEPTION 'Roster is over the active player limit. Drop or move an eligible player to IR/taxi before editing your lineup.'

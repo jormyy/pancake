@@ -39,6 +39,7 @@ const webNotify = createNotifyMembers({
     return { data: data?.map(row => ({ user_id: row.user_id, ...normalizeNotificationPreferences(row) })) ?? null, error }
   },
   profiles: async () => ({ data: [], error: null }),
+  persistExpoTicket: async () => {},
   admitDelivery: async message => await result(supabase.rpc('notif_admit_delivery_atomic', { p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken })) === true,
   beginWebDelivery: async message => {
     await barrier('web_before_reservation')

@@ -3,7 +3,7 @@ import { fixture, literal as q, sql, type Identity, type Rookie } from './identi
 
 assert.equal(await sql('SELECT count(*) FROM players'), '0', 'Use an empty isolated identity stack')
 const { resolvePlayerImports } = await import('../../functions/_shared/playerImports.ts')
-const { loadCdnPlayerResolver, resolveCdnPlayers } = await import('../../functions/_shared/playerResolver.ts')
+const { resolveCdnPlayers } = await import('../../functions/_shared/playerResolver.ts')
 const { calcWeekPointsByMember } = await import('../../functions/_shared/scoreLineups.ts')
 const { syncScores } = await import('../../functions/_shared/syncScores.ts')
 type Game = { gameId: string; date: string; home: string; away: string; time: string }
@@ -14,7 +14,6 @@ const { games: priorGames } = await fixture<{ games: Game[] }>('games-2024.json'
 const { games: lukaGames } = await fixture<{ games: (Sample & { personId: string; identity: Identity; statistics: { points: number } })[] }>('trades-2025.json')
 const harden = await fixture<{ personId: string; identity: Identity; games: (Sample & { statistics: { points: number } })[] }>('trade-harden.json')
 const games = new Map([...seasonGames, ...priorGames].map(game => [game.gameId, game]))
-const resolver = await loadCdnPlayerResolver()
 const leagues: string[] = [], users: string[] = [], ownedGames: string[] = []
 const source = crypto.randomUUID(), run = crypto.randomUUID()
 const results: Record<string, unknown>[] = []
@@ -45,7 +44,7 @@ try {
     FROM players WHERE nba_draft_number IS NOT NULL;
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(2025,1,'2024-10-01','2025-04-30'),(2026,1,'2025-10-01','2026-04-30')`)
   for (const pick of picks.filter(pick => pick.personId)) {
-    assert.deepEqual(await resolveCdnPlayers(resolver, [{ personId: pick.personId!, displayName: pick.identities![0].name }]), [byPick.get(pick.pick)])
+    assert.deepEqual(await resolveCdnPlayers([{ personId: pick.personId!, displayName: pick.identities![0].name }]), [byPick.get(pick.pick)])
   }
   const rookie = picks.find(pick => pick.pick === 8)!
   const played = rookie.games!.filter(game => game.played === '1')
@@ -53,9 +52,9 @@ try {
   const worlds = [
     { name: 'rookie', id: byPick.get(8)!, personId: rookie.personId!, identity: rookie.identities![0], year: 2026,
       samples: [played[0], played[1], played[2], played[late], played[late + 1]].map(game => ({ ...game, points: game.stats.points })) },
-    { name: 'nba-2025', id: (await resolveCdnPlayers(resolver, [{ personId: lukaGames[0].personId, displayName: lukaGames[0].identity.name }]))[0],
+    { name: 'nba-2025', id: (await resolveCdnPlayers([{ personId: lukaGames[0].personId, displayName: lukaGames[0].identity.name }]))[0],
       personId: lukaGames[0].personId, identity: lukaGames[0].identity, year: 2025, samples: lukaGames.map(game => ({ ...game, points: game.statistics.points })) },
-    { name: 'nba-2026', id: (await resolveCdnPlayers(resolver, [{ personId: harden.personId, displayName: harden.identity.name }]))[0],
+    { name: 'nba-2026', id: (await resolveCdnPlayers([{ personId: harden.personId, displayName: harden.identity.name }]))[0],
       personId: harden.personId, identity: harden.identity, year: 2026, samples: harden.games.map(game => ({ ...game, points: game.statistics.points })) },
   ]
   for (const world of worlds) {
@@ -90,7 +89,7 @@ try {
       assert.deepEqual(member.map(id => actual.get(id)), expected, `${world.name} ${stage}`)
     }
     for (const [index, game] of sample.entries()) {
-      const resolved = await resolveCdnPlayers(resolver, [{ personId: world.personId, displayName: world.identity.name }])
+      const resolved = await resolveCdnPlayers([{ personId: world.personId, displayName: world.identity.name }])
       assert.deepEqual(resolved, [world.id], `${world.name}: NBA team change forks identity`)
       const gameId = await ensureGame(game.gameId, world.year)
       const owner = index === 3 ? 1 : 0
@@ -204,12 +203,11 @@ try {
   }
   await Deno.mkdir('evidence', { recursive: true })
   await Deno.writeTextFile('evidence/rookie-season-totals.tsv', evidence.join('\n') + '\n')
-  await sql('REFRESH MATERIALIZED VIEW analytics.mv_player_season_averages')
   for (const pick of picks.filter(pick => pick.games?.some(game => game.played === '1'))) {
     assert.equal(Number(await sql(`SELECT games_played FROM mv_player_season_averages WHERE player_id=${q(byPick.get(pick.pick)!)} AND season_year=2026`)), pick.games!.filter(game => game.played === '1').length)
   }
   results.push({ scenario: 'all-rookie-season-totals', identities: totals.length, rawRows: rows.length,
-    playedGames: rows.filter(row => row.played).length, missingGames: 0, materializedAveragesCanonical: true })
+    playedGames: rows.filter(row => row.played).length, missingGames: 0, averagesCanonical: true })
   await check(`(SELECT count(*) FROM dynasty_rankings WHERE source=${q(source)} AND player_id IS NOT NULL)=59`, 'First box link loses a ranking row')
   await check(`(SELECT count(*) FROM fantasypros_projection_rows WHERE run_id=${q(run)} AND player_id IS NOT NULL)=59`, 'First box link loses a projection row')
   console.log(JSON.stringify({ provenance: 'REAL-DERIVED', fixtureState: 'SYNTHETIC leagues, one long test week, historical acquisition clocks, counterplayers and support rows', results }))

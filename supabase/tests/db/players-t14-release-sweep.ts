@@ -54,6 +54,7 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
 const run = crypto.randomUUID().slice(0, 8)
 type Athlete = { espn: string; last: string; team: string; injury?: string }
 const fillers: Athlete[] = codes.flatMap((team, index) => Array.from({ length: 17 }, (_, slot) => ({ espn: `t14-${run}-${index}-${slot}`, last: `T14${run}t${index}s${slot}`, team })))
+fillers[0].injury = 'Out'
 const x: Athlete = { espn: `t14-${run}-x`, last: `T14${run}X`, team: 'MIN', injury: 'Day-To-Day' }
 const ys: Athlete[] = Array.from({ length: 5 }, (_, index) => ({ espn: `t14-${run}-y${index}`, last: `T14${run}Y${index}`, team: 'BOS' }))
 type Feed = { athletes: Athlete[]; teams?: string[]; failRoster?: string; failInjuries?: boolean; blankName?: boolean }
@@ -117,7 +118,7 @@ const etDate = (offset: number) => {
 }
 const today = etDate(0), gameDay = etDate(2), pastDay = etDate(-2)
 const user = crypto.randomUUID(), league = crypto.randomUUID(), season = crypto.randomUUID(), member = crypto.randomUUID()
-const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID(), final = crypto.randomUUID()
+const xId = `00000000-0000-4000-8000-${crypto.randomUUID().slice(-12)}`, game = crypto.randomUUID(), final = crypto.randomUUID(), prior = crypto.randomUUID()
 const yIds = ys.map(() => `8${crypto.randomUUID().slice(1)}`)
 const started = new Date().toISOString()
 let year = 0
@@ -143,6 +144,10 @@ try {
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(${year},1,${q(etDate(-3))},${q(etDate(3))});
     INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
       VALUES(${q(game)},${q(`002t14${run}`)},${year},1,${q(gameDay)},${q(gameDay + 'T23:00:00Z')},'MIN','BOS','Scheduled');
+    INSERT INTO nba_games(id,nba_game_id,season_year,week_number,game_date,game_time,home_team,away_team,status)
+      VALUES(${q(prior)},${q(`002t14${run}prior`)},${year},1,${q(pastDay)},${q(pastDay + 'T23:00:00Z')},'MIN','BOS','Final');
+    INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,game_date,minutes_played,points,did_not_play)
+      VALUES(${q(xId)},${q(prior)},${year},1,${q(pastDay)},30,20,false);
     INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
       SELECT ${q(league)},${q(season)},${q(member)},id,'draft' FROM unnest(ARRAY[${[xId, ...yIds].map(q)}]::uuid[]) id;
     INSERT INTO lineup_optimizer_settings(league_id,league_season_id,member_id,enabled) VALUES(${q(league)},${q(season)},${q(member)},true)
@@ -261,8 +266,8 @@ try {
     await provider.shutdown()
   } finally {
     await sql(`DELETE FROM leagues WHERE id=${q(league)};
-      DELETE FROM player_game_stats WHERE game_id=${q(final)};
-      DELETE FROM nba_games WHERE id IN (${q(game)},${q(final)});
+      DELETE FROM player_game_stats WHERE game_id IN (${q(final)},${q(prior)});
+      DELETE FROM nba_games WHERE id IN (${q(game)},${q(final)},${q(prior)});
       ${year ? `DELETE FROM season_weeks WHERE season_year=${year};` : ''}
       DELETE FROM players WHERE id IN (${[xId, ...yIds].map(q)}) OR espn_id LIKE ${q(`t14-${run}-%`)};
       DELETE FROM profiles WHERE id=${q(user)};

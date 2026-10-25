@@ -294,7 +294,11 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   if (error) throwDb(error)
   const result = parseMultiTeamAcceptResult(data)
   if (result.expired) throw new ValidationError('This trade offer has expired.')
-  await activateLeagueAfterTrade(tradeId)
+  try {
+    await activateLeagueAfterTrade(tradeId)
+  } catch (error) {
+    console.error('Post-trade activation failed', { tradeId, error })
+  }
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {

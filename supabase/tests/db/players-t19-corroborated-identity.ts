@@ -196,7 +196,7 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
     return Response.json({ athletes: listing().filter(listed => listed.team === team).map(listed => ({ id: listed.espn, firstName: listed.first, lastName: listed.last,
       fullName: `${listed.first} ${listed.last}`, position: { abbreviation: 'PG' }, status: { type: 'active' }, experience: { years: 1 } })) })
   }
-  if (route === '/site/injuries') return Response.json({ injuries: [] })
+  if (route === '/site/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { id: fillers[0].espn, displayName: `${fillers[0].first} ${fillers[0].last}` } }] }] })
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return new Response(served.slice(), { headers: { 'content-type': 'application/json' } })
   if (box && realBoxes.has(box[1])) return new Response(realBoxes.get(box[1])!.body.slice(), { headers: { 'content-type': 'application/json' } })

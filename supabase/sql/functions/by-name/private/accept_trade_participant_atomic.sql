@@ -153,6 +153,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.assert_legal_roster(v_trade.league_id,v_trade.league_season_id,p_accepting_member_id);
+
   FOR v_from_member, v_item_faab_amount IN
     SELECT
       item.from_member_id,

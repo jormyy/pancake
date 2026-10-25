@@ -51,7 +51,13 @@ async function processAcceptedTrades(): Promise<{
 
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
-  for (const row of partitioned.completed) await activateLeagueAfterTrade(row.trade_id)
+  for (const row of partitioned.completed) {
+    try {
+      await activateLeagueAfterTrade(row.trade_id)
+    } catch (error) {
+      console.error('Post-trade activation failed', { tradeId: row.trade_id, error })
+    }
+  }
   const deliveryResult = await drainDueNotifications()
   const receiptResult = await drainNotificationReceipts()
 

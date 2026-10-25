@@ -488,7 +488,7 @@ BEGIN
          'prevent_accepted_or_inactive_roster_move',
          'prevent_conflicting_or_inactive_trade_accept',
          'validate_waiver_claim_drop_player',
-         'drop_player_atomic', 'toggle_ir_atomic', 'toggle_taxi_atomic'
+         'drop_player_atomic', 'toggle_ir_atomic', 'toggle_ir_for_activation', 'toggle_taxi_atomic'
        ])
        AND pg_get_functiondef(procedure.oid) ~* 'COALESCE\s*\(\s*(?:item|ti|other_item)\.from_member_id'
   ) THEN

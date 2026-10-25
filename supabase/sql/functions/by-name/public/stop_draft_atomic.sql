@@ -46,6 +46,9 @@ BEGIN
    WHERE id = p_draft_id;
 
   IF NOT v_draft.is_mock THEN
+    UPDATE draft_picks pick SET is_used=true,used_at=now(),rookie_draft_id=p_draft_id
+      FROM snake_draft_picks slot WHERE slot.draft_id=p_draft_id
+        AND slot.player_id IS NULL AND slot.draft_pick_id=pick.id AND NOT pick.is_used;
     UPDATE leagues
        SET status = 'active'
      WHERE id = v_draft.league_id;

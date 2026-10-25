@@ -76,9 +76,6 @@ BEGIN
   IF p_settings ? 'playoff_entrants' AND (p_settings->>'playoff_entrants')::int < 2 THEN
     RAISE EXCEPTION 'Playoffs require at least 2 entrants.' USING ERRCODE='22023';
   END IF;
-  IF p_settings ? 'taxi_rule' AND (p_settings->>'taxi_rule') NOT IN ('drafted_rookies','rookies_or_64_games') THEN
-    RAISE EXCEPTION 'Choose a valid taxi eligibility rule.' USING ERRCODE='22023';
-  END IF;
   IF p_settings ? 'taxi_max_seasons' AND (p_settings->>'taxi_max_seasons')::int NOT BETWEEN 1 AND 2 THEN
     RAISE EXCEPTION 'Taxi tenure must be 1 or 2 seasons.' USING ERRCODE='22023';
   END IF;
@@ -274,7 +271,7 @@ BEGIN
 
   UPDATE public.leagues
      SET team_limit = CASE WHEN p_settings ? 'team_limit' THEN (p_settings->>'team_limit')::int ELSE team_limit END,
-         taxi_rule = COALESCE(p_settings->>'taxi_rule',taxi_rule),
+         taxi_rule = 'rookies_or_64_games',
          taxi_max_seasons = CASE WHEN p_settings ? 'taxi_max_seasons' THEN (p_settings->>'taxi_max_seasons')::int ELSE taxi_max_seasons END,
          allow_inactive_trades = CASE WHEN p_settings ? 'allow_inactive_trades' THEN (p_settings->>'allow_inactive_trades')::boolean ELSE allow_inactive_trades END,
          playoff_entrants = CASE WHEN p_settings ? 'playoff_entrants' THEN (p_settings->>'playoff_entrants')::int ELSE playoff_entrants END,

@@ -3682,6 +3682,7 @@ export type Database = {
           status: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at: string
           to_ir: boolean
+          to_taxi: boolean
         }
         Insert: {
           bid_amount?: number
@@ -3699,6 +3700,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at?: string
           to_ir?: boolean
+          to_taxi?: boolean
         }
         Update: {
           bid_amount?: number
@@ -3716,6 +3718,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["waiver_claim_status"]
           submitted_at?: string
           to_ir?: boolean
+          to_taxi?: boolean
         }
         Relationships: [
           {
@@ -4342,6 +4345,7 @@ export type Database = {
           p_member_id: string
           p_player_id: string
           p_to_ir?: boolean
+          p_to_taxi?: boolean
         }
         Returns: undefined
       }
@@ -4571,6 +4575,10 @@ export type Database = {
         Args: { p_league_id: string; p_stat_id: string }
         Returns: number
       }
+      count_due_waiver_claims: {
+        Args: { p_process_date: string }
+        Returns: number
+      }
       count_final_games_missing_stats: {
         Args: { season_year_param: number }
         Returns: number
@@ -4668,6 +4676,7 @@ export type Database = {
           p_member_id: string
           p_player_id: string
           p_to_ir?: boolean
+          p_to_taxi?: boolean
           p_user_id?: string
         }
         Returns: string
@@ -4734,6 +4743,7 @@ export type Database = {
           p_drop_player_id?: string
           p_member_id: string
           p_to_ir?: boolean
+          p_to_taxi?: boolean
           p_user_id: string
         }
         Returns: undefined
@@ -5040,6 +5050,10 @@ export type Database = {
       }
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
+      invoke_player_injuries_if_due: {
+        Args: { p_now?: string }
+        Returns: undefined
+      }
       invoke_pre_tipoff_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_process_trades_if_due: { Args: never; Returns: undefined }
       invoke_projection_sync_if_due: { Args: never; Returns: undefined }
@@ -5082,7 +5096,6 @@ export type Database = {
         Args: { loser_id: string; winner_id: string }
         Returns: undefined
       }
-      name_key: { Args: { n: string }; Returns: string }
       notif_admit_delivery_atomic: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
@@ -5441,6 +5454,7 @@ export type Database = {
           avg_steals: number
           avg_three_pointers_made: number
           avg_turnovers: number
+          career_regular_season_games: number
           display_name: string
           eligible_positions: string[]
           games_played: number
@@ -5643,10 +5657,6 @@ export type Database = {
       try_live_poll_lease: {
         Args: { p_lock_key: number; p_ttl_seconds?: number }
         Returns: string
-      }
-      update_existing_player_metadata: {
-        Args: { p_updates: Json }
-        Returns: number
       }
       update_league_configuration_atomic: {
         Args: { p_league_id: string; p_settings: Json; p_slots?: Json }

@@ -190,6 +190,8 @@ BEGIN
     RAISE EXCEPTION 'No active season found.';
   END IF;
 
+  PERFORM private.assert_legal_roster(p_league_id,p_league_season_id,p_proposer_member_id);
+
   SELECT count(*)
     INTO v_rows
     FROM league_members AS member
