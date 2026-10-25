@@ -323,6 +323,21 @@ BEGIN
       END IF;
       UPDATE public.league_seasons SET skipped_weeks=v_skip WHERE id=v_current.id;
       UPDATE public.matchups SET is_voided=true WHERE league_season_id=v_current.id AND week_number=ANY(v_skip);
+      IF EXISTS (SELECT 1 FROM public.matchups WHERE league_season_id=v_current.id AND NOT is_voided)
+        AND NOT EXISTS (
+          SELECT 1 FROM public.matchups m
+          LEFT JOIN public.season_weeks w ON w.season_year=v_current.season_year AND w.week_number=m.week_number
+          WHERE m.league_season_id=v_current.id AND (
+            w.id IS NULL OR w.week_start<=(now() AT TIME ZONE 'America/New_York')::date
+            OR m.is_finalized OR m.winner_member_id IS NOT NULL
+            OR COALESCE(m.home_points,0)<>0 OR COALESCE(m.away_points,0)<>0)) THEN
+        DELETE FROM public.matchups WHERE league_season_id=v_current.id AND matchup_type='regular_season' AND NOT is_voided;
+        INSERT INTO public.matchups(league_id,league_season_id,week_number,matchup_type,home_member_id,away_member_id)
+          SELECT p_league_id,v_current.id,r.week_number,'regular_season',r.home_member_id,r.away_member_id
+          FROM jsonb_to_recordset(private.regular_season_matchup_payload(
+            p_league_id,v_current.id,COALESCE(v_playoff_start_week,v_league.playoff_start_week)-1))
+          AS r(week_number int,home_member_id uuid,away_member_id uuid);
+      END IF;
       PERFORM private.rebuild_regular_standings(p_league_id,v_current.id);
     END IF;
   END IF;

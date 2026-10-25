@@ -147,16 +147,17 @@ function rookieDraftRounds(body: Record<string, unknown>): number {
   return optionalIntegerField(body, 'rounds', { min: 1, max: MAX_ROOKIE_DRAFT_ROUNDS }) ?? ROOKIE_DRAFT_ROUNDS
 }
 
-function rookieDraftStartOptions(body: Record<string, unknown>): RookieDraftStartOptions {
+export function rookieDraftStartOptions(body: Record<string, unknown>): RookieDraftStartOptions {
+  if (body.timerSeconds === null) throw new ValidationError('timerSeconds must be between 60 and 604800')
   return {
     isMock: optionalBooleanField(body, 'isMock') ?? false,
-    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
+    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 60, max: 604800 }) ?? 60,
     rounds: rookieDraftRounds(body),
     timerExpiryBehavior: rookieTimerExpiryBehavior(body),
   }
 }
 
-function mockDraftRoomOptions(body: Record<string, unknown>): MockDraftRoomOptions {
+export function mockDraftRoomOptions(body: Record<string, unknown>): MockDraftRoomOptions {
   const draftType = optionalStringField(body, 'draftType') ?? 'auction'
   if (draftType !== 'auction' && draftType !== 'snake') {
     throw new ValidationError(`Invalid mock draft room type: ${draftType}`)
@@ -172,7 +173,7 @@ function mockDraftRoomOptions(body: Record<string, unknown>): MockDraftRoomOptio
     roomName: optionalStringField(body, 'roomName'),
     scheduledAt,
     nominationOrderMode: nominationOrderMode(body),
-    timerSeconds: optionalIntegerField(body, 'timerSeconds', { min: 5, max: 3600 }) ?? DEFAULT_DRAFT_TIMER_SECONDS,
+    timerSeconds: optionalIntegerField(body, 'timerSeconds', draftType === 'snake' ? { min: 60, max: 604800 } : { min: 5, max: 3600 }) ?? (draftType === 'snake' ? 60 : DEFAULT_DRAFT_TIMER_SECONDS),
     budgetPerTeam: optionalIntegerField(body, 'budgetPerTeam', { min: 1, max: 1_000_000 }),
     rounds: rookieDraftRounds(body),
     timerExpiryBehavior: rookieTimerExpiryBehavior(body),
@@ -348,11 +349,12 @@ export async function startRookieDraft(
   leagueId: string,
   options: RookieDraftStartOptions = {
     isMock: false,
-    timerSeconds: DEFAULT_DRAFT_TIMER_SECONDS,
+    timerSeconds: 60,
     rounds: ROOKIE_DRAFT_ROUNDS,
     timerExpiryBehavior: 'auto_pick',
   },
 ): Promise<unknown> {
+  options = rookieDraftStartOptions({ ...options })
   if (options.isMock) {
     throw new ValidationError('Mock drafts must be created and started from a mock draft room')
   }
@@ -554,6 +556,16 @@ async function reseedRookieDraftPicks(draftId: string): Promise<{ reseeded: numb
   return { reseeded: Number(data ?? 0) }
 }
 
+async function rookieStartWarning(leagueId: string, options: RookieDraftStartOptions): Promise<Json | null> {
+  const { data, error } = await supabase.rpc('draft_timer_start_warning', {
+    p_league_id: leagueId,
+    p_rounds: options.rounds,
+    p_pick_timer_seconds: options.timerSeconds,
+  })
+  if (error) throwDb(error)
+  return data
+}
+
 export async function handleDraftRoute(req: Request, path: string): Promise<Response | null> {
   if (req.method !== 'POST') return null
 
@@ -565,12 +577,15 @@ export async function handleDraftRoute(req: Request, path: string): Promise<Resp
     return json({ ok: true, draft: await startDraft(leagueId, nominationOrderMode(body), auctionDraftStartOptions(body)) })
   }
 
-  if (path === '/draft/start-rookie') {
+  if (path === '/draft/start-rookie' || path === '/draft/rookie-start-warning') {
     const body = await readJsonObject(req)
     const userId = await requireUser(req)
     const leagueId = uuidField(body, 'leagueId')
     await requireCommissioner(userId, leagueId)
-    return json({ ok: true, draft: await startRookieDraft(leagueId, rookieDraftStartOptions(body)) })
+    const options = rookieDraftStartOptions(body)
+    const warning = await rookieStartWarning(leagueId, options)
+    if (path === '/draft/rookie-start-warning') return json({ ok: true, warning })
+    return json({ ok: true, warning, draft: await startRookieDraft(leagueId, options) })
   }
 
   if (path === '/draft/mock-room/create') {

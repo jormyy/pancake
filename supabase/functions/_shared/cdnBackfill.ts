@@ -1,6 +1,6 @@
 import { assertGameImports, assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
-import { buildStatRow, resolveBoxScorePlayers, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
+import { buildStatRow, recordBoxSides, resolveBoxScorePlayers, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
 import { errorMessage } from './responses.ts'
 import {
   type BackfillRun,
@@ -61,6 +61,10 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       }
 
       await assertGameUnambiguous(dbGame.id)
+      // Each side is recorded before the box's own import, as sync-stats does, so the ESPN release sweep
+      // never reads one of this box's memberships without it.
+      validateBoxScorePlayers(game, gameId)
+      await recordBoxSides(game, gameId)
       const players = await resolveBoxScorePlayers(game, gameId)
       await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
@@ -156,6 +160,7 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
 
     validateBoxScorePlayers(game, gameId)
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
+    await recordBoxSides(game, gameId)
     const players = await resolveBoxScorePlayers(game, gameId)
     await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
@@ -243,7 +248,7 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
   if (!gameDate || !homeTeam || !awayTeam) throw new Error(`CDN game ${gameId} is missing date or teams`)
   const calendar = await mustSupabase('locate CDN game week', supabase.from('season_weeks')
     .select('week_number').eq('season_year', seasonYear).lte('week_start', gameDate).gte('week_end', gameDate).maybeSingle())
-  const weekNumber = calendar?.week_number ?? estimateCdnWeekNumber(seasonYear, gameDate)
+  const weekNumber = calendar?.week_number ?? 1
   await assertGameImports([{ nba_game_id: gameId, season_year: seasonYear, game_date: gameDate, home_team: homeTeam, away_team: awayTeam }])
 
   await mustSupabase(
@@ -269,12 +274,6 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
       .single(),
   )
   return dbGame as DbGame
-}
-
-function estimateCdnWeekNumber(seasonYear: number, gameDate: string): number {
-  const seasonStart = `${seasonYear - 1}-10-15`
-  const daysDiff = Math.floor((new Date(gameDate).getTime() - new Date(seasonStart).getTime()) / 86_400_000)
-  return Math.max(1, Math.floor(daysDiff / 7) + 1)
 }
 
 function buildCandidateGameIds(seasonYear: number): string[] {

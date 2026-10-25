@@ -10,11 +10,14 @@ export function setUnique(map: Map<string, string>, key: string, value: string):
 }
 
 export function normalizeName(name: string): string {
-  return name
+  const key = name
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip diacritics
     .toLowerCase()
     .replace(SUFFIX_RE, '')
     .replace(/[.'\u2019\-]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+  if (key === 'valdez edgecombe') return 'vj edgecombe'
+  if (key === 'airious bailey') return 'ace bailey'
+  return key
 }

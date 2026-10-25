@@ -11,6 +11,8 @@ BEGIN
   v_name := lower(regexp_replace(normalize(p_name, NFD), U&'[\0300-\036F]', '', 'g'));
   v_name := regexp_replace(v_name, '[' || v_space || ']+(jr\.?|sr\.?|ii|iii|iv|v)$', '');
   v_name := regexp_replace(v_name, U&'[.\0027\2019-]', '', 'g');
-  RETURN btrim(regexp_replace(v_name, '[' || v_space || ']+', ' ', 'g'), ' ');
+  v_name := btrim(regexp_replace(v_name, '[' || v_space || ']+', ' ', 'g'), ' ');
+  RETURN CASE v_name WHEN 'valdez edgecombe' THEN 'vj edgecombe'
+    WHEN 'airious bailey' THEN 'ace bailey' ELSE v_name END;
 END;
 $$;

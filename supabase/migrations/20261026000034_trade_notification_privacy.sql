@@ -57,7 +57,7 @@ BEGIN
     v_event_type,
     v_title,
     v_body,
-    jsonb_build_object('tradeId', NEW.id),
+    jsonb_build_object('tradeId', NEW.id, 'leagueId', NEW.league_id),
     'trade'
   FROM (
     SELECT participant.member_id
@@ -69,6 +69,7 @@ BEGIN
     UNION SELECT v_single_recipient WHERE NOT v_all_participants
   ) AS recipient
   WHERE recipient.member_id IS NOT NULL
+    AND EXISTS (SELECT 1 FROM public.league_members member WHERE member.id = recipient.member_id AND member.league_id = NEW.league_id)
   ON CONFLICT (dedupe_key) DO NOTHING;
 
   RETURN NEW;

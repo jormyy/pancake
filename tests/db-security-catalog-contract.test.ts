@@ -13,7 +13,7 @@ const contract = JSON.parse(readFileSync('tests/e2e/db-security-catalog-attestat
 const files = attestedMigrationFiles
 type Phase = 'pre-migration' | 'post-migration'
 const fixture = (phase: Phase) => {
-  const history = files.slice(0, release.baselineCount + (phase === 'post-migration' ? release.approvedMigrations.length : 0))
+  const history = files.slice(0, phase === 'pre-migration' ? contract.preMigration.count : files.length)
     .map(({ filename }) => {
       const version = filename.split('_')[0]
       const alias = release.aliases.find((row: { version: string }) => row.version === version)
@@ -32,7 +32,7 @@ const fixture = (phase: Phase) => {
 it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s schema, including its cron contract', (phase) => {
   const input = fixture(phase)
   const result = validateSecurityCatalog(input)
-  expect(result.migrationCount).toBe(release.baselineCount + (phase === 'pre-migration' ? 0 : release.approvedMigrations.length))
+  expect(result.migrationCount).toBe(phase === 'pre-migration' ? contract.preMigration.count : files.length)
   const cron = input.catalog.functions.find((row: { name: string }) => row.name === 'invoke_edge_function_at_et_time')
   // Production converged on the p_now helper before this baseline, so both phases carry it.
   expect(cron.identityArguments.includes('p_now')).toBe(true)
@@ -65,6 +65,13 @@ it.skipIf(release.approvedMigrations.length < 2)('rejects a partial approved upg
   }
 })
 
+it.each([release.baselineCount, contract.preMigration.count + 1])('rejects an unapproved pre-migration phase with %i rows', (count) => {
+  const input = fixture('pre-migration')
+  input.history.history = fixture('post-migration').history.history.slice(0, count)
+  input.history.functions = convergenceAfter(input.history.history.map(({ version }) => version))
+  expect(() => validateSecurityCatalog(input)).toThrow('exact pre-migration contract')
+})
+
 it('rejects source drift in the baseline guard chain', () => {
   const input = fixture('pre-migration')
   const filename = contract.sourceMigrations.find((row: { filename: string }) => row.filename.startsWith('202608')).filename
@@ -81,7 +88,7 @@ it('binds every attested function body to pinned migration SQL', () => {
       bodies.add(createHash('sha256').update(match[2]).digest('hex'))
     }
   }
-  for (const group of [contract.common, ...Object.values(contract.phases)] as { functions: { bodySha256: string }[] }[]) {
+  for (const group of [contract.common, ...Object.values(contract.phases), ...Object.values(contract.historicalPhases)] as { functions: { bodySha256: string }[] }[]) {
     for (const fn of group.functions) expect(bodies.has(fn.bodySha256), fn.bodySha256).toBe(true)
   }
 })

@@ -1,0 +1,921 @@
+{
+ "base_sha": "c392cad799c2b52feead508f643c2576b6d7f33b",
+ "oracles": {
+  "general-playoff-brackets": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/general-playoff-brackets.sql"
+  },
+  "playoff-boundary-guards": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-boundary-guards.sql"
+  },
+  "playoff-seed-corrections": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-seed-corrections.sql"
+  },
+  "playoff-ranking-priority": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-ranking-priority.sql"
+  },
+  "playoff-transitions": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/playoff-transitions.sql"
+  },
+  "dynasty-rules": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/dynasty-rules.sql"
+  },
+  "league-season-rules": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/league-season-rules.sql"
+  },
+  "trade-expiry-authorization": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/trade-expiry-authorization.sql"
+  },
+  "deadline-locks": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/deadline-locks.sql"
+  },
+  "draft-goal-behavior": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql"
+  },
+  "picks-lifecycle": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/picks-lifecycle.sql"
+  },
+  "rollover-year-gap": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rollover-year-gap.sql"
+  },
+  "rookie-backstop": {
+   "kind": "ts-module-db",
+   "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+  },
+  "rookie-drafting-gate": {
+   "kind": "db-deployed",
+   "command": "psql \"$SUPABASE_DB_URL\" -Xv ON_ERROR_STOP=1 -f tests/db/rookie-drafting-gate.sql"
+  },
+  "rookie-commissioner-early": {
+   "kind": "ts-module-db",
+   "command": "POST_ROOKIE_CASE=commissioner_early deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-backstop.ts"
+  },
+  "rookie-skipped-week": {
+   "kind": "ts-module-db",
+   "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/rookie-skipped-week.ts"
+  },
+  "playoff-stale-boundary": {
+   "kind": "ts-module-db",
+   "command": "deno run --no-lock --check --allow-env --allow-net=127.0.0.1,localhost --allow-read --allow-run=psql supabase/tests/db/playoff-stale-boundary.ts"
+  },
+  "calendar-opening": {
+   "kind": "unit",
+   "command": "POST_CALENDAR_CASE=opening node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts"
+  },
+  "calendar-all-star": {
+   "kind": "unit",
+   "command": "POST_CALENDAR_CASE=all-star node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts"
+  },
+  "calendar-published": {
+   "kind": "ts-module-db",
+   "command": "POST_CALENDAR_CASE=published node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts"
+  },
+  "calendar-cup": {
+   "kind": "unit",
+   "command": "POST_CALENDAR_CASE=cup node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts"
+  },
+  "calendar-postponed-status": {
+   "kind": "unit",
+   "command": "POST_CALENDAR_CASE=postponed-status node scripts/mutation/post/check.mjs supabase/tests/db/calendar-seasons.ts"
+  },
+  "calendar-durable": {
+   "kind": "ts-module-db",
+   "command": "POST_CALENDAR_CASE=durable node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts"
+  },
+  "calendar-missing": {
+   "kind": "ts-module-db",
+   "command": "POST_CALENDAR_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/calendar-publish.ts"
+  },
+  "calendar-outside": {
+   "kind": "ts-module-db",
+   "command": "POST_CALENDAR_CASE=outside node scripts/mutation/post/check.mjs supabase/tests/db/calendar-ingestion.ts"
+  },
+  "boundary-unavailable-recheck": {
+   "kind": "ts-module-db",
+   "command": "POST_STALE_CASE=bracket_unavailable_recheck node scripts/mutation/post/check.mjs supabase/tests/db/playoff-stale-boundary.ts"
+  },
+  "matchup-order": {
+   "kind": "db-deployed",
+   "command": "node scripts/mutation/post/check.mjs tests/db/matchup-order-fairness.sql"
+  },
+  "playoff-fit": {
+   "kind": "ts-module-db",
+   "command": "node scripts/mutation/post/check.mjs supabase/tests/db/matchup-order-seasons.ts"
+  },
+  "rookie-draft": {
+   "kind": "ts-module-db",
+   "command": "POST_ROOKIE_CASE=missing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+  },
+  "rookie-cutoff-error": {
+   "kind": "ts-module-db",
+   "command": "POST_ROOKIE_CASE=cutoff_error node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+  },
+  "rookie-cutoff-race": {
+   "kind": "ts-module-db",
+   "command": "POST_ROOKIE_CASE=cutoff_race node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+  },
+  "rookie-timing": {
+   "kind": "ts-module-db",
+   "command": "POST_SKIP_PHASE=timing node scripts/mutation/post/check.mjs supabase/tests/db/rookie-skipped-week.ts"
+  },
+  "rookie-cutoff-publish": {
+   "kind": "ts-module-db",
+   "command": "POST_ROOKIE_CASE=cutoff_publish node scripts/mutation/post/check.mjs supabase/tests/db/rookie-backstop.ts"
+  },
+  "playoff-clinched-tie": {
+   "kind": "ts-module-db",
+   "command": "POST_CLINCH_CASE=2025:false:tie node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+  },
+  "playoff-clinched-early": {
+   "kind": "ts-module-db",
+   "command": "POST_CLINCH_CASE=2025:false:early node scripts/mutation/post/check.mjs supabase/tests/db/playoff-clinched.ts"
+  },
+  "boundary-http-drafting-cutoff": {
+   "kind": "edge-http",
+   "command": "POST_HTTP_CASE=drafting-cutoff node scripts/mutation/post/check.mjs supabase/tests/db/post-t10-boundary-http.ts"
+  },
+  "boundary-http-expired-fallback": {
+   "kind": "edge-http",
+   "command": "POST_HTTP_CASE=expired-fallback node scripts/mutation/post/check.mjs supabase/tests/db/post-t10-boundary-http.ts"
+  },
+  "boundary-http-skipped-fallback": {
+   "kind": "edge-http",
+   "command": "POST_HTTP_CASE=skipped-fallback node scripts/mutation/post/check.mjs supabase/tests/db/post-t10-boundary-http.ts"
+  },
+  "boundary-http-stale-rollover": {
+   "kind": "edge-http",
+   "command": "POST_HTTP_CASE=stale-rollover node scripts/mutation/post/check.mjs supabase/tests/db/post-t10-boundary-http.ts"
+  }
+ },
+ "mutants": [
+  {
+   "id": "rookie-draft-01",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 154,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "reverse-standings",
+   "original": "wins ASC,",
+   "mutated": "wins DESC,",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-02",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 155,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "tiebreak-order",
+   "original": "points_for ASC,",
+   "mutated": "points_for DESC,",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-03",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 102,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "season-selection",
+   "original": "ORDER BY season_year DESC",
+   "mutated": "ORDER BY season_year ASC",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-04",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 153,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "new-member-order",
+   "original": "has_standings DESC,",
+   "mutated": "has_standings ASC,",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-05",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 24,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "round-limit",
+   "original": "p_rounds < 1 OR p_rounds > 3",
+   "mutated": "p_rounds < 1 OR p_rounds > 2",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-06",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 222,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "traded-slot-owner",
+   "original": "dp.current_owner_id AS member_id",
+   "mutated": "pick_slots.original_owner_id AS member_id",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-07",
+   "area": "rookie-draft",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 268,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "draft-state",
+   "original": "SET status = 'drafting'",
+   "mutated": "SET status = 'offseason'",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "picks-07",
+   "area": "picks",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 230,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "original-owner-lookup",
+   "original": "AND original_owner_id = pick_slots.original_owner_id",
+   "mutated": "AND current_owner_id = pick_slots.original_owner_id",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "league-season-rules",
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle",
+    "rollover-year-gap"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "picks-10",
+   "area": "picks",
+   "file": "supabase/migrations/20261020000202_draft_arm_after_lock.sql",
+   "line": 247,
+   "symbol": "public.start_rookie_draft_atomic(uuid,integer,boolean,integer,text)",
+   "operator": "snake-reversal",
+   "original": "((round - 1) * v_order_count) + pick_in_round,\n      round,\n      pick_in_round,\n      member_id,\n      draft_pick_id",
+   "mutated": "((round - 1) * v_order_count) + (v_order_count-pick_in_round+1),\n      round,\n      pick_in_round,\n      member_id,\n      draft_pick_id",
+   "prior_sha": "db58d91a4b7b19e9b7fe5e924b4501a47b4b527e",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "league-season-rules",
+    "dynasty-rules",
+    "draft-goal-behavior",
+    "picks-lifecycle",
+    "rollover-year-gap"
+   ],
+   "source_sha256": null,
+   "kind": "sql"
+  },
+  {
+   "id": "rookie-draft-11",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 355,
+   "symbol": "runSeasonBoundary",
+   "operator": "drafting-query-exclusion",
+   "original": "['active', 'playoffs', 'offseason', 'drafting']",
+   "mutated": "['active', 'playoffs', 'offseason']",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-drafting-cutoff"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-12",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 147,
+   "symbol": "runSeasonBoundary",
+   "operator": "paused-exclusion",
+   "original": "['in_progress', 'paused'].includes(draft.status)",
+   "mutated": "['in_progress'].includes(draft.status)",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-drafting-cutoff"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-13",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 119,
+   "symbol": "runSeasonBoundary",
+   "operator": "ET-day-boundary",
+   "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+   "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-14",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 84,
+   "symbol": "runSeasonBoundary",
+   "operator": "pick-limit",
+   "original": "const MAX_BACKSTOP_PICKS = 200",
+   "mutated": "const MAX_BACKSTOP_PICKS = 1",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-15",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 176,
+   "symbol": "runSeasonBoundary",
+   "operator": "expired-timer-authorization",
+   "original": "p_reason: 'season_boundary_backstop'",
+   "mutated": "p_reason: 'manual'",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-expired-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-18",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 373,
+   "symbol": "runSeasonBoundary",
+   "operator": "drafting-job-filter",
+   "original": "status !== 'offseason' && status !== 'drafting'",
+   "mutated": "status !== 'offseason' && status !== 'setup'",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop",
+    "boundary-http-drafting-cutoff"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-20",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 386,
+   "symbol": "runSeasonBoundary",
+   "operator": "startup-auction-guard",
+   "original": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, false)",
+   "mutated": "runRookieDraftBackstop(season.league_id, season.id, referenceDate, true)",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-backstop"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "rookie-draft-21",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 119,
+   "symbol": "runSeasonBoundary",
+   "operator": "premature-commissioner-resume",
+   "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+   "mutated": "toETDate(referenceDate) > firstEligibleWeek.week_start",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-commissioner-early",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-sw-08",
+   "area": "skipped-week",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 105,
+   "symbol": "runSeasonBoundary",
+   "operator": "NEG",
+   "original": "!season.skipped_weeks.includes(week.week_number)",
+   "mutated": "season.skipped_weeks.includes(week.week_number)",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-skipped-week",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-sw-09",
+   "area": "skipped-week",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 119,
+   "symbol": "runSeasonBoundary",
+   "operator": "ROR",
+   "original": "toETDate(referenceDate) < firstEligibleWeek.week_start",
+   "mutated": "toETDate(referenceDate) <= firstEligibleWeek.week_start",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-skipped-week",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-sw-10",
+   "area": "skipped-week",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 103,
+   "symbol": "runSeasonBoundary",
+   "operator": "ORDER",
+   "original": ".order('week_number')",
+   "mutated": ".order('week_number', { ascending: false })",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-skipped-week",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-stale-01",
+   "area": "champion",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 305,
+   "symbol": "applyBoundaryWithScoreRefresh",
+   "operator": "ROR",
+   "original": "if (stale.length === 0) return result",
+   "mutated": "if (stale.length >= 0) return result",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "playoff-stale-boundary",
+    "boundary-http-stale-rollover"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-stale-02",
+   "area": "champion",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 271,
+   "symbol": "processLeagueBoundary",
+   "operator": "STMT-DEL",
+   "original": "if (!finalDecided || !graceElapsed(finals, referenceDate)) return actions",
+   "mutated": "if (!finalDecided) return actions",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "playoff-stale-boundary",
+    "boundary-http-stale-rollover"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-stale-03",
+   "area": "champion",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 307,
+   "symbol": "applyBoundaryWithScoreRefresh",
+   "operator": "STMT-DEL",
+   "original": "const refreshed = await applyBoundaryAfterGrace(leagueId, seasonId, action, referenceDate)",
+   "mutated": "const refreshed = result",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "playoff-stale-boundary",
+    "boundary-http-stale-rollover"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-stale-04",
+   "area": "champion",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 308,
+   "symbol": "applyBoundaryWithScoreRefresh",
+   "operator": "ROR",
+   "original": "(await staleBoundaryWeeks(seasonId, weeks)).length > 0",
+   "mutated": "(await staleBoundaryWeeks(seasonId, weeks)).length < 0",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "playoff-stale-boundary"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-stale-05",
+   "area": "champion",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 306,
+   "symbol": "applyBoundaryWithScoreRefresh",
+   "operator": "CONST",
+   "original": "await syncScores(leagueId, referenceDate, { recoverStats: false })\n  const refreshed",
+   "mutated": "await syncScores(leagueId, referenceDate, { recoverStats: true })\n  const refreshed",
+   "prior_sha": "0f7cc27ab14775c00f7892d904a2b1022e732174",
+   "prior_outcome": "killed",
+   "retarget_reason": "context-disambiguated: the original also occurs in refreshUnavailableRegularSeason (added after the prior measurement); the rerun mutates the stale-certificate refresh call it targeted before",
+   "occurrences": 1,
+   "oracles": [
+    "playoff-stale-boundary"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-01",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 164,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "ORDER",
+   "original": "regularSeason.map((game) => game.gameDate).sort()[0] ?? null",
+   "mutated": "regularSeason.map((game) => game.gameDate).sort().at(-1) ?? null",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-opening"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-02",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 56,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "return month >= 10 ? year + 1 : year",
+   "mutated": "return month >= 11 ? year + 1 : year",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-opening"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-03",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 142,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "getUTCDay() + 6) % 7",
+   "mutated": "getUTCDay() + 5) % 7",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-opening"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-04",
+   "area": "opening-night",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 143,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "Math.floor((ordinal(date) - monday) / 7) + 1",
+   "mutated": "Math.floor((ordinal(date) - monday) / 7) + 2",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-opening"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-05",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 144,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "ordinal(date) - ordinal(ordered[index]) >= 5",
+   "mutated": "ordinal(date) - ordinal(ordered[index]) >= 2",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-all-star"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-06",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 145,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "nbaWeek(date) === nbaWeek(ordered[index]) + 1",
+   "mutated": "nbaWeek(date) === nbaWeek(ordered[index]) + 2",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-all-star"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-07",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 148,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "ROR",
+   "original": "nbaWeek(game_date) >= postBreakWeek",
+   "mutated": "nbaWeek(game_date) > postBreakWeek",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-all-star"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-08",
+   "area": "all-star-week",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 148,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "CONST",
+   "original": "nbaWeek(game_date) >= postBreakWeek ? 1 : 0",
+   "mutated": "nbaWeek(game_date) >= postBreakWeek ? 0 : 0",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-all-star"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-10",
+   "area": "nba-cup",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 163,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "NEG",
+   "original": "raw.filter((game) => isRegularSeasonGameId(game.gameId))",
+   "mutated": "raw.filter((game) => !isRegularSeasonGameId(game.gameId))",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-cup"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-15",
+   "area": "postponement",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 238,
+   "symbol": "processLeagueBoundary",
+   "operator": "NEG",
+   "original": "if (!allFinalized(regular)) {",
+   "mutated": "if (allFinalized(regular)) {",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "boundary-unavailable-recheck"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-16",
+   "area": "postponement",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 420,
+   "symbol": "processLeagueBoundary",
+   "operator": "ROR",
+   "original": "toETDate(referenceDate) <= lastWeek.week_end",
+   "mutated": "toETDate(referenceDate) >= lastWeek.week_end",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "boundary-unavailable-recheck"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t3-17",
+   "area": "postponement",
+   "file": "supabase/functions/_shared/schedule.ts",
+   "line": 190,
+   "symbol": "buildScheduleSyncPlan",
+   "operator": "STMT-DEL",
+   "original": "schedule_complete: complete && completeSnapshot",
+   "mutated": "schedule_complete: complete",
+   "prior_sha": "482cc78529f7a99ccbd5e28bd71afd9aeec4da09",
+   "prior_outcome": "killed",
+   "retarget_reason": "",
+   "occurrences": 1,
+   "oracles": [
+    "calendar-all-star"
+   ],
+   "source_sha256": "c0b117e856052a443bd714110ff8bf1409174735d03b95962695da5ce97b7708",
+   "kind": "ts"
+  },
+  {
+   "id": "post-t4-08",
+   "area": "rookie-draft",
+   "file": "supabase/functions/_shared/seasonBoundary.ts",
+   "line": 139,
+   "symbol": "runRookieDraftBackstop",
+   "operator": "CONST",
+   "original": "p_is_mock: false,\n      p_pick_timer_seconds: 60",
+   "mutated": "p_is_mock: false,\n      p_pick_timer_seconds: 30",
+   "prior_sha": "f17dd0cf7ab3242221d10b11c7a53c4d3a4229e6",
+   "prior_outcome": "killed",
+   "retarget_reason": "context-disambiguated: the original also occurs in the draft_timer_start_warning call (added after the prior measurement); the rerun mutates the start_rookie_draft_atomic caller it targeted before",
+   "occurrences": 1,
+   "oracles": [
+    "rookie-draft",
+    "boundary-http-skipped-fallback"
+   ],
+   "source_sha256": "51a7f4b20adb8093c086a9a007f0fae82dc0a507280d642f1bf72283cca491f3",
+   "kind": "ts"
+  }
+ ]
+}

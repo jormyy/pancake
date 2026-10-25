@@ -22,3 +22,9 @@ test('the next Eastern morning publishes a next-day makeup before its real tipof
   assert.equal(before.gameDateEst, postponed.date)
   assert.equal(before.gameStatusText, 'Scheduled')
 })
+
+test('original observations cannot inherit the distant makeup week number',()=>{
+  const row=scheduleObservation(game,{...postponed,originalDate:postponed.date,originalTime:postponed.time,rescheduledAt:Date.parse('2026-01-25T12:00:00Z'),postponedAt:Date.parse('2026-01-24T05:00:00Z')},bounds,Date.parse('2026-01-24T14:00:00Z'),{weekNumber:22,opening:'2025-10-21'})
+  assert.equal(row.weekNumber,14)
+  assert.equal(row.postponedStatus,'Y')
+})

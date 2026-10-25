@@ -30,7 +30,7 @@ export function courtTime(box, allActions, selectedActions) {
         }
         const starters = new Set([...first].filter(([, starts]) => starts).map(([id]) => id))
         if (starters.size < 5) {
-          const untouched = team.players.filter(player => !first.has(player.personId) && clockSeconds(player.statistics.minutes) - result.get(player.personId).seconds > 0.1)
+          const untouched = team.players.filter(player => !first.has(player.personId) && clockSeconds(player.statistics.minutes) - result.get(player.personId).seconds > 1.1)
           if (untouched.length === 5 - starters.size) for (const player of untouched) starters.add(player.personId)
         }
         assert.equal(starters.size, 5, `Ambiguous period starters: ${box.game.gameId} period ${period} ${team.teamTricode}: ${[...starters]}`)

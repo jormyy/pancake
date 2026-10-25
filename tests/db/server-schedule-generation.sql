@@ -23,13 +23,14 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT array_agg(id ORDER BY id) = saved_ids FROM public.matchups
     WHERE league_season_id = fixture.season_id), 'existing schedule keeps its matchup identities');
   result := public.replace_regular_season_matchups_atomic(fixture.league_id, fixture.season_id, true, '[]'::jsonb);
-  PERFORM pg_temp.check_rules((result->>'inserted')::int = 6 AND (result->>'skipped')::boolean = false,
-    'force rebuild accepts the empty Edge payload');
-  PERFORM pg_temp.check_rules((SELECT count(*) = 6 AND NOT bool_or(id = ANY(saved_ids)) FROM public.matchups
-    WHERE league_season_id = fixture.season_id), 'force replaces the unstarted schedule');
+  PERFORM pg_temp.check_rules(result = '{"inserted":0,"skipped":true}'::jsonb,
+    'force accepts the empty Edge payload and keeps the saved schedule');
+  PERFORM pg_temp.check_rules((SELECT array_agg(id ORDER BY id) = saved_ids FROM public.matchups
+    WHERE league_season_id = fixture.season_id), 'force keeps every existing matchup identity');
   UPDATE public.matchups SET is_finalized = true WHERE league_season_id = fixture.season_id;
-  PERFORM pg_temp.reject_rules(format('SELECT public.replace_regular_season_matchups_atomic(%L,%L,true,%L)',
-    fixture.league_id, fixture.season_id, '[]'), 'The current schedule has started%%', 'force still rejects finalized schedules');
+  result := public.replace_regular_season_matchups_atomic(fixture.league_id, fixture.season_id, true, '[]'::jsonb);
+  PERFORM pg_temp.check_rules(result = '{"inserted":0,"skipped":true}'::jsonb,
+    'force preserves finalized schedules');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

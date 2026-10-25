@@ -150,6 +150,7 @@ BEGIN
     AND previous.member_id=current.member_id AND previous.player_id=current.player_id
   WHERE current.league_season_id=v_new_season_id AND previous.is_on_taxi AND NOT current.is_on_taxi;
 
+  -- Fill skipped pick years and preserve existing owners.
   INSERT INTO draft_picks (
     league_id,
     season_year,
@@ -159,11 +160,12 @@ BEGIN
   )
   SELECT
     p_league_id,
-    v_far_year,
+    year_value,
     round_value,
     lm.id,
     lm.id
   FROM league_members lm
+  CROSS JOIN generate_series(v_new_year,v_far_year) AS year_value
   CROSS JOIN unnest(ARRAY[1, 2, 3]) AS round_value
   WHERE lm.league_id = p_league_id
   ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;

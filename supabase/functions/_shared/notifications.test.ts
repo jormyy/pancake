@@ -1,8 +1,8 @@
 import { strict as assert } from 'node:assert'
-import { createNotifyMember, createNotifyMembers, NotificationDeliveryError, type NotificationBatchDependencies } from './notificationDelivery.ts'
+import { createNotifyMember, createNotifyMembers, NotificationDeliveryError, type WebNotificationBatchDependencies } from './notificationDelivery.ts'
 
 const preferences = { trade_enabled: true, waiver_enabled: false, draft_enabled: true, activity_enabled: true }
-const dependencies = (overrides: Partial<NotificationBatchDependencies> = {}): NotificationBatchDependencies => ({
+const dependencies = (overrides: Partial<WebNotificationBatchDependencies> = {}): WebNotificationBatchDependencies => ({
   members: async () => ({ data: [{ id: 'member-a', user_id: 'user-a' }], error: null }),
   preferences: async () => ({ data: [{ user_id: 'user-a', ...preferences }], error: null }),
   webPush: async (messages) => ({ sent: messages.length, pruned: 0, failed: 0,
@@ -11,11 +11,7 @@ const dependencies = (overrides: Partial<NotificationBatchDependencies> = {}): N
 })
 
 Deno.test('web push alone supplies durable sent outcomes without a profile or Expo token', async () => {
-  const deps = { ...dependencies(),
-    profiles: async () => ({ data: [{ id: 'user-a' }], error: null }),
-    send: async () => { throw new Error('Unexpected Expo delivery') },
-    pushUrl: 'https://push.invalid/send',
-  }
+  const deps = dependencies()
   const results = await createNotifyMembers(deps)([{ memberId: 'member-a', title: 'Offer', body: 'New offer', category: 'trade' }])
   assert.equal(results[0].status, 'sent')
 })

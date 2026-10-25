@@ -14,7 +14,9 @@ import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import {
     DRAFT_TIMER_MAX_SECONDS,
     DRAFT_TIMER_MIN_SECONDS,
-    normalizeDraftTimerSeconds,
+    ROOKIE_TIMER_MIN_SECONDS,
+    ROOKIE_TIMER_MAX_SECONDS,
+    formatDraftDuration,
     type DraftTimerOption,
     type RookieRoundOption,
 } from '@/lib/draft-options'
@@ -73,10 +75,6 @@ export type DraftControlProps = {
     onRookieTimerExpiryBehaviorChange: (value: RookieTimerExpiryBehavior) => void
 }
 
-function isDraftTimerPreset(value: DraftTimerOption) {
-    return DRAFT_TIMER_OPTIONS.some((preset) => preset === value)
-}
-
 function draftChipId(idBase: string, value: ChipValue) {
     return `${idBase}-${String(value).replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
@@ -112,6 +110,7 @@ export function DraftChips<T extends ChipValue>({
     groupLabel,
     accessibilityLabelForOption,
     compact = false,
+    dense = false,
 }: {
     options: readonly ChipOption<T>[]
     selectedValue: T
@@ -119,6 +118,7 @@ export function DraftChips<T extends ChipValue>({
     groupLabel: string
     accessibilityLabelForOption?: (option: ChipOption<T>) => string
     compact?: boolean
+    dense?: boolean
 }) {
     const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
     const idBase = `draft-chip-${generatedId}`
@@ -169,7 +169,7 @@ export function DraftChips<T extends ChipValue>({
                     <Pressable
                         key={String(option.value)}
                         nativeID={draftChipId(idBase, option.value)}
-                        style={[styles.nominationModeChip, selected && styles.nominationModeChipOn]}
+                        style={[styles.nominationModeChip, dense && styles.denseChip, selected && styles.nominationModeChipOn]}
                         onPress={() => selectValue(option.value)}
                         role="radio"
                         aria-label={accessibilityLabel}
@@ -199,72 +199,99 @@ export function DraftTimerControl({
     onSelect,
     groupLabel,
     compact = false,
+    rookie = false,
+    onValidityChange,
 }: {
     selectedValue: DraftTimerOption
     onSelect: (value: DraftTimerOption) => void
     groupLabel: string
     compact?: boolean
+    rookie?: boolean
+    onValidityChange?: (valid: boolean) => void
 }) {
-    const [customText, setCustomText] = useState(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
+    const presets = rookie ? [60, 300, 3600, 86400, 604800] : [...DRAFT_TIMER_OPTIONS]
+    const minimum = rookie ? ROOKIE_TIMER_MIN_SECONDS : DRAFT_TIMER_MIN_SECONDS
+    const maximum = rookie ? ROOKIE_TIMER_MAX_SECONDS : DRAFT_TIMER_MAX_SECONDS
+    const invalidMessage = rookie ? 'Enter 1 minute through 7 days.' : 'Enter 5 through 3600 seconds.'
+    const initialUnit = rookie ? selectedValue % 86400 === 0 ? 86400 : selectedValue % 3600 === 0 ? 3600 : 60 : 1
+    const [unit, setUnit] = useState(initialUnit)
+    const unitRef = useRef(unit)
+    unitRef.current = unit
+    const [customText, setCustomText] = useState('')
+    const [error, setError] = useState<string | null>(null)
+    const customSelected = !presets.includes(selectedValue)
 
     useEffect(() => {
-        setCustomText(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
-    }, [selectedValue])
+        setCustomText(customSelected ? String(selectedValue / unitRef.current) : '')
+        const valid = Number.isInteger(selectedValue) && selectedValue >= minimum && selectedValue <= maximum
+        setError(valid ? null : invalidMessage)
+        onValidityChange?.(valid)
+    }, [selectedValue, customSelected, minimum, maximum, invalidMessage, onValidityChange])
 
-    function handleCustomChange(value: string) {
-        const digits = value.replace(/[^0-9]/g, '')
-        setCustomText(digits)
-        if (!digits) return
-
-        const parsed = Number.parseInt(digits, 10)
-        if (
-            Number.isFinite(parsed) &&
-            parsed >= DRAFT_TIMER_MIN_SECONDS &&
-            parsed <= DRAFT_TIMER_MAX_SECONDS
-        ) {
-            onSelect(parsed)
-        }
-    }
-
-    function commitCustom() {
-        const parsed = Number.parseInt(customText, 10)
-        if (!Number.isFinite(parsed)) {
-            setCustomText(isDraftTimerPreset(selectedValue) ? '' : String(selectedValue))
+    function commitCustom(text = customText, durationUnit = unit) {
+        const seconds = Number(text) * durationUnit
+        if (!text.trim() || !Number.isInteger(seconds) || seconds < minimum || seconds > maximum) {
+            setError(invalidMessage)
+            onValidityChange?.(false)
             return
         }
-        const normalized = normalizeDraftTimerSeconds(parsed)
-        setCustomText(String(normalized))
-        onSelect(normalized)
+        setError(null)
+        onValidityChange?.(true)
+        onSelect(seconds)
     }
 
-    const customSelected = !isDraftTimerPreset(selectedValue)
-
     return (
-        <View style={[styles.timerControl, compact && styles.timerControlCompact]}>
-            <View style={styles.timerPresetWrap}>
-                <DraftChips
-                    options={DRAFT_TIMER_CHIPS}
-                    selectedValue={customSelected ? -1 : selectedValue}
-                    onSelect={onSelect}
-                    groupLabel={groupLabel}
-                    accessibilityLabelForOption={draftTimerChipLabel}
-                    compact={compact}
-                />
+        <View>
+            <View style={[styles.timerControl, compact && styles.timerControlCompact]}>
+                <View style={[styles.timerPresetWrap, rookie && styles.rookieTimerPresets]}>
+                    <DraftChips
+                        options={rookie ? presets.map(value => ({ value, label: formatDraftDuration(value) })) : DRAFT_TIMER_CHIPS}
+                        selectedValue={customSelected ? -1 : selectedValue}
+                        onSelect={value => { setError(null); setCustomText(''); onValidityChange?.(true); onSelect(value) }}
+                        groupLabel={groupLabel}
+                        accessibilityLabelForOption={draftTimerChipLabel}
+                        compact={compact}
+                        dense={rookie}
+                    />
+                </View>
+                <View style={[styles.customTimerField, customSelected && styles.customTimerFieldActive]}>
+                    <Text style={[styles.customTimerLabel, customSelected && styles.customTimerLabelActive]}>Custom</Text>
+                    <TextInput
+                        style={styles.customTimerInput}
+                        value={customText}
+                        onChangeText={text => {
+                            setCustomText(text)
+                            const seconds = Number(text) * unit
+                            if (text.trim() && Number.isInteger(seconds) && seconds >= minimum && seconds <= maximum) {
+                                setError(null)
+                                onValidityChange?.(true)
+                                onSelect(seconds)
+                            } else {
+                                setError(invalidMessage)
+                                onValidityChange?.(false)
+                            }
+                        }}
+                        onEndEditing={() => commitCustom()}
+                        onSubmitEditing={() => commitCustom()}
+                        keyboardType="decimal-pad"
+                        placeholder={rookie ? unit === 86400 ? 'days' : unit === 3600 ? 'hours' : 'min' : 'sec'}
+                        placeholderTextColor={colors.inputPlaceholder}
+                        accessibilityLabel={rookie ? 'Custom pick duration' : 'Custom timer seconds'}
+                    />
+                </View>
+                {rookie ? <View style={styles.timerUnits}><DraftChips
+                options={[{ value: 60, label: 'Minutes' }, { value: 3600, label: 'Hours' }, { value: 86400, label: 'Days' }]}
+                selectedValue={unit}
+                onSelect={value => {
+                    setUnit(value)
+                    if (customText) commitCustom(customText, value)
+                }}
+                groupLabel="Pick duration unit"
+                compact
+                dense
+            /></View> : null}
             </View>
-            <View style={[styles.customTimerField, customSelected && styles.customTimerFieldActive]}>
-                <Text style={[styles.customTimerLabel, customSelected && styles.customTimerLabelActive]}>Custom</Text>
-                <TextInput
-                    style={styles.customTimerInput}
-                    value={customText}
-                    onChangeText={handleCustomChange}
-                    onEndEditing={commitCustom}
-                    onSubmitEditing={commitCustom}
-                    keyboardType="number-pad"
-                    placeholder="sec"
-                    placeholderTextColor={colors.inputPlaceholder}
-                    accessibilityLabel="Custom timer seconds"
-                />
-            </View>
+            {error ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: fontSize.sm }}>{error}</Text> : null}
         </View>
     )
 }
@@ -285,6 +312,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    denseChip: { flexBasis: 44, flexShrink: 1, paddingHorizontal: spacing.xs },
+    rookieTimerPresets: { flexBasis: '100%' },
+    timerUnits: { flexGrow: 1, flexBasis: 180, minWidth: 0 },
     nominationModeChipOn: { borderColor: colors.primary, backgroundColor: colors.primary },
     nominationModeChipText: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textSecondary, textAlign: 'center' },
     nominationModeChipTextOn: { color: colors.textWhite },

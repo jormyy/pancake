@@ -11,7 +11,7 @@ CREATE OR REPLACE FUNCTION public.create_mock_draft_room_atomic(
   p_scheduled_at timestamptz DEFAULT NULL,
   p_nomination_order_mode text DEFAULT 'user_nominated',
   p_rounds int DEFAULT 3,
-  p_pick_timer_seconds int DEFAULT 30,
+  p_pick_timer_seconds int DEFAULT NULL,
   p_budget_per_team int DEFAULT NULL,
   p_timer_expiry_behavior text DEFAULT 'auto_pick'
 )
@@ -25,6 +25,7 @@ DECLARE
   v_season public.league_seasons%ROWTYPE;
   v_draft public.drafts%ROWTYPE;
   v_draft_type text := COALESCE(p_draft_type, 'auction');
+  v_timer_seconds int;
   v_room_name text;
   v_budget int;
   v_timer_expiry_behavior text := COALESCE(p_timer_expiry_behavior, 'auto_pick');
@@ -45,8 +46,12 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF p_pick_timer_seconds IS NULL OR p_pick_timer_seconds < 5 OR p_pick_timer_seconds > 3600 THEN
-    RAISE EXCEPTION 'Draft timer seconds must be between 5 and 3600.'
+  v_timer_seconds := COALESCE(p_pick_timer_seconds, CASE WHEN v_draft_type = 'snake' THEN 60 ELSE 30 END);
+  IF v_draft_type = 'snake' AND (v_timer_seconds < 60 OR v_timer_seconds > 604800) THEN
+    RAISE EXCEPTION 'Rookie draft timer seconds must be between 60 and 604800.'
+      USING ERRCODE = 'P0001';
+  ELSIF v_draft_type = 'auction' AND (v_timer_seconds < 5 OR v_timer_seconds > 3600) THEN
+    RAISE EXCEPTION 'Auction draft timer seconds must be between 5 and 3600.'
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -123,7 +128,7 @@ BEGIN
     1,
     p_nomination_order_mode,
     true,
-    p_pick_timer_seconds,
+    v_timer_seconds,
     CASE WHEN v_draft_type = 'snake' THEN p_rounds ELSE NULL END,
     CASE WHEN v_draft_type = 'snake' THEN v_timer_expiry_behavior ELSE 'auction_no_bid' END
   )

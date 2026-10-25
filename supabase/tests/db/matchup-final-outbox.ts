@@ -5,8 +5,10 @@ import type { Database } from '../../../types/database.ts'
 
 const api = Deno.env.get('SUPABASE_URL')!
 const db = Deno.env.get('SUPABASE_DB_URL')!
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname))
+const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
+assert.match(port, /^\d+$/)
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && new URL(api).port === String(Number(port) - 1))
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname) && new URL(db).port === port)
 const key = Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY') ?? Deno.env.get('SUPABASE_SECRET_KEY')
 assert.ok(key)
 const internalToken = Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')!
@@ -70,7 +72,7 @@ async function sql(command: string) {
   return new TextDecoder().decode(result.stdout).trim()
 }
 async function rows() {
-  return await query(admin.from('notification_outbox').select('*').in('member_id', members).order('dedupe_key'))
+  return await query(admin.from('notification_outbox').select('*').in('member_id', members).eq('event_type', 'matchup_final').order('dedupe_key'))
 }
 async function payload(index: number) {
   const token = await query(admin.rpc('capture_score_inputs', { p_league_season_id: season, p_week_number: index + 1 }))
@@ -158,17 +160,17 @@ try {
 
   assert.equal((await fetch(endpoint, { method: 'POST' })).status, 401)
   const outage = await drain()
-  assert.equal(outage.notificationsDeferred, 3); assert.equal(outage.notificationsDiscarded, 3)
+  assert.equal(outage.notificationsDeferred, 3); assert.equal(outage.notificationsDiscarded, 0)
   queued = await rows()
   assert.equal(queued?.filter(row => row.attempt_count === 1 && row.last_error && !row.delivered_at).length, 3)
-  assert.equal(queued?.filter(row => row.delivered_at).length, 3)
+  assert.equal(queued?.filter(row => (row as unknown as { suppressed_at: string | null }).suppressed_at && !row.delivered_at).length, 3)
   assert.ok(sends.every(message => message.path === '/home'), 'Activity opt-outs apply independently of trade preferences')
   providerFails = false
   const beforeRetry = sends.length
   await new Promise(resolve => setTimeout(resolve, 1200))
   const deliveries = await Promise.all([drain(), drain()])
   assert.equal(deliveries.reduce((sum, result) => sum + result.notificationsDelivered, 0), 3)
-  queued = await rows(); assert.ok(queued?.every(row => row.delivered_at && !row.claim_token))
+  queued = await rows(); assert.ok(queued?.every(row => (row.delivered_at || (row as unknown as { suppressed_at: string | null }).suppressed_at) && !row.claim_token && !row.expo_ticket_id))
   assert.equal(sends.length - beforeRetry, 3)
   const finalSendCount = sends.length
   await drain(); assert.equal(sends.length, finalSendCount)

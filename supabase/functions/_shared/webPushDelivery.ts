@@ -3,7 +3,7 @@ import { sendWebPush, type VapidKeys, type WebPushResult, type WebPushSubscripti
 
 const WEB_PUSH_CONCURRENCY = 6
 
-type WebPushCategory = 'trade' | 'waiver' | 'draft' | 'activity'
+type WebPushCategory = import('./notificationsPreferences.ts').NotificationCategory | 'activity'
 
 export type WebPushFanoutMessage = {
   userId: string

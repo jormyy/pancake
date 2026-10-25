@@ -4,6 +4,7 @@ import { supabase } from './supabase.ts'
 import { fetchBoxScore, parseNBAMinutes, NBABoxScorePlayer } from './nba.ts'
 import { errorMessage } from './responses.ts'
 import { resolveCdnPlayers } from './playerResolver.ts'
+import { resolvePlayerImports } from './playerImports.ts'
 import { dateFromETDate } from './scoreShared.ts'
 import { runBounded } from './runBounded.ts'
 import type { Database } from './database.ts'
@@ -12,7 +13,7 @@ import type { CdnGamePlayer } from './cdnGameFetch.ts'
 export type StatsSyncGame = Pick<
   Database['public']['Tables']['nba_games']['Row'],
   'id' | 'nba_game_id' | 'week_number' | 'season_year' | 'status'
->
+> & Partial<Pick<Database['public']['Tables']['nba_games']['Row'], 'home_score' | 'away_score' | 'game_status_text'>>
 
 const FINAL_STATS_RECHECK_MS = 30 * 60 * 1000
 const FINAL_NUMERIC_STATS = [
@@ -48,6 +49,14 @@ export async function syncStatsByDate(date: Date): Promise<number> {
     try {
       statCount += await syncGameBoxScore(game, isPast)
     } catch (e) {
+      const { data: remaining, error } = await supabase
+        .rpc('get_score_sync_games', { p_start_date: dateStr, p_end_date: dateStr })
+        .select('id').eq('id', game.id)
+      if (error) throw error
+      if (!remaining?.length) {
+        console.log(`[sync-stats] Game ${game.nba_game_id} left the available score inputs during recovery.`)
+        continue
+      }
       console.error(`[sync-stats] Error for ${game.nba_game_id}:`, errorMessage(e))
       syncFailures.push(`${game.nba_game_id}: ${errorMessage(e)}`)
     }
@@ -124,9 +133,12 @@ async function syncGameBoxScore(
 
   return await persist(() => retrySourceContention(async () => {
     await assertGameUnambiguous(game.id)
+    validateBoxScorePlayers(boxScore, providerGameId)
+    await recordBoxSides(boxScore, providerGameId)
     const resolved = await resolveBoxScorePlayers(boxScore, providerGameId)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
+    if (boxScore.gameStatus === 3) await saveFinalScore(game, providerGameId, boxScore)
     const changed = await saveGameStats(game.id, providerGameId, stats, boxScore.gameStatus === 3, boxScore.gameStatus === 3 ? undefined : gameElapsedSeconds(boxScore))
     if (changed > 0) console.log(`[sync-stats] Game ${providerGameId}: ${changed}/${stats.length} stat line(s) changed.`)
     return stats.length
@@ -149,6 +161,51 @@ type BoxScorePlayers = {
   gameStatus?: number
   homeTeam?: { players?: NBABoxScorePlayer[] }
   awayTeam?: { players?: NBABoxScorePlayer[] }
+}
+
+// A box lists each player under his side. His game membership keeps it, so when this game is the stored
+// evidence that he left his team, the ESPN release sweep moves him to this side rather than to no team and
+// he stays startable on its game days (resolve_player_imports_atomic). It is recorded before the box's own
+// import, so no membership of this box is stored without its side; every path that stores a box does so.
+export async function recordBoxSides(
+  boxScore: { homeTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] }; awayTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] } },
+  providerGameId: string,
+): Promise<void> {
+  const records = [boxScore.homeTeam, boxScore.awayTeam].flatMap((team) => {
+    const side = team?.teamTricode
+    return typeof side === 'string' && side.trim() ? (team?.players ?? []).map(player => ({
+      provider_id: String(player.personId), display_name: player.name ?? '', nba_game_id: providerGameId, nba_team: side,
+    })) : []
+  })
+  if (records.length > 0) await resolvePlayerImports('nba_cdn', records)
+}
+
+type FinalBoxScore = BoxScorePlayers & {
+  gameStatusText?: unknown
+  homeTeam?: { score?: unknown }
+  awayTeam?: { score?: unknown }
+}
+
+const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(score) && (score as number) >= 0
+
+// The scoreboard is the only other writer of nba_games scores, and it stops
+// polling a game once it is Final or drops it from todaysScoreboard, so the
+// last mid-game sample would otherwise stay as the final score. A Final
+// sample always applies and every later non-final sample is refused.
+// Feeds without team scores keep the earlier behavior. Live-poll work rows
+// carry the stored score, so a settled final is not rewritten on each recheck.
+async function saveFinalScore(game: StatsSyncGame, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
+  const home = boxScore.homeTeam?.score
+  const away = boxScore.awayTeam?.score
+  if (!isTeamScore(home) || !isTeamScore(away)) return
+  if (game.status === 'Final' && game.home_score === home && game.away_score === away &&
+      /^final/i.test(game.game_status_text ?? '')) return
+  const text = typeof boxScore.gameStatusText === 'string' && boxScore.gameStatusText.trim() ? boxScore.gameStatusText : 'Final'
+  const { error } = await supabase.rpc('save_live_scoreboard_atomic', {
+    p_game_id: game.id, p_provider_game_id: providerGameId, p_status: 'Final',
+    p_home_score: home, p_away_score: away, p_status_text: text, p_elapsed_seconds: 0,
+  })
+  if (error) throw error
 }
 
 export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameId: string): NBABoxScorePlayer[] {
@@ -177,7 +234,7 @@ export async function resolveBoxScorePlayers(
   const resolved: Array<{ player: CdnGamePlayer; playerId: string }> = []
   const playerIds = await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
-  })))
+  })), providerGameId)
   for (const [index, player] of allPlayers.entries()) {
     const playerId = playerIds[index]
     if (playerId && player.statistics) {

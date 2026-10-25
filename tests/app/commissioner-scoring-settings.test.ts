@@ -6,6 +6,7 @@ import { EMPTY_COMMISSIONER_SETTINGS_DRAFT } from '@/lib/commissioner-settings-d
 
 const mocks = vi.hoisted(() => ({ controller: vi.fn(), updateScoring: vi.fn() }))
 
+vi.mock('@/components/settings/NotificationAnnouncementComposer', () => ({ NotificationAnnouncementComposer: () => null }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', TextInput: 'TextInput', Pressable: 'Pressable', ScrollView: 'ScrollView',
     useWindowDimensions: () => ({ width: 390, height: 844 }),

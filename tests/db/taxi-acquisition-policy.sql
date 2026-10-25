@@ -256,10 +256,10 @@ BEGIN
   SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) INTO v_before FROM roster_players r WHERE r.id IN(v_ir,v_manual);
   PERFORM set_config('request.jwt.claim.sub',pg_temp.taxi_id('user-a')::text,true);
   PERFORM pg_temp.taxi_fails(format('SELECT public.activate_roster_player_with_overflow_atomic(%L,''ir'',%L,''taxi'')',v_ir,v_manual),
-    'P0001','only through a draft or trade','overflow activation cannot create taxi entry');
+    '22023','Invalid roster overflow action: taxi','overflow activation cannot create taxi entry');
   PERFORM pg_temp.taxi_fails(format('SELECT public.activate_roster_player_with_lineup_atomic(%L,''ir'',%L,''taxi'',%L,%L,%L,CURRENT_DATE,1,NULL)',
     v_ir,v_manual,pg_temp.taxi_id('life-a'),pg_temp.taxi_id('life-league'),pg_temp.taxi_id('life-season')),
-    'P0001','only through a draft or trade','lineup activation cannot create taxi entry');
+    '22023','Invalid roster overflow action: taxi','lineup activation cannot create taxi entry');
   PERFORM pg_temp.taxi_check(v_before=(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r WHERE r.id IN(v_ir,v_manual)),
     'both compound denials leave both roster rows unchanged');
   PERFORM public.drop_player_atomic(v_drop);

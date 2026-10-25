@@ -21,5 +21,5 @@ export async function setClock(options) {
     assert.equal(result.trim(), 't', 'The simulator clock is not installed')
   }
   await writeJson(path.join(directory, 'clock.json'), state)
-  console.log(JSON.stringify({ event: 'clock', at: options.at, rate: state.rate, capAt: options.capAt ?? null }))
+  if (!options.quiet) console.log(JSON.stringify({ event: 'clock', at: options.at, rate: state.rate, capAt: options.capAt ?? null }))
 }

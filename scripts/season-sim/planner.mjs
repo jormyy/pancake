@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict'
 import { orderedActions, gameEndTime } from './snapshots.mjs'
+import { seasonProfile, shiftDay } from './season-model.mjs'
 
-const faultDates = ['2025-10-22', '2025-10-23', '2025-10-24', '2025-10-25', '2025-10-26', '2025-10-27', '2025-10-28', '2025-11-04']
-const boundaryDates = ['2026-01-08', '2026-01-09', '2026-01-24', '2026-01-25', '2026-01-26', '2026-01-29', '2026-03-18', '2026-03-31']
-
-export function dayClass(date) {
+export function dayClass(date, settings = {}) {
+  const year = Number(date.slice(0, 4)) + (Number(date.slice(5, 7)) >= 7 ? 1 : 0)
+  const profile = settings.profile ?? seasonProfile(year)
+  const faultDates = [1, 2, 3, 4, 5, 6, 7, 14].map(days => shiftDay(profile.start, days))
   if (faultDates.includes(date)) return 'fault'
-  if (boundaryDates.includes(date)) return 'postponement'
-  if (date >= '2026-02-09' && date <= '2026-02-22') return 'all-star'
-  if (date >= '2026-03-23' && date <= '2026-04-12') return 'playoff'
+  if (settings.postponements?.some(row => [row.originalDate, row.makeupDate, shiftDay(row.originalDate, 1)].includes(date))) return 'postponement'
+  const allStar = settings.calendar?.weeks.find(row => row.week_start <= settings.calendar.gap.before && row.week_end >= settings.calendar.gap.after)
+  if (allStar ? date >= allStar.week_start && date <= allStar.week_end : date.slice(5, 7) === '02') return 'all-star'
+  const playoffStart = settings.calendar?.weeks.find(row => row.week_number === settings.playoffStart)?.week_start ?? shiftDay(profile.end, -20)
+  if (date >= playoffStart && date <= profile.end) return 'playoff'
+  if (!settings.postponements && ['01-08','01-09','01-24','01-25','01-26','01-29','03-18','03-31'].includes(date.slice(5))) return 'postponement'
   const hash = [...date].reduce((value, char) => (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0, 493)
   return Number(date.slice(8)) === 7 || hash % 13 === 0 ? 'seeded-dense' : 'standard'
 }
@@ -34,8 +38,8 @@ export function canOverlapDispatch(event, next) {
   return !next || next.at - event.at >= 360000
 }
 
-export async function planDay(games, store, date) {
-  const category = dayClass(date)
+export async function planDay(games, store, date, settings) {
+  const category = dayClass(date, settings)
   const dense = category !== 'standard'
   const nextDate = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
   const offset = new Intl.DateTimeFormat('en', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(`${date}T12:00:00Z`)).find(part => part.type === 'timeZoneName').value.replace('GMT', '')

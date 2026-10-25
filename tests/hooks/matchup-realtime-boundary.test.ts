@@ -123,6 +123,14 @@ it('converges after duplicate and reversed deliveries, including a downward scor
     expect(latest.matchup?.myPoints).toBe(100)
 })
 
+it('accepts ordered changes from the same database commit', async () => {
+    const renderer = await mount()
+    const callback = mocks.subscriptions.at(-1)!.watches[0].onChange
+    await act(async () => { callback(event('a', 300, 2)); callback(event('a', 250, 2)) })
+    expect(latest.matchup?.myPoints).toBe(250)
+    await act(async () => { renderer.unmount() })
+})
+
 
 it('reconciles a compact deletion hint and invalidates both visible rosters', async () => {
     const player = { playerId: 'removed', rosterPlayerId: 'roster-removed', displayName: 'Removed',

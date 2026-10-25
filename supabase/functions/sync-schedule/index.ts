@@ -18,7 +18,7 @@ async function syncSchedule(): Promise<{ updated: number; inserted: number; week
   const raw = await fetchSeasonSchedule()
   if (!raw.length) { console.log('[sync-schedule] No schedule data.'); return { updated: 0, inserted: 0, weeks: 0 } }
 
-  const plan = buildScheduleSyncPlan(raw)
+  const plan = buildScheduleSyncPlan(raw, new Date(), true)
   if (plan.offseasonStale) {
     console.log('[sync-schedule] Offseason: CDN still serves last season; skipping until the new schedule is published.')
     return { updated: 0, inserted: 0, weeks: 0 }

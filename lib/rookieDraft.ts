@@ -1,3 +1,4 @@
+import { validateRookieTimerSeconds } from '@/lib/draft-options'
 import { supabase } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { apiPost as sharedApiPost } from '@/lib/shared/api'
@@ -255,7 +256,25 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 }
 
 
+export type RookieStartWarning = {
+    code: 'opening_night_unpublished' | 'opening_night_overrun' | null
+    openingNightCutoff: string | null
+    estimatedFinishAt: string
+    remainingPicks: number
+    timerSeconds: number
+}
+
+export async function getRookieStartWarning(leagueId: string, options: RookieDraftStartOptions = {}) {
+    const result = await sharedApiPost<{ warning: RookieStartWarning }>('/draft/rookie-start-warning', {
+        leagueId,
+        timerSeconds: validateRookieTimerSeconds(options.timerSeconds ?? 60),
+        rounds: options.rounds ?? 3,
+    })
+    return result.warning
+}
+
 export async function startRookieDraft(leagueId: string, options: RookieDraftStartOptions = {}) {
+    validateRookieTimerSeconds(options.timerSeconds ?? 60)
     const result = await sharedApiPost<{ draft: { id: string; draft_type: 'snake' } }>('/draft/start-rookie', {
         leagueId,
         isMock: options.isMock === true,

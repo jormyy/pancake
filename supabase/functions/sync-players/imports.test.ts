@@ -28,7 +28,7 @@ const players = Array.from({ length: 634 }, (_, index) => ({
 }))
 const conflictPlayerId = '00000000-0000-4000-8000-000000000123'
 
-async function runSync(source: string, conflicts: Set<string>, otherError = false) {
+async function runSync(source: string, conflicts: Set<string>, otherError = false, indexAction?: string) {
   const originalFetch = globalThis.fetch
   const originalLog = console.log
   const originalError = console.error
@@ -54,7 +54,7 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
       ...player, player_id: player.provider_id, sport: 'nba', position: 'PG', team: 'BOS', status: 'Active', years_exp: 1,
     }])))
     if (url.hostname === 'nba.invalid' && url.pathname === '/static/json/staticData/playerIndex.json') return Response.json({ resultSets: [{
-      headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [],
+      headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: indexAction ? [['nba-index-id', 'Index', 'Candidate', 1]] : [],
     }] })
     assert.equal(url.hostname, 'database.invalid', `Unexpected request ${url.hostname}${url.pathname}`)
     if (url.pathname === '/rest/v1/sync_runs') {
@@ -63,10 +63,11 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
       runs.push(await request.json())
       return Response.json({})
     }
-    if (url.pathname === '/rest/v1/players') return Response.json([])
+    if (url.pathname === '/rest/v1/players') return Response.json(indexAction ? [{ id: 'index-candidate', display_name: 'Index Candidate', nba_id: null }] : [])
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') return Response.json(null)
     assert.equal(url.pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
     const body = await request.json() as { p_source: string; p_records: { provider_id: string }[] }
+    if (body.p_source === 'nba_index') return Response.json({ results: [{ index: 0, player_id: null, action: indexAction }], stale_draft_numbers_cleared: 0 })
     assert.equal(body.p_source, source)
     const ids = body.p_records.map((row) => row.provider_id)
     imports.push(ids)
@@ -139,5 +140,14 @@ for (const source of ['espn', 'sleeper']) {
     assert.equal(result.response.status, 200)
     assert.equal(result.runs.at(-1)?.status, 'success')
     assert.equal(result.runs.at(-1)?.rows_affected, 634)
+  })
+}
+
+for (const action of ['missing', 'stale', 'ambiguous']) {
+  Deno.test(`NBA index reports an unresolved ${action} receipt as a failed sync`, async () => {
+    const result = await runSync('sleeper', new Set(), false, action)
+    assert.equal(result.response.status, 500)
+    assert.equal(result.runs.at(-1)?.status, 'failed')
+    assert.match(result.runs.at(-1)?.error ?? '', new RegExp(`nba-index-id.*${action}`))
   })
 }

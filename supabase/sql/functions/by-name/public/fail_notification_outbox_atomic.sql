@@ -28,6 +28,7 @@ BEGIN
          last_error = left(COALESCE(p_error, 'Unknown notification delivery failure'), 2000)
    WHERE id = p_id
      AND claim_token = p_claim_token
+     AND suppressed_at IS NULL
      AND delivered_at IS NULL
      AND dead_lettered_at IS NULL;
   RETURN FOUND;

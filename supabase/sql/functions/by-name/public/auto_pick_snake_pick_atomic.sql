@@ -37,6 +37,12 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  -- Resume real drafts when the season-start backstop runs.
+  IF v_reason = 'season_boundary_backstop' AND NOT v_draft.is_mock AND v_draft.status = 'paused' THEN
+    UPDATE drafts SET status = 'in_progress', paused_at = NULL,
+      timer_paused_remaining_seconds = NULL, pause_reason = NULL WHERE id = p_draft_id;
+  END IF;
+
   SELECT player.id
     INTO v_player_id
     FROM players AS player
@@ -71,7 +77,7 @@ BEGIN
     p_draft_id,
     p_member_id,
     v_player_id,
-    v_reason = 'timer_expired',
+    v_reason IN ('timer_expired', 'season_boundary_backstop'),
     p_to_taxi
   );
 

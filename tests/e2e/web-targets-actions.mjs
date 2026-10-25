@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, pinWebTargetLeague, navigateWebTarget, reloadWebTarget } from './web-targets-browser.mjs'
+import { WEB_TARGETS, openWebTarget, pressWebControl, readWebLayout, pinWebTargetLeague, navigateWebTarget, reloadWebTarget, waitForWebAuthForm } from './web-targets-browser.mjs'
 import { setupTradeGameplayFixture, findAvailablePlayers, createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runWithScenarioResourceOwner } from './scenario-resource-owner.mjs'
 import { auditWebDraftActions } from './web-targets-draft-actions.mjs'
@@ -71,7 +71,7 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         }
         if (new URL(page.url()).origin === new URL(frontend).origin) await page.evaluate(() => localStorage.clear())
         await navigateWebTarget(page, new URL('/sign-in', frontend).href)
-        await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
+        await waitForWebAuthForm(page, 'you@example.com')
         await page.getByPlaceholder('you@example.com').fill(next.users[index].email)
         await page.locator('input[type="password"]').fill(next.password)
         await press(button('Sign In'))

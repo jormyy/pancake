@@ -271,7 +271,8 @@ BEGIN
 
   INSERT INTO private.score_week_certificates(league_season_id, week_number, input_token)
     VALUES(p_league_season_id, p_week_number, private.score_input_token(p_league_season_id, p_week_number))
-    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token;
+    ON CONFLICT(league_season_id, week_number) DO UPDATE SET input_token = EXCLUDED.input_token
+    WHERE score_week_certificates.input_token IS DISTINCT FROM EXCLUDED.input_token;
 
   RETURN '[]'::jsonb;
 END;

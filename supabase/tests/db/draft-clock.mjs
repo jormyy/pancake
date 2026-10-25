@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 
 const url = process.env.SUPABASE_DB_URL
-assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname), 'Use an isolated local database')
+assert(url && ['127.0.0.1', 'localhost'].includes(new URL(url).hostname) && new URL(url).port === (process.env.PANCAKE_TEST_DB_PORT ?? '54322'), 'Use an isolated local database')
 const prefix = `draft-clock-${process.pid}`
 let serial = 0
 class Session {
@@ -82,7 +82,7 @@ INSERT INTO public.league_members(id,league_id,user_id,role) VALUES('${members[0
 INSERT INTO public.league_seasons(id,league_id,season_year,is_current) VALUES('${season}','${league}',2189,true);
 INSERT INTO public.players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) SELECT id,'Clock',id::text,'PG',ARRAY['PG'],0,1 FROM unnest(ARRAY[${players.map(id => `'${id}'::uuid`).join(',')}])id;
 INSERT INTO public.drafts(id,league_id,league_season_id,draft_type,status,budget_per_team,pick_timer_seconds,rounds,is_mock,timer_expiry_behavior)
-VALUES('${auction}','${league}','${season}','auction','in_progress',100,30,NULL,true,'auto_pick'),('${snake}','${league}','${season}','snake','in_progress',NULL,30,1,true,'skip_pick');
+VALUES('${auction}','${league}','${season}','auction','in_progress',100,30,NULL,true,'auto_pick'),('${snake}','${league}','${season}','snake','in_progress',NULL,60,1,true,'skip_pick');
 INSERT INTO public.draft_orders(draft_id,member_id,position) SELECT d,m,ord::int FROM unnest(ARRAY['${auction}'::uuid,'${snake}'::uuid])d CROSS JOIN unnest(ARRAY['${members[0]}'::uuid,'${members[1]}'::uuid]) WITH ORDINALITY AS u(m,ord);
 INSERT INTO public.draft_budgets(draft_id,member_id,initial_budget,remaining) SELECT '${auction}',id,100,100 FROM unnest(ARRAY['${members[0]}'::uuid,'${members[1]}'::uuid])id;
 INSERT INTO public.nominations(id,draft_id,nominating_member_id,player_id,nomination_order,status,current_bid_amount,countdown_expires_at) VALUES('${nomination}','${auction}','${members[0]}','${players[0]}',1,'open',0,clock_timestamp()+interval '30 seconds');

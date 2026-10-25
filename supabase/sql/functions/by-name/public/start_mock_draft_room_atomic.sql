@@ -130,7 +130,7 @@ BEGIN
 
     PERFORM private.arm_next_snake_pick_timer(
       p_draft_id,
-      now() + make_interval(secs => COALESCE(v_draft.pick_timer_seconds, 30))
+      clock_timestamp() + make_interval(secs => COALESCE(v_draft.pick_timer_seconds, 60))
     );
   END IF;
 

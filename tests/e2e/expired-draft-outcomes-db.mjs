@@ -7,8 +7,8 @@ const api = process.env.SUPABASE_URL
 const db = process.env.SUPABASE_DB_URL
 const key = process.env.PANCAKE_SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SECRET_KEY ?? process.env.E2E_SUPABASE_SECRET_KEY
 assert.ok(api && db && key)
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
-assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname))
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname) && new URL(api).port === (process.env.PANCAKE_TEST_API_PORT ?? '54321'))
+assert.ok(['127.0.0.1', 'localhost'].includes(new URL(db).hostname) && new URL(db).port === (process.env.PANCAKE_TEST_DB_PORT ?? '54322'))
 const admin = createClient(api, key, { auth: { persistSession: false, autoRefreshToken: false } })
 const ids = Object.fromEntries(['user', 'league', 'season', 'member', 'goodDraft', 'badDraft', 'snakeDraft', 'goodNom', 'badNom', 'pick', 'player'].map(name => [name, String(randomUUID())]))
 const suffix = randomUUID().replaceAll('-', '')
@@ -52,10 +52,10 @@ try {
         INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(ids.member)},${quote(ids.league)},${quote(ids.user)},'commissioner','Synthetic expiry');
         INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(ids.season)},${quote(ids.league)},9174,true);
         INSERT INTO players(id,first_name,last_name,position) VALUES(${quote(ids.player)},'Synthetic','Expiry player','PG');
-        INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,timer_expiry_behavior) VALUES
-            (${quote(ids.goodDraft)},${quote(ids.league)},${quote(ids.season)},'auction','in_progress',true,'auction_no_bid'),
-            (${quote(ids.badDraft)},${quote(ids.league)},${quote(ids.season)},'auction','in_progress',true,'auction_no_bid'),
-            (${quote(ids.snakeDraft)},${quote(ids.league)},${quote(ids.season)},'snake','in_progress',true,'pause_draft');
+        INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,timer_expiry_behavior,pick_timer_seconds) VALUES
+            (${quote(ids.goodDraft)},${quote(ids.league)},${quote(ids.season)},'auction','in_progress',true,'auction_no_bid',30),
+            (${quote(ids.badDraft)},${quote(ids.league)},${quote(ids.season)},'auction','in_progress',true,'auction_no_bid',30),
+            (${quote(ids.snakeDraft)},${quote(ids.league)},${quote(ids.season)},'snake','in_progress',true,'pause_draft',60);
         INSERT INTO nominations(id,draft_id,player_id,nominating_member_id,nomination_order,status,countdown_expires_at) VALUES
             (${quote(ids.goodNom)},${quote(ids.goodDraft)},${quote(ids.player)},${quote(ids.member)},1,'open',now()-interval '1 minute'),
             (${quote(ids.badNom)},${quote(ids.badDraft)},${quote(ids.player)},${quote(ids.member)},1,'open',now()-interval '1 minute');

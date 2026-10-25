@@ -16,9 +16,9 @@ supabase db reset --local --version 20261020000007
 npm run test:db:load-seed
 node scripts/load/run.mjs measure scripts/load/before.csv
 node scripts/load/run.mjs realtime scripts/load/realtime-before.csv
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024000001_straight_to_ir.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024000002_live_player_season_totals.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024000003_reconciliation_writes_and_poll_gate.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024100001_straight_to_ir.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024100002_live_player_season_totals.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261024100003_reconciliation_writes_and_poll_gate.sql
 node scripts/load/run.mjs measure scripts/load/after.csv
 node scripts/load/run.mjs realtime scripts/load/realtime-after.csv
 supabase db reset --local

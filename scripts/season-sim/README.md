@@ -1,93 +1,158 @@
 # Historical season simulator
 
-The simulator uses real local dispatch, handlers, database rules, and authenticated actions.
-The [simulator contract](../../docs/season-simulator.md) owns source classes, checks, and acceptance limits.
+This harness drives local production gates, Edge handlers, and authenticated manager actions.
+Generated reports distinguish completed checks from missing coverage.
+A diagnostic run cannot establish full acceptance.
 
-## Targets and prerequisites
+The [bounded acceptance matrix](../../docs/bounded-replay-acceptance.md) records the saved replay through November 9, 2025.
+It separates measured outcomes from retained stream and source limits.
 
-This harness is tied to a dedicated external installation.
-`scripts/season-sim/common.mjs` sets its root under the user's home directory.
-Setup requires the repo child directory, a tools child directory containing the official supabase-go executable, and the assigned Docker socket.
-The installer checks the exact checkout and socket before changes.
-These external prerequisites are not repository files. Ordinary local setup does not create them.
+## Configuration
 
-| Service | Required local target |
+Source the task environment on the mini before every command.
+Run from the `repo` child of the configured root.
+Keep fixtures, state, snapshots, and evidence outside that child.
+
+| Environment variable | Default |
 | --- | --- |
-| Supabase project | `pt0493sim` |
-| API and Auth | HTTP loopback port 56221 |
-| PostgreSQL | Loopback port 56222 |
-| Fixture origin | HTTP loopback port 56280 |
-| Deno router | HTTP loopback port 56281 |
+| `SEASON_SIM_ROOT` | `~/pancake-t_4ba51e0d/lanes/sim` |
+| `SEASON_SIM_PROJECT` | `pt4basim` |
+| `SEASON_SIM_PORT_PREFIX` | `572` |
+| `SEASON_SIM_CONTAINER` | `supabase_db_<project>` |
+| `SEASON_SIM_DOCKER_SOCKET` | Unix socket from `DOCKER_HOST` |
+| `SEASON_SIM_CLI` | Task `tools/bin/supabase-go` |
+| `SEASON_SIM_SNAPSHOT_ROOT` | Task `shared/sim/snapshots` |
 
-The guarded SQL helper permits only the project's database container.
-`local-stack.mjs` disables cron launch before migration and unschedules jobs.
-It changes Supabase configuration only in the external simulator copy.
-`runtime.mjs` reads that stack's local keys and creates an internal token in memory.
-Never copy repository or profile environment files into this setup.
-Keep fixtures, state, keys, and evidence outside the repo child directory.
+Only loopback HTTP and PostgreSQL targets in the configured block pass the guards.
+The production project reference always fails.
+The database helper checks the configured container and its database port before its first query.
+Port suffixes are API 21, database 22, origin 80, router 81, inspector 83, and fault target 89.
+Assigned blocks are 572–575. Block 581 belongs only to the supplemental project and 582 only to the replacement replay.
+The installer changes configuration only inside the mini copy.
+It disables cron launch before applying migrations.
+It saves the installed cron catalog before unscheduling jobs.
+The task supplies native PostgreSQL 17 clients and the guarded Docker socket.
+Local credentials come only from the configured stack's `supabase status -o env`.
+Real opening recovery uses a guarded `next-season-start` snapshot and preserves completed preseason work.
+Keep failed feature exports and their source receipt before revalidating the repaired opening state.
 
-## Collection and audit
-
-Collection needs network access. Audit uses the verified local fixture store.
+## Fixture collection
 
 ```sh
-npm run e2e:season-sim -- --help
-npm run e2e:season-sim -- --collect
-npm run e2e:season-sim -- --collect --days 2 --games 20
-npm run e2e:season-sim -- --audit
-node scripts/season-sim/audit-identities.mjs
-node scripts/season-sim/plan-audit.mjs
+. ~/pancake-t_4ba51e0d/env.sh
+cd "$TASK/lanes/sim/repo"
+node scripts/season-sim/index.mjs --collect
+node scripts/season-sim/index.mjs --collect-next
+node scripts/season-sim/index.mjs --prepare-next
 ```
 
-The manifest records source URL, retrieval time, response status, bytes, and SHA-256.
-Reads verify decompressed bytes. Raw final boxes remain unchanged.
-`scripts/season-sim/known-discrepancies.json` pins exact live counting-stat exceptions.
-`scripts/season-sim/known-identities.json` pins the reviewed provider identity correction.
-Neither file waives final equality.
+Collection pins public NBA CDN and ESPN responses by SHA-256.
+`--collect-next` refuses a published schedule outside 2026–27.
+`--prepare-next` maps historical same-team boxes and play-by-play into the first two fantasy weeks.
+The published schedule is REAL-RAW.
+Every mapped final box and live snapshot is SYNTHETIC.
+`next-season-mapping.json` records each template, target game, time shift, and schedule hash.
+No next-season box score is downloaded.
+Known source limits stay pinned in `known-discrepancies.json` and `known-identities.json`.
 
-## Fresh replay
+## Replay
 
-Preserve failed evidence before resetting synthetic database state.
-Run setup only from the assigned external checkout.
-The stop command below removes only the owned project's synthetic database volume.
+Preserve failed evidence before clearing the local test database.
+Run fleet admission before starting a stack or replay.
 
 ```sh
-../tools/supabase-go stop --project-id pt0493sim --no-backup
 node --input-type=module -e 'import { setupStack } from "./scripts/season-sim/local-stack.mjs"; await setupStack()'
-npm run e2e:season-sim -- --replay
+node scripts/season-sim/index.mjs --replay --late-season --days 1
+node scripts/season-sim/index.mjs --replay
 node scripts/season-sim/report.mjs
 ```
 
-The default replay covers all configured season dates, playoff grace, rollover, and a rookie draft.
-It creates synthetic users and completes the opening auction.
-Daily phases exercise lineups, lock rejection, waivers, adds/drops, IR, taxi, and trades.
-Faults run inside the timeline. Next-day and final repeat audits verify recovery and idempotence.
-The generated final report establishes completion; collection success does not.
+The replay calls every intervening minute of the recorded business cron schedule.
+It pauses business time during I/O and wakes worker timers at their business deadlines.
+Internal live-work reads and worker completion trigger authenticated score probes.
+The morning and season-end paths contain no direct score or stat sync calls.
+An authenticated commissioner can request matchup generation during league setup.
+Direct stat or score dispatch fails while the production-only guard is active.
+Standalone legacy fault diagnostics remain outside acceptance coverage.
 
-## Diagnostics
+The score read follows `lib/scoring.ts`: authenticated REST reads from `matchups`.
+The private Realtime probe follows `hooks/use-matchup-data.ts` and watches matchup updates by season.
+The independent score oracle uses stored player stat rows and locked starters.
+Weekly checks require every expected matchup and member standing.
+Playoff ties use higher maximum possible points, then home.
+Rookie order uses the latest prior standings: rows present first, wins ascending, points ascending, then member ID.
+Snake order uses the actual member count and traded pick owners.
+
+## Segments
+
+Snapshots contain a data dump, paused clock, driver cursor, fixture manifest hash, and local synthetic sessions.
+Treat snapshots as private local test artifacts.
+The restore path checks both dump and fixture hashes.
+It writes only to the configured local stack.
 
 ```sh
-npm run e2e:season-sim -- --replay --start 2025-10-27 --days 1
-npm run e2e:season-sim -- --replay --days 9
-npm run e2e:season-sim -- --lifecycle --start 2025-10-28
-node scripts/season-sim/fault-run.mjs 2025-10-26
-node scripts/season-sim/verify.mjs
-node scripts/season-sim/verify.mjs --live-recipe
-node scripts/season-sim/verify.mjs --clock-roundtrip
-node --test scripts/season-sim/*.test.mjs
+SEASON_SIM_ROOT="$TASK/lanes/live" \
+SEASON_SIM_PROJECT=pt4balive SEASON_SIM_PORT_PREFIX=573 \
+node scripts/season-sim/index.mjs --segment live-week \
+  --after-restore-sql /absolute/path/to/mutant.sql
 ```
 
-Short, resumed, and standalone probes do not prove fresh full-season acceptance.
-Never reset or replace source files during an active replay.
+| Segment | Intended coverage | Measured duration |
+| --- | --- | --- |
+| `live-week` | Live scores, client subscription, finals | Not measured |
+| `pre-deadline` | Pending offer, blocked proposal and acceptance | Not measured |
+| `pre-playoffs` | Automatic seeding and bracket creation | Not measured |
+| `pre-rollover` | Champion, grace, rollover | Not measured |
+| `pre-draft` | Rookie order, traded owner, expiry | Not measured |
+| `next-season-start` | Skipped week 1, eligible weeks 2–3, DST, retained history | Not measured |
+| `waiver-week` | FAAB claims, roster failure, priority, budgets and add counts | Not measured |
+
+The CLI exists. Tier 2 segment baselines are no longer required for this card.
+Postseason cursor routing and next-season segment boundaries still require integration verification.
+Do not treat an unmeasured segment as a working mutation oracle.
+
+## Validation and limits
+
+```sh
+node --test scripts/season-sim/*.test.mjs
+npm run typecheck:e2e
+```
+
+The generated report records acceptance gaps explicitly.
+A fresh committed-source replay and all measured acceptance areas remain required.
+Ranking and projection inputs are outside the collected historical fixture set.
+Their failed dispatches stay recorded as ancillary input gaps. The report does not claim their output quality.
+The driver probes every internal live-work read, worker completion, and live gate.
+The current diagnostic measures this path; complete season-end evidence remains pending.
+A full report checks the twelve-hour budget against measured execution time.
+Do not infer it from earlier cards.
 
 ## Cleanup
 
-Restore native clocks through the guarded SQL helper, then stop only the owned stack:
+Restore native clocks before stopping only the configured project.
 
 ```sh
-../tools/psql postgresql://postgres@127.0.0.1:56222/postgres -v ON_ERROR_STOP=1 -f scripts/season-sim/restore-clock.sql
-../tools/supabase-go stop --project-id pt0493sim
+node --input-type=module -e 'import {readFile} from "node:fs/promises"; import {sql} from "./scripts/season-sim/local-stack.mjs"; const s=await readFile("scripts/season-sim/restore-clock.sql","utf8"); await sql(s.slice(s.indexOf("BEGIN;")))'
+supabase-go stop --project-id "${SEASON_SIM_PROJECT:-pt4basim}"
 ```
 
-The tools directory must contain the guarded `scripts/season-sim/psql.mjs` wrapper as psql.
-Keep reports outside tracked docs and omit generated keys from evidence.
+## Mutation overlay order
+
+The CLI restores data, starts the runtime, and then applies `--after-restore-sql`.
+It compares application function fingerprints before and after the data restore and runtime startup.
+The overlay hash and resulting function fingerprint appear in the segment proof.
+The data dump never supplies application DDL.
+A baseline must pass before a mutation verdict counts.
+
+## Source evidence
+
+Build application code from the supplied integration archive.
+Exclude `.env*`, `.git`, `node_modules`, `dist`, and `.expo` during source copies.
+Place its commit, archive SHA-256, and archive harness hash in the lane's `application-source.json`.
+Each new driver records the current harness file hashes before business actions.
+A working overlay is not a committed-source full replay.
+
+The maximum-score oracle rebuilds roster eligibility from acquisition, drop, IR and taxi transactions at game tipoff.
+It includes past bench players even when a later drop removes their lineup rows.
+`retained-check.mjs --date YYYY-MM-DD` checks retained finals, scores, standings and delivery coverage.
+It does not dispatch maintenance or change application outcomes.

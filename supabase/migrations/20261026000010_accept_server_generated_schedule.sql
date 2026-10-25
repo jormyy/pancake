@@ -108,34 +108,12 @@ BEGIN
     FROM public.matchups
    WHERE league_season_id = p_league_season_id;
 
-  IF v_existing_count > 0 AND p_force IS DISTINCT FROM true THEN
+  IF v_existing_count > 0 THEN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
   END IF;
 
   v_rounds := private.league_playoff_round_plan(v_league.id, v_member_count);
   PERFORM private.assert_playoff_window(v_year, v_start, v_rounds, true);
-
-  IF v_existing_count > 0 THEN
-    PERFORM private.assert_schedule_not_started(p_league_season_id);
-    IF EXISTS (
-      SELECT 1
-        FROM public.matchups
-       WHERE league_season_id = p_league_season_id
-         AND (
-           is_finalized = true
-           OR matchup_type IN (
-             'playoff_quarterfinal'::public.matchup_type,
-             'playoff_semifinal'::public.matchup_type,
-             'playoff_final'::public.matchup_type
-           )
-         )
-    ) THEN
-      RAISE EXCEPTION 'Cannot force-regenerate matchups after finalized or playoff matchups exist.';
-    END IF;
-
-    DELETE FROM public.matchups
-     WHERE league_season_id = p_league_season_id;
-  END IF;
 
   WITH requested AS (
     SELECT *

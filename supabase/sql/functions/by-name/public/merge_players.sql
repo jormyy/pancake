@@ -186,6 +186,23 @@ BEGIN
   UPDATE roster_transactions SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE snake_draft_picks   SET player_id = winner_id WHERE player_id = loser_id;
 
+  -- A membership keeps the side its box lists him under (the ESPN release sweep moves him to it): the
+  -- survivor's side stays, and a merged-away side fills one the survivor lacks.
+  INSERT INTO private.player_game_memberships(player_id, game_id, first_seen_at, nba_team)
+    SELECT winner_id, game_id, first_seen_at, nba_team FROM private.player_game_memberships WHERE player_id = loser_id
+    ON CONFLICT (player_id, game_id) DO UPDATE
+      SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
+        nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
+
+  -- The time ESPN last listed this person anchors the release sweep's departure evidence, and the time it
+  -- has listed him on that team since gates the box-to-ESPN link, so the survivor keeps the later of the two
+  -- listings whole rather than losing the merged-away one with its row.
+  INSERT INTO private.player_espn_listings(player_id, nba_team, listed_at, team_since)
+    SELECT winner_id, nba_team, listed_at, team_since FROM private.player_espn_listings WHERE player_id = loser_id
+    ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at,
+        team_since = EXCLUDED.team_since
+      WHERE EXCLUDED.listed_at > player_espn_listings.listed_at;
+
   DELETE FROM player_game_stats
     WHERE player_id = loser_id
       AND game_id IN (SELECT game_id FROM player_game_stats WHERE player_id = winner_id);
@@ -200,8 +217,15 @@ BEGIN
     ON CONFLICT(league_id,member_id,player_id) DO UPDATE SET exited_at=LEAST(league_member_taxi_exits.exited_at,EXCLUDED.exited_at);
   DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND source='merge' AND related_id=loser_id;
 
+  UPDATE dynasty_rankings SET player_id = winner_id WHERE player_id = loser_id;
+  UPDATE fantasypros_projection_rows SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE dynasty_news SET player_id = winner_id WHERE player_id = loser_id;
   UPDATE league_activity SET related_player_id = winner_id WHERE related_player_id = loser_id;
+
+  INSERT INTO player_watches(league_id, member_id, player_id, created_at)
+    SELECT league_id, member_id, winner_id, created_at FROM player_watches
+    WHERE player_id = loser_id ORDER BY member_id
+    ON CONFLICT (member_id, player_id) DO NOTHING;
 
   DELETE FROM players WHERE id = loser_id;
 END;

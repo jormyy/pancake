@@ -215,9 +215,9 @@ The client integration and installed iPhone screen checks remain with the other 
 - `scripts/load/workload.sql`
 - `supabase/RELEASE-DB.md`
 - `supabase/functions/api/waivers.ts`
-- `supabase/migrations/20261024000001_straight_to_ir.sql`
-- `supabase/migrations/20261024000002_live_player_season_totals.sql`
-- `supabase/migrations/20261024000003_reconciliation_writes_and_poll_gate.sql`
+- `supabase/migrations/20261024100001_straight_to_ir.sql`
+- `supabase/migrations/20261024100002_live_player_season_totals.sql`
+- `supabase/migrations/20261024100003_reconciliation_writes_and_poll_gate.sql`
 - `supabase/sql/function-catalog.json`
 - `supabase/sql/functions/by-name/analytics/seed_league_fantasy_avgs.sql`
 - `supabase/sql/functions/by-name/private/clear_player_season_totals.sql`
@@ -246,11 +246,16 @@ The client integration and installed iPhone screen checks remain with the other 
 
 ## Next release
 
+The merged migration range requires new release attestations before deployment.
+The published attestations cover only the deployed main history.
+
 Keep the Expo objects while the deployed Edge release or its rollback can use them.
 The client cannot update `profiles.push_token`; the service role keeps access.
 The database phase also keeps receipt tickets and their current leases.
 
-After the Web Push-only Edge release is live and its rollback window ends, add this follow-up migration:
+First ship an Edge release that removes Expo delivery, receipt polling, and legacy storage access.
+Settle pending tickets and close its rollback window.
+Then add this follow-up migration:
 `20261027000000_remove_legacy_expo_after_edge.sql`.
 This SQL stays outside `supabase/migrations` until that release.
 It requeues pending tickets, replaces the queue routines, and then removes the legacy objects.
@@ -281,11 +286,39 @@ DECLARE
   v_limit int := LEAST(GREATEST(COALESCE(p_limit, 100), 0), 200);
   v_lease_seconds int := LEAST(GREATEST(COALESCE(p_lease_seconds, 60), 15), 600);
 BEGIN
+  WITH stale AS (
+    SELECT queued.id FROM public.notification_outbox queued
+    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
+      AND queued.suppressed_at IS NULL
+      AND queued.available_at <= clock_timestamp()
+      AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds))
+      AND private.notif_is_stale(queued.event_type,queued.data)
+    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
+  )
+  UPDATE public.notification_outbox queued SET suppressed_at = clock_timestamp(), suppression_reason = 'stale',
+    claimed_at = NULL, claim_token = NULL FROM stale WHERE queued.id = stale.id;
+  WITH disabled AS (
+    SELECT queued.id FROM public.notification_outbox queued
+    JOIN public.league_members member ON member.id = queued.member_id
+    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
+      AND queued.suppressed_at IS NULL
+      AND queued.available_at <= now()
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
+      AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds))
+      AND NOT private.notif_preference_enabled(member.user_id,queued.event_type,queued.category)
+    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
+  )
+  UPDATE public.notification_outbox queued SET suppressed_at = now(), suppression_reason = 'preferences_disabled',
+    claimed_at = NULL, claim_token = NULL FROM disabled WHERE queued.id = disabled.id;
   RETURN QUERY
   WITH candidates AS (
     SELECT queued.id
       FROM notification_outbox AS queued
-     WHERE queued.category IN ('trade','activity','waiver','draft')
+     WHERE queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
+       AND queued.suppressed_at IS NULL
+       AND NOT private.notif_is_stale(queued.event_type,queued.data)
+       AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
+       AND private.notif_preference_enabled((SELECT member.user_id FROM public.league_members member WHERE member.id = queued.member_id),queued.event_type,queued.category)
        AND queued.delivered_at IS NULL
        AND queued.dead_lettered_at IS NULL
        AND queued.available_at <= now()
@@ -303,7 +336,7 @@ BEGIN
       FROM candidates
      WHERE queued.id = candidates.id
      RETURNING queued.id, queued.claim_token, queued.member_id, queued.title,
-       queued.body, queued.data, queued.category
+       queued.body, queued.data || jsonb_build_object('notificationEvent',queued.event_type,'outboxId',queued.id) AS data, queued.category
   )
   SELECT claimed.id, claimed.claim_token, claimed.member_id, claimed.title,
     claimed.body, claimed.data, claimed.category
@@ -328,6 +361,7 @@ BEGIN
          last_error = NULL
    WHERE id = p_id
      AND claim_token = p_claim_token
+     AND suppressed_at IS NULL
      AND delivered_at IS NULL
      AND dead_lettered_at IS NULL;
   RETURN FOUND;
@@ -356,6 +390,7 @@ BEGIN
          last_error = left(COALESCE(p_error, 'Unknown notification delivery failure'), 2000)
    WHERE id = p_id
      AND claim_token = p_claim_token
+     AND suppressed_at IS NULL
      AND delivered_at IS NULL
      AND dead_lettered_at IS NULL;
   RETURN FOUND;
@@ -380,6 +415,7 @@ BEGIN
          last_error = left(COALESCE(p_error, 'Permanent notification delivery failure'), 2000)
    WHERE id = p_id
      AND claim_token = p_claim_token
+     AND suppressed_at IS NULL
      AND delivered_at IS NULL
      AND dead_lettered_at IS NULL;
   RETURN FOUND;
@@ -393,6 +429,7 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  PERFORM public.notif_scan_due_atomic();
   IF EXISTS (
     SELECT 1 FROM public.trades pending
     WHERE pending.status = 'pending'::public.trade_status
@@ -407,10 +444,12 @@ BEGIN
       AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status)
   ) OR EXISTS (
     SELECT 1 FROM public.notification_outbox queued
-    WHERE queued.category IN ('trade', 'activity', 'waiver', 'draft')
+    WHERE queued.suppressed_at IS NULL
+      AND queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
       AND queued.delivered_at IS NULL
       AND queued.dead_lettered_at IS NULL
       AND queued.available_at <= now()
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
       AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - interval '60 seconds')
   ) THEN
     PERFORM public.invoke_edge_function('process-trades');
