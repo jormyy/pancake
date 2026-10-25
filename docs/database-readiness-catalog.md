@@ -4,9 +4,11 @@ The catalog gate verifies an attested migration phase without applying migration
 
 ## Scope
 
-The historical audit anchor is `20261005000003` with 329 rows.
-The exact pre-migration phase is 431 rows through `20261020000007`, with 113 pending versions.
-The exact post-migration phase is 544 rows through `20261026000700`, with no pending versions.
+The [release-history attestation](../tests/e2e/release-history-attestations.json) defines the historical anchor with `baselineVersion` and `baselineCount`.
+The [security attestation](../tests/e2e/db-security-catalog-attestations.json) defines the pre-migration count and version in `preMigration`.
+Its `candidateVersion` defines the post-migration head.
+The post-migration count equals the historical baseline count plus the length of `approvedMigrations` in the release-history attestation.
+The pending count equals that total minus `preMigration.count`.
 Contract version 2 separates the current pre-migration phase from the historical audit anchor.
 It retains the earlier 329-row and 398-row catalog fingerprints under `historicalPhases`.
 The current phase pins do not automatically track live history or the branch head.

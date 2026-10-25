@@ -2,11 +2,8 @@
   {
     "name": "home-light-day-timing",
     "group": "home-timing",
-    "from": "/profile",
+    "from": "/",
     "prepare": [
-      {
-        "tap": "Light"
-      },
       {
         "tap": "Matchup"
       },
@@ -24,6 +21,7 @@
         }
       }
     ],
-    "repeat": 5
+    "repeat": 5,
+    "theme": "light"
   }
 ]

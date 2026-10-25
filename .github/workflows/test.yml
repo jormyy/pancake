@@ -34,6 +34,10 @@ jobs:
       - name: Dependency audit (high+)
         run: npm run security:audit
 
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed
+        with:
+          deno-version: 2.7.14
+
       - name: Repository quality gates
         run: npm run check:quality
 
@@ -133,6 +137,7 @@ jobs:
       - name: Verify migration head and multi-team trade behavior
         shell: bash
         run: |
+          # shellcheck disable=SC1090
           source <(supabase status -o env)
           printf 'PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token\n' > /tmp/pancake-database-edge.env
           supabase functions serve --env-file /tmp/pancake-database-edge.env > /tmp/pancake-database-edge.log 2>&1 &
@@ -207,6 +212,7 @@ jobs:
         shell: bash
         run: |
           supabase start
+          # shellcheck disable=SC1090
           source <(supabase status -o env)
           export EXPO_PUBLIC_SUPABASE_URL="$API_URL"
           export EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
@@ -216,16 +222,18 @@ jobs:
           supabase functions serve --env-file /tmp/pancake-edge.env > tests/artifacts/stack/edge.log 2>&1 &
           EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release > tests/artifacts/stack/web-build.log 2>&1
           node tests/e2e/static-web-server.mjs --root=dist --port=8082 > tests/artifacts/stack/web.log 2>&1 &
-          for attempt in {1..60}; do
+          for _attempt in {1..60}; do
             if curl --fail --silent http://127.0.0.1:8082 >/dev/null &&
               curl --fail --silent "$API_URL/functions/v1/api/health" >/dev/null; then
-              printf 'E2E_SUPABASE_URL=%s\n' "$API_URL" >> "$GITHUB_ENV"
-              printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY" >> "$GITHUB_ENV"
-              printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
-              printf 'SUPABASE_DB_URL=%s\n' "$DB_URL" >> "$GITHUB_ENV"
-              printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL" >> "$GITHUB_ENV"
-              printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n' >> "$GITHUB_ENV"
-              printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n' >> "$GITHUB_ENV"
+              {
+                printf 'E2E_SUPABASE_URL=%s\n' "$API_URL"
+                printf 'E2E_PANCAKE_SUPABASE_SECRET_KEY=%s\n' "$SECRET_KEY"
+                printf 'E2E_SUPABASE_PUBLISHABLE_KEY=%s\n' "$PUBLISHABLE_KEY"
+                printf 'SUPABASE_DB_URL=%s\n' "$DB_URL"
+                printf 'E2E_API_BASE_URL=%s/functions/v1/api\n' "$API_URL"
+                printf 'E2E_FRONTEND_URL=http://127.0.0.1:8082\n'
+                printf 'E2E_ADMIN_SECRET=local-browser-ci-secret\n'
+              } >> "$GITHUB_ENV"
               npm run e2e:web-hydration
               exit 0
             fi

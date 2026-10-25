@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { resolveReleaseProvenance, validateReleaseProvenance } from './release-provenance.mjs'
+import { deployedFrontendProvenance, resolveReleaseProvenance, validateReleaseProvenance } from './release-provenance.mjs'
 import { DATA_LATENCY_STEP_KEYS } from './data-latency-contract.mjs'
 import { REQUIRED_MUTATION_SCENARIOS } from './release-mutation-compatibility.mjs'
 
@@ -407,17 +407,18 @@ export const validateDataLatencyReport = (manifest, report, requireComplete, exp
 }
 
 /** @param {any} manifest @param {any[]} reports @param {number} expectedSeasons @param {ReleaseProvenance} [expectedProvenance] */
-export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined, deployedSeasons = 0) => {
+export const validateRetainedSeasonReports = (manifest, reports, expectedSeasons, expectedProvenance = undefined, deployedSeasons = 0, expectedDeployedProvenance = undefined) => {
   const failures = []
   const byKey = new Map(reports.map((report) => [`${report.scenario}:${report.season}`, report]))
   for (let season = 1; season <= expectedSeasons; season += 1) {
     if (season <= deployedSeasons) {
+      if (expectedProvenance && !expectedDeployedProvenance) failures.push(`season ${season}: deployed frontend provenance is required`)
       for (const scenario of REQUIRED_MUTATION_SCENARIOS) {
         const retained = byKey.get(`${scenario}:${season}`)
         if (retained?.status !== 'PASS' || retained?.result?.status !== 'PASS') {
           failures.push(`season ${season}: retained deployed ${scenario} report is missing or failed`)
         } else {
-          failures.push(...validateReleaseProvenance(retained, expectedProvenance, `season ${season} retained ${scenario}`))
+          failures.push(...validateReleaseProvenance(retained, expectedDeployedProvenance, `season ${season} retained ${scenario}`))
         }
       }
       continue
@@ -538,7 +539,8 @@ const main = async () => {
     if (!Number.isInteger(deployedSeasons) || deployedSeasons < 0 || deployedSeasons >= requiredSeasonReports) {
       reportFailures.push('Deployed season count must leave at least one release season')
     } else {
-      reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports, expectedProvenance, deployedSeasons))
+      reportFailures.push(...validateRetainedSeasonReports(manifest, retainedReports, requiredSeasonReports, expectedProvenance, deployedSeasons,
+        deployedSeasons ? deployedFrontendProvenance() : undefined))
     }
   }
 

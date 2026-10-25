@@ -143,7 +143,10 @@ function installRecorder() {
       if (message.id && pendingReports.has(message.id)) publish(pendingReports.get(message.id))
       else if (!message.id || active?.id === message.id) finish(false, message.reason)
     }
-    if (message.type === 'prepare') location.assign(message.url)
+    if (message.type === 'prepare') {
+      if (['light', 'dark', 'system'].includes(message.theme)) localStorage.setItem('pancake-theme', message.theme)
+      location.assign(message.url)
+    }
     if (message.type === 'reset-auth') {
       localStorage.clear(); sessionStorage.clear()
       const registrations = await navigator.serviceWorker?.getRegistrations() ?? []

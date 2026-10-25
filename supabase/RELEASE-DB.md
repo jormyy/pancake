@@ -27,15 +27,22 @@ Do not bypass production approvals or merge merely to satisfy the workflow's anc
    Then run `supabase db push --linked --yes` under production approval.
 3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
    Verify the deployed frontend and old Edge still pass the workflow's post-migration current-release readiness checks.
-   Verify `add_free_agent_atomic` accepts optional `p_to_ir`, `waiver_claims.to_ir` and `player_game_stats.is_home` exist, and `get_visible_player_totals` exists.
+   Verify `add_free_agent_atomic` accepts optional `p_to_ir` and `p_to_taxi`.
+   Verify `waiver_claims.to_ir`, `waiver_claims.to_taxi`, `player_game_stats.is_home`, and `get_visible_player_totals` exist.
+   Before Edge deployment, `sync-player-injuries` dispatch can return HTTP 404 harmlessly.
+   This absence must cause no alert, rapid retry, or failed readiness check.
    Check the deployed client's hint topics and inventory details remain accepted.
    Stop if any check fails; keep the old frontend and Edge on the compatible migrated database.
 4. Stamp the approved Edge artifact with `PANCAKE_RELEASE_SHA=<reviewed-sha> node scripts/stamp-edge-release-provenance.mjs`.
    Run `supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"` under production approval.
    Verify `/health` reports the reviewed commit and Edge digest.
    Run the workflow's current-frontend/new-Edge and candidate-frontend/new-Edge readiness checks before merging.
-   Confirm straight-to-IR adds, waiver claims, visible player totals, trades, and notification delivery work.
+   Confirm one straight-to-taxi add and one straight-to-IR add.
+   Check waiver claims, visible player totals, trades, and notification delivery.
+   Verify `sync-player-injuries` records its own run and refreshes injuries without a full player sync.
    If Edge checks fail, restore the recorded old Edge artifact and repeat current-release readiness checks.
+   `supabase functions deploy` does not delete functions absent from the restored artifact.
+   The new `sync-player-injuries` function can stay deployed after rollback or be absent; both states are safe.
 5. Merge only after the database and Edge checks pass.
    Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
    If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
@@ -284,7 +291,8 @@ At the opening-night cutoff, completed rookie drafts no longer wait for every te
 The server moves each team's newest eligible drafted rookies into open taxi slots first.
 Existing roster moves keep priority over automatic taxi placement.
 The league then becomes active even if some teams still exceed the active roster limit.
-Those teams must trim their rosters before adding players or editing lineups.
+Those teams must fix their rosters before adds, claims, or trades, including trades during the rookie draft.
+Lineup moves, activations, and drops remain available.
 The server retains game locks, taxi eligibility, tenure limits, and prior taxi exits.
 Paused drafts still complete through the existing opening-night backstop.
 
@@ -592,13 +600,22 @@ Existing result columns retain their order and types.
 Old positional RPC calls remain valid.
 
 One private source lists illegal IR players, illegal taxi players, and active roster overflow.
-It blocks adds, claim creation and edits, sent trade offers, and acceptance by that team.
+Unknown career counts do not make existing taxi players illegal.
+A non-rookie with an unknown count cannot enter taxi.
+Active overflow produces one team-level `active_limit` row with no roster-player ID or player names.
+Its message is `Your active roster is N over the limit of M. Drop or move an eligible player to IR.`
+It blocks adds, claim creation and edits, sent trade offers, and acceptance by that team, including during the rookie draft.
 Pending claims fail with the same player names.
 `PA005` still identifies ineligible IR players; `PA009` identifies ineligible taxi players.
 Roster corrections and cancellations remain available.
 
 The injury dispatcher runs each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
-It sends exactly `{"mode":"injuries"}` to `sync-players` through the existing dispatch and invocation records.
+It sends `{}` to the new `sync-player-injuries` Edge function through existing dispatch and invocation records.
+That function calls `syncInjuries()` and records its run as `sync-player-injuries`.
+`sync-players` always runs the full sync and has no injury-only mode.
+Before Edge deployment, a missing injury function returns HTTP 404 harmlessly, without alerts, rapid retries, or readiness failures.
+After rollback, the function can remain deployed because `functions deploy` does not delete it.
+An absent function is also safe; the daily full sync still refreshes injuries.
 Daily career refreshes retain their current schedule.
 
 ## Removed tiebreak storage

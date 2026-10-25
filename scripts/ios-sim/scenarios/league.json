@@ -2,15 +2,7 @@
   {
     "name": "league-standings-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -21,20 +13,13 @@
           "text": "E2E Team 1"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-activity-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -45,20 +30,13 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-picks-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -66,7 +44,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028\u20132032"
+          "text": "You own all your picks, 2028–2032"
         }
       },
       {
@@ -94,7 +72,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028\u20132032",
+          "text": "You own all your picks, 2028–2032",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -105,24 +83,17 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028\u20132032",
+          "text": "You own all your picks, 2028–2032",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-auctions-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -143,20 +114,16 @@
           "selector": "[id='league-panel-draft'] [aria-label='Join Auction Draft']"
         }
       }
-    ]
+    ],
+    "theme": "light",
+    "setup": {
+      "liveStartupAuction": true
+    }
   },
   {
     "name": "league-mock-rooms-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -174,6 +141,15 @@
         },
         "expected": {
           "selector": "[aria-label='Mock room name']"
+        }
+      },
+      {
+        "name": "create-control",
+        "action": {
+          "reveal": "Create mock draft room"
+        },
+        "expected": {
+          "selector": "[aria-label='Create mock draft room']"
         }
       },
       {
@@ -195,20 +171,13 @@
           "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-settings-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -219,20 +188,13 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-draft-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -243,20 +205,16 @@
           "route": "/draft"
         }
       }
-    ]
+    ],
+    "theme": "light",
+    "setup": {
+      "liveStartupAuction": true
+    }
   },
   {
     "name": "league-auction-room-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -290,21 +248,15 @@
     ],
     "setup": {
       "draftRoom": "auction",
-      "draftId": "{{draftId}}"
-    }
+      "draftId": "{{draftId}}",
+      "liveStartupAuction": true
+    },
+    "theme": "light"
   },
   {
     "name": "league-rookie-room-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -312,6 +264,16 @@
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
+        }
+      },
+      {
+        "name": "pick-board",
+        "action": {
+          "tap": "Show pick board"
+        },
+        "expected": {
+          "selector": "body:not(:has([aria-label='Search prospects'])) [aria-label='Show prospects']",
+          "text": "Pick Board"
         }
       },
       {
@@ -337,21 +299,15 @@
     ],
     "setup": {
       "draftRoom": "snake",
-      "draftId": "{{draftId}}"
-    }
+      "draftId": "{{draftId}}",
+      "liveStartupAuction": true
+    },
+    "theme": "light"
   },
   {
     "name": "league-dynasty-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -362,20 +318,13 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-profile-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -386,20 +335,13 @@
           "text": "{{displayName}}"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-profile-edit-light",
     "group": "league-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -409,20 +351,13 @@
           "selector": "[aria-label='Display name']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-bracket-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league?tab=settings"
-      }
-    ],
+    "from": "/league?tab=settings",
     "steps": [
       {
         "action": {
@@ -433,20 +368,13 @@
           "text": "No playoff bracket yet"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-commissioner-light",
     "group": "league-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league?tab=settings"
-      }
-    ],
+    "from": "/league?tab=settings",
     "steps": [
       {
         "action": {
@@ -456,21 +384,68 @@
           "route": "/commissioner-settings",
           "text": "Points"
         }
+      },
+      {
+        "name": "lineup-slots",
+        "action": {
+          "revealText": "Lineup slots"
+        },
+        "expected": {
+          "text": "Lineup slots"
+        }
+      },
+      {
+        "name": "general",
+        "action": {
+          "revealText": "General"
+        },
+        "expected": {
+          "text": "General"
+        }
+      },
+      {
+        "name": "taxi-rules",
+        "action": {
+          "revealText": "League and taxi rules"
+        },
+        "expected": {
+          "text": "League and taxi rules"
+        }
+      },
+      {
+        "name": "playoffs",
+        "action": {
+          "revealText": "Playoffs"
+        },
+        "expected": {
+          "text": "Playoffs"
+        }
+      },
+      {
+        "name": "skipped-weeks",
+        "action": {
+          "revealText": "Skipped weeks (Pacific)"
+        },
+        "expected": {
+          "text": "Skipped weeks (Pacific)"
+        }
+      },
+      {
+        "name": "trade-deadline",
+        "action": {
+          "revealText": "Trade deadline"
+        },
+        "expected": {
+          "text": "Trade deadline"
+        }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-create-light",
     "group": "league-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -481,20 +456,13 @@
           "selector": "[aria-label='League name']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-join-light",
     "group": "league-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -505,20 +473,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-password-light",
     "group": "league-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -529,44 +490,30 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-push-light",
     "group": "league-light",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
     "steps": [
       {
         "action": {
-          "open": "/profile"
+          "tap": "Notification settings"
         },
         "expected": {
-          "route": "/profile",
-          "text": "Notification settings"
+          "route": "/notification-settings",
+          "text": "Notifications"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-standings-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -577,20 +524,13 @@
           "text": "E2E Team 1"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-activity-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -601,20 +541,13 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-picks-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -622,7 +555,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028\u20132032"
+          "text": "You own all your picks, 2028–2032"
         }
       },
       {
@@ -650,7 +583,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028\u20132032",
+          "text": "You own all your picks, 2028–2032",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -661,24 +594,17 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028\u20132032",
+          "text": "You own all your picks, 2028–2032",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-auctions-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -699,20 +625,16 @@
           "selector": "[id='league-panel-draft'] [aria-label='Join Auction Draft']"
         }
       }
-    ]
+    ],
+    "theme": "dark",
+    "setup": {
+      "liveStartupAuction": true
+    }
   },
   {
     "name": "league-mock-rooms-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -730,6 +652,15 @@
         },
         "expected": {
           "selector": "[aria-label='Mock room name']"
+        }
+      },
+      {
+        "name": "create-control",
+        "action": {
+          "reveal": "Create mock draft room"
+        },
+        "expected": {
+          "selector": "[aria-label='Create mock draft room']"
         }
       },
       {
@@ -751,20 +682,13 @@
           "selector": "[id='league-panel-draft'] [aria-label='New mock room']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-settings-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -775,20 +699,13 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-draft-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -799,20 +716,16 @@
           "route": "/draft"
         }
       }
-    ]
+    ],
+    "theme": "dark",
+    "setup": {
+      "liveStartupAuction": true
+    }
   },
   {
     "name": "league-auction-room-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -846,21 +759,15 @@
     ],
     "setup": {
       "draftRoom": "auction",
-      "draftId": "{{draftId}}"
-    }
+      "draftId": "{{draftId}}",
+      "liveStartupAuction": true
+    },
+    "theme": "dark"
   },
   {
     "name": "league-rookie-room-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -868,6 +775,16 @@
         },
         "expected": {
           "selector": "[aria-label='Search prospects']"
+        }
+      },
+      {
+        "name": "pick-board",
+        "action": {
+          "tap": "Show pick board"
+        },
+        "expected": {
+          "selector": "body:not(:has([aria-label='Search prospects'])) [aria-label='Show prospects']",
+          "text": "Pick Board"
         }
       },
       {
@@ -893,21 +810,15 @@
     ],
     "setup": {
       "draftRoom": "snake",
-      "draftId": "{{draftId}}"
-    }
+      "draftId": "{{draftId}}",
+      "liveStartupAuction": true
+    },
+    "theme": "dark"
   },
   {
     "name": "league-dynasty-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      }
-    ],
+    "from": "/players",
     "steps": [
       {
         "action": {
@@ -918,20 +829,13 @@
           "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-profile-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -942,20 +846,13 @@
           "text": "{{displayName}}"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-profile-edit-dark",
     "group": "league-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -965,20 +862,13 @@
           "selector": "[aria-label='Display name']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-bracket-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league?tab=settings"
-      }
-    ],
+    "from": "/league?tab=settings",
     "steps": [
       {
         "action": {
@@ -989,20 +879,13 @@
           "text": "No playoff bracket yet"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-commissioner-dark",
     "group": "league-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league?tab=settings"
-      }
-    ],
+    "from": "/league?tab=settings",
     "steps": [
       {
         "action": {
@@ -1012,21 +895,68 @@
           "route": "/commissioner-settings",
           "text": "Points"
         }
+      },
+      {
+        "name": "lineup-slots",
+        "action": {
+          "revealText": "Lineup slots"
+        },
+        "expected": {
+          "text": "Lineup slots"
+        }
+      },
+      {
+        "name": "general",
+        "action": {
+          "revealText": "General"
+        },
+        "expected": {
+          "text": "General"
+        }
+      },
+      {
+        "name": "taxi-rules",
+        "action": {
+          "revealText": "League and taxi rules"
+        },
+        "expected": {
+          "text": "League and taxi rules"
+        }
+      },
+      {
+        "name": "playoffs",
+        "action": {
+          "revealText": "Playoffs"
+        },
+        "expected": {
+          "text": "Playoffs"
+        }
+      },
+      {
+        "name": "skipped-weeks",
+        "action": {
+          "revealText": "Skipped weeks (Pacific)"
+        },
+        "expected": {
+          "text": "Skipped weeks (Pacific)"
+        }
+      },
+      {
+        "name": "trade-deadline",
+        "action": {
+          "revealText": "Trade deadline"
+        },
+        "expected": {
+          "text": "Trade deadline"
+        }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-create-dark",
     "group": "league-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -1037,20 +967,13 @@
           "selector": "[aria-label='League name']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-join-dark",
     "group": "league-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -1061,20 +984,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-password-dark",
     "group": "league-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -1085,30 +1001,24 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-push-dark",
     "group": "league-dark",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
     "steps": [
       {
         "action": {
-          "open": "/profile"
+          "tap": "Notification settings"
         },
         "expected": {
-          "route": "/profile",
-          "text": "Notification settings"
+          "route": "/notification-settings",
+          "text": "Notifications"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

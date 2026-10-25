@@ -117,18 +117,43 @@ export async function refreshInstalledPage(driver, origin) {
   })
 }
 
-export async function prepareScenarioPage(server, driver, origin, route, web) {
+export async function prepareScenarioPage(server, driver, origin, route, web, theme = undefined) {
   server.network(false)
   let previousDocument
   if (web) {
     await driver.web(origin, true)
     previousDocument = await driver.execute('return performance.timeOrigin')
   }
-  server.prepare(`${origin}${route}`)
+  server.prepare(`${origin}${route}`, theme)
   if (web) {
     await driver.web(origin, true)
     await waitFor(async () => driver.execute('const target = new URL(arguments[0], location.href); return performance.timeOrigin !== arguments[1] && location.pathname === target.pathname && location.search === target.search && document.readyState === "complete" && (document.getElementById("root")?.innerText.trim().length || 0) > 20', route, previousDocument))
   } else await pause(2500)
+}
+
+export async function requireStackHealthy(stack, origin, fetchImpl = fetch) {
+  const targets = [
+    ['frontend', `${origin}/release-provenance.json`],
+    ['auth', `${stack.url}/auth/v1/health`],
+    ['Edge', `${stack.url}/functions/v1/api/health`],
+  ]
+  await Promise.all(targets.map(async ([label, url]) => {
+    try {
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(2000), cache: 'no-store' })
+      assert.ok(response.ok, `HTTP ${response.status}`)
+    } catch (error) { throw new Error(`stack not healthy: ${label} (${error.message})`) }
+  }))
+}
+
+async function playerTradeContext(stack, playerId) {
+  const { createClient } = await import('@supabase/supabase-js')
+  const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false } })
+  const { data, error } = await admin.from('roster_players').select('member_id')
+    .eq('league_id', stack.fixture.leagueId).eq('league_season_id', stack.fixture.seasonId).eq('player_id', playerId).single()
+  if (error) throw new Error(`Trade capture owner lookup: ${error.message}`)
+  const owner = stack.fixture.members.find(member => member.id === data.member_id)
+  assert.ok(owner, 'Trade capture player has no seeded owner')
+  return { player: stack.fixture.players.find(player => player.id === playerId), teamName: owner.team_name }
 }
 
 async function runSuite(options) {
@@ -148,6 +173,7 @@ async function runSuite(options) {
     server = await serve({ root: build.root, port: options.port })
     const origin = `http://127.0.0.1:${options.port}`
     await verifyBuild(origin, build)
+    await requireStackHealthy(stack, origin)
     device = await simulator(options.device)
     report.device = device
     driver = await startDriver({ device, port: options.appiumPort, directory: options.output })
@@ -155,6 +181,7 @@ async function runSuite(options) {
     recording = spawn('/usr/bin/xcrun', ['simctl', 'io', device.udid, 'recordVideo', '--codec=h264', '--force', path.join(options.output, 'video.mp4')], { stdio: ['ignore', log.fd, log.fd] })
     report.videoStartedAt = Date.now()
     web = await installPwa(driver, { device, origin, title: `Pancake ${options.port}`, directory: options.output })
+    await requireStackHealthy(stack, origin)
     if (options.native === true) web = false
     report.webviewReachable = web
     const withWeb = async action => {
@@ -183,7 +210,7 @@ async function runSuite(options) {
       server.blur()
       await pause(500)
     }
-    const prepare = route => prepareScenarioPage(server, driver, origin, route, web)
+    const prepare = (route, theme) => prepareScenarioPage(server, driver, origin, route, web, theme)
     if (web) await refreshInstalledPage(driver, origin)
     await waitFor(() => server.connected() > 0)
     server.resetAuth(`${origin}/sign-in`)
@@ -205,12 +232,21 @@ async function runSuite(options) {
     requireContent(report.steps[0])
     const index = options.manager * 22
     const offset = stack.fixture.players.slice(index, index + 10).findIndex(player => !['DEN', 'LAL'].includes(player.nba_team))
-    const context = { weekOffLeagueName: `Home week-off ${stack.fixture.members[options.manager].id.slice(0, 8)}`, rosterPlanTradeId: stack.fixture.rosterPlanTrade.id, memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, otherMemberId: stack.fixture.members[options.manager ^ 1].id, liveAuctionId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
+    const tradeTarget = await playerTradeContext(stack, stack.fixture.players[66].id)
+    const context = { tradeTarget, liveFreeAgent: stack.fixture.players[222], weekOffLeagueName: `Home week-off ${stack.fixture.members[options.manager].id.slice(0, 8)}`, rosterPlanTradeId: stack.fixture.rosterPlanTrade.id, memberId: stack.fixture.members[options.manager].id, displayName: user.displayName, teamName: user.teamName, otherTeam: stack.fixture.users[options.manager ^ 1].teamName, otherMemberId: stack.fixture.members[options.manager ^ 1].id, liveAuctionId: stack.fixture.drafts.find(draft => draft.draft_type === 'auction').id, lineupSlot: ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'UTIL', 'F', 'UTIL', 'UTIL'][offset], rosterPlayer: stack.fixture.players[index + offset], benchPlayer: stack.fixture.players[index + offset + 10], freeAgent: stack.fixture.players[220 + options.manager], waiverPlayer: stack.fixture.players[230 + options.manager], outPlayer: stack.fixture.players[240 + options.manager] }
     const scenarios = JSON.parse(await readFile(options.scenarios ?? new URL('./scenarios.json', import.meta.url), 'utf8'))
     const selected = expandScenarios(scenarios.filter(scenario => options.scenario === 'all' || scenario.name === options.scenario || scenario.group === options.scenario))
     assert.ok(selected.length, `Unknown scenario ${options.scenario}`)
     const action = async spec => {
       if (spec.sequence) { for (const item of spec.sequence) await action(item); return }
+      if (spec.scrollEnd) {
+        assert.ok(web, 'End scroll captures require the app webview')
+        return withWeb(() => driver.execute(`for (const element of document.querySelectorAll('body *')) if (element.scrollHeight > element.clientHeight + 50 && element.clientHeight > 200 && ['auto','scroll'].includes(getComputedStyle(element).overflowY)) element.scrollTop = element.scrollHeight; window.scrollTo(0, document.body.scrollHeight)`))
+      }
+      if (spec.revealText) {
+        assert.ok(web, 'Text scroll captures require the app webview')
+        return withWeb(() => waitFor(async () => driver.execute(`const target = [...document.querySelectorAll('h1,h2,h3,[role=heading],div,span')].find(element => element.textContent?.trim() === arguments[0] && element.getClientRects().length); if (!target) return false; target.scrollIntoView({block:'start'}); return true`, spec.revealText)))
+      }
       if (spec.reveal) {
         if (web) return withWeb(() => visibleTapLabel(driver, spec.reveal))
         await driver.native()
@@ -241,17 +277,18 @@ async function runSuite(options) {
       for (const template of selected) {
         const scenario = substitute(template, { ...context, draftId: drafts[template.setup?.draftRoom] })
         if (interrupted) throw new Error('Run interrupted')
+        await requireStackHealthy(stack, origin)
         process.stdout.write(`Checking ${scenario.name}.\n`)
         try {
           await withScenarioSetup(stack, scenario.setup, async () => {
             server.disarm()
-            await prepare(scenario.from)
+            await prepare(scenario.from, scenario.theme)
             for (const spec of scenario.prepare ?? []) { await action(spec); await pause(600) }
             for (const [stepIndex, step] of scenario.steps.entries()) {
               const id = `${scenario.name}${stepIndex ? `-${step.name ?? stepIndex + 1}` : ''}`
               const result = { id, note: step.note, videoOffsetMs: Date.now() - report.videoStartedAt }
               try {
-                server.arm({ id, expected: step.expected, quietMs: step.quietMs, allowClock: step.allowClock === true, requireWorker: Boolean(step.action.background || step.action.offline), immediate: !web || Boolean(step.action.open || step.action.reveal || step.action.background || step.action.offline) })
+                server.arm({ id, expected: step.expected, quietMs: step.quietMs, allowClock: step.allowClock === true, requireWorker: Boolean(step.action.background || step.action.offline), immediate: !web || Boolean(step.action.open || step.action.reveal || step.action.revealText || step.action.scrollEnd || step.action.background || step.action.offline) })
                 await server.armed(id)
                 await action(step.action)
                 result.metrics = await server.result(id)

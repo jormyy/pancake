@@ -2,15 +2,7 @@
   {
     "name": "player-claim-ir-light",
     "group": "player-claim-ir",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -42,20 +34,13 @@
     ],
     "setup": {
       "waiverIRPlayer": "{{waiverPlayer.id}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "player-claim-ir-dark",
     "group": "player-claim-ir",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "action": {
@@ -87,20 +72,13 @@
     ],
     "setup": {
       "waiverIRPlayer": "{{waiverPlayer.id}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "player-ir-shortcut-light",
     "group": "player-ir-shortcut",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
@@ -113,20 +91,13 @@
     ],
     "setup": {
       "irShortcutPlayer": "{{rosterPlayer.id}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "player-ir-shortcut-dark",
     "group": "player-ir-shortcut",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "action": {
@@ -139,10 +110,11 @@
     ],
     "setup": {
       "irShortcutPlayer": "{{rosterPlayer.id}}"
-    }
+    },
+    "theme": "dark"
   },
   {
-    "name": "player-straight-to-ir",
+    "name": "player-straight-to-ir-light",
     "group": "player-straight-to-ir",
     "from": "/players",
     "prepare": [
@@ -164,6 +136,33 @@
     "setup": {
       "freeAgentIRMember": "{{memberId}}",
       "freeAgentIRPlayer": "{{outPlayer.id}}"
-    }
+    },
+    "theme": "light"
+  },
+  {
+    "name": "player-straight-to-ir-dark",
+    "group": "player-straight-to-ir",
+    "from": "/players",
+    "prepare": [
+      {
+        "fill": "Search players",
+        "value": "{{outPlayer.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "action": {
+          "tap": "Add {{outPlayer.display_name}}"
+        },
+        "expected": {
+          "text": "{{outPlayer.display_name}} added to IR."
+        }
+      }
+    ],
+    "setup": {
+      "freeAgentIRMember": "{{memberId}}",
+      "freeAgentIRPlayer": "{{outPlayer.id}}"
+    },
+    "theme": "dark"
   }
 ]

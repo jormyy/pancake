@@ -2,15 +2,7 @@
   {
     "name": "home-light-moves",
     "group": "home-light",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/lineup?playerId={{rosterPlayer.id}}"
-      }
-    ],
+    "from": "/lineup?playerId={{rosterPlayer.id}}",
     "steps": [
       {
         "name": "move",
@@ -47,20 +39,13 @@
           "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "home-dark-moves",
     "group": "home-dark",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/lineup?playerId={{rosterPlayer.id}}"
-      }
-    ],
+    "from": "/lineup?playerId={{rosterPlayer.id}}",
     "steps": [
       {
         "name": "move",
@@ -97,6 +82,7 @@
           "selector": "[aria-label='Bench {{benchPlayer.display_name}}']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

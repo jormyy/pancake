@@ -93,6 +93,7 @@ import {
   seasonArtifactFailures,
   writeCheckpoint,
 } from './soak-shards.mjs'
+import { readDeployedFrontendProvenance } from './release-provenance.mjs'
 import { readPreparedMigration, soakBrowserArgs, soakRuntimeForSeason } from './soak-runtime.mjs'
 
 const main = async () => {
@@ -415,10 +416,12 @@ const main = async () => {
         phaseTimings.mark('startup_ticks')
 
         const browserArgs = soakBrowserArgs(args, season, deployedSeasons)
-        const browserScenarioResults = await runBrowserScenarios({ args: browserArgs, season, shouldRun: shouldRunScenario })
+        const scenarioContext = soakRuntimeForSeason(season, deployedSeasons) === 'deployed'
+          ? { provenance: await readDeployedFrontendProvenance() } : {}
+        const browserScenarioResults = await runBrowserScenarios({ args: browserArgs, season, shouldRun: shouldRunScenario, scenarioContext: scenarioContext })
         phaseTimings.mark('browser_scenarios')
         const backendScenarioResults = await runBackendScenarios({
-          args,
+          args: browserArgs,
           shouldRun: shouldRunScenario,
           context: {
             supabase,
@@ -476,7 +479,7 @@ const main = async () => {
         }
         phaseTimings.mark('realtime')
         let pushCheck = false
-        if (args.push) {
+        if (browserArgs.push) {
           await assertPushNotifications({
             supabase,
             env,
@@ -655,7 +658,7 @@ const main = async () => {
               leagueLifecycleCheck ? 'league lifecycle passed' : null,
               offseasonActivityCheck ? 'busy offseason activity survived rollover' : null,
               args.realtime ? 'realtime matchup and bid updates delivered' : null,
-              args.push ? 'waiver notification queue checks passed' : null,
+              pushCheck ? 'waiver notification queue checks passed' : null,
               draftPushCheck ? 'draft notification queue checks passed' : null,
               midlifeMigrationReport ? `mid-life migration applied (${midlifeMigrationReport.status})` : null,
               auctionValidation ? 'auction bid validation passed' : null,

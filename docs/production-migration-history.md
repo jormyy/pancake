@@ -5,11 +5,11 @@ The release preflight accepts audited historical migration names for production 
 ## Attested history
 
 [`release-history-attestations.json`](../tests/e2e/release-history-attestations.json) owns approved versions, names, fingerprints, classifications, convergence bodies, and the migration range.
-The historical audit baseline is `20261005000003` with 329 rows.
-The approved range contains 215 migrations, from `20261006000001_share_scoring_cache_aggregation` through `20261026000700_taxi_and_server_rules`.
-All 69 earlier approved fingerprints and 24 alias records remain unchanged.
-The current pre-migration phase has 431 rows through `20261020000007`, with 113 migrations pending.
-The post-migration phase has all 544 rows.
+The attestation's `baselineVersion` and `baselineCount` define the historical audit anchor.
+Its `approvedMigrations` array defines the approved range and its size.
+[`db-security-catalog-attestations.json`](../tests/e2e/db-security-catalog-attestations.json) defines the current pre-migration phase in `preMigration`.
+The post-migration count equals `baselineCount` plus the length of `approvedMigrations`.
+The pending count equals that total minus `preMigration.count`.
 A partial upgrade plans only the remaining approved suffix.
 Each applied range member must match its statement count and stored-SQL fingerprint.
 
@@ -114,11 +114,11 @@ Local recovery evidence does not establish production lock availability or devic
 
 ## Candidate migrations
 
-The candidate adds 113 migrations after the recorded production head, `20261020000007`.
-The combined tree contains 544 migrations through `20261026000700`.
+The candidate adds the approved suffix after the security attestation's `preMigration.version`.
+The release-history attestation defines its final version and total count.
 These additions cover scoring, identity, drafts, notifications, roster rules, and taxi acquisitions.
 They preserve published migration files.
-The approved release range includes all 544 files.
+The approved release range includes every file recorded in `approvedMigrations` and its baseline.
 Isolated ordered upgrades capture the 329, 398, 431, 432 and 494-row states.
 The 431-row history fingerprints and protected catalog match read-only production metadata.
 The ordered 494-row history and catalog match a fresh installation exactly.
@@ -127,7 +127,7 @@ The release must still pass the existing soak, compatibility and immediate produ
 
 Migrations `20261020000001` through `20261020000007` add Sleeper projections, update readers and scheduling, and bound operational cleanup.
 They preserve the historical aliases and belong to the reviewed 431-row production phase.
-Any migration after the approved 544-file range requires another reviewed contract update.
+Any migration beyond the attested range requires another reviewed contract update.
 The canonical function catalog records current completion and cleanup helpers separately.
 
 | Migration | Change |

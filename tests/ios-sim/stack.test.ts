@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { afterEach, beforeEach, test, vi } from 'vitest'
-import { startStack } from '../../scripts/ios-sim/stack.mjs'
+import { connectStack, startStack } from '../../scripts/ios-sim/stack.mjs'
 import { apiUrl, project } from '../../scripts/ios-sim/common.mjs'
 
 const fixture = await vi.hoisted(async () => {
@@ -49,13 +49,16 @@ beforeEach(async () => {
   await writeFile(path.join(source, 'supabase/config.toml'), 'project_id = "test"\n[db.migrations]\nenabled = true\n[db.seed]\nenabled = true\n')
   fixture.run.mockImplementation(async (command: string, args: string[]) => {
     if (command === 'git') return 'supabase/migrations/001.sql'
+    if (command === 'docker' && args.includes('-qAt')) return '001.sql'
     if (command === 'ps') return `supabase functions serve --workdir ${stack}`
     if (command === 'supabase' && args[0] === 'status') return JSON.stringify({ API_URL: apiUrl, ANON_KEY: 'local-public', SERVICE_ROLE_KEY: 'local-service' })
     return ''
   })
   fixture.seed.mockImplementation(async ({ directory }: { directory: string }) => {
     await mkdir(directory, { recursive: true })
-    return { password: 'fixture-password', users: [], leagueId: 'fixture-league' }
+    const result = { password: 'fixture-password', users: [], leagueId: 'fixture-league', rosterPlanTrade: {} }
+    await writeFile(path.join(directory, 'complete.json'), JSON.stringify(result))
+    return result
   })
   fixture.spawn.mockImplementation(() => {
     const child = Object.assign(new EventEmitter(), { pid: processId++, unref: vi.fn() })
@@ -160,4 +163,35 @@ test('schema identity comes from the copied snapshot when the checkout changes d
   await startStack()
   assert.equal(await readFile(path.join(stack, 'supabase/migrations/001.sql'), 'utf8'), 'SELECT 1;')
   await assert.rejects(startStack(), /Shared schema differs/)
+})
+
+test('capture refuses a shared stack built from different migration contents', async () => {
+  await startStack()
+  await writeFile(path.join(source, 'supabase/migrations/001.sql'), 'SELECT 9;')
+  await assert.rejects(connectStack(), /Shared schema differs.*start --reset/)
+})
+
+test('capture refuses missing or extra applied migrations before reading fixtures', async () => {
+  await startStack()
+  const original = fixture.run.getMockImplementation()!
+  for (const applied of ['', '001.sql\n002.sql', '002.sql']) {
+    fixture.run.mockImplementation(async (command: string, args: string[]) =>
+      command === 'docker' && args.includes('-qAt') ? applied : original(command, args))
+    await assert.rejects(connectStack(), /Applied migrations differ.*start --reset/)
+  }
+})
+
+test('capture reuses a shared stack only when its source and applied migrations match', async () => {
+  await startStack()
+  const connected = await connectStack()
+  assert.equal(connected.project, project)
+  assert.ok(fixture.run.mock.calls.some(([command, args]) => command === 'docker' && args.includes('-qAt')))
+})
+
+test('capture refuses a separate stack with missing migrations before seeding', async () => {
+  const original = fixture.run.getMockImplementation()!
+  fixture.run.mockImplementation(async (command: string, args: string[]) =>
+    command === 'docker' && args.includes('-qAt') ? '' : original(command, args))
+  await assert.rejects(connectStack(source), /Applied migrations differ/)
+  assert.equal(fixture.seed.mock.calls.length, 0)
 })

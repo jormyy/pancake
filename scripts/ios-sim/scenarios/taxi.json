@@ -2,14 +2,8 @@
   {
     "name": "taxi-player-tags-light",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "tap": "Show filters"
       },
@@ -61,19 +55,14 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "tags"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-player-detail-light",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -94,20 +83,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "tags"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-add-open-light",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "name": "destinations",
@@ -150,20 +132,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "open"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-add-full-light",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "name": "taxi-without-drop",
@@ -179,20 +154,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "full"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-waiver-light",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "name": "taxi-default",
@@ -227,19 +195,14 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "claim"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-illegal-taxi-light",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -281,25 +244,25 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "illegal-taxi"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-illegal-taxi-trade-light",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "name": "start",
         "action": {
-          "tap": "Propose trade"
+          "sequence": [
+            {
+              "tap": "Propose trade"
+            },
+            {
+              "reveal": "Trade with {{otherTeam}}"
+            }
+          ]
         },
         "expected": {
           "route": "/propose-trade",
@@ -325,6 +288,9 @@
             },
             {
               "tap": "Select {{rosterPlayer.display_name}} for trade"
+            },
+            {
+              "reveal": "Remove {{rosterPlayer.display_name}} for trade"
             }
           ]
         },
@@ -350,24 +316,42 @@
           "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
         },
         "note": "The fixture checks that no offer or roster change occurs."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Close"
+            },
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label='Propose trade']"
+        }
       }
     ],
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "trade-taxi"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-illegal-ir-light",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -409,25 +393,25 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "illegal-ir"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-illegal-ir-trade-light",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "name": "start",
         "action": {
-          "tap": "Propose trade"
+          "sequence": [
+            {
+              "tap": "Propose trade"
+            },
+            {
+              "reveal": "Trade with {{otherTeam}}"
+            }
+          ]
         },
         "expected": {
           "route": "/propose-trade",
@@ -453,6 +437,9 @@
             },
             {
               "tap": "Select {{rosterPlayer.display_name}} for trade"
+            },
+            {
+              "reveal": "Remove {{rosterPlayer.display_name}} for trade"
             }
           ]
         },
@@ -478,24 +465,42 @@
           "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
         },
         "note": "The fixture checks that no offer or roster change occurs."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Close"
+            },
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label='Propose trade']"
+        }
       }
     ],
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "trade-ir"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "taxi-player-tags-dark",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "tap": "Show filters"
       },
@@ -547,19 +552,14 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "tags"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-player-detail-dark",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -580,20 +580,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "tags"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-add-open-dark",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "name": "destinations",
@@ -636,20 +629,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "open"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-add-full-dark",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{freeAgent.id}}"
-      }
-    ],
+    "from": "/player/{{freeAgent.id}}",
     "steps": [
       {
         "name": "taxi-without-drop",
@@ -665,20 +651,13 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "full"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-waiver-dark",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/player/{{waiverPlayer.id}}"
-      }
-    ],
+    "from": "/player/{{waiverPlayer.id}}",
     "steps": [
       {
         "name": "taxi-default",
@@ -713,19 +692,14 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "claim"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-illegal-taxi-dark",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -767,25 +741,25 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "illegal-taxi"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-illegal-taxi-trade-dark",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "name": "start",
         "action": {
-          "tap": "Propose trade"
+          "sequence": [
+            {
+              "tap": "Propose trade"
+            },
+            {
+              "reveal": "Trade with {{otherTeam}}"
+            }
+          ]
         },
         "expected": {
           "route": "/propose-trade",
@@ -811,6 +785,9 @@
             },
             {
               "tap": "Select {{rosterPlayer.display_name}} for trade"
+            },
+            {
+              "reveal": "Remove {{rosterPlayer.display_name}} for trade"
             }
           ]
         },
@@ -836,24 +813,42 @@
           "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
         },
         "note": "The fixture checks that no offer or roster change occurs."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Close"
+            },
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label='Propose trade']"
+        }
       }
     ],
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "trade-taxi"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-illegal-ir-dark",
     "group": "taxi",
-    "from": "/profile",
+    "from": "/players",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/players"
-      },
       {
         "fill": "Search players",
         "value": "{{freeAgent.display_name}}"
@@ -895,25 +890,25 @@
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "illegal-ir"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "taxi-illegal-ir-trade-dark",
     "group": "taxi",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      }
-    ],
+    "from": "/trades",
     "steps": [
       {
         "name": "start",
         "action": {
-          "tap": "Propose trade"
+          "sequence": [
+            {
+              "tap": "Propose trade"
+            },
+            {
+              "reveal": "Trade with {{otherTeam}}"
+            }
+          ]
         },
         "expected": {
           "route": "/propose-trade",
@@ -939,6 +934,9 @@
             },
             {
               "tap": "Select {{rosterPlayer.display_name}} for trade"
+            },
+            {
+              "reveal": "Remove {{rosterPlayer.display_name}} for trade"
             }
           ]
         },
@@ -964,11 +962,35 @@
           "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
         },
         "note": "The fixture checks that no offer or roster change occurs."
+      },
+      {
+        "name": "discard",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Close"
+            },
+            {
+              "tap": "Back to trade editor"
+            },
+            {
+              "tap": "Cancel trade proposal"
+            },
+            {
+              "tap": "Discard"
+            }
+          ]
+        },
+        "expected": {
+          "route": "/trades",
+          "selector": "[aria-label='Propose trade']"
+        }
       }
     ],
     "setup": {
       "taxiMember": "{{memberId}}",
       "taxiMode": "trade-ir"
-    }
+    },
+    "theme": "dark"
   }
 ]

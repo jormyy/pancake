@@ -55,7 +55,7 @@ function database(existingLog = false) {
     },
   }
   const statements: string[] = []
-  const execute = async (command: string, args: string[]) => {
+  const execute = async (command: string, args: string[] = []) => {
     assert.equal(command, 'docker')
     assert.equal(args[1], 'supabase_db_pancake_ios_shared')
     const sql = args.at(-1)!
@@ -165,7 +165,7 @@ test('taxi scenarios parse through the runner and cover every surface in both th
     const scenario = scenarios.find((row: any) => row.name === `taxi-${surface}-${theme}`)!
     assert.ok(scenario)
     assert.equal(scenario.group, 'taxi')
-    assert.deepEqual(scenario.prepare[0], { tap: theme === 'light' ? 'Light' : 'Dark' })
+    assert.equal(scenario.theme, theme)
     assert.equal(scenario.setup.taxiMember, '{{memberId}}')
     assert.ok(modes.includes(scenario.setup.taxiMode))
     for (const step of scenario.steps) assert.ok(step.expected.text || step.expected.selector || step.expected.dialog)

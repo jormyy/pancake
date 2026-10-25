@@ -22,12 +22,16 @@ export async function connectStack(workdir) {
     const stack = { project: targetProject, url: status.API_URL,
       anonKey: status.PUBLISHABLE_KEY ?? status.ANON_KEY, serviceKey: status.SECRET_KEY ?? status.SERVICE_ROLE_KEY }
     await ready(`${stack.url}/auth/v1/health`)
+    await requireAppliedMigrations(targetProject)
     const fixture = await seed({ stack, snapshot: repo, directory: path.join(home, 'private-seeds', digest(directory)) })
     return { ...stack, fixture }
   }
   const state = await readJson(statePath)
   assert.equal(state?.project, project, 'Start the shared local stack before capturing')
   localUrl(state.url, 57121)
+  assert.equal(state.migrationHash, await directoryHash(path.join(repo, 'supabase/migrations')),
+    'Shared schema differs. Stop the users of this stack before using start --reset.')
+  await requireAppliedMigrations(project)
   const fixture = await readJson(path.join(stackRoot, 'seed/complete.json'))
   assert.ok(fixture?.rosterPlanTrade, 'The shared local stack needs its complete fixture')
   requireCurrentSeed(fixture)
@@ -59,6 +63,14 @@ async function directoryHash(directory) {
     .map(entry => path.relative(directory, path.join(entry.parentPath, entry.name)))
     .sort()
   return digest((await Promise.all(files.map(async file => `${file}:${digest(await readFile(path.join(directory, file)))}`))).join('\n'))
+}
+
+async function requireAppliedMigrations(targetProject) {
+  const expected = (await readdir(path.join(repo, 'supabase/migrations'))).filter(file => file.endsWith('.sql')).sort()
+  const output = await run('docker', ['exec', `supabase_db_${targetProject}`, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '-qAt', '-v', 'ON_ERROR_STOP=1', '-c',
+    "SELECT version || CASE WHEN name IS NULL OR name = '' THEN '' ELSE '_' || name END || '.sql' FROM supabase_migrations.schema_migrations ORDER BY version"])
+  const applied = output.trim().split(/\r?\n/).filter(Boolean).sort()
+  assert.deepEqual(applied, expected, 'Applied migrations differ from this checkout. Stop the stack users and run start --reset, or rebuild the requested private stack.')
 }
 
 async function stopFunctions(state) {

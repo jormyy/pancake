@@ -2,7 +2,7 @@
   {
     "name": "roster-light",
     "group": "roster-light",
-    "from": "/profile",
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -14,19 +14,12 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ]
+    "theme": "light"
   },
   {
     "name": "player-from-roster-light",
     "group": "roster-light",
-    "from": "/profile",
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -37,19 +30,12 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/roster"
-      }
-    ]
+    "theme": "light"
   },
   {
     "name": "roster-other-team-light",
     "group": "roster-light",
-    "from": "/profile",
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -64,20 +50,15 @@
     ],
     "prepare": [
       {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      },
-      {
         "tap": "Standings"
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "return-to-app-light",
     "group": "roster-light",
-    "from": "/profile",
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -89,19 +70,12 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/roster"
-      }
-    ]
+    "theme": "light"
   },
   {
     "name": "roster-dark",
     "group": "roster-dark",
-    "from": "/profile",
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -113,19 +87,12 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ]
+    "theme": "dark"
   },
   {
     "name": "player-from-roster-dark",
     "group": "roster-dark",
-    "from": "/profile",
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -136,19 +103,12 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/roster"
-      }
-    ]
+    "theme": "dark"
   },
   {
     "name": "roster-other-team-dark",
     "group": "roster-dark",
-    "from": "/profile",
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -163,20 +123,15 @@
     ],
     "prepare": [
       {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      },
-      {
         "tap": "Standings"
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "return-to-app-dark",
     "group": "roster-dark",
-    "from": "/profile",
+    "from": "/roster",
     "steps": [
       {
         "action": {
@@ -188,13 +143,6 @@
         }
       }
     ],
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/roster"
-      }
-    ]
+    "theme": "dark"
   }
 ]

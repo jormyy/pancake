@@ -2,14 +2,8 @@
   {
     "name": "trades-analyzer-offline-light",
     "group": "trades-offline",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "tapPrefix": "Analyze trade from "
       },
@@ -57,19 +51,14 @@
           "text": "cached"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "trades-analyzer-offline-dark",
     "group": "trades-offline",
-    "from": "/profile",
+    "from": "/trades",
     "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/trades"
-      },
       {
         "tapPrefix": "Analyze trade from "
       },
@@ -117,6 +106,7 @@
           "text": "cached"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

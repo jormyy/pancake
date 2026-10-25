@@ -61,6 +61,10 @@ This prevents live provider imports from changing the fixtures.
 The fixture uses the existing E2E league seeder.
 It adds full rosters, taxi acquisitions, injuries, games, game lines, projections, rankings, waivers, trades, and transaction history.
 It includes ten managers and draft rooms in season 2027.
+The base league is active and its non-mock startup auction is complete.
+Trades stay open in the base fixture.
+Startup captures reopen that auction and restore its completed state afterward.
+Cached fixtures from the earlier live-startup world require `start --reset`.
 Each team has twenty active players, one IR player, and one taxi player.
 Each team has an open IR slot.
 The player pool includes healthy free agents, Out free agents, and players on waivers.
@@ -186,6 +190,9 @@ The default scenario list lives in `scripts/ios-sim/scenarios.json`.
 It contains 21 scenarios and 26 measured steps, plus sign-in.
 The lifecycle group contains two measured steps.
 Each capture clears the installed app's cached pages before sign-in.
+The runner checks the frontend, auth, and Edge health before sign-in and every scenario.
+An unhealthy service stops the run with `stack not healthy`.
+Scenario `theme` values set the stored theme before navigation, without loading Profile content.
 The runner refreshes stale HTML before it waits for its recorder connection.
 Surface files live in `scripts/ios-sim/scenarios/`.
 These files replace the removed subsets:
@@ -218,7 +225,10 @@ Settings scenarios cover profile editing, password changes, lineup options, and 
 Run the taxi file with a manager that no other capture uses.
 First run `node scripts/ios-sim/stack.mjs start` without reset.
 Stop if its schema check fails.
-The capture command reuses the connection without checking migration compatibility.
+The capture command checks migration names, contents, and the applied migration set before reusing the shared connection.
+A mismatch refuses capture before fixture access.
+Stop other users before rebuilding the stack with `start --reset`.
+A separate stack must apply this checkout's exact migration set before capture.
 Use this command for the taxi review:
 
 ```sh
@@ -230,7 +240,7 @@ node scripts/ios-sim/run.mjs \
   --scenario taxi
 ```
 
-The file contains 18 scenarios and 48 measured steps.
+The file contains 18 scenarios and 52 measured steps.
 Each surface has a light and dark capture in the `taxi` group.
 The Players capture selects **All players** so waiver players appear too.
 
@@ -249,6 +259,7 @@ Trade fixtures remove the deadline and mark startup auctions as mock during the 
 They restore both values afterward.
 The client permits opening the trade editor while the roster is illegal.
 It opens **Resolve roster** when the user taps **Confirm and send trade**.
+Each blocked trade capture then discards its unsent proposal through the app.
 The claim drop heading can read **DROP A PLAYER FOR CLAIM** on compact screens.
 Larger screens use **DROP A PLAYER (required)**.
 
@@ -272,7 +283,11 @@ Run `tests/ios-sim` and parse the scenario file through `expandScenarios` before
 
 Add a JSON row with a unique name, starting route, and measured steps.
 Use `prepare` for setup actions that you do not want to measure.
+Use `setup.liveStartupAuction` when a capture needs a live startup auction.
+It restores the original league and draft states after the capture.
 Use `reveal` to scroll a labeled control into view without activating it.
+Use `revealText` to scroll a section heading into view.
+Use `scrollEnd` to capture the bottom of a scrollable screen.
 A reveal starts its measurement clock without a tap.
 Use `repeat` with a positive integer to repeat a scenario, including preparation.
 Repeated report names end in `-repeat-1`, `-repeat-2`, and so on.

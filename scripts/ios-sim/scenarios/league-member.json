@@ -2,15 +2,7 @@
   {
     "name": "league-auction-bidder-light",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -26,20 +18,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-rookie-spectator-light",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -53,20 +38,13 @@
     "setup": {
       "draftRoom": "snake",
       "draftId": "{{draftId}}"
-    }
+    },
+    "theme": "light"
   },
   {
     "name": "league-commissioner-denied-light",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -76,20 +54,13 @@
           "text": "Commissioner access required"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-member-settings-light",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -99,20 +70,13 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-auction-bidder-dark",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -128,20 +92,13 @@
       "draftRoom": "auction",
       "draftId": "{{draftId}}",
       "auctionNomination": true
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-rookie-spectator-dark",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -155,20 +112,13 @@
     "setup": {
       "draftRoom": "snake",
       "draftId": "{{draftId}}"
-    }
+    },
+    "theme": "dark"
   },
   {
     "name": "league-commissioner-denied-dark",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -178,20 +128,13 @@
           "text": "Commissioner access required"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-member-settings-dark",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/"
-      }
-    ],
+    "from": "/",
     "steps": [
       {
         "action": {
@@ -201,20 +144,13 @@
           "selector": "[aria-label^='Share invite code ']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-covered-form-join-light",
     "group": "league-member",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -225,20 +161,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-covered-form-password-light",
     "group": "league-member",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -249,20 +178,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-covered-form-join-dark",
     "group": "league-member",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -273,20 +195,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Invite code']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-covered-form-password-dark",
     "group": "league-member",
     "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/profile"
-      }
-    ],
     "steps": [
       {
         "action": {
@@ -297,20 +212,13 @@
           "selector": "html:not([data-pancake-boot]) [aria-label='Current password']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   },
   {
     "name": "league-activity-avatar-light",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Light"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -321,20 +229,13 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "light"
   },
   {
     "name": "league-activity-avatar-dark",
     "group": "league-member",
-    "from": "/profile",
-    "prepare": [
-      {
-        "tap": "Dark"
-      },
-      {
-        "open": "/league"
-      }
-    ],
+    "from": "/league",
     "steps": [
       {
         "action": {
@@ -345,6 +246,7 @@
           "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
         }
       }
-    ]
+    ],
+    "theme": "dark"
   }
 ]

@@ -87,3 +87,8 @@ Apply migrations `20261020000001` through `20261020000007` before deploying that
 Projection read RPC shapes remain compatible with the existing frontend.
 Source-health evidence covers active Sleeper projections and the separate dormant Sleeper player fallback.
 The [release gates](verification.md#release-gates) require reviewed attestations before this migration range can reach production.
+
+Deployed soak seasons read browser provenance from the deployed frontend's `dist/release-provenance.json`.
+Their reports must match `E2E_DEPLOYED_FRONTEND_SHA` and `E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST`.
+The compatibility digest identifies the deployed source rebuilt for local endpoints.
+The startup health loop checks the served frontend marker and Edge health before any scenario starts.

@@ -29,6 +29,16 @@ FantasyPros zero-row skips can be expected during the offseason.
 Sleeper projection freshness and coverage are also marked expected-unavailable then.
 A successful empty scoreboard response differs from a failed request.
 
+## Injury refresh
+
+`sync-player-injuries` refreshes injuries each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
+The dispatcher sends `{}` and the worker records `sync_runs.function_name = 'sync-player-injuries'`.
+`sync-players` keeps its daily full player, injury, career, and news refresh.
+The source report includes recorded injury outcomes.
+Before Edge deployment, an absent injury function returns HTTP 404 without alerts, rapid retries, or readiness failures.
+After rollback, the new function can remain deployed or be absent.
+Production data health checks stored data and does not require this function to exist.
+
 ## Projection schedules
 
 `supabase/functions/sync-sleeper-projections` reads RotoWire per-game lines from Sleeper's public NBA projection endpoint.

@@ -17,7 +17,7 @@ test.each(['2026-10-23', undefined])('seed reuse rejects a stale or missing East
 
 test('seed reuse uses the Eastern day across UTC midnight', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-seed-current-'))
-  const complete = { today: '2026-10-24', rosterPlanTrade: { id: 'trade' } }
+  const complete = { today: '2026-10-24', startupAuctionCompleted: true, rosterPlanTrade: { id: 'trade' } }
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-10-25T02:00:00Z'))
   try {
@@ -332,4 +332,35 @@ test.each([false, true])('a straight-to-IR capture restores rosters, add counts,
   if (fail) await assert.rejects(capture(), /Capture failed/)
   else await capture()
   assert.deepEqual(tables, before)
+})
+
+test.each([false, true])('a startup capture restores the active league and completed auction: %s', async fail => {
+  const { admin, tables } = captureDatabase({ leagues: [{ id: 'league', status: 'active' }], drafts: [
+    { id: 'startup', league_id: 'league', league_season_id: 'season', draft_type: 'auction', is_mock: false, status: 'completed', completed_at: 'finished' },
+    { id: 'mock', league_id: 'league', league_season_id: 'season', draft_type: 'auction', is_mock: true, status: 'completed', completed_at: 'mock-finished' },
+    { id: 'rookie', league_id: 'league', league_season_id: 'season', draft_type: 'snake', is_mock: false, status: 'in_progress', completed_at: null },
+  ] })
+  const before = structuredClone(tables)
+  const capture = () => fixture.withLiveStartupAuction(admin, { leagueId: 'league', seasonId: 'season' }, async () => {
+    assert.equal(tables.leagues[0].status, 'drafting')
+    assert.equal(tables.drafts[0].status, 'in_progress')
+    assert.equal(tables.drafts[0].completed_at, null)
+    assert.deepEqual(tables.drafts[1], before.drafts[1])
+    assert.equal(tables.drafts[2].status, 'completed')
+    if (fail) throw new Error('Capture failed')
+    return 'captured'
+  })
+  if (fail) await assert.rejects(capture(), /Capture failed/)
+  else assert.equal(await capture(), 'captured')
+  assert.deepEqual(tables, before)
+})
+
+test('seed reuse refuses fixtures from the earlier live-startup world', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'ios-seed-world-'))
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-25T16:00:00Z'))
+  try {
+    await writeFile(path.join(directory, 'complete.json'), JSON.stringify({ today: '2026-10-25', rosterPlanTrade: { id: 'trade' } }))
+    await assert.rejects(fixture.seed({ stack: { url: 'http://127.0.0.1:57121' }, snapshot: directory, directory }), /startup auction.*start --reset/)
+  } finally { vi.useRealTimers(); await rm(directory, { recursive: true, force: true }) }
 })

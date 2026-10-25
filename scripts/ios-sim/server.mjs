@@ -65,7 +65,7 @@ export async function serve({ root, port }) {
     server, reports,
     arm(spec) { acknowledgments.delete(spec.id); reports.delete(spec.id); current = { ...spec, startedAt: Date.now() }; send({ type: 'begin', spec: current }); return current },
     disarm() { current = null; send({ type: 'finish' }) },
-    prepare(url) { current = null; send({ type: 'prepare', url }) },
+    prepare(url, theme = undefined) { current = null; send({ type: 'prepare', url, theme }) },
     navigate(url) { send({ type: 'prepare', url }) },
     resetAuth(url) { current = null; for (const stream of controls.keys()) controls.set(stream, null); send({ type: 'reset-auth', url }) },
     blur() { send({ type: 'blur' }) },

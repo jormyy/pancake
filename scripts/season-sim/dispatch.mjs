@@ -7,7 +7,7 @@ import { createStallProbe } from './stall-probe.mjs'
 
 export async function dispatch(statement, { optional = false, allowFailure = false, defer = false } = {}, execute = sql) {
   if (process.env.SEASON_SIM_PRODUCTION_ONLY === '1') {
-    for (const query of Array.isArray(statement) ? statement : [statement]) assert.ok(!/invoke_edge_function\s*\(\s*'(?:sync-stats|sync-scores|sync-players|sync-schedule)'/i.test(query), 'Replay forbids direct business maintenance invocations; use production gates')
+    for (const query of Array.isArray(statement) ? statement : [statement]) assert.ok(!/invoke_edge_function\s*\(\s*'(?:sync-stats|sync-scores|sync-players|sync-player-injuries|sync-schedule)'/i.test(query), 'Replay forbids direct business maintenance invocations; use production gates')
   }
   let ids
   if (defer && typeof statement === 'string' && statement.split(';').filter(part => part.trim()).every(part => /^\s*SELECT\b/i.test(part))) {
