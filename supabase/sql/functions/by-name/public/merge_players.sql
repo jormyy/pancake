@@ -40,6 +40,10 @@ BEGIN
     nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
     espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
     sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
+    career_games_prior = COALESCE(v_winner.career_games_prior, v_loser.career_games_prior),
+    career_games_prior_checked_at = CASE WHEN v_winner.career_games_prior IS NOT NULL THEN v_winner.career_games_prior_checked_at
+      WHEN v_loser.career_games_prior IS NOT NULL THEN v_loser.career_games_prior_checked_at
+      ELSE GREATEST(v_winner.career_games_prior_checked_at,v_loser.career_games_prior_checked_at) END,
     nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
     position = COALESCE(v_winner.position, v_loser.position),
     eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
@@ -192,7 +196,7 @@ BEGIN
     SELECT winner_id, game_id, first_seen_at, nba_team FROM private.player_game_memberships WHERE player_id = loser_id
     ON CONFLICT (player_id, game_id) DO UPDATE
       SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
-        nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
+    nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
 
   -- The time ESPN last listed this person anchors the release sweep's departure evidence, and the time it
   -- has listed him on that team since gates the box-to-ESPN link, so the survivor keeps the later of the two
@@ -228,5 +232,6 @@ BEGIN
     ON CONFLICT (member_id, player_id) DO NOTHING;
 
   DELETE FROM players WHERE id = loser_id;
+  PERFORM private.recount_player_career_games(ARRAY[winner_id]);
 END;
 $$;

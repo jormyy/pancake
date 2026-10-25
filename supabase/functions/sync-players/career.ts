@@ -1,10 +1,9 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { runBounded } from '../_shared/runBounded.ts'
-import { careerFirstSeasonYear, careerRegularSeasonGames } from '../_shared/careerGames.ts'
+import { careerFirstSeasonYear, careerGamesPrior } from '../_shared/careerGames.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
-import { toETDate } from '../_shared/date.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fetchAllPlayers, PLAYER_PAGE } from './players.ts'
 import { fetchNbaCareerProfile } from './nbaCareer.ts'
@@ -16,7 +15,7 @@ const ESPN_SEARCH_BASE_URL = Deno.env.get('ESPN_SEARCH_BASE_URL') ??
 
 type CareerPlayer = {
   id: string; display_name: string; espn_id: string | null; nba_id: string | null; nba_team: string | null
-  years_exp: number | null; career_regular_season_games: number | null; career_games_checked_at: string | null
+  years_exp: number | null; career_regular_season_games: number | null; career_games_prior: number | null; career_games_prior_checked_at: string | null
 }
 
 async function rosteredPlayerIds(): Promise<Set<string>> {
@@ -87,18 +86,21 @@ async function fetchEspnExperience(espnId: string, now: Date): Promise<number | 
 
 export async function syncCareerGames(now = new Date()): Promise<{ updated: number; unverified: number; failures: string[] }> {
   const players = await fetchAllPlayers<CareerPlayer>(supabase,
-    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_checked_at')
+    'id, display_name, espn_id, nba_id, nba_team, years_exp, career_regular_season_games, career_games_prior, career_games_prior_checked_at')
   if (players.length === 0) return { updated: 0, unverified: 0, failures: [] }
   const rostered = await rosteredPlayerIds()
   const targets = players.filter(player => {
-    const missing = player.career_regular_season_games == null || player.years_exp == null
-    if (player.nba_team) return missing || !player.career_games_checked_at || toETDate(new Date(player.career_games_checked_at)) !== toETDate(now)
-    return rostered.has(player.id) && missing
+    const needsPrior = player.career_games_prior == null && (player.career_regular_season_games ?? 0) < 65
+    const due = !player.career_games_prior_checked_at || now.getTime() - Date.parse(player.career_games_prior_checked_at) >= 7 * 86400000
+    return (player.nba_team || rostered.has(player.id)) && (needsPrior || player.years_exp == null) && due
   })
   let updated = 0
   let unverified = 0
   const failures: string[] = []
   await runBounded(targets.map(player => async () => {
+    const claim = await supabase.rpc('claim_player_career_prior_atomic', { p_player_id: player.id, p_now: now.toISOString() })
+    if (claim.error) { failures.push(`${player.id}: ${claim.error.message}`); return }
+    if (!claim.data) return
     const problems: string[] = []
     let espnId = player.espn_id
     if (!espnId) {
@@ -106,7 +108,8 @@ export async function syncCareerGames(now = new Date()): Promise<{ updated: numb
       catch (error) { problems.push(errorMessage(error)) }
     }
     let payload: unknown = null
-    if (espnId) {
+    const needsPrior = player.career_games_prior == null && (player.career_regular_season_games ?? 0) < 65
+    if (needsPrior && espnId) {
       try {
         const response = await fetchWithRetry(`${ESPN_CAREER_BASE_URL}/athletes/${espnId}/stats?seasontype=2`, undefined, { attemptTimeoutMs: 5000 })
         if (!response.ok) {
@@ -123,32 +126,34 @@ export async function syncCareerGames(now = new Date()): Promise<{ updated: numb
       try { years = await fetchEspnExperience(espnId, now) }
       catch (error) { problems.push(errorMessage(error)) }
     }
-    const rookie = years === 0 && (player.career_regular_season_games ?? 0) === 0 ? 0 : null
-    let games = careerRegularSeasonGames(payload, rookie)
-    if (player.nba_id && (years == null || games == null)) {
-      try {
-        const profile = await fetchNbaCareerProfile(player.nba_id, now)
-        years ??= profile.years
-        if (games == null && profile.noGames && (player.career_regular_season_games ?? 0) === 0) games = 0
-        if (games == null && years === 0 && (player.career_regular_season_games ?? 0) === 0) games = careerRegularSeasonGames(payload, 0)
-      } catch (error) { problems.push(errorMessage(error)) }
+    if (player.nba_id && years == null) {
+      try { years = (await fetchNbaCareerProfile(player.nba_id, now)).years }
+      catch (error) { problems.push(errorMessage(error)) }
     }
-    if ((games == null && years !== 0) || years == null) {
+    let changed = false
+    const prior = needsPrior ? careerGamesPrior(payload) : null
+    if (prior !== null) {
+      const saved = await supabase.rpc('complete_player_career_prior_atomic', {
+        p_player_id: player.id, p_prior: prior, p_espn_id: espnId ?? '', p_nba_id: player.nba_id ?? '',
+      })
+      if (saved.error) failures.push(`${player.id}: ${saved.error.message}`)
+      else if (!saved.data) failures.push(`${player.id}: Player identity changed before prior update`)
+      else changed = true
+    }
+    if (player.years_exp == null && years != null) {
+      let query = supabase.from('players').update({ years_exp: years }).eq('id', player.id).is('years_exp', null)
+      query = espnId ? query.eq('espn_id', espnId) : query.is('espn_id', null)
+      if (player.nba_id) query = query.eq('nba_id', player.nba_id)
+      const { data, error } = await query.select('id')
+      if (error) failures.push(`${player.id}: ${error.message}`)
+      else if (data?.length !== 1) failures.push(`${player.id}: Player identity changed before experience update`)
+      else changed = true
+    }
+    if ((needsPrior && prior === null && (years == null || currentSeasonYear(now) - years < 2021)) || years == null) {
       unverified++
-      console.warn(`[sync-players] career ${player.id}: ${[...problems, 'NBA career data is unverified'].join('; ')}`)
+      console.warn(`[sync-players] career ${player.id}: ${[...problems, 'NBA career prior is unverified'].join('; ')}`)
     }
-    if (games == null && (player.years_exp != null || years == null)) return
-    let query = supabase.from('players').update({
-      ...(games != null ? { career_regular_season_games: games, career_games_checked_at: now.toISOString() } : {}),
-      ...(player.years_exp == null && years != null ? { years_exp: years } : {}),
-    }).eq('id', player.id)
-    query = espnId ? query.eq('espn_id', espnId) : query.is('espn_id', null)
-    if (player.nba_id) query = query.eq('nba_id', player.nba_id)
-    if (player.years_exp == null && years != null) query = query.is('years_exp', null)
-    const { data, error } = await query.select('id')
-    if (error) failures.push(`${player.id}: ${error.message}`)
-    else if (data?.length !== 1) failures.push(`${player.id}: Player identity changed before career update`)
-    else updated++
+    if (changed) updated++
   }), 6)
   return { updated, unverified, failures }
 }

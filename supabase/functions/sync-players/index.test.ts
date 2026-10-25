@@ -56,13 +56,14 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       imports.push(...args.p_records)
       return Response.json({ stale_draft_numbers_cleared: 0, results: args.p_records.map((row: { provider_id: string }, index: number) => ({ index, player_id: row.provider_id, action: 'updated' })) })
     }
+    if (url.pathname === '/rest/v1/rpc/claim_player_career_prior_atomic') return Response.json(true)
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') return Response.json(0)
     if (url.pathname === '/rest/v1/roster_players') return Response.json([])
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     return Response.json([
-      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: null, career_games_checked_at: null, injury_status: 'Out' },
-      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 1, career_regular_season_games: null, career_games_checked_at: null, injury_status: null },
+      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, career_games_prior: 0, career_games_prior_checked_at: null, injury_status: 'Out' },
+      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, career_games_prior: null, career_games_prior_checked_at: null, injury_status: null },
     ])
   }
   try {
@@ -81,7 +82,7 @@ Deno.test('sync-players with the old injuries mode runs every full-sync step', a
   assert.equal(result.imports.length, 360)
   assert.equal(result.result.updated, 360)
   assert.equal(result.result.careerUnverified, 1)
-  for (const path of ['/teams', '/news', '/staticData/playerIndex.json', '/athletes/rookie/stats', '/athletes/veteran/stats']) {
+  for (const path of ['/teams', '/news', '/staticData/playerIndex.json', '/athletes/veteran/stats']) {
     assert.ok(result.requests.some(url => url.pathname === path), path)
   }
   assert.equal(result.runs[0].function_name, 'sync-players')

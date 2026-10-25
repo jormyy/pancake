@@ -128,7 +128,19 @@ An undrafted rookie qualifies.
 A second-year player with 64 games qualifies.
 A nonrookie needs a known count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
-No local box-score count substitutes for a career count.
+The server counts played regular-season box scores from 2020-21 onward.
+A played game requires positive minutes and `did_not_play = false`.
+The counter adds a stored prior for games before our coverage starts on December 22, 2020.
+Experience and the first stored season identify players whose prior is zero.
+Players with at least 65 observed games need no outside lookup for taxi decisions.
+Their stored count is a lower bound until a prior is known.
+Older players below 65 observed games need one verified ESPN prior.
+Failed lookups retry no more than weekly.
+A successful prior never triggers another career-stat lookup.
+Unknown priors keep the total unknown below 65 games.
+Stats saves, corrections, deletions, game corrections, and player merges recount within their transaction.
+Replays do not add games twice.
+The old daily Edge writer remains callable; its count cannot replace the server recount.
 
 The server stores career regular-season games in `players.career_regular_season_games`.
 Career counts refresh daily for NBA team players.

@@ -1,7 +1,8 @@
 import { strict as assert } from 'node:assert'
+import { careerRegularSeasonGames } from '../_shared/careerGames.ts'
 
 Deno.test({
-  name: 'private database player coverage and daily refresh',
+  name: 'private database career recount matches ESPN history and avoids repeated lookups',
   ignore: Deno.env.get('PANCAKE_DATA_DB_TESTS') !== '1',
   fn: async () => {
     const api = new URL(Deno.env.get('SUPABASE_URL')!)
@@ -40,6 +41,7 @@ Deno.test({
     const { syncNBAIds } = await import('./nbaIds.ts')
     const { syncInjuries } = await import('./injuries.ts')
     const ids: string[] = []
+    const gameIds: string[] = []
     let userId: string | null = null
     const leagueId = crypto.randomUUID()
     const now = new Date('2026-10-25T16:00:00Z')
@@ -48,36 +50,49 @@ Deno.test({
       assert.ifError(empty.error)
       assert.equal(empty.count, 0, 'Use an empty private data stack')
       const created = await supabase.from('players').insert([
-        { first_name: 'Joan', last_name: 'Beringer', nba_id: '1642866', nba_team: 'MIN', years_exp: null, injury_status: 'Out' },
+        { first_name: 'Joan', last_name: 'Beringer', nba_id: '1642866', espn_id: '5279133', nba_team: 'MIN', years_exp: null, injury_status: 'Out' },
         { first_name: 'Henri', last_name: 'Veesaar', espn_id: '5105571', nba_team: 'BOS', years_exp: 0 },
-        { first_name: 'Unlinked', last_name: 'Player', nba_team: 'BOS', injury_status: 'Out', years_exp: 1, career_regular_season_games: 42, career_games_checked_at: now.toISOString() },
+        { first_name: 'Unlinked', last_name: 'Player', nba_team: 'BOS', injury_status: 'Out', years_exp: 1, career_games_prior: 0, career_regular_season_games: 42, career_games_checked_at: now.toISOString() },
         { first_name: 'Unknown', last_name: 'Rookie', espn_id: 'rookie-missing', nba_team: 'BOS', years_exp: 0 },
-        { first_name: 'Unavailable', last_name: 'Veteran', espn_id: '404', nba_team: 'BOS', years_exp: 1, career_regular_season_games: 64 },
+        { first_name: 'Unavailable', last_name: 'Veteran', espn_id: '404', nba_team: 'BOS', years_exp: 10, career_regular_season_games: 64 },
       ]).select('id')
       assert.ifError(created.error)
       ids.push(...created.data!.map(row => row.id))
+      const games = await supabase.from('nba_games').insert(Array.from({ length: 42 }, (_, index) => ({
+        nba_game_id: `002${index < 40 ? '25' : '26'}${String(index + 3000).padStart(5, '0')}`,
+        game_date: new Date(Date.UTC(index < 40 ? 2025 : 2026, 9, 22 + (index < 40 ? index * 3 : index - 40))).toISOString().slice(0, 10),
+        season_year: index < 40 ? 2026 : 2027, week_number: 1, home_team: 'MIN', away_team: 'BOS', status: 'Final',
+      }))).select('id, season_year')
+      assert.ifError(games.error)
+      gameIds.push(...games.data!.map(row => row.id))
+      const stats = await supabase.from('player_game_stats').insert(games.data!.map(game => ({
+        player_id: ids[0], game_id: game.id, season_year: game.season_year, week_number: 1, minutes_played: 12, did_not_play: false,
+      })))
+      assert.ifError(stats.error)
       const mapped = await syncNBAIds(now)
       assert.deepEqual(mapped.failures, [])
       const result = await syncCareerGames(now)
-      assert.equal(result.updated, 2)
+      assert.equal(result.updated, 0)
       assert.deepEqual(result.failures, [])
       assert.equal(result.unverified, 1)
       const rows = await supabase.from('players').select('display_name, espn_id, years_exp, injury_status, career_regular_season_games, career_games_checked_at').in('id', ids).order('display_name')
       assert.ifError(rows.error)
       assert.deepEqual(rows.data!.map(row => [row.display_name, row.espn_id, row.years_exp, row.career_regular_season_games, row.injury_status]), [
-        ['Henri Veesaar', '5105571', 0, 0, null], ['Joan Beringer', '5279133', 1, 42, 'Out'], ['Unavailable Veteran', '404', 1, 64, null],
-        ['Unknown Rookie', 'rookie-missing', 0, null, null], ['Unlinked Player', null, 1, 42, 'Out'],
+        ['Henri Veesaar', '5105571', 0, 0, null], ['Joan Beringer', '5279133', 1, 42, 'Out'], ['Unavailable Veteran', '404', 10, 64, null],
+        ['Unknown Rookie', 'rookie-missing', 0, 0, null], ['Unlinked Player', null, 1, 42, 'Out'],
       ])
       assert.equal(rows.data!.find(row => row.espn_id === '404')!.career_games_checked_at, null)
-      console.log('PASS: missing ESPN identity, missing experience and no-debut totals fill from pinned sources; existing injury survives')
+      assert.equal(rows.data!.find(row => row.espn_id === '5279133')!.career_regular_season_games, careerRegularSeasonGames(career))
+      assert.ok(!calls.includes('/athletes/5279133/stats'))
+      console.log('PASS: 40 prior-season and two current-season played boxes equal the pinned ESPN career total of 42')
       console.log('PASS: unavailable career data preserves the stored count and leaves its checked time unchanged')
       const before = calls.length
       const repeated = await syncCareerGames(now)
       assert.equal(repeated.updated, 0)
       assert.deepEqual(repeated.failures, [])
-      assert.equal(repeated.unverified, 1)
-      assert.deepEqual(calls.slice(before).sort(), ['/athletes/404/stats', '/athletes/rookie-missing/stats'])
-      console.log('PASS: a same-day retry fetches only the unresolved player')
+      assert.equal(repeated.unverified, 0)
+      assert.deepEqual(calls.slice(before), [])
+      console.log('PASS: same-day calls fetch no career data, including the failed lookup')
       const user = await supabase.auth.admin.createUser({ email: `${leagueId}@example.test`, password: `Local-${leagueId}!`, email_confirm: true,
         user_metadata: { username: `career_${leagueId.slice(0, 8)}` } })
       assert.ifError(user.error)
@@ -91,8 +106,8 @@ Deno.test({
       ]).select('id, is_current')
       assert.ifError(seasons.error)
       const freeAgents = await supabase.from('players').insert([
-        { first_name: 'Current', last_name: 'Free Agent', espn_id: 'current-free', years_exp: 1 },
-        { first_name: 'Historical', last_name: 'Free Agent', espn_id: 'historical-free', years_exp: 1 },
+        { first_name: 'Current', last_name: 'Free Agent', espn_id: 'current-free', years_exp: 10 },
+        { first_name: 'Historical', last_name: 'Free Agent', espn_id: 'historical-free', years_exp: 10 },
       ]).select('id, espn_id')
       assert.ifError(freeAgents.error)
       ids.push(...freeAgents.data!.map(row => row.id))
@@ -105,7 +120,7 @@ Deno.test({
       const current = await syncCareerGames(now)
       assert.equal(current.updated, 1)
       assert.deepEqual(current.failures, [])
-      assert.equal(current.unverified, 1)
+      assert.equal(current.unverified, 0)
       assert.ok(calls.slice(rosterCalls).includes('/athletes/current-free/stats'))
       assert.ok(!calls.slice(rosterCalls).includes('/athletes/historical-free/stats'))
       const historical = await supabase.from('players').select('career_regular_season_games, career_games_checked_at').eq('espn_id', 'historical-free').single()
@@ -139,9 +154,13 @@ Deno.test({
       const league = await supabase.from('leagues').delete().eq('id', leagueId)
       assert.ifError(league.error)
       if (ids.length > 0) {
+        const stats = await supabase.from('player_game_stats').delete().in('player_id', ids)
+        assert.ifError(stats.error)
         const { error } = await supabase.from('players').delete().in('id', ids)
         assert.ifError(error)
       }
+      const removedGames = await supabase.from('nba_games').delete().in('id', gameIds)
+      assert.ifError(removedGames.error)
       if (userId) {
         const user = await supabase.auth.admin.deleteUser(userId)
         assert.ifError(user.error)

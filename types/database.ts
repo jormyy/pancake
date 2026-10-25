@@ -2463,6 +2463,8 @@ export type Database = {
       players: {
         Row: {
           career_games_checked_at: string | null
+          career_games_prior: number | null
+          career_games_prior_checked_at: string | null
           career_regular_season_games: number | null
           created_at: string
           display_name: string | null
@@ -2489,6 +2491,8 @@ export type Database = {
         }
         Insert: {
           career_games_checked_at?: string | null
+          career_games_prior?: number | null
+          career_games_prior_checked_at?: string | null
           career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
@@ -2515,6 +2519,8 @@ export type Database = {
         }
         Update: {
           career_games_checked_at?: string | null
+          career_games_prior?: number | null
+          career_games_prior_checked_at?: string | null
           career_regular_season_games?: number | null
           created_at?: string
           display_name?: string | null
@@ -4486,6 +4492,10 @@ export type Database = {
           push_token: string
         }[]
       }
+      claim_player_career_prior_atomic: {
+        Args: { p_now?: string; p_player_id: string }
+        Returns: boolean
+      }
       claim_stats_sync_job_atomic: {
         Args: { p_job_id?: string; p_stale_after_seconds?: number }
         Returns: {
@@ -4549,6 +4559,15 @@ export type Database = {
       }
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
+        Returns: boolean
+      }
+      complete_player_career_prior_atomic: {
+        Args: {
+          p_espn_id: string
+          p_nba_id: string
+          p_player_id: string
+          p_prior: number
+        }
         Returns: boolean
       }
       complete_sleeper_projection_sync: {
