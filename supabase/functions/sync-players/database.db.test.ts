@@ -7,8 +7,10 @@ Deno.test({
     const api = new URL(Deno.env.get('SUPABASE_URL')!)
     const db = new URL(Deno.env.get('SUPABASE_DB_URL')!)
     for (const target of [api, db]) assert.ok(['localhost', '127.0.0.1'].includes(target.hostname), 'Use a private local stack')
-    assert.equal(api.port, Deno.env.get('PANCAKE_TEST_API_PORT'))
-    assert.equal(db.port, Deno.env.get('PANCAKE_TEST_DB_PORT'))
+    const config = await Deno.readTextFile(new URL('../../config.toml', import.meta.url))
+    const port = (section: string) => config.match(new RegExp(`^\\[${section}\\]\n(?:(?!\\[)[^\n]*\n)*?port\\s*=\\s*(\\d+)\\s*$`, 'm'))?.[1]
+    assert.equal(api.port, port('api'))
+    assert.equal(db.port, port('db'))
     const { supabase } = await import('../_shared/supabase.ts')
     const { resolvePlayerImports } = await import('../_shared/playerImports.ts')
     const { buildScheduleSyncPlan } = await import('../_shared/schedule.ts')
@@ -45,6 +47,12 @@ Deno.test({
       assert.ifError(error)
       assert.deepEqual(data, { nba_team: 'LAL', injury_status: 'Out' })
       console.log('PASS: full import changes player metadata while an omitted injury key preserves Out')
+      await resolvePlayerImports('espn', [{ provider_id: suffix, first_name: first, last_name: 'Fixture',
+        metadata: { nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'], status: 'Active', years_exp: 1, injury_status: null } }])
+      const cleared = await supabase.from('players').select('injury_status').eq('id', playerId).single()
+      assert.ifError(cleared.error)
+      assert.equal(cleared.data?.injury_status, null)
+      console.log('PASS: an explicit null injury key clears the stored designation')
     } finally {
       if (playerId) {
         const { error } = await supabase.from('players').delete().eq('id', playerId)

@@ -7,8 +7,10 @@ Deno.test({
     const api = new URL(Deno.env.get('SUPABASE_URL')!)
     const db = new URL(Deno.env.get('SUPABASE_DB_URL')!)
     for (const target of [api, db]) assert.ok(['localhost', '127.0.0.1'].includes(target.hostname), 'Use a private local stack')
-    assert.equal(api.port, Deno.env.get('PANCAKE_TEST_API_PORT'))
-    assert.equal(db.port, Deno.env.get('PANCAKE_TEST_DB_PORT'))
+    const config = await Deno.readTextFile(new URL('../../config.toml', import.meta.url))
+    const port = (section: string) => config.match(new RegExp(`^\\[${section}\\]\n(?:(?!\\[)[^\n]*\n)*?port\\s*=\\s*(\\d+)\\s*$`, 'm'))?.[1]
+    assert.equal(api.port, port('api'))
+    assert.equal(db.port, port('db'))
     const fixture = async (name: string) => JSON.parse(await Deno.readTextFile(new URL(`./fixtures/${name}.json`, import.meta.url)))
     const index = await fixture('nba-index-beringer')
     const search = await fixture('espn-search-beringer')

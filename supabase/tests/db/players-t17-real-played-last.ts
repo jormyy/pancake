@@ -118,7 +118,10 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
   if (box && realBoxes.has(box[1])) return new Response(realBoxes.get(box[1])!.body.slice(), { headers: { 'content-type': 'application/json' } })
-  if (route.startsWith('/career/')) return Response.json({})
+  if (/^\/career\/athletes\/[^/]+\/stats$/.test(route)) return Response.json({
+    filters: [{ name: 'league', value: 'nba' }, { name: 'seasontype', value: '2' }],
+    categories: [{ names: ['gamesPlayed'], totals: ['120'] }],
+  })
   return new Response('served origin has no such route', { status: 404 })
 })
 const origin = `http://127.0.0.1:${originPort}`

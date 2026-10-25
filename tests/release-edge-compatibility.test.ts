@@ -106,7 +106,11 @@ it('detects publication drops used by the deployed client', () => {
     expect(droppedSubscribedTables(['ALTER PUBLICATION supabase_realtime DROP TABLE public.bids;'], subscribed)).toEqual([])
 })
 
+const rpcNameCache = new Map<string, Set<string>>()
+
 function rpcNames(source: string) {
+    const cached = rpcNameCache.get(source)
+    if (cached) return cached
     const file = ts.createSourceFile('consumer.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
     const program = ts.createProgram(['consumer.tsx'], { noLib: true, noResolve: true }, {
         getSourceFile: name => name === file.fileName ? file : undefined,
@@ -130,6 +134,7 @@ function rpcNames(source: string) {
         ts.forEachChild(node, visit)
     }
     visit(file)
+    rpcNameCache.set(source, names)
     return names
 }
 
@@ -261,6 +266,9 @@ it.skipIf(!available)('emits only hint topics and inventory resources accepted b
 })
 
 function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string, newestMigration: string) {
+    const section = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
+    const productionHead = section?.match(/Production currently stops at migration `([0-9]+)`/)?.[1]
+    if (!section || !productionHead || newestMigration > productionHead && !section.includes(newestMigration)) return true
     const functions = latestFunctionDefinitionsInSource(mainMigrations)
     const newRpc = [...rpcNames(clientSource)].some(name => !functions.has(name))
     const newColumns = ['waiver_claims.to_ir', 'waiver_claims.to_taxi', 'player_game_stats.is_home'].some(column => {
@@ -268,10 +276,7 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
         return clientSource.includes(name) && !new RegExp(`ALTER\\s+TABLE\\s+(?:public\\.)?${table}[\\s\\S]*?ADD\\s+COLUMN\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?${name}\\b`, 'i').test(mainMigrations)
     })
     const irArgument = clientSource.includes('p_to_ir') && !parameters(functions.get('public.add_free_agent_atomic') ?? '()').some(parameter => parameter.name === 'p_to_ir')
-    const section = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
-    const productionHead = section?.match(/Production currently stops at migration `([0-9]+)`/)?.[1]
-    return !section || !productionHead || (newestMigration > productionHead && !section.includes(newestMigration))
-        || (newRpc || newColumns || irArgument) && !section.includes('Database, then Edge, then merge the frontend.')
+    return (newRpc || newColumns || irArgument) && !section.includes('Database, then Edge, then merge the frontend.')
 }
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {

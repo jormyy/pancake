@@ -18,6 +18,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     ELSE ' is no longer taxi-eligible. Activate or drop this player.' END
   FROM roster WHERE is_on_taxi AND NOT private.taxi_player_eligible(p_league_id,player_id)
   UNION ALL
-  SELECT 'active_limit', id, player_name, player_name || ': your roster is over the active player limit. Drop or move an eligible player to IR.'
+  SELECT 'active_limit', id, player_name, player_name || ': your active roster is full. Drop or move an eligible player to IR.'
   FROM roster WHERE NOT is_on_ir AND NOT is_on_taxi AND active_count>roster_size;
 $$;

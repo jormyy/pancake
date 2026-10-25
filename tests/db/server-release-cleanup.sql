@@ -12,5 +12,8 @@ SELECT pg_temp.check_rules(to_regprocedure('public.name_key(text)') IS NULL
   AND to_regprocedure('public.update_existing_player_metadata(jsonb)') IS NULL
   AND to_regprocedure('private.league_week_at_pacific(uuid,timestamptz)') IS NULL,
   'unused name, metadata, and Pacific week functions are absent');
+SELECT pg_temp.check_rules(to_regtype('public.rps_choice') IS NULL
+  AND to_regtype('public.rps_status') IS NULL,
+  'retired RPS enum types are absent');
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

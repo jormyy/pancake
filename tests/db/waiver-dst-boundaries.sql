@@ -4,7 +4,7 @@
 SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT' = :'expected_db_port' AS local_target \gset
 \if :local_target
 \else
-  \quit 2
+  DO $$ BEGIN RAISE EXCEPTION 'Database test configuration is missing or invalid.'; END $$;
 \endif
 BEGIN;
 UPDATE waiver_claims SET process_date='infinity'::date WHERE status='pending';
