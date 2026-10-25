@@ -84,7 +84,7 @@ export default function RookieDraftRoomScreen() {
             onStopped: () => navigateBackToDraftList(),
             onReset: () => showSuccess('Draft Reset', 'The rookie draft has been reset to the first pick.'),
             confirmCopy: {
-                stop: 'This ends the rookie draft now. Players already drafted stay on their rosters and the league moves into the season. This cannot be undone.',
+                stop: 'This ends the rookie draft now. Players already drafted stay on their rosters. The season starts after every roster fits or at the opening-night deadline. This cannot be undone.',
                 reset: 'This clears every pick, returns all pick assets, and restarts the draft from the first selection. This cannot be undone.',
                 pause: 'This freezes the pick clock until the commissioner resumes the draft.',
                 resume: 'This restarts the draft clock and allows picks again.',
