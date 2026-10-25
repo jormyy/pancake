@@ -1,0 +1,974 @@
+[
+  {
+    "name": "taxi-player-tags-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      }
+    ],
+    "steps": [
+      {
+        "name": "rookie",
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}'] [data-testid='player-eligibility-tags']:has(> :nth-child(2)):not(:has(> :nth-child(3)))"
+        },
+        "note": "Rookie and Taxi tags: years_exp 0, career games 0."
+      },
+      {
+        "name": "under-65",
+        "action": {
+          "fill": "Search players",
+          "value": "{{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{waiverPlayer.display_name}}'] [data-testid='player-eligibility-tags']:has(> :nth-child(1)):not(:has(> :nth-child(2)))"
+        },
+        "note": "Taxi only: years_exp 2, career games 64."
+      },
+      {
+        "name": "veteran",
+        "action": {
+          "fill": "Search players",
+          "value": "{{outPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-eligibility-tags']:empty"
+        },
+        "note": "Neither tag: years_exp 4, career games 65."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "tags"
+    }
+  },
+  {
+    "name": "taxi-player-detail-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "tags",
+        "action": {
+          "tap": "Open {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{freeAgent.id}}",
+          "selector": "[data-testid='player-eligibility-tags']:has(> :nth-child(2))"
+        }
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "tags"
+    }
+  },
+  {
+    "name": "taxi-add-open-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "destinations",
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([role='button'][aria-label='Add to taxi']):has([role='button'][aria-label='Add'])"
+        }
+      },
+      {
+        "name": "added",
+        "action": {
+          "tap": "Add to taxi"
+        },
+        "expected": {
+          "text": "{{freeAgent.display_name}} added to taxi."
+        }
+      },
+      {
+        "name": "roster",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "taxi-section",
+        "action": {
+          "reveal": "Activate {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Taxi squad']) [aria-label='Activate {{freeAgent.display_name}}']"
+        },
+        "note": "The fixture also checks is_on_taxi in the database before cleanup."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "open"
+    }
+  },
+  {
+    "name": "taxi-add-full-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "taxi-without-drop",
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([role='button'][aria-label='Add to taxi']):not(:has([role='button'][aria-label='Add']))"
+        },
+        "note": "Taxi is available without selecting a drop. Preview only; roster stays unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "full"
+    }
+  },
+  {
+    "name": "taxi-waiver-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/player/{{waiverPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "taxi-default",
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Place on taxi']:checked"
+        }
+      },
+      {
+        "name": "active-drop",
+        "action": {
+          "tap": "Place on taxi"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Place on taxi']:not(:checked)) [aria-label^='Select '][aria-label$=' to drop']"
+        },
+        "note": "The active roster is full. DROP A PLAYER (required) appears."
+      },
+      {
+        "name": "taxi-no-drop",
+        "action": {
+          "tap": "Place on taxi"
+        },
+        "expected": {
+          "text": "Place on taxi. No drop required."
+        }
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "claim"
+    }
+  },
+  {
+    "name": "taxi-illegal-taxi-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "banner",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The named player no longer qualifies for taxi."
+      },
+      {
+        "name": "blocked-add",
+        "action": {
+          "sequence": [
+            {
+              "open": "/players"
+            },
+            {
+              "fill": "Search players",
+              "value": "{{freeAgent.display_name}}"
+            },
+            {
+              "tap": "Add {{freeAgent.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that roster, transactions, claims, and add counts stay unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "illegal-taxi"
+    }
+  },
+  {
+    "name": "taxi-illegal-taxi-trade-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "name": "start",
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label='Trade with {{otherTeam}}']"
+        },
+        "note": "The current client permits opening the trade editor. It checks roster legality when sending."
+      },
+      {
+        "name": "select",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Trade with {{otherTeam}}"
+            },
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            },
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "blocked-send",
+        "action": {
+          "tap": "Confirm and send trade"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that no offer or roster change occurs."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "trade-taxi"
+    }
+  },
+  {
+    "name": "taxi-illegal-ir-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "banner",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The named player no longer qualifies for IR."
+      },
+      {
+        "name": "blocked-add",
+        "action": {
+          "sequence": [
+            {
+              "open": "/players"
+            },
+            {
+              "fill": "Search players",
+              "value": "{{freeAgent.display_name}}"
+            },
+            {
+              "tap": "Add {{freeAgent.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that roster, transactions, claims, and add counts stay unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "illegal-ir"
+    }
+  },
+  {
+    "name": "taxi-illegal-ir-trade-light",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Light"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "name": "start",
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label='Trade with {{otherTeam}}']"
+        },
+        "note": "The current client permits opening the trade editor. It checks roster legality when sending."
+      },
+      {
+        "name": "select",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Trade with {{otherTeam}}"
+            },
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            },
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "blocked-send",
+        "action": {
+          "tap": "Confirm and send trade"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that no offer or roster change occurs."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "trade-ir"
+    }
+  },
+  {
+    "name": "taxi-player-tags-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:"
+      },
+      {
+        "tap": "All players"
+      },
+      {
+        "tap": "Close"
+      }
+    ],
+    "steps": [
+      {
+        "name": "rookie",
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}'] [data-testid='player-eligibility-tags']:has(> :nth-child(2)):not(:has(> :nth-child(3)))"
+        },
+        "note": "Rookie and Taxi tags: years_exp 0, career games 0."
+      },
+      {
+        "name": "under-65",
+        "action": {
+          "fill": "Search players",
+          "value": "{{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{waiverPlayer.display_name}}'] [data-testid='player-eligibility-tags']:has(> :nth-child(1)):not(:has(> :nth-child(2)))"
+        },
+        "note": "Taxi only: years_exp 2, career games 64."
+      },
+      {
+        "name": "veteran",
+        "action": {
+          "fill": "Search players",
+          "value": "{{outPlayer.display_name}}"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-eligibility-tags']:empty"
+        },
+        "note": "Neither tag: years_exp 4, career games 65."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "tags"
+    }
+  },
+  {
+    "name": "taxi-player-detail-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "tags",
+        "action": {
+          "tap": "Open {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "route": "/player/{{freeAgent.id}}",
+          "selector": "[data-testid='player-eligibility-tags']:has(> :nth-child(2))"
+        }
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "tags"
+    }
+  },
+  {
+    "name": "taxi-add-open-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "destinations",
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([role='button'][aria-label='Add to taxi']):has([role='button'][aria-label='Add'])"
+        }
+      },
+      {
+        "name": "added",
+        "action": {
+          "tap": "Add to taxi"
+        },
+        "expected": {
+          "text": "{{freeAgent.display_name}} added to taxi."
+        }
+      },
+      {
+        "name": "roster",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{rosterPlayer.display_name}}']"
+        }
+      },
+      {
+        "name": "taxi-section",
+        "action": {
+          "reveal": "Activate {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Taxi squad']) [aria-label='Activate {{freeAgent.display_name}}']"
+        },
+        "note": "The fixture also checks is_on_taxi in the database before cleanup."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "open"
+    }
+  },
+  {
+    "name": "taxi-add-full-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{freeAgent.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "taxi-without-drop",
+        "action": {
+          "tap": "Add {{freeAgent.display_name}}"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([role='button'][aria-label='Add to taxi']):not(:has([role='button'][aria-label='Add']))"
+        },
+        "note": "Taxi is available without selecting a drop. Preview only; roster stays unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "full"
+    }
+  },
+  {
+    "name": "taxi-waiver-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/player/{{waiverPlayer.id}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "taxi-default",
+        "action": {
+          "tap": "Claim {{waiverPlayer.display_name}}"
+        },
+        "expected": {
+          "route": "/claim-player",
+          "selector": "[aria-label='Place on taxi']:checked"
+        }
+      },
+      {
+        "name": "active-drop",
+        "action": {
+          "tap": "Place on taxi"
+        },
+        "expected": {
+          "selector": "body:has([aria-label='Place on taxi']:not(:checked)) [aria-label^='Select '][aria-label$=' to drop']"
+        },
+        "note": "The active roster is full. DROP A PLAYER (required) appears."
+      },
+      {
+        "name": "taxi-no-drop",
+        "action": {
+          "tap": "Place on taxi"
+        },
+        "expected": {
+          "text": "Place on taxi. No drop required."
+        }
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "claim"
+    }
+  },
+  {
+    "name": "taxi-illegal-taxi-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "banner",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The named player no longer qualifies for taxi."
+      },
+      {
+        "name": "blocked-add",
+        "action": {
+          "sequence": [
+            {
+              "open": "/players"
+            },
+            {
+              "fill": "Search players",
+              "value": "{{freeAgent.display_name}}"
+            },
+            {
+              "tap": "Add {{freeAgent.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that roster, transactions, claims, and add counts stay unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "illegal-taxi"
+    }
+  },
+  {
+    "name": "taxi-illegal-taxi-trade-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "name": "start",
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label='Trade with {{otherTeam}}']"
+        },
+        "note": "The current client permits opening the trade editor. It checks roster legality when sending."
+      },
+      {
+        "name": "select",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Trade with {{otherTeam}}"
+            },
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            },
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "blocked-send",
+        "action": {
+          "tap": "Confirm and send trade"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that no offer or roster change occurs."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "trade-taxi"
+    }
+  },
+  {
+    "name": "taxi-illegal-ir-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/players"
+      },
+      {
+        "fill": "Search players",
+        "value": "{{freeAgent.display_name}}"
+      }
+    ],
+    "steps": [
+      {
+        "name": "banner",
+        "action": {
+          "open": "/roster"
+        },
+        "expected": {
+          "selector": "[role='alert'][aria-label='Resolve roster problems']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The named player no longer qualifies for IR."
+      },
+      {
+        "name": "blocked-add",
+        "action": {
+          "sequence": [
+            {
+              "open": "/players"
+            },
+            {
+              "fill": "Search players",
+              "value": "{{freeAgent.display_name}}"
+            },
+            {
+              "tap": "Add {{freeAgent.display_name}}"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that roster, transactions, claims, and add counts stay unchanged."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "illegal-ir"
+    }
+  },
+  {
+    "name": "taxi-illegal-ir-trade-dark",
+    "group": "taxi",
+    "from": "/profile",
+    "prepare": [
+      {
+        "tap": "Dark"
+      },
+      {
+        "open": "/trades"
+      }
+    ],
+    "steps": [
+      {
+        "name": "start",
+        "action": {
+          "tap": "Propose trade"
+        },
+        "expected": {
+          "route": "/propose-trade",
+          "selector": "[aria-label='Trade with {{otherTeam}}']"
+        },
+        "note": "The current client permits opening the trade editor. It checks roster legality when sending."
+      },
+      {
+        "name": "select",
+        "action": {
+          "sequence": [
+            {
+              "tap": "Trade with {{otherTeam}}"
+            },
+            {
+              "tap": "Edit assets sent by {{otherTeam}}"
+            },
+            {
+              "tapPrefix": "Select "
+            },
+            {
+              "tap": "Edit assets sent by you"
+            },
+            {
+              "tap": "Select {{rosterPlayer.display_name}} for trade"
+            }
+          ]
+        },
+        "expected": {
+          "selector": "[aria-label='Remove {{rosterPlayer.display_name}} for trade']"
+        }
+      },
+      {
+        "name": "review",
+        "action": {
+          "tap": "Review trade proposal"
+        },
+        "expected": {
+          "selector": "[aria-label='Confirm and send trade']:not([aria-disabled='true'])"
+        }
+      },
+      {
+        "name": "blocked-send",
+        "action": {
+          "tap": "Confirm and send trade"
+        },
+        "expected": {
+          "selector": "[role='dialog']:has([aria-label^='Activate ']):has([aria-label^='Drop '])"
+        },
+        "note": "The fixture checks that no offer or roster change occurs."
+      }
+    ],
+    "setup": {
+      "taxiMember": "{{memberId}}",
+      "taxiMode": "trade-ir"
+    }
+  }
+]

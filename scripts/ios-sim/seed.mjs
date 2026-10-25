@@ -279,6 +279,7 @@ export async function withScenarioSetup(stack, setup, action) {
   localUrl(stack.url)
   const { createClient } = createRequire(import.meta.url)('@supabase/supabase-js')
   const admin = createClient(stack.url, stack.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  if (setup.taxiMember) return withTaxiCapture(admin, { fixture: stack.fixture, memberId: setup.taxiMember, mode: setup.taxiMode, stackProject: stack.project ?? project }, action)
   if (setup.rosterLimit) return withLeagueSettings(admin, stack.fixture.leagueId, { roster_size: setup.rosterLimit }, action)
   if (setup.activationMember) return withActivationLineup(admin, stack.fixture, setup.activationMember, action)
   if (setup.tradePlan) return withTradePlanPlayer(admin, stack.fixture.players[18].id, action)
@@ -409,4 +410,103 @@ export async function withFreeAgentCapture(admin, { leagueId, seasonId, memberId
       }
     }
   }))
+}
+
+export async function withTaxiCapture(admin, { fixture, memberId, mode, stackProject = project, execute = run }, action) {
+  assert.ok(['tags', 'open', 'full', 'claim', 'illegal-taxi', 'illegal-ir', 'trade-taxi', 'trade-ir'].includes(mode), 'Unknown taxi capture mode')
+  const index = fixture.members.findIndex(member => member.id === memberId)
+  assert.ok(index >= 0, 'Unknown taxi capture manager')
+  assert.match(stackProject, /^[a-zA-Z0-9_-]+$/)
+  const { leagueId, seasonId } = fixture
+  const target = fixture.players[220 + index]
+  const waiver = fixture.players[230 + index]
+  const veteran = fixture.players[240 + index]
+  const scope = query => query.eq('league_id', leagueId).eq('league_season_id', seasonId).eq('member_id', memberId)
+  const read = table => captureData(scope(admin.from(table).select('*')))
+  const roster = await read('roster_players')
+  const taxi = roster.filter(row => row.is_on_taxi)
+  const ir = roster.filter(row => row.is_on_ir)
+  assert.ok(taxi.length && ir.length, 'Taxi captures need existing taxi and IR players')
+  assert.ok(!roster.some(row => [target.id, waiver.id, veteran.id].includes(row.player_id)), 'Taxi capture targets must be unrostered')
+  const ids = [...new Set([target.id, waiver.id, veteran.id, ...taxi.map(row => row.player_id), ...ir.map(row => row.player_id)])]
+  const players = await captureData(admin.from('players').select('id,years_exp,career_regular_season_games,injury_status').in('id', ids))
+  assert.equal(players.length, ids.length, 'A taxi capture player is missing')
+  const tables = ['roster_players', 'roster_transactions', 'waiver_claims', 'weekly_add_counts']
+  const before = Object.fromEntries(await Promise.all(tables.map(async table => [table, await read(table)])))
+  const activityScope = query => query.eq('league_id', leagueId).eq('league_season_id', seasonId).eq('actor_member_id', memberId)
+  const activity = await captureData(activityScope(admin.from('league_activity').select('id')))
+  const trades = await captureData(admin.from('trades').select('id').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('proposer_member_id', memberId))
+  const logs = await captureData(admin.from('waiver_wire_log').select('id,clears_at').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('player_id', waiver.id).is('cleared_at', null))
+  const exits = await captureData(admin.from('league_member_taxi_exits').select('player_id').eq('league_id', leagueId).eq('member_id', memberId).in('player_id', [target.id, waiver.id]))
+  assert.equal(exits.length, 0, 'Taxi capture targets must have no taxi exit')
+  const drafts = mode.startsWith('trade-') ? await captureData(admin.from('drafts').select('id,is_mock').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('draft_type', 'auction').eq('is_mock', false)) : []
+  let createdLog
+  const uuid = value => { assert.match(value, /^[a-f0-9-]{36}$/); return `'${value}'` }
+  const sql = statement => execute('docker', ['exec', `supabase_db_${stackProject}`, 'psql', '-X', '-U', 'supabase_admin', '-d', 'postgres', '--set', 'ON_ERROR_STOP=1', '-c', statement])
+  const clean = async () => {
+    for (const row of await read('roster_players')) {
+      if (before.roster_players.some(previous => previous.id === row.id)) continue
+      assert.equal(row.player_id, target.id, 'Unexpected taxi capture acquisition')
+      await sql(`BEGIN; DELETE FROM private.taxi_acquisition_context WHERE transaction_id::text=(SELECT xmin::text FROM roster_players WHERE id=${uuid(row.id)}) AND league_id=${uuid(leagueId)} AND league_season_id=${uuid(seasonId)} AND member_id=${uuid(memberId)} AND player_id=${uuid(target.id)} AND source='free_agent'; SELECT private.authorize_taxi_acquisition(${uuid(leagueId)},${uuid(seasonId)},${uuid(memberId)},${uuid(target.id)},'draft_reset',${uuid(target.id)}); DELETE FROM roster_players WHERE id=${uuid(row.id)} AND member_id=${uuid(memberId)} AND league_season_id=${uuid(seasonId)}; DELETE FROM private.taxi_acquisition_context WHERE transaction_id=pg_current_xact_id() AND member_id=${uuid(memberId)} AND player_id=${uuid(target.id)}; COMMIT;`)
+    }
+    for (const table of ['roster_transactions', 'waiver_claims']) {
+      for (const row of await read(table)) if (!before[table].some(previous => previous.id === row.id)) await captureData(admin.from(table).delete().eq('id', row.id))
+    }
+    for (const row of await captureData(activityScope(admin.from('league_activity').select('id')))) {
+      if (!activity.some(previous => previous.id === row.id)) await sql(`DELETE FROM league_activity WHERE id=${uuid(row.id)} AND actor_member_id=${uuid(memberId)};`)
+    }
+    for (const row of await captureData(admin.from('trades').select('id').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('proposer_member_id', memberId))) {
+      if (!trades.some(previous => previous.id === row.id)) await captureData(admin.from('trades').delete().eq('id', row.id))
+    }
+  }
+  const active = roster.filter(row => !row.is_on_ir && !row.is_on_taxi).length
+  return withLeagueSettings(admin, leagueId, {
+    roster_size: active + (mode === 'open' ? 1 : 0), taxi_slots: taxi.length + 1, weekly_add_limit: null,
+    ...(mode.startsWith('trade-') ? { trade_deadline: null } : {}),
+  }, async () => {
+    try {
+      for (const draft of drafts) await captureData(admin.from('drafts').update({ is_mock: true }).eq('id', draft.id))
+      for (const player of players) {
+        const settings = player.id === veteran.id ? { years_exp: 4, career_regular_season_games: 65 }
+          : player.id === waiver.id ? { years_exp: 2, career_regular_season_games: 64 }
+            : { years_exp: 0, career_regular_season_games: 0 }
+        if (taxi.some(row => row.player_id === player.id) && ['illegal-taxi', 'trade-taxi'].includes(mode)) Object.assign(settings, { years_exp: 4, career_regular_season_games: 65 })
+        const injury_status = ir.some(row => row.player_id === player.id) && !['illegal-ir', 'trade-ir'].includes(mode) ? 'Out' : null
+        await captureData(admin.from('players').update({ ...settings, injury_status }).eq('id', player.id))
+      }
+      if (mode === 'claim') {
+        const clears_at = new Date(Date.now() + 86400000).toISOString()
+        if (logs.length) for (const log of logs) await captureData(admin.from('waiver_wire_log').update({ clears_at }).eq('id', log.id))
+        else createdLog = await captureData(admin.from('waiver_wire_log').insert({ league_id: leagueId, league_season_id: seasonId, player_id: waiver.id, clears_at }).select('id').single())
+      }
+      const result = await action()
+      if (mode === 'open') {
+        const current = await read('roster_players')
+        assert.deepEqual(current.filter(row => roster.some(previous => previous.id === row.id)), roster, 'Add to taxi must preserve existing roster players')
+        const added = current.filter(row => !roster.some(previous => previous.id === row.id))
+        assert.equal(added.length, 1, 'Add to taxi must acquire exactly one player')
+        assert.equal(added[0].player_id, target.id)
+        assert.equal(added[0].is_on_taxi, true, 'Add to taxi must use a taxi slot')
+        assert.equal(added[0].is_on_ir, false)
+      } else {
+        for (const table of tables) assert.deepEqual(await read(table), before[table], `Blocked or preview action changed ${table}`)
+        assert.deepEqual(await captureData(admin.from('trades').select('id').eq('league_id', leagueId).eq('league_season_id', seasonId).eq('proposer_member_id', memberId)), trades, 'Blocked trade created an offer')
+      }
+      return result
+    } finally {
+      const restored = await Promise.allSettled([
+        clean(),
+        ...drafts.map(draft => captureData(admin.from('drafts').update({ is_mock: draft.is_mock }).eq('id', draft.id))),
+        ...players.map(({ id, ...previous }) => captureData(admin.from('players').update(previous).eq('id', id))),
+        ...logs.map(log => captureData(admin.from('waiver_wire_log').update({ clears_at: log.clears_at }).eq('id', log.id))),
+        ...(createdLog ? [captureData(admin.from('waiver_wire_log').delete().eq('id', createdLog.id))] : []),
+        (async () => {
+          await captureData(scope(admin.from('weekly_add_counts').delete()))
+          if (before.weekly_add_counts.length) await captureData(admin.from('weekly_add_counts').insert(before.weekly_add_counts))
+        })(),
+      ])
+      const failed = restored.filter(result => result.status === 'rejected')
+      if (failed.length) throw new AggregateError(failed.map(result => result.reason), 'Taxi fixture cleanup failed')
+    }
+  })
 }
