@@ -56,7 +56,7 @@ export function NotificationSettings({ preferences, disabled, onChange }: {
                             <SettingsToggle on={categoryEnabled(category)} />
                         </Pressable>
                     </View>
-                    {expanded[category] ? notificationEvents.filter(event => event.category === category).map(event => (
+                    {expanded[category] ? notificationEvents.filter(event => event.category === category && event.key !== 'watched_player_dropped').map(event => (
                         <Pressable key={event.key} style={[styles.event, (!master || !categoryEnabled(category)) && styles.dimmed]}
                             role="switch" aria-checked={eventEnabled(preferences, event.key)}
                             accessibilityLabel={`${notificationCategories[category]}: ${event.label}`}

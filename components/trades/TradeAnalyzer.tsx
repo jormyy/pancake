@@ -1,3 +1,4 @@
+import { pickLabel } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { ScrollView as NativeScrollView } from 'react-native'
@@ -206,7 +207,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const assetLabels = useMemo(() => new Map([
         ...(prefillTrade?.routedItems ?? []).flatMap((item): [string, string][] => item.kind === 'player'
             ? [[`player:${item.playerId}`, item.playerName]]
-            : item.kind === 'pick' ? [[`pick:${item.pickId}`, `${item.seasonYear} Round ${item.round}`]] : []),
+            : item.kind === 'pick' ? [[`pick:${item.pickId}`, pickLabel(item.seasonYear, item.round)]] : []),
         ...(shownAnalysis?.assets ?? []).map((asset): [string, string] => [`${asset.kind}:${asset.assetId}`, asset.label]),
     ]), [prefillTrade?.routedItems, shownAnalysis?.assets])
     const analysisParticipantName = useCallback((memberId: string) => {

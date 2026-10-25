@@ -1,5 +1,4 @@
 import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-updates'
-import { NotificationPlayerWatch } from '@/components/settings/NotificationPlayerWatch'
 import { canAddToIR } from '@/lib/pickup'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -271,6 +270,7 @@ export default function PlayerDetailScreen() {
                     <PlayerHeader
                         player={player}
                         rosterStatus={rosterStatus}
+                        ownTeamName={current?.team_name}
                         leagueActive={!!current || !membershipValidated}
                         action={action}
                         onDrop={handleDrop}
@@ -279,7 +279,6 @@ export default function PlayerDetailScreen() {
                         backControl={<BackButton onPress={goBack} />}
                         compact={usableWidth < 600}
                     />
-                    <NotificationPlayerWatch playerId={id} />
                     <View style={styles.body}>
                         {twoColumn ? (
                             <View style={styles.columns}>
@@ -339,12 +338,12 @@ export default function PlayerDetailScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.lg, paddingBottom: spacing['4xl'], gap: spacing.lg },
-    body: { gap: spacing.lg },
+    scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['2xl'], gap: spacing.md },
+    body: { gap: spacing.md },
     initialSlot: { minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
-    sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing['2xl'] },
-    mainColumn: { flex: 1, minWidth: 0, gap: spacing['2xl'] },
+    sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing.md },
+    mainColumn: { flex: 1, minWidth: 0, gap: spacing.md },
     errorText: { ...textStyles.body, textAlign: 'center', marginTop: spacing['5xl'], color: colors.textMuted },
     warningText: { color: colors.dangerDark, fontSize: fontSize.sm, fontWeight: fontWeight.semibold },
 })

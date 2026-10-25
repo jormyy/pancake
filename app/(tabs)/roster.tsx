@@ -1,7 +1,7 @@
 import { getRosterProblems } from '@/lib/roster-problems'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
@@ -25,7 +25,7 @@ import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
-import { colors, controlSize, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
@@ -47,7 +47,6 @@ import { todayET } from '@/lib/shared/dates'
 import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
 import { getMemberTransactionState, isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
-import { Badge } from '@/components/Badge'
 
 type RosterSlotSection = 'starters' | 'bench' | 'ir' | 'taxi'
 type RosterListItem = (
@@ -205,15 +204,9 @@ function RosterTablePlayerItem({
                         size={34}
                     />
                     <View style={styles.rosterTablePlayerInfo}>
-                        <View style={styles.rosterTableNameRow}>
-                            <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
-                            {item.players.injury_status ? (
-                                <Badge label={item.players.injury_status} color={INJURY_COLORS[item.players.injury_status] ?? colors.textMuted} variant="solid" />
-                            ) : null}
-                        </View>
+                        <PlayerNameLine name={item.players.display_name} textStyle={styles.rosterTableName} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status} />
                         <View style={styles.rosterTableNameRow}>
                             <Text style={styles.rosterTableMeta} numberOfLines={1}>{[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}</Text>
-                            <PlayerEligibilityTags yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} />
                         </View>
                     </View>
                 </View>

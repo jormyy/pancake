@@ -40,3 +40,14 @@ it('places the same eligibility badges in the header, roster and trade asset row
     expect(labels(screen)).not.toContain('IR')
     await act(async () => screen.unmount())
 })
+
+it('keeps injury and eligibility tags on the name line', async () => {
+    const screen = await render(React.createElement(PlayerSearchItem, {
+        item: playerRow({ display_name: 'A very long player name', years_exp: 0, injury_status: 'Out' }),
+        currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
+    }))
+    const name = screen.root.findAllByType('Text' as React.ElementType).find(node => node.props.children === 'A very long player name')!
+    expect(name.parent!.findAllByType('Badge' as React.ElementType).map(node => node.props.label)).toEqual(['Out', 'Rookie', 'Taxi'])
+    expect(name.props.numberOfLines).toBe(1)
+    await act(async () => screen.unmount())
+})
