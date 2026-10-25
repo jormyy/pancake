@@ -150,6 +150,12 @@ const assertLazyRosterEnforcement = async (fixture) => {
     password: fixture.users[1].password,
   })
   if (signInError) throw new Error(`lazy-roster sign in ${fixture.users[1].email}: ${signInError.message}`)
+  const proposerClient = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const { error: proposerSignInError } = await proposerClient.auth.signInWithPassword({
+    email: fixture.users[0].email,
+    password: fixture.users[0].password,
+  })
+  if (proposerSignInError) throw new Error(`corrective-drop sign in: ${proposerSignInError.message}`)
 
   const twoTeamTradeId = await rpc(fixture.admin, 'propose_trade_atomic', {
     p_league_id: fixture.league.id,
@@ -237,6 +243,25 @@ const assertLazyRosterEnforcement = async (fixture) => {
   if (extraRosterError) throw new Error(`over-cap proposer roster insert: ${extraRosterError.message}`)
   assert.equal(await activeCount(fixture.proposer.id), 2)
 
+  await expectRpcError(fixture.admin, 'propose_multi_team_trade_atomic', {
+    p_league_id: fixture.league.id,
+    p_league_season_id: fixture.currentSeason.id,
+    p_proposer_member_id: fixture.proposer.id,
+    p_participant_member_ids: [fixture.proposer.id, fixture.recipient.id, fixture.observer.id],
+    p_items: faabRoutes(fixture),
+    p_notes: 'Illegal roster blocks a new offer',
+    p_expires_at: null,
+  }, 'active')
+  const { data: extraRoster, error: extraLookupError } = await fixture.admin.from('roster_players')
+    .select('id').eq('league_season_id', fixture.currentSeason.id).eq('member_id', fixture.proposer.id)
+    .eq('player_id', proposerExtraTwo.id).single()
+  if (extraLookupError) throw new Error(`corrective proposer drop lookup: ${extraLookupError.message}`)
+  await rpc(proposerClient, 'drop_player_atomic', {
+    p_roster_player_id: extraRoster.id,
+    p_expected_league_season_id: fixture.currentSeason.id,
+  })
+  assert.equal(await activeCount(fixture.proposer.id), 1, 'corrective drop makes the proposer legal')
+
   const multiTradeId = await propose(fixture, [
     {
       fromMemberId: fixture.observer.id,
@@ -248,8 +273,8 @@ const assertLazyRosterEnforcement = async (fixture) => {
   ], 'DB multi-team lazy roster completion')
   const { data: proposerConsent, error: consentError } = await fixture.admin.from('trade_participants')
     .select('accepted_at').eq('trade_id', multiTradeId).eq('member_id', fixture.proposer.id).single()
-  if (consentError) throw new Error(`over-cap proposer consent lookup: ${consentError.message}`)
-  assert(proposerConsent.accepted_at, 'over-cap proposer was not auto-consented')
+  if (consentError) throw new Error(`legal proposer consent lookup: ${consentError.message}`)
+  assert(proposerConsent.accepted_at, 'legal proposer was not auto-consented')
 
   await accept(fixture, multiTradeId, fixture.recipient.id)
   await accept(fixture, multiTradeId, fixture.observer.id)
@@ -267,8 +292,8 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_roster_player_id: taxiRoster.id,
     p_to_taxi: true,
     p_user_id: fixture.users[0].id,
-  }, 'only through a draft or trade')
-  assert.equal(await activeCount(fixture.proposer.id), 2, 'rejected manual taxi entry changed the over-cap roster')
+  }, 'Players can enter taxi only through')
+  assert.equal(await activeCount(fixture.proposer.id), 1, 'rejected manual taxi entry changed the active roster')
 
   const { data: dropRoster, error: dropRosterError } = await fixture.admin.from('roster_players')
     .select('id').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)

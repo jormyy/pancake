@@ -44,13 +44,17 @@ Concurrent callers wait for the first caller.
 If a runner crashes, a stale lock produces an error.
 Remove that named lock only after confirming its owner has stopped.
 Startup reuses completed seed data.
-Every start refreshes copied Edge functions and migration files, including removal of stale files.
-Startup restarts its Edge worker so code edits take effect without a database reset.
+Startup hashes migration names and contents from the copied source, including untracked migrations.
+It checks that set before stopping Edge or replacing stack files.
+Startup copies sources while holding the snapshot lock.
+It restarts Edge only when function sources change.
+An unchanged start keeps the running Edge worker.
 Startup adds the roster-plan fixture to older seed data from the same Eastern date.
 Startup and captures reject old dates with `run start --reset`.
 Only the shared service owner resets data after other captures stop.
 It never resets that data without `--reset`.
-It refuses a different migration set on an existing shared service.
+An existing service refuses added, removed, renamed, or changed migrations.
+Only a new service or an explicit reset applies migrations.
 Database cron jobs stay disabled.
 This prevents live provider imports from changing the fixtures.
 

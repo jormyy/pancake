@@ -6,7 +6,7 @@ import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'
 import { prepareLineups, checkLineups } from './lineups.mjs'
 import { assertFinals, assertLeaguePoints } from './assertions.mjs'
-import { assertLiveCoverage } from './invariants.mjs'
+import { assertLiveCoverage, assertTaxiTransactions } from './invariants.mjs'
 import { assertClientScores, assertClosedWeeks } from './live-checks.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 import { beginWaivers, verifyWaivers, assertWaiverReset } from './waiver-scenarios.mjs'
@@ -141,6 +141,7 @@ export async function runNextSeason(c, oldSeason, move, report, snapshot, checkp
     day.skippedWeek = await assertSkippedWeek(c, 1)
     for (const pick of [...report.actions.tradeDeadline.transferredPicks, { id: report.offseasonTrade.pickId, owner: report.offseasonTrade.owner }, ...(report.offseasonTrade.counterPickId ? [{ id: report.offseasonTrade.counterPickId, owner: report.offseasonTrade.counterOwner }] : [])]) assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick.id}'`), pick.owner, 'Future pick ownership survives next-season scoring')
     assert.equal(await historyDigest(c, oldSeason), history, 'Season-one stats, matchups, standings and used picks stay unchanged')
+    day.taxi = await assertTaxiTransactions(c)
     day.wallSeconds = (Date.now() - dayBegan) / 1000
     days.push(day)
     console.log(JSON.stringify({ nextSeasonDate: date, games: day.finals.games, wallSeconds: day.wallSeconds }))

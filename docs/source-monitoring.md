@@ -225,7 +225,7 @@ Otherwise a team changes only when an ESPN listing names him on another team; hi
 Every other omitted teamed player keeps his team and is counted in `releaseHeld` (`unproven`, or `unclaimed` for rows ESPN never claimed).
 The NBA index step runs between the ESPN import and the sweep, so a person whose split rows it merges is read as one row with his listing and his boxes.
 Any listing gap, import failure or NBA index failure skips the sweep, and the run reports the reasons as `releaseSkipped`.
-[Roster lifecycle](roster-lifecycle.md#configurable-taxi-and-trade-plans) owns rookie and career-game taxi eligibility.
+[Roster lifecycle](roster-lifecycle.md#taxi-eligibility-and-trade-plans) owns rookie and career-game taxi eligibility.
 
 `npm run parity:players` compares the public player feeds and writes ignored test artifacts.
 The CDN writer honors explicit played flags before the minutes fallback.

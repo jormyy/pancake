@@ -56,6 +56,7 @@ export function acceptanceAreas(run) {
     FAAB: yes(checked('season-one-faab')),
     'rolling order': yes(checked('skipped-week-rolling') && checked('eligible-week-rolling')),
     'waiver limits': yes(checked('season-one-faab') && checked('eligible-week-rolling') && run.waiverRollover?.passed),
+    'taxi acquisitions': yes(run.taxiAcquisition?.passed && run.taxiAcquisition.checked && run.taxiAcquisition.straightAdd && run.taxiAcquisition.claimSubmitted),
     'skipped week 1 / first eligible week': yes(run.nextSeason?.passed && run.nextSeason?.checked?.join(',') === '2,3'),
     rollover: yes(run.seasonEnd?.historyPreserved && run.waiverRollover?.passed && run.nextSeason?.historyPreserved),
   }

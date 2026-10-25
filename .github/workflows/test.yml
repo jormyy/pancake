@@ -155,6 +155,7 @@ jobs:
           E2E_SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
           PANCAKE_EDGE_INTERNAL_TOKEN=local-database-ci-token \
           npm run test:db
+          SUPABASE_DB_URL="$DB_URL" node tests/e2e/taxi-acquisitions-db.mjs
 
   browser-matrix:
     name: Browser scenario matrix

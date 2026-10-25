@@ -1,6 +1,45 @@
 import assert from 'node:assert/strict'
 import { sql } from './local-stack.mjs'
 
+export async function assertTaxiTransactions(c, execute = sql) {
+  const rows = JSON.parse(await execute(`SELECT coalesce(json_agg(t),'[]') FROM (
+    SELECT r.member_id,p.display_name AS player_name,
+      ARRAY(SELECT injured.display_name FROM roster_players ir JOIN players injured ON injured.id=ir.player_id
+        WHERE ir.league_season_id=r.league_season_id AND ir.member_id=r.member_id AND ir.is_on_ir
+          AND NOT private.is_ir_designation(injured.injury_status)) AS ir_names,
+      (SELECT count(*) FROM roster_players active WHERE active.league_season_id=r.league_season_id
+        AND active.member_id=r.member_id AND NOT active.is_on_ir AND NOT active.is_on_taxi)>
+        (SELECT roster_size FROM leagues WHERE id=r.league_id) AS active_overflow,
+      (SELECT f.id FROM players f WHERE NOT EXISTS(SELECT 1 FROM roster_players owned
+        WHERE owned.league_id=r.league_id AND owned.player_id=f.id)
+        AND NOT EXISTS(SELECT 1 FROM waiver_wire_log w WHERE w.league_id=r.league_id
+          AND w.player_id=f.id AND w.cleared_at IS NULL) ORDER BY f.id LIMIT 1) AS candidate
+    FROM roster_players r JOIN players p ON p.id=r.player_id
+    WHERE r.league_id='${c.leagueId}' AND r.league_season_id='${c.leagueSeasonId}' AND r.is_on_taxi
+      AND NOT coalesce(p.years_exp=0 OR p.career_regular_season_games<65,false)
+    ORDER BY r.member_id,p.display_name
+  ) t`))
+  const members = [...new Set(rows.map(row => row.member_id))]
+  for (const memberId of members) {
+    const user = c.users.find(user => user.memberId === memberId)
+    assert.ok(user, 'Every illegal taxi roster has an authenticated owner')
+    const problems = rows.filter(row => row.member_id === memberId)
+    assert.ok(problems[0].candidate, 'The refusal probe requires an available free agent')
+    const refused = await c.rpc(user, 'add_free_agent_atomic', { p_member_id: memberId, p_league_id: c.leagueId, p_player_id: problems[0].candidate }, 400)
+    if (refused.code === 'PA005' && problems[0].ir_names?.length) {
+      for (const name of problems[0].ir_names) assert.ok(refused.message?.includes(name), `IR refusal names ${name}`)
+      continue
+    }
+    if (refused.code === 'PA003' && problems[0].active_overflow) {
+      assert.match(refused.message, /active|roster|limit/i)
+      continue
+    }
+    assert.equal(refused.code, 'PA009', 'An ineligible taxi roster refuses acquisitions with PA009')
+    for (const problem of problems) assert.ok(refused.message?.includes(problem.player_name), `Taxi refusal names ${problem.player_name}`)
+  }
+  return { eligible: rows.length === 0, blockedTeams: members.length }
+}
+
 export async function assertDomain(c, previous = {}) {
   const league = `'${c.leagueId}'`, season = `'${c.leagueSeasonId}'`
   const state = JSON.parse(await sql(`SELECT json_build_object(
@@ -10,7 +49,6 @@ export async function assertDomain(c, previous = {}) {
     'negativeFaab',(SELECT count(*) FROM faab_balances WHERE league_id=${league} AND balance<0),
     'negativeAuction',(SELECT count(*) FROM draft_budgets b JOIN drafts d ON d.id=b.draft_id WHERE d.league_id=${league} AND b.remaining<0),
     'doubleInactive',(SELECT count(*) FROM roster_players WHERE league_id=${league} AND is_on_ir AND is_on_taxi),
-    'invalidTaxi',(SELECT count(*) FROM roster_players r WHERE r.league_id=${league} AND r.is_on_taxi AND NOT private.taxi_player_eligible(r.league_id,r.player_id)),
     'duplicatePriority',(SELECT count(*) FROM (SELECT league_season_id,priority FROM waiver_priorities WHERE league_id=${league} GROUP BY 1,2 HAVING count(*)>1) d),
     'orphanPickOwner',(SELECT count(*) FROM draft_picks p WHERE p.league_id=${league} AND NOT EXISTS(SELECT 1 FROM league_members m WHERE m.league_id=p.league_id AND m.id=p.current_owner_id)),
     'playerStats',(SELECT count(*) FROM player_game_stats),
@@ -20,7 +58,9 @@ export async function assertDomain(c, previous = {}) {
     'results',(SELECT coalesce(json_agg(m),'[]') FROM matchups m WHERE league_season_id=${season} AND matchup_type='regular_season' AND is_finalized AND NOT is_voided)
   )`))
   let checks = 0
-  for (const key of ['duplicateRosters', 'slotOverflow', 'rosterOverflow', 'negativeFaab', 'negativeAuction', 'doubleInactive', 'invalidTaxi', 'duplicatePriority', 'orphanPickOwner']) { assert.equal(state[key], 0, key); checks++ }
+  for (const key of ['duplicateRosters', 'slotOverflow', 'rosterOverflow', 'negativeFaab', 'negativeAuction', 'doubleInactive', 'duplicatePriority', 'orphanPickOwner']) { assert.equal(state[key], 0, key); checks++ }
+  const taxi = await assertTaxiTransactions(c)
+  checks++
   for (const key of ['playerStats', 'historySeasons', 'historyMatchups']) { assert.ok(state[key] >= (previous[key] ?? 0), `${key} must never decrease`); checks++ }
   if (state.results.length) assert.ok(state.standings.length > 0, 'Finalized regular results require standings rows')
   for (const standing of state.standings) {
@@ -35,7 +75,7 @@ export async function assertDomain(c, previous = {}) {
     }
     for (const [key, value] of Object.entries(expected)) { assert.equal(Number(standing[key]), Math.round(value * 100) / 100, `Standings ${key}`); checks++ }
   }
-  return { checks, playerStats: state.playerStats, historySeasons: state.historySeasons, historyMatchups: state.historyMatchups, standingsRows: state.standings.length, ties: state.results.filter(result => result.winner_member_id == null).length }
+  return { checks, taxi, playerStats: state.playerStats, historySeasons: state.historySeasons, historyMatchups: state.historyMatchups, standingsRows: state.standings.length, ties: state.results.filter(result => result.winner_member_id == null).length }
 }
 
 export function assertLiveCoverage(coverage, games, plan) {

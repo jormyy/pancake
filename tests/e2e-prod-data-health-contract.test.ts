@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import ts from 'typescript'
 import {
     evaluateCrudReadiness,
     evaluateProductionDataHealth,
@@ -19,6 +20,30 @@ const healthy = (fetchedAt: string) => ({
 })
 
 describe('production data health contract', () => {
+    it.each([
+        ['tests/e2e/prod-data-source-health.mjs', 'CORE_TABLES'],
+        ['tests/e2e/seed-league.mjs', 'LEAGUE_MEMBER_DEPENDENT_TABLES'],
+    ])('%s references only current public tables', (file, list) => {
+        const database = ts.createSourceFile('database.ts', readFileSync('types/database.ts', 'utf8'), ts.ScriptTarget.Latest, true)
+        const declaration = database.statements.find(node => ts.isTypeAliasDeclaration(node) && node.name.text === 'Database')
+        if (!declaration || !ts.isTypeAliasDeclaration(declaration) || !ts.isTypeLiteralNode(declaration.type)) throw new Error('Database type missing')
+        const member = (node: ts.TypeLiteralNode, name: string) => {
+            const property = node.members.find(item => ts.isPropertySignature(item) && item.name.getText(database) === name)
+            if (!property || !ts.isPropertySignature(property) || !property.type || !ts.isTypeLiteralNode(property.type)) throw new Error(`${name} type missing`)
+            return property.type
+        }
+        const tables = member(member(declaration.type, 'public'), 'Tables').members.map(node => node.name?.getText(database))
+        const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS)
+        const declarations = source.statements.flatMap(node => ts.isVariableStatement(node) ? [...node.declarationList.declarations] : [])
+        const values = declarations.find(node => node.name.getText(source) === list)?.initializer
+        if (!values || !ts.isArrayLiteralExpression(values)) throw new Error(`${list} missing`)
+        expect(values.elements.length).toBeGreaterThan(0)
+        expect(values.elements.map(node => {
+            if (!ts.isStringLiteral(node)) throw new Error('Expected a table name')
+            return node.text
+        }).filter(name => !tables.includes(name))).toEqual([])
+    })
+
     it('scopes projection count and freshness to the computed current season', () => {
         const source = readFileSync('tests/e2e/prod-data-source-health.mjs', 'utf8')
         expect(source).toContain('player_projections p, season s WHERE p.season_year = s.season_year')

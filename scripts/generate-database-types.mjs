@@ -16,8 +16,6 @@ export type TradeStatus = Database["public"]["Enums"]["trade_status"]
 export type TradeSide = Database["public"]["Enums"]["trade_side"]
 export type VetoType = Database["public"]["Enums"]["veto_type"]
 export type MatchupType = Database["public"]["Enums"]["matchup_type"]
-export type RpsChoice = Database["public"]["Enums"]["rps_choice"]
-export type RpsStatus = Database["public"]["Enums"]["rps_status"]
 
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"]
 export type League = Database["public"]["Tables"]["leagues"]["Row"]

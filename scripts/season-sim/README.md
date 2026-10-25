@@ -156,3 +156,18 @@ The maximum-score oracle rebuilds roster eligibility from acquisition, drop, IR 
 It includes past bench players even when a later drop removes their lineup rows.
 `retained-check.mjs --date YYYY-MM-DD` checks retained finals, scores, standings and delivery coverage.
 It does not dispatch maintenance or change application outcomes.
+
+## Taxi acquisitions and legality
+
+Every league uses the rookie-or-fewer-than-65-career-games rule.
+The simulator never changes that rule through league settings.
+Week two adds an eligible veteran straight into taxi while the active roster stays full.
+A genuine drop then creates a taxi claim for another full team.
+The production waiver worker must place that claim into taxi.
+The scenario drops the awarded player after verification to preserve later scoring inputs.
+Both acquisitions update the independent weekly add and priority expectations.
+
+At each day's end, the simulator checks current experience and career games for every taxi player.
+An ineligible taxi player requires an authenticated acquisition refusal for that owner.
+The refusal must name the illegal players and use the matching roster error code.
+IR and active roster problems can take precedence when those problems also exist.
