@@ -8,7 +8,7 @@ export async function activateLeagueAfterTrade(tradeId: string): Promise<void> {
   if (!trade) return
   const { data: draft, error: draftError } = await supabase.from('drafts').select('id')
     .eq('league_id', trade.league_id).eq('league_season_id', trade.league_season_id)
-    .eq('draft_type', 'snake').eq('is_mock', false).eq('status', 'completed')
+    .eq('draft_type', 'snake').eq('is_mock', false).in('status', ['completed', 'cancelled'])
     .order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (draftError) throw draftError
   if (!draft) return

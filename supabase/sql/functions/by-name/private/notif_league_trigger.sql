@@ -5,7 +5,7 @@ AS $$
 DECLARE
   m record;
   v_occurrence text := NEW.id::text || ':' || gen_random_uuid()::text;
-  v_ignored text[] := ARRAY['id','created_at','updated_at','status','deleted_at','deleted_by','invite_code','slug'];
+  v_ignored text[] := ARRAY['id','created_at','updated_at','status','deleted_at','deleted_by','invite_code','slug','taxi_rule'];
 BEGIN
   IF (to_jsonb(OLD) - v_ignored) IS NOT DISTINCT FROM (to_jsonb(NEW) - v_ignored) THEN RETURN NEW; END IF;
   FOR m IN SELECT id FROM public.league_members WHERE league_id = NEW.id LOOP

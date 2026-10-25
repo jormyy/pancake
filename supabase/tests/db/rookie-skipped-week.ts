@@ -73,7 +73,7 @@ try {
         ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Synthetic',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
         COMMIT;`)
       if (mode === 'after') {
-        await generateMatchups(league, season, 7)
+        await generateMatchups(league, season)
         await sql(`UPDATE matchups SET is_finalized=true,winner_member_id=home_member_id,home_points=99999,away_points=0,finalized_at=now()
           WHERE league_season_id=${quote(season)} AND week_number=1;
           SELECT private.rebuild_regular_standings(${quote(league)},${quote(season)});`)

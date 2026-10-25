@@ -13,11 +13,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT 'ir', id, player_name, player_name || ' is no longer eligible for IR. Activate or drop this player.'
   FROM roster WHERE is_on_ir AND NOT private.is_ir_designation(injury_status)
   UNION ALL
-  SELECT 'taxi', id, player_name, player_name || CASE WHEN career_regular_season_games IS NULL
-    THEN ': the career games count is not known yet. Activate or drop this taxi player.'
-    ELSE ' is no longer taxi-eligible. Activate or drop this player.' END
-  FROM roster WHERE is_on_taxi AND NOT private.taxi_player_eligible(p_league_id,player_id)
+  SELECT 'taxi', id, player_name, player_name || ' is no longer taxi-eligible. Activate or drop this player.'
+  FROM roster WHERE is_on_taxi AND career_regular_season_games IS NOT NULL
+    AND NOT private.taxi_player_eligible(p_league_id,player_id)
   UNION ALL
-  SELECT 'active_limit', id, player_name, player_name || ': your active roster is full. Drop or move an eligible player to IR.'
-  FROM roster WHERE NOT is_on_ir AND NOT is_on_taxi AND active_count>roster_size;
+  (SELECT 'active_limit', NULL::uuid, NULL::text,
+    format('Your active roster is %s over the limit of %s. Drop or move an eligible player to IR.',active_count-roster_size,roster_size)
+  FROM roster WHERE active_count>roster_size LIMIT 1);
 $$;

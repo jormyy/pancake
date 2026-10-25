@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict'
 import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 
-async function verifyTradeActivation(mode: 'accept' | 'worker') {
+let workerHandler: ((request: Request) => Promise<Response>) | undefined
+
+async function verifyTradeActivation(mode: 'accept' | 'worker', draftStatus: 'completed' | 'cancelled') {
   const api = Deno.env.get('SUPABASE_URL')!
   const db = Deno.env.get('SUPABASE_DB_URL')!
   for (const endpoint of [api, db]) assert.ok(['127.0.0.1', 'localhost'].includes(new URL(endpoint).hostname))
   const admin = createClient(api, Deno.env.get('PANCAKE_SUPABASE_SECRET_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
   const client = createClient(api, Deno.env.get('E2E_SUPABASE_PUBLISHABLE_KEY')!, { auth: { persistSession: false, autoRefreshToken: false } })
-  const league = crypto.randomUUID(), season = crypto.randomUUID(), draft = crypto.randomUUID(), trade = crypto.randomUUID()
+  const league = crypto.randomUUID(), season = crypto.randomUUID(), draft = crypto.randomUUID(), pick = crypto.randomUUID()
+  let trade: string
   const members = [crypto.randomUUID(), crypto.randomUUID()], players = [crypto.randomUUID(), crypto.randomUUID()]
   const users: string[] = []
   const quote = (value: string) => `'${value.replaceAll("'", "''")}'`
@@ -26,22 +29,37 @@ async function verifyTradeActivation(mode: 'accept' | 'worker') {
     }
     await sql(`BEGIN;
       INSERT INTO leagues(id,name,slug,commissioner_id,status,roster_size,trade_veto_mode)
-        VALUES(${quote(league)},'Trade activation',${quote(league)},${quote(users[0])},'drafting',1,'disabled');
+        VALUES(${quote(league)},'Trade activation',${quote(league)},${quote(users[0])},'drafting',1,'${mode === 'worker' ? 'member_vote' : 'disabled'}');
       INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(${quote(season)},${quote(league)},9535,true);
       ${members.map((member, index) => `INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(${quote(member)},${quote(league)},${quote(users[index])},'${index ? 'manager' : 'commissioner'}','Activation ${index}');`).join('\n')}
       INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds)
-        VALUES(${quote(draft)},${quote(league)},${quote(season)},'snake','completed',false,1);
-      ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Activation',${quote(player)},'PG',ARRAY['PG'],0,1);
-        INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(${quote(league)},${quote(season)},${quote(members[0])},${quote(player)},'draft');`).join('\n')}
+        VALUES(${quote(draft)},${quote(league)},${quote(season)},'snake','${draftStatus}',false,1);
+      ${players.map(player => `INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,nba_draft_number) VALUES(${quote(player)},'Activation',${quote(player)},'PG',ARRAY['PG'],0,1);`).join('\n')}
+      INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
+        VALUES(${quote(league)},${quote(season)},${quote(members[0])},${quote(players[0])},'draft');
       INSERT INTO snake_draft_picks(draft_id,member_id,round,pick_in_round,overall_pick,player_id,picked_at)
         VALUES(${quote(draft)},${quote(members[0])},1,1,1,${quote(players[0])},now());
-      INSERT INTO trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id,status,expires_at,veto_window_expires_at)
-        VALUES(${quote(trade)},${quote(league)},${quote(season)},${quote(members[0])},${quote(members[1])},'${mode === 'worker' ? 'accepted' : 'pending'}',now()+interval '1 day',now()-interval '1 hour');
-      INSERT INTO trade_participants(trade_id,member_id,sort_order,is_initiator,accepted_at)
-        VALUES(${quote(trade)},${quote(members[0])},0,true,now()),(${quote(trade)},${quote(members[1])},1,false,${mode === 'worker' ? 'now()' : 'NULL'});
-      INSERT INTO trade_items(trade_id,side,player_id,from_member_id,to_member_id)
-        VALUES(${quote(trade)},'proposer',${quote(players[0])},${quote(members[0])},${quote(members[1])});
+      INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
+        VALUES(${quote(pick)},${quote(league)},9536,1,${quote(members[1])},${quote(members[1])});
       COMMIT;`)
+    const proposed = await admin.rpc('propose_trade_atomic', {
+      p_league_id: league, p_league_season_id: season, p_proposer_member_id: members[0], p_recipient_member_id: members[1],
+      p_offer_player_ids: [players[0]], p_request_player_ids: [], p_offer_pick_ids: [], p_request_pick_ids: [pick],
+    })
+    assert.equal(proposed.error, null)
+    trade = proposed.data!
+    if (mode === 'worker') {
+      const accepted = await admin.rpc('accept_trade_atomic', { p_trade_id: trade, p_accepting_member_id: members[1] })
+      assert.equal(accepted.error, null)
+    }
+    await sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
+      VALUES(${quote(league)},${quote(season)},${quote(members[0])},${quote(players[1])},'draft');
+      UPDATE trades SET veto_window_expires_at=now()-interval '1 hour' WHERE id=${quote(trade)};`)
+    const illegalOffer = await admin.rpc('propose_trade_atomic', {
+      p_league_id: league, p_league_season_id: season, p_proposer_member_id: members[0], p_recipient_member_id: members[1],
+      p_offer_player_ids: [players[1]], p_request_player_ids: [], p_offer_pick_ids: [], p_request_pick_ids: [pick],
+    })
+    assert.equal(illegalOffer.error?.code, 'PA003')
     const blocked = await admin.rpc('activate_rookie_draft_league_atomic', { p_draft_id: draft })
     assert.equal(blocked.error, null)
     assert.equal(blocked.data, false)
@@ -55,11 +73,13 @@ async function verifyTradeActivation(mode: 'accept' | 'worker') {
       }))
       assert.equal(response.status, 200, await response.text())
     } else {
-      let handler: (request: Request) => Promise<Response> = () => { throw new Error('Worker did not register') }
-      const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
-      Object.defineProperty(Deno, 'serve', { value: (callback: typeof handler) => { handler = callback } })
-      try { await import('./index.ts') } finally { Object.defineProperty(Deno, 'serve', descriptor) }
-      const response = await handler(new Request(`${api}/functions/v1/process-trades`, {
+      if (!workerHandler) {
+        const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
+        Object.defineProperty(Deno, 'serve', { value: (callback: typeof workerHandler) => { workerHandler = callback } })
+        try { await import('./index.ts') } finally { Object.defineProperty(Deno, 'serve', descriptor) }
+      }
+      assert.ok(workerHandler)
+      const response = await workerHandler(new Request(`${api}/functions/v1/process-trades`, {
         method: 'POST', headers: { 'x-internal-function-token': Deno.env.get('PANCAKE_EDGE_INTERNAL_TOKEN')! }, body: '{}',
       }))
       assert.equal(response.status, 200, await response.text())
@@ -68,7 +88,7 @@ async function verifyTradeActivation(mode: 'accept' | 'worker') {
     assert.equal(await sql(`SELECT status FROM leagues WHERE id=${quote(league)}`), 'active', `${mode} activates the draft after the trade clears its last overage`)
     assert.equal(await sql(`SELECT count(*) FROM roster_players WHERE member_id=${quote(members[0])}`), '1')
     assert.equal(await sql(`SELECT count(*) FROM roster_players WHERE member_id=${quote(members[1])}`), '1')
-    console.log(JSON.stringify({ mode, passed: 7, separateActivationTransaction: true }))
+    console.log(JSON.stringify({ mode, draftStatus, passed: 10, separateActivationTransaction: true }))
   } finally {
     await sql(`DELETE FROM snake_draft_picks WHERE draft_id=${quote(draft)}; DELETE FROM drafts WHERE id=${quote(draft)}; DELETE FROM leagues WHERE id=${quote(league)}; DELETE FROM players WHERE id IN (${players.map(quote).join(',')});`)
     await client.auth.signOut()
@@ -76,12 +96,12 @@ async function verifyTradeActivation(mode: 'accept' | 'worker') {
   }
 }
 
-for (const mode of ['accept', 'worker'] as const) {
+for (const mode of ['accept', 'worker'] as const) for (const draftStatus of ['completed', 'cancelled'] as const) {
   Deno.test({
-    name: `${mode} activates a rookie league after the last overage clears`,
+    name: `${mode} activates a rookie league after the last overage clears with a ${draftStatus} draft`,
     ignore: !Deno.env.get('SUPABASE_DB_URL'),
     sanitizeOps: false,
     sanitizeResources: false,
-    fn: () => verifyTradeActivation(mode),
+    fn: () => verifyTradeActivation(mode, draftStatus),
   })
 }

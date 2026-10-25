@@ -91,7 +91,7 @@ async function sync(label: string, next: Payload) {
     const recorded = await sql(`SELECT status||': '||coalesce(error,'') FROM sync_runs WHERE function_name='sync-schedule' ORDER BY started_at DESC LIMIT 1`)
     assert.fail(`${label}: HTTP ${response.status} ${text}; the served worker recorded ${recorded}`)
   }
-  const body = JSON.parse(text) as { ok: boolean; updated: number; inserted: number; weeks: number }
+  const body = JSON.parse(text) as { ok: boolean; games: number; weeks: number }
   console.log(JSON.stringify({ provenance: 'REAL-DERIVED, date-shifted (SYNTHETIC transform)', path: 'edge-http:sync-schedule', label, result: body }))
   assert.equal(body.ok, true)
   const fetched = requests.slice(before)
@@ -112,7 +112,7 @@ async function calendar(year: Year) {
   const regular = games.filter(game => !game.cupFinal)
   assert.deepEqual(games.filter(game => game.cupFinal).map(game => game.gameId), [season.cupFinal])
   const result = await sync(`calendar ${year}`, cdnPayload(games, season.days, season.label))
-  assert.deepEqual(result, { ok: true, updated: 0, inserted: regular.length, weeks: 24 }, `calendar ${year}: every regular-season game and 24 fantasy weeks are published`)
+  assert.deepEqual(result, { ok: true, games: regular.length, weeks: 24 }, `calendar ${year}: every regular-season game and 24 fantasy weeks are published`)
   const opening = shift(season.opening, season.days)
   await check(`(SELECT min(game_date) FROM nba_games WHERE season_year=${year})=${q(opening)}::date`, `${year} opening: the first persisted regular-season day is opening night ${opening}`)
   await check(`(SELECT count(*) FROM nba_games WHERE season_year=${year} AND game_date=${q(opening)} AND week_number=1)=2`, `${year} opening: both opening-night games are in week 1`)
@@ -175,7 +175,7 @@ async function sundayGap(year: Year) {
   assert.equal(season.fixture, 'espn-2025-2026.json')
   const games = (await fixture(season.fixture)).filter(game => game.gameDate !== sunday)
   const result = await sync(`sunday-gap ${year}`, cdnPayload(games, season.days, season.label))
-  assert.deepEqual(result, { ok: true, updated: 0, inserted: games.length - 1, weeks: 24 }, `sunday-gap ${year}: the schedule without ${shift(sunday, season.days)} still publishes 24 fantasy weeks`)
+  assert.deepEqual(result, { ok: true, games: games.length - 1, weeks: 24 }, `sunday-gap ${year}: the schedule without ${shift(sunday, season.days)} still publishes 24 fantasy weeks`)
   await check(`${range(year, 5, shift('2025-11-17', season.days), shift('2025-11-22', season.days))} AND ${range(year, 6, shift('2025-11-24', season.days), shift('2025-11-30', season.days))}`,
     `sunday-gap ${year}: weeks 5 and 6 stay separate NBA weeks across the empty Sunday`)
   const [first, last] = season.allStar.map(date => shift(date, season.days))
@@ -191,13 +191,12 @@ async function republish(year: Year) {
   const partial = games.filter(game => game.weekNumber <= 4)
   assert.ok(partial.length > 0 && partial.every(game => !game.cupFinal))
   const first = await sync(`republish ${year} partial`, cdnPayload(partial, season.days, season.label))
-  assert.deepEqual(first, { ok: true, updated: 0, inserted: partial.length, weeks: 4 }, `republish ${year}: the partial snapshot publishes four weeks`)
+  assert.deepEqual(first, { ok: true, games: partial.length, weeks: 4 }, `republish ${year}: the partial snapshot publishes four weeks`)
   const weeks = `SELECT coalesce(json_agg(json_build_array(week_number,week_start,week_end) ORDER BY week_number),'[]') FROM season_weeks WHERE season_year=${year} AND week_number<=4`
   const published = await sql(weeks)
   await check(range(year, 1, shift(season.opening, season.days), shift(season.weekOneEnd, season.days)), `republish ${year}: week 1 is published from the partial snapshot`)
   const complete = await sync(`republish ${year} complete`, cdnPayload(games, season.days, season.label))
-  assert.equal(complete.updated, partial.length)
-  assert.equal(complete.inserted, games.length - 1 - partial.length)
+  assert.equal(complete.games, games.length - 1)
   assert.equal(await sql(weeks), published, `republish ${year}: the complete daily sync keeps the published weeks exactly`)
   await check(`${inOwnWeeks(year)} AND ${disjoint(year)}`, `republish ${year}: every persisted game lies in its own disjoint fantasy week`)
 }

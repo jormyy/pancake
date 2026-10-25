@@ -16,6 +16,81 @@ function releaseMigrations() {
         .sort().map(file => readFileSync(file, 'utf8'))
 }
 
+function sqlArguments(source: string, start: number) {
+    const args: string[] = []
+    let depth = 1, quoted = false, from = start
+    for (let index = start; index < source.length; index++) {
+        const char = source[index]
+        if (char === "'") {
+            if (quoted && source[index + 1] === "'") { index++; continue }
+            quoted = !quoted
+        }
+        if (quoted) continue
+        if (char === '(') depth++
+        if (char === ')') depth--
+        if (!depth || char === ',' && depth === 1) {
+            args.push(source.slice(from, index).trim())
+            from = index + 1
+            if (!depth) return args
+        }
+    }
+    throw new Error('Unclosed Edge dispatch arguments')
+}
+
+function dispatchedBodies(source: string) {
+    return [...source.matchAll(/\b(public\.invoke_edge_function|private\.invoke_claimed_edge_function)\s*\(/g)].flatMap(match => {
+        const args = sqlArguments(source, match.index + match[0].length)
+        const offset = match[1].startsWith('private.') ? 1 : 0
+        const name = args[offset]?.match(/^'([a-z][a-z0-9-]*)'$/)?.[1]
+        if (!name) return []
+        const expression = args[offset + 1]
+        if (!expression) return [{ name, body: {} }]
+        const literal = expression.match(/^'([^']*)'\s*::jsonb$/)?.[1]
+        if (literal) return [{ name, body: JSON.parse(literal) as Record<string, unknown> }]
+        const builder = expression.match(/^jsonb_build_object\s*\(/i)
+        if (!builder) throw new Error(`Unknown Edge body for ${name}: ${expression}`)
+        const fields = sqlArguments(expression, builder[0].length)
+        const body: Record<string, unknown> = {}
+        for (let index = 0; index < fields.length; index += 2) {
+            const key = fields[index].match(/^'([^']*)'$/)?.[1]
+            if (!key) throw new Error(`Unknown Edge body field for ${name}: ${fields[index]}`)
+            body[key] = fields[index + 1]?.match(/^'([^']*)'$/)?.[1] ?? null
+        }
+        return [{ name, body }]
+    })
+}
+
+function ignoredBodyFields(source: string, body: Record<string, unknown>) {
+    return Object.entries(body).filter(([key, value]) => {
+        const reads = new RegExp(`\\.${key}\\b|["']${key}["']\\s*\\]|\\{[^}]*\\b${key}\\b[^}]*\\}\\s*=`).test(source)
+        const selector = !['mode', 'view'].includes(key) || typeof value !== 'string' || source.includes(`'${value}'`) || source.includes(`"${value}"`)
+        return !/\.json\s*\(/.test(source) || !reads || !selector
+    }).map(([key]) => key)
+}
+
+it.skipIf(!available)('dispatches bodies supported by the deployed Edge handlers during database-first rollout', () => {
+    const paths = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions').split('\n')
+    const handlers = new Map<string, string>()
+    const sql = [...releaseMigrations(), ...canonicalDefinitions().values()].join('\n')
+    const incompatible = dispatchedBodies(sql).flatMap(({ name, body }) => {
+        const path = `supabase/functions/${name}/index.ts`
+        if (!paths.includes(path) || !Object.keys(body).length) return []
+        if (!handlers.has(name)) handlers.set(name, git('show', ...paths.filter(file =>
+            file.startsWith(`supabase/functions/${name}/`) && file.endsWith('.ts') && !file.endsWith('.test.ts')).map(file => `origin/main:${file}`)))
+        return ignoredBodyFields(handlers.get(name)!, body).map(key => `${name}: ${key}`)
+    })
+    expect([...new Set(incompatible)]).toEqual([])
+})
+
+it('rejects a body selector ignored by a deployed Edge handler', () => {
+    const sql = `SELECT private.invoke_claimed_edge_function('et:injuries','sync-players','{"mode":"injuries"}'::jsonb);`
+    expect(dispatchedBodies(sql)).toEqual([{ name: 'sync-players', body: { mode: 'injuries' } }])
+    expect(ignoredBodyFields('serveInternal(async () => syncAll())', { mode: 'injuries' })).toEqual(['mode'])
+    expect(ignoredBodyFields('const body = await request.json(); if (body.mode === "injuries") syncInjuries()', { mode: 'injuries' })).toEqual([])
+    expect(ignoredBodyFields('const body = await request.json(); if (body.mode === "other") syncOther()', { mode: 'injuries' })).toEqual(['mode'])
+    expect(dispatchedBodies("SELECT public.invoke_edge_function('sync-stats', jsonb_build_object('mode','dispatcher'));")).toEqual([{ name: 'sync-stats', body: { mode: 'dispatcher' } }])
+})
+
 it.skipIf(!available)('keeps deployed Edge profile and receipt columns through the database phase', () => {
     const changes = releaseMigrations().map(source => maskSqlNonCode(source)).join('\n')
     const used = new Set(['profiles.push_token', 'profiles.push_token_revocation_hash',

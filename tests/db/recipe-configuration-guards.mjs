@@ -6,7 +6,7 @@ const databaseUrl = process.env.SUPABASE_DB_URL
 assert.ok(databaseUrl, 'SUPABASE_DB_URL is required')
 const target = new URL(databaseUrl)
 const config = readFileSync('supabase/config.toml', 'utf8')
-const port = config.match(/^\[db\]\n(?:(?!\[)[^\n]*\n)*?port\s*=\s*(\d+)\s*$/m)?.[1]
+const port = process.env.PANCAKE_TEST_DB_PORT ?? config.match(/^\[db\]\n(?:(?!\[)[^\n]*\n)*?port\s*=\s*(\d+)\s*$/m)?.[1]
 assert.ok(['127.0.0.1', 'localhost'].includes(target.hostname), 'Use a private local database')
 assert.equal(target.port, port, 'Use this checkout database port')
 
