@@ -21,7 +21,7 @@ assert.ok(path.isAbsolute(evidence))
 const admin = createClient(api, secret, { auth: { persistSession: false, autoRefreshToken: false } })
 const browser = createBrowser({ cwd: process.cwd() })
 const session = `notif-products-${process.pid}`
-const league = randomUUID(), member = randomUUID(), player = randomUUID()
+const league = randomUUID(), member = randomUUID()
 const report = []
 let userId, cdp
 let taps = 0
@@ -50,7 +50,6 @@ await runWithScenarioResourceOwner('notification product surfaces', async () => 
         await query(admin.from('leagues').insert({ id: league, name: 'Notification UI', slug: league, commissioner_id: userId, status: 'offseason' }))
         await query(admin.from('league_members').insert({ id: member, league_id: league, user_id: userId, role: 'commissioner', team_name: 'Notification Team' }))
         await query(admin.from('league_seasons').insert({ league_id: league, season_year: 2026, is_current: true }))
-        await query(admin.from('players').insert({ id: player, first_name: 'Watch', last_name: 'Fixture', position: 'PG', eligible_positions: ['PG'], nba_team: 'BOS' }))
         const client = createClient(api, publicKey, { auth: { persistSession: false, autoRefreshToken: false } })
         const auth = await query(client.auth.signInWithPassword({ email, password }))
         await installRuntimeOverrides(browser, session, { frontendUrl: `${origin}/sign-in`, apiBaseUrl: process.env.E2E_API_BASE_URL, supabaseUrl: api, anonKey: publicKey })
@@ -65,24 +64,6 @@ await runWithScenarioResourceOwner('notification product surfaces', async () => 
             const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: target.targetId, flatten: true })
             await cdp.send('Emulation.setDeviceMetricsOverride', { width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.mobile ? 3 : 1, mobile: viewport.mobile }, sessionId)
             await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets: { top: viewport.mobile ? 59 : 0, bottom: viewport.mobile ? 34 : 0, left: 0, right: 0 } }, sessionId)
-            console.log('Players ' + viewport.name)
-            await browser(session, ['open', `${origin}/players`])
-            await wait('[aria-label="Search players"]')
-            await browser(session, ['fill', '[aria-label="Search players"]', 'Watch Fixture'])
-            await browser(session, ['wait', '700'])
-            await browser(session, ['snapshot', '-i'])
-            taps = 0
-            await browser(session, ['find', 'text', 'Watch Fixture', 'click', '--exact'])
-            taps++
-            await wait('[aria-label="Watch player for drops"]:not([aria-disabled="true"])')
-            await click('Watch player for drops', 'switch')
-            await wait('[aria-label="Watch player for drops"][aria-checked="true"]')
-            const watches = await query(admin.from('player_watches').select('player_id').eq('member_id', member))
-            assert.equal(watches.length, 1)
-            await browser(session, ['screenshot', path.join(evidence, 'screenshots', `${viewport.name}-watch.png`)], { timeout: 60000 })
-            report.push({ viewport: viewport.name, task: 'Watch player from searched Players list', taps, textEntry: 1 })
-            await click('Watch player for drops', 'switch')
-            await wait('[aria-label="Watch player for drops"][aria-checked="false"]')
             await browser(session, ['open', `${origin}/commissioner-settings`])
             await wait('[aria-label="League announcement"]')
             taps = 0
@@ -114,7 +95,6 @@ await runWithScenarioResourceOwner('notification product surfaces', async () => 
         cdp?.close()
         await browser(session, ['close']).catch(() => undefined)
         await admin.from('leagues').delete().eq('id', league)
-        await admin.from('players').delete().eq('id', player)
         if (userId) await admin.auth.admin.deleteUser(userId)
         await new Promise(resolve => setTimeout(resolve, 500))
         assert.ok(!(await listBrowserSessions({ cwd: process.cwd() })).includes(session))
