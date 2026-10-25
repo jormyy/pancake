@@ -130,7 +130,8 @@ BEGIN
         next_slots:=array_append(next_slots,winner);
       END LOOP;
       IF round_number<depth THEN
-        result:=apply_season_boundary_after_grace(league,season,'advance',now());
+        result:=apply_season_boundary_after_grace(league,season,'advance',
+          (SELECT (week_end + 2)::timestamp AT TIME ZONE 'America/New_York' FROM season_weeks WHERE season_year=year AND week_number=end_week));
         PERFORM pg_temp.check_bracket((result->>'applied')::boolean,'automatic boundary advances latest numbered round: '||entrants||' round '||round_number);
         SELECT id,winner_member_id INTO frozen,original_winner FROM matchups WHERE league_season_id=season AND playoff_round=round_number ORDER BY playoff_position LIMIT 1;
         token:=capture_score_inputs(season,start_week);

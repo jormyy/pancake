@@ -112,6 +112,8 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  IF v_rp.is_on_ir = p_to_ir THEN RETURN; END IF;
+
   v_roster_size := COALESCE(v_league.roster_size, 20);
   v_ir_slots := COALESCE(v_league.ir_slots, 2);
 

@@ -191,10 +191,10 @@ try {
   assert.deepEqual((await matchups(league.season)).map(row => [row.home, row.home_points, row.away, row.away_points, row.finalized, row.winner]),
     [[A, 40, D, 10, true, A], [B, 30, C, 20, true, B]], 'Corrected provider stats finalize week 1')
 
-  // Inside the 48-hour correction window the daily boundary job leaves the bracket alone.
-  await at('2026-10-27T16:00:00Z')
+  // The first date after the last game stays inside the correction window.
+  await at('2026-10-26T16:00:00Z')
   assert.deepEqual(report(await cron('season-boundary', 'season-boundary'), league.id), { leagueId: league.id, actions: [] })
-  await at('2026-10-28T16:00:00Z')
+  await at('2026-10-27T16:00:00Z')
   assert.deepEqual(report(await cron('season-boundary', 'season-boundary'), league.id), { leagueId: league.id, actions: ['bracket-generated'] })
   assert.deepEqual((await matchups(league.season)).filter(row => row.type === 'playoff_final').map(row => [row.week, row.home, row.away]), [[2, A, B]])
   assert.equal(await sql(`SELECT status FROM leagues WHERE id=${q(league.id)}`), 'playoffs')

@@ -22,6 +22,8 @@ DECLARE
   v_input_token jsonb;
   v_round int;
   v_last_game_date date;
+  v_end_week int;
+  v_start_week int;
 BEGIN
   IF p_action IS NULL OR p_action NOT IN ('generate', 'advance', 'rollover') OR p_reference_at IS NULL THEN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
@@ -57,11 +59,19 @@ BEGIN
       AND (v_type <> 'regular_season' OR week_number < v_start);
   IF NOT (p_action = 'generate' AND v_start = 1) AND
       (v_count = 0 OR v_ready IS DISTINCT FROM true
-        OR (p_action <> 'generate' AND v_latest > p_reference_at - interval '48 hours')) THEN
+        OR (p_action = 'rollover' AND v_latest > p_reference_at - interval '48 hours')) THEN
     RETURN jsonb_build_object('applied', false);
   END IF;
 
-  IF p_action = 'generate' AND v_start > 1 THEN
+  IF (p_action = 'generate' AND v_start > 1) OR p_action = 'advance' THEN
+    IF p_action = 'generate' THEN
+      v_end_week := v_start - 1;
+      v_start_week := v_end_week;
+    ELSE
+      SELECT min(week_number), max(COALESCE(end_week_number, week_number)) INTO v_start_week, v_end_week
+        FROM public.matchups WHERE league_season_id = p_league_season_id AND NOT is_voided
+          AND (CASE WHEN v_round IS NOT NULL THEN playoff_round = v_round ELSE matchup_type = v_type END);
+    END IF;
     SELECT COALESCE(max(game.game_date), max(week.week_end)) INTO v_last_game_date
       FROM public.season_weeks AS week
       LEFT JOIN public.nba_games AS game
@@ -69,7 +79,7 @@ BEGIN
        AND game.game_date BETWEEN week.week_start AND week.week_end
        AND public.is_regular_season_game_id(game.nba_game_id)
        AND private.lineup_game_available(game.status, game.game_status_text)
-     WHERE week.season_year = v_year AND week.week_number = v_start - 1;
+     WHERE week.season_year = v_year AND week.week_number BETWEEN v_start_week AND v_end_week;
     IF v_last_game_date IS NULL OR (p_reference_at AT TIME ZONE 'America/New_York')::date
         <= v_last_game_date + 1 THEN
       RETURN jsonb_build_object('applied', false);

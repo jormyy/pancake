@@ -98,6 +98,13 @@ export const assertWaiverProcessingScenario = async ({ supabase, env, state, sea
   if (rosterError) throw new Error(`${label}: roster seed failed: ${rosterError.message}`)
   if (waiverLogError) throw new Error(`${label}: waiver log seed failed: ${waiverLogError.message}`)
 
+  const { error: clearsError } = await supabase.from('waiver_wire_log')
+    .update({ clears_at: clearsAt })
+    .eq('league_id', fixture.league.id)
+    .eq('league_season_id', fixture.leagueSeason.id)
+    .in('player_id', [sharedPlayer.id, dropClaimPlayer.id, fullRosterPlayer.id])
+  if (clearsError) throw new Error(`${label}: waiver clearance update failed: ${clearsError.message}`)
+
   const { error: priorityError } = await supabase.from('waiver_priorities').insert(priorityRows)
   if (priorityError) throw new Error(`${label}: priority seed failed: ${priorityError.message}`)
 

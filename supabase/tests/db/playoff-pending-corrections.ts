@@ -35,7 +35,6 @@ const today = new Date().toLocaleDateString('en-CA', {
 const addDays = (day: string, count: number) =>
   new Date(Date.parse(`${day}T12:00:00Z`) + count * 86400000).toISOString()
     .slice(0, 10)
-const failures: string[] = []
 const reports: unknown[] = []
 try {
   for (const span of [1, 2]) {
@@ -300,43 +299,26 @@ try {
         } else {
           assert.ok(boundary.every((row: any) => !row.error), JSON.stringify(boundary))
         }
-        if (finals.length) {
-          failures.push(
-            `span${span}/${phase}: saved correction consumed before replay`,
-          )
+        if (phase === 'pending-stats') {
+          assert.equal(finals.length, 1, 'a ready round advances after replay in the same boundary run')
+          const after = await readSemis()
+          assert.ok(after.every((m: any) => m.winner_member_id === m.away_member_id && Number(m.away_points) === 20),
+            'actual stat correction changes winners before advancement')
+          const final = await query(supabase.from('matchups').select('home_member_id,away_member_id')
+            .eq('league_season_id', season).eq('matchup_type', 'playoff_final').single())
+          assert.deepEqual(new Set([final.home_member_id, final.away_member_id]), new Set(after.map((m: any) => m.winner_member_id)))
         } else {
+          assert.equal(finals.length, 0, 'missing calendar coverage blocks advancement')
           await syncScores(league)
           const after = await readSemis()
-          if (phase === 'pending-stats') {
-            assert.ok(
-              after.every((m: any) =>
-                m.winner_member_id === m.away_member_id &&
-                Number(m.away_points) === 20
-              ),
-              'actual stat correction changes winner',
-            )
-          } else {assert.ok(
-              after.every((m: any) =>
-                Number(m.home_points) === 0 && Number(m.away_points) === 0
-              ),
-              'actual moved-game replay removes old scores',
-            )}
-          const renewed = await runSeasonBoundary(new Date(), league)
-          assert.ok(
-            !renewed[0]?.actions.includes('final-created'),
-            'replay renews decision grace',
-          )
-          const settled = await runSeasonBoundary(
-            new Date(Date.now() + 49 * 3600000),
-            league,
-          )
-          assert.ok(
-            settled[0]?.actions.includes('final-created'),
-            JSON.stringify(settled),
-          )
-          console.log(
-            JSON.stringify({ span, phase, replayed: true, renewed, settled }),
-          )
+          assert.ok(after.every((m: any) => Number(m.home_points) === 0 && Number(m.away_points) === 0),
+            'actual moved-game replay removes old scores')
+          const settled = await runSeasonBoundary(new Date(), league)
+          assert.ok(settled[0]?.actions.includes('final-created'), JSON.stringify(settled))
+          const final = await query(supabase.from('matchups').select('home_member_id,away_member_id')
+            .eq('league_season_id', season).eq('matchup_type', 'playoff_final').single())
+          assert.deepEqual(new Set([final.home_member_id, final.away_member_id]), new Set(after.map((m: any) => m.winner_member_id)))
+          console.log(JSON.stringify({ span, phase, replayed: true, settled }))
         }
       } finally {
         await query(supabase.from('leagues').delete().eq('id', league))
@@ -364,5 +346,4 @@ try {
 } finally {
   globalThis.fetch = nativeFetch
 }
-console.log(JSON.stringify({ scenarios: reports.length, failures }))
-assert.deepEqual(failures, [])
+console.log(JSON.stringify({ scenarios: reports.length }))

@@ -84,12 +84,12 @@ BEGIN
     PERFORM public.update_score_points_atomic(league,season,3,jsonb_build_array(jsonb_build_object('id',match_id,'home_points',0,'away_points',20)));
     RAISE EXCEPTION 'Cross-week point write accepted';
   EXCEPTION WHEN SQLSTATE '22023' THEN NULL; END;
-  result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
-  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement ignored renewed semifinal grace'; END IF;
-  UPDATE matchups SET finalized_at=now()-interval '49 hours' WHERE league_season_id=season AND matchup_type='playoff_semifinal';
+  result:=public.apply_season_boundary_after_grace(league,season,'advance',timestamptz '8233-02-15 23:59:59 America/New_York');
+  IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement ignored the round game date correction window'; END IF;
+  UPDATE matchups SET finalized_at=timestamptz '8233-02-15 19:10 America/New_York' WHERE league_season_id=season AND matchup_type='playoff_semifinal';
   PERFORM pg_temp.certify_boundary_fixture(league,season,2);
-  result:=public.apply_season_boundary_after_grace(league,season,'advance',now());
-  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after grace'; END IF;
+  result:=public.apply_season_boundary_after_grace(league,season,'advance',timestamptz '8233-02-16 09:00 America/New_York');
+  IF NOT (result->>'applied')::boolean THEN RAISE EXCEPTION 'Advancement did not proceed after the round game date correction window'; END IF;
   PERFORM pg_temp.certify_boundary_fixture(league,season,1);
   result:=public.apply_season_boundary_after_grace(league,season,'rollover',now());
   IF (result->>'applied')::boolean THEN RAISE EXCEPTION 'Regular results cannot replace an undecided final'; END IF;

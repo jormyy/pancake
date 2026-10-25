@@ -22,7 +22,7 @@ const FINAL_NUMERIC_STATS = [
   'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals',
   'threePointersAttempted', 'threePointersMade', 'turnovers',
 ] as const satisfies readonly (keyof NBABoxScorePlayer['statistics'])[]
-type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert'] & { is_home?: boolean | null }
+type PlayerGameStatsInsert = Database['public']['Tables']['player_game_stats']['Insert']
 
 // Returns YYYY-MM-DD for the given Date in America/New_York (ET).
 // nba_games.game_date is ET-keyed; using UTC here misses prime-time games

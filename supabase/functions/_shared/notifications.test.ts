@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert'
-import { createNotifyMember, createNotifyMembers, NotificationDeliveryError, type WebNotificationBatchDependencies } from './notificationDelivery.ts'
+import { createNotifyMembers, NotificationDeliveryError, type WebNotificationBatchDependencies } from './notificationDelivery.ts'
 
 const preferences = { trade_enabled: true, waiver_enabled: false, draft_enabled: true, activity_enabled: true }
 const dependencies = (overrides: Partial<WebNotificationBatchDependencies> = {}): WebNotificationBatchDependencies => ({
@@ -63,16 +63,6 @@ Deno.test('missing web outcomes are retryable rather than acknowledged', async (
   ])
   assert.equal(result.status, 'failed')
   if (result.status === 'failed') assert.equal(result.retryable, true)
-})
-
-Deno.test('the single-member boundary reports web failures to direct callers', async () => {
-  const notify = createNotifyMember({
-    member: async () => ({ data: { user_id: 'user-a' }, error: null }),
-    preferences: async () => ({ data: preferences, error: null }),
-    webPush: async () => ({ sent: 0, pruned: 0, failed: 1,
-      results: [{ userId: 'user-a', status: 'failed', retryable: true, error: 'HTTP 503' }] }),
-  })
-  await assert.rejects(() => notify('member-a', 'T', 'B'), { message: 'HTTP 503' })
 })
 
 Deno.test('empty batches do not query notification data', async () => {

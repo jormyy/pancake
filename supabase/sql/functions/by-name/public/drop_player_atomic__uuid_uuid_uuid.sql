@@ -15,7 +15,6 @@ DECLARE
   v_league_id uuid;
   v_player_id uuid;
   v_member_id uuid;
-  v_clears_at timestamptz := now() + interval '48 hours';
   v_rows int;
   v_rookie_draft_id uuid;
 BEGIN
@@ -139,15 +138,13 @@ BEGIN
     league_id,
     league_season_id,
     player_id,
-    dropped_by_member_id,
-    clears_at
+    dropped_by_member_id
   )
   VALUES (
     v_rp.league_id,
     v_rp.league_season_id,
     v_rp.player_id,
-    v_rp.member_id,
-    v_clears_at
+    v_rp.member_id
   );
 
   INSERT INTO roster_transactions (

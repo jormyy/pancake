@@ -96,15 +96,19 @@ try {
             intercepted++
             await syncScores(league)
             assert.ok((await readSemis()).every((row: any) => row.winner_member_id === row.away_member_id &&
-              Date.now() - Date.parse(row.finalized_at) < 60000), 'Actual correction changes the winner and renews grace')
+              Date.now() - Date.parse(row.finalized_at) < 60000), 'Actual correction changes the winner and records a new finalization time')
           }
           const boundary = await runSeasonBoundary(new Date(), league)
           assert.equal(intercepted, 1)
           assert.ok(boundary.every((row: any) => !row.error), JSON.stringify(boundary))
-          const finals = await query(supabase.from('matchups').select('id').eq('league_season_id', season).eq('matchup_type', 'playoff_final'))
+          const finals = await query(supabase.from('matchups').select('id,home_member_id,away_member_id').eq('league_season_id', season).eq('matchup_type', 'playoff_final'))
           const report = { span, phase, intercepted, finalsCreated: finals.length, boundary }
           reports.push(report); console.log(JSON.stringify(report))
-          if (finals.length) failures.push(`span${span}: automatic progression skipped renewed grace`)
+          assert.equal(finals.length, 1, 'ready rounds advance after the concurrent replay')
+          const replayed = await readSemis()
+          assert.ok(replayed.every((row: any) => row.winner_member_id === row.away_member_id && Number(row.away_points) === 20))
+          assert.deepEqual(new Set([finals[0].home_member_id, finals[0].away_member_id]),
+            new Set(replayed.map((row: any) => row.winner_member_id)), 'the next round uses corrected winners')
         } else {
           await query(supabase.rpc('advance_playoff_bracket_atomic', { p_league_id: league }))
           const final = await query(supabase.from('matchups').select('*').eq('league_season_id', season).eq('matchup_type', 'playoff_final').single())

@@ -1,13 +1,7 @@
 ALTER PUBLICATION supabase_realtime DROP TABLE
-  public.weekly_lineups,
-  public.waiver_claims,
-  public.waiver_wire_log,
   public.league_seasons,
   public.bids;
 
-ALTER TABLE public.weekly_lineups REPLICA IDENTITY DEFAULT;
-ALTER TABLE public.waiver_claims REPLICA IDENTITY DEFAULT;
-ALTER TABLE public.waiver_wire_log REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.league_seasons REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.bids REPLICA IDENTITY DEFAULT;
 

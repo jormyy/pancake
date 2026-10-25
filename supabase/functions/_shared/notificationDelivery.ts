@@ -95,23 +95,6 @@ class NotificationBatchDeliveryError extends Error {
   }
 }
 
-type ExpoNotificationDependencies = {
-  member: (memberId: string) => Promise<LookupResult<{ user_id: string }>>
-  preferences: (userId: string) => Promise<LookupResult<NotificationPreferences>>
-  profile: (userId: string) => Promise<LookupResult<{ push_token: string | null }>>
-  send: (url: string, init: RequestInit) => Promise<Response>
-  pushUrl: string
-  webPush?: WebPushFanout
-}
-
-type NotifyMember = (
-  memberId: string,
-  title: string,
-  body: string,
-  data?: Record<string, unknown>,
-  category?: DeliveryCategory,
-) => Promise<NotificationDeliveryResult>
-
 export type NotifyMembers = (messages: NotificationMessage[]) => Promise<NotificationBatchResult[]>
 
 type ExpoNotificationBatchDependencies = {
@@ -128,16 +111,9 @@ type ExpoNotificationBatchDependencies = {
   webPush?: WebPushFanout
 }
 
-type WebNotificationDependencies = {
-  member: (memberId: string) => Promise<LookupResult<{ user_id: string }>>
-  preferences: (userId: string) => Promise<LookupResult<NotificationPreferences>>
-  webPush: WebPushFanout
-}
-
 export type WebNotificationBatchDependencies = Pick<ExpoNotificationBatchDependencies,
   'members' | 'preferences' | 'admitDelivery' | 'beginWebDelivery' | 'finishWebDelivery'> & { webPush: WebPushFanout }
 
-export type NotificationDependencies = ExpoNotificationDependencies | WebNotificationDependencies
 export type NotificationBatchDependencies = ExpoNotificationBatchDependencies | WebNotificationBatchDependencies
 
 type NotificationFailureDisposition = 'discard' | 'dead_letter' | 'retry'
@@ -429,112 +405,6 @@ export function createNotifyMembers(
   }
 }
 
-export function createNotifyMember(dependencies: NotificationDependencies): NotifyMember {
-  if (!('profile' in dependencies)) return createWebNotifyMember(dependencies)
-  return async (
-    memberId,
-    title,
-    body,
-    data,
-    category = 'activity',
-  ) => {
-    const memberLookup = await dependencies.member(memberId)
-    if (memberLookup.error || !memberLookup.data) {
-      throw lookupError('member_lookup', memberLookup.error, memberId)
-    }
-    const userId = memberLookup.data.user_id
-
-    const preferenceLookup = await dependencies.preferences(userId)
-    if (preferenceLookup.error) {
-      throw lookupError('preferences_lookup', preferenceLookup.error, memberId, userId)
-    }
-    if (!notificationEnabled(preferenceLookup.data, category, typeof data?.notificationEvent === 'string' ? data.notificationEvent : undefined)) {
-      return { status: 'skipped', reason: 'preferences_disabled' }
-    }
-
-    // Web push is independent of the Expo delivery result and never throws.
-    const webDelivery = dependencies.webPush?.([{ userId, title, body, data, category }])
-    const deliverExpo = async (): Promise<NotificationDeliveryResult> => {
-      const profileLookup = await dependencies.profile(userId)
-      if (profileLookup.error) {
-        throw lookupError('profile_lookup', profileLookup.error, memberId, userId)
-      }
-      const token = profileLookup.data?.push_token
-      if (!token) return { status: 'skipped', reason: 'missing_push_token' }
-
-      let response: Response
-      try {
-        response = await dependencies.send(dependencies.pushUrl, {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ to: token, title, body, data: data ?? {}, sound: 'default' }),
-          signal: AbortSignal.timeout(PUSH_TIMEOUT_MS),
-        })
-      } catch (cause) {
-        throw new NotificationDeliveryError({
-          code: 'expo_network',
-          message: 'Expo push request failed.',
-          memberId,
-          userId,
-          cause,
-        })
-      }
-
-      let payload: unknown
-      try {
-        payload = await response.json()
-      } catch (cause) {
-        throw new NotificationDeliveryError({
-          code: response.ok ? 'expo_response' : 'expo_http',
-          message: response.ok
-            ? 'Expo push response was not valid JSON.'
-            : `Expo push request returned HTTP ${response.status}.`,
-          memberId,
-          userId,
-          cause,
-        })
-      }
-      const payloadRecord = record(payload)
-      const delivery = record(payloadRecord?.data)
-      const deliveryMessage = typeof delivery?.message === 'string' ? delivery.message : null
-
-      if (!response.ok) {
-        throw new NotificationDeliveryError({
-          code: 'expo_http',
-          message: `Expo push request returned HTTP ${response.status}${deliveryMessage ? `: ${deliveryMessage}` : ''}.`,
-          memberId,
-          userId,
-        })
-      }
-      if (delivery?.status === 'error') {
-        throw new NotificationDeliveryError({
-          code: 'expo_status',
-          message: deliveryMessage ?? 'Expo rejected the push notification.',
-          memberId,
-          userId,
-        })
-      }
-      if (delivery?.status !== 'ok') {
-        throw new NotificationDeliveryError({
-          code: 'expo_response',
-          message: 'Expo push response did not include a valid delivery status.',
-          memberId,
-          userId,
-        })
-      }
-      return { status: 'sent' }
-    }
-    try {
-      return await deliverExpo()
-    } finally {
-      await webDelivery
-    }
-  }
-}
-
 function createWebNotifyMembers(dependencies: WebNotificationBatchDependencies): NotifyMembers {
   return async (messages) => {
     if (messages.length === 0) return []
@@ -596,30 +466,5 @@ function createWebNotifyMembers(dependencies: WebNotificationBatchDependencies):
       }
     }
     return results
-  }
-}
-
-function createWebNotifyMember(dependencies: WebNotificationDependencies) {
-  return async (
-    memberId: string,
-    title: string,
-    body: string,
-    data?: Record<string, unknown>,
-    category: DeliveryCategory = 'activity',
-  ): Promise<NotificationDeliveryResult> => {
-    const notify = createWebNotifyMembers({
-      members: async () => {
-        const lookup = await dependencies.member(memberId)
-        return { data: lookup.data ? [{ id: memberId, ...lookup.data }] : null, error: lookup.error }
-      },
-      preferences: async ([userId]) => {
-        const lookup = await dependencies.preferences(userId)
-        return { data: lookup.data ? [{ user_id: userId, ...lookup.data }] : null, error: lookup.error }
-      },
-      webPush: dependencies.webPush,
-    })
-    const [result] = await notify([{ memberId, title, body, data, category }])
-    if (result.status === 'failed') throw new NotificationDeliveryError({ code: 'web_push', message: result.error, memberId })
-    return result
   }
 }

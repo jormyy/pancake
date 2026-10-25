@@ -54,7 +54,7 @@ for (const action of ['generate', 'advance', 'rollover']) {
       assert.ok(calls.includes('finalize_score_week_atomic'), 'stale scores must be replayed')
       assert.ok(calls.indexOf('get_stale_score_weeks') < calls.indexOf('finalize_score_week_atomic'))
       assert.ok(calls.indexOf('finalize_score_week_atomic') < calls.indexOf('apply_season_boundary_after_grace'))
-      assert.equal(calls.filter(table => table === 'nba_games').length, action === 'generate' ? 1 : 0)
+      assert.equal(calls.filter(table => table === 'nba_games').length, action === 'rollover' ? 0 : 1)
     } finally { globalThis.fetch = nativeFetch }
   })
 }

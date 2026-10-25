@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION private.validate_trade_rosters(p_trade_id uuid)
+CREATE OR REPLACE FUNCTION private.validate_trade_rosters(p_trade_id uuid, p_only_member_id uuid DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SET search_path = public AS $$
 DECLARE v_trade trades%ROWTYPE; v_league leagues%ROWTYPE; v_team record; v_count record;
 BEGIN
@@ -38,7 +38,9 @@ BEGIN
   END IF;
   FOR v_team IN SELECT participant.*, member.team_name FROM trade_participants participant
     JOIN league_members member ON member.id = participant.member_id
-    WHERE participant.trade_id = p_trade_id ORDER BY participant.member_id LOOP
+    WHERE participant.trade_id = p_trade_id
+      AND (p_only_member_id IS NULL OR participant.member_id = p_only_member_id)
+    ORDER BY participant.member_id LOOP
     IF EXISTS (SELECT 1 FROM unnest(v_team.drop_player_ids) drop_choice(player_id) WHERE
       NOT EXISTS (SELECT 1 FROM roster_players roster WHERE roster.league_season_id = v_trade.league_season_id
         AND roster.member_id = v_team.member_id AND roster.player_id = drop_choice.player_id)

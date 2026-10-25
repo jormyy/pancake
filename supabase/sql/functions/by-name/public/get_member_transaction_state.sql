@@ -67,7 +67,15 @@ BEGIN
     COALESCE(count_row.add_count, 0),
     league.waiver_mode,
     league.faab_starting_budget,
-    COALESCE(balance_row.balance, league.faab_starting_budget, 100),
+    COALESCE(balance_row.balance, league.faab_starting_budget, 100) - (
+      SELECT COALESCE(sum(item.faab_amount), 0)::int
+      FROM trade_items AS item
+      JOIN trades AS trade ON trade.id = item.trade_id
+      WHERE trade.league_id = p_league_id
+        AND trade.league_season_id = v_season_id
+        AND trade.status = 'accepted'
+        AND item.from_member_id = p_member_id
+    ),
     v_resets_at,
     private.weekly_add_limit_message(COALESCE(count_row.add_count, 0), league.weekly_add_limit, v_resets_at),
     private.weekly_add_limit_reset_label(v_resets_at)
