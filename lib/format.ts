@@ -1,6 +1,5 @@
 /** Shared formatting utilities — consolidated from multiple screens */
 
-import { isIREligible } from '@pancake/core'
 import { API_URL } from '@/lib/shared/api'
 
 export function getInitials(name: string | null | undefined): string {
@@ -59,11 +58,6 @@ export function formatPoints(value: number | null | undefined): string {
 /** "3 picks", "1 pick" — count with pluralized noun */
 export function countLabel(count: number, noun: string): string {
     return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
-/** Predicate: roster player is on IR but no longer IR-eligible (should be moved off). */
-export function isIneligibleIR(rp: { is_on_ir: boolean; players?: { injury_status: string | null } | null }): boolean {
-    return Boolean(rp.is_on_ir && !isIREligible(rp.players?.injury_status ?? null))
 }
 
 /** Draft clock: "0:05" and "1:15" under an hour; "2h 5m", then "28h", for slow clocks. */

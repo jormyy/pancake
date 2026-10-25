@@ -4,6 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 import type { Trade } from '@/lib/trades'
 
+const gameBoundary = vi.hoisted(() => ({ teams: new Set<string>() }))
+vi.mock('@/lib/games', () => ({ getGameDay: async () => ({ games: [], startedTeams: gameBoundary.teams }) }))
+
 const mocks = vi.hoisted(() => ({
     acceptTrade: vi.fn(),
     setTradeRosterPlan: vi.fn(),
@@ -30,6 +33,7 @@ vi.mock('@/lib/alert', () => ({
 
 beforeEach(() => {
     vi.clearAllMocks()
+    gameBoundary.teams.clear()
     mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
 })
 
@@ -309,5 +313,49 @@ it.each(['owner', 'offline', 'unmount'])('cancels an open acceptance after %s ch
     })
     await act(async () => { await confirm() })
     expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    await act(async () => renderer.unmount())
+})
+
+
+it('does not promise immediate completion while another participant has not accepted', async () => {
+    mocks.confirmAction.mockImplementation(() => {})
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', tradeVetoMode: 'disabled', onAction: vi.fn() }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const offer = trade('multi')
+    offer.isMultiTeam = true
+    offer.participants = [{ memberId: 'third', teamName: 'Third', sortOrder: 2, isInitiator: false, acceptedAt: null }]
+    await act(async () => latest.accept(offer))
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('when everyone accepts')
+    expect(mocks.confirmAction.mock.calls[0][1]).not.toContain('immediately')
+    await act(async () => renderer.unmount())
+})
+
+
+it('opens roster resolution before confirming acceptance when the local gate finds a problem', async () => {
+    const beforeAccept = vi.fn().mockResolvedValue(false)
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', beforeAccept, onAction: vi.fn() }); return null }
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => latest.accept(trade('illegal')))
+    expect(beforeAccept).toHaveBeenCalledOnce()
+    expect(mocks.confirmAction).not.toHaveBeenCalled()
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    await act(async () => screen.unmount())
+})
+
+
+it('keeps acceptance timing conditional when a player game has started', async () => {
+    gameBoundary.teams.add('LAL')
+    mocks.confirmAction.mockImplementation(() => {})
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', tradeVetoMode: 'disabled', onAction: vi.fn() }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => latest.accept(trade('game')))
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('when everyone accepts')
+    expect(mocks.confirmAction.mock.calls[0][1]).not.toContain('immediately')
     await act(async () => renderer.unmount())
 })

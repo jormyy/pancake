@@ -59,3 +59,18 @@ describe('roster overflow recovery ownership', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+it('lists invalid reserve players with Activate and Drop even without active overflow', async () => {
+    const taxi = { ...player('taxi'), is_on_taxi: true }
+    const onActivate = vi.fn()
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(RosterTrimBanner, {
+        players: [], excess: 0, irAvailable: false, busyId: null, onDrop: vi.fn(), onMoveToIR: vi.fn(), onActivate,
+        problems: [{ kind: 'taxi', player: taxi, message: 'taxi no longer qualifies for taxi.' }],
+    })) })
+    const activate = renderer.root.findByProps({ accessibilityLabel: 'Activate taxi' })
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Drop taxi' }).length).toBeGreaterThan(0)
+    await act(async () => activate.props.onPress())
+    expect(onActivate).toHaveBeenCalledWith(taxi)
+    await act(async () => renderer.unmount())
+})

@@ -103,6 +103,7 @@ vi.mock('@/components/ActivationOverflowModal', () => ({ ActivationOverflowModal
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 
+vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const SLOT_PLAN = { slots: [{ slotType: 'UTIL', slotCount: 2 }, { slotType: 'PG', slotCount: 1 }, { slotType: 'BE', slotCount: 17 }], assignments: {} as Record<string, string> }
@@ -150,7 +151,7 @@ describe('roster empty slots', () => {
         vi.useRealTimers()
     })
 
-    it.each([358, 1600])('hides every offseason IR move and keeps activation at width %s', async width => {
+    it.each([358, 1600])('keeps offseason activation and permits IR repair while over the active limit at width %s', async width => {
         mocks.eligible = true
         mocks.usableWidth = width
         mocks.league.status = 'offseason'
@@ -160,7 +161,7 @@ describe('roster empty slots', () => {
         const reserve = { ...active, id: 'reserve', is_on_ir: true, players: { ...active.players, id: 'reserve-player', display_name: 'Reserve' } }
         mocks.focusData.data = rosterData([active, { ...active, id: 'extra' }, reserve])
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        expect(screen.root.findByType('RosterTrimBanner' as React.ElementType).props.irAvailable).toBe(false)
+        expect(screen.root.findByType('RosterTrimBanner' as React.ElementType).props.irAvailable).toBe(true)
         if (width === 358) {
             const rows = screen.root.findAllByType('RosterPlayerItem' as React.ElementType)
             expect(rows.find(row => row.props.item.id === 'active')!.props.allowIR).toBe(false)

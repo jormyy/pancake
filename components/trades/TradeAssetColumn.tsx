@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Avatar } from '@/components/Avatar'
@@ -69,7 +70,7 @@ function PlayerRow({
                             variant="solid"
                         />
                     ) : null}
-                    {player.is_on_ir ? <Badge label="IR" color={colors.textMuted} variant="soft" /> : null}
+                    <PlayerEligibilityTags yearsExp={p.years_exp} careerGames={p.career_regular_season_games} />
                 </View>
                 <Text style={styles.playerContext} numberOfLines={1}>
                     {blocked && !selected ? 'Remove the earlier route to select this player.' : statText}

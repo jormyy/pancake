@@ -6,13 +6,12 @@ import type { TradeItem, TradeRosterPlan } from '@/lib/trades'
 import { isTradeTaxiEligible } from '@/lib/trade-assets'
 import { colors, foundation, radii, spacing, textStyles } from '@/constants/tokens'
 
-export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disabled = false, extendedTaxi = false, allowIR = true, allowTaxi = true }: {
+export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disabled = false, allowIR = true, allowTaxi = true }: {
     incoming: TradeItem[]
     roster: RosterPlayer[]
     value: TradeRosterPlan
     onChange: (value: TradeRosterPlan) => void
     disabled?: boolean
-    extendedTaxi?: boolean
     allowIR?: boolean
     allowTaxi?: boolean
 }) {
@@ -30,7 +29,7 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
             const eligible = {
                 active: true,
                 ir: allowIR && isIREligible(item.injuryStatus ?? null),
-                taxi: allowTaxi && isTradeTaxiEligible(item, extendedTaxi),
+                taxi: allowTaxi && isTradeTaxiEligible(item),
             }
             const placements = (['active', 'ir', 'taxi'] as const).filter((placement) => eligible[placement] || placement === selectedPlacement)
             const fixedPlacement = item.fromTaxi ? 'Taxi · tenure retained' : placements.length === 1 ? 'Active' : null

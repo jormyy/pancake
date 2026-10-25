@@ -30,3 +30,11 @@ it('edits without depending on an obsolete preference read', async () => {
     expect(mocks.read).not.toHaveBeenCalled()
     expect(mocks.post).toHaveBeenCalledOnce()
 })
+
+
+it('keeps an omitted taxi destination and forwards only an explicit edit', async () => {
+    await editWaiverClaim('claim', 'member', { dropPlayerId: null, bidAmount: 5 })
+    expect(mocks.post.mock.calls[0][1]).not.toHaveProperty('toTaxi')
+    await editWaiverClaim('claim', 'member', { dropPlayerId: null, toTaxi: false })
+    expect(mocks.post.mock.calls[1][1]).toHaveProperty('toTaxi', false)
+})

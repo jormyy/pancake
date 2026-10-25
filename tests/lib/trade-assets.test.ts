@@ -24,14 +24,14 @@ function rosterPlayer(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
 }
 
 describe('tradeable roster assets', () => {
-    it('uses the league taxi rule and the same player fields as the server', () => {
+    it('uses one taxi rule and the same player fields as the server', () => {
         const player = { kind: 'player' as const, playerId: 'player', playerName: 'Player', nbaTeam: null, position: 'PG',
             yearsExp: 2, nbaDraftNumber: 12, careerGames: 64 }
-        expect(isTradeTaxiEligible(player)).toBe(false)
-        expect(isTradeTaxiEligible(player, true)).toBe(true)
-        expect(isTradeTaxiEligible({ ...player, careerGames: 65 }, true)).toBe(false)
-        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null }, true)).toBe(true)
-        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(false)
+        expect(isTradeTaxiEligible(player)).toBe(true)
+        expect(isTradeTaxiEligible(player)).toBe(true)
+        expect(isTradeTaxiEligible({ ...player, careerGames: 65 })).toBe(false)
+        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(true)
+        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(true)
     })
 
     it('excludes IR and taxi players from trade selection', () => {

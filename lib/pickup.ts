@@ -77,7 +77,7 @@ export function reportPickupError(error: unknown, { refresh, onLimitReached, cla
         confirmAction(ON_WAIVERS_TITLE, `${message} Claims are processed on the next waiver run.`, claim, 'Claim', false)
         return
     }
-    if (code === RULE_CODES.ineligibleIr && onIneligibleIr) {
+    if ((code === RULE_CODES.ineligibleIr || code === RULE_CODES.ineligibleTaxi) && onIneligibleIr) {
         onIneligibleIr(message)
         return
     }

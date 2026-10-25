@@ -12,7 +12,7 @@ describe('roster overflow browser contract', () => {
         expect(rosterScreen).toContain('Trim Roster First')
         expect(rosterScreen).toContain('disabled={rosterOverflow > 0 || autoSetting}')
         expect(rosterScreen).toContain('<RosterTrimBanner')
-        expect(trimBanner).toContain('Trim roster: {excess} over limit')
+        expect(trimBanner).toContain('`Trim roster: ${excess} over limit`')
         expect(trimBanner).toContain('Drop ${player.players.display_name}')
         expect(trimBanner).toContain('Move ${player.players.display_name} to IR')
         expect(trimBanner).not.toContain('Move ${player.players.display_name} to Taxi Squad')

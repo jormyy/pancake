@@ -11,7 +11,6 @@ export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
     team_limit?: number
-    taxi_rule?: 'drafted_rookies' | 'rookies_or_64_games'
     taxi_max_seasons?: number
     allow_inactive_trades?: boolean
     playoff_entrants?: number
@@ -53,7 +52,7 @@ function numericRecordPayload(values: Record<string, number>): JsonObject {
 
 function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     const payload: JsonObject = {}
-    for (const key of ['team_limit','taxi_rule','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
+    for (const key of ['team_limit','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
         if (updates[key] !== undefined) payload[key] = updates[key]
     }
     if (updates.scoring_settings != null) payload.scoring_settings = numericRecordPayload(updates.scoring_settings)
@@ -171,7 +170,13 @@ export async function fetchUserLeagues(userId: string) {
         .is('leagues.deleted_at', null)
 
     if (error) throw error
-    return (data ?? []) as LeagueMembershipQueryRow[]
+    return ((data ?? []) as (LeagueMembershipQueryRow & { leagues: LeagueInfo & {
+        drafts: { draft_type: string; is_mock: boolean; status: string; league_seasons: { is_current: boolean } | null }[]
+    } })[]).map(({ leagues, ...membership }) => {
+        const { drafts, ...league } = leagues
+        return { ...membership, leagues: { ...league, hasStartupAuction: drafts?.some(draft => draft.draft_type === 'auction' && !draft.is_mock
+            && draft.league_seasons?.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status)) ?? false } }
+    })
 }
 
 const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['drafting', 'active', 'playoffs', 'offseason'])
@@ -181,13 +186,12 @@ export function isTradingClosed(
     league: {
         status: LeagueStatus
         trade_deadline?: string | null
-        drafts?: { draft_type: string; is_mock: boolean; status: string; league_seasons: { is_current: boolean } | null }[]
+        hasStartupAuction?: boolean
     } | null | undefined,
 ): boolean {
     if (!league) return false
     if (!TRADE_OPEN_STATUSES.has(league.status)) return true
-    if (league.drafts?.some(draft => draft.draft_type === 'auction' && !draft.is_mock
-        && draft.league_seasons?.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status))) return true
+    if (league.hasStartupAuction) return true
     if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
     return league.trade_deadline < todayET()

@@ -287,7 +287,8 @@ function PlayerSearchSection() {
         onChanged: refreshPlayerSupport,
         transactionState,
         irSlots: currentLeague?.ir_slots ?? 2,
-        allowIR: currentLeague?.status !== 'offseason',
+        taxiSlots: currentLeague?.taxi_slots ?? 0,
+        rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
     })
     const availabilityUpdating = supportSnapshot || playerSupportFetchLoading
@@ -554,8 +555,10 @@ function PlayerSearchSection() {
                 title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
                 subtitle="Roster full"
                 roster={quickAdd.myRoster}
-                dropping={quickAdd.dropping}
+                dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
+                onAdd={quickAdd.taxiAvailable && quickAdd.canAddActive ? quickAdd.handleAddActive : undefined}
+                onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}
                 onMoveToIR={quickAdd.handleMoveToIRAndAdd}
                 onCancel={() => quickAdd.setDropPickerPlayer(null)}
@@ -563,11 +566,15 @@ function PlayerSearchSection() {
 
             <IRResolutionModal
                 visible={quickAdd.irModal !== null}
+                serverMessage={quickAdd.irModal?.serverMessage}
                 ineligibleIR={quickAdd.irModal?.ineligible ?? []}
                 activeRoster={(quickAdd.irModal?.roster ?? []).filter((r) => !r.is_on_ir && !r.is_on_taxi)}
                 rosterSize={currentLeague?.roster_size ?? 20}
                 pendingPlayerName={quickAdd.irModal?.pendingPlayer.display_name ?? ''}
                 onActivate={quickAdd.handleIRActivate}
+                onDrop={quickAdd.handleResolutionDrop}
+                onMoveToIR={quickAdd.handleResolutionMoveToIR}
+                irAvailable={(quickAdd.irModal?.roster ?? []).filter(player => player.is_on_ir).length < (currentLeague?.ir_slots ?? 2)}
                 onDropAndActivate={quickAdd.handleDropAndIRActivate}
                 onCancel={() => quickAdd.setIrModal(null)}
             />

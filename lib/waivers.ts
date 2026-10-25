@@ -21,6 +21,9 @@ export type WaiverClaim = {
     claimOrder: number
     clearsAt?: string | null
     toIr?: boolean
+    toTaxi?: boolean
+    playerYearsExp?: number | null
+    playerCareerGames?: number | null
     failureReason: string | null
 }
 
@@ -30,10 +33,13 @@ type PlayerSummaryRow = {
     position?: string | null
     nba_team?: string | null
     injury_status?: string | null
+    years_exp?: number | null
+    career_regular_season_games?: number | null
 } | null
 type WaiverPlayerIdRow = { player_id: string; clears_at: string }
 type WaiverClaimQueryRow = {
     to_ir: boolean
+    to_taxi: boolean
     id: string
     player_id: string
     drop_player_id: string | null
@@ -91,7 +97,7 @@ export async function submitWaiverClaim(
     leagueId: string,
     playerId: string,
     dropPlayerId?: string,
-    options: { bidAmount?: number; claimOrder?: number | null; toIr?: boolean } = {},
+    options: { bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean } = {},
 ): Promise<void> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         throw new Error('Connect to the internet to submit a waiver claim.')
@@ -105,6 +111,7 @@ export async function submitWaiverClaim(
         bidAmount: options.bidAmount ?? 0,
         claimOrder: options.claimOrder ?? null,
         toIr: options.toIr ?? false,
+        toTaxi: options.toTaxi ?? false,
     })
     if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
@@ -121,7 +128,7 @@ export async function editWaiverClaim(
     // dropPlayerId is required (null clears it): edit_waiver_claim_atomic writes
     // whatever it receives, so an omitted field would silently drop the drop
     // player and turn a valid claim into one that fails "roster full".
-    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean },
+    updates: { dropPlayerId: string | null; bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean },
 ): Promise<void> {
     const generation = sessionGeneration()
     await apiPost(`/waivers/claims/${claimId}/edit`, {
@@ -130,6 +137,7 @@ export async function editWaiverClaim(
         bidAmount: updates.bidAmount ?? 0,
         claimOrder: updates.claimOrder ?? null,
         ...(updates.toIr !== undefined ? { toIr: updates.toIr } : {}),
+        ...(updates.toTaxi !== undefined ? { toTaxi: updates.toTaxi } : {}),
     })
     if (generation === sessionGeneration()) notifyMemberClaimsChanged(memberId)
 }
@@ -157,7 +165,7 @@ export async function getMyWaiverClaims(
 
     const claimsQuery = () => supabase
         .from('waiver_claims')
-        .select(`
+        .select<string, WaiverClaimQueryRow>(`
             id,
             player_id,
             drop_player_id,
@@ -168,8 +176,9 @@ export async function getMyWaiverClaims(
             bid_amount,
             claim_order,
             to_ir,
+            to_taxi,
             failure_reason,
-            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id ),
+            claim_player:players!waiver_claims_player_id_fkey ( display_name, nba_id, years_exp, career_regular_season_games ),
             drop_player:players!waiver_claims_drop_player_id_fkey ( display_name, nba_id )
         `)
         .eq('member_id', memberId)
@@ -202,6 +211,9 @@ export async function getMyWaiverClaims(
         bidAmount: row.bid_amount ?? 0,
         claimOrder: row.claim_order ?? 1,
         toIr: row.to_ir,
+        toTaxi: row.to_taxi,
+        playerYearsExp: row.claim_player?.years_exp ?? null,
+        playerCareerGames: row.claim_player?.career_regular_season_games ?? null,
         failureReason: row.failure_reason ?? null,
     }))
 }

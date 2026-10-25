@@ -20,9 +20,10 @@ type BannerProps = {
     padX: number
 }
 
-export function HomeAnnouncementOnEntry({ loaded, ...props }: BannerProps & { loaded: boolean }) {
-    const [announcements] = useState(() => loaded ? props.announcements : [])
-    return <HomeAnnouncementBanner {...props} announcements={announcements} />
+export function HomeAnnouncementOnEntry({ loaded, revision = 0, ...props }: BannerProps & { loaded: boolean; revision?: number }) {
+    const [snapshot, setSnapshot] = useState(() => ({ revision, announcements: loaded ? props.announcements : [] }))
+    if (snapshot.revision !== revision) setSnapshot({ revision, announcements: loaded ? props.announcements : [] })
+    return <HomeAnnouncementBanner {...props} announcements={snapshot.announcements} />
 }
 
 export function HomeAnnouncementBanner({ announcements, ownerId, memberId, leagueId, padX }: BannerProps) {

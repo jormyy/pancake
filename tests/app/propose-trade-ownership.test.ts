@@ -1,6 +1,8 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { rosterPlayer } from '../helpers/fixtures'
+import type { RosterPlayer } from '@/lib/roster'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
 import { RequestError } from '@/lib/shared/errors'
 import { clearSessionCaches } from '@/lib/session-cache-registry'
@@ -11,6 +13,7 @@ type MockTradeItem =
     | { kind: 'faab'; fromMemberId: string; toMemberId: string; faabAmount: number }
 
 const mocks = vi.hoisted(() => ({
+    roster: [] as RosterPlayer[],
     userId: 'user-a',
     selectedAssetsAvailable: true,
     assetsLoaded: true,
@@ -102,6 +105,8 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
 vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
     useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
 }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+vi.mock('@/lib/roster', () => ({ getRoster: async () => mocks.roster }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ takeTradeAnalyzerDraft: () => null }))
 vi.mock('@/lib/trade-composer', async importOriginal => ({
     ...await importOriginal<typeof import('@/lib/trade-composer')>(),
@@ -166,6 +171,7 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
 vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: () => null }))
 
+vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 const deferred = <Value,>() => {
@@ -176,6 +182,7 @@ const deferred = <Value,>() => {
 }
 
 beforeEach(() => {
+    mocks.roster = []
     mocks.assetsLoaded = true
     vi.clearAllMocks()
     mocks.userId = 'user-a'
@@ -833,4 +840,19 @@ it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s m
         await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
         expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan).toEqual(expected)
     } finally { await act(async () => renderer?.unmount()) }
+})
+
+
+it('opens roster resolution before sending a proposal from an ineligible taxi roster', async () => {
+    const taxi = rosterPlayer({ is_on_taxi: true })
+    taxi.players = { ...taxi.players, years_exp: 2, career_regular_season_games: 65 }
+    mocks.roster = [taxi]
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
+    await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+    await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
+    expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
+    expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
+    expect(renderer.root.findByType('IRResolutionModal' as React.ElementType).props.ineligibleIR).toEqual([taxi])
+    await act(async () => renderer.unmount())
 })

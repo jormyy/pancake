@@ -21,9 +21,10 @@ const actions = { acting: false, onAccept: vi.fn(), onReject: vi.fn(), onVeto: v
 
 describe('trade taxi destination', () => {
     it.each([
+        ['low games veteran', { yearsExp: 4, careerGames: 64 }, 1],
         ['veteran', { yearsExp: 4, nbaDraftNumber: 12 }, 0],
         ['drafted rookie', { yearsExp: 0, nbaDraftNumber: 12 }, 1],
-        ['undrafted rookie', { yearsExp: 0, nbaDraftNumber: null }, 0],
+        ['undrafted rookie', { yearsExp: 0, nbaDraftNumber: null }, 1],
         ['existing placement', { yearsExp: 4, nbaDraftNumber: 12, toTaxi: true }, 1],
     ] as const)('only offers a usable or removable taxi choice for %s', async (_name, fields, count) => {
         const item: TradeItem = { ...incoming, ...fields }

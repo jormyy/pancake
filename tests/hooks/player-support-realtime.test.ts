@@ -8,7 +8,7 @@ import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
     post: vi.fn(),
-    subscription: null as null | { watches: { table: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
+    subscription: null as null | { watches: { table: string; filter?: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
     support: vi.fn(), recover: vi.fn(), derived: vi.fn(), invalidate: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
 vi.mock('@/lib/shared/api', () => ({ apiPost: boundary.post }))
@@ -218,8 +218,20 @@ it.each(['submit', 'cancel', 'edit', 'reorder'])('refreshes own claims directly 
 it.each(['INSERT', 'UPDATE', 'DELETE'])('refreshes claims after an own roster %s cancels server claims', async eventType => {
     await act(async () => { renderer = create(React.createElement(Probe)) })
     await act(async () => {
-        boundary.subscription!.watches[0].onChange({ eventType, new: eventType === 'DELETE' ? {} : { member_id: 'member' }, old: { member_id: 'member' } })
+        boundary.subscription!.watches[0].onChange({ eventType, new: eventType === 'DELETE' ? {} : { member_id: 'member' }, old: { id: 'roster-row' } })
         await vi.advanceTimersByTimeAsync(200)
     })
-    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['ownership', 'claims', 'transactions'])
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(eventType === 'DELETE' ? ['ownership', 'transactions'] : ['ownership', 'claims', 'transactions'])
+})
+
+
+it('watches private own claims and refreshes cancellations with primary-key-only old rows', async () => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    const watch = boundary.subscription!.watches.find(row => row.table === 'waiver_claims')
+    expect(watch?.filter).toBe('member_id=eq.member')
+    await act(async () => {
+        watch!.onChange({ eventType: 'UPDATE', new: { id: 'claim', member_id: 'member', status: 'cancelled' }, old: { id: 'claim' } })
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
 })

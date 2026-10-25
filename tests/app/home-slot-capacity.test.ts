@@ -245,3 +245,39 @@ it('keeps the first Home layout when a later announcement read returns a banner'
     expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
     expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
 })
+
+it('shows a new announcement from pull refresh without remounting the matchup', async () => {
+    await mount()
+    const card = screen.root.findByType('ScoreCard' as React.ElementType)
+    mocks.refreshAnnouncements.mockImplementationOnce(async () => {
+        mocks.announcements = [{ id: 'pull', body: 'Returned by pull refresh.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+    })
+    const pull = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)!.props.refreshControl
+    await act(async () => pull.props.onRefresh())
+    expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+    expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+})
+
+it('re-snapshots announcements when Home returns to the foreground', async () => {
+    const page = new EventTarget()
+    let hidden = false
+    Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
+    vi.stubGlobal('document', page)
+    try {
+        await mount()
+        const card = screen.root.findByType('ScoreCard' as React.ElementType)
+        mocks.refreshAnnouncements.mockImplementationOnce(async () => {
+            mocks.announcements = [{ id: 'foreground', body: 'Returned in the foreground.', league_id: 'league', published_at: new Date().toISOString(), author_member_id: 'commissioner' }]
+        })
+        hidden = true
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        hidden = false
+        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
+        expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+        expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+        expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
+    } finally {
+        await act(async () => screen.unmount())
+        vi.unstubAllGlobals()
+    }
+})

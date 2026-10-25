@@ -19,7 +19,7 @@ export function readPlayerHeader(playerId: string, encoded: string | undefined):
             position: text('position'), eligible_positions: value.eligible_positions ?? [],
             jersey_number: text('jersey_number'), injury_status: text('injury_status'),
             dynasty_rank: integer('dynasty_rank'), headshot_url: text('headshot_url'),
-            nba_id: text('nba_id'), years_exp: integer('years_exp'),
+            nba_id: text('nba_id'), years_exp: integer('years_exp'), career_regular_season_games: integer('career_regular_season_games'),
         }
     } catch {
         return null
@@ -35,7 +35,7 @@ export function playerDetailRoute(player: PlayerRow, pickupPossible = false) {
             playerHeader: JSON.stringify({
                 id: player.id, display_name: player.display_name, nba_team: player.nba_team,
                 position: player.position, eligible_positions: player.eligible_positions,
-                injury_status: player.injury_status, nba_id: player.nba_id, years_exp: player.years_exp,
+                injury_status: player.injury_status, nba_id: player.nba_id, years_exp: player.years_exp, career_regular_season_games: player.career_regular_season_games,
             }),
         },
     }

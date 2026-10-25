@@ -260,11 +260,7 @@ export default function CommissionerSettingsScreen() {
                             <Text style={styles.rowLabel}>{label}</Text>
                             <TextInput style={styles.scoreInput} accessibilityLabel={label} value={value} onChangeText={set} keyboardType="numeric" />
                         </View>)}
-                        <Pressable accessibilityRole="checkbox" aria-checked={draft.taxiRule === 'rookies_or_64_games'} accessibilityState={{ checked: draft.taxiRule === 'rookies_or_64_games' }}
-                            onPress={() => updateField('taxiRule', draft.taxiRule === 'rookies_or_64_games' ? 'drafted_rookies' : 'rookies_or_64_games')} style={styles.row}>
-                            <Text style={styles.rowLabel}>Taxi: rookie or fewer than 65 NBA games</Text>
-                            <Text>{draft.taxiRule === 'rookies_or_64_games' ? 'On' : 'Off'}</Text>
-                        </Pressable>
+
                         <Pressable accessibilityRole="checkbox" aria-checked={draft.allowInactiveTrades ?? false} accessibilityState={{ checked: draft.allowInactiveTrades ?? false }}
                             onPress={() => updateField('allowInactiveTrades', !draft.allowInactiveTrades)} style={styles.row}>
                             <Text style={styles.rowLabel}>Allow IR and taxi trades</Text><Text>{draft.allowInactiveTrades ? 'On' : 'Off'}</Text>

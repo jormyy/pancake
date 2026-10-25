@@ -124,6 +124,8 @@ type NominationPollRow = {
 }
 
 export type DraftSearchPlayer = {
+    years_exp?: number | null
+    career_regular_season_games?: number | null
     id: string
     display_name: string | null
     nba_team: string | null
@@ -541,7 +543,7 @@ export async function searchPlayers(
     // NBA player, so unranked players fall back alphabetically).
     let playerQuery = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at, nominated:nominations!nominations_player_id_fkey()')
+        .select('id, display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at, nominated:nominations!nominations_player_id_fkey()')
         .eq('nominated.draft_id', draftId)
         .is('nominated', null)
     playerQuery =

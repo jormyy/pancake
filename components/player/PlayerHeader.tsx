@@ -1,3 +1,4 @@
+import { PlayerEligibilityTags } from './PlayerEligibilityTags'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
@@ -18,6 +19,7 @@ type PlayerHeaderPlayer = {
     dynasty_rank: number | null
     headshot_url: string | null
     nba_id: string | null
+    career_regular_season_games?: number | null
     years_exp: number | null
 }
 
@@ -83,7 +85,8 @@ export function PlayerHeader({ player, rosterStatus, action, backControl,
                 {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
                 {eligiblePositions.map(pos => <PosTag key={pos} position={pos} />)}
                 {player.dynasty_rank != null ? <Badge label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {player.years_exp != null ? <Badge label={player.years_exp <= 0 ? 'Rookie' : `Yr ${player.years_exp + 1}`} color={colors.textMuted} textColor={colors.textMuted} variant="soft" /> : null}
+{player.years_exp != null && player.years_exp > 0 ? <Badge label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
+                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>
         </View>

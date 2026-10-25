@@ -1,3 +1,5 @@
+import { useRosterLegality } from '@/hooks/use-roster-legality'
+import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { StyleSheet, Text, View } from 'react-native'
@@ -129,7 +131,10 @@ function TradesScreen() {
         loadMore: loadMoreHistory,
     } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history')
     const decisionsDisabled = !online || tradesSnapshot || Boolean(tradesError)
+    const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
     const tradeActions = useTradeActions({
+        beforeAccept: () => rosterLegality.check(),
+        onRosterError: rosterLegality.report,
         memberId: myMemberId,
         leagueId,
         onAction: load,
@@ -356,6 +361,7 @@ function TradesScreen() {
                 onAnalyze={() => { setOpenTradeId(null); openAnalyzer(tradeContext.trade) }} />
         </ScrollView>
         {resourceStatus}
+        {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
     </Page>
 
     if (ownedAnalyzerTrade) return <Page title="Trade analysis">

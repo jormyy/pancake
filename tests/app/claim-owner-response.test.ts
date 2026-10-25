@@ -26,6 +26,7 @@ vi.mock('@/lib/format',()=>({isIneligibleIR:()=>false,playerHeadshotUrl:()=>null
 vi.mock('@/lib/pickup',()=>({addLimitSummary:()=>'',reportPickupError:state.report}))
 vi.mock('@/hooks/use-add-limit-gate',()=>({useAddLimitGate:()=>({addBlockedReason:null,explainBlock:()=>false})}))
 vi.mock('@/lib/alert',()=>({showAlert:vi.fn(),showSuccess:state.success}))
+vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true
 const render=()=>React.createElement(React.StrictMode,null,React.createElement(ClaimPlayerScreen))
 let screen:ReactTestRenderer
