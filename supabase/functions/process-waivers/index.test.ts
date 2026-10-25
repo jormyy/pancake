@@ -40,3 +40,40 @@ Deno.test('waiver results enter the durable outbox with one key per resolved cla
     assert.ok(String(queued.find(row => row.dedupe_key === 'waiver_result:lost')?.body).includes('Higher priority'))
   } finally { globalThis.fetch = nativeFetch }
 })
+
+Deno.test('notification queue failures do not stop later waiver batches or log expiry', async () => {
+  const nativeFetch = globalThis.fetch
+  const nativeError = console.error
+  const errors: unknown[][] = []
+  let batches = 0
+  let queued = 0
+  let expired = false
+  console.error = (...args) => { errors.push(args) }
+  globalThis.fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    const table = url.pathname.split('/').at(-1)
+    if (table === 'process_due_waiver_claims_atomic') {
+      batches++
+      return Response.json(batches > 2 ? [] : [{ claim_id: `claim-${batches}`, member_id: 'member', player_id: 'player',
+        status: 'succeeded', processed: true }])
+    }
+    if (table === 'players') return Response.json([{ id: 'player', display_name: 'Player' }])
+    if (table === 'notification_outbox') {
+      queued++
+      return queued === 1 ? Response.json({ message: 'Queue unavailable' }, { status: 503 }) : Response.json([])
+    }
+    if (table === 'expire_waiver_wire_logs') { expired = true; return Response.json(1) }
+    return Response.json([])
+  }
+  try {
+    const response = await handler(new Request('http://edge.test/process-waivers', { method: 'POST',
+      headers: { 'x-internal-function-token': 'waiver-internal-test' } }))
+    assert.equal(response.status, 200)
+    assert.deepEqual(await response.json(), { ok: true, processed: 2 })
+    assert.equal(batches, 4)
+    assert.equal(queued, 2)
+    assert.equal(expired, true)
+    assert.ok(errors.some(args => args[0] === '[process-waivers] failed to queue claim notifications'
+      && (args[1] as { message: string }).message === 'Queue unavailable'))
+  } finally { globalThis.fetch = nativeFetch; console.error = nativeError }
+})

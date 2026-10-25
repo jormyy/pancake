@@ -30,6 +30,7 @@ BEGIN
      WHERE queued.category IN ('trade','activity','waiver','draft')
        AND queued.delivered_at IS NULL
        AND queued.dead_lettered_at IS NULL
+       AND queued.expo_ticket_id IS NULL
        AND queued.available_at <= now()
        AND (
          queued.claimed_at IS NULL

@@ -8,6 +8,7 @@ import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-chan
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { confirmAction, showAlert } from '@/lib/alert'
+import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 
 type ListProps = {
     data: unknown[]
@@ -143,6 +144,24 @@ describe('roster empty slots', () => {
         act(() => screen.unmount())
         setLeagueChangesConnected('league-a', false)
         vi.useRealTimers()
+    })
+
+    it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports partial failures for %s', async action => {
+        vi.mocked(getLineupContext).mockResolvedValue({ seasonId: 'season', weekNumber: 1, seasonYear: 2026, today: '2026-10-24' })
+        vi.mocked(autoSetLineup).mockResolvedValue({ dates: 2, optimized: 1, failed: 1, skipped: 0, results: [] })
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => { screen.root.findByType('AutoSetModal' as React.ElementType).props[action](); await Promise.resolve() })
+        expect(showAlert).toHaveBeenCalledExactlyOnceWith('Lineup partly optimized', 'Optimized 1 of 2 dates; 1 failed.')
+    })
+
+    it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports no remaining dates for %s', async action => {
+        vi.mocked(getLineupContext).mockResolvedValue({ seasonId: 'season', weekNumber: 1, seasonYear: 2026, today: '2026-10-24' })
+        vi.mocked(autoSetLineup).mockResolvedValue({ dates: 0, optimized: 0, failed: 0, skipped: 0, results: [] })
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        await act(async () => { screen.root.findByType('AutoSetModal' as React.ElementType).props[action](); await Promise.resolve() })
+        expect(showAlert).toHaveBeenCalledExactlyOnceWith(action === 'onRestOfSeason' ? 'Season is over' : 'No remaining dates',
+            action === 'onRestOfSeason' ? 'There are no remaining dates this season to optimize.'
+                : 'There are no remaining dates in this selection to optimize.', 'info')
     })
 
     it('keeps every active, IR and taxi slot visible when the roster is completely empty', () => {

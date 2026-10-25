@@ -2007,9 +2007,13 @@ export type Database = {
           dedupe_key: string
           delivered_at: string | null
           event_type: string
+          expo_ticket_id: string | null
           id: string
           last_error: string | null
           member_id: string
+          push_token: string | null
+          receipt_attempt_count: number
+          ticketed_at: string | null
           title: string
         }
         Insert: {
@@ -2025,9 +2029,13 @@ export type Database = {
           dedupe_key: string
           delivered_at?: string | null
           event_type: string
+          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id: string
+          push_token?: string | null
+          receipt_attempt_count?: number
+          ticketed_at?: string | null
           title: string
         }
         Update: {
@@ -2043,9 +2051,13 @@ export type Database = {
           dedupe_key?: string
           delivered_at?: string | null
           event_type?: string
+          expo_ticket_id?: string | null
           id?: string
           last_error?: string | null
           member_id?: string
+          push_token?: string | null
+          receipt_attempt_count?: number
+          ticketed_at?: string | null
           title?: string
         }
         Relationships: [
@@ -2368,6 +2380,8 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          push_token: string | null
+          push_token_revocation_hash: string | null
           timezone: string
           updated_at: string
           username: string
@@ -2377,6 +2391,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          push_token?: string | null
+          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username: string
@@ -2386,6 +2402,8 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          push_token?: string | null
+          push_token_revocation_hash?: string | null
           timezone?: string
           updated_at?: string
           username?: string
@@ -4382,6 +4400,16 @@ export type Database = {
           title: string
         }[]
       }
+      claim_notification_receipts_atomic: {
+        Args: { p_lease_seconds?: number; p_limit?: number }
+        Returns: {
+          claim_token: string
+          expo_ticket_id: string
+          id: string
+          member_id: string
+          push_token: string
+        }[]
+      }
       claim_stats_sync_job_atomic: {
         Args: { p_job_id?: string; p_stale_after_seconds?: number }
         Returns: {
@@ -4394,6 +4422,10 @@ export type Database = {
         }[]
       }
       clear_ineligible_taxi_players: { Args: never; Returns: number }
+      clear_push_token_for_user_atomic: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: boolean
+      }
       clear_web_push_for_user_atomic: {
         Args: {
           p_endpoint: string
@@ -4573,6 +4605,16 @@ export type Database = {
       dead_letter_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
+      }
+      defer_notification_receipt_state_atomic: {
+        Args: {
+          p_claim_token: string
+          p_error: string
+          p_id: string
+          p_increment_attempt?: boolean
+          p_retry_delay_seconds?: number
+        }
+        Returns: string
       }
       delete_league_atomic: { Args: { p_league_id: string }; Returns: Json }
       delete_mock_draft_room_atomic: {
@@ -5104,7 +5146,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_notification_outbox_ticket_atomic: {
+        Args: {
+          p_claim_token: string
+          p_expo_ticket_id: string
+          p_id: string
+          p_push_token: string
+          p_receipt_delay_seconds?: number
+        }
+        Returns: boolean
+      }
       refresh_player_search_caches: { Args: never; Returns: undefined }
+      register_push_token_atomic: {
+        Args: { p_revocation_hash: string; p_token: string; p_user_id: string }
+        Returns: undefined
+      }
       register_web_push_atomic: {
         Args: {
           p_auth: string
@@ -5202,6 +5258,10 @@ export type Database = {
       resume_draft_if_absent_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
         Returns: undefined
+      }
+      revoke_push_token_atomic: {
+        Args: { p_revocation_hash: string; p_token: string }
+        Returns: boolean
       }
       save_game_stats_atomic: {
         Args: {

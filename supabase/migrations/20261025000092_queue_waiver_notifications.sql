@@ -1,6 +1,6 @@
-ALTER TABLE public.notification_outbox DROP CONSTRAINT notification_outbox_trade_category;
+ALTER TABLE public.notification_outbox DROP CONSTRAINT IF EXISTS notification_outbox_trade_category;
 ALTER TABLE public.notification_outbox ADD CONSTRAINT notification_outbox_trade_category
-  CHECK (category IN ('trade', 'activity', 'waiver')) NOT VALID;
+  CHECK (category IN ('trade', 'activity', 'waiver', 'draft', 'player', 'lineup', 'matchup', 'playoff', 'league')) NOT VALID;
 ALTER TABLE public.notification_outbox VALIDATE CONSTRAINT notification_outbox_trade_category;
 
 CREATE OR REPLACE FUNCTION public.claim_notification_outbox_atomic(

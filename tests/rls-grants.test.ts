@@ -190,8 +190,8 @@ describe('profile privacy and invite capacity policies', () => {
         )
     })
 
-    it('drops the legacy push-token compatibility trigger and revokes direct token writes', () => {
-        expect(() => latestFunctionDefinition('normalize_legacy_push_token_write', 'private')).toThrow(/dropped after its latest definition/)
+    it('keeps the deployed Edge push-token trigger while revoking direct client writes', () => {
+        expect(latestFunctionDefinition('normalize_legacy_push_token_write', 'private')).toContain('UPDATE public.profiles')
         expect(tablePrivilegeStatements('profiles').join('\n')).toContain('REVOKE UPDATE (push_token) ON public.profiles FROM authenticated')
     })
 })
