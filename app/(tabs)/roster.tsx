@@ -18,6 +18,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { getRoster, toggleIR, toggleTaxi, dropPlayer, isIREligible, activateRosterPlayerWithOverflow, RosterPlayer } from '@/lib/roster'
 import { getPicksForMember, TradePickItem } from '@/lib/trades'
+import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
 import { colors, controlSize, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
@@ -101,7 +102,7 @@ function rosterCacheKey(memberId: string, leagueId: string) {
 
 function readRosterCache(memberId: string | undefined, leagueId: string | undefined, scope: string): { data: RosterScreenData; savedAt: number } | undefined {
     if (!memberId || !leagueId) return undefined
-    const cached = readTabSnapshot<RosterScreenCache>(rosterCacheKey(memberId, leagueId), scope, leagueId)
+    const cached = readTabSnapshot<RosterScreenCache>(rosterCacheKey(memberId, leagueId), scope, leagueId, 'roster', memberId)
     if (!cached) return undefined
     const value = cached.data
     return { savedAt: cached.savedAt, data: {
@@ -337,7 +338,7 @@ export default function RosterScreen() {
         return result
     }, [current?.id, user?.id, leagueId, snapshotScope], {
         initialData: cachedRosterData?.data, initialFetchedAt: cachedRosterData?.savedAt, staleMs: 300_000,
-        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId) : null,
+        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'roster', current?.id) : null,
         onFailed: () => { if (leagueId) invalidateLeagueSnapshot(leagueId) },
         onLoaded: (result, revision) => {
             if (current?.id && leagueId && result) writeRosterCache(current.id, leagueId, snapshotScope, revision, result)
@@ -348,6 +349,7 @@ export default function RosterScreen() {
         if (!current?.id || !leagueId) return
 
         const refreshRoster = deferLeagueRefresh(refresh)
+        const stopClaims = listenForMemberClaimsChanges(current.id, refreshRoster.trigger)
         let registering = true
         const stopHints = listenForLeagueChanges(leagueId, change => {
             if (registering && change.topic === 'catchup') return
@@ -361,6 +363,7 @@ export default function RosterScreen() {
         registering = false
         return () => {
             stopHints()
+            stopClaims()
             refreshRoster.cancel()
         }
     }, [current?.id, leagueId, refresh])

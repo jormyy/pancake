@@ -414,7 +414,7 @@ export default function ClaimPlayerScreen() {
                 </View>
                 <Pressable
                     style={styles.blockButton}
-                    onPress={() => router.replace('/(tabs)/roster')}
+                    onPress={() => router.dismissTo('/(tabs)/roster')}
                     accessibilityRole="button"
                     accessibilityLabel="Go to roster"
                 >

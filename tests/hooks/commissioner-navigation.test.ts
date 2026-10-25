@@ -46,3 +46,10 @@ it('returns to the prior in-app screen after a normal save', () => {
     expect(mocks.back).toHaveBeenCalledOnce()
     expect(mocks.replace).not.toHaveBeenCalled()
 })
+
+it('uses the current stack for the settings Back action', () => {
+    mocks.canGoBack.mockReturnValue(true)
+    useCommissionerSettingsController().navigateBack()
+    expect(mocks.back).toHaveBeenCalledOnce()
+    expect(mocks.replace).not.toHaveBeenCalled()
+})

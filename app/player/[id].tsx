@@ -167,7 +167,7 @@ export default function PlayerDetailScreen() {
                 setDropping(true)
                 try {
                     await dropPlayer(rosterPlayerId)
-                    if (isCurrent(generation, requestedOwner)) push('/(tabs)/roster')
+                    if (isCurrent(generation, requestedOwner)) router.dismissTo('/(tabs)/roster')
                 } catch (e) {
                     if (isCurrent(generation, requestedOwner)) {
                         showAlert('Error', getErrorMessage(e))

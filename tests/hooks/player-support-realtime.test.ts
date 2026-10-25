@@ -3,12 +3,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { notifyLeagueChange } from '@/lib/league-changes'
 import { PanelActivityContext } from '@/contexts/panel-activity'
+import { submitWaiverClaim, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim } from '@/lib/waivers'
 import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
 
 const boundary = vi.hoisted(() => ({
+    post: vi.fn(),
     subscription: null as null | { watches: { table: string; onChange: (payload?: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void }[]; onReconnect: () => unknown },
     support: vi.fn(), recover: vi.fn(), derived: vi.fn(), invalidate: vi.fn(), stop: vi.fn(), invalidateSeason: vi.fn(),
 }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: boundary.post }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/realtime', () => ({
     subscribeToTableChanges: (_name: string, options: NonNullable<typeof boundary.subscription>) => { boundary.subscription = options; return {} },
     unsubscribeFromTableChanges: boundary.stop, reportRealtimeCleanup: vi.fn(),
@@ -20,6 +24,7 @@ const Probe = () => { usePlayerSupportRealtime('member', 'league', boundary.supp
 beforeEach(() => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    boundary.post.mockResolvedValue({ claimOrder: 2 })
     boundary.subscription = null
     boundary.support.mockResolvedValue(true)
     boundary.recover.mockResolvedValue(true)
@@ -195,4 +200,17 @@ it('ignores activity-only inventory for player availability and rankings', async
     expect(boundary.support).not.toHaveBeenCalled()
     expect(boundary.recover).not.toHaveBeenCalled()
     expect(boundary.derived).not.toHaveBeenCalled()
+})
+
+it.each(['submit', 'cancel', 'edit', 'reorder'])('refreshes own claims directly after %s without a league hint', async operation => {
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => {
+        if (operation === 'submit') await submitWaiverClaim('member', 'league', 'player')
+        if (operation === 'cancel') await cancelWaiverClaim('claim', 'member')
+        if (operation === 'edit') await editWaiverClaim('claim', 'member', { dropPlayerId: null, toIr: false })
+        if (operation === 'reorder') await reorderWaiverClaim('claim', 'member', 'up')
+        await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
+    expect(boundary.recover).not.toHaveBeenCalled()
 })

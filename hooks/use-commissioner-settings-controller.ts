@@ -27,6 +27,7 @@ export function useCommissionerSettingsController() {
         ownerId: settings.authorityReady ? user?.id ?? null : null,
         league,
         refresh,
+        scheduleStart: settings.playoffCalendar?.ranges?.find(week => !settings.playoffCalendar?.skippedWeeks?.includes(week.week_number))?.week_start,
         onDeleted: () => {
             if (canGoBack()) back()
             else replace('/league')
@@ -48,7 +49,7 @@ export function useCommissionerSettingsController() {
         lifecycle: { ...admin.lifecycle, actions: admin.lifecycle.actions.map(guardAction) },
         lowerPriorityActions: admin.lowerPriorityActions.map(guardAction),
         isCommissioner,
-        navigateBack: () => replace('/league?tab=settings'),
+        navigateBack: finishSettings,
         tradeVetoModeDescription: tradeVetoDescription(settings.draft.tradeVetoMode),
     }
 }

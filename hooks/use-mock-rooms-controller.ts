@@ -28,10 +28,6 @@ function parseRoomDateInput(value: string): string | null {
 type MockRoomControllerOptions = {
     leagueId: string | undefined
     memberId: string | undefined
-    nominationMode: NominationOrderMode
-    draftTimerSeconds: DraftTimerOption
-    rookieRounds: RookieRoundOption
-    rookieTimerExpiryBehavior: RookieTimerExpiryBehavior
     refreshRooms: () => Promise<void>
     openDraftRoom: (draftId: string, draftType: string) => void
 }
@@ -55,6 +51,17 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
     const [roomName, setRoomName] = useState('')
     const [roomDraftType, setRoomDraftType] = useState<MockDraftRoomKind>('auction')
     const [roomScheduledAt, setRoomScheduledAt] = useState(defaultRoomDateInput)
+    const [mockNominationMode, setMockNominationMode] = useState<NominationOrderMode>('user_nominated')
+    const [mockDraftTimerSeconds, setMockDraftTimerSeconds] = useState<DraftTimerOption>(60)
+    const [mockRookieRounds, setMockRookieRounds] = useState<RookieRoundOption>(3)
+    const [mockRookieTimerExpiryBehavior, setMockRookieTimerExpiryBehavior] = useState<RookieTimerExpiryBehavior>('auto_pick')
+    const changeRoomDraftType = (kind: MockDraftRoomKind) => {
+        setRoomDraftType(kind)
+        setMockNominationMode('user_nominated')
+        setMockDraftTimerSeconds(kind === 'snake' ? 86400 : 60)
+        setMockRookieRounds(3)
+        setMockRookieTimerExpiryBehavior('auto_pick')
+    }
 
     useEffect(() => {
         activeActionRef.current = null
@@ -62,6 +69,10 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
         setStateOwnerKey(ownerKey)
         setRoomName('')
         setRoomDraftType('auction')
+        setMockNominationMode('user_nominated')
+        setMockDraftTimerSeconds(60)
+        setMockRookieRounds(3)
+        setMockRookieTimerExpiryBehavior('auto_pick')
         setRoomScheduledAt(defaultRoomDateInput())
         return () => {
             generationRef.current += 1
@@ -104,10 +115,10 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
                 draftType: roomDraftType,
                 roomName,
                 scheduledAt,
-                nominationOrderMode: options.nominationMode,
-                timerSeconds: options.draftTimerSeconds,
-                rounds: options.rookieRounds,
-                timerExpiryBehavior: options.rookieTimerExpiryBehavior,
+                nominationOrderMode: mockNominationMode,
+                timerSeconds: mockDraftTimerSeconds,
+                rounds: mockRookieRounds,
+                timerExpiryBehavior: mockRookieTimerExpiryBehavior,
             })
             if (!ownsAction(action)) return
             setRoomName('')
@@ -167,7 +178,15 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
         roomName: ownsState ? roomName : '',
         roomScheduledAt: ownsState ? roomScheduledAt : '',
         roomSubmitting: Boolean(ownsBusy && busy?.kind === 'create'),
-        setRoomDraftType,
+        mockNominationMode,
+        setMockNominationMode,
+        mockDraftTimerSeconds,
+        setMockDraftTimerSeconds,
+        mockRookieRounds,
+        setMockRookieRounds,
+        mockRookieTimerExpiryBehavior,
+        setMockRookieTimerExpiryBehavior,
+        setRoomDraftType: changeRoomDraftType,
         setRoomName,
         setRoomScheduledAt,
     }

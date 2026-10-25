@@ -72,7 +72,6 @@ export async function getLineupContext(
     return { seasonId: season.id, seasonYear: season.seasonYear, weekNumber, today }
 }
 
-// Returns the 7 days of the given fantasy week with game schedule info.
 export async function getWeekDays(weekNumber: number, seasonYear: number): Promise<WeekDay[]> {
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect

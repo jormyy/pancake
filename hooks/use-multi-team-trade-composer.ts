@@ -213,7 +213,7 @@ export function useMultiTeamTradeComposer({
             try {
                 const [rosters, picks] = await Promise.all([
                     getRostersForMembers(missingParticipantIds, leagueId),
-                    getPicksForMembers(missingParticipantIds, leagueId),
+                    getPicksForMembers(missingParticipantIds, leagueId, { tradeableOnly: true }),
                 ])
                 if (rosterLoadSeqRef.current !== requestId || !isCurrent(generation)) return
 

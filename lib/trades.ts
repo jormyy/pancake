@@ -254,6 +254,7 @@ export async function getPicksForMember(memberId: string, leagueId: string): Pro
 export async function getPicksForMembers(
     memberIds: string[],
     leagueId: string,
+    options: { tradeableOnly?: boolean } = {},
 ): Promise<Record<string, TradePickItem[]>> {
     const uniqueMemberIds = [...new Set(memberIds)]
     const picks = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as TradePickItem[]]))
@@ -275,7 +276,17 @@ export async function getPicksForMembers(
 
     if (error) throw error
 
+    const unavailableSeasons = new Set<number>()
+    if (options.tradeableOnly) {
+        const { data: drafts, error: draftError } = await supabase.from('drafts')
+            .select('league_seasons!inner(season_year)')
+            .eq('league_id', leagueId).eq('draft_type', 'snake').eq('is_mock', false)
+            .in('status', ['in_progress', 'paused'])
+        if (draftError) throw draftError
+        for (const draft of drafts ?? []) unavailableSeasons.add(draft.league_seasons.season_year)
+    }
     for (const row of (data ?? []) as MemberTradePickQueryRow[]) {
+        if (unavailableSeasons.has(row.season_year)) continue
         picks[row.current_owner_id]?.push({
             kind: 'pick',
             pickId: row.id,

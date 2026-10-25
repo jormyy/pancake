@@ -348,3 +348,41 @@ describe('automatic player average season', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+it('keeps scrolled fallback rows and the next offset when the minute probe finds the same season', async () => {
+    vi.useFakeTimers()
+    const owned = new Map(), waivers = new Set<string>()
+    const page = (offset: number) => Array.from({ length: 20 }, (_, i) => ({ ...player(`prior-${offset + i}`), stats_season_year: 2026 }))
+    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => Promise.resolve(page(args[6] as number)))
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.results.loadMore() })
+        const rows = latest.results.players
+        expect(rows).toHaveLength(40)
+        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
+        expect(latest.results.players).toBe(rows)
+        expect(mocks.searchPlayers.mock.calls.at(-1)?.[6]).toBe(0)
+        await act(async () => { await latest.results.loadMore() })
+        expect(mocks.searchPlayers.mock.calls.at(-1)?.[6]).toBe(40)
+    } finally { await act(async () => renderer.unmount()) }
+})
+
+it('loads rookies one page at a time', async () => {
+    const owned = new Map(), waivers = new Set<string>()
+    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => Promise.resolve(Array.from({ length: 20 }, (_, i) => player(`${args[6]}-${i}`))))
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        mocks.searchPlayers.mockClear()
+        await act(async () => latest.toggles.setRookiesOnly(true))
+        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
+        expect(latest.results.players).toHaveLength(20)
+        await act(async () => { await latest.results.loadMore() })
+        expect(latest.results.players).toHaveLength(40)
+    } finally { await act(async () => renderer.unmount()) }
+})

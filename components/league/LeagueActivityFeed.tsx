@@ -1,3 +1,4 @@
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
@@ -15,7 +16,7 @@ import { usePageMetrics } from '@/components/ui'
 /** One league transaction. */
 function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
-    const label = TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
+    const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
     const avatarSize = 32
     if (item.isSystem) {
         return (
@@ -28,7 +29,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                 />
                 <View style={styles.txInfo}>
                     <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
-                    <Text style={styles.txTeam} numberOfLines={2}>
+                    <Text style={styles.txTeam} numberOfLines={item.transactionType === 'commissioner_announcement' ? undefined : 2}>
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
@@ -71,6 +72,8 @@ export function ActivityFeed({
     transactions,
     myMemberId,
     onLoadMore,
+    onRefresh,
+    refreshing,
     hasMore,
     loading,
     loadingMore,
@@ -79,12 +82,15 @@ export function ActivityFeed({
     transactions: TransactionRow[]
     myMemberId?: string
     onLoadMore?: () => void
+    onRefresh?: () => void | Promise<void>
+    refreshing?: boolean
     hasMore?: boolean
     loading?: boolean
     loadingMore?: boolean
     loadMoreError?: string | null
 }) {
     const statusScroll = useScreenStatusScroll()
+    const pullRefresh = usePullToRefresh(onRefresh, Boolean(refreshing), statusScroll.onScroll)
     const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
@@ -161,10 +167,12 @@ export function ActivityFeed({
     return (
         <View style={styles.column}>
             <FlashList
-                onScroll={statusScroll.onScroll}
+                {...pullRefresh}
                 scrollEventThrottle={16}
                 contentContainerStyle={statusScroll.contentStyle()}
                 data={transactions}
+                onRefresh={onRefresh}
+                refreshing={Boolean(refreshing)}
                 keyExtractor={(t) => t.id}
                 ItemSeparatorComponent={ItemSeparator}
                 renderItem={renderItem}

@@ -18,7 +18,7 @@ export default function NotificationSettingsScreen() {
     const { user } = useAuth()
     const back = useGoBack('/profile')
     const { padX } = usePageMetrics()
-    const { preferences, profileLoaded, profileError, retryProfile, setPreferences } = useProfileResource(user?.id)
+    const { preferences, profileLoaded, profileError, retryProfile, setPreferences } = useProfileResource(user?.id, 'preferences')
     const owner = `${user?.id ?? ''}:${sessionGeneration()}`
     const state = useRef({ owner, preferences, writer: createNotificationPreferenceWriter(
         next => user ? updateNotificationPreferences(user.id, next) : Promise.resolve(),

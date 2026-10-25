@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 
-const state = vi.hoisted(() => ({ online: true, focused: true, standings: vi.fn(), history: vi.fn(), rooms: vi.fn() }))
+const state = vi.hoisted(() => ({ online: true, focused: true, standings: vi.fn(), history: vi.fn(), rooms: vi.fn(), announcements: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => state.online }))
 vi.mock('@react-navigation/native', async () => {
     const ReactModule = await import('react')
@@ -12,6 +12,7 @@ vi.mock('@react-navigation/native', async () => {
     } }
 })
 vi.mock('@/lib/scoring', () => ({ getLeagueStandings: state.standings }))
+vi.mock('@/lib/league-announcements', () => ({ listLeagueAnnouncements: state.announcements, mergeAnnouncementActivity: (rows: unknown) => rows }))
 vi.mock('@/lib/transactions', () => ({ getLeagueTransactions: state.history }))
 vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms: state.rooms }))
 vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
@@ -25,6 +26,7 @@ beforeEach(() => {
     state.standings.mockResolvedValue([{ memberId: 'saved' }])
     state.history.mockResolvedValue([])
     state.rooms.mockResolvedValue([])
+    state.announcements.mockResolvedValue([])
 })
 
 it('refreshes visible standings on reconnect without fetching hidden tabs or dropping saved data', async () => {
@@ -172,4 +174,68 @@ it('releases a suspended read and retains dirty intent without a hidden follow-u
         expect(state.standings).toHaveBeenCalledTimes(2)
         expect(latest.standings[0].memberId).toBe('new')
     } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+})
+
+it('refreshes Activity and announcements on focus and pull while keeping loaded rows visible', async () => {
+    state.history.mockResolvedValueOnce([{ id: 'saved' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    let renderer!: ReactTestRenderer
+    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(state.history).toHaveBeenCalledOnce()
+        state.focused = false
+        await act(async () => renderer.update(React.createElement(Probe)))
+        let finish!: (rows: { id: string }[]) => void
+        state.history.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+        state.focused = true
+        await act(async () => renderer.update(React.createElement(Probe)))
+        expect(state.history).toHaveBeenCalledTimes(2)
+        expect(state.announcements).toHaveBeenCalledTimes(2)
+        expect(latest.isTabLoaded).toBe(true)
+        expect(latest.isTabLoading).toBe(false)
+        expect(latest.isTabRefreshing).toBe(true)
+        expect(latest.transactions.map(row => row.id)).toEqual(['saved'])
+        await act(async () => finish([{ id: 'focused' }]))
+        state.history.mockResolvedValueOnce([{ id: 'pulled' }])
+        await act(async () => { await latest.refreshTab('history') })
+        expect(state.history).toHaveBeenCalledTimes(3)
+        expect(state.announcements).toHaveBeenCalledTimes(3)
+        expect(latest.transactions.map(row => row.id)).toEqual(['pulled'])
+    } finally { await act(async () => renderer.unmount()) }
+})
+
+it('refreshes a loaded Activity panel on selection and browser foreground without a hint', async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' })
+    vi.stubGlobal('document', page)
+    state.history.mockResolvedValue([{ id: 'loaded' }])
+    let renderer!: ReactTestRenderer
+    const Probe = ({ tab = 'history' }: { tab?: 'history' | 'results' }) => { useLeagueTabResources('league', 'member', tab); return null }
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => renderer.update(React.createElement(Probe, { tab: 'results' })))
+        await act(async () => renderer.update(React.createElement(Probe)))
+        expect(state.history).toHaveBeenCalledTimes(2)
+        await act(async () => { page.visibilityState = 'hidden'; page.dispatchEvent(new Event('visibilitychange')) })
+        await act(async () => { page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')) })
+        expect(state.history).toHaveBeenCalledTimes(3)
+    } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
+})
+
+it('refreshes visible Activity when its browser window regains focus', async () => {
+    const browser = new EventTarget()
+    vi.stubGlobal('window', browser)
+    state.history.mockResolvedValueOnce([{ id: 'before' }]).mockResolvedValueOnce([{ id: 'focused' }])
+    let latest!: ReturnType<typeof useLeagueTabResources>
+    const Probe = ({ tab = 'history' }: { tab?: 'history' | 'results' }) => { latest = useLeagueTabResources('league', 'member', tab); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { browser.dispatchEvent(new Event('focus')) })
+        expect(state.history).toHaveBeenCalledTimes(2)
+        expect(latest.transactions.map(row => row.id)).toEqual(['focused'])
+        await act(async () => renderer.update(React.createElement(Probe, { tab: 'results' })))
+        await act(async () => { browser.dispatchEvent(new Event('focus')) })
+        expect(state.history).toHaveBeenCalledTimes(2)
+    } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
 })

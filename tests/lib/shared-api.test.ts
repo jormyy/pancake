@@ -166,3 +166,9 @@ describe('pending API update protection', () => {
         expect(isPwaUpdateHeld()).toBe(false)
     })
 })
+
+it('shows the server schedule conflict message on HTTP 409', async () => {
+    vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: 'Conflict', message: 'The season has started. The schedule cannot be rebuilt.' }), { status: 409, headers: { 'content-type': 'application/json' } })))
+    await expect(apiPost('/sync/matchups', { force: true, leagueId: 'league' })).rejects.toThrow('The season has started. The schedule cannot be rebuilt.')
+})

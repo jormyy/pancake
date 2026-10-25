@@ -7,6 +7,7 @@ import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { deleteLeague } from '@/lib/league'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
+import { todayET } from '@/lib/shared/dates'
 import {
     ARCHIVE_LEAGUE_DESCRIPTION,
     commissionerLifecyclePolicy,
@@ -19,11 +20,13 @@ export function useCommissionerAdminActions({
     league,
     refresh,
     onDeleted,
+    scheduleStart,
 }: {
     ownerId: string | null
     league: LeagueInfo | null
     refresh: () => Promise<void>
     onDeleted: () => void
+    scheduleStart?: string | null
 }) {
     const ownerKey = ownerId && league ? `${ownerId}:${league.id}` : null
     const activeOwnerKeyRef = useRef(ownerKey)
@@ -93,19 +96,19 @@ export function useCommissionerAdminActions({
         ) : undefined
         const scheduleActions: CommissionerAction[] = [
             { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
-            {
-                id: 'reset-schedule',
+            ...(scheduleStart && scheduleStart > todayET() ? [{
+                id: 'reset-schedule' as const,
                 label: 'Reset & Regenerate Schedule',
-                intent: 'danger',
-                description: 'Deletes every existing matchup and rebuilds the season schedule from scratch.',
+                intent: 'danger' as const,
+                description: 'Rebuilds the season schedule for every current member before the first week starts.',
                 onPress: () => confirmAction(
                     'Reset Schedule',
-                    'This will delete all existing matchups and regenerate. Are you sure?',
+                    'This rebuilds the schedule for every current member. Continue?',
                     () => generateSchedule(true),
                     'Reset',
                     true,
                 ),
-            },
+            }] : []),
         ]
         const playoffActions: CommissionerAction[] = [
             {
@@ -156,7 +159,7 @@ export function useCommissionerAdminActions({
             annualCycleActions,
             scheduleActions,
         })
-    }, [beginMutation, finishMutation, league, ownerKey, ownsMutation, refresh, runAdmin])
+    }, [beginMutation, finishMutation, league, ownerKey, ownsMutation, refresh, runAdmin, scheduleStart])
 
     const handleDeleteLeague = () => {
         if (!league) return

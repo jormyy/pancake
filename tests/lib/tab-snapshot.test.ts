@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }))
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
@@ -89,4 +90,14 @@ it('keeps member support fresh for picks, priority and another balance but inval
     const own = revision()
     notifyLeagueChange('league', { topic: 'inventory', scopes: null, details: null })
     expect(revision()).not.toBe(own)
+})
+
+it('invalidates hidden owner claim snapshots without expiring other members', () => {
+    const own = tabSnapshotRevision('league', 'support', 'mine')
+    const other = tabSnapshotRevision('league', 'support', 'other')
+    const roster = tabSnapshotRevision('league', 'roster', 'mine')
+    notifyMemberClaimsChanged('mine')
+    expect(tabSnapshotRevision('league', 'support', 'mine')).not.toBe(own)
+    expect(tabSnapshotRevision('league', 'support', 'other')).toBe(other)
+    expect(tabSnapshotRevision('league', 'roster', 'mine')).not.toBe(roster)
 })

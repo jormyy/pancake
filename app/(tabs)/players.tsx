@@ -344,7 +344,7 @@ function PlayerSearchSection() {
             : 'Rolling waivers'
         : ''
     const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
-    const summaryLine = `${resultCountLabel} · ${addLimitSummary(transactionState)} · ${waiverLine}`
+    const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState), waiverLine].filter(Boolean).join(' · ')
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -453,7 +453,6 @@ function PlayerSearchSection() {
                     )}
                 </View>
                 {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
-                {averageLabel ? <Text style={localStyles.summary} testID="players-average-season">{averageLabel}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}

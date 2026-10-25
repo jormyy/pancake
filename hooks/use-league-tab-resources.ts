@@ -1,3 +1,4 @@
+import { listLeagueAnnouncements, mergeAnnouncementActivity, type LeagueAnnouncement } from '@/lib/league-announcements'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { getLeagueStandings, type StandingRow } from '@/lib/scoring'
@@ -8,14 +9,14 @@ import { getMockDraftRooms, type MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 import { useKeyedResource } from '@/hooks/use-keyed-resource'
 import { useBrowserReadActivity, browserReadsAllowed } from '@/hooks/use-browser-read-activity'
-import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, leagueActivityChanged, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const ACTIVITY_LIMIT = 50
 const EMPTY_STANDINGS: StandingRow[] = []
-type ActivityPage = { rows: TransactionRow[]; hasMore: boolean; offset: number }
+type ActivityPage = { rows: TransactionRow[]; hasMore: boolean; offset: number; announcements?: LeagueAnnouncement[] }
 const EMPTY_ACTIVITY: ActivityPage = { rows: [], hasMore: false, offset: 0 }
 const EMPTY_WAIVER_ORDER: WaiverPriorityRow[] = []
 const EMPTY_PICKS: LeaguePickItem[] = []
@@ -44,13 +45,13 @@ function tabCache<Value>(tab: LeagueTab) {
     }
 }
 const STANDINGS_CACHE = tabCache<StandingRow[]>('results')
-const HISTORY_ROWS_CACHE = tabCache<TransactionRow[]>('history')
+const HISTORY_ROWS_CACHE = tabCache<TransactionRow[] | ActivityPage>('history')
 const HISTORY_CACHE = {
     read: (key: string): ActivityPage | undefined => {
         const rows = HISTORY_ROWS_CACHE.read(key)
-        return rows ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0, offset: rows.length } : undefined
+        return Array.isArray(rows) ? { rows, hasMore: rows.length > 0 && rows.length % ACTIVITY_LIMIT === 0, offset: rows.length } : rows
     },
-    write: (key: string, page: ActivityPage) => HISTORY_ROWS_CACHE.write(key, page.rows),
+    write: (key: string, page: ActivityPage) => HISTORY_ROWS_CACHE.write(key, page),
 }
 const WAIVER_ORDER_CACHE = tabCache<WaiverPriorityRow[]>('settings')
 const PICKS_CACHE = tabCache<LeaguePickItem[]>('draftBoard')
@@ -87,9 +88,12 @@ export function useLeagueTabResources(
         leagueKey,
         EMPTY_ACTIVITY,
         useCallback(async () => {
-            const limit = Math.min(100, Math.max(ACTIVITY_LIMIT, historyRowCount.current))
-            const rows = leagueId ? await getLeagueTransactions(leagueId, limit, 0) : []
-            return { rows, hasMore: rows.length === limit, offset: rows.length }
+            const limit = Math.min(100, Math.max(ACTIVITY_LIMIT, Math.ceil(historyRowCount.current / ACTIVITY_LIMIT) * ACTIVITY_LIMIT))
+            const [rows, announcements] = leagueId ? await Promise.all([
+                getLeagueTransactions(leagueId, limit, 0),
+                listLeagueAnnouncements(leagueId),
+            ]) : [[], []]
+            return { rows, announcements, hasMore: rows.length === limit, offset: rows.length }
         }, [leagueId]),
         HISTORY_CACHE,
         admission,
@@ -166,6 +170,15 @@ export function useLeagueTabResources(
         return resourcesRef.current[target].refresh()
     }, [resetActivityPagination])
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const resume = () => {
+            if (admissionRef.current() && resourceTab(activeTabRef.current) === 'history') void refreshTab('history')
+        }
+        window.addEventListener('focus', resume)
+        return () => window.removeEventListener('focus', resume)
+    }, [refreshTab])
+
     useFocusEffect(useCallback(() => {
         focused.current = true
         return () => {
@@ -185,16 +198,24 @@ export function useLeagueTabResources(
         }
     }, [isOnline, resetActivityPagination])
 
+    useFocusEffect(useCallback(() => {
+        if (!activeResourceKey) return
+        if (resourceTab(activeTab) === 'history') { resetActivityPagination(); resourcesRef.current.history.invalidate(false) }
+        ensureTab(activeTab)
+    }, [activeResourceKey, activeTab, ensureTab, resetActivityPagination]))
+
+    const browserRevision = useRef(activity.revision)
     useEffect(() => {
+        const resumed = browserRevision.current !== activity.revision
+        browserRevision.current = activity.revision
         if (!admissionRef.current()) {
             for (const resource of Object.values(resourcesRef.current)) resource.suspend()
             suspendActivityPagination()
-        } else if (activeResourceKey) ensureTab(activeTab)
-    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination])
-
-    useFocusEffect(useCallback(() => {
-        if (activeResourceKey) ensureTab(activeTab)
-    }, [activeResourceKey, activeTab, ensureTab]))
+        } else if (activeResourceKey) {
+            if (resumed && resourceTab(activeTab) === 'history') { resetActivityPagination(); resourcesRef.current.history.invalidate(false) }
+            ensureTab(activeTab)
+        }
+    }, [activeResourceKey, activeTab, activity.revision, isOnline, authorized, ensureTab, suspendActivityPagination, resetActivityPagination])
 
     const loadMoreActivity = useCallback(async () => {
         const resource = resourcesRef.current.history
@@ -209,6 +230,7 @@ export function useLeagueTabResources(
             if (activityRequest.current !== request || activeLeagueRef.current !== leagueKey || !permits()) return
             resource.setData((current) => current === snapshot
                 ? {
+                    ...current,
                     rows: [...current.rows, ...data.filter((row) => !current.rows.some((existing) => existing.id === row.id))],
                     hasMore: data.length === ACTIVITY_LIMIT,
                     offset: snapshot.offset + data.length,
@@ -233,7 +255,7 @@ export function useLeagueTabResources(
         let registering = true
         const stop = listenForLeagueChanges(leagueId, (change) => {
             if (registering && change.topic === 'catchup') return
-            if (leagueResourceAffects(change, ['activity'])) refresh.trigger()
+            if (leagueActivityChanged(change)) refresh.trigger()
         })
         registering = false
         return () => { stop(); refresh.cancel() }
@@ -260,7 +282,7 @@ export function useLeagueTabResources(
         refreshMockRooms,
         standings: standings.data,
         tabError: activeResource?.error ?? undefined,
-        transactions: history.data.rows,
+        transactions: mergeAnnouncementActivity(history.data.rows, history.data.announcements ?? []),
         waiverOrder: waiverOrder.data,
     }
 }

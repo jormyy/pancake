@@ -123,7 +123,8 @@ it.each(['league/LeagueStandings', 'league/DraftSetupPanels', 'league/MockRoomsP
 
 it('connects the activity list to the same temporary scroll inset', () => {
     const code = source('components/league/LeagueActivityFeed.tsx')
-    expect(code).toContain('onScroll={statusScroll.onScroll}')
+    expect(code).toContain('usePullToRefresh(onRefresh, Boolean(refreshing), statusScroll.onScroll)')
+    expect(code).toContain('{...pullRefresh}')
     expect(code).toContain('contentContainerStyle={statusScroll.contentStyle()}')
 })
 

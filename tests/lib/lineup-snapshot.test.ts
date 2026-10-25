@@ -26,6 +26,13 @@ describe('private matching-day Lineup snapshots', () => {
         expect(readLineupSnapshot(scope, scope.day)).toMatchObject(value)
         expect(JSON.stringify(readPersistentCache(key))).not.toContain('access_token')
     })
+    it('restores a fourteen-day All-Star week and rejects more than twenty-one days', () => {
+        const days = Array.from({ length: 14 }, (_, i) => ({ ...value.days[0], date: `2026-10-${String(i + 8).padStart(2, '0')}` }))
+        saveLineupSnapshot(scope, 1, { ...value, days })
+        expect(readLineupSnapshot(scope, scope.day)?.days).toHaveLength(14)
+        saveLineupSnapshot(scope, 1, { ...value, days: Array.from({ length: 22 }, () => days[0]) })
+        expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
+    })
     it.each(['ownerId', 'memberId', 'leagueId', 'day'] as const)('does not cross %s', (field) => {
         saveLineupSnapshot(scope, 1, value)
         expect(readLineupSnapshot({ ...scope, [field]: 'other' }, scope.day)).toBeUndefined()
