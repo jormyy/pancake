@@ -30,8 +30,6 @@ BEGIN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','priority','season_id',league_season_id,'member_id',member_id) AS detail FROM changed$details$;
     WHEN 'faab_balances' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','faab','season_id',league_season_id,'member_id',member_id) AS detail FROM changed$details$;
-    WHEN 'league_activity' THEN
-      RETURN NULL;
     WHEN 'league_seasons' THEN
       v_details := $details$SELECT league_id,jsonb_build_object('resource','season','season_id',id) AS detail FROM changed$details$;
     ELSE

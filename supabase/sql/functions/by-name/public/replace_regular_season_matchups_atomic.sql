@@ -119,7 +119,6 @@ BEGIN
       RAISE EXCEPTION 'The season has started; the schedule can no longer be rebuilt.' USING ERRCODE='P0001';
     END;
     DELETE FROM public.matchups WHERE league_season_id=p_league_season_id AND matchup_type='regular_season';
-    DELETE FROM public.rps_challenges WHERE league_season_id=p_league_season_id AND context='standings_playoff_tiebreaker';
   ELSIF v_existing_count > 0 THEN
     RETURN jsonb_build_object('inserted', 0, 'skipped', true);
   END IF;

@@ -44,7 +44,7 @@ async function editClaim(userId: string, claimId: string, body: Record<string, u
     p_drop_player_id: optionalUuidField(body, 'dropPlayerId') ?? undefined,
     p_bid_amount: optionalIntegerField(body, 'bidAmount', { min: 0 }) ?? 0,
     p_claim_order: optionalIntegerField(body, 'claimOrder', { min: 1 }) ?? undefined,
-    p_to_ir: optionalBooleanField(body, 'toIr') ?? false,
+    p_to_ir: optionalBooleanField(body, 'toIr') ?? undefined,
   })
   if (error) throwDb(error)
 }

@@ -10,7 +10,7 @@ CREATE TRIGGER score_revision_result AFTER INSERT OR UPDATE OR DELETE ON public.
 DELETE FROM public.league_change_hints WHERE topic='player_stats';
 ALTER TABLE public.league_change_hints DROP CONSTRAINT league_change_hints_topic_check;
 ALTER TABLE public.league_change_hints ADD CONSTRAINT league_change_hints_topic_check CHECK(topic IN ('lineup','roster','score','game','stat','inventory','resources'));
-SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname='nba-process-trades';
+SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname = 'nba-process-trades';
 CREATE OR REPLACE FUNCTION private.accept_trade_participant_atomic(
   p_trade_id uuid,
   p_accepting_member_id uuid

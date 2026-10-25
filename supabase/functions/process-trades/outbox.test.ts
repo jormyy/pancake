@@ -26,6 +26,10 @@ Deno.test('web push outbox completes sent, absent and gone recipients and retrie
   const failed: string[] = []
   const dead: string[] = []
   const notify = createNotifyMembers({
+    profiles: async () => ({ data: [], error: null }),
+    persistExpoTicket: async () => {},
+    send: async () => { throw new Error('Expo requires a token') },
+    pushUrl: 'http://127.0.0.1/fake',
     members: async ids => ({ data: ids.map(id => ({ id, user_id: id })), error: null }),
     preferences: async () => ({ data: [], error: null }),
     webPush: createWebPushFanout({

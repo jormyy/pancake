@@ -62,7 +62,7 @@ async function runSync(feed: Feed = {}) {
           ...code === feed.nameless ? [{ id: 'nameless' }] : [],
         ] })
       }
-      if (url.pathname === '/api/injuries') return Response.json({ injuries: [] })
+      if (url.pathname === '/api/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Fixture Player0' } }] }] })
       if (url.pathname === '/api/news') return Response.json({ articles: [] })
     }
     if (url.hostname === 'nba.invalid' && url.pathname === '/static/json/staticData/playerIndex.json') {

@@ -6,7 +6,7 @@ import { strict as assert } from 'node:assert'
 // Completeness contract: only a listing that covers every NBA team with
 // identifiable athletes has no gaps, so only it can release unlisted players.
 
-let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' = 'good'
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' = 'good'
 
 const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
@@ -59,6 +59,10 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     return Response.json(mode === 'empty-rosters' ? { athletes: [] } : goodRosterFor(teamId))
   }
   if (url.pathname.endsWith('/injuries')) {
+    if (mode === 'missing-injuries') return Response.json({})
+    if (mode === 'empty-injuries') return Response.json({ injuries: [] })
+    if (mode === 'reshaped-injuries') return Response.json({ data: [] })
+    if (mode === 'unmapped-injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Unknown', athlete: { displayName: 'Player' } }] }] })
     return Response.json({
       injuries: [{
         injuries: [
@@ -139,6 +143,13 @@ Deno.test({
     await expectRefusal('empty-rosters', /degraded: 0 players/)
   },
 })
+
+for (const degraded of ['missing-injuries', 'empty-injuries', 'reshaped-injuries', 'unmapped-injuries'] as const) {
+  Deno.test(`${degraded} refuses to clear injury designations`, async () => {
+    mode = degraded
+    await expectRefusal(degraded, /^ESPN injuries payload degraded; refusing to write$/)
+  })
+}
 
 Deno.test('the source recovers with no manual action', async () => {
   mode = 'good'

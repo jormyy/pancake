@@ -163,6 +163,7 @@
     "private.sync_snake_slot_pick_owner()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.taxi_player_eligible(uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.taxi_start_year(uuid,uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.toggle_ir_for_activation(uuid,boolean,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.track_score_input_revision()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.trade_deadline_for_season(date,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.trade_lifecycle_write_active()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},

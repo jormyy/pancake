@@ -2,6 +2,7 @@ import type { Database } from '../_shared/database.ts'
 import { notifyMembers, suppressNotification } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import {
   deliverNotificationOutbox,
@@ -50,6 +51,7 @@ async function processAcceptedTrades(): Promise<{
 
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
+  for (const row of partitioned.completed) await activateLeagueAfterTrade(row.trade_id)
   const deliveryResult = await drainDueNotifications()
   const receiptResult = await drainNotificationReceipts()
 

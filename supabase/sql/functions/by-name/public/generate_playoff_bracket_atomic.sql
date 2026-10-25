@@ -20,11 +20,9 @@ DECLARE
   v_league public.leagues%ROWTYPE;
   v_seed_ids uuid[];
   v_inserted_count int := 0;
-  v_pair record;
   v_seed int;
   v_size int;
   v_type public.matchup_type;
-  v_existing_challenge public.rps_challenges%ROWTYPE;
 BEGIN
   SELECT * INTO v_league FROM public.leagues WHERE id = p_league_id FOR UPDATE;
   SELECT id, season_year, COALESCE(playoff_start_week, v_league.playoff_start_week, 20)
@@ -91,65 +89,6 @@ BEGIN
      SET playoff_seed_member_ids = CASE WHEN v_playoff_size IN (4,6) THEN v_seed_ids[1:v_playoff_size] END,
          playoff_bracket_seed_ids = CASE WHEN v_league.playoff_entrants IS NOT NULL THEN v_seed_ids[1:v_playoff_size] END
    WHERE id = v_season_id;
-
-  FOR v_pair IN
-    SELECT
-      a.member_id AS member_a_id,
-      b.member_id AS member_b_id,
-      CASE
-        WHEN a.tie_token < b.tie_token OR (a.tie_token = b.tie_token AND a.member_id < b.member_id) THEN a.member_id
-        ELSE b.member_id
-      END AS winner_member_id
-    FROM private.playoff_seed_rankings(p_league_id, v_season_id, v_playoff_start_week) AS a
-    JOIN private.playoff_seed_rankings(p_league_id, v_season_id, v_playoff_start_week) AS b
-      ON b.seed_rank > a.seed_rank
-     AND b.wins = a.wins
-     AND b.points_for = a.points_for
-     AND b.max_possible_points = a.max_possible_points
-     AND b.points_against = a.points_against
-    WHERE a.group_start <= v_playoff_size
-  LOOP
-    SELECT *
-      INTO v_existing_challenge
-      FROM public.rps_challenges AS challenge
-     WHERE challenge.league_id = p_league_id
-       AND challenge.league_season_id = v_season_id
-       AND challenge.context = 'standings_playoff_tiebreaker'
-       AND LEAST(challenge.member_a_id, challenge.member_b_id) = LEAST(v_pair.member_a_id, v_pair.member_b_id)
-       AND GREATEST(challenge.member_a_id, challenge.member_b_id) = GREATEST(v_pair.member_a_id, v_pair.member_b_id)
-     FOR UPDATE;
-
-    IF FOUND THEN
-      UPDATE public.rps_challenges
-         SET winner_member_id = v_pair.winner_member_id,
-             member_a_choice = NULL,
-             member_b_choice = NULL,
-             status = 'completed'::public.rps_status,
-             resolved_at = now()
-       WHERE id = v_existing_challenge.id;
-    ELSE
-      INSERT INTO public.rps_challenges (
-        league_id,
-        league_season_id,
-        member_a_id,
-        member_b_id,
-        winner_member_id,
-        status,
-        context,
-        resolved_at
-      )
-      VALUES (
-        p_league_id,
-        v_season_id,
-        v_pair.member_a_id,
-        v_pair.member_b_id,
-        v_pair.winner_member_id,
-        'completed'::public.rps_status,
-        'standings_playoff_tiebreaker',
-        now()
-      );
-    END IF;
-  END LOOP;
 
   IF v_league.playoff_entrants IS NOT NULL THEN
     RETURN private.generate_playoff_round(p_league_id,v_season_id,1);

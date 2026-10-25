@@ -47,7 +47,7 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
         id: player.provider_id, firstName: player.first_name, lastName: player.last_name,
         position: { abbreviation: 'PG' }, status: { type: 'active' }, experience: { years: 1 },
       })) })
-      if (url.pathname === '/api/injuries') return Response.json({ injuries: [] })
+      if (url.pathname === '/api/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Fixture Player0' } }] }] })
       if (url.pathname === '/api/news') return Response.json({ articles: [] })
     }
     if (url.hostname === 'sleeper.invalid' && url.pathname === '/v1/players/nba') return Response.json(Object.fromEntries(players.map((player) => [player.provider_id, {

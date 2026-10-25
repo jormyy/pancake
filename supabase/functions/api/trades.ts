@@ -1,5 +1,6 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
+import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
   MAX_TRADE_FAAB_AMOUNT,
@@ -293,6 +294,7 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   if (error) throwDb(error)
   const result = parseMultiTeamAcceptResult(data)
   if (result.expired) throw new ValidationError('This trade offer has expired.')
+  await activateLeagueAfterTrade(tradeId)
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {

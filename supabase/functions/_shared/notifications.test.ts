@@ -1,8 +1,12 @@
 import { strict as assert } from 'node:assert'
-import { createNotifyMembers, NotificationDeliveryError, type WebNotificationBatchDependencies } from './notificationDelivery.ts'
+import { createNotifyMembers, type NotificationBatchDependencies } from './notificationDelivery.ts'
 
 const preferences = { trade_enabled: true, waiver_enabled: false, draft_enabled: true, activity_enabled: true }
-const dependencies = (overrides: Partial<WebNotificationBatchDependencies> = {}): WebNotificationBatchDependencies => ({
+const dependencies = (overrides: Partial<NotificationBatchDependencies> = {}): NotificationBatchDependencies => ({
+  profiles: async () => ({ data: [], error: null }),
+  persistExpoTicket: async () => {},
+  send: async () => { throw new Error('Expo requires a token') },
+  pushUrl: 'http://127.0.0.1/fake',
   members: async () => ({ data: [{ id: 'member-a', user_id: 'user-a' }], error: null }),
   preferences: async () => ({ data: [{ user_id: 'user-a', ...preferences }], error: null }),
   webPush: async (messages) => ({ sent: messages.length, pruned: 0, failed: 0,
@@ -19,7 +23,7 @@ Deno.test('web push alone supplies durable sent outcomes without a profile or Ex
 Deno.test('disabled preferences suppress delivery while absent preferences keep the default', async () => {
   let sends = 0
   const deps = dependencies()
-  const notify = createNotifyMembers({ ...deps, webPush: async messages => { sends++; return deps.webPush(messages) } })
+  const notify = createNotifyMembers({ ...deps, webPush: async messages => { sends++; return deps.webPush!(messages) } })
   assert.deepEqual(await notify([{ memberId: 'member-a', title: 'Waiver', body: 'Claim', category: 'waiver' }]),
     [{ memberId: 'member-a', status: 'skipped', reason: 'preferences_disabled' }])
   assert.equal(sends, 0)
@@ -37,7 +41,7 @@ Deno.test('notification lookups fail closed before delivery', async () => {
     let sent = false
     await assert.rejects(() => createNotifyMembers(dependencies({ ...override,
       webPush: async () => { sent = true; throw new Error('unexpected send') },
-    }))([{ memberId: 'member-a', title: 'T', body: 'B' }]), NotificationDeliveryError)
+    }))([{ memberId: 'member-a', title: 'T', body: 'B' }]), /lookup/i)
     assert.equal(sent, false)
   }
 })

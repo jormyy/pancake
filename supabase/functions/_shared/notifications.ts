@@ -88,10 +88,10 @@ export const notifyMembers = createNotifyMembers({
     return { data, error }
   },
   beginWebDelivery: async (message, userId) => {
-    if (!webPushVapidKeys()) return 'no_device'
     const subscriptions = await supabase.from('web_push_subscriptions').select('endpoint').eq('user_id', userId).limit(1)
     if (subscriptions.error) throw subscriptions.error
     if (!subscriptions.data?.length) return 'no_device'
+    if (!webPushVapidKeys()) throw new Error('Web push is not configured')
     const { data, error } = await supabase.rpc('notif_begin_web_atomic', {
       p_id: message.delivery!.id, p_claim_token: message.delivery!.claimToken,
     })

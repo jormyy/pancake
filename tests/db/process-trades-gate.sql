@@ -23,6 +23,7 @@ DO $$ BEGIN IF EXISTS(SELECT 1 FROM cron.job WHERE jobname='nba-process-trades')
 END IF; END $$;
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'local-trade-gate-test', true);
+CREATE TEMP TABLE trade_gate_checks(label text PRIMARY KEY);
 CREATE FUNCTION pg_temp.assert_trade_dispatch(p_label text, p_expected boolean) RETURNS void LANGUAGE plpgsql AS $$
 DECLARE v_before bigint; v_command text; v_after bigint;
 BEGIN
@@ -33,6 +34,7 @@ BEGIN
   IF (v_after > v_before) IS DISTINCT FROM p_expected THEN
     RAISE EXCEPTION '%: expected dispatch %, got %',p_label,p_expected,v_after-v_before;
   END IF;
+  INSERT INTO trade_gate_checks VALUES(p_label);
 END $$;
 SELECT pg_temp.assert_trade_dispatch('idle scheduler',false);
 DO $$
@@ -78,6 +80,9 @@ BEGIN
   UPDATE public.leagues SET status='offseason' WHERE id=v_league;
   UPDATE public.trades SET status='accepted' WHERE id=v_trade;
   PERFORM pg_temp.assert_trade_dispatch('offseason due trade',true);
+  UPDATE public.leagues SET status='drafting' WHERE id=v_league;
+  IF EXISTS(SELECT 1 FROM public.notification_outbox) THEN RAISE EXCEPTION 'Drafting gate fixture has unrelated notifications'; END IF;
+  PERFORM pg_temp.assert_trade_dispatch('drafting due trade',true);
   UPDATE public.trades SET status='completed' WHERE id=v_trade;
   PERFORM pg_temp.assert_trade_dispatch('completed trade alerts',true);
   PERFORM public.claim_notification_outbox_atomic(100,60);
@@ -131,4 +136,5 @@ RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT public.invoke_process_trades_if_due();
 RESET ROLE;
+SELECT count(*) AS passed_checks FROM trade_gate_checks;
 ROLLBACK;

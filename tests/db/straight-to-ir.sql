@@ -105,8 +105,8 @@ DECLARE v_claim uuid; v_result record; v_expected_ir boolean; v_expected_fail bo
 BEGIN
   UPDATE leagues SET roster_size=CASE WHEN p_case IN ('eligible-room','recovered-room','filled-room') THEN 2 ELSE 1 END
     WHERE id='da000000-0000-4000-8000-000000000002';
-  INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,clears_at)
-  VALUES ('da000000-0000-4000-8000-000000000002','da000000-0000-4000-8000-000000000004','da100000-0000-4000-8000-000000000004',now()+interval '1 day');
+  INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at,clears_at)
+  VALUES ('da000000-0000-4000-8000-000000000002','da000000-0000-4000-8000-000000000004','da100000-0000-4000-8000-000000000004',now()-interval '3 days',now()-interval '1 day');
   v_claim:=create_waiver_claim_atomic('da000000-0000-4000-8000-000000000002','da000000-0000-4000-8000-000000000003','da100000-0000-4000-8000-000000000004',p_drop_player_id=>CASE WHEN p_case='eligible-drop' THEN 'da100000-0000-4000-8000-000000000001'::uuid ELSE NULL END,p_to_ir=>true);
   PERFORM edit_waiver_claim_atomic(v_claim,'da000000-0000-4000-8000-000000000003','da000000-0000-4000-8000-000000000001',p_to_ir=>false);
   IF (SELECT to_ir FROM waiver_claims WHERE id=v_claim) THEN RAISE EXCEPTION 'Claim edit does not clear IR preference'; END IF;
