@@ -28,9 +28,7 @@ describe('tradeable roster assets', () => {
         const player = { kind: 'player' as const, playerId: 'player', playerName: 'Player', nbaTeam: null, position: 'PG',
             yearsExp: 2, nbaDraftNumber: 12, careerGames: 64 }
         expect(isTradeTaxiEligible(player)).toBe(true)
-        expect(isTradeTaxiEligible(player)).toBe(true)
         expect(isTradeTaxiEligible({ ...player, careerGames: 65 })).toBe(false)
-        expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(true)
         expect(isTradeTaxiEligible({ ...player, yearsExp: 0, nbaDraftNumber: null })).toBe(true)
     })
 

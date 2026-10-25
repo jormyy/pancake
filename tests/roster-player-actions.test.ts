@@ -38,7 +38,6 @@ describe('RosterPlayerItem actions', () => {
         await act(async () => { ir.props.onPress() })
         expect(onToggleIR).toHaveBeenCalledWith(item)
         expect(onPress).not.toHaveBeenCalled()
-        expect(onPress).not.toHaveBeenCalled()
         await act(async () => { open.props.onPress() })
         expect(onPress).toHaveBeenCalledOnce()
         await act(async () => { renderer.unmount() })
