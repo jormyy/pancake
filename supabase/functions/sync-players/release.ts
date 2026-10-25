@@ -1,7 +1,7 @@
 import { supabase } from '../_shared/supabase.ts'
 import { errorMessage } from '../_shared/responses.ts'
 
-export type ListedPlayer = { espn_id: string; first_name: string; last_name: string }
+export type ListedPlayer = { espn_id: string; first_name: string; last_name: string; nba_team?: string | null }
 export type HeldReleases = { unproven: number; unclaimed: number }
 
 /**
@@ -39,4 +39,15 @@ export async function releaseUnlistedPlayers(listed: ListedPlayer[], listingGaps
   } catch (error) {
     return { released: 0, held: none, blockers, failures: [`release: ${errorMessage(error)}`] }
   }
+}
+
+export async function completeRosterCycle(listed: ListedPlayer[], listingGaps: string[], failures: string[], nba: { roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }, startedAt: Date) {
+  if (listingGaps.length || failures.length || nba.rosterGaps.length) return { released: 0, failure: null }
+  const { data, error } = await supabase.rpc('complete_player_roster_cycle_atomic', {
+    p_espn_records: listed.map(row => ({ provider_id: row.espn_id, nba_team: row.nba_team ?? null })),
+    p_nba_records: nba.roster, p_started_at: startedAt.toISOString(),
+  })
+  if (error) return { released: 0, failure: `roster cycle: ${errorMessage(error)}` }
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !ids(data.released)) return { released: 0, failure: 'Invalid roster cycle receipt' }
+  return { released: data.released.length, failure: null }
 }

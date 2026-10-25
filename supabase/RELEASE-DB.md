@@ -12,6 +12,7 @@ Apply these follow-up migrations after that baseline, in version order:
 - `20261027000101_remove_unreferenced_distant_picks.sql`
 - `20261027000200_player_identity_matching.sql`
 - `20261027000201_player_career_counter.sql`
+- `20261027000202_player_source_coverage.sql`
 
 The counter migration replaces its earlier unpublished rehearsal version.
 Rebuild the rehearsal from the production baseline before applying this revised file.
@@ -110,6 +111,28 @@ PANCAKE_PICK_WINDOW_DB_TESTS=1 npx vitest run tests/e2e/pick-window-harness.test
 
 The harness recipe also requires the isolated stack's `E2E_SUPABASE_URL`, `E2E_PANCAKE_SUPABASE_SECRET_KEY`, and `E2E_SUPABASE_PUBLISHABLE_KEY`.
 
+## Connected players and current rosters
+
+The source-coverage migration keeps existing import and injury RPC contracts working during rollback.
+It adds service-only source-link and full-roster-cycle functions plus private roster evidence tables.
+Current ESPN and NBA rosters drive membership; Sleeper supplies IDs and missing metadata.
+The injury feed can link an ESPN player-card ID before applying its status.
+Sleeper projections link IDs before the same run writes projections.
+Existing non-null source IDs, experience, and positions remain intact.
+Ambiguous names, team mismatches, and conflicting IDs stay unresolved for review.
+
+The reported 45 missing ESPN IDs, 91 missing Sleeper IDs, 19 missing NBA IDs,
+30 missing experience values, and one missing position can fill when their source records match uniquely.
+The eight players missing both ESPN and NBA IDs can link independently from either roster.
+These counts can overlap; they do not establish that all 692 team labels remain current.
+A player absent from both complete rosters for a full daily cycle loses the stale team label.
+Partial rosters, one-source omissions, recent box evidence, and stale refreshes keep the existing hold protections.
+Unassigned-player history remains available through the existing list behavior.
+The audit lists unresolved current players and pending absence holds after each complete cycle.
+
+Injury dispatch also runs hourly outside the existing game-day quarter-hour window, from 08:00 through 02:00 ET.
+Deploy the database first, then the updated Edge functions; the old Edge remains compatible with the additive schema.
+
 ## Player data verification
 
 Use the private stack described in `docs/verification.md`.
@@ -125,6 +148,10 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-coverage-u
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career-queue.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-connectivity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-box.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-roster-cycle.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-injury-hours.sql
 npm run test:db:player-data
 ```
 

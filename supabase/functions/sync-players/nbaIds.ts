@@ -2,6 +2,7 @@ import { supabase } from '../_shared/supabase.ts'
 import { fetchWithRetry } from '../_shared/retry.ts'
 import { AMBIGUOUS, normalizeName, setUnique } from '../_shared/nameMatch.ts'
 import { resolvePlayerImports } from '../_shared/playerImports.ts'
+import { linkPlayerSources, type SourceLinkRecord } from '../_shared/sourceLinks.ts'
 import { fetchAllPlayers } from './players.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 
@@ -12,7 +13,7 @@ const CHUNK = 500
 // Fetch the NBA CDN player index and populate nba_id for any players missing it.
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
 // (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
-export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; merged: number; failures: string[] }> {
+export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }> {
   console.log('[sync-players] Syncing NBA person IDs from CDN index...')
 
   const res = await fetchWithRetry(NBA_PLAYER_INDEX_URL, {
@@ -35,6 +36,29 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
   const firstIdx = headers.indexOf('PLAYER_FIRST_NAME')
   const lastIdx = headers.indexOf('PLAYER_LAST_NAME')
   const statusIdx = headers.indexOf('ROSTER_STATUS')
+  if ([pidIdx, firstIdx, lastIdx, statusIdx].some(index => index < 0)) throw new Error('Unexpected NBA player index columns')
+
+  const teamIndex = headers.indexOf('TEAM_ABBREVIATION')
+  const positionIndex = headers.indexOf('POSITION')
+  const fromIndex = headers.indexOf('FROM_YEAR')
+  const draftIndex = headers.indexOf('DRAFT_YEAR')
+  const currentSeason = currentSeasonYear(now)
+  const validTeams = new Set(['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GSW', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NOP', 'NYK', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SAS', 'TOR', 'UTA', 'WAS'])
+  const rosterRecords: SourceLinkRecord[] = rows.filter(row => row[statusIdx] === 1 && validTeams.has(String(row[teamIndex]))).map(row => {
+    const firstYear = Number(row[fromIndex] || row[draftIndex])
+    const rawPosition = String(row[positionIndex] ?? '').toUpperCase()
+    const position = ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].includes(rawPosition) ? rawPosition
+      : rawPosition.startsWith('G') ? 'G' : rawPosition.startsWith('F') ? 'F' : rawPosition.startsWith('C') ? 'C' : null
+    return { provider_id: String(row[pidIdx]), display_name: `${row[firstIdx]} ${row[lastIdx]}`,
+      nba_team: String(row[teamIndex]), position,
+      years_exp: Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= currentSeason ? Math.max(0, currentSeason - 1 - firstYear) : null }
+  })
+  const rosterGaps: string[] = []
+  if (rosterRecords.length < 350) rosterGaps.push('NBA roster has fewer than 350 active players')
+  if (new Set(rosterRecords.map(row => row.nba_team)).size !== 30) rosterGaps.push('NBA roster does not cover all 30 teams')
+  if (rows.some(row => row[statusIdx] === 1 && !validTeams.has(String(row[teamIndex])))) rosterGaps.push('NBA roster contains an unknown active team')
+  const links = await linkPlayerSources(supabase, 'nba', rosterRecords, rosterGaps.length === 0)
+  const linkFailures = links.filter(row => row.action === 'ambiguous').map(row => `NBA roster provider ${rosterRecords[row.index].provider_id}: ambiguous`)
 
   // Build maps from the active CDN index. Exact names are preferred; normalized
   // names are used only when unique on both the CDN and DB sides.
@@ -75,15 +99,15 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
     const personId = exactPersonId && exactPersonId !== AMBIGUOUS && dbExactCounts.get(exact) === 1
       ? exactPersonId
       : (dbNormCounts.get(norm) === 1 && normPersonId && normPersonId !== AMBIGUOUS ? normPersonId : null)
-    if (personId && !p.nba_id) {
+    if (personId && !p.nba_id && !rosterRecords.some(record => record.provider_id === personId)) {
       updates.push({ id: p.id, nba_id: personId, expected_display_name: p.display_name,
         name_match: exactPersonId === personId && dbExactCounts.get(exact) === 1 ? 'exact' : 'normalized' })
     }
   }
 
-  const failures: string[] = []
+  const failures: string[] = [...linkFailures]
   let mergedBeforeUpdate = 0
-  let mapped = 0
+  let mapped = links.filter(row => row.action === 'updated' || row.action === 'inserted').length
   for (let offset = 0; offset < updates.length; offset += CHUNK) {
     const chunk = updates.slice(offset, offset + CHUNK)
     const { results } = await resolvePlayerImports('nba_index', chunk.map((update) => ({
@@ -126,5 +150,5 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
     }
   }
 
-  return { mapped, merged: mergedBeforeUpdate, failures }
+  return { mapped, merged: mergedBeforeUpdate, failures, roster: rosterRecords.map(({ provider_id, nba_team }) => ({ provider_id, nba_team })), rosterGaps }
 }

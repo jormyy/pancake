@@ -3,7 +3,7 @@ import type { NBABoxScorePlayer } from './nba.ts'
 
 Deno.env.set('SUPABASE_URL', 'http://127.0.0.1:9')
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'local-cdn-batch-test')
-const { resolveBoxScorePlayers } = await import('./syncStats.ts')
+const { resolveBoxScorePlayers, recordBoxSides } = await import('./syncStats.ts')
 
 Deno.test('each CDN box score resolves all identities in one request without scanning players', async () => {
   const nativeFetch = globalThis.fetch
@@ -51,4 +51,20 @@ Deno.test('each CDN box score resolves all identities in one request without sca
   } finally {
     globalThis.fetch = nativeFetch
   }
+})
+
+Deno.test('a box side carries missing position metadata in the same identity import', async () => {
+  const originalFetch = globalThis.fetch
+  let records: unknown[] = []
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    assert.equal(new URL(request.url).pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
+    const body = await request.json()
+    records = body.p_records
+    return Response.json({ results: records.map((_row, index) => ({ index, player_id: 'box-player', action: 'updated' })), stale_draft_numbers_cleared: 0 })
+  }
+  try {
+    await recordBoxSides({ homeTeam: { teamTricode: 'BOS', players: [{ personId: 123, name: 'Box Player', position: 'C' } as NBABoxScorePlayer] } }, '0022600001')
+    assert.deepEqual(records, [{ provider_id: '123', display_name: 'Box Player', nba_game_id: '0022600001', nba_team: 'BOS', metadata: { position: 'C' } }])
+  } finally { globalThis.fetch = originalFetch }
 })

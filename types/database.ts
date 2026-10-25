@@ -4581,6 +4581,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      complete_player_roster_cycle_atomic: {
+        Args: {
+          p_espn_records: Json
+          p_nba_records: Json
+          p_started_at?: string
+        }
+        Returns: Json
+      }
       complete_sleeper_projection_sync: {
         Args: {
           p_http_status: number
@@ -5114,6 +5122,10 @@ export type Database = {
       lineup_slot_allowed_positions: {
         Args: { p_slot_type: Database["public"]["Enums"]["roster_slot_type"] }
         Returns: string[]
+      }
+      link_player_sources_atomic: {
+        Args: { p_current_roster?: boolean; p_records: Json; p_source: string }
+        Returns: Json
       }
       make_snake_pick_atomic: {
         Args: {

@@ -182,6 +182,7 @@ interface NBABoxScoreTeam {
 }
 
 export interface NBABoxScorePlayer {
+  position?: string
   personId: number
   name: string
   played?: string | number | null

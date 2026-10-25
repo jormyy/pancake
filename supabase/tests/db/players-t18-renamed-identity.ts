@@ -136,6 +136,7 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: originPort, onListen(
   }
   if (route === '/site/injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { id: fillers[0].espn, displayName: `${fillers[0].first} ${fillers[0].last}` } }] }] })
   if (route === '/site/news') return Response.json({ articles: [] })
+  if (route === '/sleeper/players/nba') return Response.json({ '999999991': { player_id: '999999991', sport: 'nba', first_name: 'Unmatched', last_name: 'SourceFixture', team: 'BOS', years_exp: 1, position: 'G' } })
   if (route === '/cdn/staticData/playerIndex.json') return new Response(served.slice(), { headers: { 'content-type': 'application/json' } })
   if (box && realBoxes.has(box[1])) return new Response(realBoxes.get(box[1])!.body.slice(), { headers: { 'content-type': 'application/json' } })
   if (/^\/career\/athletes\/[^/]+\/stats$/.test(route)) return Response.json({
@@ -205,9 +206,11 @@ async function runCase(label: string, firstIndex: Uint8Array<ArrayBuffer>, heal:
   const started = new Date().toISOString()
   const memberOf = (p: Person) => member[persons.indexOf(p)]
   let year = 0
+  let fresh = false
   const stages: Stage[] = []
   try {
     assert.equal(await sql('SELECT count(*) FROM players'), '0', `${label}: use an empty isolated stack: a refresh may release any teamed player it does not list`)
+    fresh = true
     assert.equal(await sql(`SELECT count(*) FROM nba_games WHERE nba_game_id IN (${[...realBoxes.keys()].map(q)})`), '0', `${label}: the real game ids must be free on this stack`)
     year = Number(await sql('SELECT y FROM generate_series(23000,29999) y WHERE NOT EXISTS(SELECT 1 FROM season_weeks WHERE season_year=y) AND NOT EXISTS(SELECT 1 FROM nba_games WHERE season_year=y) LIMIT 1'))
     assert.ok(year)
@@ -285,7 +288,7 @@ async function runCase(label: string, firstIndex: Uint8Array<ArrayBuffer>, heal:
       DELETE FROM player_game_stats WHERE game_id IN (${games.length ? games.map(q) : 'NULL'});
       DELETE FROM nba_games WHERE id IN (${games.length ? games.map(q) : 'NULL'});
       ${year ? `DELETE FROM season_weeks WHERE season_year=${year};` : ''}
-      DELETE FROM players WHERE nba_id IN (${people.map(q)}) OR espn_id IN (${persons.map(p => q(p.espn))}) OR espn_id LIKE ${q(`t18-${run}-%`)};
+      DELETE FROM players WHERE ${fresh ? 'true' : `nba_id IN (${people.map(q)}) OR espn_id IN (${persons.map(p => q(p.espn))}) OR espn_id LIKE ${q(`t18-${run}-%`)}`};
       DELETE FROM profiles WHERE id IN (${user.map(q)});
       DELETE FROM auth.users WHERE id IN (${user.map(q)});
       DELETE FROM sync_runs WHERE function_name='sync-players' AND started_at >= ${q(started)};`)

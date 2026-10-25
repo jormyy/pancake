@@ -67,8 +67,8 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     return Response.json([
-      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
-      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, career_games_base: null, career_games_base_attempted_at: null, injury_status: null },
+      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, sleeper_id: 'fixture-rookie', position: 'G', career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
+      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, sleeper_id: 'fixture-veteran', position: 'G', career_games_base: null, career_games_base_attempted_at: null, injury_status: null },
     ])
   }
   try {

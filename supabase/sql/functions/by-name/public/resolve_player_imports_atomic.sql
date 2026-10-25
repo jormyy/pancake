@@ -155,7 +155,7 @@ BEGIN
     v_metadata := coalesce(v_record->'metadata', '{}'::jsonb);
     v_allowed := CASE WHEN p_source IN ('espn', 'sleeper')
       THEN ARRAY['nba_team', 'position', 'eligible_positions', 'status', 'injury_status', 'years_exp']
-      ELSE ARRAY[]::text[] END;
+      WHEN p_source='nba_cdn' THEN ARRAY['position','years_exp'] ELSE ARRAY[]::text[] END;
     IF jsonb_typeof(v_metadata) <> 'object' THEN
       RAISE EXCEPTION 'Player metadata must be an object.' USING ERRCODE = '22023';
     END IF;
@@ -352,10 +352,10 @@ BEGIN
             first_name = v_first, last_name = v_last,
             nba_team = v_metadata->>'nba_team', status = v_metadata->>'status',
             injury_status = CASE WHEN v_metadata ? 'injury_status' THEN v_metadata->>'injury_status' ELSE injury_status END,
-            years_exp = (v_metadata->>'years_exp')::int,
-            position = CASE WHEN p_source = 'espn' AND (v_row.position IS NOT NULL OR cardinality(v_row.eligible_positions) > 0)
-              THEN v_row.position ELSE (v_metadata->>'position')::nba_position END,
-            eligible_positions = CASE WHEN p_source = 'espn' AND (v_row.position IS NOT NULL OR cardinality(v_row.eligible_positions) > 0)
+            years_exp = coalesce((v_metadata->>'years_exp')::int,years_exp),
+            position = CASE WHEN p_source='espn' THEN coalesce(v_row.position,(v_metadata->>'position')::nba_position)
+              ELSE coalesce((v_metadata->>'position')::nba_position,v_row.position) END,
+            eligible_positions = CASE WHEN (p_source='espn' AND cardinality(v_row.eligible_positions) > 0) OR jsonb_typeof(v_metadata->'eligible_positions') IS DISTINCT FROM 'array'
               THEN v_row.eligible_positions ELSE ARRAY(SELECT jsonb_array_elements_text(coalesce(v_metadata->'eligible_positions', '[]'))) END,
             updated_at = clock_timestamp()
           WHERE id = v_id;
@@ -367,7 +367,13 @@ BEGIN
                 THEN coalesce(player_espn_listings.team_since, player_espn_listings.listed_at) ELSE EXCLUDED.team_since END;
           END IF;
         ELSIF p_source = 'nba_cdn' THEN
-          UPDATE players SET nba_id = v_provider WHERE id = v_id AND nba_id IS DISTINCT FROM v_provider;
+          UPDATE players SET nba_id = v_provider,position=coalesce(position,(v_metadata->>'position')::nba_position),
+            years_exp=coalesce(years_exp,(v_metadata->>'years_exp')::int),
+            eligible_positions=CASE WHEN cardinality(eligible_positions)=0 AND v_metadata->>'position' IS NOT NULL
+              THEN ARRAY[v_metadata->>'position'] ELSE eligible_positions END
+          WHERE id=v_id AND (nba_id IS DISTINCT FROM v_provider
+            OR (position IS NULL AND v_metadata->>'position' IS NOT NULL)
+            OR (years_exp IS NULL AND v_metadata->>'years_exp' IS NOT NULL));
           IF v_game_id IS NOT NULL THEN
             INSERT INTO private.player_game_memberships(player_id, game_id, nba_team)
             VALUES (v_id, v_game_id, v_record->>'nba_team') ON CONFLICT (player_id, game_id) DO UPDATE

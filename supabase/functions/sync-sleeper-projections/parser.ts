@@ -8,7 +8,7 @@ export type SleeperProjection = {
   season: string
   company: 'rotowire'
   last_modified: number
-  player: { first_name: string; last_name: string }
+  player: { first_name: string; last_name: string; position?: string; years_exp?: number }
   stats: Record<string, number>
 }
 
@@ -63,7 +63,10 @@ export function parseSleeperProjections(value: unknown, context: {
     rows.push({
       player_id: row.player_id, game_id: row.game_id, date: row.date, team: row.team, opponent: row.opponent,
       week: context.sleeperWeek, season: String(context.seasonYear - 1), company: 'rotowire',
-      last_modified: row.last_modified, player: { first_name: row.player.first_name, last_name: row.player.last_name }, stats,
+      last_modified: row.last_modified, player: { first_name: row.player.first_name, last_name: row.player.last_name,
+        ...(typeof row.player.position === 'string' && ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].includes(row.player.position) ? { position: row.player.position } : {}),
+        ...(typeof row.player.years_exp === 'number' && Number.isInteger(row.player.years_exp) && row.player.years_exp >= 0 ? { years_exp: row.player.years_exp } : {}),
+      }, stats,
     })
   }
   const rejectedRowCount = value.length - rows.length

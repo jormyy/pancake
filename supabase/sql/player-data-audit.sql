@@ -41,3 +41,22 @@ FROM public.players
 WHERE nullif(nba_team,'') IS NOT NULL
   AND (career_regular_season_games IS NULL OR career_regular_season_games<65)
   AND (career_games_base IS NULL OR career_games_base_source='coverage');
+
+SELECT p.id,p.display_name,p.nba_team,p.espn_id,p.nba_id,p.sleeper_id,p.years_exp,p.position,
+  array_remove(ARRAY[
+    CASE WHEN p.espn_id IS NULL THEN 'espn_id' END,
+    CASE WHEN p.nba_id IS NULL THEN 'nba_id' END,
+    CASE WHEN p.sleeper_id IS NULL THEN 'sleeper_id' END,
+    CASE WHEN p.years_exp IS NULL THEN 'years_exp' END,
+    CASE WHEN p.position IS NULL THEN 'position' END
+  ],NULL) AS missing_fields,
+  ARRAY(SELECT r.source FROM private.player_roster_presence r WHERE r.provider_id=CASE r.source WHEN 'espn' THEN p.espn_id ELSE p.nba_id END ORDER BY r.source) AS roster_sources
+FROM public.players p
+WHERE (EXISTS(SELECT FROM private.player_roster_presence r WHERE r.provider_id=CASE r.source WHEN 'espn' THEN p.espn_id ELSE p.nba_id END)
+    OR p.nba_team IS NOT NULL)
+  AND (p.espn_id IS NULL OR p.nba_id IS NULL OR p.sleeper_id IS NULL OR p.years_exp IS NULL OR p.position IS NULL)
+ORDER BY p.display_name,p.id;
+
+SELECT p.id,p.display_name,p.nba_team,a.first_absent_at,a.last_absent_at
+FROM private.player_roster_absences a JOIN public.players p ON p.id=a.player_id
+WHERE p.nba_team IS NOT NULL ORDER BY a.first_absent_at,p.display_name;
