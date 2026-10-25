@@ -18,6 +18,7 @@ import { finishSeason } from './season-end.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 import { shiftDay } from './season-model.mjs'
 import { checkPlayoffShape } from './post-oracle.mjs'
+import { ensureRegularSchedule } from './schedule.mjs'
 
 export function checkRealCoverage(profile,days,checked,rookies,observations,{through=profile.end,games=null}={}){
   assert.ok(through>=profile.start&&through<=profile.end,'The cutoff belongs to the real season')
@@ -86,7 +87,7 @@ export async function runRealSeason(c, plan, move, report, checkpoint, snapshot,
     const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${c.leagueSeasonId}`)
     assert.equal(standings.length, 0, 'The real second season starts without prior standings')
     await move(`${profile.start}T14:00:00Z`)
-    await c.api(c.users[0], '/sync/matchups', { leagueId: c.leagueId })
+    await ensureRegularSchedule(c)
     report.secondCalendar = await assertTwoCalendar(c, profile)
     await captureSeasonFeatures(c,profile,'week-1',report)
     await capturePlayers(c,'opening-before-played',report)

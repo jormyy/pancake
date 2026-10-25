@@ -6,6 +6,7 @@ import { season, config, originUrl, assertTarget, miniRoot, writeJson } from './
 import { setClock } from './clock.mjs'
 import { sql } from './local-stack.mjs'
 import {plannedAuctionBid} from './auction-plan.mjs'
+import { ensureRegularSchedule } from './schedule.mjs'
 
 /** @typedef {{ id: string, token: string, refreshToken: string, expiresAt: number, memberId?: string }} ReplayUser */
 
@@ -98,7 +99,7 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
     purchases.set(memberId,purchased+1)
   }
   assert.equal(await sql(`SELECT status FROM drafts WHERE id='${draft.id}'`), 'completed')
-  await api(users[0], '/sync/matchups', { leagueId })
+  await ensureRegularSchedule({ api, rest, users, leagueId, leagueSeasonId })
   for (const user of users) await api(user, '/league/lineup/auto-set-season', { memberId: user.memberId, leagueId, leagueSeasonId, dates: [date] })
   const context = { leagueId, leagueSeasonId, seasonYear: season.year, seasonEnd:season.end, firstDate: date, diagnosticSkippedWeeks: skipped, draftId: draft.id, members, date }
   await writeJson(path.join(miniRoot, 'state/league.json'), context)

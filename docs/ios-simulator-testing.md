@@ -44,6 +44,8 @@ Concurrent callers wait for the first caller.
 If a runner crashes, a stale lock produces an error.
 Remove that named lock only after confirming its owner has stopped.
 Startup reuses completed seed data.
+Every start refreshes copied Edge functions and migration files, including removal of stale files.
+Startup restarts its Edge worker so code edits take effect without a database reset.
 Startup adds the roster-plan fixture to older seed data from the same Eastern date.
 Startup and captures reject old dates with `run start --reset`.
 Only the shared service owner resets data after other captures stop.

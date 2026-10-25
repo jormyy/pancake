@@ -1,19 +1,13 @@
 import json
-import os
 import shlex
 import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.parse import urlparse
+from targets import database_target
 
-db = os.environ['SUPABASE_DB_URL']
-url = urlparse(db)
-if url.hostname not in ('127.0.0.1','localhost') or url.port != 57622:
-    raise SystemExit('Refuse a database outside the isolated stack')
+db = database_target()
 root = Path(__file__).resolve().parents[3]
-if '/pancake-t_4ba51e0d/lanes/waiv/' not in str(root):
-    raise SystemExit('Database recipes run only on the mini')
 evidence = Path(sys.argv[1]).resolve()
 evidence.mkdir(parents=True, exist_ok=True)
 recipes = [
