@@ -47,7 +47,6 @@ const CORE_RPCS = [
   'advance_season_atomic',
   'auto_set_lineup_atomic',
   'cancel_waiver_claim_atomic',
-  'clear_ineligible_taxi_players',
   'close_auction_nomination_atomic',
   'complete_accepted_trade_atomic',
   'compute_fantasy_points',

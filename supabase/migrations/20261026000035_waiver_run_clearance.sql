@@ -30,3 +30,10 @@ UPDATE public.waiver_wire_log AS entry
 SET clears_at = scheduled.clears_at
 FROM scheduled
 WHERE entry.id = scheduled.id AND entry.clears_at IS DISTINCT FROM scheduled.clears_at;
+
+UPDATE public.waiver_claims claim
+SET process_date=(entry.clears_at AT TIME ZONE 'America/New_York')::date
+FROM public.waiver_wire_log entry
+WHERE claim.league_id=entry.league_id AND claim.league_season_id=entry.league_season_id
+  AND claim.player_id=entry.player_id AND claim.status='pending' AND entry.cleared_at IS NULL
+  AND claim.process_date IS DISTINCT FROM (entry.clears_at AT TIME ZONE 'America/New_York')::date;

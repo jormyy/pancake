@@ -1,17 +1,17 @@
 import {
-  deliverTradeNotificationOutbox,
-  drainTradeNotificationOutbox,
+  deliverNotificationOutbox,
+  drainNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
   OUTBOX_DRAIN_BUDGET_MS,
   OUTBOX_LEASE_SECONDS,
   OUTBOX_MAX_CLAIMS_PER_RUN,
-  type TradeNotificationOutboxRow,
+  type NotificationOutboxRow,
 } from './outbox.ts'
 import { strict as assert } from 'node:assert'
 import { createNotifyMembers } from '../_shared/notificationDelivery.ts'
 import { createWebPushFanout } from '../_shared/webPushDelivery.ts'
 
-const row = (id: string): TradeNotificationOutboxRow => ({
+const row = (id: string): NotificationOutboxRow => ({
   id,
   claim_token: `claim-${id}`,
   member_id: `member-${id}`,
@@ -42,7 +42,7 @@ Deno.test('web push outbox completes sent, absent and gone recipients and retrie
       },
     }),
   })
-  const result = await deliverTradeNotificationOutbox(
+  const result = await deliverNotificationOutbox(
     ['sent', 'absent', 'gone', 'throttled', 'unavailable', 'invalid'].map(row), notify,
     async entry => { completed.push(entry.id) },
     async entry => { failed.push(entry.id) },
@@ -59,7 +59,7 @@ Deno.test('trade notification claims fit in one bounded delivery wave', async ()
   assert.equal(OUTBOX_LEASE_SECONDS, 60)
   let active = 0
   let maximum = 0
-  await deliverTradeNotificationOutbox(Array.from({ length: OUTBOX_CLAIM_LIMIT }, (_, index) => row(String(index))),
+  await deliverNotificationOutbox(Array.from({ length: OUTBOX_CLAIM_LIMIT }, (_, index) => row(String(index))),
     async messages => {
       maximum = Math.max(maximum, ++active)
       await new Promise(resolve => setTimeout(resolve, 1))
@@ -72,7 +72,7 @@ Deno.test('trade notification claims fit in one bounded delivery wave', async ()
 Deno.test('missing outcomes and failed acknowledgements schedule a durable retry', async () => {
   for (const mode of ['missing', 'lookup', 'acknowledgement']) {
     const failed: string[] = []
-    const result = await deliverTradeNotificationOutbox([row(mode)], async messages => {
+    const result = await deliverNotificationOutbox([row(mode)], async messages => {
       if (mode === 'lookup') throw new Error('lookup failed')
       return mode === 'missing' ? [] : messages.map(message => ({ memberId: message.memberId, status: 'sent' }))
     }, async () => { throw new Error('acknowledgement failed') }, async entry => { failed.push(entry.id) }, async () => {})
@@ -94,11 +94,11 @@ function queue(total: number) {
   }
 }
 
-const settled = async (rows: TradeNotificationOutboxRow[]) => ({ delivered: 0, failed: 0, discarded: rows.length, deadLettered: 0 })
+const settled = async (rows: NotificationOutboxRow[]) => ({ delivered: 0, failed: 0, discarded: rows.length, deadLettered: 0 })
 
 Deno.test('trade notification drain keeps claiming full batches until the queue runs short', async () => {
   const outbox = queue(45)
-  const result = await drainTradeNotificationOutbox(outbox.claim, settled)
+  const result = await drainNotificationOutbox(outbox.claim, settled)
   if (outbox.claims() !== 5 || outbox.remaining() !== 0 || result.discarded !== 45) {
     throw new Error(`burst was not drained in one run: ${JSON.stringify({ claims: outbox.claims(), result })}`)
   }
@@ -107,18 +107,18 @@ Deno.test('trade notification drain keeps claiming full batches until the queue 
 Deno.test('trade notification drain claims once when the first batch is short or empty', async () => {
   for (const total of [0, 9]) {
     const outbox = queue(total)
-    await drainTradeNotificationOutbox(outbox.claim, settled)
+    await drainNotificationOutbox(outbox.claim, settled)
     if (outbox.claims() !== 1) throw new Error(`short queue of ${total} claimed ${outbox.claims()} times`)
   }
   const exact = queue(OUTBOX_CLAIM_LIMIT)
-  await drainTradeNotificationOutbox(exact.claim, settled)
+  await drainNotificationOutbox(exact.claim, settled)
   if (exact.claims() !== 2) throw new Error(`a full final batch must confirm the queue is empty: ${exact.claims()}`)
 })
 
 Deno.test('trade notification drain stops after a retryable failure so backoff decides the retry', async () => {
   const outbox = queue(45)
   let batch = 0
-  const result = await drainTradeNotificationOutbox(outbox.claim, async (rows) => {
+  const result = await drainNotificationOutbox(outbox.claim, async (rows) => {
     batch += 1
     return batch === 2
       ? { delivered: 0, failed: 1, discarded: rows.length - 1, deadLettered: 0 }
@@ -131,14 +131,14 @@ Deno.test('trade notification drain stops after a retryable failure so backoff d
 
 Deno.test('trade notification drain is bounded by claims and elapsed time per run', async () => {
   const backlog = queue(OUTBOX_CLAIM_LIMIT * (OUTBOX_MAX_CLAIMS_PER_RUN + 3))
-  await drainTradeNotificationOutbox(backlog.claim, settled)
+  await drainNotificationOutbox(backlog.claim, settled)
   if (backlog.claims() !== OUTBOX_MAX_CLAIMS_PER_RUN || backlog.remaining() !== OUTBOX_CLAIM_LIMIT * 3) {
     throw new Error(`claim cap was not enforced: ${backlog.claims()}`)
   }
 
   const slow = queue(45)
   let clock = 0
-  await drainTradeNotificationOutbox(slow.claim, async (rows) => {
+  await drainNotificationOutbox(slow.claim, async (rows) => {
     clock += OUTBOX_DRAIN_BUDGET_MS / 2
     return settled(rows)
   }, () => clock)
@@ -152,7 +152,7 @@ Deno.test('trade notification drain propagates claim and delivery errors', async
   ] as const) {
     let message = ''
     try {
-      await drainTradeNotificationOutbox(claim, deliver)
+      await drainNotificationOutbox(claim, deliver)
     } catch (error) {
       message = error instanceof Error ? error.message : String(error)
     }
@@ -162,7 +162,7 @@ Deno.test('trade notification drain propagates claim and delivery errors', async
 
 Deno.test('a durable send-time suppression does not acknowledge delivery or schedule a retry', async () => {
   let mutations = 0
-  const result = await deliverTradeNotificationOutbox([row('stale')], async messages => messages.map(message => ({
+  const result = await deliverNotificationOutbox([row('stale')], async messages => messages.map(message => ({
     memberId: message.memberId, status: 'skipped', reason: 'durably_suppressed',
   })), async () => { mutations += 1 }, async () => { mutations += 1 },
   async () => { mutations += 1 }, async () => { mutations += 1 })
@@ -170,7 +170,7 @@ Deno.test('a durable send-time suppression does not acknowledge delivery or sche
 })
 
 Deno.test('drain preserves delivered Web Push counts', async () => {
-  const result = await drainTradeNotificationOutbox(async () => [row('web')],
+  const result = await drainNotificationOutbox(async () => [row('web')],
     async () => ({ delivered: 1, failed: 0, discarded: 0, deadLettered: 0 }))
   if (result.delivered !== 1 || result.discarded !== 0) throw new Error('Web delivery count was lost')
 })

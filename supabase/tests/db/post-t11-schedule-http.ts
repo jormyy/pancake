@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { verifyScheduleRoutes } from './server-schedule-routes.ts'
 
 // Served-path schedule oracle: the calendar is published only by an HTTP POST to
 // the real `sync-schedule` Edge function served by the local stack, and playoff
@@ -231,4 +232,5 @@ for (const name of cases.filter(value => !selected || value === selected)) {
 }
 await cdn.shutdown()
 assert.deepEqual(failures, [])
+await verifyScheduleRoutes()
 Deno.exit(0)

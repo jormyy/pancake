@@ -48,14 +48,15 @@ BEGIN
           AND NOT (matchup.week_number = ANY(season.skipped_weeks))
           AND NOT matchup.is_voided
           AND ranking.member_id IN (matchup.home_member_id, matchup.away_member_id)
-        GROUP BY ranking.member_id, ranking.wins, ranking.points_for, ranking.max_possible_points,
+        GROUP BY ranking.member_id, ranking.wins, ranking.ties, ranking.games_played, ranking.points_for, ranking.max_possible_points,
           ranking.points_against, ranking.tie_token, ranking.seed_rank, ranking.group_start
       )
       SELECT candidate.member_id FROM bounds candidate
       WHERE CASE WHEN NOT EXISTS (SELECT 1 FROM bounds WHERE remaining > 0)
         THEN candidate.seed_rank <= entrants
         ELSE (SELECT count(*) FROM bounds opponent WHERE opponent.member_id <> candidate.member_id
-          AND opponent.wins + opponent.remaining >= candidate.wins) < entrants
+          AND (opponent.wins + 0.5 * opponent.ties + opponent.remaining) / greatest(opponent.games_played + opponent.remaining, 1)
+            >= (candidate.wins + 0.5 * candidate.ties) / greatest(candidate.games_played + candidate.remaining, 1)) < entrants
         END
     LOOP
       PERFORM private.notif_enqueue('playoff_clinched', season.id::text, season.league_id, clincher.member_id,

@@ -168,10 +168,18 @@ BEGIN
     END IF;
   END LOOP;
 
+  PERFORM private.assert_trade_window(v_trade.league_id,
+    ARRAY(SELECT pick_id FROM trade_items WHERE trade_id=p_trade_id AND pick_id IS NOT NULL));
+
+  SELECT NOT EXISTS (SELECT 1 FROM trade_participants
+    WHERE trade_id=p_trade_id AND member_id<>p_accepting_member_id AND accepted_at IS NULL)
+    INTO v_all_accepted;
+
   PERFORM private.assert_trade_assets_acceptance_ready(
     p_trade_id,
     v_trade.league_id,
-    v_trade.league_season_id
+    v_trade.league_season_id,
+    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END
   );
 
   IF EXISTS (

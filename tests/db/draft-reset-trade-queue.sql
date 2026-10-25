@@ -50,19 +50,18 @@ BEGIN
   END IF;
   PERFORM reset_draft_atomic(v_mock,v_users[1]);
 
-  -- A legacy drafting league must not abort another league's due settlement.
   UPDATE leagues SET status='drafting' WHERE id=v_leagues[1];
   PERFORM process_due_accepted_trades_atomic(50);
-  IF (SELECT status FROM trades WHERE id=v_trades[1]) <> 'accepted'
+  IF (SELECT status FROM trades WHERE id=v_trades[1]) <> 'completed'
      OR (SELECT status FROM trades WHERE id=v_trades[2]) <> 'completed'
      OR (SELECT current_owner_id FROM draft_picks WHERE id=v_picks[3]) <> v_members[4] THEN
-    RAISE EXCEPTION 'Drafting league blocks or contaminates another league settlement';
+    RAISE EXCEPTION 'Drafting and active leagues must settle their due trades together';
   END IF;
   UPDATE leagues SET status='active' WHERE id=v_leagues[1];
   PERFORM process_due_accepted_trades_atomic(50);
   IF (SELECT status FROM trades WHERE id=v_trades[1]) <> 'completed'
      OR (SELECT current_owner_id FROM draft_picks WHERE id=v_picks[1]) <> v_members[2] THEN
-    RAISE EXCEPTION 'Resumed active league does not settle preserved trade';
+    RAISE EXCEPTION 'A settled drafting trade must stay settled after activation';
   END IF;
   PERFORM reset_draft_atomic(v_draft,v_users[1]);
   IF (SELECT status FROM leagues WHERE id=v_leagues[1]) <> 'drafting' THEN

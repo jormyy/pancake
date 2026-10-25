@@ -142,7 +142,7 @@ BEGIN
   -- the participant that gives the asset (from_member_id), never by trade side.
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
-  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
+  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)'::regprocedure)
     INTO v_asset_assertion_definition;
   SELECT pg_get_functiondef('private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure)
     INTO v_reservation_definition;
@@ -452,7 +452,7 @@ BEGIN
 
   SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
     INTO v_accept_definition;
-  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)'::regprocedure)
+  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)'::regprocedure)
     INTO v_asset_assertion_definition;
   SELECT pg_get_functiondef('private.prevent_conflicting_or_inactive_trade_accept()'::regprocedure)
     INTO v_accept_trigger_definition;
@@ -473,9 +473,9 @@ BEGIN
      OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)%' THEN
     RAISE EXCEPTION 'Trade acceptance does not use one canonical set-based asset assertion';
   END IF;
-  IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')
-     OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE')
-     OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid)', 'EXECUTE') THEN
+  IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade asset assertion is externally executable';
   END IF;
   IF EXISTS (
@@ -560,7 +560,7 @@ BEGIN
          'withdraw_auction_nomination_atomic', 'make_snake_pick_atomic', 'auto_pick_snake_pick_atomic',
          'commissioner_snake_pick_atomic', 'start_rookie_draft_atomic', 'reseed_rookie_draft_picks_atomic',
          'advance_season_atomic', 'toggle_ir_atomic', 'toggle_taxi_atomic', 'expire_waiver_wire_logs',
-         'clear_ineligible_taxi_players', 'replace_regular_season_matchups_atomic',
+         'replace_regular_season_matchups_atomic',
          'generate_playoff_bracket_atomic', 'advance_playoff_bracket_atomic', 'try_live_poll_lease',
          'release_live_poll_lease', 'invoke_edge_function', 'invoke_edge_function_at_et_time',
          'invoke_projection_sync_if_due', 'merge_players', 'merge_duplicate_players',

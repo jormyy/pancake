@@ -31,7 +31,7 @@ INSERT INTO analytics.player_season_totals(player_id,season_year,games_played,mi
       count(*) FILTER(WHERE s.double_double)::bigint AS double_double,
       count(*) FILTER(WHERE s.triple_double)::bigint AS triple_double FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id WHERE NOT s.did_not_play AND public.is_regular_season_game_id(g.nba_game_id) GROUP BY s.player_id,s.season_year;
 
-ALTER TABLE public.league_change_hints DROP CONSTRAINT league_change_hints_topic_check, ADD CONSTRAINT league_change_hints_topic_check CHECK(topic IN ('lineup','roster','score','game','stat','inventory','resources','player_stats'));
+ALTER TABLE public.league_change_hints DROP CONSTRAINT league_change_hints_topic_check, ADD CONSTRAINT league_change_hints_topic_check CHECK(topic IN ('lineup','roster','score','game','stat','inventory','resources'));
 
 CREATE TABLE private.player_stats_hint_pending(league_id uuid PRIMARY KEY REFERENCES public.leagues(id) ON DELETE CASCADE);
 REVOKE ALL ON private.player_stats_hint_pending FROM PUBLIC,anon,authenticated,service_role;
@@ -56,12 +56,12 @@ BEGIN
   WITH ready AS MATERIALIZED (
     SELECT pending.league_id FROM private.player_stats_hint_pending pending
     WHERE NOT EXISTS(SELECT 1 FROM public.league_change_hints hint
-      WHERE hint.league_id=pending.league_id AND hint.topic='player_stats'
+      WHERE hint.league_id=pending.league_id AND hint.topic='score'
         AND hint.updated_at>clock_timestamp()-interval '1 minute')
     ORDER BY pending.league_id LIMIT 1000 FOR UPDATE SKIP LOCKED
   ), emitted AS (
     INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details,updated_at)
-    SELECT ready.league_id,'player_stats',1,NULL,NULL,clock_timestamp() FROM ready
+    SELECT ready.league_id,'score',1,NULL,NULL,clock_timestamp() FROM ready
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,
       scopes=NULL,details=NULL,updated_at=clock_timestamp()
     WHERE stored.updated_at<=clock_timestamp()-interval '1 minute'

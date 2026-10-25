@@ -10,6 +10,8 @@ CREATE OR REPLACE FUNCTION private.playoff_seed_rankings(
 RETURNS TABLE (
   member_id uuid,
   wins bigint,
+  ties bigint,
+  games_played bigint,
   points_for numeric,
   max_possible_points numeric,
   points_against numeric,
@@ -64,7 +66,7 @@ AS $$
     FROM member_stats
   )
   SELECT
-    member_id, wins, points_for, max_possible_points, points_against, tie_token, seed_rank,
+    member_id, wins, ties, games_played, points_for, max_possible_points, points_against, tie_token, seed_rank,
     min(seed_rank) OVER (
       PARTITION BY (wins + 0.5 * ties) / greatest(games_played, 1),
         points_for / greatest(games_played, 1), max_possible_points, points_against

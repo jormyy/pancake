@@ -110,6 +110,7 @@ BEGIN
             AND pick.member_id = roster.member_id AND pick.player_id = roster.player_id
           JOIN players AS player ON player.id = roster.player_id AND player.years_exp = 0
         WHERE roster.league_season_id = v_current_season.id AND roster.member_id = v_member.id
+          AND NOT private.is_reserved_trade_asset(v_draft.league_id, v_current_season.id, v_member.id, roster.player_id)
           AND roster.acquired_via = 'draft' AND NOT roster.is_on_ir AND NOT roster.is_on_taxi
         ORDER BY pick.overall_pick DESC, roster.id FOR UPDATE OF roster SKIP LOCKED
       LOOP

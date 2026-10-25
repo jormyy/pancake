@@ -5,14 +5,15 @@
 CREATE OR REPLACE FUNCTION private.assert_trade_assets_acceptance_ready(
   p_trade_id uuid,
   p_league_id uuid,
-  p_league_season_id uuid
+  p_league_season_id uuid,
+  p_only_member_id uuid DEFAULT NULL
 )
 RETURNS void
 LANGUAGE plpgsql
 SET search_path = public
 AS $$
 BEGIN
-  PERFORM private.validate_trade_rosters(p_trade_id);
+  PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
   PERFORM 1
     FROM trade_items AS item
     JOIN roster_players AS roster

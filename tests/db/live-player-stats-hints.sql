@@ -10,15 +10,15 @@ BEGIN
   INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points,minutes_played) VALUES(p,g,2096,1,20,12.5);
   IF NOT EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Free-agent stats do not queue a league hint'; END IF;
   PERFORM private.flush_player_stats_hints();
-  SELECT revision INTO v_revision FROM league_change_hints WHERE league_id=l AND topic='player_stats';
+  SELECT revision INTO v_revision FROM league_change_hints WHERE league_id=l AND topic='score';
   IF v_revision IS DISTINCT FROM 1 THEN RAISE EXCEPTION 'First visible-stat hint is missing'; END IF;
   UPDATE player_game_stats SET points=21 WHERE player_id=p;
   PERFORM private.flush_player_stats_hints();
-  IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='player_stats')<>v_revision THEN RAISE EXCEPTION 'Stats hints exceed the minute throttle'; END IF;
+  IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='score')<>v_revision THEN RAISE EXCEPTION 'Stats hints exceed the minute throttle'; END IF;
   IF NOT EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Throttle loses the final changed stats'; END IF;
-  UPDATE league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id=l AND topic='player_stats';
+  UPDATE league_change_hints SET updated_at=clock_timestamp()-interval '61 seconds' WHERE league_id=l AND topic='score';
   PERFORM private.flush_player_stats_hints();
-  IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='player_stats')<>v_revision+1
+  IF (SELECT revision FROM league_change_hints WHERE league_id=l AND topic='score')<>v_revision+1
     OR EXISTS(SELECT 1 FROM private.player_stats_hint_pending WHERE league_id=l) THEN RAISE EXCEPTION 'Final changed stats do not flush after the throttle'; END IF;
   UPDATE nba_games SET status='Final' WHERE id=g;
   UPDATE player_game_stats SET points=22 WHERE player_id=p;

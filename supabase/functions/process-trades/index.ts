@@ -4,8 +4,8 @@ import { serveInternal } from '../_shared/serve.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { partitionTradeResults, tradeFailureMessage } from './results.ts'
 import {
-  deliverTradeNotificationOutbox,
-  drainTradeNotificationOutbox,
+  deliverNotificationOutbox,
+  drainNotificationOutbox,
   OUTBOX_CLAIM_LIMIT,
   OUTBOX_LEASE_SECONDS,
 } from './outbox.ts'
@@ -50,7 +50,7 @@ async function processAcceptedTrades(): Promise<{
 
   const results: ProcessedTradeRow[] = data ?? []
   const partitioned = partitionTradeResults(results)
-  const deliveryResult = await drainNotificationOutbox()
+  const deliveryResult = await drainDueNotifications()
   const receiptResult = await drainNotificationReceipts()
 
   if (partitioned.retryableFailures.length > 0) {
@@ -70,8 +70,8 @@ async function processAcceptedTrades(): Promise<{
   }
 }
 
-async function drainNotificationOutbox(): Promise<{ ticketed?: number; delivered: number; failed: number; discarded: number; deadLettered: number }> {
-  return drainTradeNotificationOutbox(claimNotificationOutbox, deliverNotificationOutbox)
+async function drainDueNotifications(): Promise<{ ticketed?: number; delivered: number; failed: number; discarded: number; deadLettered: number }> {
+  return drainNotificationOutbox(claimNotificationOutbox, deliverClaimedNotifications)
 }
 
 async function claimNotificationOutbox(): Promise<OutboxRow[]> {
@@ -83,8 +83,8 @@ async function claimNotificationOutbox(): Promise<OutboxRow[]> {
   return data ?? []
 }
 
-function deliverNotificationOutbox(rows: OutboxRow[]) {
-  return deliverTradeNotificationOutbox(
+function deliverClaimedNotifications(rows: OutboxRow[]) {
+  return deliverNotificationOutbox(
     rows,
     notifyMembers,
     async (row) => {
