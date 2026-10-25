@@ -60,6 +60,9 @@ BEGIN
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L)',
     f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}',ARRAY[players[2]]::text,ARRAY[pick]::text,'{}'),
     'Picks in the live draft can be traded after the draft.','live rookie pick refuses proposal');
+  UPDATE snake_draft_picks SET skipped_at=now() WHERE draft_id=draft AND draft_pick_id=pick;
+  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',pending_offer,f.member_ids[2]),
+    'Picks in the live draft can be traded after the draft.','skipped unmade picks stay locked until the live draft ends');
   offer := public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],
     ARRAY[players[1]],ARRAY[players[2]],'{}','{}');
   PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);

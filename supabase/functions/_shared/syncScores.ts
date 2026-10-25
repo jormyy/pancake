@@ -339,7 +339,6 @@ async function buildStandingsSnapshotRows(
             points_for: parseFloat(row.points_for.toFixed(2)),
             points_against: parseFloat(row.points_against.toFixed(2)),
             max_possible_points: parseFloat(row.max_possible_points.toFixed(2)),
-            waiver_priority: row.waiver_priority,
         }))
 }
 
@@ -574,7 +573,6 @@ async function finalizeWeekIfComplete(
             points_for: row.points_for,
             points_against: row.points_against,
             max_possible_points: row.max_possible_points,
-            waiver_priority: row.waiver_priority,
         })),
         p_finalized_at: finalizedTimestamp,
         p_reconciliation_at: reconciliationTimestamp,

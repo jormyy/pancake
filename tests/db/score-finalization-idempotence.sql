@@ -32,6 +32,7 @@ BEGIN
   v_standings := jsonb_build_array(jsonb_build_object('member_id',v_home,'wins',1,'losses',0,'ties',0,
     'points_for',10,'points_against',5,'max_possible_points',12,'waiver_priority',2,'created_at',v_read));
   PERFORM finalize_score_week_atomic(v_league,v_season,1,v_payload,v_standings,v_read,v_read);
+  UPDATE standings SET waiver_priority=2 WHERE league_season_id=v_season AND member_id=v_home;
   SELECT ctid INTO v_matchup_tid FROM matchups WHERE id=v_matchup;
   SELECT ctid INTO v_standing_tid FROM standings WHERE league_season_id=v_season AND member_id=v_home;
   DELETE FROM private.score_week_certificates WHERE league_season_id=v_season;

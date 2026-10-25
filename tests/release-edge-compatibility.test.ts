@@ -234,3 +234,34 @@ it.skipIf(!available)('documents database-first release order for new client dep
     expect(requiresDatabaseFirst(main, source, notes)).toBe(false)
     expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'))).toBe(true)
 })
+
+function droppedObjectCalls(migration: string, consumers: { file: string; source: string }[]) {
+    const functions = functionLifecycleEventsInSource(migration).filter(event => event.type === 'drop').map(event => event.key.split('.')[1])
+    const tables = [...maskSqlNonCode(migration).matchAll(/DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:public\.)?([a-z_]+)/gi)].map(match => match[1])
+    return consumers.flatMap(({ file, source }) => [
+        ...functions.filter(name => new RegExp(`(?:\\.rpc\\(\\s*['"]${name}['"]|\\b(?:public\\.|private\\.)?${name}\\s*\\()`).test(source)).map(name => `${file}: function ${name}`),
+        ...tables.filter(name => new RegExp(`(?:\\.from\\(\\s*['"]${name}['"]|\\b(?:FROM|JOIN|UPDATE|INTO)\\s+(?:public\\.)?${name}\\b)`, 'i').test(source)).map(name => `${file}: table ${name}`),
+    ])
+}
+
+it.skipIf(!available)('keeps objects used by deployed Edge, frontend, and cron through the server migration', () => {
+    const paths = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n')
+        .filter(file => /\.tsx?$/.test(file) && !file.endsWith('.test.ts'))
+    const consumers = ['supabase/functions/', 'client'].map(group => ({ file: group,
+        source: git('show', ...paths.filter(file => group === 'client' ? !file.startsWith('supabase/') : file.startsWith(group)).map(file => `origin/main:${file}`)),
+    }))
+    const migrations = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
+    const cron = [...git('show', ...migrations.map(file => `origin/main:${file}`)).matchAll(/\bcron\.schedule\s*\([\s\S]*?\);/gi)].map(match => match[0]).join('\n')
+    consumers.push({ file: 'cron', source: cron })
+    const migration = readFileSync('supabase/migrations/20261026000400_server_release_followups.sql', 'utf8')
+    expect(droppedObjectCalls(migration, consumers)).toEqual([])
+})
+
+it('detects removed functions and tables used by each deployed consumer', () => {
+    const migration = 'DROP FUNCTION public.retired_call(); DROP TABLE public.retired_rows;'
+    expect(droppedObjectCalls(migration, [
+        { file: 'Edge', source: "db.rpc('retired_call')" },
+        { file: 'client', source: "db.from('retired_rows').select('*')" },
+        { file: 'cron', source: "SELECT cron.schedule('job','* * * * *','SELECT public.retired_call();');" },
+    ])).toEqual(['Edge: function retired_call', 'client: table retired_rows', 'cron: function retired_call'])
+})

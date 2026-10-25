@@ -2341,7 +2341,7 @@ BEGIN
     JOIN public.snake_draft_picks slot ON slot.draft_id=draft.id
     WHERE draft.league_id=p_league_id AND NOT draft.is_mock
       AND draft.status IN ('in_progress','paused')
-      AND slot.draft_pick_id=ANY(p_pick_ids) AND slot.player_id IS NULL AND slot.skipped_at IS NULL
+      AND slot.draft_pick_id=ANY(p_pick_ids) AND slot.player_id IS NULL
   ) THEN
     RAISE EXCEPTION 'Picks in the live draft can be traded after the draft.' USING ERRCODE='P0001';
   END IF;

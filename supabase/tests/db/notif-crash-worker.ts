@@ -3,7 +3,7 @@ import { supabase } from '../../functions/_shared/supabase.ts'
 import { notifyMembers } from '../../functions/_shared/notifications.ts'
 import { normalizeNotificationPreferences } from '../../functions/_shared/notificationsPreferences.ts'
 import { createNotifyMembers } from '../../functions/_shared/notificationDelivery.ts'
-import { deliverTradeNotificationOutbox } from '../../functions/process-trades/outbox.ts'
+import { deliverNotificationOutbox } from '../../functions/process-trades/outbox.ts'
 import { settleTradeNotificationReceipts } from '../../functions/process-trades/receipts.ts'
 
 const port = Deno.env.get('PANCAKE_TEST_DB_PORT') ?? '54322'
@@ -61,11 +61,10 @@ const webNotify = createNotifyMembers({
   pushUrl: fake,
 })
 const rows = (await result(supabase.rpc('claim_notification_outbox_atomic', { p_limit: 200, p_lease_seconds: 60 })) ?? []).filter(row => row.id === id)
-await deliverTradeNotificationOutbox(rows, transport === 'web' ? webNotify : notifyMembers,
+await deliverNotificationOutbox(rows, transport === 'web' ? webNotify : notifyMembers,
   async row => { assert.equal(await result(supabase.rpc('complete_notification_outbox_atomic', { p_id: row.id, p_claim_token: row.claim_token })), true) },
   async (row, error) => { await result(supabase.rpc('fail_notification_outbox_atomic', { p_id: row.id, p_claim_token: row.claim_token, p_error: error })) },
-  async () => { throw new Error('No terminal transport errors expected') }, undefined,
-  async () => { throw new Error('Production adapter must persist ticket immediately') })
+  async () => { throw new Error('No terminal transport errors expected') })
 const receipts = (await result(supabase.rpc('claim_notification_receipts_atomic', { p_limit: 200, p_lease_seconds: 60 })) ?? []).filter(row => row.id === id)
 if (receipts.length) {
   const response = await fetch(new URL('/receipts', fake), { method: 'POST', body: JSON.stringify({ ids: receipts.map(row => row.expo_ticket_id) }) })

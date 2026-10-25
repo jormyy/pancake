@@ -92,8 +92,8 @@ BEGIN
   UPDATE leagues SET ir_slots=1,taxi_slots=0 WHERE id=league;
   PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'taxi limit','acceptance rejects taxi overflow');
   UPDATE leagues SET taxi_slots=1 WHERE id=league;
-  PERFORM set_trade_roster_plan_atomic(trade,members[1],users[1],'{}','{}',ARRAY[v_players[4]]);
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'active roster limit','acceptance rejects active overflow');
+  UPDATE trade_items SET to_ir=false WHERE trade_id=trade AND to_member_id=members[1] AND player_id=v_players[2];
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'active roster limit','acceptance rejects legacy active overflow');
   PERFORM set_trade_roster_plan_atomic(trade,members[1],users[1],'{}',ARRAY[v_players[2]],ARRAY[v_players[4]]);
   PERFORM accept_trade_with_plan_atomic(trade,members[2],users[2],ARRAY[v_players[1]],'{}','{}');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;

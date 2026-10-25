@@ -22,7 +22,7 @@ describe('transactional trade notification coverage', () => {
         const edge = read('supabase/functions/process-trades/index.ts')
         const outbox = read('supabase/functions/process-trades/outbox.ts')
 
-        expect(edge).toContain('deliverTradeNotificationOutbox(')
+        expect(edge).toContain('deliverNotificationOutbox(')
         expect(edge).toContain("supabase.rpc('fail_notification_outbox_atomic'")
         expect(edge).toContain('p_claim_token: row.claim_token')
         expect(edge).toContain("supabase.rpc('dead_letter_notification_outbox_atomic'")

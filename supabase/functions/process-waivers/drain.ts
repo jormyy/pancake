@@ -23,7 +23,6 @@ export async function drainDueClaims<Row>(
     }
     emptyBatches = 0
     rows.push(...batchRows)
-
   }
   return rows
 }
