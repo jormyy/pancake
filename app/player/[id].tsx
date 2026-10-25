@@ -308,7 +308,6 @@ export default function PlayerDetailScreen() {
             <DropPlayerPickerModal
                 visible={quickAdd.dropPickerPlayer !== null}
                 title={`Add ${quickAdd.dropPickerPlayer?.display_name ?? 'player'}`}
-                subtitle="Roster full"
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
