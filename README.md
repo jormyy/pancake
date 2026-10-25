@@ -51,8 +51,8 @@ npm start
 
 ```sh
 npm run check:quality
-npx vitest run <test-file>
-npm run perf:budget
+npm test
+npm run test:db
 ```
 
 The [verification guide](docs/verification.md) covers database, Edge, browser, and release checks.
