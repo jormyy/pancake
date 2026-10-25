@@ -426,7 +426,7 @@ const main = async () => {
 
     const seasonYear = currentSeasonYear()
     const minPickYear = seasonYear + 1
-    const maxPickYear = seasonYear + 5
+    const maxPickYear = seasonYear + 3
     const { data: picks, error: picksError } = await admin
       .from('draft_picks')
       .select('id, season_year, round, original_owner_id, current_owner_id')
@@ -436,7 +436,7 @@ const main = async () => {
     if (picksError) throw new Error(`draft_picks check: ${picksError.message}`)
     checks.push({
       name: 'future_pick_bank',
-      status: picks?.length === 150 ? 'PASS' : 'FAIL',
+      status: picks?.length === 90 ? 'PASS' : 'FAIL',
       detail: `${picks?.length ?? 0} rows for ${minPickYear}-${maxPickYear}`,
     })
 

@@ -270,7 +270,7 @@ async function createLeague({ name, users, memberCount, playoffStartWeek, baseYe
   )
   throwOn(priorityError, `${name} waiver priorities seed`)
 
-  // Five-year pick bank, as create_league seeds for real leagues; the rookie
+  // Three-year pick bank, as create_league seeds for real leagues; the rookie
   // draft backstop consumes these at each new season's week 1.
   const pickRows = []
   for (const member of members) {

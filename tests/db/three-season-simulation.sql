@@ -526,7 +526,7 @@ BEGIN
   PERFORM pg_temp.assert((SELECT is_on_ir FROM public.roster_players WHERE league_season_id = v_new_a AND player_id = pg_temp.vet(13)), 'IR flag did not carry over');
   PERFORM pg_temp.assert((SELECT count(*) FROM public.roster_transactions WHERE league_season_id = v_new_a AND transaction_type = 'carry_over') = v_rows, 'carry-over history incomplete');
   PERFORM pg_temp.assert((SELECT count(*) FROM public.waiver_priorities WHERE league_season_id = v_new_a) = 3, 'waiver priorities not reseeded');
-  PERFORM pg_temp.assert((SELECT count(*) FROM public.draft_picks WHERE league_id = i.a AND season_year = 2104) = 9, 'future picks not created');
+  PERFORM pg_temp.assert((SELECT count(*) FROM public.draft_picks WHERE league_id = i.a AND season_year = 2102) = 9, 'third future draft picks not created');
   PERFORM pg_temp.act_as(i.u3);
   SELECT * INTO v_state FROM public.get_member_transaction_state(i.a3, i.a);
   PERFORM pg_temp.act_as(NULL);
