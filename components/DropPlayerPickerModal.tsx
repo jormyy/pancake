@@ -12,7 +12,6 @@ import { Sheet } from '@/components/ui/Sheet'
 type Props = {
     visible: boolean
     title: string
-    subtitle?: string
     roster: RosterPlayer[]
     dropping: string | null
     onDrop: (rp: RosterPlayer) => void
@@ -23,7 +22,7 @@ type Props = {
     onCancel: () => void
 }
 
-export function DropPlayerPickerModal({ visible, title, subtitle, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi }: Props) {
+export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop, onCancel, irMoveCandidates = [], onMoveToIR, onAdd, onAddToTaxi }: Props) {
     const dropOptions = useMemo(() => orderRosterOptions(roster), [roster])
     const irOptions = useMemo(() => orderRosterOptions(irMoveCandidates), [irMoveCandidates])
     const close = () => {
@@ -31,7 +30,7 @@ export function DropPlayerPickerModal({ visible, title, subtitle, roster, droppi
     }
     return (
         <Sheet visible={visible} onClose={close} title={title}>
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            <Text style={styles.subtitle}>{onAdd ? 'Choose where to add this player.' : 'Roster full'}</Text>
             {onAdd || onAddToTaxi ? <View style={styles.row}>
                 {onAdd ? <Button title="Add" onPress={onAdd} disabled={dropping !== null} /> : null}
                 {onAddToTaxi ? <Button title="Add to taxi" onPress={onAddToTaxi} disabled={dropping !== null} /> : null}

@@ -47,3 +47,17 @@ it('puts taxi before drop choices and includes Add only with active room', async
     await act(async () => screen.update(React.createElement(DropPlayerPickerModal, { ...props, onAdd: undefined })))
     expect(actions()).toEqual(['Add to taxi', 'Drop Player A'])
 })
+
+it.each([true, false])('describes the add destination accurately with active room %s', async canAddActive => {
+    const add = vi.fn(), taxi = vi.fn()
+    await act(async () => { screen = create(React.createElement(DropPlayerPickerModal, {
+        visible: true, title: 'Add Player B', roster: [rosterPlayer()], dropping: null,
+        onDrop: vi.fn(), onAdd: canAddActive ? add : undefined, onAddToTaxi: taxi, onCancel: vi.fn(),
+    })) })
+    const text = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(text).toContain(canAddActive ? 'Choose where to add this player.' : 'Roster full')
+    if (canAddActive) expect(text).not.toContain('Roster full')
+    await act(async () => screen.root.findAllByType('Pressable' as React.ElementType).find(node => node.props.accessibilityLabel === 'Add to taxi')!.props.onPress())
+    expect(taxi).toHaveBeenCalledOnce()
+    expect(add).not.toHaveBeenCalled()
+})
