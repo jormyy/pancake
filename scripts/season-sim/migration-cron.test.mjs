@@ -12,6 +12,14 @@ test('cron replay follows ordered migration schedules and removals', () => {
   assert.deepEqual(jobs, [{ jobname: 'live', schedule: '*/15 * * * *', command: 'SELECT live()' }])
 })
 
+test('cron replay accepts compact removal predicates without restoring retired jobs', () => {
+  const jobs = installedCronJobs([
+    { name: '001', source: "SELECT cron.schedule('nba-process-trades','* * * * *','SELECT process_trades()'); SELECT cron.schedule('drop','* * * * *','SELECT 1'); SELECT cron.schedule('retired','* * * * *','SELECT retired()'); SELECT cron.schedule('live','* * * * *','SELECT live()');" },
+    { name: '002', source: "SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname='nba-process-trades'; SELECT cron.unschedule(jobname) FROM cron.job WHERE jobname IN('drop'); SELECT cron.unschedule(jobid) FROM cron.job WHERE command ILIKE'%retired%';" },
+  ])
+  assert.deepEqual(jobs, [{ jobname: 'live', schedule: '* * * * *', command: 'SELECT live()' }])
+})
+
 test('replay jobs match the cron catalog installed by the migrations', async () => {
   const directory = new URL('../../supabase/migrations/', import.meta.url)
   const files = (await readdir(directory)).filter(name => name.endsWith('.sql'))

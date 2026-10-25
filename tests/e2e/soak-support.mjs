@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { isDeepStrictEqual, promisify } from 'node:util'
 import v8 from 'node:v8'
 import vm from 'node:vm'
 import { createClient } from '@supabase/supabase-js'
@@ -14,6 +14,7 @@ import { backendScenarioFailures, runBackendScenarios } from './harness/backend-
 import { backendEvidenceIds } from './backend-scenario-manifest.mjs'
 import { writeCoverageReport, writeReport } from './harness/reporting.mjs'
 import { backendJson, withSupabaseRetry } from './soak-network.mjs'
+import { readSchedule } from './harness/schedule.mjs'
 import {
   EXPECTED_DEFAULT_LINEUP_SLOTS,
   createDisposableLeagueFromSeedUsers,
@@ -434,21 +435,15 @@ export const assertMatchupGenerationIdempotent = async (supabase, env, leagueId)
     { league_id: leagueId, is_current: true },
   )
   const memberCount = await countRows(supabase, 'league_members', { league_id: leagueId })
-  const before = await countRows(supabase, 'matchups', {
-    league_id: leagueId,
-    league_season_id: currentSeason.id,
-  })
+  const before = await readSchedule(supabase, leagueId, currentSeason.id)
   await backendJson(env, '/e2e/generate-matchups', { force: false, leagueId })
-  const after = await countRows(supabase, 'matchups', {
-    league_id: leagueId,
-    league_season_id: currentSeason.id,
-  })
+  const after = await readSchedule(supabase, leagueId, currentSeason.id)
 
-  if (memberCount >= 2 && before === 0) {
+  if (memberCount >= 2 && before.length === 0) {
     failures.push(`D.SEA.1: target league ${leagueId} has no generated matchups for current season`)
   }
-  if (after !== before) {
-    failures.push(`D.SEA.1: matchup generation is not idempotent (${before} -> ${after})`)
+  if (!isDeepStrictEqual(after, before)) {
+    failures.push(`D.SEA.1: existing schedule changed after non-force generation (${before.length} -> ${after.length})`)
   }
   return failures
 }

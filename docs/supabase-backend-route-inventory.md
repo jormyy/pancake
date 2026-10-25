@@ -29,7 +29,7 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | Route or subview | Reads and request owner | Writes or additional boundaries |
 | --- | --- | --- |
 | `/sign-in`, `/sign-up` | Session state in [Auth](../lib/auth.ts) | Auth sign-in/sign-up |
-| `/` | Membership, season/week, matchup, lineup, roster, game and live-stat reads in [matchup loader](../hooks/use-matchup-data.ts) | Public avatars; league change stream |
+| `/` | Membership, season/week, matchup, lineup, roster, game and live-stat reads in [matchup loader](../hooks/use-matchup-data.ts); `notif_list_announcements` through [announcements](../hooks/use-league-announcements.ts) | Public avatars; league change stream; local banner dismissal |
 | `/roster` | Current roster, averages, waiver claims, transaction state in [roster](../lib/roster.ts) and [waivers](../lib/waivers.ts) | Direct roster RPCs; Edge IR/taxi and waiver actions |
 | `/players?section=players` | `search_players`, ownership and transaction support, averages/projections in [Players](../app/%28tabs%29/players.tsx) | Pickup controls; public avatars |
 | `/players?section=rankings` | Bounded `get_dynasty_forecast_inputs` cohort in [dynasty decisions](../lib/dynasty-decisions.ts) | Client scoring and sorting; public avatars |
@@ -37,7 +37,7 @@ Attribute each shared request once. Separate cold document entry, warm SPA retur
 | `/dynasty` | Redirects to `/players?section=rankings` | Attribute destination reads to Rankings |
 | `/trades` | Bounded trade references/details, pending count, block items in [trades](../lib/trades.ts) | Edge offer, response, roster-plan, and block actions |
 | `/league?tab=results` | Season, standings and results through [league resources](../hooks/use-league-tab-resources.ts) | Playoff actions and bracket navigation |
-| `/league?tab=history` | `get_league_activity_feed` through [transactions](../lib/transactions.ts) | Offset pagination |
+| `/league?tab=history` | `get_league_activity_feed` through [transactions](../lib/transactions.ts); `notif_list_announcements` through [league resources](../hooks/use-league-tab-resources.ts) | Offset pagination; announcements follow the loaded time range |
 | `/league?tab=settings` | League settings and selected panel support through [league resources](../hooks/use-league-tab-resources.ts) | Commissioner settings navigation |
 | `/league?tab=draftBoard` | Scoped draft picks and active draft status through [league resources](../hooks/use-league-tab-resources.ts) | Rookie draft actions |
 | `/league?tab=auctions` | Active draft, budgets and room support through [draft controller](../hooks/use-league-draft-controller.ts) | Auction setup and lifecycle actions |
@@ -134,7 +134,7 @@ Database time and server checks decide auction and rookie deadlines. Browser clo
 
 | Route | Access | Operation |
 | --- | --- | --- |
-| `POST /sync/matchups` | Admin or league commissioner | Matchup generation through `replace_regular_season_matchups_atomic` |
+| `POST /sync/matchups` | Admin or league commissioner | `replace_regular_season_matchups_atomic`; existing schedules return HTTP 200 with `ok: true, skipped: true` unless forced |
 | `POST /sync/stats` | Admin | `create_or_resume_stats_sync_job_atomic`; queued range processing |
 | `POST /sync/scores`, `/schedule`, `/players`, `/rankings`, `/projections`, `/draft-order` | Admin | Corresponding internal `sync-*` function |
 | `POST /sync/backfill`, `GET /sync/backfill/:jobId` | Admin | Start backfill or read progress |

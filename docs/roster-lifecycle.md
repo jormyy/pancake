@@ -33,6 +33,14 @@ Waiver and trade-plan reservations share team and player locks.
 Player merges preserve history under the surviving identity and reject unresolved ownership conflicts.
 The [backend inventory](supabase-backend-route-inventory.md) maps public action paths.
 
+## IR activation and swaps
+
+Direct free-agent adds and waiver claims can place eligible players straight into IR.
+An activation can swap an IR player with an eligible active player when both groups are full.
+The server checks the final roster and applies both moves in one transaction.
+A failed move leaves both players in their original places.
+Game locks and trade or waiver reservations still apply.
+
 ## Waiver window
 
 A dropped player becomes eligible to clear 48 hours after the drop.
@@ -78,6 +86,14 @@ npm run test:db:general-brackets
 
 The roster oracle checks ownership, cleanup, history, reservations, and league boundaries after generated actions.
 Run these checks against an isolated migrated stack.
+
+## Trade window
+
+Trades stay open in offseason, the rookie draft, the active season, and playoffs.
+Setup and the startup auction close trading.
+The server checks this window when managers propose, accept, or settle trades.
+Pending offers remain private to their parties.
+New NBA rookies cannot enter free-agent adds or waiver claims before the league completes its rookie draft.
 
 ## Configurable taxi and trade plans
 

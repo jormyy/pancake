@@ -103,8 +103,13 @@ Release approval permits the existing workflow to run; it does not bypass an att
 The matchup client first requests SQL-owned schedule generation.
 Schema 431 requires a complete legacy payload, so that exact SQL error triggers one compatible retry.
 Other errors propagate, and SQL still checks saved settings and started schedules.
+Non-force generation returns HTTP 200 with `ok: true, skipped: true` when a schedule already exists.
+Generate reports that the existing schedule stays unchanged.
+Reset & Regenerate rebuilds the schedule only before the first non-skipped week starts in Eastern Time.
+After that boundary, the server rejects a reset and the client hides the action.
 Release shards omit the single matchup used by browser latency fixtures.
 The soak generates its complete schedule through the guarded API after loading the calendar.
+Repeat-generation checks compare schedule rows, including IDs and scores, rather than counts alone.
 Ordinary browser seeds retain their latency matchup.
 
 ## Sleeper projections and weekly cleanup

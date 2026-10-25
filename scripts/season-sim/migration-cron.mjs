@@ -18,8 +18,8 @@ export function installedCronJobs(migrations) {
       } else if (!['jobname', 'jobid'].includes(call[2])) jobs.delete(value(call[2]))
       else {
         const clause = tail.slice(0, tail.indexOf(';'))
-        const names = /WHERE\s+jobname\s+(?:IN\s*\(([^)]+)\)|=\s*('(?:''|[^'])*'))/i.exec(clause)
-        const command = /WHERE\s+command\s+ILIKE\s+'%([^']+)%'/i.exec(clause)
+        const names = /WHERE\s+jobname\s*(?:IN\s*\(([^)]+)\)|=\s*('(?:''|[^'])*'))/i.exec(clause)
+        const command = /WHERE\s+command\s*ILIKE\s*'%([^']+)%'/i.exec(clause)
         assert.ok(names || command, `Unsupported cron removal in ${name}`)
         if (names) for (const token of (names[1] ?? names[2]).matchAll(/'(?:''|[^'])*'/g)) jobs.delete(value(token[0]))
         if (command) for (const [key, job] of jobs) if (job.command.toLowerCase().includes(command[1].toLowerCase())) jobs.delete(key)

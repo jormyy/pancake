@@ -66,7 +66,7 @@ async function stopFunctions(state) {
   }
 }
 
-async function startStack({ reset = false } = {}) {
+export async function startStack({ reset = false } = {}) {
   return lock(path.join(home, 'stack.lock'), async () => {
     await mkdir(path.join(stackRoot, 'supabase'), { recursive: true })
     let state = await readJson(statePath)
@@ -85,14 +85,15 @@ async function startStack({ reset = false } = {}) {
     const migrationFiles = (await run('git', ['ls-files', 'supabase/migrations'])).split('\n').filter(Boolean)
     const migrationHash = digest((await Promise.all(migrationFiles.map(file => readFile(path.join(repo, file))))).map(contents => digest(contents)).join(':'))
     assert.ok(!state || state.migrationHash === migrationHash, 'Shared schema differs. Stop the users of this stack before using start --reset.')
+    await stopFunctions(state)
+    await copyStackSources(snapshot, stackRoot)
     if (!state) {
-      await copyStackSources(snapshot, stackRoot)
       await writeFile(path.join(stackRoot, 'supabase/config.toml'), stackConfig(await readFile(path.join(repo, 'supabase/config.toml'), 'utf8')))
     }
     await mkdir(path.join(stackRoot, 'types'), { recursive: true })
     await cp(path.join(snapshot, 'types/database.ts'), path.join(stackRoot, 'types/database.ts'))
     assert.match(await readFile(path.join(stackRoot, 'supabase/config.toml'), 'utf8'), new RegExp(`project_id = "${project}"`))
-    state = { ...state, project, url: apiUrl, migrationHash }
+    state = { ...state, project, url: apiUrl, migrationHash, functionsPid: null }
     await json(statePath, state)
     process.stdout.write('Starting the isolated shared local stack.\n')
     await run('supabase', ['start', '--workdir', stackRoot, '-x', 'studio,imgproxy,vector,logflare,supavisor,edge-runtime,postgres-meta,mailpit'])
