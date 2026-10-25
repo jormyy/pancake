@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261024000001",
+  "candidateVersion": "20261026000700",
   "common": {
     "functions": [
       {
@@ -43,46 +43,6 @@
         "identityArguments": "p_league_id uuid, p_league_season_id uuid, p_player_id uuid, p_member_id uuid",
         "serviceRoleExecute": true,
         "authenticatedExecute": true
-      },
-      {
-        "name": "reconcile_edge_invocations",
-        "owner": "postgres",
-        "config": [
-          "search_path=\"\""
-        ],
-        "result": "integer",
-        "schema": "private",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "",
-        "bodySha256": "ea9f4e0a97df1f1c283e607b801863cf7a14d92509d6e860d780c08dedec86ca",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "",
-        "serviceRoleExecute": false,
-        "authenticatedExecute": false
-      },
-      {
-        "name": "sync_roster_linked_state",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "trigger",
-        "schema": "private",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "",
-        "bodySha256": "7c43bda52da27f2a94e2d4ee8d5f4c7d7679ea967e3f522903d14bb4cfb36fd5",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "",
-        "serviceRoleExecute": false,
-        "authenticatedExecute": false
       },
       {
         "name": "activate_rookie_draft_league_atomic",
@@ -145,46 +105,6 @@
         "authenticatedExecute": true
       },
       {
-        "name": "drop_player_atomic",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "void",
-        "schema": "public",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
-        "bodySha256": "7b02ea90f93f521b88fb8a053d7bb41dcfdd1c4beb6a8c4998b3bab2bd355df3",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
-        "serviceRoleExecute": true,
-        "authenticatedExecute": true
-      },
-      {
-        "name": "edit_waiver_claim_atomic",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "void",
-        "schema": "public",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer",
-        "bodySha256": "66310db876561110587e8b1f826217e1f4b07b0314e21ec612dc1d856e0266ac",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer",
-        "serviceRoleExecute": true,
-        "authenticatedExecute": false
-      },
-      {
         "name": "handle_new_auth_user",
         "owner": "postgres",
         "config": [
@@ -205,26 +125,6 @@
         "authenticatedExecute": false
       },
       {
-        "name": "invoke_dynasty_ranking_views_at_et_time",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "void",
-        "schema": "public",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
-        "bodySha256": "36baf073e8040ea50b6f7b8bcfa6dbfd63b28727db03d3ef5c25727b4e095a19",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "p_hour integer, p_minute integer, p_now timestamp with time zone",
-        "serviceRoleExecute": true,
-        "authenticatedExecute": false
-      },
-      {
         "name": "invoke_edge_function",
         "owner": "postgres",
         "config": [
@@ -241,26 +141,6 @@
         "publicExecute": false,
         "securityDefiner": true,
         "identityArguments": "function_name text, body jsonb",
-        "serviceRoleExecute": true,
-        "authenticatedExecute": false
-      },
-      {
-        "name": "invoke_edge_function_at_et_time",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "void",
-        "schema": "public",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
-        "bodySha256": "1914e542280cc3848bba031f042827c1639116035f18925d5951e442ef59d8c5",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "p_function_name text, p_hour integer, p_minute integer, p_now timestamp with time zone",
         "serviceRoleExecute": true,
         "authenticatedExecute": false
       },
@@ -456,6 +336,126 @@
     "pre-migration": {
       "functions": [
         {
+          "name": "reconcile_edge_invocations",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "integer",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "ea9f4e0a97df1f1c283e607b801863cf7a14d92509d6e860d780c08dedec86ca",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "7c43bda52da27f2a94e2d4ee8d5f4c7d7679ea967e3f522903d14bb4cfb36fd5",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "drop_player_atomic",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+          "bodySha256": "7b02ea90f93f521b88fb8a053d7bb41dcfdd1c4beb6a8c4998b3bab2bd355df3",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": true
+        },
+        {
+          "name": "edit_waiver_claim_atomic",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer",
+          "bodySha256": "66310db876561110587e8b1f826217e1f4b07b0314e21ec612dc1d856e0266ac",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_dynasty_ranking_views_at_et_time",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "36baf073e8040ea50b6f7b8bcfa6dbfd63b28727db03d3ef5c25727b4e095a19",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_edge_function_at_et_time",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "1914e542280cc3848bba031f042827c1639116035f18925d5951e442ef59d8c5",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_function_name text, p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
           "name": "lineup_game_started",
           "owner": "postgres",
           "config": [
@@ -544,6 +544,126 @@
           "authenticatedExecute": true
         },
         {
+          "name": "reconcile_edge_invocations",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "integer",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "6d6ba908d1337e52a84406ab81d4c7e843e88822a966513101ed5838cba9c5a9",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "a21a739129132564825230ed15c6f056f73d461b40a7ae936f87c35d283c48c7",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "drop_player_atomic",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+          "bodySha256": "6f1a5ccd3a6549cef2d04123231c74fb30a31e3abd861562d6234f8dbc72c495",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_roster_player_id uuid, p_expected_league_season_id uuid, p_rookie_draft_id uuid",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": true
+        },
+        {
+          "name": "edit_waiver_claim_atomic",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
+          "bodySha256": "06377400799d75c7576ee52bc41cda96fb955d6c60f79bc757ac9635dfadd206",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid, p_bid_amount integer, p_claim_order integer, p_to_ir boolean, p_to_taxi boolean",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_dynasty_ranking_views_at_et_time",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "ad173e98112c73cb11ce74c99b1ccaf6a1836d431b35a5c1d9b30bbec1d6d64e",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "invoke_edge_function_at_et_time",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "void",
+          "schema": "public",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_function_name text, p_hour integer, p_minute integer DEFAULT 0, p_now timestamp with time zone DEFAULT now()",
+          "bodySha256": "e6bbb1f66375d04717a3cf1b14da15e710a72078cc367765a7f12a2bb49ee672",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_function_name text, p_hour integer, p_minute integer, p_now timestamp with time zone",
+          "serviceRoleExecute": true,
+          "authenticatedExecute": false
+        },
+        {
           "name": "invoke_live_poll_if_due",
           "owner": "postgres",
           "config": [
@@ -584,7 +704,15 @@
           "authenticatedExecute": false
         }
       ],
-      "triggers": [],
+      "triggers": [
+        {
+          "name": "prevent_pre_draft_rookie_acquisition",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER prevent_pre_draft_rookie_acquisition BEFORE INSERT ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_pre_draft_rookie_acquisition()",
+          "functionName": "prevent_pre_draft_rookie_acquisition",
+          "functionSchema": "private"
+        }
+      ],
       "policies": [],
       "tables": [],
       "indexes": []
@@ -704,16 +832,456 @@
       "sha256": "9bf4d3403097c5475bf5b653176402f96f399737770449a07a33c4c45f542605"
     },
     {
+      "filename": "20261020000030_schedule_idle_score_recovery.sql",
+      "sha256": "82fcc54662fa6a24d5def5a7b70e42c9abb281c5af7bd811302d62ccd6097187"
+    },
+    {
+      "filename": "20261020000031_certify_live_score_publication.sql",
+      "sha256": "9b6e1d0771da08d220caab13693b866568e91e82547e3622d863a219b9d6dfdb"
+    },
+    {
       "filename": "20261020000032_share_idle_score_revision_reads.sql",
       "sha256": "2e11658e3b0c15efd864c64eb99a37b218ba24c5d1d4430f31a437d0762a990c"
+    },
+    {
+      "filename": "20261020000033_poll_delayed_tipoffs.sql",
+      "sha256": "b561f88db8b7198ec30c697223f3f9b9ef8e11d807c930f8b2a4f2bcafcfbb92"
+    },
+    {
+      "filename": "20261020000034_ignore_stats_freshness_revisions.sql",
+      "sha256": "e88c297ccd5cef09e7be17921277a9a31b85417a3f64c9342dcf95b215c07d0d"
+    },
+    {
+      "filename": "20261020000035_preserve_live_unavailable_markers.sql",
+      "sha256": "5d4e8112fbcc5736165eab97c8f9ebdf9dfce4174bb480838663a6ed68d4e4f4"
+    },
+    {
+      "filename": "20261020000036_skip_unchanged_score_finalization.sql",
+      "sha256": "c64d89a84a68d97466f88c4a9489642870a07d638354810dcac48311b7d1394f"
+    },
+    {
+      "filename": "20261020000060_fill_rollover_pick_years.sql",
+      "sha256": "6a0bf59a9425fee934cb60578f5e6188d8b81fc3d64418f7489cefef86e1febe"
     },
     {
       "filename": "20261020000061_recover_rookie_backstop.sql",
       "sha256": "40e122ccdf5550218e223214dc690524c30b62b7b1e286441f4995a0ad4a5fc6"
     },
     {
+      "filename": "20261020000062_calendar_ingestion_contracts.sql",
+      "sha256": "b35d084b4235afdf985ec183be7f0f83a69a83eeb781fb292f3cc3c9f133ab89"
+    },
+    {
+      "filename": "20261020000063_balanced_season_matchups.sql",
+      "sha256": "4dcccd5ea9738d465284cf2989177cd112a25a2349b5414dad21f96e305e81f0"
+    },
+    {
+      "filename": "20261020000064_playoff_clinched.sql",
+      "sha256": "5f7f90b90ac275fd163bb03ff18340f331077f531faf8f8cab99cfcacaba09f5"
+    },
+    {
+      "filename": "20261020000130_preserve_player_identity_support_and_game_locks.sql",
+      "sha256": "cb4797b5b60077c10252bdefeb7bd891774bb1d62a29229c27e293b17f85d9ef"
+    },
+    {
       "filename": "20261020000131_record_verified_player_game_membership.sql",
       "sha256": "dfc21c7e46f86705179595a3dc4d4699934b42ec79f355fda9e6920fa1c6fe7f"
+    },
+    {
+      "filename": "20261020000132_order_player_import_locks.sql",
+      "sha256": "49a525da3c02b2d23792ce6d4cb60b5a7c21c7f190d6aa4513056180d2df45ec"
+    },
+    {
+      "filename": "20261020000160_notification_preferences_delivery.sql",
+      "sha256": "21ff496e4b47ff936b611724c575e92aff493a9f723d2c2e4c00215f015bfcb6"
+    },
+    {
+      "filename": "20261020000161_notification_event_producers.sql",
+      "sha256": "07293fa03b0f5e924dedcb71da048ce8524324574e10242b19c2857c1a8a9a9c"
+    },
+    {
+      "filename": "20261020000162_notification_trade_recipient_guard.sql",
+      "sha256": "b972f2d29d771cf7704ffe0d3259064f4b21d60ca3b87825b9da2896383af7e9"
+    },
+    {
+      "filename": "20261020000163_notification_preference_value_types.sql",
+      "sha256": "05a1a238ebf2e11647242fc0e0207cf9bac27c943a0465434d6432bc2934b81b"
+    },
+    {
+      "filename": "20261020000164_notification_outbox_categories.sql",
+      "sha256": "ec87baec3556d53a5910f87dbcf55851e41202226ef35c92f245bc8c54cb0658"
+    },
+    {
+      "filename": "20261020000165_notification_dispatch_schedule.sql",
+      "sha256": "c279daacca059f409bb07ec2d7b132f7d409a54abbc33b6f2e9630aedde1ec9d"
+    },
+    {
+      "filename": "20261020000166_notification_claim_member_alias.sql",
+      "sha256": "7807e21a91cffeae086ba0cd3ce971244f66c7a99cf53ee2fe2dc8de7c9263d7"
+    },
+    {
+      "filename": "20261020000167_notification_matchup_scanner_span.sql",
+      "sha256": "fd5895538c9980a0608828cb079a26db3342fc49b3fbd234d5684292ac20a444"
+    },
+    {
+      "filename": "20261020000168_notification_trade_scope_metadata.sql",
+      "sha256": "6f6eb8f23d69fe62b3e0199739b31051186cc39bf0cf32eb168ee0ef6eb566cb"
+    },
+    {
+      "filename": "20261020000169_notification_waiver_settlement.sql",
+      "sha256": "bbdf5510faa1168c08bf1d0f4403ea7c02408a957aac1e847ba8ec24217f54ce"
+    },
+    {
+      "filename": "20261020000170_notification_send_time_staleness.sql",
+      "sha256": "e81d6688240da78b9f5fcb49f63fa2d520417d068cd7a742c38b400c3a11eaf7"
+    },
+    {
+      "filename": "20261020000171_notification_stale_member_alias.sql",
+      "sha256": "ffcc9a66a954aeb761126469936d70a330bd4cee5e3a913146c6033f6fc4032d"
+    },
+    {
+      "filename": "20261020000172_notification_flexible_playoff_seeds.sql",
+      "sha256": "891ec58c4d40f5d091c09ebcc1fa3548fe0c39e1794cea78988a3d5dce9643ce"
+    },
+    {
+      "filename": "20261020000173_notification_stale_reason_priority.sql",
+      "sha256": "4ed1a8a20c3ad635e658dc593648f882609829c98b4696ec0596a35ee7842d33"
+    },
+    {
+      "filename": "20261020000174_notification_remaining_sources.sql",
+      "sha256": "3ebe3a1fe1c5ce58a297bcd80ccb72bf5ee74de7bd4a70e79ea302a3171bc517"
+    },
+    {
+      "filename": "20261020000175_notification_draft_wake.sql",
+      "sha256": "b98ea25dbf447f37fcfe28b4f1c00a1b03813d6acb777ad1481d783c6bea463d"
+    },
+    {
+      "filename": "20261020000176_notification_transport_persistence.sql",
+      "sha256": "cd7e7a732fc248b33249cde0433e0d643dee79482cc6ecef490a9f50361b906c"
+    },
+    {
+      "filename": "20261020000177_notification_admission_time.sql",
+      "sha256": "b91170440ed672774600769a65792d29451dfb79f948b7063c86f9e5321ab4f8"
+    },
+    {
+      "filename": "20261020000178_notification_announcement_history.sql",
+      "sha256": "98d5795638ab6c50d4030950c135f1b7ade68f648212a516df3794c24f80cceb"
+    },
+    {
+      "filename": "20261020000179_notification_pause_deferral.sql",
+      "sha256": "ff5237bec3e516f40bb22634283ce14547bf06d9c3f8b66711ba2f9d7c33d17c"
+    },
+    {
+      "filename": "20261020000200_rookie_draft_long_timers.sql",
+      "sha256": "3be7935af2aa965f8ab0194b27d7850a988ea8be466c6bc6242ed2f637bfd974"
+    },
+    {
+      "filename": "20261020000201_draft_cutoff_atomic_results.sql",
+      "sha256": "10c905c5669a55692a0552416e5059f146144c8bfdb9a3e5ac070565075e5978"
+    },
+    {
+      "filename": "20261020000202_draft_arm_after_lock.sql",
+      "sha256": "5c10d7c24198240cf65f64898d0f11e2cee3e3de0cd4d7ccde045bf1d11ceb16"
+    },
+    {
+      "filename": "20261020000203_draft_timer_insert_default.sql",
+      "sha256": "b29a073b878df03fb813a002fd19d1f8346ff504873094fa48a9c15336657eed"
+    },
+    {
+      "filename": "20261020000204_mock_rookie_timer_range.sql",
+      "sha256": "83873741058a2c970a6c138db79baf9b98745e9e93fabdd6e9f5274948534bf5"
+    },
+    {
+      "filename": "20261020000205_draft_completion_search_path.sql",
+      "sha256": "253364f79fca8069bcba7b1209a42b284a581e218bf3910355e6022e91ec0e2d"
+    },
+    {
+      "filename": "20261020000206_complete_skipped_rookie_picks_at_opening.sql",
+      "sha256": "023d94c0b1604565287b1b64af0840b2a59c74987c7e65ab2751aab3a2e8e78e"
+    },
+    {
+      "filename": "20261020000230_players_fp_season.sql",
+      "sha256": "50a95d38054cd06521abcf68334cee5094f29efdaa8d3e67d1ed72ec05bd5765"
+    },
+    {
+      "filename": "20261020000231_players_current_source_averages.sql",
+      "sha256": "a299e3d7bcbb1285e95d6cf90cdc0a7c4a86bf86ceadd60f6a2ee792d3870837"
+    },
+    {
+      "filename": "20261020000250_transfer_player_watches_on_merge.sql",
+      "sha256": "4e49f8b1caf655b3709c09f136f5cda5ef0e44a642e8ad5e1dc07a98cfcb1f73"
+    },
+    {
+      "filename": "20261020000251_notification_first_scoring_day.sql",
+      "sha256": "ba8e5bb8127d1543efd255748968e7d88761bbdbcaecd8ccde7b95d8e84cdbf8"
+    },
+    {
+      "filename": "20261020000252_notification_strict_faab_outbid.sql",
+      "sha256": "263869fef4cba70a0b67d868de6b1c2cd1144e39485b3e4136aad9b62ff74ea3"
+    },
+    {
+      "filename": "20261020000253_notification_explicit_draft_resume.sql",
+      "sha256": "d5b2aff84ad623b6b6cff00d1852db5eb0d1160f3e5d5bda995c570c02d1d6cf"
+    },
+    {
+      "filename": "20261020000254_notification_absence_rejoin_resume.sql",
+      "sha256": "5359d5ffbfc25b83e979195645dcb138d24eb90fd5f001e669f2f4a7dc744b12"
+    },
+    {
+      "filename": "20261020000260_mock_room_deadline_retention.sql",
+      "sha256": "932ff2fe63e1b063b86549fd8dcff2aa285ec70c6030fe5987b541cf0aa43544"
+    },
+    {
+      "filename": "20261020000280_notification_auction_turns.sql",
+      "sha256": "bda1148a4acb0db1901abfbbc5383d7fcdfadbba216a289af2b97a608d6ea1f2"
+    },
+    {
+      "filename": "20261020000305_notification_auction_settled_turns.sql",
+      "sha256": "7236470bd0bd0d88032c5c206e103d4c72dd41caf9ca382b12c6253b90ed6975"
+    },
+    {
+      "filename": "20261020000315_release_unlisted_espn_players.sql",
+      "sha256": "c50edd1f6e3247d80671638914726b26dee128073640d54d3226cb45f9ab5c9f"
+    },
+    {
+      "filename": "20261020000316_hold_unproven_espn_releases.sql",
+      "sha256": "cad15c2d96a0ab654edb69faae4d48393d0096f54dafa69dc457d74adbb92c59"
+    },
+    {
+      "filename": "20261020000317_hold_releases_after_inactive_listings.sql",
+      "sha256": "99b3e26b5200ffec5c750dfb636ad3e5b7f406d06cf322b490492aea47e98dd7"
+    },
+    {
+      "filename": "20261020000318_hold_espn_omissions_without_departure_evidence.sql",
+      "sha256": "6003149079b08b6762a01989bffd907873f1d09ea5a9259206cdfcca0e09880b"
+    },
+    {
+      "filename": "20261020000319_release_to_box_side.sql",
+      "sha256": "69915e45e338be205eeb41f1f849f014e17b0a8535bcd9e30a1a783a1e131f8f"
+    },
+    {
+      "filename": "20261020000320_link_box_players_on_corroborated_listing.sql",
+      "sha256": "87cbb1c4b052c6e408bdeb56d97d2ad0c69ba462fb3c76433acbf9dab1771e78"
+    },
+    {
+      "filename": "20261020000330_merge_keeps_box_side_and_listing.sql",
+      "sha256": "3dd026dc189f129d5a01f6be793313d3596e296cd8fe86cc065177da884afb39"
+    },
+    {
+      "filename": "20261020000340_release_after_a_box_placed_him.sql",
+      "sha256": "106a21b64f2a0a85397dc9fdac09dfafb4158fd6449cc2a9315360749444f52b"
+    },
+    {
+      "filename": "20261020000350_merge_keeps_listing_team_since.sql",
+      "sha256": "5a3fa722e15910df0628e93eb80b9d1fd06b98292f276f0505d589da97d48f61"
+    },
+    {
+      "filename": "20261023000001_balance_preseason_skipped_matchups.sql",
+      "sha256": "35a51e864b4cd4cd27ca7534a73bc86356fdef3b944269e32e0fa64b5cc2a2e7"
+    },
+    {
+      "filename": "20261024000001_link_reviewed_rookie_identities.sql",
+      "sha256": "e1fa122e4d74d761fb62c8bd5a7143d5d6410b7b7e639d1fe754cfb5ed4dcdaf"
+    },
+    {
+      "filename": "20261024100001_straight_to_ir.sql",
+      "sha256": "31013dc0940b9dfb18a5039547398b3d2064788d40549045eec48c05b2467432"
+    },
+    {
+      "filename": "20261024100002_live_player_season_totals.sql",
+      "sha256": "1a1f24625f9586044b7de90e5c7102037ae1734baaec0b662f6cad6a3a64876f"
+    },
+    {
+      "filename": "20261024100003_reconciliation_writes_and_poll_gate.sql",
+      "sha256": "740218ced0330f3452ba5dd8480760fc594fe20da7485ed974c75f33d8db922f"
+    },
+    {
+      "filename": "20261024100004_visible_player_totals.sql",
+      "sha256": "989eb3f2b50206f5a6bffde8a82301504b8248701e82b0c79e24bc2c50d171ab"
+    },
+    {
+      "filename": "20261024100005_activity_feed_hide_trade_block.sql",
+      "sha256": "619e6559da5f599c1099b2fd094d98daa6b146d93f362077fd3e4d476e7f693e"
+    },
+    {
+      "filename": "20261025000030_trade_counterparty.sql",
+      "sha256": "66d8b9b1663fec5c1123cd90c9fd7382acdf7cd1f9a6663a8c397ce02aaf736e"
+    },
+    {
+      "filename": "20261025000031_trade_offer_page_refs.sql",
+      "sha256": "d9d0729de679ce8c268d873d9109e3fa44d69693b9cb0aabda58d36aae7d2d0b"
+    },
+    {
+      "filename": "20261025000040_rookie_member_activation.sql",
+      "sha256": "1400c707dbcc732096d52a8199a0447239318536fc6d67140a4c398ac70aa2ab"
+    },
+    {
+      "filename": "20261025000041_activity_change_hints.sql",
+      "sha256": "8310c1f06d2f47b27316797cfb3c74cb48139fb9da3cec04ee07d96df63db77e"
+    },
+    {
+      "filename": "20261025000050_avoid_unchanged_score_finalization.sql",
+      "sha256": "dc849257f4c0ff35ffa4cc7710bfa3fc1a9bb705580a64b9a0f9ead4ac37cc3f"
+    },
+    {
+      "filename": "20261025000051_bound_edge_response_reconciliation.sql",
+      "sha256": "72fa294e6f4661712158fde1b51620067c0c0c50cfe488d160e18937071229ca"
+    },
+    {
+      "filename": "20261025000052_ignore_game_progress_hints.sql",
+      "sha256": "a43ebbeeb81f378b0f618bfe97f896950cf90522f75e297ab92a1a108b912078"
+    },
+    {
+      "filename": "20261025000053_remove_stale_schedule_descriptions.sql",
+      "sha256": "01f8c5c1e1a85095acd3587f23d3d75a1ce9e5e190acf4f3278ba45e6faeab54"
+    },
+    {
+      "filename": "20261025000054_reduce_inventory_hint_drain.sql",
+      "sha256": "4d7b91853a2f35fc0eb76235798664009e5f2232a72903ad5e8be5423cb1537c"
+    },
+    {
+      "filename": "20261025000055_drop_retired_server_functions.sql",
+      "sha256": "bcdfd83200836ed047676744e449be7d20dcf246924e090a381d766bcc7340de"
+    },
+    {
+      "filename": "20261025000070_scoring_bonus_settings.sql",
+      "sha256": "a0d7cf0100c742d550cd189ed0ae5d4a3c14a950fb55987361300d25f50f3979"
+    },
+    {
+      "filename": "20261025000071_waiver_run_order.sql",
+      "sha256": "3009a881d4454fb44bc9a700cecd1253de0d8bab87d725136275d3d63f5e50aa"
+    },
+    {
+      "filename": "20261025000072_trade_waiver_drop_settlement.sql",
+      "sha256": "232850cca5384ae69a38fd3f5f34bcfa243a34d24863c7ea4ecd95a5c233eff2"
+    },
+    {
+      "filename": "20261025000073_trade_activity_privacy.sql",
+      "sha256": "023eaa7c341cd6e307cd99f52288b58c86706edc67e0c723249ce35e09824c48"
+    },
+    {
+      "filename": "20261025000074_rookie_acquisition_guard.sql",
+      "sha256": "60d0bcd087f9aa4495d47f5acb43e0ced6028b49e50b2e5aa168800fce36b4ac"
+    },
+    {
+      "filename": "20261025000075_playoff_seed_rates.sql",
+      "sha256": "2b11c3acaa73a25dbe9bbe2a27eed0aca8d20a3bbd1af570d9226fb25bc07090"
+    },
+    {
+      "filename": "20261025000076_cancelled_waiver_privacy.sql",
+      "sha256": "c943b4f61c0dad48ab384609da5cf6b2cff010e7f36af2b17d63a65355c84dee"
+    },
+    {
+      "filename": "20261025000077_seed_correction_window.sql",
+      "sha256": "c5b75ecd7c75248faa7c4abe2ed0bdfe132303a32a9b5d2b8170f09818cb5472"
+    },
+    {
+      "filename": "20261025000090_waiver_hold_before_roster_capacity.sql",
+      "sha256": "2b6c2963e59e24b62a0e6f6ad637b9a26f6f9e25dc2e9b921f9fd13d579648a2"
+    },
+    {
+      "filename": "20261025000091_rookie_drop_activation.sql",
+      "sha256": "0182cbba9b10529614808e142ee75f3e9437eeda0f24f64abae2b733a9b8239f"
+    },
+    {
+      "filename": "20261025000092_queue_waiver_notifications.sql",
+      "sha256": "764e71b444fba9109dca9af3530f91ae426c6a70744c7975681a60e98cda9e08"
+    },
+    {
+      "filename": "20261025000093_drop_retired_push_functions.sql",
+      "sha256": "fbf69ac533b19e5fbf4fccae48f9aa9ab6b314825b7a3a8c523b49fb7dfa2fca"
+    },
+    {
+      "filename": "20261025000094_roster_claim_and_activity_corrections.sql",
+      "sha256": "b2bf501cdedad0e34fce59c16fbdedb8676d35e2d8327c27883007442864a68e"
+    },
+    {
+      "filename": "20261026000010_accept_server_generated_schedule.sql",
+      "sha256": "9ea81813633ec69fb2fc6cee74cf8f20a906317158f9f5308c5d1f00920095f6"
+    },
+    {
+      "filename": "20261026000011_restore_boundary_correction_window.sql",
+      "sha256": "abdfa2d8e3393e7caab8b51571e7f6cc51241a4ba94052985131b3a1c4fb6f62"
+    },
+    {
+      "filename": "20261026000012_dispatch_drafting_boundary.sql",
+      "sha256": "7f3208278bd5795e994505ee238bc2156dd5098017ec69d164adb623c22e69b2"
+    },
+    {
+      "filename": "20261026000013_scope_visible_activity_hints.sql",
+      "sha256": "b0289259b30a921b18434f0c87766c060e703e3b88b9474ba2b19815b4634667"
+    },
+    {
+      "filename": "20261026000014_drop_unused_score_decision.sql",
+      "sha256": "0cfdca416147f082061dc0aac68fed14fd2eb666e01888d64b924023c848e009"
+    },
+    {
+      "filename": "20261026000015_store_game_team_side.sql",
+      "sha256": "d4468b152ae02770bb66fbf00da96f088104f9984c496bc06cdebd9a92b0e925"
+    },
+    {
+      "filename": "20261026000030_faab_trade_reservations.sql",
+      "sha256": "3c7c1b3b71d8395c3321bcec2e5208c28c87f7811ce10d90c2e48552f311fe42"
+    },
+    {
+      "filename": "20261026000031_season_offer_and_priority_rules.sql",
+      "sha256": "cf595f1a6ff6fd5e8593cabcddaa870be09f83fe4004dbb8e501bd4c7f7e1637"
+    },
+    {
+      "filename": "20261026000032_trade_offer_roster_validation.sql",
+      "sha256": "c600ae4eb0310bdd2fce74310c9ce89c50eb39b425e4c2fb36940bee803839b7"
+    },
+    {
+      "filename": "20261026000033_roster_claim_retention.sql",
+      "sha256": "898bf75717b84258caf686f912fefbcc6a680b144985acc7424fb34d6dfc48ef"
+    },
+    {
+      "filename": "20261026000034_trade_notification_privacy.sql",
+      "sha256": "9c9f48d331e87650bac1c7f8b5a4c5a5886747c56fdb6cd1beed34f9a538eff8"
+    },
+    {
+      "filename": "20261026000035_waiver_run_clearance.sql",
+      "sha256": "ae3d34c6b18af7bb6eaae3972264f75ee4453635de03c9dc858e98f51098e47c"
+    },
+    {
+      "filename": "20261026000060_team_name_validation.sql",
+      "sha256": "8d102bd26298f6c0b18df44871ecfb627c2170eefd140d2255ecbe6e25d3d4eb"
+    },
+    {
+      "filename": "20261026000061_remove_unused_database_objects.sql",
+      "sha256": "c5faf7d83320f89bfaad6eef21080935865ee04a32023d6acb63a5f7a902ba15"
+    },
+    {
+      "filename": "20261026000080_retire_expo_push_storage.sql",
+      "sha256": "91106e4c90af9819fba3e25b0a1fc31d94bfdc583e18deadc4204db74df7d9ec"
+    },
+    {
+      "filename": "20261026000100_keep_deployed_edge_push_compatibility.sql",
+      "sha256": "1704a96c98eeddc6110b24245489b4af6b4f68fd3c42afa2a47e0cc0054d051b"
+    },
+    {
+      "filename": "20261026000101_order_rookie_activation_locks.sql",
+      "sha256": "9d4cb4f959aaf955500c519707a70389c689b5c85703dce6fbc079a6348f9b68"
+    },
+    {
+      "filename": "20261026000200_merge_main_function_bodies.sql",
+      "sha256": "8a31fb28f4e0ef0d4c35b02e9b345eeadd88c4fc8a5194370b3e9340c903e39d"
+    },
+    {
+      "filename": "20261026000300_server_release_corrections.sql",
+      "sha256": "7be897aca7fc640d017935e51d9028b6fade8004ecd92ca1a8156d085cc2af29"
+    },
+    {
+      "filename": "20261026000400_server_release_followups.sql",
+      "sha256": "59b00451c480840d730c56ab6b9f12d501afbc63304ba758dd11d69aef60562d"
+    },
+    {
+      "filename": "20261026000500_server_release_repairs.sql",
+      "sha256": "b19b2226e93d291a5819ce03f7fe74b0465099ab97ee2c5056610a1a95461b75"
+    },
+    {
+      "filename": "20261026000700_taxi_and_server_rules.sql",
+      "sha256": "e5e2e6a20cb39758bd36db10ff5191f939596598336ee57710fd7fc6d332a6e2"
     }
   ],
   "preMigration": {

@@ -1,5 +1,6 @@
 import { reloadWebTarget } from './web-targets-browser.mjs'
 import assert from 'node:assert/strict'
+import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
 import { setupTradeGameplayFixture, createFixtureResourceOwner, findAvailablePlayers } from './trade-fixture.mjs'
 
 export async function auditWebPanelActions({ check, env, season, target, page, press, button, open, signIn, db, wait, inspect }) {
@@ -246,6 +247,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     assert.equal(before.member_id, fixture.proposer.id)
     assert.equal(before.is_on_taxi, false)
     await press(button(`Accept trade with ${fixture.proposer.team_name}`).last())
+    await confirmTradeAcceptance({ page, press })
     await wait(async () => (await db(fixture.admin.from('trades').select('status').eq('id', trade.id).single())).status === 'completed')
     const after = await db(fixture.admin.from('roster_players').select('member_id,is_on_taxi').eq('league_id', fixture.league.id).eq('player_id', fixture.proposerPlayer.id).single())
     assert.equal(after.member_id, fixture.recipient.id)

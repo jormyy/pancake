@@ -72,6 +72,8 @@ jobs:
         with:
           version: 2.109.1
       - run: npm ci
+      - name: Verify release migration attestations
+        run: node scripts/regenerate-release-history-attestations.mjs --check
       - name: Resolve deployed production baseline
         id: baseline
         shell: bash
@@ -134,6 +136,7 @@ jobs:
       release_sha: ${{ inputs.release_sha || github.sha }}
       shard: 1
       shard_count: 4
+      migration_after_season: 5
       migration_plan_sha256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}
       deployed_frontend_sha: ${{ needs.release-soak.outputs.deployed_frontend_sha }}
       deployed_frontend_digest: ${{ needs.release-soak.outputs.deployed_frontend_digest }}
@@ -152,6 +155,7 @@ jobs:
       release_sha: ${{ inputs.release_sha || github.sha }}
       shard: 2
       shard_count: 4
+      migration_after_season: 5
       migration_plan_sha256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}
       deployed_frontend_sha: ${{ needs.release-soak.outputs.deployed_frontend_sha }}
       deployed_frontend_digest: ${{ needs.release-soak.outputs.deployed_frontend_digest }}
@@ -170,6 +174,7 @@ jobs:
       release_sha: ${{ inputs.release_sha || github.sha }}
       shard: 3
       shard_count: 4
+      migration_after_season: 5
       migration_plan_sha256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}
       deployed_frontend_sha: ${{ needs.release-soak.outputs.deployed_frontend_sha }}
       deployed_frontend_digest: ${{ needs.release-soak.outputs.deployed_frontend_digest }}
@@ -188,6 +193,7 @@ jobs:
       release_sha: ${{ inputs.release_sha || github.sha }}
       shard: 4
       shard_count: 4
+      migration_after_season: 5
       migration_plan_sha256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}
       deployed_frontend_sha: ${{ needs.release-soak.outputs.deployed_frontend_sha }}
       deployed_frontend_digest: ${{ needs.release-soak.outputs.deployed_frontend_digest }}

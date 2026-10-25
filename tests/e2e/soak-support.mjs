@@ -346,6 +346,8 @@ export const validateSnapshotProgress = (previous, current, { expectResetGrowth 
   return failures
 }
 export const validatePerfDrift = (metrics, totalSeasons) => {
+  const runtime = metrics.at(-1)?.runtime
+  if (runtime) metrics = metrics.filter((metric) => metric.runtime === runtime)
   if (totalSeasons < 10 || metrics.length < 10) return []
   if (!Number.isFinite(PERF_DRIFT_LIMIT) || PERF_DRIFT_LIMIT <= 1) {
     return [`D.LONG.6: invalid E2E_PERF_DRIFT_LIMIT ${process.env.E2E_PERF_DRIFT_LIMIT}`]
@@ -359,7 +361,7 @@ export const validatePerfDrift = (metrics, totalSeasons) => {
   if (latest > maxAllowed) {
     const percent = Math.round(((latest - baseline) / baseline) * 100)
     return [
-      `D.LONG.6: per-season runtime median drifted ${percent}% from seasons 1-3 (${roundedMs(baseline)}ms) to seasons ${metrics.at(-3)?.season}-${metrics.at(-1)?.season} (${roundedMs(latest)}ms); limit is ${Math.round((PERF_DRIFT_LIMIT - 1) * 100)}%`,
+      `D.LONG.6: per-season runtime median drifted ${percent}% from seasons ${metrics[0]?.season}-${metrics[2]?.season} (${roundedMs(baseline)}ms) to seasons ${metrics.at(-3)?.season}-${metrics.at(-1)?.season} (${roundedMs(latest)}ms); limit is ${Math.round((PERF_DRIFT_LIMIT - 1) * 100)}%`,
     ]
   }
   return []

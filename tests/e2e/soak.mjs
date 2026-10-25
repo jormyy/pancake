@@ -93,6 +93,7 @@ import {
   seasonArtifactFailures,
   writeCheckpoint,
 } from './soak-shards.mjs'
+import { readPreparedMigration, soakBrowserArgs, soakRuntimeForSeason } from './soak-runtime.mjs'
 
 const main = async () => {
   const args = parseArgs()
@@ -179,6 +180,7 @@ const main = async () => {
 
   const shard = resolveSoakShard(args.shard, args.seasons)
   const sharded = shard.shardCount > 1
+  const deployedSeasons = process.env.E2E_SOAK_RUNTIME ? MIDLIFE_MIGRATION_AFTER_SEASON : 0
   const release = {
     releaseSha: process.env.E2E_RELEASE_SHA ?? '',
     planSha256: process.env.E2E_SOAK_MIGRATION_PLAN_SHA256 ?? '',
@@ -379,7 +381,9 @@ const main = async () => {
         const upstreamHitsAtSeasonStart = { ...fake.state.hits }
         let midlifeMigrationReport = null
         if (args.midlifeMigration && season === MIDLIFE_MIGRATION_AFTER_SEASON + 1) {
-          midlifeMigrationReport = await applyMidlifeMigration(season)
+          midlifeMigrationReport = process.env.E2E_SOAK_RUNTIME
+            ? readPreparedMigration(season)
+            : await applyMidlifeMigration(season)
           notes.push(`D.LONG.5 mid-life migration ${midlifeMigrationReport.status.toLowerCase()} before season ${season}.`)
         }
 
@@ -410,7 +414,8 @@ const main = async () => {
         }
         phaseTimings.mark('startup_ticks')
 
-        const browserScenarioResults = await runBrowserScenarios({ args, season, shouldRun: shouldRunScenario })
+        const browserArgs = soakBrowserArgs(args, season, deployedSeasons)
+        const browserScenarioResults = await runBrowserScenarios({ args: browserArgs, season, shouldRun: shouldRunScenario })
         phaseTimings.mark('browser_scenarios')
         const backendScenarioResults = await runBackendScenarios({
           args,
@@ -568,7 +573,7 @@ const main = async () => {
         const durationMs = nowMs() - seasonStartedMs
         const phaseDurationsMs = phaseTimings.finish(seasonStartedMs + durationMs)
         const phaseSummary = formatPhaseTimings(phaseDurationsMs)
-        const metric = { season, durationMs: roundedMs(durationMs), phaseDurationsMs, memory: currentMemory() }
+        const metric = { season, runtime: soakRuntimeForSeason(season, deployedSeasons), durationMs: roundedMs(durationMs), phaseDurationsMs, memory: currentMemory() }
         perfMetrics.push(metric)
         await mkdir(ARTIFACT_ROOT, { recursive: true })
         await writeFile(PERF_METRICS_PATH, `${JSON.stringify({
@@ -736,7 +741,7 @@ const main = async () => {
       const aggregateFailures = [
         ...(rows.some((row) => row.status === 'FAIL') ? [] : completedSoakFailures(rows, args.seasons)),
         ...seasonArtifactFailures(ROOT, args.seasons, (season) => shouldRunScenario(args, season)
-          ? BROWSER_SCENARIO_MANIFEST.filter((scenario) => args[scenario.flag]).map((scenario) => scenario.id)
+          ? BROWSER_SCENARIO_MANIFEST.filter((scenario) => soakBrowserArgs(args, season, deployedSeasons)[scenario.flag]).map((scenario) => scenario.id)
           : []),
       ]
       if (aggregateFailures.length > 0) {
