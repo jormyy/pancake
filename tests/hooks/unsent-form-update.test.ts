@@ -13,7 +13,7 @@ function Form({ dirty }: { dirty: boolean }) {
     return null
 }
 
-it('holds only focused unsent work and keeps independent mutation holds', async () => {
+it('holds mounted unsent work across focus changes and keeps independent mutation holds', async () => {
     vi.stubGlobal('window', new EventTarget())
     let screen!: ReactTestRenderer
     let releaseMutation: (() => void) | undefined
@@ -25,7 +25,7 @@ it('holds only focused unsent work and keeps independent mutation holds', async 
         expect(isPwaUpdateHeld()).toBe(true)
         focus.value = false
         await act(async () => screen.update(React.createElement(Form, { dirty: true })))
-        expect(isPwaUpdateHeld()).toBe(false)
+        expect(isPwaUpdateHeld()).toBe(true)
         focus.value = true
         await act(async () => screen.update(React.createElement(Form, { dirty: true })))
         expect(isPwaUpdateHeld()).toBe(true)

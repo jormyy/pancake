@@ -31,7 +31,7 @@ export function SignInForm({ email, password, loading, error, restorationNotice,
             title="Sign in"
             hero={SIGN_IN_HERO}
             footer={(
-                <Link href="/(auth)/sign-up" style={signinStyles.link}>
+                <Link href="/(auth)/sign-up" replace style={signinStyles.link}>
                     New to Pancake? Create an account
                 </Link>
             )}
@@ -114,7 +114,7 @@ export function SignUpForm({ email, password, username, displayName, loading, er
             title="Create account"
             hero={SIGN_UP_HERO}
             footer={(
-                <Link href="/(auth)/sign-in" style={signupStyles.link}>
+                <Link href="/(auth)/sign-in" replace style={signupStyles.link}>
                     Already have an account? Sign in
                 </Link>
             )}

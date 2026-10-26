@@ -38,3 +38,27 @@ it.each([['succeeded', 'Succeeded'], ['failed_roster', 'Failed: roster full'], [
     expect(JSON.stringify(renderer!.toJSON())).toContain(expected)
     expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Cancel claim for Player A' })).toHaveLength(0)
 })
+
+it('keeps exact unfinished bid text after failure and releases a successful unchanged bid', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T12:00:00Z'))
+    const { isPwaUpdateHeld } = await import('@/lib/pwa-update-guard')
+    const onEditBid = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(true)
+    try {
+        await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim, cancellingId: null, waiverMode: 'faab', onCancel: vi.fn(), onReorder: vi.fn(), onEditBid })) })
+        expect(isPwaUpdateHeld()).toBe(false)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.onChangeText('0010'))
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Save bid for Player A' }).props.onPress())
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.value).toBe('0010')
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Save bid for Player A' }).props.onPress())
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.value).toBe('10')
+        expect(isPwaUpdateHeld()).toBe(false)
+    } finally {
+        await act(async () => renderer?.unmount())
+        renderer = undefined
+        vi.unstubAllGlobals()
+    }
+})

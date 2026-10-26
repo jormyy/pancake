@@ -1,4 +1,5 @@
 import { pickLabel, draftYear } from '@/lib/picks'
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -72,7 +73,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     waiverMode?: 'rolling' | 'faab'
     onCancel: (id: string) => void
     onEditTaxi?: (claim: WaiverClaim, toTaxi: boolean) => void
-    onEditBid: (claim: WaiverClaim, bidAmount: number) => void
+    onEditBid: (claim: WaiverClaim, bidAmount: number) => Promise<boolean | undefined>
     onReorder: (id: string, direction: 'up' | 'down') => void
 }) {
     const taxiSlots = useContext(PlayerEligibilityContext)
@@ -82,6 +83,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     const disabled = cancellingId !== null
     const usesFaab = waiverMode === 'faab'
     const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
+    useUnsentFormUpdate(editable && usesFaab && bidText !== String(claim.bidAmount ?? 0), 'pending claim bid')
     useEffect(() => {
         setBidText(String(claim.bidAmount ?? 0))
     }, [claim.bidAmount])
@@ -164,7 +166,11 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                         <MotionPressable
                             style={styles.miniButton}
                         disabled={disabled}
-                            onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
+                            onPress={async () => {
+                                const submitted = bidText
+                                const amount = Math.max(0, parseInt(submitted || '0', 10) || 0)
+                                if (await onEditBid(claim, amount)) setBidText(value => value === submitted ? String(amount) : value)
+                            }}
                             accessibilityRole="button"
                             accessibilityLabel={`Save bid for ${claim.playerName}`}
                         >

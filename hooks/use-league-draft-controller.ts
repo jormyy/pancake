@@ -184,7 +184,10 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
                         isMock: false,
                         timerSeconds: draftTimerSeconds,
                     })
-                    if (ownsAction(capturedLeagueId, generation)) openDraftRoom(draft.id, draft.draftType)
+                    if (ownsAction(capturedLeagueId, generation)) {
+                        setActiveDraft(draft)
+                        openDraftRoom(draft.id, draft.draftType)
+                    }
                 } catch (error) {
                     if (ownsAction(capturedLeagueId, generation)) {
                         showAlert('Could not start draft', error instanceof Error ? error.message : undefined)
@@ -253,7 +256,12 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
                     setDraftLoadingOwner(capturedLeagueId)
                     try {
                         const result = await startRookieDraft(capturedLeagueId, selectedOptions)
-                        if (ownsAction(capturedLeagueId, generation)) openDraftRoom(result.draft.id, result.draft.draftType)
+                        if (ownsAction(capturedLeagueId, generation)) {
+                            setDraftTimerSecondsState(60)
+                            setRookieRounds(3)
+                            setRookieTimerExpiryBehavior('auto_pick')
+                            openDraftRoom(result.draft.id, result.draft.draftType)
+                        }
                     } catch (error) {
                         if (ownsAction(capturedLeagueId, generation)) showAlert('Could not start rookie draft', error instanceof Error ? error.message : undefined)
                     } finally {

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Button } from '@/components/ui/Button'
 import { colors, fontSize, foundation, radii, spacing, textStyles } from '@/constants/tokens'
@@ -13,6 +14,7 @@ export function TradeBlockNoteEditor({ item, label, disabled, onSave }: {
     const [editing, setEditing] = useState(false)
     const [note, setNote] = useState(item.note ?? '')
     const [saving, setSaving] = useState(false)
+    useUnsentFormUpdate(editing && note !== (item.note ?? ''), 'trade block note')
     if (!editing) return <Pressable style={styles.edit} accessibilityRole="button" disabled={disabled}
         accessibilityLabel={`Edit trade block note for ${label}`} onPress={() => { setNote(item.note ?? ''); setEditing(true) }}>
         <Text style={textStyles.meta} numberOfLines={2}>{item.note || 'Add note'}</Text>

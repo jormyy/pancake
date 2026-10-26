@@ -61,6 +61,7 @@ export function WaiversSection({ active }: { active: boolean }) {
         try {
             await operation()
             if (currentScope.current === scope) await refresh()
+            return currentScope.current === scope
         } catch (cause) {
             if (currentScope.current === scope) setError(cause instanceof Error ? cause.message : 'Could not update this claim. Try again.')
         } finally {
@@ -74,7 +75,7 @@ export function WaiversSection({ active }: { active: boolean }) {
     const renderClaim = (claim: WaiverClaim) => <View key={claim.id} style={styles.claim}>
         <RosterClaimItem claim={claim} cancellingId={!online || busyId ? claim.id : null} waiverMode={currentLeague?.waiver_mode ?? 'rolling'}
             onCancel={id => { if (memberId) void mutate(id, () => cancelWaiverClaim(id, memberId)) }}
-            onEditBid={(item, bidAmount) => { if (memberId) void mutate(item.id, () => editWaiverClaim(item.id, memberId, { dropPlayerId: item.dropPlayerId, bidAmount })) }}
+            onEditBid={async (item, bidAmount) => { if (memberId) return mutate(item.id, () => editWaiverClaim(item.id, memberId, { dropPlayerId: item.dropPlayerId, bidAmount })) }}
             onReorder={(id, direction) => { if (memberId) void mutate(id, () => reorderWaiverClaim(id, memberId, direction)) }} />
         {claim.status === 'pending' && scheduledClaimRunAt(claim.processDate).getTime() > Date.now() ? <Pressable style={styles.action} accessibilityRole="button" accessibilityLabel={`Edit claim and drop for ${claim.playerName}`}
             disabled={!online || Boolean(busyId)} onPress={() => router.push({ pathname: '/(modals)/claim-player', params: { playerId: claim.playerId, claimId: claim.id } })}>

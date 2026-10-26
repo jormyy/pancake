@@ -104,7 +104,7 @@ describe('mock room action ownership', () => {
         }
         let renderer!: ReactTestRenderer
         await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
-        let pendingCreate!: Promise<void>
+        let pendingCreate!: Promise<boolean | undefined>
         await act(async () => {
             latest.setRoomName('A room')
             pendingCreate = latest.handleCreateMockRoom()
@@ -147,4 +147,26 @@ it('owns mock options separately and defaults each room type', async () => {
         await act(async () => latest.setRoomDraftType('auction'))
         expect(latest.mockDraftTimerSeconds).toBe(60)
     } finally { await act(async () => screen.unmount()) }
+})
+
+it('does not complete a replacement owner composer after an old room refresh finishes', async () => {
+    const refresh = deferred<void>()
+    mocks.createMockDraftRoom.mockResolvedValue(undefined)
+    let latest!: ReturnType<typeof useMockRoomsController>
+    const Probe = ({ owner }: { owner: 'a' | 'b' }) => {
+        latest = useMockRoomsController({ leagueId: `league-${owner}`, memberId: `member-${owner}`, refreshRooms: () => refresh.promise, openDraftRoom: vi.fn() })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    let pending!: ReturnType<typeof latest.handleCreateMockRoom>
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe, { owner: 'a' })) })
+        await act(async () => { pending = latest.handleCreateMockRoom(); await Promise.resolve() })
+        await act(async () => renderer.update(React.createElement(Probe, { owner: 'b' })))
+        await act(async () => latest.setRoomName('Replacement draft'))
+        let completed: boolean | undefined
+        await act(async () => { refresh.resolve(); completed = await pending })
+        expect(completed).not.toBe(true)
+        expect(latest.roomName).toBe('Replacement draft')
+    } finally { await act(async () => renderer?.unmount()) }
 })

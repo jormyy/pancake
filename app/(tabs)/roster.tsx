@@ -692,6 +692,7 @@ export default function RosterScreen() {
                 dropPlayerId: claim.dropPlayerId,
                 bidAmount,
             })
+            return isCurrentAction(generation, identity)
         } catch (e) {
             if (isCurrentAction(generation, identity) && !await rosterLegality.report(e)) showAlert('Error', getErrorMessage(e))
         }
