@@ -4,27 +4,28 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Reference
 
-- [Interface design](interface-design.md): Phone spacing, Matchup interactions, contextual buttons, compact news, player badges and brand assets.
-
+- [Interface design](interface-design.md): Phone spacing, lineup controls, Matchup interactions, news, player badges, and brand assets.
 - [Architecture](architecture.md): Code boundaries, authorization, change hints, and season transitions.
 - [Database readiness catalog](database-readiness-catalog.md): Attested migration phases and database security checks.
 - [Dynasty decision tools](dynasty-decision-tools.md): Published ranks, value calculations, Trade Analyzer, and cache rules.
 - [Loading rules](instant-loading.md): Saved content, empty results, errors, and layout checks.
+- [Matchup forecasts](matchup-forecasts.md): Cached odds, projection coverage, stale inputs, and concurrent publication.
 - [Auto-set daily](pre-tipoff-lineups.md): Lineup locks, dispatch, retries, permissions, and recovery.
 - [Production migration history](production-migration-history.md): Historical attestations, approved migration ranges, and database recovery.
 - [PWA behavior](pwa-live-data.md): Player detail, caching, offline actions, reconnects, updates, and push.
 - [Release history attestations](release-history-attestations.md): Local refresh and candidate range checks.
 - [Release build provenance](release-build-provenance.md): Artifact identity, recovery, and repeatable exports.
-- [Roster lifecycle](roster-lifecycle.md): Ownership, waivers, taxi, trade plans, and playoffs.
+- [Roster lifecycle](roster-lifecycle.md): Ownership, continuous FAAB claims, taxi, reserved trade capacity, and playoffs.
 - [Season simulator](season-simulator.md): Historical replay inputs, invariants, and acceptance limits.
 - [Source monitoring](source-monitoring.md): Providers, projections, schedules, recovery, and retention.
+- [Trade estimates](trade-estimates.md): Frozen quotes, offer attachment, source details, and current revaluation of saved trades.
 - [Backend route inventory](supabase-backend-route-inventory.md): Client boundaries, routes, permissions, and measurement rules.
 - [Database performance](supabase-performance-capacity.md): Scoring, reads, capacity measurements, and recovery limits.
 - [Verification](verification.md): Local setup, verification commands, and release gates.
 
 ## Related guides
 
-- [Database release steps](../supabase/RELEASE-DB.md): Ordered deployment, migration list, and delayed cleanup.
+- [Database release steps](../supabase/RELEASE-DB.md): Production baseline, pending migrations, required Edge functions, verification, and recovery.
 - [Installed iPhone checks](ios-simulator-testing.md): Home Screen installation, native interactions, and captures.
 - [Bounded replay acceptance](bounded-replay-acceptance.md): Limits of resumed historical evidence.
 - [Load comparison](../scripts/load/README.md): Isolated database workload measurements.

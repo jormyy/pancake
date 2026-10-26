@@ -76,9 +76,29 @@ Invalid calendars remain errors. An unpublished next calendar causes a retry.
 The [historical simulator](season-simulator.md) exercises ingestion and season transitions.
 The [verification guide](verification.md) lists the focused database checks.
 
+## Claims and trade decisions
+
+Every available player enters through a scheduled FAAB claim.
+The database freezes claim changes at the daily cutoff and settles ownership, drops, balances, and priority together.
+Trade plans reserve assets and capacity across all accepted trades.
+Settlement checks resulting rosters before applying every transfer and retained-player move in one transaction.
+[Roster lifecycle](roster-lifecycle.md) owns those rules.
+
+The Edge API computes trade estimates from database-owned league inputs and shared dynasty calculations.
+Offer submission attaches the frozen quote in the same transaction.
+Historical revaluation reads saved routes with current inputs and leaves the original quote unchanged.
+[Trade estimates](trade-estimates.md) owns quote expiry, authorization, and saved views.
+
+The `matchup-forecast` Edge worker computes shared forecasts outside screen loads.
+Database triggers queue changed inputs, and revision tokens reject obsolete results.
+Clients read member-authorized cached forecasts and show coverage and stale state.
+[Matchup forecasts](matchup-forecasts.md) owns model limits and publication locks.
+
 ## Projection data
 
-`get_league_projection_rows` supplies player views and lineup optimization.
+`get_league_projection_rows` supplies player views, lineup optimization, and matchup forecasts.
+Sleeper sync selects the scoring week containing today's Pacific date.
+A day outside every scoring week records a successful skip without fetching or changing projections.
 [Source monitoring](source-monitoring.md#projection-readers) owns provider precedence, freshness, and storage rules.
 [PWA behavior](pwa-live-data.md#player-detail) owns the player detail layout.
 

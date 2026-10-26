@@ -10,8 +10,10 @@ Dynasty Rankings and Trade Analyzer share one value engine. This document define
 - League scoring adds value context. It does not reorder published ranks.
 - The engine keeps short-term points separate from long-term dynasty value.
 - Trade Analyzer always uses the 5-year outlook.
-- Each trade card opens Trade Analyzer through its header's Analyze control, beside the status badge.
-- Analyze stays disabled while another trade action runs.
+- Saved trades offer Revalue with current inputs.
+- Revaluation uses stored asset routes, including after settlement changes ownership.
+- Revaluation stays disabled while another trade action runs.
+- [Trade estimates](trade-estimates.md) defines saved quotes and separate current revaluation.
 - Analyzer experiments stay in session memory.
 - Make Offer needs an explicit action and confirmation.
 - The Analyzer reports value changes without judging a trade as fair or unfair.

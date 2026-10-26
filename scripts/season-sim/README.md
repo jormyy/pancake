@@ -203,6 +203,8 @@ node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA" --st
 
 Keep the official profile and two-season environment settings above.
 The start date can fall within a week.
+It must fall between October 22, 2024, and April 13, 2025, inclusive.
+Do not combine `--start` with either bounded launcher check flag.
 The replay keeps profile skips and skips every week that ends before the start.
 It runs through November 3, 2025, including playoffs, rollover, the rookie draft, and the next opening week.
 It omits the pre-playoff snapshot when the start falls on or after February 10.
@@ -211,6 +213,16 @@ Every remaining check must pass, including scoring, waivers, deadline trades, fi
 Final forecasts cover week 17 and the playoff rounds across weeks 18–21.
 `lateStart.passed` records this acceptance; `fullAcceptance` stays false.
 The launcher writes `evidence/late-season-check.json` after acceptance.
+Acceptance requires completed dates, zero invariant failures, no runtime or cleanup failures, and no remaining measurable gaps.
+Earlier windows stay unmeasured, and browser, load, and app-update evidence remain separate.
+
+Check the late-start rules without starting the replay:
+
+```sh
+node --test scripts/season-sim/launcher-check.test.mjs scripts/season-sim/official-replay.test.mjs scripts/season-sim/official-report.test.mjs
+```
+
+These checks cover date bounds, midweek starts, skipped windows, remaining forecast rounds, and rejection of missing acceptance evidence.
 
 `state/official-cursor.json` retains private manager sessions and completed evidence for recovery.
 A snapshot restore must preserve its profile hash, fixture hashes, and database state.

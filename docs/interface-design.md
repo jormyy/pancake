@@ -101,6 +101,8 @@ Rest of season sets the remaining season dates. Its accessible label remains Aut
 Home and Roster show Auto-set with the accessible label Open auto-set lineup options.
 Their sheets use Today, This week, Rest of season, and Edit lineup manually.
 The second row places Keep updated automatically on the left and the switch on the right.
+The whole row acts as one switch with the accessible name Keep lineup updated automatically.
+The visual switch does not create a second accessible control.
 Both rows keep 44px touch targets.
 Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
 Action labels stay on one line at 360px and 390px, including text scale 1.3.
@@ -117,3 +119,6 @@ Players and slots retain the manual move flow. Offline and read-only states disa
 Asset values wrap fully. Each range appears on its own line at phone widths.
 Review trade states how many players an over-limit team must drop to accept.
 The count comes from the displayed regular, IR, and taxi roster counts.
+Saved estimate and sources opens the original quote and its frozen inputs.
+Revalue with current inputs opens a separate calculation for the saved trade.
+Revaluation leaves the original quote unchanged, including after settlement.

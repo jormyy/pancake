@@ -5,15 +5,19 @@ Auto-set daily fills unlocked starter slots before tipoff for enabled teams. Thi
 ## Team setting
 
 The lineup screen groups its controls in two compact rows.
-Today, This week, and Season fill the first row. Season sets the remaining season dates.
-Keep updated automatically and its separate switch fill the second row.
+Today, This week, and Rest of season fill the first row.
+Rest of season sets the remaining season dates.
+Keep updated automatically and its switch fill the second row.
+The whole second row acts as one switch, with the accessible name Keep lineup updated automatically.
 The horizontal day row sits directly below these controls and above Starters.
-These actions run once and leave the automatic setting unchanged.
+The first-row actions run once and leave the automatic setting unchanged.
 Keep updated automatically saves the current team and season preference.
 The default-on migration enables existing teams once. New teams start enabled.
 Managers can turn the switch off. Later seasons keep that choice.
 The panel disables changes when the lineup is read only or offline.
 Manual edits remain available by selecting players and slots.
+Home and Roster open the same action choices through Auto-set.
+Their sheets also offer Edit lineup manually.
 An automatic run can replace unlocked manual choices.
 Unchanged checks after a completed run leave later manual edits alone.
 Enabling automation takes effect at the next eligible dispatch and does not rewrite future dates.
@@ -94,8 +98,10 @@ The toggle rejects offline admission and never replays that intent on reconnect.
 npm run test:db:pre-tipoff
 npm run test:db:optimizer-default
 npm run test:db:optimizer-context
+npm run test:db:pre-tipoff-live-concurrency
 ```
 
+The concurrency recipe overlaps real stats ingestion with optimization and checks completed writes, stable slots, and the resulting score.
 Use the [benchmark guide](../scripts/bench/README.md) for isolated dispatch and assignment measurements.
 
 ## Setting recovery

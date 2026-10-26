@@ -9,10 +9,11 @@ Dynasty fantasy basketball, built for your iPhone.
 - Dynasty leagues with persistent rosters and future draft picks.
 - Startup auctions and rookie drafts.
 - Daily lineups with automatic pre-tipoff optimization.
-- Waivers with FAAB bidding and priority.
+- Scheduled FAAB claims for every available player, with rolling priority.
 - Multi-team trades with roster plans.
 - Straight-to-IR and straight-to-taxi adds, with Rookie and Taxi player tags.
 - Live scoring, playoffs, and automatic season rollover.
+- Shared matchup forecasts and saved trade estimates with separate current revaluation.
 - Installable iPhone PWA with web push notifications.
 
 ## Stack
@@ -61,8 +62,9 @@ Run focused checks while developing; regenerate release evidence for the reviewe
 
 ## Production releases
 
-Deploy the database, then Edge, then the frontend.
-Follow the ordered [database release steps](supabase/RELEASE-DB.md) before merging; main also triggers a Vercel frontend deployment.
+Database, then Edge, then merge the frontend.
+Follow the ordered [database release steps](supabase/RELEASE-DB.md) before merging.
+A merge to main also triggers a Vercel frontend deployment.
 The [release gates](docs/verification.md#release-gates) and [artifact contract](docs/release-build-provenance.md) define verification and rollback.
 
 ## Documentation
