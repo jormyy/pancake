@@ -79,7 +79,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     const taxiEligible = taxiSlots > 0 && isTaxiEligible(claim.playerYearsExp ?? null, claim.playerCareerGames ?? null)
     const isPending = claim.status === 'pending'
     const editable = isPending && scheduledClaimRunAt(claim.processDate).getTime() > Date.now()
-    const disabled = cancellingId === claim.id
+    const disabled = cancellingId !== null
     const usesFaab = waiverMode === 'faab'
     const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
     useEffect(() => {
