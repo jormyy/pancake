@@ -2,16 +2,57 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { sql, sqlJson } from './local-stack.mjs'
 
-async function offer(c, a, b, year, round) {
+const regularPlan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
+
+async function playerState(c, users, date) {
+  const players = await sqlJson(`SELECT json_agg(r) FROM (SELECT DISTINCT ON(r.member_id) r.member_id,r.player_id FROM roster_players r JOIN players p ON p.id=r.player_id WHERE r.league_season_id='${c.leagueSeasonId}' AND r.member_id IN (${users.map(user => `'${user.memberId}'`).join(',')}) AND NOT r.is_on_ir AND NOT r.is_on_taxi ORDER BY r.member_id,(SELECT count(*) FROM player_game_stats s WHERE s.player_id=r.player_id AND NOT s.did_not_play) DESC,r.player_id) r`, 'Owned players for legal equal-player trades')
+  assert.equal(players.length, users.length)
+  const balances = Object.fromEntries(await Promise.all(users.map(async user => [user.memberId, (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0].faab_balance])))
+  return { players, balances, date, history: await lineupHistory(c, date) }
+}
+
+async function lineupHistory(c, date) {
+  return sql(`SELECT md5(coalesce(json_agg(r ORDER BY game_date,member_id,player_id)::text,'[]')) FROM (SELECT game_date,member_id,player_id,slot_type FROM weekly_lineups WHERE league_season_id='${c.leagueSeasonId}' AND game_date<'${date}') r`)
+}
+
+async function verifyPlayerSettlement(c, trade) {
+  const before = trade.playerState
+  for (const route of trade.playerRoutes) assert.equal(await sql(`SELECT member_id FROM roster_players WHERE league_season_id='${c.leagueSeasonId}' AND player_id='${route.playerId}'`), route.toMemberId)
+  for (const user of c.users.filter(user => Object.hasOwn(before.balances, user.memberId))) {
+    const state = (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0]
+    assert.equal(state.faab_balance, before.balances[user.memberId] + (trade.faabRoutes ?? []).reduce((sum, route) => sum + (route.toMemberId === user.memberId ? route.faabAmount : 0) - (route.fromMemberId === user.memberId ? route.faabAmount : 0), 0))
+    assert.equal(Number(await sql(`SELECT count(*) FROM roster_players WHERE league_season_id='${c.leagueSeasonId}' AND member_id='${user.memberId}' AND NOT is_on_ir AND NOT is_on_taxi`)), 20)
+  }
+  assert.equal(await lineupHistory(c, before.date), before.history, 'Player trades preserve each prior lineup owner and slot')
+  trade.playerSettlement = { passed: true, players: trade.playerRoutes.length, historicalLineupsUnchanged: true, date: await sql("SELECT (now() AT TIME ZONE 'America/New_York')::date") }
+}
+
+export async function recordPostTradeScoring(c, report, date) {
+  for (const trade of [report.trades?.completed, report.trades?.playerCycle].filter(Boolean)) {
+    if (!trade.playerSettlement || trade.postTradeScoring || date <= trade.playerSettlement.date) continue
+    const rows = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT DISTINCT w.player_id,w.member_id,g.game_date FROM weekly_lineups w JOIN player_game_stats s ON s.player_id=w.player_id JOIN nba_games g ON g.id=s.game_id AND g.game_date=w.game_date WHERE w.league_season_id='${c.leagueSeasonId}' AND g.status='Final' AND NOT s.did_not_play AND g.game_date>'${trade.playerSettlement.date}' AND g.game_date<='${date}') r`, 'Post-trade score ownership evidence')
+    if (trade.playerRoutes.every(route => rows.some(row => row.player_id === route.playerId && row.member_id === route.toMemberId))) trade.postTradeScoring = { date, passed: true, scope: 'Independent daily league score oracle passed with finalized games assigned to each new player owner', rows: rows.filter(row => trade.playerRoutes.some(route => route.playerId === row.player_id)) }
+  }
+}
+
+async function offer(c, a, b, year, round, mixedDate = null) {
   const picks = await sqlJson(`SELECT json_agg(p ORDER BY current_owner_id) FROM draft_picks p WHERE league_id='${c.leagueId}' AND season_year=${year} AND round=${round} AND current_owner_id IN ('${a.memberId}','${b.memberId}') AND NOT is_used`, 'Official trade assets')
   const giving = picks.find(row => row.current_owner_id === a.memberId), receiving = picks.find(row => row.current_owner_id === b.memberId)
   assert.ok(giving && receiving)
   const body = { requestId: randomUUID(), leagueId: c.leagueId, leagueSeasonId: c.leagueSeasonId, memberId: a.memberId, recipientMemberId: b.memberId, offerPickIds: [giving.id], requestPickIds: [receiving.id] }
   const items = [{ fromMemberId: a.memberId, toMemberId: b.memberId, pickId: giving.id }, { fromMemberId: b.memberId, toMemberId: a.memberId, pickId: receiving.id }]
+  let before, playerRoutes, faabRoutes
+  if (mixedDate) {
+    before = await playerState(c, [a, b], mixedDate)
+    playerRoutes = [a, b].map((user, index) => ({ fromMemberId: user.memberId, toMemberId: [b, a][index].memberId, playerId: before.players.find(row => row.member_id === user.memberId).player_id }))
+    faabRoutes = [{ fromMemberId: a.memberId, toMemberId: b.memberId, faabAmount: 7 }, { fromMemberId: b.memberId, toMemberId: a.memberId, faabAmount: 3 }]
+    Object.assign(body, { offerPlayerIds: [playerRoutes[0].playerId], requestPlayerIds: [playerRoutes[1].playerId], offerFaabAmount: 7, requestFaabAmount: 3, rosterPlan: regularPlan })
+    items.push(...playerRoutes, ...faabRoutes)
+  }
   const { quote } = await c.api(a, '/trades/estimate', { memberId: a.memberId, items })
   body.estimateId = quote.id
   const { tradeId } = await c.api(a, '/trades/propose', body)
-  const result = { tradeId, body, giving, receiving, quoteReceipts: [] }
+  const result = { tradeId, body, giving, receiving, quoteReceipts: [], playerState: before, playerRoutes, faabRoutes }
   await verifyQuote(c, result, b, 'received')
   return result
 }
@@ -41,8 +82,8 @@ async function assertOwners(trade, changed) {
 export async function advanceOfficialTrades(c, date, report, now) {
   const state = report.trades ??= {}
   if (date === '2024-11-01' && !state.completed) {
-    state.completed = await offer(c, c.users[0], c.users[1], 2026, 1)
-    await c.api(c.users[1], `/trades/${state.completed.tradeId}/accept`, { memberId: c.users[1].memberId })
+    state.completed = await offer(c, c.users[0], c.users[1], 2026, 1, date)
+    await c.api(c.users[1], `/trades/${state.completed.tradeId}/accept`, { memberId: c.users[1].memberId, rosterPlan: regularPlan })
     await verifyQuote(c, state.completed, c.users[0], 'accepted')
     state.completed.acceptedAt = now
     assert.equal(await sql(`SELECT status FROM trades WHERE id='${state.completed.tradeId}'`), 'accepted')
@@ -52,7 +93,29 @@ export async function advanceOfficialTrades(c, date, report, now) {
     assert.equal(await sql(`SELECT status FROM trades WHERE id='${state.completed.tradeId}'`), 'completed')
     await assertOwners(state.completed, true)
     await verifyQuote(c, state.completed, c.users[1], 'executed')
+    await verifyPlayerSettlement(c, state.completed)
     state.completed.checked = true
+  }
+  if (date === '2025-01-10' && !state.playerCycle) {
+    const users = c.users.slice(6, 9), before = await playerState(c, users, date)
+    const playerRoutes = users.map((user, index) => ({ fromMemberId: user.memberId, toMemberId: users[(index + 1) % users.length].memberId, playerId: before.players.find(row => row.member_id === user.memberId).player_id }))
+    const { quote } = await c.api(users[0], '/trades/estimate', { memberId: users[0].memberId, items: playerRoutes })
+    const body = { requestId: randomUUID(), memberId: users[0].memberId, leagueId: c.leagueId, leagueSeasonId: c.leagueSeasonId, participantMemberIds: users.map(user => user.memberId), items: playerRoutes, estimateId: quote.id, rosterPlan: regularPlan }
+    const { tradeId } = await c.api(users[0], '/trades/propose-multi', body)
+    const trade = state.playerCycle = { tradeId, body, playerState: before, playerRoutes, quoteReceipts: [], acceptedAt: now }
+    await verifyQuote(c, trade, users[1], 'received')
+    for (const user of users.slice(1)) {
+      await c.api(user, `/trades/${tradeId}/accept`, { memberId: user.memberId, rosterPlan: regularPlan })
+      await verifyQuote(c, trade, user, 'participant-accepted')
+    }
+    assert.equal(await sql(`SELECT status FROM trades WHERE id='${tradeId}'`), 'accepted')
+    await verifyQuote(c, trade, users[0], 'accepted')
+  }
+  if (state.playerCycle && !state.playerCycle.checked && now >= state.playerCycle.acceptedAt + 24 * 3600000 + 60000) {
+    assert.equal(await sql(`SELECT status FROM trades WHERE id='${state.playerCycle.tradeId}'`), 'completed')
+    await verifyPlayerSettlement(c, state.playerCycle)
+    await verifyQuote(c, state.playerCycle, c.users[7], 'executed')
+    state.playerCycle.checked = true
   }
   if (date === '2024-12-01' && !state.vetoed) {
     const trade = state.vetoed = await offer(c, c.users[2], c.users[3], 2027, 2)

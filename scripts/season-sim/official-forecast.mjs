@@ -17,7 +17,7 @@ export function scoreForecastReceipt(receipt, matchup) {
   const baselineHome = receipt.baseline.find(row => row.memberId === matchup.home_member_id)?.mean
   const baselineAway = receipt.baseline.find(row => row.memberId === matchup.away_member_id)?.mean
   const meanPrediction = baselineHome == null || baselineAway == null ? null : baselineHome === baselineAway ? 0.5 : Number(baselineHome > baselineAway)
-  return { outcome, homePoints: matchup.home_points, awayPoints: matchup.away_points, brier: probability == null ? null : (probability - outcome) ** 2, constantBrier: (0.5 - outcome) ** 2, meanWinnerBrier: meanPrediction == null ? null : (meanPrediction - outcome) ** 2 }
+  return { outcome, probability, homePoints: matchup.home_points, awayPoints: matchup.away_points, brier: probability == null ? null : (probability - outcome) ** 2, constantBrier: (0.5 - outcome) ** 2, meanWinnerBrier: meanPrediction == null ? null : (meanPrediction - outcome) ** 2 }
 }
 
 export async function captureOfficialForecasts(c, date, week, report) {

@@ -1,3 +1,11 @@
+export function reliabilityBins(rows) {
+  return Array.from({ length: 5 }, (_, index) => {
+    const selected = rows.map(row => row.outcome).filter(row => Number.isFinite(row.probability) && row.probability >= 0 && row.probability <= 1 && Math.min(4, Math.floor(row.probability * 5)) === index)
+    const decisive = selected.filter(row => row.outcome === 0 || row.outcome === 1)
+    return { lower: index / 5, upper: (index + 1) / 5, count: decisive.length, meanForecast: decisive.length ? decisive.reduce((sum, row) => sum + row.probability, 0) / decisive.length : null, observedWinFrequency: decisive.length ? decisive.reduce((sum, row) => sum + row.outcome, 0) / decisive.length : null, ties: selected.filter(row => row.outcome === 0.5).length }
+  })
+}
+
 export function summarizeOfficial(report) {
   const firstYear = report.scenario.profile.firstYear
   const regularWeeks = new Set(report.days.filter(day => day.seasonYear === firstYear).flatMap(day => (day.closedWeeks ?? []).map(row => row.week)))
@@ -15,6 +23,8 @@ export function summarizeOfficial(report) {
     checkpoint: report.snapshots.some(row => row.name === 'pre-playoffs'),
     continuousFaab: report.waivers?.checked === true,
     completedTrade: report.trades?.completed?.checked === true,
+    mixedPlayerTrade: report.trades?.completed?.playerSettlement?.passed === true && report.trades?.completed?.postTradeScoring?.passed === true,
+    threeTeamPlayerTrade: report.trades?.playerCycle?.checked === true && report.trades?.playerCycle?.postTradeScoring?.passed === true,
     memberVeto: report.trades?.vetoed?.checked === true,
     deadline: report.trades?.deadline?.checked === true,
     tradeQuotes: ['received', 'accepted', 'executed'].every(phase => report.trades?.completed?.quoteReceipts?.some(row => row.phase === phase)),
@@ -29,7 +39,7 @@ export function summarizeOfficial(report) {
       const values = scored.map(row => row.outcome[key]).filter(value => value !== null)
       return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null
     }
-    return { split, outcomes: rows.length, covered: scored.length, cold: rows.length - scored.length, brier: mean('brier'), constantBrier: mean('constantBrier'), meanWinnerBrier: mean('meanWinnerBrier') }
+    return { split, outcomes: rows.length, covered: scored.length, cold: rows.length - scored.length, brier: mean('brier'), constantBrier: mean('constantBrier'), meanWinnerBrier: mean('meanWinnerBrier'), reliability: reliabilityBins(rows) }
   })
   gates.forecastReceipts = [10, 13, 16, 17].every(week => (report.forecasts ?? []).some(row => row.week === week && row.outcome && row.preweek !== false))
   gates.forecastCalibration = ['calibration-held-out', 'final-held-out'].every(split => forecast.some(row => row.split === split && row.covered > 0))

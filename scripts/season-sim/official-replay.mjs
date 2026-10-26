@@ -13,7 +13,7 @@ import { shiftDay } from './season-model.mjs'
 import { sourceEvidence } from './source-manifest.mjs'
 import { summarizeOfficial } from './official-report.mjs'
 import { captureOfficialForecasts, scoreOfficialForecasts } from './official-forecast.mjs'
-import { advanceOfficialTrades, auditOfficialTradeValues } from './official-trades.mjs'
+import { advanceOfficialTrades, auditOfficialTradeValues, recordPostTradeScoring } from './official-trades.mjs'
 import { observeOfficialChampion, verifyOfficialRollover, runOfficialRookieDraft } from './official-lifecycle.mjs'
 import { beginOfficialWaivers, verifyOfficialWaivers } from './official-waivers.mjs'
 import { checkCalendar } from './calendar-oracle.mjs'
@@ -123,6 +123,7 @@ export async function officialReplay(options, scenario) {
         if (result) {
           previous = { ...previous, ...result.observations }
           day.scores = { passed: true, matchups: result.matchups.length }
+          await recordPostTradeScoring(context, report, date)
         }
         day.closedWeeks = await assertClosedWeeks(context, date, checked)
         if (!report.corruptionControls && checked.length) report.corruptionControls = (await assertClientScores(context, { week: checked[0], corruptionControls: true })).controls
