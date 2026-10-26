@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { browserArtifactPath } from './browser-artifacts.mjs'
 import path from 'node:path'
 import process from 'node:process'
@@ -973,15 +974,35 @@ export async function runBrowserLineupLockedScenario({
       'locked lineup before move',
     )
     record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-locked-before.png') })
-    const starterClick = await clickButton(session, `PG ${fixture.lockedPlayer.display_name}`, 'locked starter row')
-    const benchClick = await clickButton(session, `Bench ${fixture.benchPlayer.display_name}`, 'bench player row')
+    const lockedName = `PG ${fixture.lockedPlayer.display_name}`
+    const readLockedControl = async (name) => parseEvalJson(await browser(session, ['eval', `(() => {
+      const node = [...document.querySelectorAll('[role="button"], button')]
+        .find(element => element.getAttribute('aria-label') === ${JSON.stringify(name)});
+      return JSON.stringify({ visible: Boolean(node?.getClientRects().length),
+        disabled: node?.disabled === true || node?.getAttribute('aria-disabled') === 'true',
+        label: node?.getAttribute('aria-label'), text: node?.textContent });
+    })()`]))
+    const lockedControlBefore = await readLockedControl(lockedName)
+    assert.equal(lockedControlBefore.visible, true, 'Locked starter must remain visible')
+    assert.equal(lockedControlBefore.disabled, true, 'Locked starter must reject user input')
+    const lockedBefore = await verifyLockedLineup(fixture)
+    assert.deepEqual(lockedBefore.failures, [])
+    const benchName = `Bench ${fixture.benchPlayer.display_name}`
+    const benchControlBefore = await readLockedControl(benchName)
+    assert.equal(benchControlBefore.visible, true, 'Locked bench player must remain visible')
+    assert.equal(benchControlBefore.disabled, true, 'Both teams have passed tipoff in this fixture')
     await browser(session, ['wait', '1000'])
     const lockedCheck = await verifyLockedLineup(fixture)
+    const lockedControlAfter = await readLockedControl(lockedName)
+    assert.deepEqual(lockedControlAfter, lockedControlBefore, 'The locked starter control must remain unchanged')
+    assert.deepEqual(lockedCheck, lockedBefore, 'Disabled controls must leave saved lineup rows unchanged')
+    const benchControlAfter = await readLockedControl(benchName)
+    assert.deepEqual(benchControlAfter, benchControlBefore, 'The locked bench control must remain unchanged')
     const forgedRpcCheck = await verifyForgedLockedLineupRpc(env, fixture)
     const forgedMovesCheck = await verifyForgedLockedMovesRpc(env, fixture)
     const forgedAutoSetCheck = await verifyForgedLockedAutoSetRpc(env, fixture)
     const forgedLegalityCheck = await verifyForgedLineupLegalityRpc(env, fixture)
-    record({ starterClick, benchClick, lockedCheck, forgedRpcCheck, forgedMovesCheck, forgedAutoSetCheck, forgedLegalityCheck })
+    record({ lockedControlBefore, lockedControlAfter, benchControlBefore, benchControlAfter, lockedCheck, forgedRpcCheck, forgedMovesCheck, forgedAutoSetCheck, forgedLegalityCheck })
     record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-locked-after.png') })
     const failures = [...lockedCheck.failures, ...forgedRpcCheck.failures, ...forgedMovesCheck.failures, ...forgedAutoSetCheck.failures, ...forgedLegalityCheck.failures]
     return {
