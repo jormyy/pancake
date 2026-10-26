@@ -15,7 +15,7 @@ import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
-import { themeVariablesCss } from '@/constants/tokens'
+import { themeVariablesCss, spacing } from '@/constants/tokens'
 import { headerPlayer, playerRow, rosterPlayer } from '../helpers/fixtures'
 
 vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web'), useWindowDimensions: () => ({ width: 390, height: 844 }) }))
@@ -93,7 +93,7 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
                     const positions = Array.from(meta.querySelectorAll('[data-testid="position-chip"]')).map(box)
                     const row = root.querySelector('[data-testid="player-row-content"]')!
                     const action = root.querySelector('[aria-label^="Add "], [aria-label^="Move "], [aria-label^="Activate "]')
-                    return { teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: box(stats), avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
+                    return { team: box(team), teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: box(stats), avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
                 })
                 expect(geometry.text).toBe(name)
                 expect(geometry.teamClipped).toBe(false)
@@ -105,11 +105,18 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
                 if (geometry.action) expect(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
                 expect(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], ['T', 'Taxi eligible']])
                 expect(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
+                expect(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xs)
                 expect(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)
                 expect(geometry.tags.every(tag => tag.height === geometry.positions[0].height)).toBe(true)
                 expect(geometry.row.right).toBeLessThanOrEqual(width)
                 expect(geometry.overflow).toBe(false)
             }
+            const headerGap = await page.getByTestId('player-position-line').evaluate(line => {
+                const team = line.firstElementChild!.getBoundingClientRect()
+                const position = line.querySelector('[data-testid="position-chip"]')!.getBoundingClientRect()
+                return position.left - team.right
+            })
+            expect(headerGap).toBeCloseTo(spacing.xs)
             await page.screenshot({ path: `${directory}/${caseId}-${engine.name()}-${width}.png` })
             await page.close()
         }

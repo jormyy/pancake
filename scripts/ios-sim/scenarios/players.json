@@ -10,7 +10,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[data-testid='player-meta-line'] > [data-testid='player-eligibility-tags']"
+          "selector": "[data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],
@@ -230,7 +230,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[data-testid='player-meta-line'] > [data-testid='player-eligibility-tags']"
+          "selector": "[data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],

@@ -374,10 +374,14 @@ export async function getPlayerSeasonLines(playerId: string, seasonYear: number)
 }
 
 export async function getPlayerRowMetadata(playerIds: string[]) {
-    if (playerIds.length === 0) return new Map<string, { nba_team: string | null; injury_status: string | null; years_exp: number | null; career_regular_season_games: number | null }>()
-    const { data, error } = await supabase.from('players')
-        .select('id, nba_team, injury_status, years_exp, career_regular_season_games')
-        .in('id', [...new Set(playerIds)])
-    if (error) throw error
-    return new Map((data ?? []).map(player => [player.id, player]))
+    const ids = [...new Set(playerIds)]
+    const metadata = new Map<string, { nba_team: string | null; injury_status: string | null; years_exp: number | null; career_regular_season_games: number | null }>()
+    for (let offset = 0; offset < ids.length; offset += 100) {
+        const { data, error } = await supabase.from('players')
+            .select('id, nba_team, injury_status, years_exp, career_regular_season_games')
+            .in('id', ids.slice(offset, offset + 100))
+        if (error) throw error
+        for (const player of data ?? []) metadata.set(player.id, player)
+    }
+    return metadata
 }

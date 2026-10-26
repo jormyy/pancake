@@ -47,7 +47,7 @@
           "value": "{{outPlayer.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-eligibility-tags']:not(:has([aria-label='Rookie'])):not(:has([aria-label='Taxi eligible']))"
+          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line']):not(:has([aria-label='Rookie'])):not(:has([aria-label='Taxi eligible']))"
         },
         "note": "Neither tag: years_exp 4, career games 65."
       }
@@ -544,7 +544,7 @@
           "value": "{{outPlayer.display_name}}"
         },
         "expected": {
-          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-eligibility-tags']:not(:has([aria-label='Rookie'])):not(:has([aria-label='Taxi eligible']))"
+          "selector": "[aria-label='Open {{outPlayer.display_name}}'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line']):not(:has([aria-label='Rookie'])):not(:has([aria-label='Taxi eligible']))"
         },
         "note": "Neither tag: years_exp 4, career games 65."
       }

@@ -244,7 +244,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+          "selector": "[id='league-panel-history'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],
@@ -261,7 +261,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+          "selector": "[id='league-panel-history'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],

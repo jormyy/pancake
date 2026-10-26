@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
     row: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     copy: { flex: 1, minWidth: 0, gap: spacing.xxs },
     name: { ...textStyles.rowTitle, minWidth: 0 },
-    metadata: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, minHeight: 18, minWidth: 0 },
+    metadata: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 18, minWidth: 0 },
     team: { ...textStyles.meta, flexShrink: 1 },
     stats: { minHeight: textStyles.meta.lineHeight, minWidth: 0 },
     statText: { ...textStyles.meta, color: colors.primaryDark, fontVariant: ['tabular-nums'] },

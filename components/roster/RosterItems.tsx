@@ -380,9 +380,9 @@ const styles = StyleSheet.create({
         minHeight: table.rowHeight,
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
-        gap: spacing.md,
+        gap: spacing.xs,
     },
-    rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
     name: { ...textStyles.rowTitle, flexShrink: 1 },

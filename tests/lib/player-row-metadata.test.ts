@@ -29,3 +29,17 @@ it('does not read player metadata for a system-only activity page', async () => 
     await getLeagueTransactions('league')
     expect(mocks.from).not.toHaveBeenCalled()
 })
+
+
+it('loads a full rankings page without exceeding the metadata request limit', async () => {
+    const ids = Array.from({ length: 600 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`)
+    mocks.rpc.mockResolvedValue({ data: ids.map(player_id => ({ player_id })), error: null })
+    mocks.in.mockImplementation(async (_column: string, values: string[]) => {
+        if (values.length > 100) return { data: null, error: new TypeError('Load failed') }
+        return { data: values.map(id => ({ id, career_regular_season_games: 64 })), error: null }
+    })
+    const rows = await getDynastyDecisionInputs({ leagueId: 'league', memberId: 'member', seasonYear: 2027 })
+    expect(rows).toHaveLength(600)
+    expect(rows.every(row => row.career_regular_season_games === 64)).toBe(true)
+    expect(mocks.in).toHaveBeenCalledTimes(6)
+})
