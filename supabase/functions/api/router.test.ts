@@ -93,7 +93,7 @@ Deno.env.set('E2E_ADMIN_SECRET', 'e2e-test-secret')
 Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'edge-internal-test')
 
 const { handleApiRoute } = await import('./router.ts')
-const { assertUuid } = await import('../_shared/apiRuntime.ts')
+const { assertUuid, requireAdmin } = await import('../_shared/apiRuntime.ts')
 const { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } = await import('../_shared/releaseMetadata.ts')
 const {
   MAX_TRADE_EXPIRATION_DAYS,
@@ -719,6 +719,50 @@ Deno.test({
     }
     if (postgrestRequests.some((entry) => entry.includes('/rest/v1/league_seasons'))) {
       throw new Error('missing-scope request reached schedule generation')
+    }
+  },
+})
+
+Deno.test({
+  name: 'configured sync routes share the global admin guard before reads, writes, and internal dispatch',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const protectedRoutes: [string, string][] = [
+      ['POST', '/sync/stats'], ['POST', '/sync/scores'], ['POST', '/sync/schedule'],
+      ['POST', '/sync/players'], ['POST', '/sync/rankings'], ['POST', '/sync/projections'],
+      ['POST', '/sync/draft-order'], ['POST', '/sync/backfill'],
+      ['GET', `/sync/backfill/${UUID}`], ['GET', '/sync/season-totals?seasonYear=2027'],
+      ['POST', '/sync/test-endpoints'], ['POST', '/sync/verify-stats'], ['POST', '/sync/validate-db'],
+    ]
+    Deno.env.set('ADMIN_USER_IDS', ` ${OTHER_USER_ID}, , ${UUID} `)
+    try {
+      requireAdmin(OTHER_USER_ID)
+      let rejected = false
+      try { requireAdmin(USER_ID) } catch (error) {
+        rejected = (error as { status?: number }).status === 403
+      }
+      if (!rejected) throw new Error('configured guard accepted an excluded user')
+      for (const [method, path] of protectedRoutes) {
+        postgrestRequests.length = 0
+        const response = await handleApiRoute(authedRequest(method, path, { days: 1, seasonYear: 2027 }))
+        const body = await response.json()
+        if (response.status !== 403 || body.error !== 'Admin access required') {
+          throw new Error(`configured guard did not protect ${method} ${path}: ${response.status}`)
+        }
+        if (postgrestRequests.some(entry => !entry.includes('/auth/v1/user'))) {
+          throw new Error(`denied route reached database work or internal dispatch: ${method} ${path}`)
+        }
+      }
+      Deno.env.set('ADMIN_USER_IDS', USER_ID)
+      postgrestRequests.length = 0
+      const allowed = await handleApiRoute(authedRequest('POST', '/sync/scores'))
+      if (allowed.status !== 200 || !postgrestRequests.some(entry => entry.includes('/functions/v1/sync-scores'))) {
+        throw new Error('configured admin did not reach the score handler')
+      }
+    } finally {
+      Deno.env.delete('ADMIN_USER_IDS')
+      postgrestRequests.length = 0
     }
   },
 })
