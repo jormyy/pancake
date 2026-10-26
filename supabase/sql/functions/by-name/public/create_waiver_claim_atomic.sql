@@ -127,8 +127,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- The entry stays claimable after its window ends until the run processes
-  -- it; otherwise the player could be neither claimed nor added until 3 AM ET.
   SELECT *
     INTO v_waiver_log
     FROM waiver_wire_log
@@ -136,13 +134,12 @@ BEGIN
      AND league_season_id = v_season_id
      AND player_id = p_player_id
      AND cleared_at IS NULL
-   ORDER BY clears_at
+   ORDER BY clears_at DESC
    LIMIT 1
    FOR UPDATE;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'This player is no longer on waivers.'
-      USING ERRCODE = 'P0001';
+  IF EXISTS (SELECT 1 FROM roster_players WHERE league_id=p_league_id AND league_season_id=v_season_id AND player_id=p_player_id) THEN
+    RAISE EXCEPTION 'This player is already on a roster.' USING ERRCODE = 'P0001';
   END IF;
 
   IF p_drop_player_id IS NOT NULL THEN
@@ -201,7 +198,7 @@ BEGIN
     p_player_id,
     p_drop_player_id,
     v_priority,
-    (v_waiver_log.clears_at AT TIME ZONE 'America/New_York')::date,
+    (private.next_waiver_run(v_waiver_log.clears_at, now()) AT TIME ZONE 'America/New_York')::date,
     v_bid_amount,
     v_claim_order,
     COALESCE(p_to_ir, false),

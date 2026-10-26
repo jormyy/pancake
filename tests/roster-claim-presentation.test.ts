@@ -3,12 +3,12 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RosterClaimItem } from '@/components/roster/RosterItems'
-import { claimProcessTimeLabel, type WaiverClaim } from '@/lib/waivers'
+import { type WaiverClaim } from '@/lib/waivers'
 
 const claim: WaiverClaim = {
     id: 'claim', playerId: 'player', playerName: 'Player A', playerNbaId: null,
     dropPlayerId: null, dropPlayerName: null, dropPlayerNbaId: null, status: 'pending',
-    submittedAt: '2026-10-08T00:00:00Z', processDate: '2026-10-10', priorityAtSubmission: 3,
+    submittedAt: '2026-10-08T00:00:00Z', processDate: '2026-10-11', priorityAtSubmission: 3,
     bidAmount: 10, claimOrder: 1, failureReason: null, clearsAt: '2026-10-10T12:00:00Z',
 }
 let renderer: ReactTestRenderer | undefined
@@ -20,7 +20,7 @@ it('shows the scheduled run without repeated priority or order and preserves cla
     const onCancel = vi.fn(), onReorder = vi.fn(), onEditBid = vi.fn()
     await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim, cancellingId: null, waiverMode: 'faab', onCancel, onReorder, onEditBid })) })
     const text = JSON.stringify(renderer!.toJSON())
-    expect(text).toContain(`Processes ${claimProcessTimeLabel(claim.clearsAt ?? null)}`)
+    expect(text).toContain('Processes Sun, Oct 11 · 3 AM ET')
     expect(text).toContain('Bid $10')
     expect(text).not.toContain('Order ')
     expect(text).not.toContain('Waiver priority')

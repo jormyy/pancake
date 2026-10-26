@@ -15,9 +15,10 @@ AS $$
 DECLARE
   v_status waiver_claim_status;
   v_rows int;
+  v_process_date date;
 BEGIN
-  SELECT claim.status
-    INTO v_status
+  SELECT claim.status, claim.process_date
+    INTO v_status, v_process_date
     FROM waiver_claims AS claim
     JOIN league_members AS member
       ON member.id = claim.member_id
@@ -34,6 +35,10 @@ BEGIN
   IF v_status <> 'pending'::waiver_claim_status THEN
     RAISE EXCEPTION 'Claim is no longer pending.'
       USING ERRCODE = 'P0001';
+  END IF;
+
+  IF (v_process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+    RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
   END IF;
 
   UPDATE waiver_claims

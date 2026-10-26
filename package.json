@@ -3,6 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "test:db:continuous-faab": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/continuous-faab.sql",
+    "test:db:continuous-faab-schedule": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/continuous-faab-schedule.sql",
     "start": "expo start --web",
     "generate:brand-assets": "node scripts/generate-brand-assets.mjs",
     "web": "expo start --web",

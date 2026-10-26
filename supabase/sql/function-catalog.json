@@ -86,6 +86,7 @@
     "private.my_league_ids()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.my_member_ids()": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.nba_game_provider(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.next_waiver_run(timestamp with time zone,timestamp with time zone)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.normalize_legacy_push_token_write()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_announcement_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.notif_draft_audit_trigger()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

@@ -1,5 +1,4 @@
 import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-updates'
-import { canAddToIR } from '@/lib/pickup'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -187,13 +186,9 @@ export default function PlayerDetailScreen() {
     const showTransactions = leagueId != null && transactions.length > 0
     const action: PlayerHeaderAction | null = !rosterStatus && rosterStatusError ? {
         label: 'Retry', onPress: () => { void loadRosterStatus() }, disabled: !membershipValidated || !online, busy: false,
-    } : rosterStatus?.status === 'free_agent' ? {
-        label: currentLeague?.status !== 'offseason' && canAddToIR(player.injury_status, ownsRosterStatus ? pickupStateResource.roster ?? [] : [], currentLeague?.ir_slots ?? 2) ? 'Add to IR' : 'Add',
-        onPress: () => { if (actionsReady) void quickAdd.handleAdd(player) },
-        disabled: !actionsReady, busy: quickAdd.adding === id, blockedReason: quickAdd.addBlockedReason,
-    } : rosterStatus?.status === 'on_waivers' ? {
+    } : rosterStatus?.status === 'free_agent' || rosterStatus?.status === 'on_waivers' ? {
         label: rosterStatusResource.claimPending ? 'View claim' : 'Claim',
-        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) router.dismissTo('/roster?claims=1'); else void quickAdd.handleClaim(player) } },
+        onPress: () => { if (actionsReady) { if (rosterStatusResource.claimPending) router.dismissTo('/players?section=waivers'); else void quickAdd.handleClaim(player) } },
         disabled: !actionsReady, busy: quickAdd.adding === id,
     } : rosterStatus?.status === 'mine' ? {
         label: 'Lineup', onPress: () => push(`/(modals)/lineup?playerId=${encodeURIComponent(id)}`),

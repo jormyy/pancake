@@ -35,31 +35,43 @@ The [backend inventory](supabase-backend-route-inventory.md) maps public action 
 
 ## IR activation and swaps
 
-Direct free-agent adds and waiver claims can place eligible players straight into IR.
-Straight-to-IR and straight-to-taxi adds are always available without a league opt-in.
+Scheduled waiver claims can place eligible players straight into IR.
+Straight-to-IR and straight-to-taxi claim destinations need no extra league opt-in.
 An activation can swap an IR player with an eligible active player when both groups are full.
 The server checks the final roster and applies both moves in one transaction.
 A failed move leaves both players in their original places.
 Game locks and trade or waiver reservations still apply.
 
-## Waiver window
+## Continuous waivers
 
-A dropped player becomes eligible to clear 48 hours after the drop.
-The daily worker processes claims at 03:00 Eastern Time.
-Until processing, the player stays on waivers.
-`prevent_uncleared_waiver_free_agent_add` rejects free-agent adds for any uncleared entry with SQLSTATE `PA002`.
-The add RPC checks the wire before roster capacity.
-The trigger backs up other inserts.
-`create_waiver_claim_atomic` accepts claims on uncleared entries, including entries past their clearance time.
-League-wide reads hide expired uncleared entries, so clients can initially show a free agent.
-Every pickup entry point uses `PA002` to offer the claim flow.
-`npm run test:db:waiver-window` checks add rejection, claims before processing, rejection after processing, and worker pickup.
+Every available player requires a scheduled claim. No ordinary pickup changes ownership immediately.
+The worker awards claims at 03:00 America/New_York, including daylight saving changes.
+A claim submitted at the cutoff waits until the next daily run.
+Dropped players also complete their 48-hour hold before an eligible scheduled run.
+The server rejects instant-add RPCs and direct free-agent inserts with SQLSTATE `PA002`.
+Claims do not require a waiver-wire entry when the player is unowned.
+
+The highest valid FAAB bid wins. Equal bids use rolling team priority, then that team's claim order.
+Successful winners move behind other teams. Zero-dollar bids remain valid.
+Only a successful award spends FAAB or consumes an add. Its conditional drop occurs in the same transaction.
+Accepted-trade FAAB reservations reduce the available balance.
+Creation, editing, reordering, and cancellation preserve private bids.
+The scheduled cutoff freezes edits, reordering, and cancellation while a worker is delayed.
+Retries and overlapping workers cannot award the same player twice.
+
+Players exposes Players, Waivers, Rankings, and News in that order.
+Waivers loads when opened and shows available FAAB, the next run, priority, pending claims, and recent results.
+Player rows and profiles open the shared claim form. Pending claims link back to Waivers.
+The shared form also edits bids, destinations, and conditional drops.
+
+`test:db:continuous-faab` checks pending ownership, awards, balances, priority, retries, and stale-client rejection.
+`test:db:continuous-faab-schedule` checks cutoff and daylight saving boundaries.
 
 ## Weekly add limits
 
-`weekly_add_limit` caps free-agent adds and successful waiver claims per add week.
-`private.assert_weekly_add_available` checks capacity during free-agent adds, claim submission, and successful waiver processing.
-`drop_and_add_free_agent_atomic` reaches that guard through `add_free_agent_atomic`.
+`weekly_add_limit` caps successful waiver claims per add week.
+`private.assert_weekly_add_available` checks capacity during claim submission and successful waiver processing.
+Legacy instant-add calls fail without dropping or acquiring a player.
 
 Add weeks follow `season_weeks` in Eastern Time, as defined by `private.add_week_timezone`.
 Counts reset at midnight after the scheduled week ends.
@@ -192,12 +204,12 @@ A taxi exit still prevents a return to that team's taxi.
 Players must stay eligible while on taxi.
 New game counts or experience can make a taxi roster illegal.
 
-Eligible players can enter taxi through drafts, trades, free-agent adds, or waiver claims.
+Eligible players can enter taxi through drafts, trades, or scheduled waiver claims.
 Straight-to-taxi adds check eligibility, slots, tenure, and prior exits.
 Accepted trades hold their incoming taxi slots until settlement.
 Adds cannot use those slots, and claims fall back to active space or their planned drop.
 An add cannot request both IR and taxi.
-IR stays the automatic destination for eligible Out free agents.
+IR remains the default claim destination for eligible Out players when a slot is open.
 Straight-to-taxi adds remain allowed after the player's game starts.
 A `to_taxi` claim checks taxi placement again when the worker processes it.
 If taxi placement fails, the claim uses active roster space or its planned drop.

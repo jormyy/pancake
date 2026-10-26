@@ -65,7 +65,7 @@ BEGIN
     RAISE EXCEPTION 'Bid-only save overwrote committed preference';
   END IF;
   END IF;
-  UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id=v_league;
+  UPDATE waiver_wire_log SET clears_at=now()-interval '2 days' WHERE league_id=v_league;
   UPDATE waiver_claims SET process_date=current_date-1 WHERE league_id=v_league;
   FOR v_result IN SELECT * FROM process_due_waiver_claims_atomic(current_date,100) LOOP
     IF v_result.member_id=v_member THEN

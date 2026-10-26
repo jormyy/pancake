@@ -122,16 +122,11 @@ BEGIN
 
   PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, p_member_id);
 
-  PERFORM 1
-    FROM waiver_wire_log
-   WHERE league_id = v_claim.league_id
-     AND league_season_id = v_claim.league_season_id
-     AND player_id = v_claim.player_id
-     AND cleared_at IS NULL;
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'This player is no longer on waivers.'
-      USING ERRCODE = 'P0001';
+  IF (v_claim.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+    RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
+  END IF;
+  IF EXISTS (SELECT 1 FROM roster_players WHERE league_id=v_claim.league_id AND league_season_id=v_claim.league_season_id AND player_id=v_claim.player_id) THEN
+    RAISE EXCEPTION 'This player is already on a roster.' USING ERRCODE='P0001';
   END IF;
 
   IF p_drop_player_id IS NOT NULL AND p_drop_player_id = v_claim.player_id THEN

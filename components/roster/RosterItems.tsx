@@ -8,7 +8,7 @@ import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textS
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
-import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
+import { scheduledClaimLabel, scheduledClaimRunAt, WaiverClaim } from '@/lib/waivers'
 import { formatPoints } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
 
@@ -78,6 +78,8 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     const taxiSlots = useContext(PlayerEligibilityContext)
     const taxiEligible = taxiSlots > 0 && isTaxiEligible(claim.playerYearsExp ?? null, claim.playerCareerGames ?? null)
     const isPending = claim.status === 'pending'
+    const editable = isPending && scheduledClaimRunAt(claim.processDate).getTime() > Date.now()
+    const disabled = cancellingId === claim.id
     const usesFaab = waiverMode === 'faab'
     const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
     useEffect(() => {
@@ -88,7 +90,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         : claim.status === 'pending' ? colors.info
         : colors.dangerDark
     const statusText = claim.status === 'pending'
-        ? `Processes ${claimProcessTimeLabel(claim.clearsAt ?? null)}`
+        ? `Processes ${scheduledClaimLabel(claim.processDate)}`
         : claim.status === 'succeeded'
           ? 'Succeeded'
           : claim.status === 'failed_roster'
@@ -110,11 +112,11 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                         <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
                         {claim.failureReason ? <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text> : null}
                     </View>} />
-                {isPending ? (
+                {editable ? (
                     <MotionPressable
                         style={styles.actionButton}
                         onPress={() => onCancel(claim.id)}
-                        disabled={cancellingId === claim.id}
+                        disabled={disabled}
                         accessibilityRole="button"
                         accessibilityLabel={`Cancel claim for ${claim.playerName}`}
                     >
@@ -122,16 +124,17 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     </MotionPressable>
                 ) : null}
             </View>
-            {isPending && taxiEligible && onEditTaxi ? <View style={styles.claimEditRow}>
+            {editable && taxiEligible && onEditTaxi ? <View style={styles.claimEditRow}>
                 <Text style={styles.meta}>Place on taxi</Text>
-                <Switch value={claim.toTaxi ?? false} onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} accessibilityLabel={`Place ${claim.playerName} on taxi`} disabled={cancellingId === claim.id} />
+                <Switch value={claim.toTaxi ?? false} onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} accessibilityLabel={`Place ${claim.playerName} on taxi`} disabled={disabled} />
             </View> : null}
-            {isPending ? (
+            {editable ? (
                 <View style={styles.claimEditRow}>
                     {usesFaab ? (
                         <TextInput
                             style={styles.claimBidInput}
                             value={bidText}
+                            editable={!disabled}
                             onChangeText={(value) => {
                                 if (/^\d*$/.test(value)) setBidText(value)
                             }}
@@ -141,6 +144,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     ) : null}
                     <MotionPressable
                         style={styles.miniButton}
+                        disabled={disabled}
                         onPress={() => onReorder(claim.id, 'up')}
                         accessibilityRole="button"
                         accessibilityLabel={`Move ${claim.playerName} claim up`}
@@ -149,6 +153,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     </MotionPressable>
                     <MotionPressable
                         style={styles.miniButton}
+                        disabled={disabled}
                         onPress={() => onReorder(claim.id, 'down')}
                         accessibilityRole="button"
                         accessibilityLabel={`Move ${claim.playerName} claim down`}
@@ -158,6 +163,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     {usesFaab ? (
                         <MotionPressable
                             style={styles.miniButton}
+                        disabled={disabled}
                             onPress={() => onEditBid(claim, Math.max(0, parseInt(bidText || '0', 10) || 0))}
                             accessibilityRole="button"
                             accessibilityLabel={`Save bid for ${claim.playerName}`}

@@ -66,9 +66,12 @@ BEGIN
     VALUES(l,s,p,expected-interval '48 hours');
     IF i=1 THEN c1:=create_waiver_claim_atomic(l,m,p,NULL,u,0); ELSE c2:=create_waiver_claim_atomic(l,m,p,NULL,u,0); END IF;
   END LOOP;
-  IF (SELECT process_date FROM waiver_claims WHERE id=c1)<>run_day-1 OR (SELECT process_date FROM waiver_claims WHERE id=c2)<>run_day THEN
-    RAISE EXCEPTION 'ASSERT submission must derive the ET clearing day';
+  IF EXISTS (SELECT 1 FROM waiver_claims WHERE id IN(c1,c2)
+    AND (process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()) THEN
+    RAISE EXCEPTION 'ASSERT new submission must use a future ET run';
   END IF;
+  UPDATE waiver_claims SET process_date=run_day-1 WHERE id=c1;
+  UPDATE waiver_claims SET process_date=run_day WHERE id=c2;
   SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(run_day-1,100) WHERE claim_id IN(c1,c2);
   IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c1)<>'succeeded' OR (SELECT status FROM waiver_claims WHERE id=c2)<>'pending' THEN
     RAISE EXCEPTION 'ASSERT ET previous-day processing must select only the previous run claim';

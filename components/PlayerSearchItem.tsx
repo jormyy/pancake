@@ -126,12 +126,12 @@ function PlayerSearchItemImpl({
                         onPress={() => onAdd(item)}
                         disabled={isAdding || addDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={`${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
+                        accessibilityLabel={`${claimPending ? 'View claim for' : 'Claim'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                     >
                         <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
                             <MaterialIcons
-                                name={claimPending || isAdding || isWaiver ? 'schedule' : 'add'}
+                                name="schedule"
                                 size={controlSize.icon.md}
                                 color={blockedReason ? colors.textPlaceholder : isWaiver ? uiColors.waiverText : colors.primaryDark}
                             />

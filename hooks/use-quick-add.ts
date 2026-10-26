@@ -205,13 +205,13 @@ export function useQuickAdd({
         pendingAdds.current.set(player.id, token)
         setAdding(player.id)
         try {
-            const roster = await checkIR(player, leagueId, 'add')
-            if (roster) await beginAdd(player, leagueId, roster)
+            const roster = await checkIR(player, leagueId, 'claim')
+            if (roster) onClaimInstead?.(player)
         } finally {
             if (pendingAdds.current.get(player.id) === token) pendingAdds.current.delete(player.id)
             if (isCurrent(generation, identity)) setAdding((current) => current === player.id ? null : current)
         }
-    }, [memberId, leagueId, ownerIdentity, checkIR, beginAdd, explainBlock, isCurrent])
+    }, [memberId, leagueId, ownerIdentity, checkIR, onClaimInstead, explainBlock, isCurrent])
 
     // A claim runs the same IR gate as an add and then hands off to the claim
     // flow, which owns the add-limit gate with fresh state.
