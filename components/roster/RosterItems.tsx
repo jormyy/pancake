@@ -16,6 +16,7 @@ import { rosterSlotLabel } from '@/lib/roster-slots'
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 const ROW_AVATAR = 36
+const ROSTER_TAG_HEIGHT = 22
 export const ROSTER_SLOT_TAG_WIDTH = controlSize.minTouch
 
 /**
@@ -245,15 +246,17 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
             {(item.is_on_ir || allowIR && isIREligible(player.injury_status)) ? (
                 <View style={styles.rowActions}>
                     <MotionPressable
-                        style={[styles.actionButton, item.is_on_ir && styles.irButtonActive]}
+                        style={styles.rosterActionTarget}
                         onPress={() => onToggleIR(item)}
                         disabled={isBusy}
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
-                        <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
-                            {item.is_on_ir ? 'Activate' : 'IR'}
-                        </Text>
+                        <View style={[styles.rosterAction, item.is_on_ir && styles.irButtonActive]}>
+                            <Text style={[styles.actionButtonText, item.is_on_ir && styles.actionButtonTextActive]}>
+                                {item.is_on_ir ? 'Activate' : 'IR'}
+                            </Text>
+                        </View>
                     </MotionPressable>
                 </View>
             ) : null}
@@ -324,14 +327,16 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             </MotionPressable>
 
             <MotionPressable
-                style={[styles.actionButton, styles.taxiButtonActive]}
+                style={styles.rosterActionTarget}
                 onPress={() => onToggleTaxi(item)}
                 disabled={taxiingId === item.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Activate ${player.display_name}`}
                 accessibilityState={{ disabled: taxiingId === item.id }}
             >
-                <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
+                <View style={[styles.rosterAction, styles.taxiButtonActive]}>
+                    <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
+                </View>
             </MotionPressable>
         </View>
     )
@@ -357,7 +362,7 @@ const styles = StyleSheet.create({
 
     slotTag: {
         width: ROSTER_SLOT_TAG_WIDTH,
-        minHeight: 22,
+        minHeight: ROSTER_TAG_HEIGHT,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: radii.xs,
@@ -393,6 +398,17 @@ const styles = StyleSheet.create({
 
     rowActions: { flexDirection: 'row', gap: spacing.sm },
 
+    rosterActionTarget: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, justifyContent: 'center', flexShrink: 0 },
+    rosterAction: {
+        height: ROSTER_TAG_HEIGHT,
+        minWidth: controlSize.minTouch,
+        paddingHorizontal: spacing.sm,
+        borderRadius: radii.xs,
+        borderWidth: 1,
+        borderColor: colors.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     actionButton: {
         minHeight: controlSize.minTouch,
         minWidth: controlSize.minTouch,
