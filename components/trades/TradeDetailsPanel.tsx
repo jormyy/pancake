@@ -1,9 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useLeagueContext } from '@/contexts/league-context'
-import { isTradeTaxiEligible } from '@/lib/trade-assets'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
-import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 import { MotionPressable } from '@/components/Motion'
 import { MultiTeamTradeOverview } from '@/components/trades/MultiTeamTradeOverview'
 import {
@@ -77,12 +75,6 @@ export function TradeDetailsPanel({
             ) : null}
 
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
-            {trade.status === 'pending' && !currentLeague?.allow_inactive_trades && actions.onTaxiDestination ? trade.routedItems.flatMap((item) =>
-                item.kind === 'player' && item.toMemberId === myMemberId && (item.toTaxi ||
-                    (currentLeague?.taxi_slots ?? 0) > 0 && isTradeTaxiEligible(item)) ? [<TaxiAcquisitionChoice
-                    key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
-                    label={`Receive ${item.playerName} into taxi`}
-                    onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}
             <SavedTradeEstimate trade={trade} />
             {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <TradeActionButtons trade={trade} model={model} actions={actions} />
