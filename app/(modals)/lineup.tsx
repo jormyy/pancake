@@ -2,7 +2,6 @@ import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
-import { AutoSetModal } from '@/components/AutoSetModal'
 
 import { DaySelector } from '@/components/DaySelector'
 
@@ -207,6 +206,7 @@ function LineupScreen() {
     const [dataDate, setDataDate] = useState(selectedDate)
     const [bench, setBench] = useState<LineupPlayer[]>([])
     const [benchSlots, setBenchSlots] = useState(0)
+    const [reserves, setReserves] = useState<{ ir: LineupPlayer[]; taxi: LineupPlayer[] }>({ ir: [], taxi: [] })
     const [seasonOptimizerEnabled, setSeasonOptimizerEnabled] = useState(false)
     const [optimizerSaving, setOptimizerSaving] = useState(false)
     const [lineupLoading, setLineupLoading] = useState(true)
@@ -235,7 +235,7 @@ function LineupScreen() {
         && currentDay === todayET() && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
     [ownerKey, userId, currentDay])
 
-    const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'optimizerEnabled'>, saved: boolean) => {
+    const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi' | 'optimizerEnabled'>, saved: boolean) => {
         setDataOwnerKey(ownerKey)
         setCtx(value.context)
         setWeekDays(value.days)
@@ -246,6 +246,7 @@ function LineupScreen() {
         setStarters(value.starters)
         setBench(value.bench)
         setBenchSlots(value.benchSlots ?? 0)
+        setReserves({ ir: value.ir ?? [], taxi: value.taxi ?? [] })
         setSavedSnapshot(saved)
         if (saved) setContextAuthority(false)
     }, [ownerKey])
@@ -329,7 +330,7 @@ function LineupScreen() {
                     getWeeklyLineup(snapshotScope.memberId, snapshotScope.leagueId, lineupCtx.seasonId, lineupCtx.weekNumber, date),
                 ])
                 if (!requestIsCurrent(requestId, generation)) return false
-                const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, optimizerEnabled }
+                const value = { context: lineupCtx, date, days, starters: lineup.starters, bench: lineup.bench, benchSlots: lineup.benchSlots, ir: lineup.ir, taxi: lineup.taxi, optimizerEnabled }
                 saveLineupSnapshot(snapshotScope, generation, value)
                 applySnapshot(value, false)
                 const unchanged = streamRevision === leagueSnapshotRevision(snapshotScope.leagueId, 'lineup')
@@ -497,11 +498,8 @@ function LineupScreen() {
         saving,
         autoSetting,
         autoSetDisabled,
-        autoSetModalVisible,
-        setAutoSetModalVisible,
         handleTap,
         doAutoSet,
-        handleAutoSet,
     } = useLineupActions({
         actionContext,
         actionOwner,
@@ -564,7 +562,6 @@ function LineupScreen() {
         if (!actionContext) return
         const requestId = ++optimizerRequestRef.current
         const generation = sessionGeneration()
-        setAutoSetModalVisible(false)
         setOptimizerSaving(true)
         try {
             await setLineupOptimizerEnabled(
@@ -588,7 +585,6 @@ function LineupScreen() {
         if (!actionContext) return
         const requestId = ++optimizerRequestRef.current
         const generation = sessionGeneration()
-        setAutoSetModalVisible(false)
         setOptimizerSaving(true)
         try {
             await setLineupOptimizerEnabled(
@@ -615,9 +611,9 @@ function LineupScreen() {
               ? 'Could not load lineup.'
               : !snapshotScope && membershipValidated ? 'No active league.' : 'No active lineup yet.'
         return (
-            <DeferredContent ready={!lineupLoading} fallback={<Page title="Lineup"><PageHeader title="Lineup" onBack={() => back()} backLabel="Close lineup" /></Page>}>
+            <DeferredContent ready={!lineupLoading} fallback={<Page title="Lineup"><PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" /></Page>}>
             <Page title="Lineup">
-                <PageHeader title="Lineup" onBack={() => back()} backLabel="Close lineup" />
+                <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" />
                 <View style={[styles.empty, { minHeight: 320 }]} aria-busy={lineupLoading} accessibilityState={{ busy: lineupLoading }}>
                     <Text style={styles.emptyText}>{emptyMessage}</Text>
                     {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
@@ -646,26 +642,42 @@ function LineupScreen() {
                 title={`Week ${visibleCtx.weekNumber} lineup`}
                 onBack={() => back()}
                 backLabel="Close lineup"
-                actions={(
-                    <Button
-                        title="Auto-set"
-                        size="sm"
-                        variant="outline"
-                        onPress={handleAutoSet}
-                        disabled={readOnly || autoSetting || saving || rosterEmpty}
-                        accessibilityLabel="Open auto-set lineup options"
-                    />
-                )}
+                compact
             />
 
-            <View style={styles.autoSetDaily}>
-                <Text style={textStyles.body}>Auto-set daily</Text>
-                <Switch
-                    value={seasonOptimizerEnabled}
-                    onValueChange={(enabled) => enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()}
+            <View style={[styles.autoLineup, { marginHorizontal: padX }]}>
+                <Text style={styles.autoLineupTitle} accessibilityRole="header">Auto lineup</Text>
+                <View style={styles.autoLineupActions}>
+                    <Text style={textStyles.meta}>Set now</Text>
+                    <Button title="Today" size="inline" variant="outline"
+                        onPress={() => { void doAutoSet(todayET()) }}
+                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
+                        accessibilityLabel="Auto-set today" />
+                    <Button title="This week" size="inline" variant="outline"
+                        onPress={() => { void doAutoSet(null) }}
+                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
+                        accessibilityLabel="Auto-set this week" />
+                    <Button title="Rest of season" size="inline" variant="outline"
+                        onPress={() => { void doAutoSet(null, true) }}
+                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
+                        accessibilityLabel="Auto-set rest of season" />
+                </View>
+                <MotionPressable style={styles.autoLineupPreference}
+                    onPress={() => { void (seasonOptimizerEnabled ? handleDisableSeasonOptimizer() : handleEnableSeasonOptimizer()) }}
                     disabled={readOnly || optimizerSaving}
-                    accessibilityLabel="Auto-set daily"
-                />
+                    accessibilityRole="switch"
+                    aria-checked={seasonOptimizerEnabled}
+                    accessibilityLabel="Keep lineup updated automatically"
+                    accessibilityState={{ checked: seasonOptimizerEnabled, disabled: readOnly || optimizerSaving }}>
+                    <Text style={styles.autoLineupPreferenceLabel}>Keep updated automatically</Text>
+                    <View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                        <Switch
+                            value={seasonOptimizerEnabled}
+                            onValueChange={(enabled) => enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()}
+                            disabled={readOnly || optimizerSaving}
+                        />
+                    </View>
+                </MotionPressable>
             </View>
 
             {/* Day selector */}
@@ -782,6 +794,29 @@ function LineupScreen() {
                 </View>
                 ) : null}
                 </View>
+                {matchingDay && ownsLineup ? ([
+                    { label: 'IR', players: reserves.ir, count: currentLeague?.ir_slots ?? 0 },
+                    { label: 'Taxi', players: reserves.taxi, count: currentLeague?.taxi_slots ?? 0 },
+                ].map(({ label, players, count }) => Math.max(count, players.length) > 0 ? (
+                    <View key={label}>
+                        <Text style={styles.sectionLabel} accessibilityRole="header">{label}</Text>
+                        <View style={styles.card}>
+                            {Array.from({ length: Math.max(count, players.length) }, (_, index) => {
+                                const player = players[index]
+                                return (
+                                    <View key={player?.playerId ?? `empty-${index}`}
+                                        style={[styles.slotRow, index > 0 && styles.divider]}
+                                        accessibilityLabel={player ? `${label} ${player.displayName}` : `Empty ${label.toLowerCase()} slot`}>
+                                        <Text style={styles.slotLabel}>{label}</Text>
+                                        {player ? <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
+                                            positions={player.eligiblePositions} yearsExp={player.yearsExp} careerGames={player.careerGames}
+                                            injuryStatus={player.injuryStatus} /> : <Text style={styles.emptySlot}>Empty {label.toLowerCase()} slot</Text>}
+                                    </View>
+                                )
+                            })}
+                        </View>
+                    </View>
+                ) : null)) : null}
             </ScrollView>
             <ScreenStatusOverlay>
                 {readOnly && ((!matchingDay && !lineupLoading) || !online || lineupError) ? (
@@ -791,14 +826,6 @@ function LineupScreen() {
                 ) : null}
             </ScreenStatusOverlay>
 
-            <AutoSetModal
-                visible={autoSetModalVisible}
-                disabled={autoSetDisabled}
-                onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(todayET()) }}
-                onWholeWeek={() => { void doAutoSet(null) }}
-                onRestOfSeason={() => { void doAutoSet(null, true) }}
-            />
         </Page>
         </DeferredContent>
     )
@@ -807,7 +834,27 @@ function LineupScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    autoSetDaily: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+    autoLineup: {
+        marginTop: spacing.sm,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.sm,
+        borderRadius: radii.lg,
+        borderWidth: 1,
+        borderColor: colors.borderLight,
+        backgroundColor: colors.bgCard,
+    },
+    autoLineupTitle: { ...textStyles.body, fontWeight: fontWeight.bold, marginBottom: spacing.xxs },
+    autoLineupActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
+    autoLineupPreference: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: spacing.sm,
+        minHeight: controlSize.minTouch,
+        borderTopWidth: 1,
+        borderTopColor: colors.borderLight,
+    },
+    autoLineupPreferenceLabel: { ...textStyles.body, flex: 1 },
     preDraftHint: {
         padding: spacing.lg,
         borderRadius: radii.lg,
@@ -849,7 +896,7 @@ const styles = StyleSheet.create({
     errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
-    scroll: { paddingVertical: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
+    scroll: { paddingTop: spacing.sm, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
     scrollWide: { maxWidth: 2 * layout.lineupMaxWidth },
     columns: { gap: spacing.md },
     columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },

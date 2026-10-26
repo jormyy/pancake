@@ -18,6 +18,8 @@ export type LineupSnapshot = {
     starters: LineupSlot[]
     bench: LineupPlayer[]
     benchSlots: number
+    ir?: LineupPlayer[]
+    taxi?: LineupPlayer[]
     optimizerEnabled: boolean
 }
 const MAX_BYTES = 256 * 1024
@@ -68,6 +70,8 @@ export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, con
         || saved.starters.some((s) => !s || typeof s.slotType !== 'string' || !validPlayer(s.player))
         || !Array.isArray(saved.bench) || saved.bench.length > 128 || saved.bench.some((p) => !p || !validPlayer(p))
         || !Number.isInteger(saved.benchSlots) || saved.benchSlots < 0 || saved.benchSlots > 128
+        || [saved.ir, saved.taxi].some(players => players !== undefined
+            && (!Array.isArray(players) || players.length > 128 || players.some(p => !p || !validPlayer(p))))
         || typeof saved.optimizerEnabled !== 'boolean') return undefined
     if (savedDate !== date && clampDateToWeek(date, saved.days) !== savedDate) return undefined
     return typeof savedContext!.optimizerEnabled === 'boolean' ? { ...saved, optimizerEnabled: savedContext!.optimizerEnabled } : saved
