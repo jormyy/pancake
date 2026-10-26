@@ -15,15 +15,37 @@ assert.ok(['postgres:', 'postgresql:'].includes(target.protocol))
 assert.equal(target.hostname, '127.0.0.1')
 assert.equal(target.port, '57122')
 assert.equal(target.pathname, '/postgres')
+assert.equal(target.search, '')
+assert.equal(target.hash, '')
+const databaseEnvironment = {
+    ...process.env,
+    PGHOST: target.hostname,
+    PGHOSTADDR: target.hostname,
+    PGPORT: target.port,
+    PGDATABASE: target.pathname.slice(1),
+    PGUSER: decodeURIComponent(target.username),
+    PGPASSWORD: decodeURIComponent(target.password),
+}
+delete databaseEnvironment.PGSERVICE
+delete databaseEnvironment.PGSERVICEFILE
+const sql = query => {
+    const result = spawnSync('psql', ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', query], {
+        encoding: 'utf8',
+        env: databaseEnvironment,
+    })
+    if (result.error || result.status !== 0) throw new Error('Local database query failed: ' + (result.stderr?.trim() || 'psql unavailable'))
+    return result.stdout.trim()
+}
+if (process.argv.includes('--check-sql-errors')) {
+    assert.equal(sql('select 42'), '42')
+    assert.throws(() => sql('select 1/0'), error => String(error).includes('division by zero') && !String(error).includes(process.env.SUPABASE_DB_URL))
+    console.log('Local SQL success and failure checks pass without connection details')
+    process.exit(0)
+}
 const output = path.resolve(process.env.EXACT_CONTROLS_OUTPUT)
 const release = await readPwaRelease(path.resolve(process.env.EXACT_CONTROLS_RELEASE))
 const origin = 'http://127.0.0.1:57198'
 const admin = createClient(process.env.E2E_SUPABASE_URL, process.env.E2E_PANCAKE_SUPABASE_SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
-const sql = query => {
-    const result = spawnSync('psql', [process.env.SUPABASE_DB_URL, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', query], { encoding: 'utf8' })
-    if (result.error || result.status !== 0) throw new Error('Local database query failed: ' + (result.stderr?.trim() || 'psql unavailable'))
-    return result.stdout.trim()
-}
 const rows = query => JSON.parse(sql(`select coalesce(json_agg(result),'[]') from (${query}) result`))
 const db = async query => {
     const { data, error } = await query

@@ -16,12 +16,26 @@ assert.ok(['postgres:', 'postgresql:'].includes(databaseTarget.protocol))
 assert.equal(databaseTarget.hostname, '127.0.0.1')
 assert.equal(databaseTarget.port, '57122')
 assert.equal(databaseTarget.pathname, '/postgres')
+assert.equal(databaseTarget.search, '')
+assert.equal(databaseTarget.hash, '')
+const databaseEnvironment = {
+    ...process.env,
+    PGHOST: databaseTarget.hostname,
+    PGHOSTADDR: databaseTarget.hostname,
+    PGPORT: databaseTarget.port,
+    PGDATABASE: databaseTarget.pathname.slice(1),
+    PGUSER: decodeURIComponent(databaseTarget.username),
+    PGPASSWORD: decodeURIComponent(databaseTarget.password),
+}
+delete databaseEnvironment.PGSERVICE
+delete databaseEnvironment.PGSERVICEFILE
 const sql = (q) => {
     const result = spawnSync(
         'psql',
-        [process.env.SUPABASE_DB_URL, '-XAt', '-v', 'ON_ERROR_STOP=1', '-c', q],
+        ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', q],
         {
             encoding: 'utf8',
+            env: databaseEnvironment,
         },
     )
     if (result.error || result.status !== 0) {
