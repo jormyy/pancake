@@ -94,11 +94,14 @@ A failed season read shows Retry. Existing rows remain visible during recovery. 
 
 The lineup title uses the compact header variant: 16px text and a 49px row at standard text size.
 Other title headers keep their existing size. Back controls retain 44px touch targets and safe-area spacing.
-One compact control strip sits directly below the title, without a card title or divider.
-Today, This week, and Rest of season remain visible beside the separate automatic switch.
-The controls use 13px text and at least 44px touch targets.
+Two compact control rows sit directly below the title, without a card title or divider.
+The first row has equal-width Today, This week, and Season buttons with single-line 13px labels.
+Season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
+The second row places Keep updated automatically on the left and the switch on the right.
+Both rows keep 44px touch targets.
 Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
-Action and switch text wrap within their targets at larger text sizes.
-The day selector follows the strip. The first section uses 2px top spacing.
+Action labels stay on one line at 360px and 390px, including text scale 1.3.
+The visible date bar sits below the scrolling lineup list, above the app tabs.
+The first section uses 2px top spacing.
 Every empty starter, bench, IR, and taxi place remains individually visible.
 Players and slots retain the manual move flow. Offline and read-only states disable lineup changes.

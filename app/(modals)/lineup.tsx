@@ -650,14 +650,14 @@ function LineupScreen() {
                     {[
                         { title: 'Today', label: 'Auto-set today', run: () => { void doAutoSet(todayET()) } },
                         { title: 'This week', label: 'Auto-set this week', run: () => { void doAutoSet(null) } },
-                        { title: 'Rest of season', label: 'Auto-set rest of season', run: () => { void doAutoSet(null, true) } },
+                        { title: 'Season', label: 'Auto-set rest of season', run: () => { void doAutoSet(null, true) } },
                     ].map(({ title, label, run }) => (
                         <MotionPressable key={label} style={styles.autoLineupAction}
                             onPress={run}
                             disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
                             accessibilityRole="button"
                             accessibilityLabel={label}>
-                            <Text style={styles.autoLineupActionLabel}>{title}</Text>
+                            <Text style={styles.autoLineupActionLabel} numberOfLines={1}>{title}</Text>
                         </MotionPressable>
                     ))}
                 </View>
@@ -678,11 +678,6 @@ function LineupScreen() {
                     </View>
                 </MotionPressable>
             </View>
-
-            {/* Day selector */}
-            {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
-            )}
 
             {lineupError && online ? (
                 <View style={styles.errorBanner}>
@@ -817,6 +812,11 @@ function LineupScreen() {
                     </View>
                 ) : null)) : null}
             </ScrollView>
+            {/* Day selector */}
+            {weekDays.length > 0 && (
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
+            )}
+
             <ScreenStatusOverlay>
                 {readOnly && ((!matchingDay && !lineupLoading) || !online || lineupError) ? (
                     <View style={styles.statusBanner}>
@@ -835,11 +835,8 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const styles = StyleSheet.create({
     autoLineup: {
         marginTop: spacing.xxs,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
     },
-    autoLineupActions: { width: controlSize.minTouch * 4 + spacing.lg, flexDirection: 'row', gap: spacing.xs },
+    autoLineupActions: { flexDirection: 'row', gap: spacing.xs },
     autoLineupAction: {
         flex: 1,
         minHeight: controlSize.minTouch,
@@ -852,7 +849,6 @@ const styles = StyleSheet.create({
     },
     autoLineupActionLabel: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.semibold, textAlign: 'center' },
     autoLineupPreference: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
