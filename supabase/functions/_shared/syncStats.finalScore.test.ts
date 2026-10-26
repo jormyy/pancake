@@ -6,7 +6,7 @@ Deno.env.set('NBA_CDN_BASE_URL', 'http://127.0.0.1:56280/static/json')
 const { syncLiveStatsGames } = await import('./syncStats.ts')
 const statistics = Object.fromEntries(['assists', 'blocks', 'fieldGoalsAttempted', 'fieldGoalsMade', 'foulsPersonal', 'freeThrowsAttempted', 'freeThrowsMade', 'plusMinusPoints', 'points', 'reboundsDefensive', 'reboundsOffensive', 'reboundsTotal', 'steals', 'threePointersAttempted', 'threePointersMade', 'turnovers'].map(key => [key, 0]))
 const player = (personId: number) => ({ personId, name: `Synthetic ${personId}`, played: '1', statistics: { ...statistics, minutes: 'PT1M00.00S' } })
-type Box = { gameStatus: number; gameStatusText?: string; homeScore?: unknown; awayScore?: unknown; homePlayers?: unknown[] }
+type Box = { sourceTime?: string; gameStatus: number; gameStatusText?: string; homeScore?: unknown; awayScore?: unknown; homePlayers?: unknown[] }
 
 type Stored = { status: string; home_score?: number; away_score?: number; game_status_text?: string | null }
 
@@ -22,14 +22,14 @@ async function exercise(box: Box, fail: (path: string, count: number) => object 
     const error = fail(url.pathname, calls.filter(call => call.path === url.pathname).length)
     if (error) return Response.json(error, { status: 409 })
     if (url.port === '56280') {
-      return Response.json({ game: { gameStatus: box.gameStatus, gameStatusText: box.gameStatusText, period: 4, gameClock: 'PT00M00.00S',
+      return Response.json({ meta: { time: box.sourceTime }, game: { gameStatus: box.gameStatus, gameStatusText: box.gameStatusText, period: 4, gameClock: 'PT00M00.00S',
         homeTeam: { score: box.homeScore, players: box.homePlayers ?? [player(1)] }, awayTeam: { score: box.awayScore, players: [player(2)] } } })
     }
     equal(url.port, '56221')
     if (url.pathname.endsWith('/assert_nba_game_unambiguous')) return Response.json(null)
     if (url.pathname.endsWith('/resolve_player_imports_atomic')) return Response.json({ results: [0, 1].map(index => ({ index, player_id: `player-${index}`, action: 'updated' })), stale_draft_numbers_cleared: 0 })
     if (url.pathname.endsWith('/save_live_scoreboard_atomic')) return Response.json(true)
-    equal(url.pathname, `/rest/v1/rpc/${box.gameStatus === 3 ? 'save_game_stats_atomic' : 'save_live_game_stats_atomic'}`)
+    equal(url.pathname, `/rest/v1/rpc/${box.sourceTime && box.gameStatus === 3 ? 'save_final_game_snapshot_atomic' : box.gameStatus === 3 ? 'save_game_stats_atomic' : 'save_live_game_stats_atomic'}`)
     return Response.json(2)
   }
   try {
@@ -107,4 +107,14 @@ Deno.test('a failed final score write leaves the stats unsynced for the next tic
     path => path.endsWith('/save_live_scoreboard_atomic') ? { code: 'PT409', message: 'Game inputs changed. Retry.' } : null)
   equal(result.failures.length, 1)
   equal(names(rpc).includes('save_game_stats_atomic'), false)
+})
+
+Deno.test('published final revisions keep scores and stats in one versioned write', async () => {
+  const { result, rpc } = await exercise({ sourceTime: '2026-10-22 00:33:23.904611', gameStatus: 3, homeScore: 103, awayScore: 110 })
+  deepStrictEqual(result.failures, [])
+  deepStrictEqual(names(rpc), ['assert_nba_game_unambiguous', 'resolve_player_imports_atomic', 'save_final_game_snapshot_atomic'])
+  const payload = rpc[2].body as Record<string, unknown>
+  equal(payload.p_source_updated_at, '2026-10-22T00:33:23.904611Z')
+  equal(payload.p_home_score, 103)
+  equal(payload.p_away_score, 110)
 })

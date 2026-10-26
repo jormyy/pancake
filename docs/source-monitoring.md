@@ -309,3 +309,5 @@ The existing claim, retry, dispatch, and empty-body contract stay unchanged.
 Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.
 
 Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete. Their completion regressions verify stored scores and preserve prior data on failed refreshes.
+
+Final NBA snapshots retain the provider publication time. Verified corrections set a newer revision, and the database rejects unversioned writes or skips older snapshots. Scores and stat rows commit together for each accepted revision.

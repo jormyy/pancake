@@ -5445,6 +5445,18 @@ export type Database = {
         Args: { p_revocation_hash: string; p_token: string }
         Returns: boolean
       }
+      save_final_game_snapshot_atomic: {
+        Args: {
+          p_away_score: number
+          p_game_id: string
+          p_home_score: number
+          p_provider_game_id: string
+          p_source_updated_at: string
+          p_stats: Json
+          p_status_text: string
+        }
+        Returns: number
+      }
       save_game_stats_atomic: {
         Args: {
           p_game_id: string

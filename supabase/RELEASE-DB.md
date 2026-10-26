@@ -3,13 +3,15 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261028000100`.
-Apply `20261028000100_recheck_final_stats.sql` after that baseline.
+Production currently stops at migration `20261028000200`.
+Apply `20261028000100_recheck_final_stats.sql`, then `20261028000200_fence_final_stat_revisions.sql`.
 It allows overdue final-game checks without another active game.
 It also queues one seven-day correction window per Eastern date, starting after 06:20.
 The existing fenced worker processes that window one game at a time.
 The migration preserves game statistics, player identities, accounts, and league settings.
-Deploy `sync-players` for the placeholder filter and `backfill` to retain final team scores.
+Deploy `sync-players` for the placeholder filter.
+Deploy `sync-stats`, `sync-scores`, `live-poll`, `backfill`, and `season-boundary` before recording verified source revisions.
+Final snapshots carry their publication time so an older feed cannot overwrite a newer verified result.
 The current frontend and older Edge artifacts remain compatible with the added scheduler function.
 
 Verify the migration on the private stack with `npm run test:db:stats-corrections`.

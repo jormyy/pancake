@@ -1,4 +1,5 @@
 import type { NBABoxScorePlayer } from './nba.ts'
+import { sourceTimestamp } from './sourceTimestamp.ts'
 
 export type CdnGamePlayer = NBABoxScorePlayer & { isHome?: boolean }
 
@@ -10,6 +11,7 @@ const CDN_HEADERS = {
 }
 
 export type CdnGame = {
+  sourceUpdatedAt?: string
   gameStatus?: number
   gameEt?: string
   homeTeam?: { teamTricode?: string; score?: number; players?: NBABoxScorePlayer[] }
@@ -17,6 +19,7 @@ export type CdnGame = {
 }
 
 type CdnBoxScore = {
+  meta?: { time?: unknown }
   game?: CdnGame
 }
 
@@ -35,7 +38,9 @@ export async function fetchCdnGameOrMiss(gameId: string, baseUrl: string): Promi
       throw new Error(`CDN ${res.status}`)
     }
     const data = await res.json() as CdnBoxScore
-    return data.game ?? null
+    if (!data.game) return null
+    const revision = sourceTimestamp(data.meta?.time)
+    return revision ? { ...data.game, sourceUpdatedAt: revision } : data.game
   } finally {
     clearTimeout(timeout)
   }

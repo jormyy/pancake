@@ -13,7 +13,7 @@ const numeric = ['assists','blocks','fieldGoalsAttempted','fieldGoalsMade','foul
 const payload = () => {
   const players = playerIds.map((_, i) => ({ personId: nbaIds[i], name: `Synthetic ${token} ${i}`, played: '1', statistics: mode === 'partial' ? {minutes:'PT30M00.00S'} : {...Object.fromEntries(numeric.map(k=>[k,0])),minutes:'PT30M00.00S',points:corrected?30+i:20+i} }))
   if(mode === 'missing-stat') delete (players[1].statistics as any).reboundsTotal
-  return {game:{gameId:gameKey,gameStatus:3,gameEt:`${year-1}-10-15T19:00:00`,homeTeam:{teamTricode:'XCH',score:corrected?30:20,players:[players[0]]},awayTeam:{teamTricode:'XCA',score:corrected?31:21,players:mode==='empty-team'?[]:[players[1]]}}}
+  return {meta:{time:new Date().toISOString()},game:{gameId:gameKey,gameStatus:3,gameEt:`${year-1}-10-15T19:00:00`,homeTeam:{teamTricode:'XCH',score:corrected?30:20,players:[players[0]]},awayTeam:{teamTricode:'XCA',score:corrected?31:21,players:mode==='empty-team'?[]:[players[1]]}}}
 }
 const provider = Deno.serve({hostname:'127.0.0.1',port:0,onListen(){}},request=>{
   const pathname = new URL(request.url).pathname
@@ -36,7 +36,7 @@ globalThis.fetch=async(input,init)=>{
   const result=await nativeFetch(input,init)
   if(result.ok && init && 'body' in init && typeof init.body==='string'){
     const body=JSON.parse(init.body),method='method' in init?init.method:null
-    if(url.pathname==='/rest/v1/rpc/save_game_stats_atomic'&&method==='POST'&&body.p_is_final)writes.push('atomic-stats-and-marker')
+    if(method==='POST'&&((url.pathname==='/rest/v1/rpc/save_game_stats_atomic'&&body.p_is_final)||url.pathname==='/rest/v1/rpc/save_final_game_snapshot_atomic'))writes.push('atomic-stats-and-marker')
     if(url.pathname==='/rest/v1/player_game_stats'&&method==='POST')writes.push('stats')
     if(url.pathname==='/rest/v1/nba_games'&&method==='PATCH'&&body.stats_synced_at)writes.push('marker')
     if(url.pathname==='/rest/v1/backfill_game_attempts'&&body.status==='completed')writes.push('completed-ledger')

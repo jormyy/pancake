@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261028000100",
+  "candidateVersion": "20261028000200",
   "common": {
     "functions": [
       {
@@ -1326,6 +1326,10 @@
     {
       "filename": "20261028000100_recheck_final_stats.sql",
       "sha256": "bc03fede04bcdcaf05c6cb05991b8712bc2b72c2c3b67b8bdbf9e6f44e4f2bcd"
+    },
+    {
+      "filename": "20261028000200_fence_final_stat_revisions.sql",
+      "sha256": "3f01462681702344db6327f9e8b62edd2dec396322d6ee27c8b88866123d4691"
     }
   ],
   "preMigration": {

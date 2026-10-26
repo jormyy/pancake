@@ -1,6 +1,6 @@
 import { assertGameImports, assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
-import { buildStatRow, recordBoxSides, resolveBoxScorePlayers, saveFinalScore, saveGameStats, validateBoxScorePlayers } from './syncStats.ts'
+import { buildStatRow, recordBoxSides, resolveBoxScorePlayers, saveFinalGameStats, validateBoxScorePlayers } from './syncStats.ts'
 import { errorMessage } from './responses.ts'
 import {
   type BackfillRun,
@@ -66,8 +66,7 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       validateBoxScorePlayers(game, gameId)
       await recordBoxSides(game, gameId)
       const players = await resolveBoxScorePlayers(game, gameId)
-      await saveFinalScore({ id: dbGame.id, status: 'Final' }, gameId, game)
-      await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
+      await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number, game)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
       completed++
     } catch (e) {
@@ -163,8 +162,7 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
     await recordBoxSides(game, gameId)
     const players = await resolveBoxScorePlayers(game, gameId)
-    await saveFinalScore({ id: dbGame.id, status: 'Final' }, gameId, game)
-    await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number)
+    await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number, game)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
     return 'completed'
   } catch (e) {
@@ -236,11 +234,12 @@ async function upsertCdnStats(
   providerGameId: string,
   seasonYear: number,
   weekNumber: number,
+  game: CdnGame,
 ): Promise<void> {
   const stats = players.map(({ player, playerId }) =>
     buildStatRow(player, playerId, dbGameId, seasonYear, weekNumber))
   if (!stats.length) throw new Error('No CDN player stats parsed from final box score')
-  await saveGameStats(dbGameId, providerGameId, stats, true)
+  await saveFinalGameStats({ id: dbGameId, status: 'Final' }, providerGameId, stats, game)
 }
 
 async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number): Promise<DbGame> {
