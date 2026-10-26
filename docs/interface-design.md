@@ -101,7 +101,9 @@ The second row places Keep updated automatically on the left and the switch on t
 Both rows keep 44px touch targets.
 Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
 Action labels stay on one line at 360px and 390px, including text scale 1.3.
-The visible date bar sits below the scrolling lineup list, above the app tabs.
-The first section uses 2px top spacing.
+The horizontal day row sits directly below the automatic switch and above Starters.
+Its shared compact spacing leaves a 2px gap above and below the date targets.
+The controls and first section add no extra vertical padding.
+Other section labels keep their existing spacing.
 Every empty starter, bench, IR, and taxi place remains individually visible.
 Players and slots retain the manual move flow. Offline and read-only states disable lineup changes.

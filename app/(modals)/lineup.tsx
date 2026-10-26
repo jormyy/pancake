@@ -645,7 +645,7 @@ function LineupScreen() {
                 compact
             />
 
-            <View style={[styles.autoLineup, { marginHorizontal: padX }]} accessibilityLabel="Auto lineup">
+            <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <View style={styles.autoLineupActions}>
                     {[
                         { title: 'Today', label: 'Auto-set today', run: () => { void doAutoSet(todayET()) } },
@@ -679,6 +679,11 @@ function LineupScreen() {
                 </MotionPressable>
             </View>
 
+            {/* Day selector */}
+            {weekDays.length > 0 && (
+                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
+            )}
+
             {lineupError && online ? (
                 <View style={styles.errorBanner}>
                     <Text style={styles.errorBannerText}>{lineupError}</Text>
@@ -709,7 +714,7 @@ function LineupScreen() {
                 <View style={[styles.column, twoColumn && styles.columnWide]}>
                 {/* Starters */}
                 <Text
-                    style={styles.sectionLabel}
+                    style={[styles.sectionLabel, styles.firstSectionLabel]}
                     role="heading"
                     aria-level={2}
                     accessibilityRole="header"
@@ -812,11 +817,6 @@ function LineupScreen() {
                     </View>
                 ) : null)) : null}
             </ScrollView>
-            {/* Day selector */}
-            {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
-            )}
-
             <ScreenStatusOverlay>
                 {readOnly && ((!matchingDay && !lineupLoading) || !online || lineupError) ? (
                     <View style={styles.statusBanner}>
@@ -833,9 +833,6 @@ function LineupScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
-    autoLineup: {
-        marginTop: spacing.xxs,
-    },
     autoLineupActions: { flexDirection: 'row', gap: spacing.xs },
     autoLineupAction: {
         flex: 1,
@@ -897,7 +894,7 @@ const styles = StyleSheet.create({
     errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
-    scroll: { paddingTop: spacing.xxs, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
+    scroll: { paddingTop: 0, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
     scrollWide: { maxWidth: 2 * layout.lineupMaxWidth },
     columns: { gap: spacing.md },
     columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -910,6 +907,8 @@ const styles = StyleSheet.create({
         marginBottom: spacing.xxs,
         marginLeft: spacing.xs,
     },
+
+    firstSectionLabel: { marginBottom: 0 },
 
     card: {
         backgroundColor: colors.bgCard,
