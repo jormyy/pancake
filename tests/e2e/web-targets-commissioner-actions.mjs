@@ -158,7 +158,10 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await wait(async () => Boolean((await db(fixture.admin.from('leagues').select('deleted_at').eq('id', fixture.league.id).single())).deleted_at))
     await wait(async () => new URL(page.url()).pathname === '/league')
     assert.deepEqual(await rounds(2), final)
-    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true,
+    await button('Create a League').waitFor()
+    await button('Join with Invite Code').waitFor()
+    while (await button('Dismiss').count()) await press(button('Dismiss').last())
+    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true, emptyLeagueActionsVisible: true,
       scoring, fixture: 'Ten fictional teams, one scoring player each, four playoff teams, two weeks per round. Synthetic historical stats pass through the real scoring worker; no expected winner is written.' }
   })
 }
