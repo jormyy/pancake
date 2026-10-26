@@ -15,8 +15,6 @@ export async function assertClientScores(c, { week = null, previous = {}, expect
     const history = await sqlJson(`SELECT json_build_object('roster',(SELECT coalesce(json_agg(r),'[]') FROM roster_players r WHERE league_season_id='${c.leagueSeasonId}'),'transactions',(SELECT coalesce(json_agg(t),'[]') FROM roster_transactions t WHERE league_season_id='${c.leagueSeasonId}'),'stats',(SELECT coalesce(json_agg(r),'[]') FROM (SELECT s.*,g.week_number,g.game_time,g.game_date AS lineup_date,p.position,p.eligible_positions FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id JOIN players p ON p.id=s.player_id WHERE g.season_year=${c.seasonYear ?? season.year} AND g.week_number BETWEEN ${startWeek} AND ${endWeek} AND g.game_time<=now() AND s.player_id IN (SELECT player_id FROM roster_players WHERE league_season_id='${c.leagueSeasonId}' UNION SELECT player_id FROM roster_transactions WHERE league_season_id='${c.leagueSeasonId}')) r))`, 'Independent roster-history candidates')
     input.candidates = rosterCandidates({ ...history, members: c.users.map(user => user.memberId) })
   } else input.candidates = []
-  assert.equal(input.starterLimit, 2, 'The declared scenario has two UTIL starters')
-  assert.ok(input.slots.every(row => row.slot_count === 0 || ['UTIL', 'BE', 'IR'].includes(row.slot_type)), 'Independent maximum oracle requires the declared UTIL/bench scenario')
   const result = checkMatchupPoints({ matchups, ...input, previous, expectedCount })
   for (const matchup of matchups.filter(row => row.is_finalized)) {
     const allowed = (c.seasonYear ?? season.year) === season.year && matchup.week_number === 2 && matchup.matchup_type === 'regular_season' ? c.plannedEmptyWeekMembers ?? [] : []

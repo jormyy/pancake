@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { maximumAssignment } from './position-oracle.mjs'
 
 const roundPoints = value => Math.sign(value) * Math.round(Math.abs(Number(value.toFixed(8))) * 100) / 100
 const categories = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'three_pointers_made', 'field_goals_made', 'field_goals_attempted', 'free_throws_made', 'free_throws_attempted']
@@ -16,7 +17,7 @@ export function expectedWinner(row) {
   return row.away_max_possible_points > row.home_max_possible_points ? row.away_member_id : row.home_member_id
 }
 
-export function checkMatchupPoints({ matchups, starters, candidates = starters, starterLimit = 2, settings, expectedCount, previous = {} }) {
+export function checkMatchupPoints({ matchups, starters, candidates = starters, starterLimit = 2, slots = null, settings, expectedCount, previous = {} }) {
   assert.ok(matchups.length > 0, 'Expected matchup rows must exist')
   if (expectedCount != null) assert.equal(matchups.length, expectedCount, 'Expected matchup count')
   const observations = {}, corrections = []
@@ -38,10 +39,14 @@ export function checkMatchupPoints({ matchups, starters, candidates = starters, 
         const key = row.lineup_date ?? row.game_id
         const values = days.get(key) ?? new Map()
         const player = row.player_id
-        values.set(player, (values.get(player) ?? 0) + statPoints(row, settings))
+        const prior = values.get(player)
+        if (prior && slots) assert.deepEqual(prior.eligible_positions ?? [prior.position], row.eligible_positions ?? [row.position], 'Same-day position eligibility must be consistent')
+        values.set(player, { ...row, points: (prior?.points ?? 0) + statPoints(row, settings) })
         days.set(key, values)
       }
-      const maximum = [...days.values()].reduce((sum, byPlayer) => sum + [...byPlayer.values()].sort((a, b) => b - a).slice(0, starterLimit).reduce((total, value) => total + Math.max(0, value), 0), 0)
+      const maximum = [...days.values()].reduce((sum, byPlayer) => sum + (slots
+        ? maximumAssignment([...byPlayer.values()], slots).points
+        : [...byPlayer.values()].map(row => row.points).sort((a, b) => b - a).slice(0, starterLimit).reduce((total, value) => total + Math.max(0, value), 0)), 0)
       if (matchup.is_finalized) assert.equal(Number(matchup[`${side}_max_possible_points`]), roundPoints(maximum), `${matchup.id}: ${side} maximum from daily roster candidates`)
       const before = previous[matchup.id]
       if (before && observed[side] < before[side]) {
