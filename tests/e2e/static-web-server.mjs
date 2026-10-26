@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +23,9 @@ function readArg(name, fallback) {
 const root = path.resolve(process.cwd(), readArg('root', path.join(__dirname, '../../dist')));
 const port = Number(readArg('port', process.env.PORT ?? '8081'));
 const host = readArg('host', process.env.HOST ?? '127.0.0.1');
+
+const deploymentRoutes = JSON.parse(readFileSync(path.join(__dirname, '../../vercel.json'), 'utf8')).routes ?? []
+const assetMiss = deploymentRoutes.find(route => route.status === 404 && route.headers?.['Cache-Control'] === 'no-store')
 
 const contentTypes = new Map([
   ['.css', 'text/css; charset=utf-8'],
@@ -95,8 +98,10 @@ function resolveRoute(decodedPath) {
   const stripped = normalized.replace(/^[/\\]+/, '');
   const withoutSlash = stripped === '' ? 'index' : stripped.replace(/[/\\]$/, '');
 
+  const exact = existingFile(path.join(root, stripped))
+  if (!exact && assetMiss && new RegExp(assetMiss.src).test(decodedPath)) return null
   return (
-    existingFile(path.join(root, stripped)) ??
+    exact ??
     existingFile(path.join(root, `${withoutSlash}.html`)) ??
     existingFile(path.join(root, withoutSlash, 'index.html')) ??
     existingFile(dynamicTemplate(withoutSlash)) ??
@@ -124,7 +129,7 @@ const server = createServer((request, response) => {
   }
   const filePath = resolveRoute(decoded.path);
   if (!filePath) {
-    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
     response.end('Not found');
     return;
   }

@@ -266,3 +266,15 @@ it('shows the owning team on the third header line for your player', async () =>
     }))
     expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text')).map(node => node.props.children)).toContain('Maple Hoops')
 })
+
+it('keeps the projection space when the late card arrives or disappears', async () => {
+    await render(React.createElement(NextProjectionCard, { projection: null, loading: true, reserveSpace: true }))
+    const slot = screen.root.findByProps({ testID: 'player-projection-slot' })
+    const initialStyle = slot.props.style
+    const projection = { next_game_date: '2099-10-24', next_game_time: '2099-10-24T23:00:00Z', next_game_opponent: 'vs BOS', projection_fantasy_points: 42.8 } as LeagueProjectionRow
+    await act(async () => screen.update(React.createElement(NextProjectionCard, { projection, reserveSpace: true })))
+    expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
+    expect(text()).toContain('42.8')
+    await act(async () => screen.update(React.createElement(NextProjectionCard, { projection: null, reserveSpace: true })))
+    expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
+})

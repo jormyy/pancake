@@ -14,7 +14,7 @@ vi.mock('@/lib/session-cache-registry', async importOriginal => ({
 }))
 
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('@/lib/players', () => ({
+vi.mock('@/lib/players', () => ({ getPlayerSeasonAverages: () => new Promise(() => {}), getPlayerAverageFantasyPoints: async () => null,
     getAvailableSeasons: vi.fn(() => mocks.pending),
     getPlayer: vi.fn(() => mocks.pending),
     getPlayerTransactionHistory: vi.fn(() => mocks.pending),

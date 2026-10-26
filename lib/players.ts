@@ -259,6 +259,29 @@ export async function getAvailableSeasons(playerId: string): Promise<number[]> {
     return data.map((r) => r.season_year).filter((year): year is number => year != null)
 }
 
+export async function getPlayerAverageFantasyPoints(playerId: string, leagueId: string, seasonYear: number): Promise<number | null> {
+    const { data, error } = await supabase.from('v_player_avg_fantasy_points')
+        .select('avg_fantasy_points').eq('player_id', playerId).eq('league_id', leagueId).eq('season_year', seasonYear).maybeSingle()
+    if (error) throw error
+    return data?.avg_fantasy_points ?? null
+}
+
+export async function getPlayerSeasonAverages(playerId: string, seasonYear: number): Promise<PlayerSeasonAverages | null> {
+    const { data, error } = await supabase.from('mv_player_season_averages')
+        .select('*').eq('player_id', playerId).eq('season_year', seasonYear).maybeSingle()
+    if (error) throw error
+    if (!data || !data.games_played) return null
+    return {
+        gamesPlayed: data.games_played,
+        avgPoints: data.avg_points ?? 0, avgRebounds: data.avg_rebounds ?? 0,
+        avgAssists: data.avg_assists ?? 0, avgSteals: data.avg_steals ?? 0, avgBlocks: data.avg_blocks ?? 0,
+        avgTurnovers: data.avg_turnovers ?? 0, avgThreePointersMade: data.avg_three_pointers_made ?? 0,
+        avgFieldGoalsMade: data.avg_field_goals_made ?? 0, avgFieldGoalsAttempted: data.avg_field_goals_attempted ?? 0,
+        avgFreeThrowsMade: data.avg_free_throws_made ?? 0, avgFreeThrowsAttempted: data.avg_free_throws_attempted ?? 0,
+        avgMinutesPlayed: data.avg_minutes_played ?? 0, doubleDoubles: data.double_doubles ?? 0, tripleDoubles: data.triple_doubles ?? 0,
+    }
+}
+
 export async function getPlayerTransactionHistory(
     playerId: string,
     leagueId: string,

@@ -1,6 +1,5 @@
 import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-updates'
 import { canAddToIR } from '@/lib/pickup'
-import { DeferredContent } from '@/components/ui/DeferredContent'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { GameLogTable } from '@/components/player/GameLogTable'
@@ -68,9 +67,8 @@ export default function PlayerDetailScreen() {
     const {
         player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
         playerError,
-        initialSettled,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonLoading, seasonError,
+        seasonAverages, seasonLoading, seasonError, gameLogLoading,
         gameLog, hasMoreGames, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
@@ -143,11 +141,6 @@ export default function PlayerDetailScreen() {
         void loadRosterStatus()
     }, [loadRosterStatus, rosterRevision, claimsRevision, canRead, ownerIdentity, rosterStatus])
     const actionsReady = membershipValidated && online && rosterStatus !== null && canRead()
-    const revealedOwner = useRef<string | null>(null)
-    const screenReady = revealedOwner.current === ownerIdentity && ownerIdentity !== null
-        || initialSettled && (rosterStatus !== null || rosterStatusError !== null || !leagueId)
-    if (screenReady) revealedOwner.current = ownerIdentity
-
     const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
     const quickAdd = useQuickAdd({
         memberId: current?.id,
@@ -230,14 +223,14 @@ export default function PlayerDetailScreen() {
                 <StatsOverview
                     averages={seasonAverages}
                     seasonYear={selectedSeason}
-                    avgFantasyPoints={fantasyPointsMap ? avgFantasyPoints : null}
+                    avgFantasyPoints={avgFantasyPoints}
                     showFantasy={showFantasy}
                     columns={statColumns}
                     seasonControl={seasonControl}
                     loading={seasonLoading}
                     includesLive={includesLive}
                 />
-            <NextProjectionCard projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
+            <NextProjectionCard reserveSpace projection={nextProjection} loading={!projectionSettled} liveGame={liveGame}
                 liveFantasyPoints={liveGame ? fantasyPointsMap?.get(liveGame.gameId) : null} />
         </>
     )
@@ -245,7 +238,7 @@ export default function PlayerDetailScreen() {
         <GameLogTable
             games={gameLog}
             compact={!twoColumn}
-            loading={seasonLoading}
+            loading={gameLogLoading}
             fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
             hasMore={hasMoreGames}
             loadingMore={false}
@@ -265,7 +258,7 @@ export default function PlayerDetailScreen() {
         <>
             <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
             <Page title={player.display_name}>
-                <DeferredContent ready={screenReady} key={ownerIdentity} style={styles.initialSlot}>
+                <View key={ownerIdentity} style={styles.initialSlot}>
                 <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
                     <PlayerHeader
                         player={player}
@@ -301,7 +294,7 @@ export default function PlayerDetailScreen() {
                         {!loadedPlayer && !loading ? <Text style={styles.errorText}>{playerError ?? 'Player not found.'}</Text> : null}
                     </View>
                 </ScrollView>
-                </DeferredContent>
+                </View>
             </Page>
 
             <DropPlayerPickerModal
@@ -340,7 +333,7 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 const styles = StyleSheet.create({
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['2xl'], gap: spacing.md },
     body: { gap: spacing.md },
-    initialSlot: { minHeight: 0 },
+    initialSlot: { flex: 1, minHeight: 0 },
     columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
     sideColumn: { width: SIDE_COLUMN_WIDTH, flexShrink: 0, gap: spacing.md },
     mainColumn: { flex: 1, minWidth: 0, gap: spacing.md },
