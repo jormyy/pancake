@@ -15,6 +15,26 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await signIn(fixture)
     return { leagueId: fixture.league.id, ...await action(fixture) }
   })
+  await run('manager-settings-authorization', async (fixture) => {
+    const before = await db(fixture.admin.from('leagues').select('name,auction_budget,scoring_settings').eq('id', fixture.league.id).single())
+    await signIn(fixture, 1)
+    await open('/commissioner-settings')
+    await page.getByText('Only league commissioners can manage these settings.', { exact: true }).waitFor()
+    assert.equal(await button('Save league settings').count(), 0)
+    const rejection = await page.evaluate(async ({ url, key, leagueId }) => {
+      const session = JSON.parse(localStorage.getItem(`sb-${new URL(url).hostname.split('.')[0]}-auth-token`))
+      const response = await fetch(`${url}/rest/v1/rpc/update_league_configuration_atomic`, {
+        method: 'POST', headers: { apikey: key, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ p_league_id: leagueId, p_settings: { auction_budget: 999 }, p_slots: null }),
+      })
+      return { status: response.status, body: await response.json() }
+    }, { url: env.supabaseUrl, key: env.anonKey, leagueId: fixture.league.id })
+    assert.ok(rejection.status >= 400)
+    assert.match(rejection.body.message, /commissioner|permission|authorized/i)
+    const after = await db(fixture.admin.from('leagues').select('name,auction_budget,scoring_settings').eq('id', fixture.league.id).single())
+    assert.deepEqual(after, before)
+    return { managerControlsHidden: true, forgedStatus: rejection.status, forgedMessage: rejection.body.message, settingsUnchanged: true }
+  })
   await run('commissioner-save-and-overrides', async (fixture) => {
     await db(fixture.admin.from('leagues').update({ status: 'setup' }).eq('id', fixture.league.id))
     await open('/commissioner-settings')
@@ -39,7 +59,7 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await open('/commissioner-settings')
     await wait(async () => await button('Save league settings').isEnabled())
     await press(page.getByText('FAAB', { exact: true }))
-    await press(page.getByText('Off', { exact: true }))
+    await press(page.getByText('Veto Mode', { exact: true }).locator('..').getByText('Off', { exact: true }))
     await press(button('Save league settings'))
     await page.waitForURL((url) => url.pathname === '/league')
     const modes = await db(fixture.admin.from('leagues').select('waiver_mode,trade_veto_mode').eq('id', fixture.league.id).single())
@@ -64,17 +84,21 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await wait(async () => (await rows()).length === original.size && (await rows()).every((row) => !original.has(row.id)))
     const errors = []
     for (const [label, endpoint] of [['Process Waiver Claims', '/waivers/process'], ['Sync Player Stats', '/sync/stats'], ['Sync Scores Now', '/sync/scores'], ['Sync Dynasty Rankings', '/sync/rankings'], ['Sync Projections', '/sync/projections'], ['Sync NBA Game Schedule', '/sync/schedule']]) {
-      const response = page.waitForResponse((response) => response.url().endsWith(endpoint) && response.request().method() === 'POST')
-      await press(page.getByRole('button', { name: label, exact: true }))
-      const receipt = await response
-      assert.ok([403, 503].includes(receipt.status()), `${label}: local admin allowlist must gate this action`)
-      await page.getByText(/Admin access (?:not configured|required)|Internal server error/).last().waitFor()
-      await press(button('Dismiss').last())
-      await wait(async () => await page.getByRole('button', { name: label, exact: true }).isEnabled())
-      errors.push({ label, status: receipt.status(), recovered: true })
+      assert.equal(await page.getByRole('button', { name: label, exact: true }).count(), 0, 'Global maintenance controls are not commissioner actions')
+      const receipt = await page.evaluate(async ({ url, supabaseUrl, key, leagueId }) => {
+        const session = JSON.parse(localStorage.getItem(`sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`))
+        const response = await fetch(url, { method: 'POST',
+          headers: { apikey: key, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ leagueId }),
+        })
+        return { status: response.status, body: await response.json() }
+      }, { url: `${env.apiBaseUrl}${endpoint}`, supabaseUrl: env.supabaseUrl, key: env.anonKey, leagueId: fixture.league.id })
+      assert.ok([403, 503].includes(receipt.status), `${label}: local admin allowlist must gate this action`)
+      assert.match(receipt.body.error ?? receipt.body.message ?? '', /Admin access (?:not configured|required)|Internal server error/i)
+      errors.push({ label, status: receipt.status, controlsAbsent: true, forgedRequestRejected: true })
     }
     return { scheduleRows: (await rows()).length, regenerated: true, adminGate: errors,
-      limitation: 'Global sync happy paths need a local admin allowlist and controlled provider responses. These checks prove denied-state recovery.' }
+      limitation: 'Global sync happy paths need a local admin allowlist and controlled provider responses. These checks prove hidden controls and denied forged requests.' }
   }, true)
   await run('commissioner-utility-success-feedback', async () => {
     await open('/commissioner-settings')

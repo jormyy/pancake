@@ -9,8 +9,8 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await signIn(fixture)
     await open('/draft')
     await page.getByText('No active draft', { exact: true }).waitFor()
-    await press(button('Open Mock Rooms'))
-    await page.waitForURL((url) => url.pathname === '/league' && url.searchParams.get('tab') === 'mockRooms')
+    await press(button('Open Draft'))
+    await page.waitForURL((url) => url.pathname === '/league' && url.searchParams.get('tab') === 'draft')
     const pattern = '**/rest/v1/drafts?**'
     await page.route(pattern, (route) => {
       const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,OPTIONS' }
@@ -35,9 +35,9 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await signIn(fixture)
     return { leagueId: fixture.league.id, ...await action(fixture) }
   })
-  const confirm = async (control, confirmation) => {
+  const adminAction = async (control, confirmation = undefined) => {
     await press(button(control))
-    await press(button(confirmation))
+    if (confirmation) await press(button(confirmation))
   }
   const checkPendingAdmin = async (draftId, admin) => {
     const draft = () => db(admin.from('drafts').select('status').eq('id', draftId).single())
@@ -52,7 +52,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
       await route.continue()
     })
     try {
-      await confirm('Pause draft', 'Pause Draft')
+      await adminAction('Pause draft')
       await wait(async () => pauseRequests === 1)
       for (const name of ['Pause draft', 'Reset draft', 'Stop draft']) assert.equal(await button(name).isDisabled(), true, `${name} must wait for the pending admin command`)
       assert.equal(pauseRequests, 1)
@@ -71,13 +71,13 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await db(fixture.admin.from('draft_budgets').insert(members.map((member) => ({ draft_id: draft.id, member_id: member.id, initial_budget: 200, remaining: 200 }))))
     await open(`/draft-room?draftId=${draft.id}`)
     const pauseRequests = await checkPendingAdmin(draft.id, fixture.admin)
-    await confirm('Resume draft', 'Resume Draft')
+    await adminAction('Resume draft')
     await wait(async () => (await db(fixture.admin.from('drafts').select('status').eq('id', draft.id).single())).status === 'in_progress')
     return { draftId: draft.id, pauseRequests, blockedConflictingControls: true, resumed: true }
   })
   await run('auction-nominate-withdraw-admin', async (fixture) => {
     await db(fixture.admin.from('leagues').update({ status: 'setup', playoff_total_weeks: 2, playoff_round_weeks: [1, 1] }).eq('id', fixture.league.id))
-    await open('/league?tab=auctions')
+    await open('/league?tab=draft')
     await press(page.getByRole('button', { name: /^Start auction draft/i }))
     await press(button('Start Auction'))
     await page.waitForURL((url) => url.pathname === '/draft-room')
@@ -95,7 +95,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
       await open(room)
     }
     const pauseRequests = await checkPendingAdmin(draftId, fixture.admin)
-    await confirm('Resume draft', 'Resume Draft')
+    await adminAction('Resume draft')
     await wait(async () => (await draft()).status === 'in_progress')
     const [player] = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 1, fixture.registerCreatedPlayer, { createOnly: true })
     const nominate = async () => {
@@ -115,7 +115,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await wait(async () => (await db(fixture.admin.from('nominations').select('id').eq('draft_id', draftId))).length === 0)
     await nominate()
     await asCommissioner()
-    await confirm('Reset draft', 'Reset Draft')
+    await adminAction('Reset draft', 'Reset Draft')
     await wait(async () => (await db(fixture.admin.from('nominations').select('id').eq('draft_id', draftId))).length === 0)
     await asNominator()
     await wait(async () => await button('Search and nominate a player').isEnabled())
@@ -127,7 +127,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await press(button('Bid $5'))
     await wait(async () => (await db(fixture.admin.from('bids').select('id').eq('nomination_id', nomination.id).eq('amount', 5))).length === 1)
     await asCommissioner()
-    await confirm('Stop draft', 'Stop Draft')
+    await adminAction('Stop draft', 'Stop Draft')
     await page.waitForURL((url) => url.pathname === '/league')
     assert.equal((await draft()).status, 'cancelled')
     assert.equal((await db(fixture.admin.from('roster_players').select('id').eq('league_id', fixture.league.id).eq('player_id', player.id))).length, 0)
@@ -143,14 +143,14 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
       [1, 2, 3].map((round) => ({ league_id: fixture.league.id, season_year: fixture.currentSeason.season_year,
         round, original_owner_id: member.id, current_owner_id: member.id })))))
     await db(fixture.admin.from('leagues').update({ status: 'offseason', taxi_slots: 2, ir_slots: 2 }).eq('id', fixture.league.id))
-    await open('/league?tab=draftBoard')
+    await open('/league?tab=draft')
     await press(page.getByRole('button', { name: /^Start rookie draft,/i }))
     await press(button('Start Rookie'))
     await page.waitForURL((url) => url.pathname === '/rookie-draft-room')
     const draftId = new URL(page.url()).searchParams.get('draftId')
     assert.ok(draftId)
     const room = `/rookie-draft-room?draftId=${draftId}`
-    await open('/league?tab=draftBoard')
+    await open('/league?tab=draft')
     await press(button('Sync traded picks'))
     await page.getByText('Pick slots updated to reflect traded picks.', { exact: true }).waitFor()
     await open(room)
@@ -166,11 +166,11 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     const roster = () => db(fixture.admin.from('roster_players').select('id,is_on_taxi').eq('league_id', fixture.league.id).eq('player_id', rookies[0].id))
     await wait(async () => (await roster())[0]?.is_on_taxi === true)
     if (index !== 0) { await signIn(fixture); await open(room) }
-    await confirm('Pause draft', 'Pause Draft')
+    await adminAction('Pause draft')
     await wait(async () => (await db(fixture.admin.from('drafts').select('status').eq('id', draftId).single())).status === 'paused')
-    await confirm('Resume draft', 'Resume Draft')
+    await adminAction('Resume draft')
     await wait(async () => (await db(fixture.admin.from('drafts').select('status').eq('id', draftId).single())).status === 'in_progress')
-    await confirm('Reset draft', 'Reset Draft')
+    await adminAction('Reset draft', 'Reset Draft')
     await wait(async () => (await roster()).length === 0 && (await picks()).every((pick) => pick.player_id === null))
     await db(fixture.admin.from('drafts').update({ timer_expiry_behavior: 'commissioner_pick' }).eq('id', draftId))
     await db(fixture.admin.from('snake_draft_picks').update({ timer_expires_at: new Date(Date.now() - 1000).toISOString() }).eq('draft_id', draftId).eq('overall_pick', 1))
@@ -187,7 +187,7 @@ export async function auditWebDraftActions({ check, env, season, page, press, bu
     await wait(async () => (await picks())[0]?.player_id === rookies[1].id)
     const acquired = await db(fixture.admin.from('roster_players').select('is_on_taxi').eq('league_id', fixture.league.id).eq('player_id', rookies[1].id).single())
     assert.equal(acquired.is_on_taxi, true)
-    await confirm('Stop draft', 'Stop Draft')
+    await adminAction('Stop draft', 'Stop Draft')
     await page.waitForURL((url) => url.pathname === '/league')
     assert.equal((await db(fixture.admin.from('drafts').select('status').eq('id', draftId).single())).status, 'cancelled')
     assert.equal((await db(fixture.admin.from('roster_players').select('id').eq('league_id', fixture.league.id).eq('player_id', rookies[1].id))).length, 1)

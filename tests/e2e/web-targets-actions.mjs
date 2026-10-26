@@ -113,9 +113,11 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await check('league-switch-form', async () => {
           const name = `Web pair ${target.id} ${Date.now()}`
           const select = async (name) => {
+            await open('/')
             await press(button('Switch league'))
             await press(button(`Switch to ${name}`))
             await wait(async () => (await button('Switch league').textContent()).includes(name))
+            await open('/profile')
           }
           try {
             await open('/create-league')
@@ -132,6 +134,8 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
             await press(button('Edit'))
             await page.getByRole('textbox', { name: 'Team name', exact: true }).fill('Unsaved first league name')
             await select(name)
+            await wait(async () => await button('Edit').isEnabled())
+            await press(button('Edit'))
             assert.equal(new URL(page.url()).pathname, '/profile')
             const shown = await page.getByRole('textbox', { name: 'Team name', exact: true }).inputValue()
             await press(button('Save'))
@@ -175,7 +179,7 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await auditWebPanelActions({ check, env, season, target, page, press, button, open, signIn, db, wait, inspect })
         await auditWebInviteActions({ check, env, season, page, press, button, open, signIn, db, wait })
         await auditWebMockActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect })
-        await auditWebAuthActions({ check, env, season, page, press, button, open, db, wait })
+        await auditWebAuthActions({ check, env, season, page, press, button, open, signIn, db, wait })
         await auditWebNotificationActions({ check, env, season, target, page, press, button, open, signIn, db, wait })
       } finally {
         await context.close()

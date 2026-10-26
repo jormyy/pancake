@@ -369,6 +369,10 @@ const setupLockedLineupFixture = async (env, season) => {
     game_time: scheduledTipoff,
   })
   if (gameError) throw new Error(`locked game seed: ${gameError.message}`)
+  createFixtureResourceOwner(fixture.admin).registerCleanup(`locked lineup game ${gameId}`, async () => {
+    const { error } = await fixture.admin.from('nba_games').delete().eq('sportsdata_game_id', gameId)
+    if (error) throw new Error(error.message)
+  })
 
   const { data: lineup, error: lineupError } = await fixture.admin
     .from('weekly_lineups')

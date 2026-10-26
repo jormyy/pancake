@@ -259,14 +259,20 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
   })
   await check('home-breakdown-and-auto-set-controls', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
-    await db(fixture.admin.from('matchups').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id,
-      week_number: 1, home_member_id: fixture.proposer.id, away_member_id: fixture.recipient.id }))
     await signIn(fixture)
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const week = await db(fixture.admin.from('season_weeks').select('week_number').eq('season_year', fixture.currentSeason.season_year)
+      .lte('week_start', today).gte('week_end', today).single())
+    await db(fixture.admin.from('matchups').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id,
+      week_number: week.week_number, home_member_id: fixture.proposer.id, away_member_id: fixture.recipient.id }))
+    await db(fixture.admin.from('weekly_lineups').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id,
+      member_id: fixture.proposer.id, player_id: fixture.proposerPlayer.id, week_number: week.week_number, game_date: today, slot_type: 'PG' }))
     await open('/')
     await press(button(`Score breakdown for ${fixture.proposerPlayer.display_name}`).first())
     const breakdown = page.getByRole('dialog', { name: /slot · Score breakdown$/ })
-    await breakdown.getByRole('table', { name: 'Points by stat', exact: true }).waitFor()
-    assert.ok(await breakdown.getByRole('row').count() > 1)
+    await breakdown.getByLabel('Scoring rules', { exact: true }).waitFor()
+    await breakdown.getByText('Points', { exact: true }).waitFor()
+    assert.equal(await breakdown.getByRole('table', { name: 'Points by stat', exact: true }).count(), 0)
     await inspect()
     await press(breakdown.getByRole('button', { name: 'Close', exact: true }))
     await press(button('Open auto-set lineup options'))
@@ -291,7 +297,7 @@ export async function auditWebPanelActions({ check, env, season, target, page, p
     await reloadWebTarget(page)
     await wait(async () => await toggle.isEnabled())
     assert.equal(await toggle.isChecked(), false)
-    return { leagueId: fixture.league.id, breakdown: true, cancelled: true, manualNavigation: true, dailyEnabledAndDisabled: true }
+    return { leagueId: fixture.league.id, breakdown: 'rules shown before any stats exist', cancelled: true, manualNavigation: true, dailyEnabledAndDisabled: true }
   })
   await check('league-activity-paging-and-copy', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
