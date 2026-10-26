@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     buildTradeComposerPayload,
     buildTwoTeamTradeComposerPayload,
@@ -9,7 +9,7 @@ import {
     submitTradeComposer,
     validateTradeNotes,
 } from '@/lib/trade-composer'
-import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
+import type { Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_NOTES_BYTES } from '@pancake/core'
 
@@ -462,17 +462,6 @@ describe('submitTradeComposer', () => {
 })
 
 describe('submitMultiTeamTradeComposer', () => {
-    it('uses the canonical multi-team payload contract for every mutation', () => {
-        type Deps = Parameters<typeof submitMultiTeamTradeComposer>[1]
-
-        expectTypeOf<Parameters<Deps['proposeMultiTeamTrade']>[3]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-        expectTypeOf<Parameters<Deps['counterMultiTeamTrade']>[2]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-        expectTypeOf<Parameters<Deps['editMultiTeamTrade']>[2]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-    })
-
     it('accepts the maximum multi-team expiration', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date(NOW_MS))

@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { sql, sqlJson } from './local-stack.mjs'
 import { checkAnchoredValue, productionAnchors, valueAnchors } from './official-value-anchors.mjs'
 
-export { offer as proposeOfficialMixedTrade, verifyPlayerSettlement, verifyQuote }
-
 const regularPlan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
 
 async function playerState(c, users, date) {

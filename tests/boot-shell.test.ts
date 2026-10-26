@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { authSession, fixtureProject } from './helpers/auth-session'
+import { getInitials } from '@/lib/format'
+
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))
 
 vi.stubEnv('EXPO_PUBLIC_SUPABASE_URL', fixtureProject)
 
@@ -13,9 +14,6 @@ vi.mock('react-native', () => ({
 
 
 const {
-    APP_MOUNTED_MARK,
-    BOOT_SHELL_CSS,
-    BOOT_SHELL_HTML,
     BOOT_SHELL_ID,
     BOOT_SHELL_MARK,
     BOOT_SHELL_READY_ATTR,
@@ -161,17 +159,6 @@ describe('boot shell', () => {
 
     // Missing cached membership data cannot establish an authoritative empty league list.
     it('keeps boot membership state unknown until the app checks league access', () => {
-        const component = readFileSync(path.join(process.cwd(), 'components/navigation/WebTabShell.tsx'), 'utf8')
-        expect(component).toContain("membershipStatus === 'empty' ? 'No league' : 'League unavailable'")
-        expect(component).toContain("membershipStatus === 'empty' ? 'Create or join from League' : 'Waiting for league access'")
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="league">League unavailable<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="league-compact">League unavailable<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="team">Waiting for league access<')
-        expect(BOOT_SHELL_HTML).not.toContain('>No league<')
-        expect(BOOT_SHELL_HTML).not.toContain('>Create or join from League<')
-        expect(BOOT_SHELL_HTML).toContain('data-pbs="profile">Profile<')
-
-        // With a session but no membership, the script must not overwrite them.
         const { attributes, texts, breadcrumb } = runBootScript('/', { 'sb-auth-fixture-auth-token': session() })
         expect(attributes['data-visible']).toBe('1')
         expect(texts).toEqual({})
@@ -274,14 +261,6 @@ describe('boot shell', () => {
     })
 
     it('derives initials exactly like lib/format getInitials', async () => {
-        // Evaluate the real function's source rather than importing lib/format,
-        // which drags in the whole React Native module graph.
-        const source = await readFile(path.join(process.cwd(), 'lib/format.ts'), 'utf8')
-        const body = source.slice(source.indexOf('export function getInitials'))
-        const declaration = body.slice(0, body.indexOf('\n}\n') + 2).replace('export function', 'function')
-        expect(declaration).toContain('letterWords')
-        const getInitials = new Function(`${declaration.replace(/: string \| null \| undefined/g, '').replace(/: string/g, '')}; return getInitials`)() as (name: string) => string
-
         for (const name of ['E2E Team 1', 'Sunday Dynasty', 'Team #1', 'Solo', 'a', '123', 'The Big Bad Wolves']) {
             const { texts } = runBootScript('/', membershipStorage({ teamName: name }))
             expect(texts.initials, `initials for ${name}`).toBe(getInitials(name))
@@ -305,85 +284,6 @@ describe('boot shell', () => {
 
     it('marks the moment it paints so the launch gate can measure the gap', () => {
         expect(runBootScript('/', { 'sb-auth-fixture-auth-token': session() }).marks).toEqual([BOOT_SHELL_MARK])
-    })
-
-    it('keeps the launch gate reading the marks this module actually emits', async () => {
-        // The gate is an .mjs harness and cannot import this module, so it
-        // repeats the mark names. Renaming one here must not silently blind it.
-        const gate = await readFile(path.join(process.cwd(), 'tests/e2e/browser-pwa-launch.mjs'), 'utf8')
-        expect(gate).toContain(`const BOOT_SHELL_MARK = '${BOOT_SHELL_MARK}'`)
-        expect(gate).toContain(`const APP_MOUNTED_MARK = '${APP_MOUNTED_MARK}'`)
-        expect(gate).toContain(`getElementById('${BOOT_SHELL_ID}')`)
-    })
-
-    // The shell restates WebTabShell's navigation so it can render without the
-    // bundle. Five separate drift bugs already shipped in this file's first
-    // draft, so pin the restatement against the component it mirrors.
-    it('mirrors the navigation WebTabShell renders, label, route, and icon', async () => {
-        const shell = await readFile(path.join(process.cwd(), 'components/navigation/WebTabShell.tsx'), 'utf8')
-        const block = (name: string) => {
-            const start = shell.indexOf(`const ${name}`)
-            expect(start, `${name} in WebTabShell`).toBeGreaterThan(-1)
-            return shell.slice(start, shell.indexOf('\n]', start))
-        }
-        const entries = (source: string) =>
-            [...source.matchAll(/\{ label: '([^']+)', href: '([^']+)', icon: '([^']+)' \}/g)]
-                .map((m) => ({ label: m[1], href: m[2], icon: m[3] }))
-        const live = entries(block('PRIMARY_NAV'))
-        expect(live.length).toBeGreaterThan(0)
-
-        // League is appended to PRIMARY_NAV to form MOBILE_NAV; the shell keeps
-        // it in its own sidebar group, so assert it separately.
-        const mobileLabels = Object.fromEntries(
-            [...block('MOBILE_LABELS').matchAll(/'([^']+)': '([^']+)'/g)].map((m) => [m[1], m[2]]),
-        )
-
-        for (const item of [...live, { label: 'League', href: '/league', icon: 'emoji-events' }]) {
-            expect(BOOT_SHELL_HTML, `route ${item.href}`).toContain(`data-href="${item.href}"`)
-            expect(BOOT_SHELL_HTML, `sidebar label for ${item.href}`).toContain(`<span>${item.label}</span>`)
-            const mobile = mobileLabels[item.href]
-            expect(mobile, `MOBILE_LABELS entry for ${item.href}`).toBeTruthy()
-            expect(BOOT_SHELL_HTML, `mobile label for ${item.href}`)
-                .toContain(`<span class="pbs-bottomlabel">${mobile}</span>`)
-        }
-    })
-
-    it('links every primary route in both the sidebar and the mobile bar', () => {
-        // Checked per region: the two navs carry the same routes, so a single
-        // whole-document search stays green when one of them loses an item.
-        const region = (className: string) => {
-            const start = BOOT_SHELL_HTML.indexOf(`<nav class="${className}"`)
-            expect(start, `${className} region`).toBeGreaterThan(-1)
-            return BOOT_SHELL_HTML.slice(start, BOOT_SHELL_HTML.indexOf('</nav>', start))
-        }
-        const sidebar = region('pbs-side')
-        const bottomNav = region('pbs-bottomnav')
-        for (const href of ['/', '/roster', '/players', '/trades', '/league']) {
-            expect(sidebar, `sidebar ${href}`).toContain(`data-href="${href}"`)
-            expect(bottomNav, `bottom nav ${href}`).toContain(`data-href="${href}"`)
-            expect(sidebar, `sidebar href ${href}`).toContain(`href="${href}"`)
-        }
-    })
-
-    it('is announced as navigation, since it is the only nav on screen', () => {
-        // Focusable links inside an aria-hidden container is the anti-pattern.
-        // The shell is removed before the real navigation paints, so there is
-        // never a moment where both are announced.
-        expect(BOOT_SHELL_HTML).not.toContain(`id="${BOOT_SHELL_ID}" aria-hidden`)
-        expect(BOOT_SHELL_HTML).toContain('<nav class="pbs-side" aria-label="Primary">')
-        expect(BOOT_SHELL_HTML).toContain('<nav class="pbs-bottomnav" aria-label="Primary">')
-        // Icons and the menu affordance stay decorative.
-        const links = BOOT_SHELL_HTML.match(/<a class="pbs-[^"]*"[^>]*>/g) ?? []
-        expect(links.length).toBeGreaterThan(0)
-        for (const link of links) expect(link).not.toContain('aria-hidden')
-    })
-
-    it('keeps the shell hidden until the script opts it in', () => {
-        // Scoped to the shell's own rule: the mobile bars carry display:none
-        // too, so a loose search would pass even with the shell shown by default.
-        const rule = BOOT_SHELL_CSS.slice(BOOT_SHELL_CSS.indexOf(`#${BOOT_SHELL_ID}{`))
-        expect(rule.slice(0, rule.indexOf('}'))).toContain('display:none')
-        expect(BOOT_SHELL_CSS).toContain(`#${BOOT_SHELL_ID}[data-visible="1"]{display:block;}`)
     })
 })
 

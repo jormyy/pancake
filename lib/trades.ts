@@ -10,7 +10,7 @@ export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 
-export type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' }
+type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' }
 export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[]; rosterMoves?: TradeRosterMove[] }
 export type TradeRosterPreview = {
     memberId: string

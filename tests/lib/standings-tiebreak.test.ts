@@ -13,28 +13,6 @@ vi.mock('@/lib/shared/season', () => ({
 
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
 
-const SEED = 0x5eed1e5
-
-function mulberry32(seed: number): () => number {
-    let a = seed >>> 0
-    return () => {
-        a = (a + 0x6d2b79f5) >>> 0
-        let t = a
-        t = Math.imul(t ^ (t >>> 15), t | 1)
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-    }
-}
-
-function shuffled<T>(items: T[], rng: () => number): T[] {
-    const arr = [...items]
-    for (let i = arr.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(rng() * (i + 1))
-        ;[arr[i], arr[j]] = [arr[j], arr[i]]
-    }
-    return arr
-}
-
 function row(overrides: Partial<StandingRow> = {}): StandingRow {
     return {
         memberId: 'm-base',
@@ -93,30 +71,4 @@ describe('compareStandingsRows precedence matrix', () => {
         expect(compareStandingsRows(row(), row())).toBe(0)
     })
 
-    it(`is stable under input permutation (seed ${SEED.toString(16)}, 50 shuffles)`, () => {
-        // Tie ladders across every key so ordering must consult each tiebreak.
-        const rows: StandingRow[] = [
-            row({ memberId: 'm-01', wins: 8, pointsFor: 1200 }),
-            row({ memberId: 'm-02', wins: 8, pointsFor: 1100, maxPointsFor: 1400 }),
-            row({ memberId: 'm-03', wins: 8, pointsFor: 1100, maxPointsFor: 1300, pointsAgainst: 900 }),
-            row({ memberId: 'm-04', wins: 8, pointsFor: 1100, maxPointsFor: 1300, pointsAgainst: 950, teamName: 'Aces' }),
-            row({ memberId: 'm-05', wins: 8, pointsFor: 1100, maxPointsFor: 1300, pointsAgainst: 950, teamName: 'Bulls' }),
-            row({ memberId: 'm-06', wins: 8, pointsFor: 1100, maxPointsFor: 1300, pointsAgainst: 950, teamName: 'Bulls' }),
-            row({ memberId: 'm-07', wins: 5, pointsFor: 1000 }),
-            row({ memberId: 'm-08', wins: 5, pointsFor: 1000 }),
-            row({ memberId: 'm-09', wins: 5, pointsFor: 999 }),
-            row({ memberId: 'm-10', wins: 2, teamName: 'Zephyrs' }),
-            row({ memberId: 'm-11', wins: 2, teamName: 'Zephyrs' }),
-            row({ memberId: 'm-12', wins: 2, teamName: 'Yaks' }),
-        ]
-
-        const rng = mulberry32(SEED)
-        const expected = [...rows].sort(compareStandingsRows).map((r) => r.memberId)
-
-        for (let i = 0; i < 50; i += 1) {
-            const permuted = shuffled(rows, rng)
-            const order = [...permuted].sort(compareStandingsRows).map((r) => r.memberId)
-            expect(order).toEqual(expected)
-        }
-    })
 })

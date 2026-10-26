@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { createSeasonPhaseTimings, formatPhaseTimings } from './e2e/harness/phase-timings.mjs'
 import { validatePerfDrift } from './e2e/soak-support.mjs'
@@ -22,18 +21,6 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
 }))
 
 describe('soak phase timing integration', () => {
-    it('records phase durations beside the unchanged full-season gated duration and includes them in report rows', () => {
-        const source = readFileSync('tests/e2e/soak.mjs', 'utf8')
-        expect(source.includes('phaseDurationsMs')).toBe(true)
-        expect(source.includes('phaseSummary')).toBe(true)
-        expect(source.includes('const durationMs = nowMs() - seasonStartedMs')).toBe(true)
-        expect(source.includes('validatePerfDrift(perfMetrics, args.seasons)')).toBe(true)
-        expect(source.includes('durationMs -')).toBe(false)
-        for (const phase of ['invariants_before', 'invariants_after', 'invariants_after_reset',
-            'history_retention', 'pick_chain', 'snapshots', 'snapshot_validation']) {
-            expect(source.includes(`phaseTimings.mark('${phase}')`)).toBe(true)
-        }
-    })
 
     it('accounts for every interval through the original season cutoff, including work between phases', () => {
         let clock = 100

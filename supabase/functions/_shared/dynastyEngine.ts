@@ -7,15 +7,15 @@ export type DynastyStrategy = 'overall' | 'contend' | 'rebuild'
 
 export const DYNASTY_TRADE_MODEL_VERSION = 'dynasty-accounting-v2'
 
-export const DYNASTY_STRATEGIES: DynastyStrategy[] = ['overall', 'contend', 'rebuild']
+const DYNASTY_STRATEGIES: DynastyStrategy[] = ['overall', 'contend', 'rebuild']
 
-export const DYNASTY_STRATEGY_WEIGHTS = {
+const DYNASTY_STRATEGY_WEIGHTS = {
     overall: { production: 0.35, projection: 0.25, market: 0.25, age: 0.15 },
     contend: { production: 0.50, projection: 0.30, market: 0.15, age: 0.05 },
     rebuild: { production: 0.20, projection: 0.20, market: 0.30, age: 0.30 },
 } as const satisfies Record<DynastyStrategy, Record<'production' | 'projection' | 'market' | 'age', number>>
 
-export type DynastySource = {
+type DynastySource = {
     name: string
     fetchedAt: string | null
 }
@@ -40,7 +40,7 @@ export type DynastyPlayerAsset = AssetBase & {
     isRookie?: boolean
 }
 
-export type DynastyPickAsset = AssetBase & {
+type DynastyPickAsset = AssetBase & {
     kind: 'pick'
     seasonYear: number
     round: number
@@ -48,14 +48,14 @@ export type DynastyPickAsset = AssetBase & {
     teams: number
 }
 
-export type DynastyFaabAsset = AssetBase & {
+type DynastyFaabAsset = AssetBase & {
     kind: 'faab'
     amount: number
     budget: number
     freeAgentQuality: number
 }
 
-export type DynastyRosterSlotAsset = AssetBase & {
+type DynastyRosterSlotAsset = AssetBase & {
     kind: 'rosterSlot'
     count: number
     replacementValue: number
@@ -70,12 +70,12 @@ export type DynastyEngineContext = {
     replacementValue?: number
 }
 
-export type DynastyValueRange = {
+type DynastyValueRange = {
     low: number
     high: number
 }
 
-export type DynastyAssetComponents = {
+type DynastyAssetComponents = {
     production: number
     projection: number
     market: number
@@ -108,7 +108,7 @@ export type DynastyTradeRoute = {
     asset: DynastyAsset
 }
 
-export type DynastyTradeTeamResult = {
+type DynastyTradeTeamResult = {
     memberId: string
     valuesSent: number
     valuesReceived: number
@@ -356,10 +356,6 @@ export function valueDynastyAsset(context: DynastyEngineContext, asset: DynastyA
     if (asset.kind === 'pick') return valuePick(context, asset)
     if (asset.kind === 'faab') return valueFaab(asset)
     return valueRosterSlot(asset)
-}
-
-export function valueDynastyAssets(context: DynastyEngineContext, assets: DynastyAsset[]): DynastyAssetResult[] {
-    return assets.map((asset) => valueDynastyAsset(context, asset))
 }
 
 function packagePenalty(values: number[]): number {

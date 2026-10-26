@@ -1,5 +1,7 @@
 import React from 'react'
 import Module from 'node:module'
+import { load as loadHtml } from 'cheerio'
+import { BOOT_SHELL_HTML } from '@/constants/boot-shell'
 import type { StackNavigationState } from '@react-navigation/native'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -218,4 +220,31 @@ it.each(['Join with Invite Code', 'Create a League'])('opens the existing %s flo
         await act(async () => controls(label)[0].props.onPress())
         expect(state.push).toHaveBeenCalledExactlyOnceWith(label === 'Create a League' ? '/(modals)/create-league' : '/(modals)/join-league')
     } finally { vi.unstubAllGlobals() }
+})
+
+it('keeps primary navigation ordered and reachable before and after the app mounts', async () => {
+    await render()
+    const routes = ['/', '/roster', '/players', '/trades', '/league']
+    const links = screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityRole === 'link')
+    expect(links.map(link => link.props.accessibilityLabel)).toEqual(['Matchup', 'Roster', 'Players', 'Trades', 'League'])
+    state.pathname = '/profile'
+    await act(async () => screen.update(React.createElement(WebAppShell)))
+    for (const [index, route] of routes.entries()) {
+        const links = screen.root.findAll(node => node.type === ('Pressable' as React.ElementType) && node.props.accessibilityRole === 'link')
+        await act(async () => links[index].props.onPress())
+        expect(state.dismissTo).toHaveBeenLastCalledWith(route)
+    }
+    state.pathname = '/'
+    await act(async () => screen.update(React.createElement(WebAppShell)))
+    const boot = loadHtml(BOOT_SHELL_HTML)
+    const navigation = boot('nav[aria-label="Primary"]')
+    expect(navigation).toHaveLength(2)
+    navigation.each((_index, node) => {
+        const links = boot(node).find('a')
+        expect(links.map((_index, link) => boot(link).attr('href')).get().filter(href => routes.includes(href))).toEqual(routes)
+        expect(links.filter('[aria-hidden="true"]')).toHaveLength(0)
+    })
+    await act(async () => controls('Open menu')[0].props.onPress())
+    await act(async () => controls('Profile & settings')[0].props.onPress())
+    expect(state.dismissTo).toHaveBeenCalledWith('/profile')
 })
