@@ -4,6 +4,7 @@ import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
 import { isTradeHistoryForMember } from '@/lib/trade-perspective'
+import type { TradeEstimateSummary } from '@/lib/trade-estimates'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
@@ -61,6 +62,8 @@ type TradeParticipant = {
 }
 
 export type Trade = {
+    estimate?: TradeEstimateSummary | null
+    estimateUnavailable?: string | null
     completionFailureReason?: string | null
     id: string
     status: TradeStatus
@@ -167,6 +170,9 @@ type TradeParticipantQueryRow = {
     league_members: TeamNameRow
 }
 type TradeQueryRow = {
+    trade_estimates: { unavailable_reason: string | null; quote: {
+        id: string; model_version: string; input_version: string; created_at: string; teams: TradeEstimateSummary['teams']
+    } | null } | null
     completion_failure_reason: string | null
     id: string
     league_id: string
@@ -197,6 +203,7 @@ type TradeQueryRow = {
 }
 
 type TradeProposalOptions = {
+    estimateId?: string
     rosterPlan?: TradeRosterPlan
     requestId?: string
     notes?: string | null
@@ -227,7 +234,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan' | 'estimateId'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -313,6 +320,7 @@ export async function proposeTrade(
     options: Omit<TradeProposalOptions, 'notes'> = {},
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        ...(options.estimateId ? { estimateId: options.estimateId } : {}),
         ...(options.rosterPlan ? { rosterPlan: options.rosterPlan } : {}),
         requestId: options.requestId,
         memberId,
@@ -339,6 +347,7 @@ export async function proposeMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -359,6 +368,7 @@ export async function counterMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -377,6 +387,7 @@ export async function editMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -472,6 +483,7 @@ const TRADE_SELECT = `
             version,
             proposer_faab_amount,
             recipient_faab_amount,
+            trade_estimates ( unavailable_reason, quote:trade_estimate_quotes ( id, model_version, input_version, created_at, teams:analysis->teams ) ),
             proposer:league_members!trades_proposer_member_id_fkey ( team_name ),
             recipient:league_members!trades_recipient_member_id_fkey ( team_name ),
             trade_vetos ( member_id ),
@@ -562,6 +574,14 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
         .sort((a, b) => a.sortOrder - b.sortOrder || a.teamName.localeCompare(b.teamName))
 
     return {
+        estimate: row.trade_estimates?.quote ? {
+            quoteId: row.trade_estimates.quote.id,
+            modelVersion: row.trade_estimates.quote.model_version,
+            inputVersion: row.trade_estimates.quote.input_version,
+            createdAt: row.trade_estimates.quote.created_at,
+            teams: row.trade_estimates.quote.teams,
+        } : null,
+        estimateUnavailable: row.trade_estimates?.unavailable_reason ?? null,
         id: row.id,
         status: row.status,
         completionFailureReason: row.completion_failure_reason,

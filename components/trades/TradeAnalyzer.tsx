@@ -77,7 +77,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const networkAvailable = online && !networkUnavailable
     const teamCount = Math.max(4, members.length + 1)
     const faabBudget = currentLeague?.faab_starting_budget ?? 100
-    const { analysis, seasonYear, loading, error } = useDynastyTradeAnalysis({
+    const { analysis, quote, seasonYear, loading, error, retry: retryAnalysis } = useDynastyTradeAnalysis({
         debounceMs: 300,
         enabled: composer.assetsReady,
         leagueId,
@@ -243,11 +243,11 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             {error || composer.rosterError || networkUnavailable ? <View style={styles.analysisError}>
                 <Text accessibilityRole="alert" style={styles.offline}>{error || composer.rosterError || 'Could not load league teams.'}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Retry trade analysis"
-                    onPress={() => { setMembersRetryToken((value) => value + 1); composer.retry() }}>
+                    onPress={() => { setMembersRetryToken((value) => value + 1); composer.retry(); retryAnalysis() }}>
                     <Text style={styles.copy}>Retry analysis</Text>
                 </Pressable>
             </View> : null}
-            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} participantName={analysisParticipantName}
+            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={quote?.createdAt} participantName={analysisParticipantName}
                 loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
         </View>
     )

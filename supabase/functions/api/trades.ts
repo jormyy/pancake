@@ -1,6 +1,7 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
+import { createTradeEstimate } from './tradeEstimates.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
   MAX_TRADE_FAAB_AMOUNT,
@@ -182,7 +183,7 @@ function tradeAssetPayload(body: Record<string, unknown>): TradeAssetPayload {
   return payload
 }
 
-function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: string): MultiTeamTradePayload {
+function tradeRouteItems(body: Record<string, unknown>): MultiTeamTradeItemPayload[] {
   const rawItems = body.items
   if (!Array.isArray(rawItems)) throw new ValidationError('items must be an array.')
   if (rawItems.length > MAX_TRADE_ITEMS) {
@@ -209,6 +210,11 @@ function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: 
     return { fromMemberId, toMemberId, playerId, pickId, faabAmount }
   })
 
+  return items
+}
+
+function multiTeamTradePayload(body: Record<string, unknown>, proposerMemberId: string): MultiTeamTradePayload {
+  const items = tradeRouteItems(body)
   const participantMemberIds = optionalUuidArrayField(body, 'participantMemberIds')
   const participantCount = new Set([proposerMemberId, ...participantMemberIds]).size
   if (participantCount < 3) {
@@ -237,14 +243,39 @@ function multiTeamTradeItemsJson(items: MultiTeamTradeItemPayload[]): Json {
   return encodedItems
 }
 
+function twoTeamEstimateItems(payload: TradeAssetPayload, sender: string, recipient: string): Json {
+  const items: MultiTeamTradeItemPayload[] = [
+    ...payload.offerPlayerIds.map(playerId => ({ fromMemberId: sender, toMemberId: recipient, playerId })),
+    ...payload.requestPlayerIds.map(playerId => ({ fromMemberId: recipient, toMemberId: sender, playerId })),
+    ...payload.offerPickIds.map(pickId => ({ fromMemberId: sender, toMemberId: recipient, pickId })),
+    ...payload.requestPickIds.map(pickId => ({ fromMemberId: recipient, toMemberId: sender, pickId })),
+    ...(payload.offerFaabAmount ? [{ fromMemberId: sender, toMemberId: recipient, faabAmount: payload.offerFaabAmount }] : []),
+    ...(payload.requestFaabAmount ? [{ fromMemberId: recipient, toMemberId: sender, faabAmount: payload.requestFaabAmount }] : []),
+  ]
+  return multiTeamTradeItemsJson(items)
+}
+
+async function submissionEstimate(userId: string, memberId: string, body: Record<string, unknown>, items: () => Json | Promise<Json>): Promise<JsonObject> {
+  const provided = optionalUuidField(body, 'estimateId')
+  if (provided) return { estimateId: provided }
+  try {
+    const quote = await createTradeEstimate(userId, memberId, await items())
+    return { estimateId: quote.id }
+  } catch (error) {
+    console.error('Trade estimate unavailable during submission', { error })
+    return {}
+  }
+}
+
 async function proposeTrade(userId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
   const payload = tradeAssetPayload(body)
+  const estimate = await submissionEstimate(userId, memberId, body, () => twoTeamEstimateItems(payload, memberId, uuidField(body, 'recipientMemberId')))
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose',
-    p_payload: { ...payload, ...rosterPlanPayload(body),
+    p_payload: { ...payload, ...rosterPlanPayload(body), ...estimate,
       leagueId: uuidField(body, 'leagueId'), leagueSeasonId: uuidField(body, 'leagueSeasonId'),
       recipientMemberId: uuidField(body, 'recipientMemberId'),
     },
@@ -261,10 +292,11 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
   const payload = multiTeamTradePayload(body, memberId)
+  const estimate = await submissionEstimate(userId, memberId, body, () => multiTeamTradeItemsJson(payload.items))
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose-multi',
-    p_payload: { ...payload, ...rosterPlanPayload(body), items: multiTeamTradeItemsJson(payload.items),
+    p_payload: { ...payload, ...rosterPlanPayload(body), ...estimate, items: multiTeamTradeItemsJson(payload.items),
       leagueId: uuidField(body, 'leagueId'), leagueSeasonId: uuidField(body, 'leagueSeasonId'),
     },
   })
@@ -351,9 +383,16 @@ async function replaceTrade(
   await requireOwnMember(userId, memberId)
   const payload = tradeAssetPayload(body)
 
+  const estimate = await submissionEstimate(userId, memberId, body, async () => {
+    const { data: source, error } = await supabase.from('trades').select('proposer_member_id,recipient_member_id').eq('id', tradeId).single()
+    if (error) throwDb(error)
+    const recipient = action.action === 'counter' ? source.proposer_member_id : source.recipient_member_id
+    return twoTeamEstimateItems(payload, memberId, recipient)
+  })
+
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
-    p_payload: { ...payload, ...rosterPlanPayload(body), tradeId,
+    p_payload: { ...payload, ...rosterPlanPayload(body), ...estimate, tradeId,
       ...(body.recipientMemberId !== undefined ? { recipientMemberId: uuidField(body, 'recipientMemberId') } : {}),
     },
   })
@@ -374,10 +413,11 @@ async function replaceMultiTeamTrade(
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
   const payload = multiTeamTradePayload(body, memberId)
+  const estimate = await submissionEstimate(userId, memberId, body, () => multiTeamTradeItemsJson(payload.items))
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
-    p_payload: { ...payload, ...rosterPlanPayload(body), items: multiTeamTradeItemsJson(payload.items), tradeId },
+    p_payload: { ...payload, ...rosterPlanPayload(body), ...estimate, items: multiTeamTradeItemsJson(payload.items), tradeId },
   })
   if (error || !newTradeId) {
     if (error) throwDb(error)
@@ -452,6 +492,14 @@ async function removeTradeBlockItem(userId: string, itemId: string, body: Record
 
 export async function handleTradeRoute(req: Request, path: string): Promise<Response | null> {
   if (req.method !== 'POST') return null
+
+  if (path === '/trades/estimate') {
+    const userId = await requireUser(req)
+    const body = await readJsonObject(req)
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    return json({ ok: true, quote: await createTradeEstimate(userId, memberId, multiTeamTradeItemsJson(tradeRouteItems(body))) })
+  }
 
   if (path === '/trades/propose') {
     const userId = await requireUser(req)

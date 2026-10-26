@@ -4,15 +4,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 
 const mocks = vi.hoisted(() => ({
-    getCurrentSeason: vi.fn(),
-    getDynastyDecisionInputs: vi.fn(),
+    requestTradeEstimate: vi.fn(),
 }))
 
-vi.mock('@/lib/shared/season', () => ({ getCurrentSeason: mocks.getCurrentSeason }))
-vi.mock('@/lib/dynasty-decisions', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@/lib/dynasty-decisions')>()
-    return { ...actual, getDynastyDecisionInputs: mocks.getDynastyDecisionInputs }
-})
+vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.requestTradeEstimate }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
+vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
+vi.mock('@/lib/league-changes', () => ({ deferLeagueRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }), listenForLeagueChanges: () => () => {} }))
 vi.mock('@/lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -41,8 +39,7 @@ const baseInput = {
 beforeEach(() => {
     vi.useFakeTimers()
     vi.resetAllMocks()
-    mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2042 })
-    mocks.getDynastyDecisionInputs.mockResolvedValue([row])
+    mocks.requestTradeEstimate.mockResolvedValue({ id: 'quote', seasonYear: 2042, expiresAt: new Date(Date.now()+600000).toISOString(), analysis: { assets: [row] } })
 })
 
 afterEach(() => { vi.useRealTimers() })
@@ -60,11 +57,11 @@ it('coalesces rapid player changes into one forecast request after 300 ms', asyn
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
     await act(async () => { renderer.update(React.createElement(Probe, { playerId: 'player-2' })) })
     await act(async () => { await vi.advanceTimersByTimeAsync(299) })
-    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    expect(mocks.requestTradeEstimate).not.toHaveBeenCalled()
     expect(latest.analysis).toBeNull()
     expect(latest.loading).toBe(true)
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
-    expect(mocks.getDynastyDecisionInputs).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ playerIds: ['player-2'] }))
+    expect(mocks.requestTradeEstimate).toHaveBeenCalledExactlyOnceWith('member-a', [expect.objectContaining({ playerId: 'player-2' })])
     await act(async () => { renderer.unmount() })
 })
 
@@ -74,5 +71,5 @@ it('cancels a delayed forecast when the analyzer closes', async () => {
     await act(async () => { renderer = create(React.createElement(Probe)) })
     await act(async () => { renderer.unmount() })
     await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-    expect(mocks.getDynastyDecisionInputs).not.toHaveBeenCalled()
+    expect(mocks.requestTradeEstimate).not.toHaveBeenCalled()
 })

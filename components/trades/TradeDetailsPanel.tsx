@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
+import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradeTaxiEligible } from '@/lib/trade-assets'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
@@ -82,6 +83,7 @@ export function TradeDetailsPanel({
                     key={item.playerId} value={item.toTaxi === true} disabled={actions.acting}
                     label={`Receive ${item.playerName} into taxi`}
                     onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}
+            <SavedTradeEstimate trade={trade} />
             <TradeActionButtons trade={trade} model={model} actions={actions} />
             {trade.status === 'pending' && currentLeague?.allow_inactive_trades && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <MotionPressable
@@ -89,10 +91,10 @@ export function TradeDetailsPanel({
                 onPress={onAnalyze}
                 disabled={actions.acting}
                 accessibilityRole="button"
-                accessibilityLabel="Analyze this trade"
+                accessibilityLabel="Revalue this trade with current inputs"
                 accessibilityState={{ disabled: actions.acting }}
             >
-                <Text style={styles.analyzeText}>Analyze</Text>
+                <Text style={styles.analyzeText}>Revalue with current inputs</Text>
             </MotionPressable>
         </View>
     )

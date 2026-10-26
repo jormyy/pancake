@@ -125,7 +125,7 @@ describe('dynasty tools UI', () => {
         await act(async () => { renderer.unmount() })
     })
 
-    it('chooses a team before opening analysis with one fixed 5-year outlook', async () => {
+    it('chooses a team before opening analysis with one fixed Estimated trade value', async () => {
         mocks.getLeagueMembers.mockResolvedValue([{ id: 'other', team_name: 'Other Team' }])
         let renderer!: ReturnType<typeof create>
         await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
@@ -152,11 +152,11 @@ describe('dynasty tools UI', () => {
         mocks.useDynastyTradeAnalysis.mockReturnValue({ analysis, seasonYear: 2026, loading: false, error: null })
         await act(async () => { renderer.update(React.createElement(TradeAnalyzer)) })
         expect(JSON.stringify(renderer.toJSON())).not.toContain('Choose a team.')
-        expect(JSON.stringify(renderer.toJSON())).not.toContain('5-year outlook')
+        expect(JSON.stringify(renderer.toJSON())).not.toContain('Estimated trade value')
         await act(async () => {
             renderer.root.findByProps({ accessibilityLabel: 'View trade analysis' }).props.onPress()
         })
-        const outlooks = renderer.root.findAll(node => node.children.includes('5-year outlook'))
+        const outlooks = renderer.root.findAll(node => node.children.includes('Estimated trade value'))
         expect(outlooks).toHaveLength(1)
         expect(renderer.root.findAllByProps({ accessibilityLabel: 'Trade strategy' })).toHaveLength(0)
         await act(async () => { renderer.unmount() })

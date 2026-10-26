@@ -3346,6 +3346,120 @@ export type Database = {
           },
         ]
       }
+      trade_estimate_quotes: {
+        Row: {
+          analysis: Json
+          created_at: string
+          expires_at: string
+          id: string
+          input_version: string
+          inputs: Json
+          league_id: string
+          league_season_id: string
+          member_id: string
+          model_version: string
+          terms: Json
+        }
+        Insert: {
+          analysis: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_version: string
+          inputs: Json
+          league_id: string
+          league_season_id: string
+          member_id: string
+          model_version: string
+          terms: Json
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_version?: string
+          inputs?: Json
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          model_version?: string
+          terms?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_estimates: {
+        Row: {
+          quote_id: string | null
+          recorded_at: string
+          trade_id: string
+          unavailable_reason: string | null
+        }
+        Insert: {
+          quote_id?: string | null
+          recorded_at?: string
+          trade_id: string
+          unavailable_reason?: string | null
+        }
+        Update: {
+          quote_id?: string | null
+          recorded_at?: string
+          trade_id?: string
+          unavailable_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_estimates_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "trade_estimate_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimates_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: true
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_items: {
         Row: {
           created_at: string
@@ -4587,6 +4701,7 @@ export type Database = {
           total_items: number
         }[]
       }
+      cleanup_trade_estimate_quotes: { Args: never; Returns: number }
       clear_push_token_for_user_atomic: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
@@ -5131,6 +5246,10 @@ export type Database = {
           week_number: number
         }[]
       }
+      get_trade_estimate_inputs: {
+        Args: { p_items: Json; p_member_id: string; p_user_id: string }
+        Returns: Json
+      }
       get_trade_page_refs: {
         Args: {
           p_cursor?: string
@@ -5577,6 +5696,16 @@ export type Database = {
           p_status_text: string
         }
         Returns: boolean
+      }
+      save_trade_estimate_quote: {
+        Args: {
+          p_analysis: Json
+          p_inputs: Json
+          p_member_id: string
+          p_model_version: string
+          p_user_id: string
+        }
+        Returns: Json
       }
       search_players: {
         Args: {

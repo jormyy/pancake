@@ -431,6 +431,7 @@ export default function ProposeTradeScreen() {
                         myMemberId,
                         leagueId,
                         rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined,
+                        estimateId: tradeAnalysis.quote?.id,
                         participantMemberIds: [...participantIds],
                         items: items.map((item) => ({ ...item })),
                         notes,
@@ -451,7 +452,7 @@ export default function ProposeTradeScreen() {
                         myMemberId,
                         leagueId,
                         selectedRecipientId,
-                        payload: { ...payload, rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
+                        payload: { ...payload, estimateId: tradeAnalysis.quote?.id, rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
                             offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
                     }
                     send = () => submitTradeComposer(input,
@@ -486,6 +487,7 @@ export default function ProposeTradeScreen() {
         }
     }, [
         rosterLegality, capture, isCurrent, canAct, blockActions, user?.id,
+        tradeAnalysis.quote?.id,
         rosterPlan,
         currentLeague?.allow_inactive_trades,
         back,
@@ -556,7 +558,7 @@ export default function ProposeTradeScreen() {
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
     const verdict = (
-        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
     const reviewReady = !tradeAnalysis.loading
@@ -568,7 +570,7 @@ export default function ProposeTradeScreen() {
         <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {verdict}
-                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
+                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
             </ScrollView>
         </DeferredContent>
     </PageFrame>
@@ -613,9 +615,9 @@ export default function ProposeTradeScreen() {
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
                             value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
                             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
-                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
-                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
+                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
                     </View>
                     </DeferredContent>
                 </ScrollView>

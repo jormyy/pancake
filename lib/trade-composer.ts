@@ -81,6 +81,7 @@ type SubmitComposerDeps = {
             offerFaabAmount?: number
             requestFaabAmount?: number
             rosterPlan?: TradeProposalPayload['rosterPlan']
+            estimateId?: string
         },
     ) => Promise<string>
     counterTrade: (tradeId: string, memberId: string, payload: TradeProposalPayload) => Promise<string>
@@ -88,6 +89,7 @@ type SubmitComposerDeps = {
 }
 
 type SubmitMultiTeamComposerInput = {
+    estimateId?: string
     requestId?: string
     nowMs?: number
     mode: TradeComposerMode
@@ -305,6 +307,7 @@ export async function submitTradeComposer(
         input.payload.notes ?? undefined,
         {
             requestId: input.requestId,
+            ...(input.payload.estimateId ? { estimateId: input.payload.estimateId } : {}),
             ...(input.payload.rosterPlan ? { rosterPlan: input.payload.rosterPlan } : {}),
             expiresAt: input.payload.expiresAt,
             offerFaabAmount: input.payload.offerFaabAmount,
@@ -337,6 +340,7 @@ export async function submitMultiTeamTradeComposer(
 
     const payload = {
         requestId: input.requestId,
+        ...(input.estimateId ? { estimateId: input.estimateId } : {}),
         ...(input.rosterPlan ? { rosterPlan: input.rosterPlan } : {}),
         participantMemberIds: input.participantMemberIds,
         items: input.items,
