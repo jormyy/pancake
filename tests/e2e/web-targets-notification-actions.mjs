@@ -5,6 +5,7 @@ import { setupTradeGameplayFixture } from './trade-fixture.mjs'
 export async function auditWebNotificationActions({ check, env, season, target, page, press, button, open, signIn, db, wait }) {
   await check('notification-local-capabilities', async () => {
     await open('/profile')
+    await press(button('Notification settings'))
     const expected = await page.evaluate(() => {
       if (!('PushManager' in window) || !('Notification' in window)) return /iPhone/.test(navigator.userAgent) && !Reflect.get(navigator, 'standalone') ? 'install' : 'unsupported'
       return Notification.permission === 'denied' ? 'denied' : 'unconfigured'
@@ -54,6 +55,7 @@ export async function auditWebNotificationActions({ check, env, season, target, 
     try {
       await signIn(fixture)
       await open('/profile')
+      await press(button('Notification settings'))
       await button('Turn on').waitFor()
       await press(button('Turn on'))
       await wait(async () => await button('Turn on').isEnabled())
@@ -66,23 +68,25 @@ export async function auditWebNotificationActions({ check, env, season, target, 
       await page.evaluate(() => { Reflect.get(window, '__webPushSimulation').response = 'granted' })
       await press(button('Turn on'))
       await button('Turn off').waitFor()
-      for (const [label, column] of [['Trades', 'trade_enabled'], ['Waivers', 'waiver_enabled'], ['Drafts', 'draft_enabled'], ['League activity', 'activity_enabled']]) {
-        const toggle = page.getByRole('switch', { name: label, exact: true })
+      for (const category of ['trade', 'waiver', 'draft', 'player', 'lineup', 'matchup', 'playoff', 'league']) {
+        const labels = { trade: 'trades', waiver: 'waivers', draft: 'drafts', player: 'players', lineup: 'lineup', matchup: 'matchups', playoff: 'playoffs', league: 'league' }
+        const toggle = page.getByRole('switch', { name: `All ${labels[category]} notifications`, exact: true })
+        const saved = async () => (await db(fixture.admin.from('notification_preferences').select('category_settings').eq('user_id', fixture.users[0].id).single())).category_settings[category]
         await press(toggle)
-        await wait(async () => (await db(fixture.admin.from('notification_preferences').select(column).eq('user_id', fixture.users[0].id).single()))[column] === false)
+        await wait(async () => await saved() === false)
         assert.equal(await toggle.isChecked(), false)
         await press(toggle)
-        await wait(async () => (await db(fixture.admin.from('notification_preferences').select(column).eq('user_id', fixture.users[0].id).single()))[column] === true)
+        await wait(async () => await saved() === true)
       }
       await press(button('Test'))
       await page.getByText('No notification sent', { exact: true }).waitFor()
       await press(button('Dismiss').last())
       await press(button('Turn off'))
       await button('Turn on').waitFor()
-      assert.equal(await page.getByRole('switch', { name: 'Trades', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('switch', { name: 'All trades notifications', exact: true }).isChecked(), true)
       for (const action of ['config', 'subscribe', 'test', 'unsubscribe']) assert.ok(calls.includes(action), action)
       return { simulated: ['permission default', 'permission denied', 'permission granted', 'subscription', 'empty test delivery', 'unsubscribe'],
-        actualDatabaseWrites: 'Four notification categories off and on', realDeviceRequired: ['Home Screen installation', 'iOS permission prompt', 'push delivery', 'background notification tap'] }
+        actualDatabaseWrites: 'Eight notification categories off and on; preferences remain enabled after device unsubscribe', realDeviceRequired: ['Home Screen installation', 'iOS permission prompt', 'push delivery', 'background notification tap'] }
     } finally { await page.context().unroute(pattern) }
   })
 }
