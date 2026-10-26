@@ -10,6 +10,7 @@ for (const file of ['exact-controls.mjs', 'form-submission-update.mjs']) {
       'node:child_process': `
         import assert from 'node:assert/strict'
         export const spawn = () => { throw new Error('Unexpected service launch') }
+        export const execFileSync = () => { throw new Error('Unexpected command execution') }
         export const spawnSync = (command, args, options) => {
           assert.equal(command, 'psql')
           assert.equal(options.env.PGHOST, '127.0.0.1')
@@ -35,6 +36,11 @@ for (const file of ['exact-controls.mjs', 'form-submission-update.mjs']) {
         return replacements[specifier]
           ? { url: 'data:text/javascript,' + encodeURIComponent(replacements[specifier]), shortCircuit: true }
           : next(specifier, context)
+      }, load(url, context, next) {
+        const prefix = 'data:text/javascript,'
+        return url.startsWith(prefix)
+          ? { source: decodeURIComponent(url.slice(prefix.length)), format: 'module', shortCircuit: true }
+          : next(url, context)
       } })
       process.argv.push('--check-sql-errors')
       await import(${JSON.stringify(new URL(`../../tests/e2e/${file}`, import.meta.url).href)})

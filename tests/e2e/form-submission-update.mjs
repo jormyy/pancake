@@ -605,7 +605,17 @@ try {
                 resolve = a
                 reject = b
             })
-            return { promise, resolve, reject }
+            return {
+                promise,
+                resolve: () => {
+                    if (!resolve) throw new Error('Held submission has no release callback')
+                    resolve(undefined)
+                },
+                reject: (error) => {
+                    if (!reject) throw new Error('Held submission has no rejection callback')
+                    reject(error)
+                },
+            }
         }
         const heldSubmit = async (reject) => {
             gate = deferred()
