@@ -26,6 +26,23 @@ Rows use 8px vertical padding and 4px content gaps.
 Titles and summaries wrap fully. Source names wrap without squeezing the date.
 Article links, player details and feed filters retain their behavior.
 
+## Matchup
+
+Phone Matchup rows use 44px touch targets and shared row text sizes.
+Names and injury badges share one line on both sides. Phone rows omit headshots to keep those labels readable.
+Day-to-day badges use the same red as Out. DTD, GTD and day-to-day spellings share that treatment.
+
+The player identity opens the player profile. Only the points target opens the scoring breakdown.
+The center position target still selects the lineup slot. These targets are siblings and do not overlap.
+No-game rows omit NBA abbreviations and OFF text. Game rows use bold away-at-home labels, such as `TOR @ OKC`.
+Live rows retain their points/rebounds/assists summary and live indicator. Scoring details remain available from points.
+
+The weekly card keeps team names, records, scores, week and result status.
+The redundant comparison bar, margin caption and “vs” text are removed.
+The calendar retains date selection and day indicators. Decorative calendar, row and section divider lines are removed.
+Starters use a 44px band with an inline Auto-set control. Other section bands use the shared 28px table header height.
+Other matchups retain both scores and Final status. They omit redundant Live labels and internal rules.
+
 ## Player information
 
 Roster rows, previews, trade assets and player detail share the same eligibility badge renderer.

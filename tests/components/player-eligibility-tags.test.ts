@@ -1,7 +1,8 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
-import { Badge } from '@/components/Badge'
+import { INJURY_COLORS } from '@/constants/tokens'
+import { Badge, InjuryBadge } from '@/components/Badge'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
@@ -97,5 +98,14 @@ it.each([64, 65, null])('keeps a taxi occupant career count visible across roste
     expect(taxi.map(tag => tag.props.label)).toEqual(Array(3).fill(`T:${games ?? '—'}`))
     for (const tag of taxi) expect(tag.props.accessibilityLabel).toContain(games === 65 ? 'no longer eligible' : games === null ? 'eligibility unknown' : 'Taxi eligible')
     expect(labels(screen)).not.toContain('GP')
+    await act(async () => screen.unmount())
+})
+
+it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd '])('renders %s with the shared red injury color', async status => {
+    const screen = await render(React.createElement(InjuryBadge, { status }))
+    const badge = screen.root.findByType(Badge)
+    expect(badge.props.label).toBe('DTD')
+    expect(badge.props.accessibilityLabel).toBe('Day-To-Day')
+    expect(badge.props.color).toBe(INJURY_COLORS.Out)
     await act(async () => screen.unmount())
 })

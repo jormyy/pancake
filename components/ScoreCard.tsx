@@ -8,13 +8,6 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
     const oppPts = matchup.opponentPoints ?? 0
     const iWinning = myPts > oppPts
     const oppWinning = oppPts > myPts
-    const scoreTotal = myPts + oppPts
-    const myShare = scoreTotal > 0 ? Math.max(8, Math.min(92, (myPts / scoreTotal) * 100)) : 50
-    const margin = Math.abs(myPts - oppPts)
-    const edgeLabel = margin === 0
-        ? 'Tied'
-        : `${iWinning ? matchup.myTeamName : matchup.opponentTeamName} +${formatPoints(margin)}`
-    const compactEdgeLabel = margin === 0 ? 'Tied' : `${iWinning ? 'You' : 'Opp'} +${formatPoints(margin)}`
 
     let statusLabel = 'In Progress'
     let statusTint: string = uiColors.brandAccent
@@ -51,7 +44,6 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                 >
                     {weekLabel.toUpperCase()}
                 </Text>
-                <View style={styles.headerRule} />
                 <View style={[styles.statusBadge, compact && styles.statusBadgeCompact, { backgroundColor: alpha(statusTint, 0.1), borderColor: alpha(statusTint, 0.31) }]}>
                     <Text style={[styles.statusText, compact && styles.statusTextCompact, { color: statusText }]}>{statusLabel}</Text>
                 </View>
@@ -66,10 +58,6 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     </Text>
                 </View>
 
-                <View style={styles.vsDivider}>
-                    <Text style={styles.vs}>vs</Text>
-                </View>
-
                 <View style={[styles.side, styles.sideRight]}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
                     <Text style={[styles.record, compact && styles.compactMeta, styles.textRight]}>{matchup.opponentWins}–{matchup.opponentLosses}</Text>
@@ -77,14 +65,6 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                         {formatPoints(matchup.opponentPoints)}
                     </Text>
                 </View>
-            </View>
-
-            <View style={[styles.edgeWrap, compact && styles.edgeWrapCompact]}>
-                <View style={[styles.edgeTrack, compact && styles.edgeTrackCompact]}>
-                    <View style={[styles.edgeMine, { width: `${myShare}%` }]} />
-                    <View style={styles.edgeOpponent} />
-                </View>
-                <Text style={styles.edgeCenter} numberOfLines={1} ellipsizeMode="clip">{compact ? compactEdgeLabel : edgeLabel}</Text>
             </View>
         </View>
     )
@@ -103,6 +83,8 @@ const styles = StyleSheet.create({
         ...(Platform.OS === 'web' ? { boxShadow: shadows.md } : {}),
     },
     cardCompact: {
+        borderWidth: 0,
+        ...(Platform.OS === 'web' ? { boxShadow: shadows.none } : {}),
         marginTop: spacing.xs,
         marginBottom: spacing.xs,
         borderRadius: radii.xl,
@@ -111,6 +93,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.md,
         paddingBottom: spacing.sm,
@@ -120,7 +103,9 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgSubtle,
     },
     headerCompact: {
-        paddingHorizontal: spacing.lg,
+        borderBottomWidth: 0,
+        backgroundColor: colors.bgCard,
+        paddingHorizontal: spacing.md,
         paddingTop: spacing.xs,
         paddingBottom: spacing.xs,
     },
@@ -130,13 +115,8 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
         letterSpacing: textStyles.sectionLabel.letterSpacing,
     },
-    headerRule: {
-        flex: 1,
-        height: borderWidth.thin,
-        backgroundColor: colors.separator,
-    },
     statusBadge: {
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: spacing.md,
         paddingVertical: spacing.xs,
         borderRadius: radii['3xl'],
         borderCurve: 'continuous' as const,
@@ -163,9 +143,10 @@ const styles = StyleSheet.create({
         paddingBottom: spacing.sm,
     },
     scoresCompact: {
-        paddingHorizontal: spacing.lg,
-        paddingTop: spacing.sm,
-        paddingBottom: spacing.xxs,
+        gap: spacing.md,
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.xxs,
+        paddingBottom: spacing.md,
     },
     side: { flex: 1, minWidth: 0, gap: spacing.xxs },
     sideRight: { alignItems: 'flex-end' },
@@ -182,6 +163,7 @@ const styles = StyleSheet.create({
     },
     teamNameRight: { textAlign: 'right' },
     compactMeta: {
+        marginTop: 0,
         fontSize: fontSize['2xs'],
         lineHeight: textStyles.tableHeader.lineHeight,
         color: colors.textPlaceholder,
@@ -201,57 +183,5 @@ const styles = StyleSheet.create({
     },
     scoreLose: {
         color: colors.textMuted,
-    },
-
-    vsDivider: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: spacing.lg,
-        alignSelf: 'center',
-    },
-    vs: {
-        fontSize: fontSize['2xs'],
-        color: colors.textPlaceholder,
-        fontWeight: fontWeight.extrabold,
-        letterSpacing: textStyles.sectionLabel.letterSpacing,
-    },
-    edgeWrap: {
-        paddingHorizontal: spacing.xl,
-        paddingBottom: spacing.md,
-        gap: spacing.sm,
-    },
-    edgeWrapCompact: {
-        paddingHorizontal: spacing.lg,
-        paddingBottom: spacing.sm,
-        gap: spacing.xxs,
-    },
-    edgeTrack: {
-        height: spacing.sm,
-        flexDirection: 'row',
-        overflow: 'hidden' as const,
-        borderRadius: radii.full,
-        backgroundColor: colors.bgMuted,
-        borderWidth: borderWidth.thin,
-        borderColor: colors.borderLight,
-    },
-    edgeTrackCompact: {
-        height: spacing.xs,
-    },
-    edgeMine: {
-        height: '100%',
-        backgroundColor: colors.primary,
-    },
-    edgeOpponent: {
-        flex: 1,
-        height: '100%',
-        backgroundColor: colors.bgMuted,
-    },
-    edgeCenter: {
-        flex: 1,
-        minWidth: 0,
-        textAlign: 'center',
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        color: colors.textSecondary,
     },
 })

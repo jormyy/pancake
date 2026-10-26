@@ -4,7 +4,7 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Reference
 
-- [Interface design](interface-design.md): Phone spacing, contextual buttons, compact news, player badges, missing averages and brand assets.
+- [Interface design](interface-design.md): Phone spacing, Matchup interactions, contextual buttons, compact news, player badges and brand assets.
 
 - [Architecture](architecture.md): Code boundaries, authorization, change hints, and season transitions.
 - [Database readiness catalog](database-readiness-catalog.md): Attested migration phases and database security checks.

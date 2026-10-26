@@ -25,7 +25,7 @@ import { Scoreboard } from '@/components/Scoreboard'
 import { getLineupMoveTargetState, LineupPlayer, type LineupMoveData, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { LiveStatLine } from '@/lib/games'
-import { breakpoints, colors, fontSize, fontWeight, layout, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreCard } from '@/components/ScoreCard'
 import { NoLeagueState } from '@/components/NoLeagueState'
@@ -256,6 +256,7 @@ export default function HomeScreen() {
                             teamMatchups={teamMatchups}
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
+                            onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
                             capacity={{
                                 bench: myLineup.benchSlots ?? 0,
                                 ir: league?.ir_slots ?? 2,
@@ -269,7 +270,7 @@ export default function HomeScreen() {
                             autoSetControl={
                                 <Button
                                     title="Auto-set"
-                                    size="sm"
+                                    size="inline"
                                     variant="outline"
                                     onPress={handleAutoSet}
                                     disabled={autoSetting || saving}
@@ -423,7 +424,6 @@ function AroundLeagueCard({ item, style }: { item: LeagueWeekMatchup; style?: St
                     {formatPoints(item.homePoints)}
                 </Text>
             </View>
-            <View style={styles.aroundLeagueDivider} />
             <View style={styles.aroundLeagueTeamRow}>
                 <Text style={[styles.aroundLeagueTeam, awayLeading && styles.aroundLeagueTeamLeading]} numberOfLines={1}>
                     {item.awayTeamName}
@@ -432,7 +432,7 @@ function AroundLeagueCard({ item, style }: { item: LeagueWeekMatchup; style?: St
                     {formatPoints(item.awayPoints)}
                 </Text>
             </View>
-            <Text style={styles.aroundLeagueStatus}>{item.isFinalized ? 'Final' : 'Live'}</Text>
+            {item.isFinalized ? <Text style={styles.aroundLeagueStatus}>Final</Text> : null}
         </View>
     )
 }
@@ -453,6 +453,7 @@ function MatchupLineupView({
     teamMatchups,
     statColumns,
     onOpenDetails,
+    onOpenPlayer,
     capacity,
     compact,
     dense,
@@ -475,6 +476,7 @@ function MatchupLineupView({
     teamMatchups: Map<string, { opponent: string; isHome: boolean }>
     statColumns: StatColumn[] | null
     onOpenDetails: (row: DetailsRow) => void
+    onOpenPlayer: (player: LineupPlayer) => void
     /** League slot counts; every slot shows, filled or empty, so open room is visible. */
     capacity: { bench: number; ir: number; taxi: number }
     compact: boolean
@@ -576,7 +578,7 @@ function MatchupLineupView({
             >
                 {sections.map((section) => (
                     <View key={section.key} style={styles.lineupSection}>
-                        <View style={[styles.lineupSectionBand, { borderLeftColor: section.color }]}>
+                        <View style={[styles.lineupSectionBand, section.key === 'starters' && autoSetControl ? { minHeight: controlSize.minTouch } : null]}>
                             <Text
                                 style={[styles.lineupSectionTitle, { color: section.color }]}
                                 role="heading"
@@ -617,6 +619,7 @@ function MatchupLineupView({
                                         targetState={getTargetState({ kind: row.selKind, index: row.selIndex })}
                                         statColumns={statColumns}
                                         onOpenDetails={onOpenDetails}
+                                        onOpenPlayer={onOpenPlayer}
                                     />
                                 ))}
                             </>
@@ -658,12 +661,11 @@ const styles = StyleSheet.create({
     aroundLeagueScroll: { paddingRight: spacing.md },
     aroundLeagueStack: { gap: spacing.sm },
     aroundLeagueCard: {
+        gap: spacing.xs,
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.sm,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
         backgroundColor: colors.bgCard,
     },
     aroundLeagueCardFixed: { width: 200 },
@@ -698,11 +700,6 @@ const styles = StyleSheet.create({
     aroundLeagueScoreLeading: {
         color: colors.primaryDark,
     },
-    aroundLeagueDivider: {
-        height: 1,
-        backgroundColor: colors.separator,
-        marginVertical: spacing.xs,
-    },
     aroundLeagueStatus: {
         ...textStyles.sectionLabel,
         fontSize: fontSize['2xs'],
@@ -710,10 +707,8 @@ const styles = StyleSheet.create({
     },
     lineupContainer: { flex: 1, minHeight: 0 },
     lineupRows: { flex: 1, minHeight: 0 },
-    lineupRowsContent: { paddingTop: spacing.md, paddingBottom: spacing.md },
+    lineupRowsContent: { paddingTop: spacing.xxs, paddingBottom: spacing.md },
     lineupSection: {
-        borderWidth: 1,
-        borderColor: colors.borderLight,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.bgCard,
@@ -724,13 +719,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        minHeight: 36,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.xs,
-        borderLeftWidth: 3,
+        minHeight: table.headerHeight,
+        paddingHorizontal: spacing.md,
+        paddingVertical: 0,
         backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
     },
     lineupSectionTitle: {
         ...textStyles.sectionLabel,
@@ -742,8 +734,8 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
     },
     lineupFooter: {
-        gap: spacing.xl,
-        paddingTop: spacing.sm,
+        gap: spacing.md,
+        paddingTop: spacing.xs,
         paddingBottom: spacing.lg,
     },
     scoreboardFooter: {

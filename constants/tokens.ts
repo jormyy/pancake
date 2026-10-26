@@ -626,6 +626,7 @@ export const INJURY_COLORS: Record<string, string> = {
     Questionable: palette.amber700,
     Doubtful: palette.maple600,
     Out: palette.red900,
+    DTD: palette.red900,
     IR: palette.redDark,
 }
 
