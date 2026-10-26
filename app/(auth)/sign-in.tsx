@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { useRef, useState } from 'react'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { signIn } from '@/lib/auth'
@@ -12,6 +13,7 @@ export default function SignInScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const submittingRef = useRef(false)
+    useUnsentFormUpdate(Boolean(email || password), 'sign-in form')
     const { restorationStatus, loading: authLoading } = useAuth()
     const restorationNotice = authLoading ? null : restorationStatus === 'expired'
         ? 'Your session expired. Reconnect or sign in to continue.'
@@ -30,6 +32,8 @@ export default function SignInScreen() {
         setError(null)
         try {
             await signIn(email.trim(), password)
+            setEmail('')
+            setPassword('')
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {

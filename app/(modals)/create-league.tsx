@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import {
     View,
     Text,
@@ -29,6 +30,7 @@ export default function CreateLeagueScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [inviteCode, setInviteCode] = useState<string | null>(null)
+    useUnsentFormUpdate(!inviteCode && Boolean(leagueName || teamName || auctionBudget !== '200'), 'create league form')
     const sharingRef = useRef(false)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })

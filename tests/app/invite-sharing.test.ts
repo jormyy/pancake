@@ -5,6 +5,7 @@ import CreateLeagueScreen from '@/app/(modals)/create-league'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
 
 const mocks = vi.hoisted(() => ({ copy: vi.fn(), share: vi.fn(), alert: vi.fn(), success: vi.fn(), refresh: vi.fn(), back: vi.fn() }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, Share: { share: mocks.share }, StyleSheet: { create: (value: unknown) => value },
     View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView',

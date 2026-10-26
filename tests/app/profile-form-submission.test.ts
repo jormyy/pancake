@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     profile: { display_name: 'Manager', username: 'manager', avatar_url: null },
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Platform: { get OS() { return mocks.platform } }, View: 'View', Text: 'Text',
     TextInput: (props: Record<string, unknown>) => {

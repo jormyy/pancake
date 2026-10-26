@@ -12,6 +12,7 @@ import { enableWebPush, getWebPushStatus } from '@/lib/web-push'
 import { showAlert, confirmAction } from '@/lib/alert'
 
 const auth = vi.hoisted(() => ({ user: { id: 'owner-a', email: 'synthetic@example.invalid' }, ready: true, tradeEnabled: true }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => auth }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value },
