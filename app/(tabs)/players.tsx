@@ -1,5 +1,4 @@
 import { ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
-import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useIsFocused } from '@react-navigation/native'
 import {
     View,
@@ -179,6 +178,7 @@ function PlayerSearchSection() {
     const {
         data: playerSupport,
         loading: playerSupportFetchLoading,
+        refreshing: playerSupportRefreshing,
         error: playerSupportError,
         refresh: refreshSupportSnapshot,
         refreshIfStale: refreshSupportIfStale,
@@ -244,7 +244,7 @@ function PlayerSearchSection() {
     const playerSupportReady = !leagueId || playerSupportForLeague != null
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading && !playerSupportRefreshing, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
@@ -290,7 +290,7 @@ function PlayerSearchSection() {
         rosterSize: currentLeague?.roster_size ?? 20,
         onClaimInstead: openClaim,
     })
-    const availabilityUpdating = supportSnapshot || playerSupportFetchLoading
+    const availabilityUpdating = supportSnapshot || playerSupportFetchLoading || playerSupportRefreshing || Boolean(playerSupportError)
     const addBlockedReason = quickAdd.addBlockedReason
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
@@ -400,7 +400,9 @@ function PlayerSearchSection() {
             />
         </>
     )
-    const listIsInitialLoading = playerSupportLoading || (search.results.loading && search.results.players.length === 0)
+    const listError = search.results.error ?? playerSupportError
+    const listIsInitialLoading = !listError && (playerSupportLoading || availabilityUpdating || !playerSupportReady
+        || search.results.loading || search.results.refreshing || search.results.isSnapshot)
 
     // No placeholder shell while auth/league context loads — the screen stays
     // blank and the real UI appears fully formed, with no reflow.
@@ -496,7 +498,7 @@ function PlayerSearchSection() {
                 </View>
             </Sheet>
 
-            <DeferredContent ready={!listIsInitialLoading || Boolean(search.results.error)} busy={search.results.loading || search.results.refreshing || playerSupportFetchLoading}>
+            <View style={localStyles.results} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
             <FlashList
                     onScroll={statusScroll.onScroll}
                     scrollEventThrottle={16}
@@ -513,12 +515,10 @@ function PlayerSearchSection() {
                     ListEmptyComponent={
                         !online
                             ? <EmptyState message="Offline. No saved player results." description="Reconnect to load this search." fullScreen={false} />
+                            : listError
+                              ? <EmptyState message="Players could not load." description={listError.message} actionLabel="Retry" onAction={() => { void refreshPlayers() }} fullScreen={false} />
                             : listIsInitialLoading
-                            ? null
-                            : search.results.error
-                              ? <EmptyState message="Players could not load." description={search.results.error.message} actionLabel="Retry" onAction={search.results.retry} fullScreen={false} />
-                            : playerSupportError && playerSupportForLeague == null
-                              ? <EmptyState message="Players could not load." description="Tap retry to reload roster and waiver state." actionLabel="Retry" onAction={() => void refreshPlayerSupport()} fullScreen={false} />
+                              ? <EmptyState message="Loading players…" fullScreen={false} />
                             : search.activeFilterCount > 0
                               ? <EmptyState message="No players match these filters." actionLabel="Clear filters" onAction={search.clearAllFilters} fullScreen={false} />
                             : search.search.query.trim()
@@ -529,9 +529,13 @@ function PlayerSearchSection() {
                     }
                     onEndReached={search.results.loadMore}
                     onEndReachedThreshold={0.3}
-                    ListFooterComponent={null}
+                    ListFooterComponent={
+                        <View style={localStyles.pageProgress}>
+                            <Text style={localStyles.freshnessText} accessibilityLiveRegion="polite">{search.results.loadingMore ? 'Loading more players…' : ''}</Text>
+                        </View>
+                    }
                 />
-            </DeferredContent>
+            </View>
           </View>
             <ScreenStatusOverlay>
                 {search.results.players.length > 0 && (!online || search.results.error || playerSupportError) && <Pressable
@@ -657,6 +661,8 @@ const localStyles = StyleSheet.create({
     freshness: { paddingVertical: spacing.sm },
     freshnessText: { fontSize: fontSize.sm, color: colors.textSecondary },
     panel: { flex: 1, minHeight: 0 },
+    results: { flex: 1, minHeight: 320 },
+    pageProgress: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center' },
     toolbar: {
         gap: spacing.xs,
         paddingVertical: spacing.md,

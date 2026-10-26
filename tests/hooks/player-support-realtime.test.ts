@@ -235,3 +235,16 @@ it('watches private own claims and refreshes cancellations with primary-key-only
     })
     expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])
 })
+
+it('refreshes availability on an authoritative roster hint without a raw table event', async () => {
+    const Scoped = () => { usePlayerSupportRealtime('member', 'league', boundary.support, boundary.recover, true, seasonId, boundary.derived, boundary.invalidate); return null }
+    await act(async () => { renderer = create(React.createElement(Scoped)) })
+    await act(async () => {
+        notifyLeagueChange('league', { topic: 'roster', scopes: [{ season_id: seasonId, member_id: 'other' }] })
+        await vi.advanceTimersByTimeAsync(250)
+    })
+    expect(boundary.invalidate).toHaveBeenCalledOnce()
+    expect(boundary.support).toHaveBeenCalledOnce()
+    expect(boundary.support.mock.calls[0][0]).toContain('ownership')
+    expect(boundary.support.mock.calls[0][0]).toContain('waivers')
+})
