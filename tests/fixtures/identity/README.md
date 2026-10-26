@@ -11,7 +11,6 @@ These files contain real NBA data. Test leagues, ownership, support rows, and cl
 | games-2024.json | REAL-DERIVED | Schedule fields from those 2024-25 box scores |
 | games-2025.json | REAL-DERIVED | Schedule fields from the pinned 2025-26 box scores |
 | trades-2025.json | REAL-DERIVED | Dončić rows before and after DAL → LAL |
-| trades-2026.json | REAL-DERIVED | Observed team changes near the 2026 deadline, including DNP rows |
 | trade-harden.json | REAL-DERIVED | Harden's last played LAC game and first four played CLE games |
 | boxscore-0022400768.json | REAL-RAW | Dončić debut, NBA CDN boxscore, captured final |
 | boxscore-0022500756.json | REAL-RAW | Harden debut, pinned NBA CDN boxscore, captured final |

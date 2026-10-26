@@ -3,17 +3,10 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs'
 import { lane } from './lane.mjs'
 
-// Owns this lane's `supabase functions serve` process. The real Edge runtime
-// container is restarted around every served-path mutant so the worker cannot
-// keep a module compiled before the mutation or the restore.
 const envFile = `${lane}/edge.env`
 const pidFile = `${lane}/edge.pid`
 const container = 'supabase_edge_runtime_pt4bapost'
 const endpoint = 'http://127.0.0.1:57421/functions/v1/season-boundary'
-// The served sync-schedule worker reads the NBA schedule from the fake CDN that
-// post-t11-schedule-http.ts listens on (the API port + 70 on the mini's loopback,
-// reached from the Lima VM through its host alias). No served function in this
-// lane reaches the real NBA CDN.
 const nbaCdn = 'http://host.lima.internal:57491/static/json'
 const toolEnv = { ...process.env, PATH: `${lane}/bin:${process.env.PATH}`, DOCKER_CONFIG: `${lane}/docker-config` }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -38,19 +31,6 @@ function edgeContainer() {
   const [info] = JSON.parse(inspected.stdout)
   assert.equal(info.Name, `/${container}`)
   return info.State.Running ? info : null
-}
-
-// Hash of a repository file as the running Edge container sees it.
-export function servedFileSha(path) {
-  const info = edgeContainer()
-  assert.ok(info, 'Edge container is not running')
-  const mount = info.Mounts.find(item => item.Source.endsWith('/repo/supabase/functions') || item.Source.endsWith('/supabase/functions'))
-  assert.ok(mount, 'Edge container has no functions mount')
-  assert.ok(path.startsWith('supabase/functions/'))
-  const target = `${mount.Destination}/${path.slice('supabase/functions/'.length)}`
-  const hashed = docker(['exec', container, 'sha256sum', target])
-  assert.equal(hashed.status, 0, hashed.stderr)
-  return hashed.stdout.trim().split(/\s+/)[0]
 }
 
 export async function stopEdge() {
@@ -85,9 +65,4 @@ export async function startEdge() {
     await sleep(500)
   }
   throw new Error('The real Edge server must reject unauthenticated requests before tests start')
-}
-
-export async function restartEdge() {
-  await stopEdge()
-  return await startEdge()
 }
