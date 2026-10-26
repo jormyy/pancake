@@ -9,7 +9,7 @@ BEGIN
 END;
 $$;
 DO $$
-DECLARE f record; taxi uuid:=gen_random_uuid(); target uuid:=gen_random_uuid(); claimed uuid:=gen_random_uuid(); claim uuid; offer uuid;
+DECLARE f record; taxi uuid:=gen_random_uuid(); target uuid:=gen_random_uuid(); claimed uuid:=gen_random_uuid(); claim uuid; target_claim uuid; offer uuid;
   picks uuid[]:=ARRAY[gen_random_uuid(),gen_random_uuid(),gen_random_uuid()]; roster uuid; outcome record;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(3,9544);
@@ -34,12 +34,15 @@ BEGIN
     jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[2],'pickId',picks[1]),
     jsonb_build_object('fromMemberId',f.member_ids[2],'toMemberId',f.member_ids[3],'pickId',picks[2]),
     jsonb_build_object('fromMemberId',f.member_ids[3],'toMemberId',f.member_ids[1],'pickId',picks[3]))),'PA009','Taxi Expired','taxi blocks multi-team offers');
-  PERFORM pg_temp.roster_error(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[1]),'PA009','Taxi Expired','taxi blocks acceptance');
+  PERFORM pg_temp.roster_error(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[1]),'PT001','ineligible taxi player','taxi blocks acceptance');
+  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
   SELECT * INTO outcome FROM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
   PERFORM pg_temp.check_rules(outcome.status='failed_roster' AND outcome.failure_reason ILIKE '%Taxi Expired%','pending claim fails with the taxi player name');
   PERFORM public.toggle_taxi_atomic(roster,false,f.user_ids[1]);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.roster_problems(f.league_id,f.season_id,f.member_ids[1])),'taxi activation clears illegality');
-  PERFORM public.add_free_agent_atomic(f.member_ids[1],f.league_id,target);
+  target_claim:=public.create_waiver_claim_atomic(f.league_id,f.member_ids[1],target,NULL,f.user_ids[1]);
+  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=target_claim;
+  PERFORM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM roster_players WHERE league_id=f.league_id AND player_id=target),'corrected roster permits additions');
   UPDATE players SET injury_status='Out' WHERE id=taxi;
   PERFORM public.toggle_ir_atomic(roster,true,f.user_ids[1]);

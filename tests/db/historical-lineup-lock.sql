@@ -14,7 +14,7 @@ VALUES('00000000-0000-0000-0000-0000f6d42504','Traded','History','XHA','PG',ARRA
 INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,is_on_ir,acquired_via)
 VALUES('00000000-0000-0000-0000-0000f6d42501','00000000-0000-0000-0000-0000f6d42503','00000000-0000-0000-0000-0000f6d42502','00000000-0000-0000-0000-0000f6d42504',false,'draft');
 INSERT INTO nba_games(id,nba_game_id,week_number,season_year,game_date,home_team,away_team,status,game_time)
-VALUES('00000000-0000-0000-0000-0000f6d42506','0022500099',1,2125,(now() at time zone 'America/New_York')::date-1,'XHA','XHC','Final',now()-interval '1 day');
+VALUES('00000000-0000-0000-0000-0000f6d42506','test-historical-lineup-lock',1,2125,(now() at time zone 'America/New_York')::date-1,'XHA','XHC','Final',now()-interval '1 day');
 INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points,did_not_play)
 VALUES('00000000-0000-0000-0000-0000f6d42504','00000000-0000-0000-0000-0000f6d42506',2125,1,30,false);
 SELECT set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000f6d42500',true);

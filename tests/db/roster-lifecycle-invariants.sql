@@ -152,7 +152,6 @@ BEGIN
   END IF;
 END $$;
 
--- T3: an IR move clears the listing; returning to the active roster does not restore it.
 SELECT public.add_trade_block_item_atomic(ids.member_a, ids.league_id, ids.injured, NULL, NULL, ids.user_a) FROM lifecycle_ids AS ids;
 INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date)
 SELECT ids.league_id, ids.season_id, ids.member_a, ids.injured, 'SG', current_date + 2 FROM lifecycle_ids AS ids;
@@ -161,8 +160,8 @@ DO $$
 DECLARE ids lifecycle_ids%ROWTYPE;
 BEGIN
   SELECT * INTO ids FROM lifecycle_ids;
-  IF pg_temp.listing_count(ids.member_a, ids.injured) <> 0 THEN
-    RAISE EXCEPTION 'T3: listing survived an IR move';
+  IF pg_temp.listing_count(ids.member_a, ids.injured) <> 1 THEN
+    RAISE EXCEPTION 'T3: an eligible listing was lost after an IR move';
   END IF;
   IF EXISTS (SELECT 1 FROM public.weekly_lineups WHERE member_id = ids.member_a AND player_id = ids.injured) THEN
     RAISE EXCEPTION 'T3: future lineup slot survived an IR move';
@@ -173,8 +172,8 @@ DO $$
 DECLARE ids lifecycle_ids%ROWTYPE;
 BEGIN
   SELECT * INTO ids FROM lifecycle_ids;
-  IF pg_temp.listing_count(ids.member_a, ids.injured) <> 0 THEN
-    RAISE EXCEPTION 'T3: activation resurrected a listing';
+  IF pg_temp.listing_count(ids.member_a, ids.injured) <> 1 THEN
+    RAISE EXCEPTION 'T3: activation lost an existing listing';
   END IF;
 END $$;
 

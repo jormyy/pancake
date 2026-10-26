@@ -12,7 +12,7 @@ BEGIN
  UPDATE leagues SET waiver_mode='rolling' WHERE id=f.league_id;
  INSERT INTO players(id,first_name,last_name) SELECT id,'Backlog',id::text FROM unnest(players) id;
  INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
- SELECT f.league_id,f.season_id,id,timestamptz '1900-01-01 12:00+00' FROM unnest(players) id;
+ SELECT f.league_id,f.season_id,id,timestamptz '1899-12-29 12:00+00' FROM unnest(players) id;
  newer:=create_waiver_claim_atomic(f.league_id,f.member_ids[1],players[1],NULL,f.user_ids[1]);
  older:=create_waiver_claim_atomic(f.league_id,f.member_ids[2],players[2],NULL,f.user_ids[2]);
  UPDATE waiver_claims SET process_date='1900-01-04' WHERE id=newer;
