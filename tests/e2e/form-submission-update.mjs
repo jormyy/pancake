@@ -11,7 +11,11 @@ const { chromium } = require(process.env.FORM_SUBMISSIONS_PLAYWRIGHT ?? 'playwri
 const { createClient } = require('@supabase/supabase-js')
 const { readPwaRelease } = await import(path.join(root, 'tests/e2e/pwa-update-release.mjs'))
 assert.equal(process.env.E2E_SUPABASE_URL, 'http://127.0.0.1:57121')
-assert.equal(new URL(process.env.SUPABASE_DB_URL).port, '57122')
+const databaseTarget = new URL(process.env.SUPABASE_DB_URL)
+assert.ok(['postgres:', 'postgresql:'].includes(databaseTarget.protocol))
+assert.equal(databaseTarget.hostname, '127.0.0.1')
+assert.equal(databaseTarget.port, '57122')
+assert.equal(databaseTarget.pathname, '/postgres')
 const sql = (q) => {
     const result = spawnSync(
         'psql',

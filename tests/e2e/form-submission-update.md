@@ -1,6 +1,7 @@
 # Local form submission and update proof
 
 This runner uses the isolated local stack on ports 57121 and 57122.
+The database must be `postgres` at `127.0.0.1:57122` with a PostgreSQL URL.
 It creates disposable accounts and leagues, then removes them.
 Run it on the assigned mini. Disable external email and push delivery first.
 Start the local API before the runner. Leave shared services running.
