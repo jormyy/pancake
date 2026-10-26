@@ -116,6 +116,7 @@ export async function runWebTargetBrowserCommand({ session, args }) {
     case 'fill': await locator(args[1]).fill(args[2]); break
     case 'fill-label': await page.getByLabel(args[1], { exact: true }).fill(args[2]); break
     case 'click': await press(locator(args[1])); break
+    case 'scrollintoview': await locator(args[1]).scrollIntoViewIfNeeded(); break
     case 'press': await page.keyboard.press(args[1]); break
     case 'get': assert.equal(args[1], 'url'); output = page.url(); break
     case 'find': {
