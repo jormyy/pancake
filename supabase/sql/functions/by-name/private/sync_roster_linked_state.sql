@@ -32,12 +32,12 @@ BEGIN
     OLD.member_id
   );
 
-  DELETE FROM trade_block_items
-   WHERE league_id = OLD.league_id
-     AND member_id = OLD.member_id
-     AND player_id = OLD.player_id;
-
   IF v_left_roster THEN
+    DELETE FROM trade_block_items
+     WHERE league_id = OLD.league_id
+       AND member_id = OLD.member_id
+       AND player_id = OLD.player_id;
+
     v_cancel_claims := private.trade_lifecycle_write_active()
       AND EXISTS (SELECT 1 FROM leagues WHERE id=OLD.league_id AND allow_inactive_trades);
     IF v_cancel_claims THEN

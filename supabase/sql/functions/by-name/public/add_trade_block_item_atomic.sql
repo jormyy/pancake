@@ -59,12 +59,12 @@ BEGIN
        AND league_season_id = v_season_id
        AND member_id = p_member_id
        AND player_id = p_player_id
-       AND is_on_ir = false
-       AND is_on_taxi = false
+       AND ((is_on_ir = false AND is_on_taxi = false)
+         OR EXISTS (SELECT 1 FROM leagues WHERE id=p_league_id AND allow_inactive_trades))
      FOR SHARE;
 
     IF NOT FOUND THEN
-      RAISE EXCEPTION 'Only active roster players can be listed on the trade block.'
+      RAISE EXCEPTION 'Only players you own can be listed. This league must permit inactive-player trades for IR or taxi listings.'
         USING ERRCODE = 'P0001';
     END IF;
 

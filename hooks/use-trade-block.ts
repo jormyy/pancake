@@ -20,12 +20,13 @@ type TradeBlockCache = {
     avgStatsEntries: [string, RosterAverage][]
 }
 
-const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v2:'
+const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v3:'
 const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
     `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
 
-export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean } = {}) {
+export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean; allowInactive?: boolean } = {}) {
     const visible = options.visible ?? true
+    const allowInactive = options.allowInactive ?? false
     const canMutateRef = useRef(canMutate)
     canMutateRef.current = canMutate
     const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
@@ -82,7 +83,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
                 getRoster(memberId, leagueId),
             ])
             if (loadSequence.current !== requestId) return false
-            const nextRoster = memberRoster.filter((player) => isTradeableRosterPlayer(player))
+            const nextRoster = memberRoster.filter((player) => isTradeableRosterPlayer(player, allowInactive))
             setItems(nextItems)
             setRoster(nextRoster)
             setDataKey(resourceKey)
@@ -96,7 +97,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         } finally {
             if (loadSequence.current === requestId) setLoading(false)
         }
-    }, [leagueId, memberId, resourceKey])
+    }, [leagueId, memberId, resourceKey, allowInactive])
 
     useEffect(() => {
         loadSequence.current += 1
@@ -228,7 +229,7 @@ export function useTradeBlock(memberId: string, leagueId: string, canMutate = tr
         items: itemsWithStats,
         hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
         displayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached)),
-        roster: ownsResource ? roster : cached?.roster ?? [],
+        roster: (ownsResource ? roster : cached?.roster ?? []).filter((player) => isTradeableRosterPlayer(player, allowInactive)),
         avgMap: ownsResource ? avgMap : cachedAvgMap,
         avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,
         loading: ownsResource ? loading : !cached,

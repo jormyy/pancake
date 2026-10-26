@@ -159,7 +159,7 @@ function TradesScreen() {
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
         setNote: handleSaveBlockNote,
-    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && tab === 'block' })
+    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])

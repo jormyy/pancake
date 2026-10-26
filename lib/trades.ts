@@ -1,3 +1,4 @@
+import { getCurrentSeasonId } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
@@ -139,7 +140,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
     nba_draft_number: number | null
     career_regular_season_games: number | null
-    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean }[]
+    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean; is_on_ir?: boolean }[]
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -238,6 +239,7 @@ function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
 }
 
 export type TradeBlockItem = {
+    rosterLocation?: 'active' | 'ir' | 'taxi'
     id: string
     memberId: string
     teamName: string
@@ -776,6 +778,8 @@ type TradeBlockQueryRow = {
 }
 
 export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockItem[]> {
+    const seasonId = await getCurrentSeasonId(leagueId)
+    if (!seasonId) return []
     const { data, error } = await supabase
         .from('trade_block_items')
         .select(`
@@ -786,7 +790,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
+            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_ir, is_on_taxi ) ),
             draft_picks (
                 season_year,
                 round,
@@ -794,13 +798,16 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             )
         `)
         .eq('league_id', leagueId)
+        .eq('players.roster_players.league_season_id', seasonId)
         .order('updated_at', { ascending: false })
 
     if (error) throw error
 
     const items = ((data ?? []) as TradeBlockQueryRow[]).flatMap<TradeBlockItem>((row) => {
         if (row.player_id && row.players) {
+            const roster = row.players.roster_players?.find(item => item.league_season_id === seasonId && item.member_id === row.member_id)
             return [{
+                rosterLocation: roster ? roster.is_on_taxi ? 'taxi' : roster.is_on_ir ? 'ir' : 'active' : undefined,
                 id: row.id,
                 memberId: row.member_id,
                 teamName: row.league_members?.team_name ?? 'Unknown',

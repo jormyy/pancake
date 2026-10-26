@@ -9,7 +9,7 @@ Every other roster-linked record falls into one of three classes.
 
 | Record | Class | Rule when the player leaves the roster or becomes inactive |
 | --- | --- | --- |
-| `trade_block_items` (player) | live state | Removed when ownership ends or the player enters IR/taxi. Only active roster players can be listed. |
+| `trade_block_items` (player) | live state | Removed when ownership ends. IR/taxi listings require the inactive-trade setting and survive roster-location changes. |
 | `trade_block_items` (pick) | live state | Removed when the pick changes owner or is used in a draft. |
 | `weekly_lineups` (future, unlocked dates) | live state | Cleared for that member and player. Rows for started or finished games stay for scoring. |
 | `waiver_claims` pending `drop_player_id` | live state | Legacy claims lose the stale drop reference. Opted-in trade-plan leagues cancel the claim with a reason. Pending drop reservations restrict IR/taxi moves. |
