@@ -50,6 +50,10 @@ export function actionClient(keys) {
   return { rpc, api, rest, restWrite, onTokenRefresh }
 }
 
+export function officialLeagueSettings(settings, pastWeeks) {
+  return pastWeeks == null ? settings : { ...settings, skipped_weeks: [...new Set([...(settings.skipped_weeks ?? []), ...pastWeeks])].sort((a, b) => a - b) }
+}
+
 export async function createLeagueActions(keys, date, teamCount = 2, options = {}) {
   assertTarget(keys.API_URL, 'api')
   const scenario = options.scenario
@@ -71,13 +75,14 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })
   const leagueId = league.id
   const skipped = options.skipPastWeeks ? JSON.parse(await sql(`SELECT coalesce(json_agg(week_number ORDER BY week_number),'[]') FROM season_weeks WHERE season_year=${season.year} AND week_end<'${date}'`)) : null
-  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: scenario?.settings ?? { ...(skipped ? { skipped_weeks: skipped } : {}), ...(options.integrated ? { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1 } : {}), roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: scenario?.slots.filter(row => row.slot_type !== 'IR') ?? [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+  const officialSettings = scenario ? officialLeagueSettings(scenario.settings, skipped) : null
+  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: officialSettings ?? { ...(skipped ? { skipped_weeks: skipped } : {}), ...(options.integrated ? { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1 } : {}), roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: scenario?.slots.filter(row => row.slot_type !== 'IR') ?? [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
   const configuredSlots = await rest(users[0], `lineup_slot_templates?select=slot_type,slot_count&league_id=eq.${leagueId}`)
   for (const row of configuredSlots) assert.equal(row.slot_count, scenario ? scenario.slots.find(slot => slot.slot_type === row.slot_type)?.slot_count : row.slot_type === 'UTIL' ? 2 : row.slot_type === 'BE' ? 1 : row.slot_type === 'IR' ? 2 : 0, 'Commissioner slot configuration must match the declared scenario')
   if (scenario) {
     const [configured] = await rest(users[0], `leagues?select=*&id=eq.${leagueId}`)
     const [configuredSeason] = await rest(users[0], `league_seasons?select=skipped_weeks&league_id=eq.${leagueId}&is_current=eq.true`)
-    for (const [key, value] of Object.entries(scenario.settings)) assert.deepEqual(key === 'skipped_weeks' ? configuredSeason[key] : configured[key], value, `Official setting persists: ${key}`)
+    for (const [key, value] of Object.entries(officialSettings)) assert.deepEqual(key === 'skipped_weeks' ? configuredSeason[key] : configured[key], value, `Official setting persists: ${key}`)
     assert.equal(configuredSlots.length, scenario.slots.length, 'Every official slot template exists')
   }
   const members = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT id,user_id FROM league_members WHERE league_id='${leagueId}') t`))
@@ -85,7 +90,7 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
   for (const user of users) user.memberId = members.find(member => member.user_id === user.id).id
   const { draft } = await api(users[0], '/draft/start', { leagueId, timerSeconds: 5 })
   if (scenario) {
-    const context = { leagueId, leagueSeasonId, seasonYear: season.year, seasonEnd: season.end, firstDate: date, draftId: draft.id, members, date, scenario, skippedWeeks: [...scenario.settings.skipped_weeks] }
+    const context = { leagueId, leagueSeasonId, seasonYear: season.year, seasonEnd: season.end, firstDate: date, draftId: draft.id, members, date, scenario, skippedWeeks: [...officialSettings.skipped_weeks] }
     const client = { ...context, users, rpc, api, rest, restWrite, onTokenRefresh }
     const now = async () => Number(await sql('SELECT extract(epoch FROM now())*1000'))
     context.auction = await runOfficialAuction(client, scenario, options.move, now, statement => sqlJson(statement, 'Official auction'))

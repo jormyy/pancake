@@ -108,6 +108,21 @@ Each acceptance area needs measured evidence.
 A short launcher check cannot produce full acceptance.
 Use `fresh-run.mjs --check-first-date` for an initial diagnostic.
 
+With the official profile, start late without a checkpoint:
+
+```sh
+node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA" --start 2025-02-10
+```
+
+Set `SEASON_SIM_YEAR=2025`, `SEASON_SIM_MODE=two-season`, and `SEASON_SIM_PROFILE` before launch.
+The replay skips completed earlier weeks and runs through November 3, 2025.
+The start date can fall within a week.
+Earlier scenario windows read `not measured: late start`.
+Remaining scoring, waivers, deadline trades, final forecasts, playoffs, rollover, rookie draft, opening week, and Realtime delivery must pass.
+The summary records `lateStart.start`, `lateStart.passed`, `lateStart.notMeasured`, and `lateStart.gaps`.
+`fullAcceptance` stays false because earlier windows remain unmeasured.
+The launcher records acceptance in `evidence/late-season-check.json`.
+
 ## Recovery from a real-season checkpoint
 
 Keep the original failed run, volumes, receipts, and source inputs unchanged.

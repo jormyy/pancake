@@ -4,6 +4,12 @@ A resumed replay proves only the dates and actions it measures.
 It does not replace a fresh, uninterrupted full-season run.
 Use the [simulator guide](season-simulator.md) for supported replay modes.
 
+A fresh official late start requires no saved checkpoint.
+Its summary marks earlier scenario windows `not measured: late start`.
+All remaining checks must pass for `lateStart.passed` to become true.
+`fullAcceptance` stays false.
+The launcher stores the result in `evidence/late-season-check.json`.
+
 ## Required evidence
 
 | Area | Required proof |
