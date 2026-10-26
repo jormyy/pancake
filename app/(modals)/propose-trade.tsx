@@ -1,3 +1,4 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -64,6 +65,7 @@ function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children:
 const BUILDER_WIDTH = 900
 
 export default function ProposeTradeScreen() {
+    useEffect(() => holdPwaUpdate('trade editor'), [])
     const { user } = useAuth()
     const { current, currentLeague, online } = useLeagueContext()
     const { usableWidth } = usePageMetrics()

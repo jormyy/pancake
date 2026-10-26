@@ -81,7 +81,9 @@ Check [source health](source-monitoring.md) when server data stays stale.
 The document and worker share one release identity.
 Worker checks run on foreground return, reconnect, and periodically while visible.
 An update waits for a visible online page and for active mutation holds to release.
-The live auction holds updates while active.
+The live auction and open claim, trade, and lineup editors hold updates while active.
+Backgrounding an editor keeps its hold. Closing the editor permits a pending update.
+Updates never reload a hidden page. Reconnecting retries a failed update check immediately.
 A long wait shows a notice; it never forces a held reload.
 A session marker limits repeated automatic reloads for the same release.
 Missing old route files use the same guarded recovery path.

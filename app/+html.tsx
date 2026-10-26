@@ -51,11 +51,10 @@ if (window.isSecureContext) {
       notice.appendChild(button);
       document.body.appendChild(notice);
     };
-    var tryReload = function (manual, leaving) {
+    var tryReload = function (manual) {
       if (!pendingVersion || reloaded) return;
       if ((!workerReconciled && navigator.serviceWorker?.controller) || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
-          (!manual && !leaving && !assetMissed && document.visibilityState !== 'hidden') ||
-          (manual && document.visibilityState === 'hidden') || navigator.onLine === false) {
+          document.visibilityState === 'hidden' || navigator.onLine === false) {
         if (assetMissed) showNotice();
         else if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
         return;
@@ -90,6 +89,10 @@ if (window.isSecureContext) {
           sessionStorage.setItem(workerVersionKey, version);
         } catch { return; }
         if ((documentVersion || previous) === version || (!documentVersion && !previous)) {
+          try {
+            var reloadKey = 'pancake-update-reload:' + window.location.pathname;
+            if (sessionStorage.getItem(reloadKey) === version) sessionStorage.removeItem(reloadKey);
+          } catch {}
           if (assetMissed) { tryReload(false); return; }
           pendingVersion = null;
           if (noticeTimer) clearTimeout(noticeTimer);
@@ -108,7 +111,7 @@ if (window.isSecureContext) {
       if (!registration || navigator.onLine === false || checking ||
           (!force && Date.now() - lastCheck < 300000)) return;
       lastCheck = Date.now();
-      checking = registration.update().catch(function () {}).finally(function () {
+      checking = registration.update().catch(function () { lastCheck = 0; }).finally(function () {
         checking = null;
         if (!registration.installing && !registration.waiting) workerReconciled = true;
         observeWorkerVersion(navigator.serviceWorker?.controller || registration.active);
@@ -128,12 +131,10 @@ if (window.isSecureContext) {
       if (button) button.disabled = held();
       tryReload(false);
     });
-    window.addEventListener('online', function () { checkForUpdate(false); tryReload(false); });
+    window.addEventListener('online', function () { checkForUpdate(true); tryReload(false); });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') checkForUpdate(false);
-      else tryReload(false);
+      if (document.visibilityState === 'visible') { checkForUpdate(false); tryReload(false); }
     });
-    window.addEventListener('pagehide', function () { tryReload(false, true); });
     var recoverChunk = function () {
       assetMissed = true;
       if (!pendingVersion) pendingVersion = (documentVersion || 'current') + ':asset-retry';

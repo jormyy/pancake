@@ -1,3 +1,4 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
@@ -43,6 +44,7 @@ const IRResolutionModal = lazy(() => import('@/components/IRResolutionModal').th
 type ClaimSnapshot = { taxiExitIds?: string[]; player: Awaited<ReturnType<typeof getPlayer>>; roster: RosterPlayer[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState | null }
 
 export default function ClaimPlayerScreen() {
+    useEffect(() => holdPwaUpdate('claim editor'), [])
     const { playerId, claimId } = useLocalSearchParams<{ playerId: string; claimId?: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()

@@ -1,3 +1,4 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -174,6 +175,7 @@ const BenchRow = memo(function BenchRow({
 })
 
 function LineupScreen() {
+    useEffect(() => holdPwaUpdate('lineup editor'), [])
     const back = useGoBack('/roster')
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
