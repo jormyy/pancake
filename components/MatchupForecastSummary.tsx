@@ -21,10 +21,7 @@ export function MatchupForecastSummary({ forecast, pending, stale, error, myMemb
         <View style={styles.teams}>
             {[myMemberId, opponentMemberId].map((memberId, index) => {
                 const team = forecast?.teams.find(value => value.memberId === memberId)
-                const sourceNames: Record<string, string> = { sleeper: 'Sleeper (RotoWire)', season_avg: 'Season averages', internal: 'Internal projection', fantasypros_daily: 'FantasyPros', fantasypros_weekly_total: 'FantasyPros' }
-    const sources = [...new Set((forecast?.games ?? []).map(game => game.source).filter((source): source is string => !!source))].map(source => sourceNames[source] ?? source.replace(/_/g, ' ')).join(', ')
-    const missing = [...new Set((forecast?.missingInputs ?? []).map(value => value.split(':')[0]))].join(' · ')
-    return <View key={memberId} style={[styles.team, index === 1 && styles.right]}>
+                return <View key={memberId} style={[styles.team, index === 1 && styles.right]}>
                     <Text style={styles.value}>{team?.projectedFinal == null ? 'Projection unavailable' : `${team.projectedFinal.toFixed(1)} FP projected`}</Text>
                     <Text style={styles.value}>{team?.winProbability == null ? 'Win odds unavailable' : `${(team.winProbability * 100).toFixed(0)}% win`}</Text>
                     {team ? <Text style={styles.meta}>{team.coveredGames}/{team.remainingGames} remaining games covered</Text> : null}

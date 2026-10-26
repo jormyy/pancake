@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 export type MatchupForecast = MatchupEstimate & {
     matchupId: string
     calculatedAt: string
+    validUntil?: string
     inputRevision: number
     stale: boolean
     lineupBasis: string
@@ -44,6 +45,7 @@ export function useMatchupForecast(userId?: string, leagueId?: string, matchup?:
         if (!key || !focused || !activity.active || !enabled) return
         let disposed = false
         let request = 0
+        let expiry: ReturnType<typeof setTimeout> | undefined
         const generation = sessionGeneration()
         const current = () => !disposed && sessionGeneration() === generation && sessionOwner() === userId
         const refresh = async () => {
@@ -60,6 +62,9 @@ export function useMatchupForecast(userId?: string, leagueId?: string, matchup?:
                 const value = data as unknown as MatchupForecast | null
                 writePersistentCache(key, value)
                 setState({ key, value, pending: false, error: false })
+                if (expiry) clearTimeout(expiry)
+                const validUntil = Date.parse(value?.validUntil ?? '')
+                if (validUntil > Date.now()) expiry = setTimeout(invalidate, validUntil - Date.now())
                 return true
             } catch {
                 if (current() && attempt === request) setState(previous => ({ ...previous, pending: false, error: true }))
@@ -67,11 +72,15 @@ export function useMatchupForecast(userId?: string, leagueId?: string, matchup?:
             }
         }
         const refreshLater = deferLeagueRefresh(refresh)
+        const invalidate = () => {
+            request++
+            setState(previous => previous.key === key ? { ...previous, pending: true } : previous)
+            refreshLater.trigger()
+        }
         const stopChanges = listenForLeagueChanges(leagueId!, change => {
             if (!['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'resources', 'catchup'].includes(change.topic)) return
             if (seasonId && !leagueChangeAffects(change, { seasonId, memberIds: [myMemberId!, opponentMemberId!] })) return
-            setState(previous => previous.key === key ? { ...previous, pending: true } : previous)
-            refreshLater.trigger()
+            invalidate()
         })
         refreshLater.trigger()
         const subscription = subscribeToTableChanges(`matchup-forecast:${matchupId}`, {
@@ -79,16 +88,18 @@ export function useMatchupForecast(userId?: string, leagueId?: string, matchup?:
             watches: [{ table: 'matchup_forecasts', filter: `league_id=eq.${leagueId}`, onChange: payload => {
                 const row = payload.new as { matchup_id?: string }
                 const previous = payload.old as { matchup_id?: string }
-                if (row.matchup_id === matchupId || previous.matchup_id === matchupId) refreshLater.trigger()
+                if (row.matchup_id === matchupId || previous.matchup_id === matchupId) invalidate()
             } }],
             onReconnect: refresh,
         })
         return () => {
             disposed = true
+            if (expiry) clearTimeout(expiry)
             stopChanges()
             reportRealtimeCleanup('matchup forecast', disposeTableChangeSubscription(subscription, [refreshLater]))
         }
     }, [key, userId, leagueId, matchupId, focused, activity.active, activity.revision, enabled, seasonId, myMemberId, opponentMemberId])
     const visible = enabled && state.key === key ? state : { key, value: enabled && key ? readPersistentCache<MatchupForecast>(key) ?? null : null, pending: true, error: false }
-    return { forecast: visible.value, pending: visible.pending, error: visible.error, stale: visible.value?.stale === true || visible.pending || visible.error || !activity.active }
+    const unexpired = Date.parse(visible.value?.validUntil ?? '') > Date.now()
+    return { forecast: visible.value, pending: visible.pending, error: visible.error, stale: !unexpired || visible.value?.stale === true || visible.pending || visible.error || !activity.active }
 }

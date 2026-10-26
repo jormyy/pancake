@@ -7,6 +7,8 @@ import type { Matchup } from '@/lib/scoring'
 const f = vi.hoisted(() => ({
     rpc: vi.fn(), subscribe: vi.fn(() => ({})), dispose: vi.fn(async () => {}), write: vi.fn(),
     read: vi.fn(), focused: true, active: true, owner: 'user', generation: 1,
+    change: null as null | ((value: { topic: string }) => void), delay: false,
+    pendingRead: null as null | (() => Promise<unknown>),
 }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => f.focused }))
 vi.mock('@/hooks/use-browser-read-activity', () => ({ useBrowserReadActivity: () => ({ active: f.active, revision: 0 }) }))
@@ -15,8 +17,8 @@ vi.mock('@/lib/supabase', () => ({ supabase: { rpc: f.rpc } }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => f.generation, sessionOwner: () => f.owner }))
 vi.mock('@/lib/realtime', () => ({ subscribeToTableChanges: f.subscribe, disposeTableChangeSubscription: f.dispose, reportRealtimeCleanup: (_label: string, cleanup: Promise<void>) => { void cleanup } }))
 vi.mock('@/lib/league-changes', () => ({
-    listenForLeagueChanges: () => () => {}, leagueChangeAffects: () => true,
-    deferLeagueRefresh: (read: () => Promise<unknown>) => ({ trigger: () => { void read() }, cancel: vi.fn() }),
+    listenForLeagueChanges: (_league: string, change: typeof f.change) => { f.change = change; return () => { f.change = null } }, leagueChangeAffects: () => true,
+    deferLeagueRefresh: (read: () => Promise<unknown>) => ({ trigger: () => { if (f.delay) f.pendingRead = read; else void read() }, cancel: vi.fn() }),
 }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const matchup = { id: 'matchup', seasonId: 'season', myMemberId: 'mine', opponentMemberId: 'other' } as Matchup
@@ -26,8 +28,8 @@ function Probe({ user = 'user', league = 'league' }: { user?: string; league?: s
     output = useMatchupForecast(user, league, matchup)
     return null
 }
-beforeEach(() => { vi.clearAllMocks(); f.focused = true; f.active = true; f.owner = 'user'; f.generation = 1; f.read.mockReturnValue(undefined); f.rpc.mockResolvedValue({ data: null, error: null }) })
-afterEach(async () => { await act(async () => screen?.unmount()) })
+beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks(); f.delay = false; f.pendingRead = null; f.focused = true; f.active = true; f.owner = 'user'; f.generation = 1; f.read.mockReturnValue(undefined); f.rpc.mockResolvedValue({ data: null, error: null }) })
+afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers() })
 it('reads only the cached RPC and scopes completion updates to the league', async () => {
     await act(async () => { screen = create(React.createElement(Probe)) })
     expect(f.rpc).toHaveBeenCalledWith('get_matchup_forecast', { p_matchup_id: 'matchup' })
@@ -52,4 +54,27 @@ it('drops a late result from the old account', async () => {
     expect(output.forecast).toBeNull()
     expect(f.write.mock.calls.some(call => call[1]?.matchupId === 'old-private-result')).toBe(false)
     expect(f.dispose).toHaveBeenCalled()
+})
+it('marks an expired visible forecast stale when no worker update arrives', async () => {
+    const value = { matchupId: 'matchup', stale: false, validUntil: new Date(Date.now() + 10000).toISOString() }
+    f.rpc.mockResolvedValueOnce({ data: value, error: null }).mockResolvedValue({ data: { ...value, stale: true }, error: null })
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    expect(output.stale).toBe(false)
+    await act(async () => { await vi.advanceTimersByTimeAsync(10001) })
+    expect(output.stale).toBe(true)
+    expect(f.rpc).toHaveBeenCalledTimes(2)
+    await act(async () => { await vi.advanceTimersByTimeAsync(10000) })
+    expect(f.rpc).toHaveBeenCalledTimes(2)
+})
+it('rejects an older read as soon as a scoring event arrives', async () => {
+    f.delay = true
+    let resolve!: (value: unknown) => void
+    f.rpc.mockImplementationOnce(() => new Promise(done => { resolve = done }))
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => { void f.pendingRead?.() })
+    await act(async () => { f.change?.({ topic: 'score' }) })
+    await act(async () => { resolve({ data: { matchupId: 'obsolete-read', stale: false }, error: null }) })
+    expect(output.forecast).toBeNull()
+    expect(output.stale).toBe(true)
+    expect(f.write).not.toHaveBeenCalled()
 })
