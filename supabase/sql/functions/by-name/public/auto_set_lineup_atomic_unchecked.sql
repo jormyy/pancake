@@ -43,7 +43,7 @@ BEGIN
     INTO v_league
     FROM leagues
    WHERE id = p_league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.'

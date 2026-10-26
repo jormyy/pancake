@@ -74,6 +74,7 @@ Use negative controls to prove that a gate detects the protected failure.
 | Flexible playoff trees | `npm run test:db:general-brackets` |
 | Roster cleanup | `npm run test:db:roster-lifecycle`, `npm run test:db:roster-oracle` |
 | Daily automation | `npm run test:db:pre-tipoff`, `npm run test:db:optimizer-default` |
+| Tipoff/live ingestion overlap | `npm run test:db:pre-tipoff-live-concurrency` |
 | Optimizer ownership | `npm run test:db:optimizer-context` |
 | History retention | `npm run test:db:retention`, `npm run test:db:retention-scoring` |
 | Live snapshot order | `npm run test:db:live-snapshot-order` |
@@ -182,3 +183,15 @@ Use `npm ci` to install that tree.
 `npm run security:audit` rejects unaccepted high or critical advisories and stale accepted exceptions.
 `scripts/check-dependency-audit.mjs` owns exception reasons and removal conditions.
 A passing audit does not mean the tree contains no advisories.
+
+## Tipoff and live stats lock regression
+
+Run `npm run test:db:pre-tipoff-live-concurrency` against the isolated migrated database.
+The recipe uses two service-role writers and one observer connection.
+A fixture-scoped trigger pauses real stats ingestion before its league reference check.
+The observer waits for the optimizer’s player lock, then releases ingestion.
+Both writes must commit, preserve the assigned slot, and produce the expected fantasy score.
+League edits must remain blocked while foreign-key checks can proceed.
+The recipe also checks invisible uncommitted changes, stable retries, stale snapshots, and rollback after either writer fails.
+It removes its synthetic fixture and barrier trigger on exit.
+The pre-fix control fails with a PostgreSQL deadlock; the fixed functions must pass without retrying the conflicting transactions.
