@@ -724,11 +724,12 @@ Deno.test({
 })
 
 Deno.test({
-  name: 'configured sync routes share the global admin guard before reads, writes, and internal dispatch',
+  name: 'configured admin routes guard reads, writes, and internal dispatch',
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
     const protectedRoutes: [string, string][] = [
+      ['POST', '/waivers/process'],
       ['POST', '/sync/stats'], ['POST', '/sync/scores'], ['POST', '/sync/schedule'],
       ['POST', '/sync/players'], ['POST', '/sync/rankings'], ['POST', '/sync/projections'],
       ['POST', '/sync/draft-order'], ['POST', '/sync/backfill'],
