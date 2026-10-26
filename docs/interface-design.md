@@ -88,3 +88,22 @@ On iPhone web layouts, scrolling near the game table’s end reveals the next 15
 The game-log read supplies the season’s available regular-season games. Averages can load independently. Paging reveals cached rows and makes no extra network request. Repeated near-end events reveal one page per render. Duplicate NBA game identities appear once. Changing the player or season resets the visible page.
 
 A failed season read shows Retry. Existing rows remain visible during recovery. Empty seasons show “No games available.” Completed logs show “All games shown.” Desktop, native and browsers without IntersectionObserver retain the manual paging control.
+
+
+## Lineup
+
+The lineup title uses the compact header variant: 16px text and a 49px row at standard text size.
+Other title headers keep their existing size. Back controls retain 44px touch targets and safe-area spacing.
+Two compact control rows sit directly below the title, without a card title or divider.
+The first row has equal-width Today, This week, and Season buttons with single-line 13px labels.
+Season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
+The second row places Keep updated automatically on the left and the switch on the right.
+Both rows keep 44px touch targets.
+Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
+Action labels stay on one line at 360px and 390px, including text scale 1.3.
+The horizontal day row sits directly below the automatic switch and above Starters.
+Its shared compact spacing leaves a 2px gap above and below the date targets.
+The controls and first section add no extra vertical padding.
+Other section labels keep their existing spacing.
+Every empty starter, bench, IR, and taxi place remains individually visible.
+Players and slots retain the manual move flow. Offline and read-only states disable lineup changes.
