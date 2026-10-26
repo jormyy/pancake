@@ -100,6 +100,26 @@ The public activity feed omits offers, counters, edits, expirations, and trade-b
 Completed trades remain visible with participant names.
 New NBA rookies cannot enter free-agent adds or waiver claims before the league completes its rookie draft.
 
+## Draft pick years
+
+The database stores each pick by fantasy `season_year`.
+Its rookie draft occurs in the summer of `season_year - 1`.
+Pick labels and server messages use that calendar draft year.
+For current season 2027, the three future classes are stored as 2028–2030 and displayed as 2027–2029.
+
+League creation and member joining allocate three rounds for each of those three future classes.
+A normal season advance adds exactly one new future class and preserves existing owners.
+It retains the current rookie class for the upcoming draft.
+A skipped-year advance fills missing current and future classes without changing historical picks.
+Setup rollover shifts existing assets with the season and keeps the same three-class window.
+Draft reset and reseeding reuse existing pick assets.
+Mock drafts create slots without creating owned pick assets.
+
+Only three future classes can enter trades.
+Unused current-class picks retain the existing offseason and live-draft restrictions.
+Cleanup deletes distant picks only when they are unused and have no references, including activity history, or rookie draft assignment.
+Referenced distant picks remain stored, but cannot enter new trades until their class reaches the window.
+
 ## Taxi eligibility and trade plans
 
 Every league uses one taxi rule: `years_exp = 0` or fewer than 65 career NBA regular-season games.

@@ -116,7 +116,7 @@ export const assertOffseasonActivityScenario = async ({ supabase, env, state, se
 
   const pickRows = []
   for (const member of fixture.members) {
-    for (let year = fixtureSeasonYear + 1; year <= fixtureSeasonYear + 5; year += 1) {
+    for (let year = fixtureSeasonYear + 1; year <= fixtureSeasonYear + 3; year += 1) {
       for (let round = 1; round <= 3; round += 1) {
         pickRows.push({
           league_id: fixture.league.id,

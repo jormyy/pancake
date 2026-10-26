@@ -83,7 +83,7 @@ BEGIN
 
   INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
   SELECT v_league_id, year_value, round_value, v_member_id, v_member_id
-    FROM generate_series(v_season_year + 1, v_season_year + 5) AS year_value
+    FROM generate_series(v_season_year + 1, v_season_year + 3) AS year_value
    CROSS JOIN generate_series(1, 3) AS round_value;
 
   RETURN jsonb_build_object(
