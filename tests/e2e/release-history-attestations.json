@@ -1928,6 +1928,13 @@
       "statementCount": 16,
       "statementsSha256": "66f79fa20964b17fd407a8d5ca8d744a2592a756536969ebae494ad00de1cbb7",
       "sha256": "a42a7e42317c28b8d3185369101c9f63f551ae53b68e50ad69c0fa71e02306b3"
+    },
+    {
+      "name": "preserve_explicit_career_writes",
+      "version": "20261027000203",
+      "statementCount": 2,
+      "statementsSha256": "ea9e8abab16d511506f48dcbc93ff19012f20ef4f25f2f4755ca9c06996c5668",
+      "sha256": "b33b721ec888111cb08e3658cd17a3115a1d02afadb1f41a0ec6c0a72fc996d2"
     }
   ]
 }

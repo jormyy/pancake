@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261027000202",
+  "candidateVersion": "20261027000203",
   "common": {
     "functions": [
       {
@@ -1318,6 +1318,10 @@
     {
       "filename": "20261027000202_player_source_coverage.sql",
       "sha256": "a42a7e42317c28b8d3185369101c9f63f551ae53b68e50ad69c0fa71e02306b3"
+    },
+    {
+      "filename": "20261027000203_preserve_explicit_career_writes.sql",
+      "sha256": "b33b721ec888111cb08e3658cd17a3115a1d02afadb1f41a0ec6c0a72fc996d2"
     }
   ],
   "preMigration": {
