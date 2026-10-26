@@ -48,3 +48,18 @@ describe('trade player identity', () => {
         }))
     })
 })
+
+it.each(['active', 'ir', 'taxi'] as const)('shows %s locations on Block listings and pickers', async location => {
+    await act(async () => { renderer = create(React.createElement(TradeBlockListingRow, {
+        item: { _type: 'blockItem', item: { id: 'listing', memberId: 'other', teamName: 'Other', asset, note: null, updatedAt: '2026-10-24T12:00:00Z', rosterLocation: location } },
+        myMemberId: 'mine', blockBusyId: null, onRemove: vi.fn(), onSaveNote: vi.fn(),
+    })) })
+    const label = location === 'active' ? 'Active' : location.toUpperCase()
+    expect(renderer!.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).flat().join('')).toContain(`Other · ${label}`)
+    const player = rosterPlayer({ is_on_ir: location === 'ir', is_on_taxi: location === 'taxi' })
+    await act(async () => renderer!.update(React.createElement(TradeBlockPlayerRow, {
+        item: { _type: 'blockPlayer', player }, listed: false, busy: false,
+        blockAvgMap: new Map(), blockAvgStatsMap: new Map(), onList: vi.fn(),
+    })))
+    expect(renderer!.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).flat().join('')).toContain(label)
+})

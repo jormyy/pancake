@@ -35,10 +35,13 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
         ? date?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
     const summary = liveGame
         ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
-        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${(next?.projection_fantasy_points ?? 0).toFixed(1)} FP proj`].filter(Boolean).join(' · ')
+        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), next?.projection_fantasy_points == null ? 'Projection unavailable' : `${next.projection_fantasy_points.toFixed(1)} FP proj`].filter(Boolean).join(' · ')
+    const sourceTime = next?.projection_fetched_at ? new Date(next.projection_fetched_at) : null
+    const source = !liveGame && next ? [next.projection_source_label, next.projection_is_fresh === false ? 'Out of date' : null, sourceTime && Number.isFinite(sourceTime.getTime()) ? `Updated ${sourceTime.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Update time unavailable'].filter(Boolean).join(' · ') : null
     const card = (
         <View style={styles.card} aria-busy={loading}>
-            <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1}>{summary}</Text>
+            <Text style={[styles.summary, liveGame && styles.live]} >{summary}</Text>
+            {source ? <Text style={styles.source}>{source}</Text> : null}
         </View>
     )
     return reserveSpace ? <View style={styles.slot} testID="player-projection-slot">{card}</View> : card
@@ -48,5 +51,6 @@ const styles = StyleSheet.create({
     slot: { minHeight: textStyles.meta.lineHeight + spacing.md * 2 + 2 },
     card: { padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
     summary: { ...textStyles.meta, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+    source: { ...textStyles.meta, color: colors.textMuted, marginTop: spacing.xxs },
     live: { color: colors.success, fontWeight: fontWeight.semibold },
 })

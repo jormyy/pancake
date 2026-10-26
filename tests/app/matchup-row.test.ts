@@ -67,3 +67,14 @@ it('keeps injuries beside names and games visible without no-game team text', as
     await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set(), teamMatchups: new Map() })))
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
 })
+
+it('keeps projected points separate from earned points and labels the source', async () => {
+    const props = rowProps()
+    await act(async () => { screen = create(React.createElement(MatchupRow, {
+        ...props, showProjections: true, forecastStale: true,
+        myProjection: { gameId: 'g', playerId: 'Mine', memberId: 'm', date: '2026-10-25', projection: 23.4, source: 'Sleeper', sourceAt: '2026-10-25T12:00:00Z', remainingFraction: 1 },
+    })) })
+    const labels = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
+    expect(labels).toContain('Projection 23.4 points, source Sleeper, updated 2026-10-25T12:00:00Z, out of date')
+    expect(labels).toContain('Projection unavailable')
+})

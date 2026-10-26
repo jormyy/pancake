@@ -213,6 +213,18 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByType('select')).toHaveLength(1)
     })
 
+    it('shows missing projection points without turning them into zero', async () => {
+        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T23:00:00Z',
+            next_game_opponent: 'vs BOS', projection_fantasy_points: null, projection_source_label: 'Season Avg',
+            projection_fetched_at: '2026-10-23T12:00:00Z', projection_is_fresh: false } as LeagueProjectionRow
+        await render(React.createElement(NextProjectionCard, { projection }))
+        expect(text()).toContain('Projection unavailable')
+        expect(text()).not.toContain('0.0 FP')
+        expect(text()).toContain('Season Avg')
+        expect(text()).toContain('Out of date')
+        expect(text()).toContain('Updated')
+    })
+
     it('shows the next opponent, date and projection without expanding details', async () => {
         const projection = {
             next_game_date: '2026-10-24', projection_date: '2026-10-23', next_game_opponent: 'vs BOS',
@@ -220,8 +232,9 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj$/)
-        expect(screen.root.findByType(type('Text')).props.numberOfLines).toBe(1)
+        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj/)
+        expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBeUndefined()
+        expect(text()).toContain('FantasyPros')
         expect(text()).toContain('42.8')
         expect(text()).toContain('FP')
     })

@@ -1,3 +1,4 @@
+import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
@@ -192,7 +193,13 @@ function PlayerSide({
     statColumns,
     onOpenPlayer,
     onOpenDetails,
+    projection,
+    forecastStale,
+    showProjection,
 }: {
+    projection?: MatchupForecast['games'][number]
+    forecastStale?: boolean
+    showProjection?: boolean
     side: 'left' | 'right'
     player: LineupPlayer | null
     slotType: string
@@ -268,6 +275,9 @@ function PlayerSide({
                         ])}
                     </View>
                 ) : null}
+                {showProjection && hasGame ? <Text style={styles.sideMeta} numberOfLines={1} accessibilityLabel={projection ? `Projection ${projection.projection == null ? 'unavailable' : projection.projection.toFixed(1) + ' points'}, source ${projection.source ?? 'unavailable'}, updated ${projection.sourceAt ?? 'unknown'}${forecastStale ? ', out of date' : ''}` : 'Projection unavailable'}>
+                    {projection?.projection == null ? 'Proj —' : `Proj ${projection.projection.toFixed(1)}`}
+                </Text> : null}
                 {summary ? <Text style={styles.statSummary} numberOfLines={1}>{summary}</Text> : null}
             </>
         )
@@ -291,6 +301,10 @@ function PlayerSide({
 }
 
 type MatchupRowProps = {
+    myProjection?: MatchupForecast['games'][number]
+    oppProjection?: MatchupForecast['games'][number]
+    forecastStale?: boolean
+    showProjections?: boolean
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
@@ -315,6 +329,7 @@ type MatchupRowProps = {
 }
 
 function MatchupRowImpl({
+    myProjection, oppProjection, forecastStale, showProjections = false,
     myPlayer,
     oppPlayer,
     slotType,
@@ -367,6 +382,9 @@ function MatchupRowImpl({
             <View style={[styles.rowSideLeft, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="left"
+                    projection={myProjection}
+                    forecastStale={forecastStale}
+                    showProjection={showProjections && !reserveSlot}
                     player={myPlayer}
                     slotType={slotType}
                     placeholderOnly={isExtraOppRow}
@@ -411,6 +429,9 @@ function MatchupRowImpl({
             <View style={[styles.rowSideRight, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="right"
+                    projection={oppProjection}
+                    forecastStale={forecastStale}
+                    showProjection={showProjections && !reserveSlot}
                     player={oppPlayer}
                     slotType={slotType}
                     placeholderOnly={false}

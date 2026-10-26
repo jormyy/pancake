@@ -58,8 +58,8 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
                 <PlayerRowContent compact={!tile} name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
-                    yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus}
-                    metadata={<Text style={styles.blockMeta}>{block.teamName}</Text>} stats={playerSeasonContextText(block.asset)} />
+                    yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} onTaxi={block.rosterLocation === 'taxi'}
+                    metadata={<Text style={styles.blockMeta}>{block.teamName}{block.rosterLocation ? ` · ${block.rosterLocation === 'active' ? 'Active' : block.rosterLocation.toUpperCase()}` : ''}</Text>} stats={playerSeasonContextText(block.asset)} />
                 {mine ? <TradeBlockNoteEditor item={block} label={label}
                     disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
                     : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
@@ -116,7 +116,8 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
     return (
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <PlayerRowContent compact={!tile} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} stats={context} />
+                yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.player.is_on_taxi}
+                metadata={<Text style={styles.blockMeta}>{item.player.is_on_ir ? 'IR' : item.player.is_on_taxi ? 'TAXI' : 'Active'}</Text>} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
                 accessibilityRole="button" accessibilityLabel={`${listed ? 'Listed' : 'List'} ${player.display_name} on trade block`}
