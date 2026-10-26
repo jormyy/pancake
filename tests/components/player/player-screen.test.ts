@@ -16,7 +16,6 @@ const state = vi.hoisted(() => ({
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
 }))
-vi.mock('@/components/settings/NotificationPlayerWatch', () => ({ NotificationPlayerWatch: () => React.createElement('WatchControl') }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },
@@ -215,5 +214,5 @@ it('reloads the claim after returning from the claim sheet while background read
 
 it('omits player watch controls from the player page', async () => {
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
-    expect(screen!.root.findAllByType('WatchControl' as React.ElementType)).toHaveLength(0)
+    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Watch player for drops' })).toHaveLength(0)
 })

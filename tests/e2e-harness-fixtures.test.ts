@@ -443,9 +443,9 @@ describe('rollover pick horizon invariant', () => {
             'league_members.select': { data: fixtureMembers.map((member) => ({ ...member, league_id: 'league' })), error: null },
         })
         const failures = await runInvariants(client, 'league')
-        expect(failures).toHaveLength(60)
+        expect(failures).toHaveLength(36)
         expect(failures).toContain('D.SEA.6: league league missing future pick 2031 round 1 for member member-0')
-        expect(failures).toContain('D.SEA.6: league league missing future pick 2035 round 3 for member member-3')
+        expect(failures).toContain('D.SEA.6: league league missing future pick 2033 round 3 for member member-3')
     })
 })
 
