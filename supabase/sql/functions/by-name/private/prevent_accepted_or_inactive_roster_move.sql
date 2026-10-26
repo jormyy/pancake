@@ -20,6 +20,16 @@ BEGIN
       AND c.member_id=NEW.member_id AND c.player_id=NEW.player_id
       AND t.league_id=NEW.league_id AND t.league_season_id=NEW.league_season_id;
   END IF;
+  IF OLD.member_id=NEW.member_id THEN
+    SELECT trade.id INTO v_completing_trade_id FROM private.taxi_acquisition_context context
+    JOIN trades trade ON trade.id=context.related_id JOIN trade_participants participant ON participant.trade_id=trade.id
+    WHERE context.transaction_id=pg_current_xact_id() AND context.source='trade'
+      AND context.league_id=OLD.league_id AND context.league_season_id=OLD.league_season_id
+      AND context.member_id=OLD.member_id AND context.player_id=OLD.player_id
+      AND trade.status='accepted' AND trade.league_season_id=OLD.league_season_id AND participant.member_id=OLD.member_id
+      AND NOT NEW.is_on_taxi AND participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',OLD.player_id::text,
+        'destination',CASE WHEN NEW.is_on_ir THEN 'ir' ELSE 'active' END));
+  END IF;
   IF OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
     PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, v_completing_trade_id);
   END IF;

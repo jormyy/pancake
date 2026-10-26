@@ -133,7 +133,6 @@ function TradesScreen() {
     const decisionsDisabled = !online || tradesSnapshot || Boolean(tradesError)
     const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
     const tradeActions = useTradeActions({
-        beforeAccept: () => rosterLegality.check(),
         onRosterError: rosterLegality.report,
         memberId: myMemberId,
         leagueId,

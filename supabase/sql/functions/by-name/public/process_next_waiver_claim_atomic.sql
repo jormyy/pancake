@@ -393,6 +393,7 @@ BEGIN
         v_to_taxi
       );
 
+      PERFORM private.assert_accepted_trade_capacity(v_claim.league_id,v_claim.league_season_id,v_claim.member_id);
       IF v_to_taxi THEN
         UPDATE public.notification_outbox SET body='Your waiver claim succeeded. Placed on taxi.',
           data=data || jsonb_build_object('destination','taxi','body','Your waiver claim succeeded. Placed on taxi.')
@@ -510,7 +511,7 @@ BEGIN
       SELECT true, failed.id, failed.member_id, failed.player_id, failed.status, failed.failure_reason
         FROM failed;
       RETURN;
-    EXCEPTION WHEN SQLSTATE 'PA008' THEN
+    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' THEN
       RETURN QUERY SELECT * FROM private.fail_waiver_claim(
         v_claim.id,
         v_claim.league_id,

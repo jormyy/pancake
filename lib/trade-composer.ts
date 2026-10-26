@@ -167,6 +167,7 @@ export function prefillTradeRosterPlan(trade: Trade, memberId: string): TradeRos
         taxiPlayerIds: incoming.flatMap(item => item.kind === 'player' && item.toTaxi ? [item.playerId] : []),
         irPlayerIds: incoming.flatMap(item => item.kind === 'player' && item.toIR ? [item.playerId] : []),
         dropPlayerIds: [...(trade.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds ?? [])],
+        rosterMoves: [...(trade.participants.find(participant => participant.memberId === memberId)?.rosterMoves ?? [])],
     }
 }
 

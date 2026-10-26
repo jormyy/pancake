@@ -43,6 +43,9 @@ function parseDraft(raw: string): TradeComposerDraft | null {
             const ids = (plan as Record<string, unknown>)[key]
             return Array.isArray(ids) && ids.every(id => typeof id === 'string')
         })) return null
+        const moves = (plan as Record<string, unknown>).rosterMoves
+        if (moves !== undefined && (!Array.isArray(moves) || !moves.every(move => move && typeof move === 'object'
+            && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir')))) return null
         return { ...draft, rosterPlan: plan } as TradeComposerDraft
     } catch {
         return null

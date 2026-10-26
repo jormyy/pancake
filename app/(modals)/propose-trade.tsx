@@ -3,6 +3,8 @@ import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
+import { previewTradeRosters } from '@/lib/trade-roster-preview'
+import { TradeRosterPreviewList } from '@/components/trades/TradeRosterPreviewList'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -327,6 +329,7 @@ export default function ProposeTradeScreen() {
             taxiPlayerIds: rosterPlanDraft.taxiPlayerIds.filter(id => incoming.has(id)),
             irPlayerIds: rosterPlanDraft.irPlayerIds.filter(id => incoming.has(id)),
             dropPlayerIds: rosterPlanDraft.dropPlayerIds.filter(id => ownPlayers.has(id) && !offered.has(id)),
+            rosterMoves: rosterPlanDraft.rosterMoves?.filter(move => ownPlayers.has(move.playerId) && !offered.has(move.playerId)),
         }
     }, [items, myMemberId, composer.participantRosters, rosterPlanDraft])
     // Leaving drops a built trade, so ask first once anything is selected.
@@ -432,7 +435,7 @@ export default function ProposeTradeScreen() {
                         counterTradeId,
                         myMemberId,
                         leagueId,
-                        rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined,
+                        rosterPlan,
                         estimateId: tradeAnalysis.quote?.id,
                         participantMemberIds: [...participantIds],
                         items: items.map((item) => ({ ...item })),
@@ -454,7 +457,7 @@ export default function ProposeTradeScreen() {
                         myMemberId,
                         leagueId,
                         selectedRecipientId,
-                        payload: { ...payload, estimateId: tradeAnalysis.quote?.id, rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
+                        payload: { ...payload, estimateId: tradeAnalysis.quote?.id, rosterPlan, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
                             offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
                     }
                     send = () => submitTradeComposer(input,
@@ -491,7 +494,6 @@ export default function ProposeTradeScreen() {
         rosterLegality, capture, isCurrent, canAct, blockActions, user?.id,
         tradeAnalysis.quote?.id,
         rosterPlan,
-        currentLeague?.allow_inactive_trades,
         back,
         canSubmit,
         counterTradeId,
@@ -607,7 +609,12 @@ export default function ProposeTradeScreen() {
                     <View style={styles.reviewColumn}>
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                        {currentLeague?.allow_inactive_trades ? <TradeRosterPlanEditor
+                        {currentLeague ? <TradeRosterPreviewList teams={previewTradeRosters(
+                            participantIds.map(memberId => ({ memberId, teamName: composer.participantName(memberId) })),
+                            composer.participantRosters, items, { [myMemberId]: rosterPlan },
+                            { active: currentLeague.roster_size, ir: currentLeague.ir_slots, taxi: currentLeague.taxi_slots ?? 0 },
+                        )} /> : null}
+                        {currentLeague ? <TradeRosterPlanEditor
                             incoming={items.flatMap((item) => {
                                 if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
                                 const rosterPlayer = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)

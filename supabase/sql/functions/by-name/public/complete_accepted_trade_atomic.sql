@@ -23,6 +23,7 @@ DECLARE
   v_item_faab_amount int;
   v_previous_flag text;
   v_drop record;
+  v_move record;
 BEGIN
   SELECT *
     INTO v_trade
@@ -60,6 +61,7 @@ BEGIN
     SELECT DISTINCT player_id FROM (
       SELECT player_id FROM trade_items WHERE trade_id=p_trade_id AND player_id IS NOT NULL
       UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
+      UNION SELECT (move->>'playerId')::uuid FROM trade_participants,jsonb_array_elements(roster_moves) move WHERE trade_id=p_trade_id
     ) touched ORDER BY player_id ASC
   LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_lock_player_id::text));
@@ -178,7 +180,6 @@ BEGIN
   -- A reserved pick may only change hands through this completion; the
   -- draft_picks guard and the trade status guard honour this mark.
   v_previous_flag := private.begin_trade_lifecycle_write();
-  IF v_league.allow_inactive_trades THEN
     FOR v_drop IN SELECT roster.* FROM trade_participants participant JOIN roster_players roster
       ON roster.member_id=participant.member_id AND roster.league_season_id=v_trade.league_season_id
         AND roster.player_id=ANY(participant.drop_player_ids)
@@ -187,7 +188,21 @@ BEGIN
       PERFORM private.release_roster_player_to_waivers(v_drop.id,v_trade.league_id,v_trade.league_season_id,
         v_drop.member_id,v_drop.player_id,'drop',NULL,p_trade_id);
     END LOOP;
-  END IF;
+  FOR v_move IN SELECT roster.id,roster.member_id,roster.player_id,roster.is_on_ir,roster.is_on_taxi,move->>'destination' AS destination
+    FROM trade_participants participant CROSS JOIN LATERAL jsonb_array_elements(participant.roster_moves) move
+    JOIN roster_players roster ON roster.player_id=(move->>'playerId')::uuid AND roster.member_id=participant.member_id
+      AND roster.league_season_id=v_trade.league_season_id
+    WHERE participant.trade_id=p_trade_id ORDER BY roster.player_id FOR UPDATE OF roster
+  LOOP
+    IF private.roster_status_game_started(v_move.player_id) THEN
+      RAISE EXCEPTION 'A planned roster move waits for the player game slate to end.' USING ERRCODE='PT002';
+    END IF;
+    PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_move.member_id,v_move.player_id,'trade',p_trade_id);
+    UPDATE roster_players SET is_on_ir=v_move.destination='ir',is_on_taxi=false WHERE id=v_move.id;
+    INSERT INTO roster_transactions(league_id,league_season_id,member_id,player_id,transaction_type,related_trade_id)
+      VALUES(v_trade.league_id,v_trade.league_season_id,v_move.member_id,v_move.player_id,
+        CASE WHEN v_move.destination='ir' THEN 'ir_designate' WHEN v_move.is_on_taxi THEN 'taxi_return' ELSE 'ir_return' END,p_trade_id);
+  END LOOP;
 
   WITH changed_claims AS (
     UPDATE waiver_claims AS claim
@@ -326,6 +341,9 @@ BEGIN
     RAISE EXCEPTION 'Failed to complete trade atomically';
   END IF;
 
+  FOR v_member_lock IN SELECT member_id FROM trade_participants WHERE trade_id=p_trade_id ORDER BY member_id LOOP
+    PERFORM private.assert_accepted_trade_capacity(v_trade.league_id,v_trade.league_season_id,v_member_lock);
+  END LOOP;
   PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 
   PERFORM private.log_league_activity(

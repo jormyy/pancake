@@ -32,7 +32,7 @@ test('score acceptance rejects impossible position maximum and handles two games
   const candidates = [player('guard', 50, 'PG'), player('other-guard', 40, 'PG'), player('center', 10, 'C')].map((row, i) => ({ ...row, member_id: 'home', week_number: 1, lineup_date: '2025-01-01', game_id: String(i) }))
   candidates.push({ ...candidates[2], game_id: 'second', points: 5 })
   const matchup = { id: 'm', home_member_id: 'home', away_member_id: 'away', home_points: 65, away_points: 0, home_max_possible_points: 65, away_max_possible_points: 0, week_number: 1, matchup_type: 'regular_season', is_finalized: true, winner_member_id: 'home' }
-  const input = { matchups: [matchup], starters: candidates.filter(row => row.player_id !== 'other-guard'), candidates, slots, settings: { points: 1 } }
+  const input = { matchups: [matchup], expectedCount: 1, starters: candidates.filter(row => row.player_id !== 'other-guard'), candidates, slots, settings: { points: 1 } }
   assert.equal(checkMatchupPoints(input).checked, 2)
   assert.throws(() => checkMatchupPoints({ ...input, matchups: [{ ...matchup, home_max_possible_points: 90 }] }), /maximum/)
   assert.throws(() => checkMatchupPoints({ ...input, starters: input.starters.slice(1) }), /points/)

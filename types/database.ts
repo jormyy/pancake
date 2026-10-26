@@ -3585,6 +3585,7 @@ export type Database = {
           league_id: string
           member_id: string
           proposed_at: string
+          roster_moves: Json
           sort_order: number
           trade_id: string
         }
@@ -3596,6 +3597,7 @@ export type Database = {
           league_id: string
           member_id: string
           proposed_at: string
+          roster_moves?: Json
           sort_order?: number
           trade_id: string
         }
@@ -3607,6 +3609,7 @@ export type Database = {
           league_id?: string
           member_id?: string
           proposed_at?: string
+          roster_moves?: Json
           sort_order?: number
           trade_id?: string
         }
@@ -4493,6 +4496,7 @@ export type Database = {
           p_drop_player_ids: string[]
           p_ir_player_ids: string[]
           p_member_id: string
+          p_roster_moves?: Json
           p_taxi_player_ids: string[]
           p_trade_id: string
           p_user_id: string
@@ -5262,6 +5266,10 @@ export type Database = {
           trade_id: string
         }[]
       }
+      get_trade_roster_preview: {
+        Args: { p_trade_id: string; p_user_id: string }
+        Returns: Json
+      }
       get_visible_player_totals: {
         Args: {
           p_league_id: string
@@ -5805,6 +5813,7 @@ export type Database = {
           p_drop_player_ids: string[]
           p_ir_player_ids: string[]
           p_member_id: string
+          p_roster_moves?: Json
           p_taxi_player_ids: string[]
           p_trade_id: string
           p_user_id: string

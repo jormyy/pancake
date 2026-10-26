@@ -233,20 +233,18 @@ The Roster banner offers actions that make the team legal.
 
 ## Trade plans
 
-Legacy trades can complete above the active roster limit.
-That owner can drop players and keep scoring existing lineups.
-The legal roster gate blocks new offers and acceptance until the active count fits.
-During the rookie draft, an over-limit team must use taxi, IR, or a drop before sending or accepting a trade.
-Free-agent adds and starting-lineup edits require the active count to return within the limit.
-
-`allow_inactive_trades` enables IR and taxi assets and strict trade plans.
-Each manager chooses incoming IR/taxi destinations and planned drops while the offer is pending.
+All trades require legal resulting rosters before acceptance and settlement.
+The inactive-trade setting controls which owned assets can be sent. It does not disable roster limits.
+Each manager chooses incoming IR/taxi destinations, retained-player moves, and planned drops while the offer is pending.
+Retained players can move to regular space or eligible IR. They cannot enter taxi through a roster move.
 The proposer can include the plan in the existing idempotent submission payload.
 Counterparties can save choices before acceptance or submit choices with acceptance.
+The review and acceptance views show each team's resulting roster and capacity.
+Every accepting manager confirms named drops. Acceptance submits the exact plan shown in that confirmation.
 Every participant must accept before settlement.
 League review settings select immediate processing, commissioner review, or member voting.
 Acceptance stores and checks the plan. It changes no roster.
-Settlement checks every participant again, then applies all drops and transfers in one transaction.
+Settlement checks every participant again, then applies all drops, moves, transfers, and FAAB changes in one transaction.
 A failed transaction restores assets, drops, placements, waiver entries, and tenure.
 Vetoes, rejection, withdrawal, and expiry apply no roster changes.
 Taxi assets retain taxi placement and tenure. IR assets enter the active roster unless the receiver chooses eligible IR placement.
@@ -258,9 +256,15 @@ Trades do not place incoming players into lineup slots. Existing lineup validati
 Capacity uses the full plan, including outgoing players and chosen drops, for all participants.
 Drops happen only at settlement. They use the existing release function and enter 48-hour waivers.
 
-Pending planned drops block other pending trade assets, other planned drops, and active waiver drops.
+Pending planned drops and moves block conflicting trade assets, plans, waiver drops, and roster moves.
 The reverse checks apply to plan creation. Shared team locks and sorted player locks serialize reservations.
-Accepted assets and drops remain reserved through settlement or a terminal outcome.
+Accepted assets, planned drops, and moves remain reserved through settlement or a terminal outcome.
+Combined accepted plans reserve required regular, IR, and taxi capacity.
+New awards and acceptances cannot consume that capacity. Unrelated legal roster actions remain available.
+Deferred roster checks protect direct writes and permit atomic swaps. Awards also check capacity before spending FAAB.
+Vetoes and terminal outcomes release these reservations without an extra balance or capacity ledger.
+`test:db:trade-plan-moves-capacity` covers retained moves, recovery, authorization, combined capacity, failed awards, and release.
+`test:db:trade-plan-concurrency` and `test:db:trade-waiver-concurrency` verify competing transactions.
 Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
 For opted-in leagues, a pending claim whose drop leaves the roster becomes cancelled with an explicit reason.
 

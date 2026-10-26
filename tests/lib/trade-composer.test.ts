@@ -82,13 +82,13 @@ describe('source trade roster plan', () => {
             ]),
         })
         const plan = prefillTradeRosterPlan(source, memberId)
-        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`] })
+        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`], rosterMoves: [] })
         plan.dropPlayerIds.push('new-drop')
         expect(source.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds).toEqual([`drop-${memberId}`])
     })
 
     it('starts with no drops when the source has no saved participant plan', () => {
-        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
+        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
     })
 })
 

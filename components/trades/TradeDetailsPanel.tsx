@@ -84,8 +84,8 @@ export function TradeDetailsPanel({
                     label={`Receive ${item.playerName} into taxi`}
                     onChange={(value) => actions.onTaxiDestination?.(item.playerId, value)} />] : []) : null}
             <SavedTradeEstimate trade={trade} />
+            {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <TradeActionButtons trade={trade} model={model} actions={actions} />
-            {trade.status === 'pending' && currentLeague?.allow_inactive_trades && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <MotionPressable
                 style={styles.analyze}
                 onPress={onAnalyze}

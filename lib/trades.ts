@@ -1,3 +1,4 @@
+import type { Json } from '@/types/database'
 import { getCurrentSeasonId } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
@@ -9,7 +10,25 @@ export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 
-export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[] }
+export type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' }
+export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[]; rosterMoves?: TradeRosterMove[] }
+export type TradeRosterPreview = {
+    memberId: string
+    teamName: string
+    roster: { playerId: string; name: string; location: 'active' | 'ir' | 'taxi' }[]
+    drops: { playerId: string; name: string }[]
+    moves: TradeRosterMove[]
+    plan?: TradeRosterPlan
+    unavailableMoves?: Record<string, string>
+    unavailableDestinations?: Record<string, Partial<Record<'ir' | 'taxi', string>>>
+    limits: { active: number; ir: number; taxi: number }
+    error: string | null
+}
+
+export async function getTradeRosterPreview(tradeId: string): Promise<TradeRosterPreview[]> {
+    const result = await apiPost<{ teams: TradeRosterPreview[] }>(`/trades/${tradeId}/roster-preview`, {})
+    return result.teams
+}
 
 type TradePlayerItem = {
     kind: 'player'
@@ -58,6 +77,7 @@ type TradeParticipant = {
     sortOrder: number
     isInitiator: boolean
     dropPlayerIds?: string[]
+    rosterMoves?: TradeRosterMove[]
     acceptedAt: string | null
 }
 
@@ -161,8 +181,16 @@ type TradeItemQueryRow = {
         original_owner: TeamNameRow
     } | null
 }
+function parseTradeRosterMoves(value: Json | undefined): TradeRosterMove[] {
+    if (!Array.isArray(value)) return []
+    return value.flatMap((move) => move && typeof move === 'object' && !Array.isArray(move)
+        && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir')
+        ? [{ playerId: move.playerId, destination: move.destination }] : [])
+}
+
 type TradeParticipantQueryRow = {
     drop_player_ids: string[]
+    roster_moves?: Json
     member_id: string
     sort_order: number
     is_initiator: boolean
@@ -444,8 +472,9 @@ export async function setTradeTaxiDestinations(tradeId: string, memberId: string
 export async function acceptTrade(
     tradeId: string,
     memberId: string,
+    rosterPlan?: TradeRosterPlan,
 ): Promise<void> {
-    await apiPost(`/trades/${tradeId}/accept`, { memberId })
+    await apiPost(`/trades/${tradeId}/accept`, { memberId, ...(rosterPlan ? { rosterPlan } : {}) })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
@@ -491,7 +520,7 @@ const TRADE_SELECT = `
                 member_id,
                 sort_order,
                 is_initiator,
-                accepted_at, drop_player_ids,
+                accepted_at, drop_player_ids, roster_moves,
                 league_members ( team_name )
             ),
             trade_items (
@@ -570,6 +599,7 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             isInitiator: participant.is_initiator ?? false,
             acceptedAt: participant.accepted_at ?? null,
             dropPlayerIds: participant.drop_player_ids ?? [],
+            rosterMoves: parseTradeRosterMoves(participant.roster_moves),
         }))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.teamName.localeCompare(b.teamName))
 

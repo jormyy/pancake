@@ -14,6 +14,9 @@ SET search_path = public
 AS $$
 BEGIN
   PERFORM private.validate_trade_rosters(p_trade_id, p_only_member_id);
+  PERFORM private.assert_accepted_trade_capacity(p_league_id,p_league_season_id,participant.member_id,p_trade_id)
+    FROM trade_participants participant WHERE participant.trade_id=p_trade_id
+      AND (p_only_member_id IS NULL OR participant.member_id=p_only_member_id);
   PERFORM 1
     FROM trade_items AS item
     JOIN roster_players AS roster

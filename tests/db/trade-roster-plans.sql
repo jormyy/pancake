@@ -188,22 +188,18 @@ BEGIN
   UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
   UPDATE waiver_wire_log SET clears_at=now()-interval '2 days' WHERE league_season_id=season AND player_id=(SELECT player_id FROM waiver_claims WHERE id=claim);
   PERFORM process_next_waiver_claim_atomic((SELECT process_date FROM waiver_claims WHERE id=claim));
-  PERFORM pg_temp.check_plan((SELECT status='succeeded' FROM waiver_claims WHERE id=claim),
-    'legal waiver pickup fills future receipt space: '||(SELECT status||COALESCE(' '||failure_reason,'') FROM waiver_claims WHERE id=claim));
-  SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'active roster limit','actual waiver pickup makes accepted future receipt illegal');
-  SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.check_plan(before_rosters=after_rosters,'waiver changed roster refusal has no partial effect');
-  DELETE FROM roster_players WHERE league_season_id=season AND player_id=v_players[7];
+  PERFORM pg_temp.check_plan((SELECT status='failed_roster' AND failure_reason LIKE '%reserve roster capacity%' FROM waiver_claims WHERE id=claim),
+    'waiver cannot fill capacity reserved by an accepted trade');
+  PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=v_players[7]),'capacity failure keeps the waived player unowned');
   other_trade:=propose_trade_atomic(league,season,members[1],members[3],ARRAY[v_players[6]],'{}','{}',ARRAY[v_picks[2]]);
-  PERFORM accept_trade_atomic(other_trade,members[3]);
-  UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=other_trade;
-  PERFORM complete_accepted_trade_atomic(other_trade);
-  PERFORM pg_temp.check_plan((SELECT member_id=members[3] FROM roster_players WHERE league_season_id=season AND player_id=v_players[6]),'another independent trade legally fills future receipt space');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'active roster limit','another completed trade makes earlier accepted plan illegal');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',other_trade,members[3]),'reserve roster capacity','second acceptance cannot fill reserved receipt space');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.check_plan(before_rosters=after_rosters,'trade changed roster refusal has no partial effect');
+  PERFORM pg_temp.check_plan(before_rosters=after_rosters,'rejected second acceptance has no partial effect');
+  PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);
+  PERFORM complete_accepted_trade_atomic(trade);
+  PERFORM pg_temp.check_plan((SELECT member_id=members[3] FROM roster_players WHERE league_season_id=season AND player_id=v_players[2]),'accepted trade retains its reserved receipt space');
+
 
 END;
 $$;

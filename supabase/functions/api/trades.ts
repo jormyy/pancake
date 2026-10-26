@@ -150,6 +150,17 @@ function optionalTradeExpirationField(body: Record<string, unknown>, key: string
   return date.toISOString()
 }
 
+function rosterMovesField(plan: Record<string, unknown>): JsonObject[] {
+  const moves = plan.rosterMoves ?? []
+  if (!Array.isArray(moves) || moves.length > 100) throw new ValidationError('rosterMoves must be an array of at most 100 players.')
+  return moves.map((move) => {
+    if (!move || typeof move !== 'object' || Array.isArray(move)) throw new ValidationError('Each roster move must be an object.')
+    const playerId = uuidField(move, 'playerId')
+    if (move.destination !== 'active' && move.destination !== 'ir') throw new ValidationError('Roster moves require an active or IR destination.')
+    return { playerId, destination: move.destination }
+  })
+}
+
 function rosterPlanPayload(body: Record<string, unknown>): JsonObject {
   if (body.rosterPlan === undefined) return {}
   if (!body.rosterPlan || typeof body.rosterPlan !== 'object' || Array.isArray(body.rosterPlan)) {
@@ -160,6 +171,7 @@ function rosterPlanPayload(body: Record<string, unknown>): JsonObject {
     taxiPlayerIds: optionalUuidArrayField(plan, 'taxiPlayerIds'),
     irPlayerIds: optionalUuidArrayField(plan, 'irPlayerIds'),
     dropPlayerIds: optionalUuidArrayField(plan, 'dropPlayerIds'),
+    rosterMoves: rosterMovesField(plan),
   } }
 }
 
@@ -319,6 +331,7 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
       p_taxi_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'taxiPlayerIds'),
       p_ir_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'irPlayerIds'),
       p_drop_player_ids: optionalUuidArrayField(body.rosterPlan as Record<string, unknown>, 'dropPlayerIds'),
+      p_roster_moves: rosterMovesField(body.rosterPlan as Record<string, unknown>),
     }) : await supabase.rpc('accept_trade_atomic', {
     p_trade_id: tradeId,
     p_accepting_member_id: memberId,
@@ -529,6 +542,11 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   const userId = await requireUser(req)
   const body = await readJsonObject(req)
 
+  if (action.action === 'roster-preview') {
+    const { data, error } = await supabase.rpc('get_trade_roster_preview', { p_trade_id: action.tradeId, p_user_id: userId })
+    if (error) throwDb(error)
+    return json({ teams: data })
+  }
   if (action.action === 'roster-plan') {
     const memberId = uuidField(body, 'memberId')
     await requireOwnMember(userId, memberId)
@@ -536,12 +554,14 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
       taxiPlayerIds: optionalUuidArrayField(body, 'taxiPlayerIds'),
       irPlayerIds: optionalUuidArrayField(body, 'irPlayerIds'),
       dropPlayerIds: optionalUuidArrayField(body, 'dropPlayerIds'),
+      rosterMoves: rosterMovesField(body),
     }
     const { error } = await supabase.rpc('set_trade_roster_plan_atomic', {
       p_trade_id: action.tradeId, p_member_id: memberId, p_user_id: userId,
       p_taxi_player_ids: rosterPlan.taxiPlayerIds,
       p_ir_player_ids: rosterPlan.irPlayerIds,
       p_drop_player_ids: rosterPlan.dropPlayerIds,
+      p_roster_moves: rosterPlan.rosterMoves,
     })
     if (error) throwDb(error)
     return json({ ok: true, rosterPlan })
