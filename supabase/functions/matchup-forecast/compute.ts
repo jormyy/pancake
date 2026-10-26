@@ -30,7 +30,7 @@ type Projection = {
   projection_date: string | null
   projection_is_fresh: boolean | null
 }
-export type ForecastGameDetail = {
+type ForecastGameDetail = {
   gameId: string
   playerId: string
   memberId: string

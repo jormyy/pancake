@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { etDateKey, seasonYearForGameDate } from '../_shared/schedule.ts'
 
 for (const [key, value] of Object.entries({
   SUPABASE_URL: 'http://database.invalid', PANCAKE_SUPABASE_SECRET_KEY: 'fixture-key',
@@ -16,6 +17,9 @@ try {
 }
 
 Deno.test('schedule publication reports its receipt without reading stored games', async () => {
+  const gameDate = etDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000))
+  const seasonYear = seasonYearForGameDate(gameDate)
+  const seasonLabel = `${seasonYear - 1}-${String(seasonYear).slice(-2)}`
   const originalFetch = globalThis.fetch
   const reads: string[] = []
   let publication: Record<string, unknown> | undefined
@@ -23,8 +27,8 @@ Deno.test('schedule publication reports its receipt without reading stored games
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
-    if (url.hostname === 'nba.invalid') return Response.json({ leagueSchedule: { seasonYear: '2026-27', gameDates: [{
-      games: [{ gameId: '0022600001', gameDateEst: '2026-10-25T00:00:00Z', gameDateTimeUTC: '2026-10-25T23:00:00Z',
+    if (url.hostname === 'nba.invalid') return Response.json({ leagueSchedule: { seasonYear: seasonLabel, gameDates: [{
+      games: [{ gameId: '0022600001', gameDateEst: `${gameDate}T00:00:00Z`, gameDateTimeUTC: `${gameDate}T23:00:00Z`,
         gameStatus: 1, homeTeam: { teamTricode: 'BOS' }, awayTeam: { teamTricode: 'NYK' } }],
     }] } })
     assert.equal(url.hostname, 'database.invalid')
@@ -47,7 +51,7 @@ Deno.test('schedule publication reports its receipt without reading stored games
     }))
     assert.equal(response.status, 200)
     assert.deepEqual(reads, [])
-    assert.equal(publication?.p_season_year, 2027)
+    assert.equal(publication?.p_season_year, seasonYear)
     assert.equal((publication?.p_games as unknown[])?.length, 1)
     assert.deepEqual(await response.json(), { ok: true, games: 1, weeks: 7 })
     assert.equal(finished?.rows_affected, 8)

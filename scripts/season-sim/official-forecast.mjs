@@ -20,7 +20,7 @@ export function scoreForecastReceipt(receipt, matchup) {
   return { outcome, probability, homePoints: matchup.home_points, awayPoints: matchup.away_points, brier: probability == null ? null : (probability - outcome) ** 2, constantBrier: (0.5 - outcome) ** 2, meanWinnerBrier: meanPrediction == null ? null : (meanPrediction - outcome) ** 2 }
 }
 
-export function officialForecastHistorySql(c, date, matchup) {
+function officialForecastHistorySql(c, date, matchup) {
   return `SELECT coalesce(json_agg(h.game_record || jsonb_build_object('recency',h.recency)
     ORDER BY h.player_id,h.game_date,h.game_id),'[]') FROM (
     SELECT p.player_id,p.game_id,g.game_date,

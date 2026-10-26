@@ -46,7 +46,7 @@ it('keeps choices disabled during an authority refresh and permits sheet dismiss
         await act(async () => { actions.handleAutoSet() })
         await act(async () => { renderer.update(React.createElement(Probe, { authorized: false })) })
         expect(renderer.root.findByProps({ title: 'Auto-set lineup' }).props.visible).toBe(true)
-        for (const name of ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season']) {
+        for (const name of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
             expect(renderer.root.findByProps({ accessibilityLabel: name }).props.disabled).toBe(true)
         }
         await act(async () => { await actions.doAutoSet(null) })
@@ -58,7 +58,7 @@ it('keeps choices disabled during an authority refresh and permits sheet dismiss
         await act(async () => { renderer.update(React.createElement(Probe, { authorized: true })) })
         expect(actions.autoSetModalVisible).toBe(false)
         await act(async () => { actions.handleAutoSet() })
-        for (const name of ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season']) {
+        for (const name of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
             expect(renderer.root.findByProps({ accessibilityLabel: name }).props.disabled).toBe(false)
         }
     } finally { await act(async () => { renderer.unmount() }) }

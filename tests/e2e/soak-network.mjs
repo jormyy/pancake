@@ -80,7 +80,6 @@ export const signInForAccessToken = async (env, email, password, label = 'E2E si
   throw new Error(`${label} failed for ${email}: ${lastError?.message ?? 'unknown error'}`)
 }
 
-export const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
 
 const isTransientSupabaseError = (error) => {

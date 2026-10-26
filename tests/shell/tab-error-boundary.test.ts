@@ -13,7 +13,7 @@ afterEach(async () => { await act(async () => screen?.unmount()); vi.unstubAllGl
 it('offers a document reload when a lazy tab cannot load', async () => {
     const reload = vi.fn()
     const retry = vi.fn(async () => {})
-    vi.stubGlobal('window', { location: { reload } })
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { location: { reload } }))
     const Boundary = (TabsLayout as { ErrorBoundary?: React.ComponentType<{ error: Error; retry: () => Promise<void> }> }).ErrorBoundary
     expect(Boundary).toEqual(expect.any(Function))
     await act(async () => { screen = create(React.createElement(Boundary!, { error: new Error('Loading module 42 failed'), retry })) })

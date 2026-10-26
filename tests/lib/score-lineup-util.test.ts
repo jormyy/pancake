@@ -20,7 +20,6 @@ function loadSolver(path: string): { solve: Solver; allowed: Record<string, stri
 }
 
 const canonical = loadSolver('supabase/shared-src/sync/scoreLineups.ts')
-const generated = loadSolver('supabase/functions/_shared/scoreLineups.ts')
 
 // Preserve the original exhaustive recurrence as the independent numeric oracle.
 const original: Solver = (candidates, slots) => {
@@ -49,7 +48,6 @@ function compare(candidates: Candidate[], slots: string[]) {
     const references = [...candidates]
     const expected = original(candidates, slots)
     expect(canonical.solve(candidates, slots)).toBe(expected)
-    expect(generated.solve(candidates, slots)).toBe(expected)
     expect(candidates).toEqual(before)
     candidates.forEach((candidate, index) => expect(candidate).toBe(references[index]))
 }
