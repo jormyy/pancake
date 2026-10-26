@@ -38,7 +38,6 @@ vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: () => null
 vi.mock('@/components/DropPlayerPickerModal', () => ({ DropPlayerPickerModal: () => null }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: () => null }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))

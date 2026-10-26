@@ -1,12 +1,13 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import type { ComponentProps } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
+
+
+
 import { Sheet } from '@/components/ui/Sheet'
-import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { formatPoints } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import type { RosterPlayer } from '@/lib/roster'
 import type { RosterAverage } from '@/lib/roster-stats'
@@ -66,28 +67,9 @@ export function RosterPlayerSheet({
             {info ? (
                 <View style={styles.body}>
                     <View style={styles.identity}>
-                        <Avatar
-                            name={info.display_name}
-                            uri={playerHeadshotUrl(info.nba_id) ?? undefined}
-                            color={colors.bgMuted}
-                            textColor={colors.textSecondary}
-                            size={48}
-                        />
-                        <View style={styles.identityText}>
-                            <View style={styles.metaRow}>
-                                {info.nba_team ? <Text style={textStyles.meta}>{info.nba_team}</Text> : null}
-                                {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                                {info.injury_status ? (
-                                    <Badge
-                                        label={info.injury_status}
-                                        color={INJURY_COLORS[info.injury_status] ?? colors.textMuted}
-                                        variant="solid"
-                                    />
-                                ) : null}
-                                {status ? <Badge label={status} color={colors.textMuted} variant="soft" /> : null}
-                            </View>
-                            <Text style={textStyles.meta}>Season averages</Text>
-                        </View>
+                        <PlayerRowContent name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
+                            yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status}
+                            stats={`${avgFpts == null ? '—' : formatPoints(avgFpts)} FP${status ? ` · ${status}` : ''}`} />
                     </View>
 
                     <View style={styles.statGrid}>

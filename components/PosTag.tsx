@@ -10,7 +10,7 @@ import { alpha, colors, fontWeight, radii } from '@/constants/tokens'
 export function PosTag({ position }: { position: string }) {
     const color = getPositionColor(position)
     return (
-        <View style={[styles.pill, { backgroundColor: alpha(color, 0.22), borderColor: alpha(color, 0.4) }]}>
+        <View testID="position-chip" style={[styles.pill, { backgroundColor: alpha(color, 0.22), borderColor: alpha(color, 0.4) }]}>
             <Text style={styles.label}>{position}</Text>
         </View>
     )
@@ -20,12 +20,14 @@ const styles = StyleSheet.create({
     pill: {
         paddingHorizontal: 5,
         paddingVertical: 1,
+        height: 18,
         borderRadius: radii.xs,
         borderCurve: 'continuous',
         borderWidth: 1,
     },
     label: {
         fontSize: 10,
+        lineHeight: 14,
         fontWeight: fontWeight.extrabold,
         letterSpacing: 0.3,
         // Near-primary espresso so the small glyph is unambiguously legible on

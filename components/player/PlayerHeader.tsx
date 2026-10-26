@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -62,7 +62,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                 <View style={styles.avatarWrap}>
                     <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
                 </View>
-                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
                     {action ? (
                         <Pressable style={[styles.action, showDrop && styles.rosterPrimary, action.blockedReason && styles.pickupBlocked]}
@@ -84,8 +84,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
             <View style={styles.metaRow} testID="player-position-line">
                 {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
                 {eligiblePositions.map(pos => <PosTag key={pos} position={pos} />)}
-                {player.injury_status ? <Badge inline label={player.injury_status} color={INJURY_COLORS[player.injury_status] ?? colors.textMuted} variant="solid" /> : null}
-                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
+                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
                 {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}

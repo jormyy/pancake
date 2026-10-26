@@ -31,3 +31,5 @@ it('keeps the deal summary in document flow so it cannot cover sender controls',
     expect(style.position).not.toBe('absolute')
     await act(async () => renderer.unmount())
 })
+
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))

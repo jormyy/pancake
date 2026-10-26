@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm'
 import ts from 'typescript'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { expect, it } from 'vitest'
 import { functionLifecycleEventsInSource, latestFunctionDefinitionsInSource, maskSqlNonCode } from '../scripts/check-db-function-sources.mjs'
 
@@ -360,8 +360,8 @@ it.skipIf(!available)('documents database-first release order for new client dep
     const newest = migrations.at(-1)!.split('_')[0]
     const main = migrations.filter(file => file.split('_')[0] <= productionHead)
         .map(file => readFileSync(`supabase/migrations/${file}`, 'utf8')).join('\n')
-    const files = git('ls-files', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n').filter(file => /\.tsx?$/.test(file))
-    const source = files.map(file => readFileSync(file, 'utf8')).join('\n')
+    const files = git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n').filter(file => /\.tsx?$/.test(file))
+    const source = files.filter(file => existsSync(file)).map(file => readFileSync(file, 'utf8')).join('\n')
     expect(requiresDatabaseFirst(main, source, notes, newest)).toBe(false)
     expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'), newest)).toBe(true)
     expect(requiresDatabaseFirst(main, source, notes.replaceAll(newest, 'removed'), newest)).toBe(true)

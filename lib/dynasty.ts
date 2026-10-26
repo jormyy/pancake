@@ -14,6 +14,7 @@ export type DynastyRankPlayer = {
     position: string | null
     eligiblePositions: string[]
     injuryStatus: string | null
+    careerGames?: number | null
     yearsExp: number | null
     headshotUrl: string | null
     nbaId: string | null
@@ -65,6 +66,10 @@ export type DynastyNewsItem = {
     playerName: string | null
     playerTeam: string | null
     playerNbaId: string | null
+    playerYearsExp?: number | null
+    playerCareerGames?: number | null
+    playerInjuryStatus?: string | null
+    playerPosition?: string | null
 }
 
 export async function getDynastyNews(limit = 20): Promise<DynastyNewsItem[]> {
@@ -95,7 +100,7 @@ export async function getMyDynastyNews(memberId: string, leagueId: string, limit
 async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<DynastyNewsItem[]> {
     let request = supabase
         .from('dynasty_news')
-        .select('id, title, summary, source, url, published_at, player_id, players(display_name, nba_team, nba_id)')
+        .select('id, title, summary, source, url, published_at, player_id, players(display_name, nba_team, nba_id, years_exp, career_regular_season_games, injury_status, position)')
         .order('published_at', { ascending: false })
         .limit(limit)
 
@@ -109,7 +114,7 @@ async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<Dy
     }
 
     return (data ?? []).map((row) => {
-        const player = row.players as { display_name: string | null; nba_team: string | null; nba_id: string | null } | null
+        const player = row.players as { display_name: string | null; nba_team: string | null; nba_id: string | null; years_exp?: number | null; career_regular_season_games?: number | null; injury_status?: string | null; position?: string | null } | null
         return {
             id: row.id,
             title: row.title,
@@ -120,6 +125,10 @@ async function fetchDynastyNews(limit: number, playerIds?: string[]): Promise<Dy
             playerName: player?.display_name ?? null,
             playerTeam: player?.nba_team ?? null,
             playerNbaId: player?.nba_id ?? null,
+            playerYearsExp: player?.years_exp,
+            playerCareerGames: player?.career_regular_season_games,
+            playerInjuryStatus: player?.injury_status,
+            playerPosition: player?.position,
         }
     })
 }

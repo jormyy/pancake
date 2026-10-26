@@ -7,6 +7,7 @@ vi.mock('@/lib/supabase', () => ({
 
 vi.mock('@/lib/players', () => ({
     getEligiblePositions: vi.fn(() => []),
+    getPlayerRowMetadata: vi.fn(async () => new Map()),
 }))
 
 import { supabase } from '@/lib/supabase'

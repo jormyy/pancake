@@ -1,10 +1,11 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
-import { Avatar } from '@/components/Avatar'
+
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints } from '@/constants/tokens'
-import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
-import { formatCountdown, playerHeadshotUrl } from '@/lib/format'
+import { draftAgeLabel, draftEventTime } from '@/lib/draft-display'
+import { formatCountdown } from '@/lib/format'
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
 type Controller = ReturnType<typeof useAuctionDraftRoomController>
@@ -48,16 +49,9 @@ export function AuctionLivePanel({
                 <View style={styles.playerInfo}>
                     <Text style={styles.cardLabel}>On the block</Text>
                     <View style={styles.playerRow}>
-                        <Avatar name={nomination.player?.displayName ?? 'Unknown Player'} color={colors.bgMuted}
-                            uri={playerHeadshotUrl(nomination.player?.nbaId)} size={compact ? 44 : 64} />
-                        <View style={styles.playerCopy}>
-                            <Text style={styles.playerName} numberOfLines={compact ? 2 : undefined}>
-                                {nomination.player?.displayName ?? 'Unknown Player'}
-                            </Text>
-                            <Text style={styles.playerMeta} numberOfLines={compact ? 1 : undefined}>{draftPlayerMeta([
-                                nomination.player?.nbaTeam, nomination.player?.position, draftAgeLabel(nomination.player?.age),
-                            ])}</Text>
-                        </View>
+                        <PlayerRowContent name={nomination.player?.displayName ?? 'Unknown Player'} nbaId={nomination.player?.nbaId}
+                            team={nomination.player?.nbaTeam} yearsExp={nomination.player?.yearsExp} careerGames={nomination.player?.careerGames} injuryStatus={nomination.player?.injuryStatus} positions={nomination.player?.position ? [nomination.player.position] : []}
+                            stats={draftAgeLabel(nomination.player?.age)} />
                     </View>
                 </View>
                 <View style={[styles.bidPanel, compact && styles.bidPanelCompact]}

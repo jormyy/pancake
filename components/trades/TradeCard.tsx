@@ -1,13 +1,13 @@
 import { pickLabel } from '@/lib/picks'
-import { PlayerNameLine } from '@/components/player/PlayerNameLine'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
 import { TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable } from '@/components/Motion'
-import { Avatar } from '@/components/Avatar'
+
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
-import { PosTag } from '@/components/PosTag'
+
 import { type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
@@ -109,23 +109,10 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
         const positions = playerEligiblePositions(item)
         return (
             <View style={styles.assetRow}>
-                <Avatar
-                    name={item.playerName}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    size={28}
-                />
-                <View style={styles.assetCopy}>
-                    <PlayerNameLine name={item.playerName} textStyle={styles.assetName} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus} />
-                    <View style={styles.assetMetaRow}>
-                        {item.nbaTeam ? <Text style={styles.assetMeta}>{item.nbaTeam}</Text> : null}
-                        {item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
-                        {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    </View>
-                    {showContext ? (
-                        <Text style={styles.assetContext} numberOfLines={1}>{playerSeasonContextText(item)}</Text>
-                    ) : null}
-                </View>
+                <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
+                    yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
+                    metadata={item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
+                    stats={showContext ? playerSeasonContextText(item) : undefined} />
             </View>
         )
     }
@@ -171,6 +158,8 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label: item.playerName,
+            player: { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: playerEligiblePositions(item),
+                yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus, stats: playerSeasonContextText(item) },
             detail: [item.nbaTeam, ...playerEligiblePositions(item), item.toTaxi ? 'To taxi' : null].filter(Boolean).join(' · '),
         }
     }

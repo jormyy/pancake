@@ -1,17 +1,21 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { StyleSheet, Text, View } from 'react-native'
+import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { readableSourceName } from '@/lib/source-names'
 
 export function TradeAnalysisSummary({
     analysis,
+    players = [],
     participantName,
     loading = false,
     cached = false,
     inset = true,
 }: {
     analysis: DynastyTradeAnalysis | null
+    players?: RosterPlayer[]
     participantName: (memberId: string) => string
     loading?: boolean
     cached?: boolean
@@ -41,18 +45,24 @@ export function TradeAnalysisSummary({
                 ))}
             </View>
             <Text style={styles.subhead}>Asset details</Text>
-            {analysis.assets.map((asset) => (
+            {analysis.assets.map((asset) => {
+                const player = players.find(item => item.players.id === asset.assetId)?.players
+                return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>
-                    <View style={styles.assetCopy}>
+                    {asset.kind === 'player' ? <PlayerRowContent name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
+                        positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
+                        yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status}
+                        stats={`Value ${asset.values[analysis.strategy]} · Current ${asset.components.shortTermPoints} · Long-term ${asset.components.longTermValue}`} /> : <View style={styles.assetCopy}>
                         <Text style={styles.assetName}>{asset.label}</Text>
                         <Text style={styles.detail}>Value {asset.values[analysis.strategy]} · Current {asset.components.shortTermPoints} · Long-term {asset.components.longTermValue}</Text>
                         {asset.ranges[analysis.strategy] ? (
                             <Text style={styles.detail}>Range {asset.ranges[analysis.strategy]?.low}–{asset.ranges[analysis.strategy]?.high}</Text>
                         ) : null}
-                    </View>
+                    </View>}
                     <Text style={styles.confidence}>{Math.round(asset.confidence * 100)}%</Text>
                 </View>
-            ))}
+                )
+            })}
             <Text style={styles.subhead}>Sources and limits</Text>
             <Text style={styles.detail}>{analysis.sources.length > 0
                 ? analysis.sources.map((source) => `${readableSourceName(source.name)} · ${source.fetchedAt ? new Date(source.fetchedAt).toLocaleDateString() : 'Not dated'}`).join('\n')
@@ -81,7 +91,7 @@ const styles = StyleSheet.create({
     valueNegative: { color: colors.dangerDark },
     detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
     subhead: { ...textStyles.sectionLabel, marginTop: spacing.xs },
-    assetRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
     assetCopy: { flex: 1, minWidth: 0 },
     assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

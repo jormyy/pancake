@@ -138,7 +138,12 @@
         }
       }
     ],
-    "theme": "light"
+    "theme": "light",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "shell-light-leagues",
@@ -168,7 +173,8 @@
           "tap": "Join with Invite Code"
         },
         "expected": {
-          "route": "/join-league"
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],
@@ -448,7 +454,12 @@
         }
       }
     ],
-    "theme": "dark"
+    "theme": "dark",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "shell-dark-leagues",
@@ -478,7 +489,8 @@
           "tap": "Join with Invite Code"
         },
         "expected": {
-          "route": "/join-league"
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],

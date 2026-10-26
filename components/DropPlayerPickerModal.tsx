@@ -1,11 +1,11 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { useMemo } from 'react'
 import type { RosterPlayer } from '@/lib/roster'
-import { getEligiblePositions } from '@/lib/players'
 import { orderRosterOptions } from '@/lib/player-roster-options'
 import { colors, spacing, table, textStyles } from '@/constants/tokens'
-import { PlayerAvatar } from '@/components/player/PlayerAvatar'
-import { PosTag } from '@/components/PosTag'
+
+
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 
@@ -39,7 +39,8 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                 <View style={styles.list}>
                     {irOptions.map(rp => (
                         <View key={rp.id} style={styles.row}>
-                            <Text style={[textStyles.rowTitle, styles.info]} numberOfLines={1}>{rp.players.display_name}</Text>
+                            <PlayerRowContent name={rp.players.display_name} nbaId={rp.players.nba_id} team={rp.players.nba_team} positions={rp.players.eligible_positions ?? []}
+                                yearsExp={rp.players.years_exp} careerGames={rp.players.career_regular_season_games} injuryStatus={rp.players.injury_status} />
                             <Button title="Move to IR" size="sm" onPress={() => onMoveToIR(rp)}
                                 disabled={dropping !== null} loading={dropping === rp.id}
                                 accessibilityLabel={`Move ${rp.players.display_name} to IR and add player`} />
@@ -50,22 +51,12 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
             <View style={styles.list}>
                 {dropOptions.map((rp) => {
                     const p = rp.players
-                    const ep = getEligiblePositions(p)
+
                     return (
                         <View key={rp.id} style={styles.row}>
-                            <PlayerAvatar
-                                name={p.display_name}
-                                nbaId={p.nba_id}
-                                color={colors.bgMuted}
-                                size={spacing['4xl'] + spacing.xs}
-                            />
-                            <View style={styles.info}>
-                                <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
-                                <View style={styles.metaRow}>
-                                    {p.nba_team ? <Text style={textStyles.meta}>{p.nba_team}</Text> : null}
-                                    {ep.map((pos) => <PosTag key={pos} position={pos} />)}
-                                </View>
-                            </View>
+                            <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team}
+                                positions={p.eligible_positions?.length ? p.eligible_positions : p.position ? [p.position] : []}
+                                yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} />
                             <Button
                                 title="Drop"
                                 size="sm"

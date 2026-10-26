@@ -1,12 +1,13 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { FlashList } from '@shopify/flash-list'
-import { Avatar } from '@/components/Avatar'
+
 import { MotionView } from '@/components/Motion'
 import { SegmentedControl } from '@/components/ui'
 import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
-import { playerHeadshotUrl } from '@/lib/format'
+
 import type { DraftBudget, DraftNomination } from '@/lib/draft'
 import type { DraftTab } from '@/hooks/useAuctionDraftRoomController'
 
@@ -72,23 +73,9 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
                             : undefined
                         return (
                             <View style={[styles.historyRow, index > 0 && styles.divider]}>
-                                <Avatar
-                                    name={item.player?.displayName ?? 'Player'}
-                                    color={colors.bgMuted}
-                                    uri={playerHeadshotUrl(item.player?.nbaId)}
-                                    size={32}
-                                />
-                                <View style={styles.flex1}>
-                                    <Text style={styles.historyPlayer} numberOfLines={1}>{item.player?.displayName ?? 'Unknown'}</Text>
-                                    <Text style={styles.historyMeta} numberOfLines={1}>
-                                        {draftPlayerMeta([
-                                            `#${item.nominationOrder}`,
-                                            draftEventTime(item.nominatedAt),
-                                            item.status === 'sold' ? (winnerTeam ?? '—') : 'No bid',
-                                            draftAgeLabel(item.player?.age),
-                                        ])}
-                                    </Text>
-                                </View>
+                                <PlayerRowContent name={item.player?.displayName ?? 'Unknown'} nbaId={item.player?.nbaId}
+                                    team={item.player?.nbaTeam} yearsExp={item.player?.yearsExp} careerGames={item.player?.careerGames} injuryStatus={item.player?.injuryStatus} positions={item.player?.position ? [item.player.position] : []}
+                                    stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid', draftAgeLabel(item.player?.age)])} />
                                 {item.status === 'sold' ? <Text style={styles.historyPrice}>${item.finalPrice}</Text> : null}
                                 {item.status === 'no_bid' ? <Text style={styles.historyNoBid}>FA</Text> : null}
                             </View>

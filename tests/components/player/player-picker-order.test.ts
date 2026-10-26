@@ -28,3 +28,5 @@ it('keeps drop and IR choices in the same order when roster rows arrive in anoth
     await act(async () => screen.update(React.createElement(DropPlayerPickerModal, { ...props, roster: [adams, baker], irMoveCandidates: [adams, baker] })))
     expect(labels()).toEqual(expected)
 })
+
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))

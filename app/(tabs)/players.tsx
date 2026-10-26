@@ -112,7 +112,6 @@ function PlayerTableHeader({
             <View style={styles.tableHeaderCardRow}>
                 <View style={styles.tableHeaderHeadshotSpacer} />
                 <Text style={styles.tableHeaderPlayer}>Player</Text>
-                <Text style={styles.tableHeaderOwnership}>Ownership</Text>
                 <View style={styles.tableHeaderStatsGroup}>
                     {TABLE_COLUMNS.map((column) => {
                         const mode = STAT_COLUMN_SORT[column]
@@ -430,7 +429,6 @@ function PlayerSearchSection() {
                         <Pressable
                             style={[localStyles.filterButton, search.activeFilterCount > 0 && localStyles.filterButtonActive]}
                             onPress={() => setFiltersOpen(true)}
-                            onPressIn={() => setFiltersOpen(true)}
                             accessibilityRole="button"
                             accessibilityLabel="Show filters"
                         >

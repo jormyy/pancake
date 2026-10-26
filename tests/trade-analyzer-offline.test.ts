@@ -5,7 +5,7 @@ import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
 const saved = vi.hoisted(() => ({ assets: [{ kind: 'player', assetId: 'player', label: 'Saved player' }], teams: [{ memberId: 'me' }] }))
 const composer = vi.hoisted(() => ({
-    participantIds: ['me'], participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
+    participantIds: ['me'], participantRosters: {}, participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
     selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
     setParticipantIds: () => {}, prefillFromTrade: () => {}, participantName: () => 'My team',
 }))

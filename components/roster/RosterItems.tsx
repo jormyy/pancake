@@ -1,7 +1,7 @@
 import { pickLabel, draftYear } from '@/lib/picks'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
-import { PlayerNameLine } from '@/components/player/PlayerNameLine'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
@@ -9,14 +9,14 @@ import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
 import { claimProcessTimeLabel, WaiverClaim } from '@/lib/waivers'
-import { formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { formatPoints } from '@/lib/format'
 import { rosterSlotLabel } from '@/lib/roster-slots'
-import { Avatar } from '@/components/Avatar'
-import { PosTag } from '@/components/PosTag'
+
+
 import { MotionPressable, MotionView } from '@/components/Motion'
 
 const ROW_AVATAR = 36
-export const ROSTER_SLOT_TAG_WIDTH = 52
+export const ROSTER_SLOT_TAG_WIDTH = controlSize.minTouch
 
 /**
  * Fixed-width lineup role for a roster row: a filled tag for a starting slot,
@@ -49,32 +49,12 @@ export function RosterSectionBand({ label, detail, tone = 'default' }: { label: 
     )
 }
 
-// Second row line: team, positions, then the season averages that drive
-// lineup decisions. Wraps under the name instead of growing the row.
-function PlayerMetaLine({
-    team,
-    positions,
-    avgFpts,
-    avgMinutes,
-}: {
-    team: string | null | undefined
-    positions: string[]
-    avgFpts?: number
-    avgMinutes?: number | null
-}) {
-    return (
-        <View style={styles.metaRow}>
-            {team ? <Text style={styles.meta}>{team}</Text> : null}
-            {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-            {avgFpts != null || avgMinutes != null ? (
-                <Text style={styles.averages}>
-                    {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
-                    {avgFpts != null && avgMinutes != null ? ' · ' : ''}
-                    {avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null}
-                </Text>
-            ) : null}
-        </View>
-    )
+function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: number | null }) {
+    return <Text style={styles.averages}>
+        {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
+        {avgFpts != null && avgMinutes != null ? ' · ' : ''}
+        {avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null}
+    </Text>
 }
 
 export const RosterClaimItem = memo(function RosterClaimItem({
@@ -118,27 +98,17 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         // line below, so nothing wraps on a narrow phone.
         <MotionView style={styles.claimRow} preset="rise">
             <View style={styles.claimTop}>
-                <Avatar
-                    name={claim.playerName}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    uri={playerHeadshotUrl(claim.playerNbaId) ?? undefined}
-                    size={ROW_AVATAR}
-                />
-                <View style={styles.info}>
-                    <PlayerNameLine name={claim.playerName} textStyle={styles.name} yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames} />
-                    <Text style={styles.meta} numberOfLines={2}>
-                        {[
+                <PlayerRowContent name={claim.playerName} nbaId={claim.playerNbaId} team={claim.playerTeam} positions={claim.playerPosition ? [claim.playerPosition] : []} injuryStatus={claim.playerInjuryStatus}
+                    yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames}
+                    stats={<View>
+                        <Text style={styles.meta} numberOfLines={2}>{[
                             claim.toTaxi ? 'To taxi' : claim.toIr ? 'To IR' : null,
                             claim.dropPlayerName ? `Drop ${claim.dropPlayerName}` : null,
                             usesFaab ? `Bid $${claim.bidAmount}` : null,
-                        ].filter(Boolean).join(' · ')}
-                    </Text>
-                    <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
-                    {claim.failureReason ? (
-                        <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text>
-                    ) : null}
-                </View>
+                        ].filter(Boolean).join(' · ')}</Text>
+                        <Text style={[styles.meta, { color: statusColor }]}>{statusText}</Text>
+                        {claim.failureReason ? <Text style={[styles.meta, { color: colors.dangerDark }]}>{claim.failureReason}</Text> : null}
+                    </View>} />
                 {isPending ? (
                     <MotionPressable
                         style={styles.actionButton}
@@ -255,7 +225,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
-    const headshotUri = playerHeadshotUrl(player.nba_id)
+
     return (
         <View style={styles.row}>
             <MotionPressable
@@ -267,18 +237,9 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 accessibilityLabel={`Open ${player.display_name}`}
             >
                 <RosterSlotTag slotType={slotType} />
-                <Avatar
-                    name={player.display_name}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    uri={headshotUri ?? undefined}
-                    size={ROW_AVATAR}
-                />
-
-                <View style={styles.info}>
-                    <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
-                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
-                </View>
+                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 
             {(item.is_on_ir || allowIR && isIREligible(player.injury_status)) ? (
@@ -313,7 +274,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
 }) {
     const player = item.players
     const positions = getEligiblePositions(player)
-    const headshotUri = playerHeadshotUrl(player.nba_id)
+
 
     return (
         <MotionPressable
@@ -322,23 +283,9 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             accessibilityRole="button"
             accessibilityLabel={`Open ${player.display_name}`}
         >
-            <Avatar
-                name={player.display_name}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                uri={headshotUri ?? undefined}
-                size={ROW_AVATAR}
-            />
-
-            <View style={styles.info}>
-                <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
-                <PlayerMetaLine
-                    team={player.nba_team}
-                    positions={positions}
-                    avgFpts={avgFpts}
-                    avgMinutes={avgMinutes}
-                />
-            </View>
+            <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
         </MotionPressable>
     )
@@ -361,7 +308,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
 }) {
     const player = item.players
     const positions = getEligiblePositions(player)
-    const headshotUri = playerHeadshotUrl(player.nba_id)
+
     return (
         <View style={styles.row}>
             <MotionPressable
@@ -371,18 +318,9 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 accessibilityLabel={`Open ${player.display_name}`}
             >
                 <RosterSlotTag slotType="TX" />
-                <Avatar
-                    name={player.display_name}
-                    color={colors.bgMuted}
-                    textColor={colors.textSecondary}
-                    uri={headshotUri ?? undefined}
-                    size={ROW_AVATAR}
-                />
-
-                <View style={styles.info}>
-                    <PlayerNameLine name={player.display_name} textStyle={styles.name} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
-                    <PlayerMetaLine team={player.nba_team} positions={positions} avgFpts={avgFpts} avgMinutes={avgMinutes} />
-                </View>
+                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 
             <MotionPressable
@@ -440,11 +378,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         minHeight: table.rowHeight,
-        paddingHorizontal: spacing.lg,
+        paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xs,
-        gap: spacing.md,
+        gap: spacing.xs,
     },
-    rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+    rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },
     name: { ...textStyles.rowTitle, flexShrink: 1 },
@@ -457,8 +395,8 @@ const styles = StyleSheet.create({
 
     actionButton: {
         minHeight: controlSize.minTouch,
-        minWidth: 52,
-        paddingHorizontal: spacing.md,
+        minWidth: controlSize.minTouch,
+        paddingHorizontal: spacing.sm,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         borderWidth: 1,

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import {
     playerEligiblePositions,
     playerSeasonContextText,
-    playerYearsExperienceLabel,
 } from '@/lib/player-context'
 
 vi.mock('@/lib/format', () => ({
@@ -16,13 +15,6 @@ describe('player context helpers', () => {
         expect(playerEligiblePositions({ position: null, eligiblePositions: null })).toEqual([])
     })
 
-    it('shows experience labels only for rookies', () => {
-        expect(playerYearsExperienceLabel(null)).toBeNull()
-        expect(playerYearsExperienceLabel(0)).toBe('Rookie')
-        expect(playerYearsExperienceLabel(1)).toBeNull()
-        expect(playerYearsExperienceLabel(8)).toBeNull()
-    })
-
     it('combines fantasy points and minutes without veteran year labels', () => {
         expect(playerSeasonContextText({
             avgFantasyPoints: 42.345,
@@ -32,7 +24,7 @@ describe('player context helpers', () => {
     })
 
     it('keeps partial and empty stats readable', () => {
-        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0.0 FP · Rookie')
+        expect(playerSeasonContextText({ avgFantasyPoints: 0, avgMinutesPlayed: null, yearsExp: 0 })).toBe('0.0 FP')
         expect(playerSeasonContextText({ avgFantasyPoints: null, avgMinutesPlayed: null, yearsExp: null })).toBe('No season stats')
     })
 })

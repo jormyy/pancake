@@ -22,6 +22,9 @@ export type SnakePick = {
         nbaTeam: string | null
         position: string | null
         nbaId: string | null
+        yearsExp?: number | null
+        careerGames?: number | null
+        injuryStatus?: string | null
     } | null
 }
 
@@ -49,6 +52,7 @@ export type RookieDraftState = {
 }
 
 export type RookieProspect = {
+    injury_status?: string | null
     years_exp?: number | null
     career_regular_season_games?: number | null
     id: string
@@ -108,7 +112,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             .from('snake_draft_picks')
             .select(
                 `overall_pick, round, pick_in_round, member_id, picked_at, skipped_at, skip_reason, timer_expires_at,
-                 players ( id, display_name, nba_team, position, nba_id ),
+                 players ( id, display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, injury_status ),
                  league_members ( team_name )`,
             )
             .eq('draft_id', draftId)
@@ -146,6 +150,9 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
                   nbaTeam: (p.players as { nba_team: string | null }).nba_team,
                   position: (p.players as { position: string | null }).position,
                   nbaId: (p.players as { nba_id: string | null }).nba_id,
+                  yearsExp: p.players.years_exp,
+                  careerGames: p.players.career_regular_season_games,
+                  injuryStatus: p.players.injury_status,
               }
             : null,
     }))
@@ -241,7 +248,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 
     let q = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, nba_draft_number, years_exp, career_regular_season_games')
+        .select('id, display_name, nba_team, position, nba_id, injury_status, nba_draft_number, years_exp, career_regular_season_games')
         .not('nba_draft_number', 'is', null)
         .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })

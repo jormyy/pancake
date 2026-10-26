@@ -1,3 +1,4 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { isIREligible } from '@pancake/core'
@@ -34,7 +35,8 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
             const placements = (['active', 'ir', 'taxi'] as const).filter((placement) => eligible[placement] || placement === selectedPlacement)
             const fixedPlacement = item.fromTaxi ? 'Taxi · tenure retained' : placements.length === 1 ? 'Active' : null
             return [<View key={item.playerId} style={styles.player}>
-                <Text style={textStyles.body}>{item.playerName}</Text>
+                <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions ?? (item.position ? [item.position] : [])}
+                    yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus} />
                 <View style={styles.placements} accessibilityRole={fixedPlacement ? undefined : 'radiogroup'} accessibilityLabel={`${item.playerName} roster slot`}>
                     {fixedPlacement ? <Text style={textStyles.meta}>{fixedPlacement}</Text> : placements.map((placement) => {
                         const selected = placement === selectedPlacement
@@ -61,7 +63,8 @@ export function TradeRosterPlanEditor({ incoming, roster, value, onChange, disab
                     accessibilityLabel={`Drop ${player.players.display_name} at completion`} accessibilityState={{ checked: selected, disabled }}
                     onPress={() => onChange({ ...value, dropPlayerIds: selected ? value.dropPlayerIds.filter((id) => id !== player.players.id) : [...value.dropPlayerIds, player.players.id] })}
                     style={[styles.dropToggle, selected && styles.selected]}>
-                    <Text style={textStyles.body}>{player.players.display_name}</Text>
+                    <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team} positions={player.players.eligible_positions ?? []}
+                        yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                     <Text style={[textStyles.meta, selected && { color: colors.dangerDark }]}>{selected ? 'Drop' : 'Keep'}</Text>
                 </Pressable>
             })}

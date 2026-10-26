@@ -1,10 +1,11 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { isIREligible } from '@pancake/core'
 import type { RosterPlayer } from '@/lib/roster'
 import { orderRosterOptions } from '@/lib/player-roster-options'
 import { colors, fontWeight, spacing, table, textStyles } from '@/constants/tokens'
-import { PlayerAvatar } from '@/components/player/PlayerAvatar'
+
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 
@@ -27,11 +28,9 @@ type Props = {
 function PlayerLine({ player, message, action }: { player: RosterPlayer; message?: string; action: ReactNode }) {
     const p = player.players
     return <View style={styles.row}>
-        <PlayerAvatar name={p.display_name} nbaId={p.nba_id} color={colors.bgMuted} size={spacing['4xl'] + spacing.xs} />
-        <View style={styles.info}>
-            <Text style={textStyles.rowTitle} numberOfLines={1}>{p.display_name}</Text>
-            <Text style={textStyles.meta}>{message ?? [p.nba_team, p.position].filter(Boolean).join(' · ')}</Text>
-        </View>
+        <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team}
+            positions={p.eligible_positions?.length ? p.eligible_positions : p.position ? [p.position] : []}
+            yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} stats={message} />
         <View style={styles.actions}>{action}</View>
     </View>
 }
