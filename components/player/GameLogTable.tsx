@@ -78,7 +78,7 @@ export const GameLogTable = memo(function GameLogTable({
     const fptsCell = [styles.fptsCell, compact && styles.compactFptsCell]
     const numCell = [compact ? styles.compactNumCell : styles.numCell]
     const content = (
-        <View style={styles.tableInner}>
+        <View style={[styles.tableInner, compact && styles.compactTableInner]}>
             {/* Header row */}
             <View style={[styles.row, styles.headerRow]}>
                 <Text style={[...dateCell, styles.colHdr]}>DATE</Text>
@@ -119,7 +119,7 @@ export const GameLogTable = memo(function GameLogTable({
                             </Text>
                         )}
                         <Text style={numCell} testID={`game-minutes-${g.gameId}`}>
-                            {dnp ? 'DNP' : g.minutes.toFixed(1)}
+                            {dnp ? 'DNP' : g.minutes == null ? '—' : g.minutes.toFixed(1)}
                         </Text>
                         <Text style={[...numCell, dnp && styles.dnpText]}>
                             {dnp ? compact && !showFpts ? 'DNP' : '' : g.points}
@@ -145,11 +145,9 @@ export const GameLogTable = memo(function GameLogTable({
     return (
         <View style={styles.section} aria-busy={loading}>
             <Text style={textStyles.sectionLabel} role="heading" aria-level={2}>Recent games</Text>
-            {compact ? <View style={styles.tableFrame} testID="recent-games-table">{content}</View> : (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} {...scrollProps}>
-                    {content}
-                </ScrollView>
-            )}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.tableFrame, fadeStyle]} contentContainerStyle={styles.tableContent} testID="recent-games-table" {...scrollProps}>
+                {content}
+            </ScrollView>
             <View ref={endRef} testID="game-log-end" style={styles.pageStatus}>
                 {error && !loading ? <>
                     <Text style={styles.loadMoreText}>Could not load recent games. {error}</Text>
@@ -191,6 +189,7 @@ const styles = StyleSheet.create({
     // Fill the frame on wide screens; scroll sideways when the columns don't fit.
     tableContent: { flexGrow: 1 },
     tableInner: { flexGrow: 1 },
+    compactTableInner: { minWidth: 360 },
     row: {
         flexDirection: 'row',
         alignItems: 'center',

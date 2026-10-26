@@ -230,11 +230,13 @@ describe('player decision summary', () => {
 it.each([false, true])('keeps minutes and game paging with compact=%s', async compact => {
     const onLoadMore = vi.fn()
     await render(React.createElement(GameLogTable, {
-        compact, games: [game({ minutes: 34.5 }), game({ gameId: 'zero', minutes: 0 }), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
+        compact, games: [game({ minutes: 34.5 }), game({ gameId: 'zero', minutes: 0 }), game({ gameId: 'missing', minutes: null }), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
         fantasyPointsMap: new Map([['latest', 45.2], ['dnp', 99]]), hasMore: true, loadingMore: false, onLoadMore,
     }))
     expect(text()).toContain('MIN')
     expect(text()).toContain('34.5')
+    expect(screen.root.findByProps({ testID: 'game-minutes-missing' }).props.children).toBe('—')
+    expect(screen.root.findByProps({ testID: 'game-minutes-zero' }).props.children).toBe('0.0')
     expect(text()).toContain('0.0')
     expect(text().indexOf('FP')).toBeLessThan(text().indexOf('MIN'))
     expect(text()).toContain('45.2')

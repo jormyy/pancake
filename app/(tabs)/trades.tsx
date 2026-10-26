@@ -294,7 +294,7 @@ function TradesScreen() {
                 <Button
                     title={usableWidth < layout.railWidth + controlSize.minTouch ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
-                    size="sm"
+                    size="inline"
                     style={{ minWidth: controlSize.minTouch }}
                     onPress={onPropose}
                     disabled={disabled}

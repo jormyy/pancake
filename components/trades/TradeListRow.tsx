@@ -55,12 +55,11 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
         : `${pickLabel(block.asset.seasonYear, block.asset.round)} pick`
     const positions = block.asset.kind === 'player' ? playerEligiblePositions(block.asset) : []
     return (
-        <View style={[styles.blockRow, tile && styles.tile]}>
+        <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
-                <PlayerRowContent name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
+                <PlayerRowContent compact={!tile} name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
                     yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus}
-                    stats={playerSeasonContextText(block.asset)} />
-                <Text style={styles.blockMeta}>{block.teamName}</Text>
+                    metadata={<Text style={styles.blockMeta}>{block.teamName}</Text>} stats={playerSeasonContextText(block.asset)} />
                 {mine ? <TradeBlockNoteEditor item={block} label={label}
                     disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />
                     : block.note ? <Text style={styles.blockNote} numberOfLines={2}>“{block.note}”</Text> : null}
@@ -115,8 +114,8 @@ export const TradeBlockPlayerRow = memo(function TradeBlockPlayerRow({
         avgMinutesPlayed: blockAvgStatsMap.get(player.id)?.avg_minutes_played ?? null,
     })
     return (
-        <View style={[styles.blockRow, tile && styles.tile]}>
-            <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+        <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
+            <PlayerRowContent compact={!tile} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                 yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} stats={context} />
             <Pressable style={[styles.blockAction, listed && styles.blockActionDisabled]}
                 onPress={() => onList(item.player)} disabled={listed || busy}
@@ -144,7 +143,7 @@ export const TradeBlockPickRow = memo(function TradeBlockPickRow({
     onList: (pick: TradePickItem) => void | Promise<void>
 }) {
     return (
-        <View style={[styles.blockRow, tile && styles.tile]}>
+        <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             <View style={styles.pickBadge}><Text style={styles.pickBadgeText}>R{item.pick.round}</Text></View>
             <View style={styles.blockInfo}>
                 <Text style={styles.blockTitle}>{pickLabel(item.pick.seasonYear, item.pick.round)}</Text>
@@ -209,6 +208,7 @@ const styles = StyleSheet.create({
     emptyRow: { paddingVertical: spacing.sm },
     emptyText: { ...textStyles.meta },
     blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md },
+    compactBlockRow: { paddingVertical: spacing.xs, gap: spacing.md },
     tile: {
         flex: 1,
         margin: spacing.xs,
@@ -234,7 +234,7 @@ const styles = StyleSheet.create({
     blockMeta: { ...textStyles.meta },
     blockContext: { fontSize: fontSize.xs, color: colors.primaryDark, fontWeight: fontWeight.semibold },
     blockNote: { ...textStyles.meta, fontStyle: 'italic', color: colors.textSecondary },
-    blockAction: { minWidth: 72, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
+    blockAction: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.primaryBorder, paddingHorizontal: spacing.md },
     blockActionDisabled: { borderColor: colors.borderLight, backgroundColor: colors.bgMuted },
     blockActionText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
 })

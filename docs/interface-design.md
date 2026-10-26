@@ -1,7 +1,7 @@
 # Interface design
 
 Pancake uses shared tokens for type, spacing, controls and player identity.
-Phone rows use 32px headshots, 13px names and 12px metadata.
+Phone Players and Block rows use 28px headshots, 13px names and 12px metadata. Other shared player rows retain 32px headshots. Compact rows reduce gaps and padding; metadata and long names wrap when needed.
 Inputs keep 16px text. Buttons and interactive filters keep at least 44px touch targets.
 The shell and roster section boundaries keep their existing layout.
 
@@ -81,7 +81,7 @@ The manifest launch background matches the icon background; browser chrome retai
 
 ## Recent games
 
-Every game row includes MIN beside fantasy points. Minutes use one decimal place, including zero; DNP rows retain their DNP label. Missing stored minutes follow the existing zero display convention.
+Every game row includes MIN beside fantasy points. Minutes use one decimal place, including zero; DNP rows retain their DNP label. Missing game minutes display an em dash; they remain distinct from a played zero-minute line. Narrow screens scroll the table horizontally so headers and minute values stay readable.
 
 On iPhone web layouts, scrolling near the game table’s end reveals the next 15 games. The observer uses the actual vertical scroll container. It does not wait for transaction history below the table. Existing rows retain their keys and scroll position.
 

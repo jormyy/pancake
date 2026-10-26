@@ -49,7 +49,7 @@ describe('one season stat source', () => {
             ['avgAssists', 'assists'], ['avgSteals', 'steals'], ['avgBlocks', 'blocks'], ['avgTurnovers', 'turnovers'],
             ['avgThreePointersMade', 'threeMade'], ['avgFieldGoalsMade', 'fgMade'], ['avgFieldGoalsAttempted', 'fgAttempted'],
             ['avgFreeThrowsMade', 'ftMade'], ['avgFreeThrowsAttempted', 'ftAttempted'],
-        ] as const) expect(result.averages?.[average]).toBe(games.reduce((sum, game) => sum + game[stat], 0) / games.length)
+        ] as const) expect(result.averages?.[average]).toBe(games.reduce((sum, game) => sum + (game[stat] ?? 0), 0) / games.length)
         expect(result.fantasyPointsMap?.get('completed')).toBe(59.1)
         expect(result.fantasyPointsMap?.get('live')).toBe(17.1)
         expect(result.fantasyPointsMap?.get('dnp')).toBe(0)
@@ -70,4 +70,10 @@ describe('one season stat source', () => {
         expect(result.avgFantasyPoints).toBe(0)
         expect(result.fantasyPointsMap).toBeNull()
     })
+})
+
+it('preserves missing game minutes separately from played zero minutes', () => {
+    const result = summarizePlayerSeason([seasonLine({ id: 'missing', minutes_played: null }), seasonLine({ id: 'zero', minutes_played: 0 })], 'LAL', null)
+    expect(result.games.find(game => game.gameId === 'missing')?.minutes).toBeNull()
+    expect(result.games.find(game => game.gameId === 'zero')?.minutes).toBe(0)
 })
