@@ -263,3 +263,33 @@ Coverage failures preserve omitted games while applying accepted row updates.
 Notification failures retain retry and dead-letter state.
 Queryable failures do not establish an external alert destination.
 The owner selects a destination and authorizes its delivery integration.
+
+## Player identity and roster coverage
+
+The daily import reads ESPN rosters, the NBA active-player index, and Sleeper player identities.
+The NBA index adds missing current players and fills missing NBA IDs, experience, and positions.
+Sleeper enriches matching players without replacing the roster source or injury state.
+Names use case-insensitive letters only, with team aliases normalized.
+A source ID links only to one compatible player on that NBA team.
+A different non-null ID is never overwritten; ambiguous records remain review items.
+An already-owned source ID can merge its box row with the one compatible roster row through the existing merge function.
+Injury player-card links supply ESPN IDs before the injury update in the same run.
+Projection rows supply Sleeper IDs before projections are matched and saved.
+Unknown source records do not create players during injury or projection refreshes.
+
+A complete roster cycle requires both ESPN and NBA to cover all 30 teams and at least 350 players each.
+Every listed source ID must resolve before the cycle records membership.
+One-source omissions, partial cycles, and older cycles cannot remove team membership.
+Partial NBA rosters report `rosterRefreshSkipped`; they do not fail an otherwise successful sync.
+Provider fetch failures and identity-write failures remain sync failures.
+Two complete cycles at least 24 hours apart can clear a player absent from both sources.
+A gap of more than 36 hours restarts that absence period.
+A newer ESPN listing or NBA box also restarts it.
+The C237 single-source release hold remains in `espn_release`; the separate two-source cycle establishes sustained absence.
+Clearing a stale team preserves IDs, stats, ownership, and the existing unassigned-player list.
+The team-filtered Players list then excludes that row.
+
+Injuries refresh every 15 minutes from 11:00 ET through the last tip-off on game days.
+Outside that window, they refresh hourly from 08:00 through 02:00 ET, including days without games.
+The existing claim, retry, dispatch, and empty-body contract stay unchanged.
+Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.

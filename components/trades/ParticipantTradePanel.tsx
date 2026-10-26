@@ -1,3 +1,5 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { pickLabel } from '@/lib/picks'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
@@ -111,7 +113,8 @@ export function ParticipantTradePanel({
                         const playerId = player.players.id
                         return (
                             <View key={`player:${playerId}`} style={styles.selectedRouteRow}>
-                                <Text style={styles.selectedRouteName} numberOfLines={2}>{player.players.display_name}</Text>
+                                <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team} positions={player.players.eligible_positions ?? []}
+                                    yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                                 <RouteOptions
                                     destinationIds={participant.destinationIds}
                                     selectedId={participant.playerDestinationIds[playerId]}
@@ -128,7 +131,7 @@ export function ParticipantTradePanel({
                         )
                     })}
                     {selectedPicks.map((pick) => {
-                        const label = `${pick.seasonYear} Round ${pick.round}`
+                        const label = pickLabel(pick.seasonYear, pick.round)
                         return (
                             <View key={`pick:${pick.pickId}`} style={styles.selectedRouteRow}>
                                 <Text style={styles.selectedRouteName} numberOfLines={2}>{label}</Text>

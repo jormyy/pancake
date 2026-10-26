@@ -16,7 +16,6 @@ const state = vi.hoisted(() => ({
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
 }))
-vi.mock('@/components/settings/NotificationPlayerWatch', () => ({ NotificationPlayerWatch: () => null }))
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },
@@ -39,7 +38,6 @@ vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: () => null
 vi.mock('@/components/DropPlayerPickerModal', () => ({ DropPlayerPickerModal: () => null }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: () => null }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
@@ -211,4 +209,9 @@ it('reloads the claim after returning from the claim sheet while background read
     await act(async () => screen!.update(React.createElement(PlayerDetailScreen)))
     expect(state.roster).toHaveBeenCalledTimes(2)
     expect(screen!.root.findByType(PlayerHeader).props.action.label).toBe('View claim')
+})
+
+it('omits player watch controls from the player page', async () => {
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Watch player for drops' })).toHaveLength(0)
 })

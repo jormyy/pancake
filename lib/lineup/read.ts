@@ -16,6 +16,8 @@ export type LineupPlayer = {
     position: string | null
     eligiblePositions: string[]
     nbaTeam: string | null
+    yearsExp?: number | null
+    careerGames?: number | null
     injuryStatus: string | null
     nbaId: string | null
 }
@@ -167,7 +169,7 @@ async function fetchSlotTemplates(leagueId: string) {
 async function fetchRosterPlayers(memberId: string, leagueId: string, seasonId: string) {
     const { data, error } = await supabase
         .from('roster_players')
-        .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status, nba_id)')
+        .select('id, player_id, is_on_ir, is_on_taxi, players(display_name, position, eligible_positions, nba_team, injury_status, nba_id, years_exp, career_regular_season_games)')
         .eq('member_id', memberId)
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
@@ -266,6 +268,8 @@ export async function getWeeklyLineup(
             position: p?.position ?? null,
             eligiblePositions: getEligiblePositions(p ?? {}),
             nbaTeam: p?.nba_team ?? null,
+            yearsExp: p?.years_exp ?? null,
+            careerGames: p?.career_regular_season_games ?? null,
             injuryStatus: p?.injury_status ?? null,
             nbaId: p?.nba_id ?? null,
         })
@@ -276,12 +280,12 @@ export async function getWeeklyLineup(
     let addedAfterDate = new Set<string>()
     const missingPlayerIds = [...assignmentMap.keys()].filter((pid) => !rosterByPlayerId.has(pid))
     if (isPastDate || missingPlayerIds.length > 0) {
-        type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status' | 'nba_id'>
+        type ExtraPlayer = Pick<PlayerRow, 'id' | 'display_name' | 'position' | 'eligible_positions' | 'nba_team' | 'injury_status' | 'nba_id' | 'years_exp' | 'career_regular_season_games'>
         const [extraPlayersResult, laterAddsResult] = await Promise.all([
             missingPlayerIds.length > 0
                 ? supabase
                     .from('players')
-                    .select('id, display_name, position, eligible_positions, nba_team, injury_status, nba_id')
+                    .select('id, display_name, position, eligible_positions, nba_team, injury_status, nba_id, years_exp, career_regular_season_games')
                     .in('id', missingPlayerIds)
                 : Promise.resolve({ data: [] as ExtraPlayer[], error: null }),
             isPastDate ? supabase
@@ -307,6 +311,8 @@ export async function getWeeklyLineup(
                 position: p.position ?? null,
                 eligiblePositions: getEligiblePositions(p),
                 nbaTeam: p.nba_team ?? null,
+                yearsExp: p.years_exp ?? null,
+                careerGames: p.career_regular_season_games ?? null,
                 injuryStatus: p.injury_status ?? null,
                 nbaId: p.nba_id ?? null,
             })

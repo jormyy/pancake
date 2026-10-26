@@ -37,14 +37,8 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     }))))
     await signIn(fixture)
     await open(`/player/${fixture.proposerPlayer.id}`)
-    const watch = page.getByRole('switch', { name: 'Watch player for drops', exact: true })
-    const watchedRows = () => db(fixture.admin.from('player_watches').select('player_id').eq('member_id', fixture.proposer.id).eq('player_id', fixture.proposerPlayer.id))
-    await wait(async () => await watch.isEnabled())
-    assert.equal(await watch.isChecked(), false)
-    await press(watch)
-    await wait(async () => await watch.isChecked() && (await watchedRows()).length === 1)
     const log = page.getByRole('heading', { name: 'Recent games', exact: true }).locator('..')
-    const rows = () => log.getByText('@ BOS', { exact: true }).count()
+    const rows = () => log.getByText('NYK @ BOS', { exact: true }).count()
     await wait(async () => await rows() === 15)
     await press(button('Load more games'))
     await wait(async () => await rows() === 30)
@@ -72,19 +66,24 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     await seasonSelect.selectOption(String(year - 1))
     await wait(async () => await seasonSelect.inputValue() === String(year - 1) && await rows() === 1)
     await seasonSelect.selectOption(String(year))
-    await wait(async () => await seasonSelect.inputValue() === String(year) && await rows() === 15)
-    assert.equal(await watch.isChecked(), true, 'Player watch persists across season changes')
-    await press(watch)
-    await wait(async () => !await watch.isChecked() && (await watchedRows()).length === 0)
+    await wait(async () => await seasonSelect.inputValue() === String(year) && await rows() === 31)
     await inspect()
-    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true, selects, seasonChanges: [year - 1, year], watchPersistsAcrossSeasonChanges: true }
+    return { leagueId: fixture.league.id, gamePages: [15, 30, 31], transactionPages: [20, 40, 41], exhausted: true, selects, seasonChanges: [year - 1, year] }
   })
   await check('player-filter-sheets-and-clear', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
     await signIn(fixture)
     await open('/players')
     await page.getByRole('textbox', { name: 'Search players', exact: true }).fill(fixture.proposerPlayer.display_name)
-    if (target.mobile) await press(button('Show filters'))
+    if (target.mobile) {
+      const filters = page.getByRole('dialog', { name: 'Filters', exact: true })
+      await press(button('Show filters'))
+      assert.equal(await filters.isVisible(), true, 'One tap must leave the filter sheet open')
+      await press(filters.getByRole('button', { name: 'Close', exact: true }))
+      await filters.waitFor({ state: 'hidden' })
+      await press(button('Show filters'))
+      assert.equal(await filters.isVisible(), true, 'The filter sheet must also stay open when reopened')
+    }
     const selected = []
     for (const label of ['Availability', 'Position', 'Health', 'Game today', 'Experience', 'Season', ...(target.mobile ? ['Sort'] : [])]) {
       const trigger = page.getByRole('button', { name: new RegExp(`^${label}:`) }).last()

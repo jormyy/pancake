@@ -1,10 +1,11 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import type { RosterProblem } from '@/lib/roster-problems'
 import { useMemo } from 'react'
 import { ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Avatar } from '@/components/Avatar'
+
 import { Button } from '@/components/ui/Button'
 import { colors, fontSize, fontWeight, spacing, table, textStyles, tints, uiColors } from '@/constants/tokens'
-import { playerHeadshotUrl } from '@/lib/format'
+
 import { isIREligible, type RosterPlayer } from '@/lib/roster'
 
 export function RosterTrimBanner({
@@ -42,18 +43,9 @@ export function RosterTrimBanner({
                     const busy = busyId !== null
                     return (
                         <View key={player.id} style={styles.row}>
-                            <Avatar
-                                name={player.players.display_name}
-                                uri={playerHeadshotUrl(player.players.nba_id) ?? undefined}
-                                color={colors.bgMuted}
-                                size={36}
-                            />
-                            <View style={styles.identity}>
-                                <Text style={styles.name} numberOfLines={1}>{player.players.display_name}</Text>
-                                <Text style={styles.meta} numberOfLines={1}>
-                                    {[player.players.nba_team, player.players.position].filter(Boolean).join(' · ')}
-                                </Text>
-                            </View>
+                            <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team}
+                                positions={player.players.eligible_positions?.length ? player.players.eligible_positions : player.players.position ? [player.players.position] : []}
+                                yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                             <View style={styles.actions}>
                                 {(player.is_on_ir || player.is_on_taxi) && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
                                 {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) ? (

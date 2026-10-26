@@ -15,7 +15,6 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView' 
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/components/Motion', () => ({ MotionPressable: 'MotionPressable' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))

@@ -73,10 +73,9 @@ it.each([1440, 390])('reserves the league switch geometry before identity resolv
         currentLeague: { id: 'league' }, memberships: [], isCommissioner: true,
     }
     await act(async () => screen.update(React.createElement(WebAppShell, null, null)))
-    const title = screen.root.findByProps({ children: 'A long league name that fills both lines' })
-    const titleBox = title.parent!.parent!
-    expect(screen.root.findAllByProps({ accessibilityLabel: 'Switch league' })).toHaveLength(0)
-    expect(flatten(titleBox.props.style).height).toBe(before.height)
+    const titleBox = screen.root.findByProps({ accessibilityLabel: 'Switch league' })
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Switch league' })).toHaveLength(1)
+    expect(flatten(typeof titleBox.props.style === 'function' ? titleBox.props.style({}) : titleBox.props.style).height).toBe(before.height)
     expect(flatten(titleBox.parent!.props.style)).toEqual(wrapper)
     expect(before.height).toBe(width === 390 ? 44 : 68)
 })

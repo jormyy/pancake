@@ -7,7 +7,8 @@ import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
 import { syncNBAIds } from './nbaIds.ts'
-import { releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
+import { syncSleeperLinks } from './sleeperLinks.ts'
+import { completeRosterCycle, releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
@@ -19,6 +20,8 @@ const PLAYER_SYNC_SOURCE = Deno.env.get('PLAYER_SYNC_SOURCE') ?? 'espn'
 
 serveInternal('sync-players', async (req) => {
   const result = await recordSyncRun('sync-players', async () => {
+    const started = performance.now()
+    const startedAt = new Date()
     const imported = PLAYER_SYNC_SOURCE === 'sleeper'
       ? await syncPlayers()
       : await importPlayersFromEspn()
@@ -27,9 +30,13 @@ serveInternal('sync-players', async (req) => {
     // his ESPN listing and his boxes. An index step that throws or fails a row releases nobody.
     const nbaIds = await syncNBAIds()
     const players = await releaseEspnOmissions(imported, nbaIds.failures)
+    const cycle = imported.listing ? await completeRosterCycle(imported.listing.records, imported.listing.gaps, [...imported.failures, ...nbaIds.failures], nbaIds, startedAt) : { released: 0, failure: null }
+    players.released += cycle.released
+    if (cycle.failure) players.failures.push(cycle.failure)
+    const sleeper = await syncSleeperLinks()
     const news = await syncDynastyNews()
-    const career = await syncCareerGames()
-    const failures = [...players.failures, ...nbaIds.failures, ...news.failures, ...career.failures]
+    const career = await syncCareerGames(new Date(), { budgetMs: Math.max(0, 110000 - (performance.now() - started)) })
+    const failures = [...players.failures, ...nbaIds.failures, ...sleeper.failures, ...news.failures, ...career.failures]
     const failure = failures.length > 0
       ? `sync-players had ${failures.length} failure(s): ${failures.join('; ')}`
       : null
@@ -39,10 +46,12 @@ serveInternal('sync-players', async (req) => {
         inserted: players.inserted,
         released: players.released,
         releaseSkipped: players.releaseSkipped,
+        rosterRefreshSkipped: nbaIds.rosterGaps,
         releaseHeld: players.releaseHeld,
         ambiguousSkipped: players.ambiguousSkipped,
         injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
+        sleeperIdsLinked: sleeper.linked,
         merged: nbaIds.merged,
         careerGamesUpdated: career.updated,
         careerUnverified: career.unverified,
@@ -50,7 +59,7 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + news.upserted + career.updated,
+      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + news.upserted + career.updated,
       failure,
     }
   }, req)

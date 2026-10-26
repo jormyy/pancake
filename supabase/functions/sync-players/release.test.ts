@@ -36,7 +36,7 @@ type Feed = { teams?: string[]; emptyRoster?: string; nameless?: string; failChu
   // The NBA index: one active person whose name matches one stored row, the row resolving or going stale,
   // a failed dedup, a 404 or an unexpected shape.
   index?: 'mapped' | 'stale' | 'dedup' | 'missing' | 'shape' }
-const indexed = { id: 'row-indexed', display_name: 'Indexed Person', nba_id: null }
+const indexed = { id: 'row-indexed', display_name: 'Indexed Person', nba_id: null, career_games_base: 0 }
 
 async function runSync(feed: Feed = {}) {
   const originalFetch = globalThis.fetch

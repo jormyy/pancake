@@ -73,3 +73,5 @@ it('reviews the expiry capped at the trade deadline', async () => {
     expect(JSON.stringify(renderer.toJSON())).toContain(capped)
     await act(async () => { renderer.unmount() })
 })
+
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))

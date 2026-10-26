@@ -14,7 +14,12 @@
         }
       }
     ],
-    "theme": "light"
+    "theme": "light",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "league-activity-light",
@@ -27,7 +32,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+          "selector": "[id='league-panel-history'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],
@@ -44,7 +49,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028–2032"
+          "text": "You own all your picks, 2027\u20132029"
         }
       },
       {
@@ -53,7 +58,7 @@
           "tapPrefix": "Show all draft picks,"
         },
         "expected": {
-          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+          "selector": "[role='list'][aria-label^='All draft picks,']:has([aria-label^='2027 Round 1,']):has([aria-label^='2028 Round 1,']):has([aria-label^='2029 Round 1,']):not(:has([aria-label^='2030 Round ']))"
         }
       },
       {
@@ -72,7 +77,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -83,7 +88,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
@@ -315,7 +320,7 @@
         },
         "expected": {
           "route": "/players?section=rankings",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+          "selector": "[data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],
@@ -525,7 +530,12 @@
         }
       }
     ],
-    "theme": "dark"
+    "theme": "dark",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "league-activity-dark",
@@ -538,7 +548,7 @@
         },
         "expected": {
           "route": "/league?tab=history",
-          "selector": "[id='league-panel-history'] [style*='32px'][style*='width'][style*='height']"
+          "selector": "[id='league-panel-history'] [data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],
@@ -555,7 +565,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028–2032"
+          "text": "You own all your picks, 2027\u20132029"
         }
       },
       {
@@ -564,7 +574,7 @@
           "tapPrefix": "Show all draft picks,"
         },
         "expected": {
-          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+          "selector": "[role='list'][aria-label^='All draft picks,']:has([aria-label^='2027 Round 1,']):has([aria-label^='2028 Round 1,']):has([aria-label^='2029 Round 1,']):not(:has([aria-label^='2030 Round ']))"
         }
       },
       {
@@ -583,7 +593,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -594,7 +604,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
@@ -826,7 +836,7 @@
         },
         "expected": {
           "route": "/players?section=rankings",
-          "selector": "[aria-label^='Open ']:not([aria-label='Open menu'])"
+          "selector": "[data-testid='player-row-content']:has(> [data-testid='player-row-avatar']):has([data-testid='player-name-line'] + [data-testid='player-meta-line'] + [data-testid='player-stats-line'])"
         }
       }
     ],

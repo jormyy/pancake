@@ -3,113 +3,188 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261020000007`.
-This release advances the database through migration `20261026001000`.
-Production has 431 applied versions; `origin/main` contains 494 migrations.
-The push applies 63 pending main migrations, from `20261020000030` through `20261024000001`, first.
-It then applies the 54 unpublished migrations listed below, in version order.
-The approved plan and [attestations](../docs/release-history-attestations.md) define the exact applied and pending ranges.
-The Vercel integration publishes the frontend when this release merges into main.
-Do not merge before the database and Edge checks pass.
+Production currently stops at migration `20261026001000`.
+That baseline includes every migration through `20261026001000_remove_e2e_fixture_players.sql`.
+Keep every published migration unchanged.
+Apply these follow-up migrations after that baseline, in version order:
 
-The existing production workflow requires a commit already on main.
-That requirement cannot establish this release's safe order while merge still deploys the frontend.
-The release operator must run the approved database and Edge phases from the reviewed release commit before merging.
-The owner decides whether to change the deploy integration or approve that separate production run.
-Do not bypass production approvals or merge merely to satisfy the workflow's ancestry check.
+- `20261027000100_three_future_draft_classes.sql`
+- `20261027000101_remove_unreferenced_distant_picks.sql`
+- `20261027000200_player_identity_matching.sql`
+- `20261027000201_player_career_counter.sql`
+- `20261027000202_player_source_coverage.sql`
+- `20261027000203_preserve_explicit_career_writes.sql`
 
-1. Freeze the reviewed release commit and record the deployed frontend and Edge provenance.
-   Run `npm ci`, `npm run check:quality`, `npm test`, and `npm run check:edge-functions`.
-   Run `npm run check:db-function-sources`, `npm run check:db-function-catalog`, and the full `npm run test:db` on an isolated stack.
-   Run `npx vitest run tests/release-edge-compatibility.test.ts` and the deployed-to-release soak against the actual migration range.
-   Save the migration plan and its attestation before production work.
-2. Confirm the project's scoped production link and inspect `supabase migration list --linked`.
-   Run `supabase db push --linked --dry-run` from the frozen release checkout.
-   Confirm applied history matches the 431-version production baseline.
-   The dry-run must show exactly 117 versions: the 63 pending main migrations, then the 54 unpublished migrations.
-   Verify their names and version order against the approved plan.
-   Use the workflow's approved `supabase/predeploy/` index preparation and migration-plan attestation checks.
-   Then run `supabase db push --linked --yes` under production approval.
-3. Before Edge deployment, recheck `supabase migration list --linked` against the attested plan.
-   Verify the deployed frontend and old Edge still pass the workflow's post-migration current-release readiness checks.
-   Verify `add_free_agent_atomic` accepts optional `p_to_ir` and `p_to_taxi`.
-   Verify `waiver_claims.to_ir`, `waiver_claims.to_taxi`, `player_game_stats.is_home`, and `get_visible_player_totals` exist.
-   Before Edge deployment, `sync-player-injuries` dispatch can return HTTP 404 harmlessly.
-   This absence must cause no alert, rapid retry, or failed readiness check.
-   Check the deployed client's hint topics and inventory details remain accepted.
-   Stop if any check fails; keep the old frontend and Edge on the compatible migrated database.
-4. Stamp the approved Edge artifact with `PANCAKE_RELEASE_SHA=<reviewed-sha> node scripts/stamp-edge-release-provenance.mjs`.
-   Run `supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"` under production approval.
-   Include the new `sync-player-injuries` function in the stamped artifact and deployment.
-   Verify `/health` reports the reviewed commit and Edge digest.
-   Run the workflow's current-frontend/new-Edge and candidate-frontend/new-Edge readiness checks before merging.
-   Confirm one straight-to-taxi add and one straight-to-IR add.
-   Check waiver claims, visible player totals, trades, and notification delivery.
-   Verify `sync-player-injuries` records its own run and refreshes injuries without a full player sync.
-   If Edge checks fail, restore the recorded old Edge artifact and repeat current-release readiness checks.
-   `supabase functions deploy` does not delete functions absent from the restored artifact.
-   The new `sync-player-injuries` function can stay deployed after rollback or be absent; both states are safe.
-5. Merge only after the database and Edge checks pass.
-   Let Vercel publish the frontend, then verify its release marker and the final production readiness checks.
-   If frontend checks fail, restore the recorded old frontend and Edge artifacts; keep the compatible database migrations.
+The counter migration replaces its earlier unpublished rehearsal version.
+Rebuild the rehearsal from the production baseline before applying this revised file.
 
-The following 54 unpublished migrations follow the 63 pending main migrations in version order.
-Compare this list with the frozen checkout and approved plan before deployment.
+The first migration limits new pick assets to three future draft classes and corrects pick years in trade-expiry messages.
+It also rejects trades containing retained picks beyond that window.
+The second removes unused, unreferenced picks beyond the third future class.
+It discovers every foreign key to `draft_picks` and preserves referenced picks, activity references, used picks, and rookie draft assignments.
+For OFFICIAL LEAGUE at season 2027, the expected cleanup removes 42 picks from seasons 2031 and 2032.
+The remaining future classes are seasons 2028–2030, displayed as draft years 2027–2029.
 
-- `20261024100001_straight_to_ir.sql`
-- `20261024100002_live_player_season_totals.sql`
-- `20261024100003_reconciliation_writes_and_poll_gate.sql`
-- `20261024100004_visible_player_totals.sql`
-- `20261024100005_activity_feed_hide_trade_block.sql`
-- `20261025000030_trade_counterparty.sql`
-- `20261025000031_trade_offer_page_refs.sql`
-- `20261025000040_rookie_member_activation.sql`
-- `20261025000041_activity_change_hints.sql`
-- `20261025000050_avoid_unchanged_score_finalization.sql`
-- `20261025000051_bound_edge_response_reconciliation.sql`
-- `20261025000052_ignore_game_progress_hints.sql`
-- `20261025000053_remove_stale_schedule_descriptions.sql`
-- `20261025000054_reduce_inventory_hint_drain.sql`
-- `20261025000055_drop_retired_server_functions.sql`
-- `20261025000070_scoring_bonus_settings.sql`
-- `20261025000071_waiver_run_order.sql`
-- `20261025000072_trade_waiver_drop_settlement.sql`
-- `20261025000073_trade_activity_privacy.sql`
-- `20261025000074_rookie_acquisition_guard.sql`
-- `20261025000075_playoff_seed_rates.sql`
-- `20261025000076_cancelled_waiver_privacy.sql`
-- `20261025000077_seed_correction_window.sql`
-- `20261025000090_waiver_hold_before_roster_capacity.sql`
-- `20261025000091_rookie_drop_activation.sql`
-- `20261025000092_queue_waiver_notifications.sql`
-- `20261025000093_drop_retired_push_functions.sql`
-- `20261025000094_roster_claim_and_activity_corrections.sql`
-- `20261026000010_accept_server_generated_schedule.sql`
-- `20261026000011_restore_boundary_correction_window.sql`
-- `20261026000012_dispatch_drafting_boundary.sql`
-- `20261026000013_scope_visible_activity_hints.sql`
-- `20261026000014_drop_unused_score_decision.sql`
-- `20261026000015_store_game_team_side.sql`
-- `20261026000030_faab_trade_reservations.sql`
-- `20261026000031_season_offer_and_priority_rules.sql`
-- `20261026000032_trade_offer_roster_validation.sql`
-- `20261026000033_roster_claim_retention.sql`
-- `20261026000034_trade_notification_privacy.sql`
-- `20261026000035_waiver_run_clearance.sql`
-- `20261026000060_team_name_validation.sql`
-- `20261026000061_remove_unused_database_objects.sql`
-- `20261026000080_retire_expo_push_storage.sql`
-- `20261026000100_keep_deployed_edge_push_compatibility.sql`
-- `20261026000101_order_rookie_activation_locks.sql`
-- `20261026000200_merge_main_function_bodies.sql`
-- `20261026000300_server_release_corrections.sql`
-- `20261026000400_server_release_followups.sql`
-- `20261026000500_server_release_repairs.sql`
-- `20261026000700_taxi_and_server_rules.sql`
-- `20261026000800_player_import_injury_and_retired_enums.sql`
-- `20261026000900_roster_and_dispatch_repairs.sql`
-- `20261026000901_activity_feed_public_rows.sql`
-- `20261026001000_remove_e2e_fixture_players.sql`
+The March backfill reads one capped player page and matches names exactly before inserting missing players.
+Its lookup ignores team aliases and misses hyphen/space variants.
+The June importer removes `sleeper_id` from name-matched updates, leaving those rows unlinked.
+Its name key removes hyphens but preserves spaces, so `Jones-Garcia` and `Jones Garcia` differ.
+The old automatic merge only handles a shared NBA or Sleeper ID.
+These paths leave separate source rows without a shared ID to trigger a merge.
+Historical deployment logs are unavailable here, so they cannot identify which missed read created every individual duplicate.
+
+The player migrations link new sources by a unique normalized name and NBA team.
+Names use letters only; team aliases include `SA` → `SAS`.
+Ambiguous names retain the review path, and conflicting source IDs never merge.
+The supplied production pattern merges seven rows into six NBA-backed survivors:
+
+| Survivor | Merged source rows | Team |
+| --- | --- | --- |
+| David Jones Garcia | Sleeper David Jones-Garcia; legacy sportsdata David Jones-Garcia | SAS, including legacy SA |
+| Joan Beringer | Sleeper Joan Beringer | MIN |
+| Nic Claxton | Sleeper Nic Claxton | CHI |
+| Taelon Peter | Sleeper Taelon Peter | IND |
+| Trevon Scott | Sleeper Trevon Scott | BKN |
+| Will Richard | Sleeper Will Richard | GSW |
+
+The NBA row survives; every compatible provider ID and dependent reference moves through `merge_players`.
+The migration skips any group with conflicting provider IDs.
+Below 65, career totals use a fixed base plus regular-season appearances after the base season.
+An appearance has positive minutes or any positive counting statistic, regardless of its DNP flag.
+The base normally comes from ESPN per-season GP through the previous season.
+Later seasons come from our boxes; ESPN's current-season lag does not remove the latest appearance.
+
+| Existing state | Migration result | Next lookup |
+| --- | --- | --- |
+| Non-null count below 65 | Preserve the count exactly; leave base unset | One ESPN completed-season fetch |
+| Non-null count at least 65 | Preserve the count exactly; leave base unset | None |
+| NULL count; rookie with no earlier appearance | Base 0 through the previous season | None |
+| NULL count; every completed NBA season covered | Provisional base 0 through 2020 | One successful ESPN fetch only while below 65 |
+| NULL count; at least 65 covered appearances | Base 0 through 2020; total is a safe lower bound | None |
+| Other NULL count | Remain unknown | ESPN first; retry failures after at least seven days |
+
+Covered completed seasons must equal `years_exp`.
+A current-season appearance adds one to the number of observed seasons, not to completed experience.
+Any appearance before coverage prevents the complete-coverage fallback.
+A late first stored season never proves a late NBA debut.
+ESPN, rookie, and threshold bases are never fetched again.
+Coverage bases below 65 need one successful ESPN lookup because historical boxes have gaps.
+No player with at least 65 stored games enters the lookup queue, regardless of base source.
+The database claim checks that limit again before any external request.
+Existing counts remain stored; exact totals above 65 do not affect taxi eligibility.
+Transactional recounts continue, but cannot lower a count once it reaches 65.
+Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
+The final migration limits the career guard to base changes and preserves timestamp-only updates.
+It changes no stored counts when applied.
+The lookup replaces coverage with the completed-season ESPN base and recounts later local appearances.
+Unavailable ESPN data leaves coverage unchanged and permits another attempt after at least seven days.
+Any base lookup that would lower the stored total is rejected, preserving the count for a later attempt.
+The worker limits each run to 300 players, 16 concurrent jobs, and a 90-second start budget.
+External work for one player has an eight-second deadline.
+Earlier import work also reduces the remaining lookup budget.
+The worker starts no new lookup after 110 seconds of the complete daily sync.
+Players on an NBA team run first, then those closest to 65 stored games.
+Unknown counts follow known counts within each group; the oldest attempts break ties.
+Deferred work remains due for the next daily run.
+Run `supabase/sql/player-data-audit.sql` against approved candidate data to inspect base sources, queue counts, and season coverage.
+The NBA-team queue equals unknown unbased players plus unbased counts below 65 plus coverage counts below 65.
+The aggregate of 541 known ESPN counts does not show how many are below 65.
+
+The existing Edge and frontend remain compatible throughout the database phase and after rollback.
+Stored years and existing RPC arguments, results, and permissions stay compatible.
+The player table gains nullable base, cutoff, source, and lookup-time fields.
+Regenerate the final release and database security attestations after all follow-up migrations are integrated.
+Do not reuse the previous release's approved migration range.
+The reserved `20261027000000` legacy-push cleanup is separate from this pick release.
+
+1. Freeze the reviewed commit and record the deployed frontend and Edge artifacts.
+2. Run the focused database recipes and the generated-source, catalog, type, and Edge checks on an isolated stack.
+3. Verify the approved migration plan against the deployed baseline, then apply it through the release workflow.
+4. Check the deployed frontend and Edge against the migrated database before replacing either artifact.
+5. Deploy Edge, verify compatibility, then deploy the frontend.
+6. If deployment fails, restore the old frontend and Edge while keeping the compatible migrated database.
+
+The focused pick recipes are:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window-cleanup.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-draft-year.sql
+PANCAKE_PICK_WINDOW_DB_TESTS=1 npx vitest run tests/e2e/pick-window-harness.test.ts
+```
+
+The harness recipe also requires the isolated stack's `E2E_SUPABASE_URL`, `E2E_PANCAKE_SUPABASE_SECRET_KEY`, and `E2E_SUPABASE_PUBLISHABLE_KEY`.
+
+## Connected players and current rosters
+
+The source-coverage migration keeps existing import and injury RPC contracts working during rollback.
+It adds service-only source-link and full-roster-cycle functions plus private roster evidence tables.
+Current ESPN and NBA rosters drive membership; Sleeper supplies IDs and missing metadata.
+The injury feed can link an ESPN player-card ID before applying its status.
+Sleeper projections link IDs before the same run writes projections.
+Existing non-null source IDs, experience, and positions remain intact.
+Ambiguous names, team mismatches, and conflicting IDs stay unresolved for review.
+
+The reported 45 missing ESPN IDs, 91 missing Sleeper IDs, 19 missing NBA IDs,
+30 missing experience values, and one missing position can fill when their source records match uniquely.
+The eight players missing both ESPN and NBA IDs can link independently from either roster.
+These counts can overlap; they do not establish that all 692 team labels remain current.
+A player absent from both complete rosters for a full daily cycle loses the stale team label.
+Partial rosters, one-source omissions, recent box evidence, and stale refreshes keep the existing hold protections.
+An incomplete NBA roster records `rosterRefreshSkipped` without failing an otherwise successful sync.
+Provider fetch or identity-write failures still fail the sync and report their cause.
+Unassigned-player history remains available through the existing list behavior.
+The audit lists unresolved current players and pending absence holds after each complete cycle.
+
+Injury dispatch also runs hourly outside the existing game-day quarter-hour window, from 08:00 through 02:00 ET.
+Deploy the database first, then the updated Edge functions; the old Edge remains compatible with the additive schema.
+
+## Player data verification
+
+Use the private stack described in `docs/verification.md`.
+These recipes need no new package commands:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-identity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-coverage-upgrade.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career-queue.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-connectivity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-box.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-roster-cycle.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-injury-hours.sql
+npm run test:db:player-data
+```
+
+The fixtures reproduce Mario Hezonja, Skal Labissiere, and Guerschon Yabusele returning after gaps.
+Returning veterans and existing counts of at least 65 remain unchanged without an ESPN request.
+The fixtures also model incomplete Cam Christie boxes, ESPN's one-game lag at 64 games, and incorrect DNP flags.
+Fetched totals use completed ESPN seasons plus all later local appearances.
+A coverage fixture moves from 64 stored games to 69 after its ESPN lookup.
+The recipes also prove weekly retry, nondecreasing upgrades, and no repeat lookup after success.
+They verify that 65-plus players never queue, including a player reaching 65 while waiting for another attempt.
+A valid career total also checks season-history completeness, with one game of tolerance for source lag.
+The migration test starts before the counter migration and proves that seven known counts never decrease.
+It also checks rookie, complete-coverage, threshold, and unknown fallbacks.
+Run that separate transition recipe before the final full reset:
+
+```sh
+supabase db reset --local --version 20261027000200
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-migration.sql
+supabase db reset --local
+```
+
+The transition recipe rolls back its fixtures and migration.
+The existing regular-season filter recognizes NBA `002` games and excludes other NBA `00` types.
+Preseason, playoffs, play-in, and Cup finals contribute zero.
+Zero-minute appearances with a positive counting statistic contribute one.
+Legacy Basketball Reference imports keep the existing schedule filter.
 
 ## Acquisition contract
 

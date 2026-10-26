@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { getEligiblePositions } from '@/lib/players'
+import { getPlayerRowMetadata, getEligiblePositions } from '@/lib/players'
 
 export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
 
@@ -14,6 +14,10 @@ export type TransactionRow = {
     position: string | null
     eligiblePositions: string[]
     nbaId: string | null
+    nbaTeam?: string | null
+    injuryStatus?: string | null
+    yearsExp?: number | null
+    careerGames?: number | null
     transactionType: string
     occurredAt: string
     isSystem?: boolean
@@ -51,6 +55,7 @@ export async function getLeagueTransactions(
     })
     if (error) throw error
 
+    const metadata = await getPlayerRowMetadata((data ?? []).flatMap(row => row.player_id ? [row.player_id] : []))
     return ((data ?? []) as FeedRow[]).map((row) => ({
         id: row.id,
         memberId: row.member_id,
@@ -62,6 +67,10 @@ export async function getLeagueTransactions(
         position: row.player_position ?? null,
         eligiblePositions: getEligiblePositions(row),
         nbaId: row.nba_id ?? null,
+        nbaTeam: row.player_id ? metadata.get(row.player_id)?.nba_team : null,
+        injuryStatus: row.player_id ? metadata.get(row.player_id)?.injury_status : null,
+        yearsExp: row.player_id ? metadata.get(row.player_id)?.years_exp : null,
+        careerGames: row.player_id ? metadata.get(row.player_id)?.career_regular_season_games : null,
         transactionType: row.transaction_type,
         occurredAt: row.occurred_at,
         isSystem: row.is_system,

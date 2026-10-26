@@ -1,3 +1,4 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { useEffect } from 'react'
 import {
     View,
@@ -196,8 +197,8 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                                 <View style={styles.myPicksCard}>
                                     {myPicks.map((pick, index) => (
                                         <View key={pick.id} style={[styles.myPickRow, index > 0 && styles.myPickDivider]}>
-                                            <Text style={styles.myPickName} numberOfLines={1}>{pick.player?.displayName ?? 'Unknown'}</Text>
-                                            <Text style={styles.myPickMeta}>{[pick.player?.nbaTeam, pick.player?.position].filter(Boolean).join(' · ')}</Text>
+                                            <PlayerRowContent name={pick.player?.displayName ?? 'Unknown'} nbaId={pick.player?.nbaId} team={pick.player?.nbaTeam}
+                                                positions={pick.player?.position ? [pick.player.position] : []} yearsExp={pick.player?.yearsExp} careerGames={pick.player?.careerGames} injuryStatus={pick.player?.injuryStatus} />
                                             <Text style={styles.myPickPrice}>${pick.finalPrice}</Text>
                                         </View>
                                     ))}

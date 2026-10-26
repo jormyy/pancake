@@ -285,7 +285,7 @@ export const setupTradeGameplayFixture = async (
     const namedProposerPlayer = { ...proposerPlayer, display_name: proposerPlayer.display_name }
     /** @type {Omit<typeof recipientPlayer, 'display_name'> & { display_name: string }} */
     const namedRecipientPlayer = { ...recipientPlayer, display_name: recipientPlayer.display_name }
-    const targetFuturePickYear = currentSeason.season_year + 5
+    const targetFuturePickYear = currentSeason.season_year + 3
     const [proposerFuturePick, recipientFuturePick] = includeFuturePicks
       ? await Promise.all([
         findFuturePickForMember(admin, league.id, proposer.id, targetFuturePickYear),

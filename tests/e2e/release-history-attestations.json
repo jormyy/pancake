@@ -1893,6 +1893,48 @@
       "statementCount": 1,
       "statementsSha256": "820006bfe288f03cb5c94add5f7e3da82a970c972d7db22b3f1d2704bad6714c",
       "sha256": "e0296d90091c91da40d6e241a1d74677008f42670462d08cf5d56734d845374d"
+    },
+    {
+      "name": "three_future_draft_classes",
+      "version": "20261027000100",
+      "statementCount": 5,
+      "statementsSha256": "d36661a3f80dfc2ab76170482310171fb8a0d099d851bb4bc561f4f15f320d7f",
+      "sha256": "cdd60446a71b8dadca664c97e4d68e85c06cd7662faa489805aa76bfed22f889"
+    },
+    {
+      "name": "remove_unreferenced_distant_picks",
+      "version": "20261027000101",
+      "statementCount": 1,
+      "statementsSha256": "742f4a22402f9b352b52cf02ceb38027b1390da89a77947c4888d3b379804455",
+      "sha256": "8f2ae48ef875625479ecfc9fa66e6f6c89e02362663c99c8c8a2e495a1230628"
+    },
+    {
+      "name": "player_identity_matching",
+      "version": "20261027000200",
+      "statementCount": 4,
+      "statementsSha256": "49e6e8453fe9dfcda386e9120abf1eb8dccc31eaf011f0f31f895869b7c58e43",
+      "sha256": "77553a0baf12198d65f06b274bb1eb788cd7208ae23d17f512570d9fe494fa13"
+    },
+    {
+      "name": "player_career_counter",
+      "version": "20261027000201",
+      "statementCount": 31,
+      "statementsSha256": "d65f2313ad5f2bf1842934a63324c3da8d1d0e808778d4ac37fae4b21ffd0238",
+      "sha256": "6ef1c5f853be7880b9334ddd59f34e71e770bd7caec0ae99a8f097482e846c16"
+    },
+    {
+      "name": "player_source_coverage",
+      "version": "20261027000202",
+      "statementCount": 16,
+      "statementsSha256": "66f79fa20964b17fd407a8d5ca8d744a2592a756536969ebae494ad00de1cbb7",
+      "sha256": "a42a7e42317c28b8d3185369101c9f63f551ae53b68e50ad69c0fa71e02306b3"
+    },
+    {
+      "name": "preserve_explicit_career_writes",
+      "version": "20261027000203",
+      "statementCount": 2,
+      "statementsSha256": "ea9e8abab16d511506f48dcbc93ff19012f20ef4f25f2f4755ca9c06996c5668",
+      "sha256": "b33b721ec888111cb08e3658cd17a3115a1d02afadb1f41a0ec6c0a72fc996d2"
     }
   ]
 }

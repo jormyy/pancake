@@ -1,13 +1,13 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { FlashList } from '@shopify/flash-list'
 import { useRef } from 'react'
 import { StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native'
-import { Avatar } from '@/components/Avatar'
+
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { draftAgeLabel, draftPlayerMeta } from '@/lib/draft-display'
 import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
-import { playerHeadshotUrl } from '@/lib/format'
+
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
 type Controller = ReturnType<typeof useAuctionDraftRoomController>
@@ -65,16 +65,9 @@ export function AuctionIdlePanel({
                         <MotionPressable style={styles.playerResult}
                             onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}>
-                            <Avatar name={item.display_name ?? 'Player'} color={colors.bgMuted}
-                                uri={playerHeadshotUrl(item.nba_id)} size={32} />
-                            <View style={styles.playerCopy}>
-                                <Text style={styles.playerResultName}>{item.display_name}</Text>
-                            <PlayerEligibilityTags yearsExp={item.years_exp} careerGames={item.career_regular_season_games} />
-                                <Text style={styles.playerResultMeta}>{draftPlayerMeta([
-                                    item.dynasty_rank != null ? `#${item.dynasty_rank}` : null,
-                                    item.nba_team, item.position, draftAgeLabel(item.age),
-                                ])}</Text>
-                            </View>
+                            <PlayerRowContent name={item.display_name ?? 'Player'} nbaId={item.nba_id} team={item.nba_team}
+                                positions={item.position ? [item.position] : []} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}
+                                stats={draftPlayerMeta([item.dynasty_rank != null ? `#${item.dynasty_rank}` : null, draftAgeLabel(item.age)])} />
                             <Text style={styles.nominateLabel}>Nominate</Text>
                         </MotionPressable>
                     )} ListEmptyComponent={controller.searchError

@@ -16,7 +16,7 @@ assert.ok(['127.0.0.1', 'localhost'].includes(new URL(api).hostname))
 assert.equal(new URL(api).port, String(Number(process.env.PANCAKE_TEST_DB_PORT ?? 54322) - 1))
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(origin).hostname))
 const admin = createClient(api, secret, { auth: { persistSession: false, autoRefreshToken: false } })
-const league = randomUUID(), member = randomUUID(), player = randomUUID()
+const league = randomUUID(), member = randomUUID()
 let userId
 async function query(operation) {
     const { data, error } = await operation
@@ -33,7 +33,6 @@ try {
     await query(admin.from('leagues').insert({ id: league, name: 'Notification WebKit', slug: league, commissioner_id: userId, status: 'offseason' }))
     await query(admin.from('league_members').insert({ id: member, league_id: league, user_id: userId, role: 'commissioner', team_name: 'WebKit Team' }))
     await query(admin.from('league_seasons').insert({ league_id: league, season_year: 2026, is_current: true }))
-    await query(admin.from('players').insert({ id: player, first_name: 'WebKit', last_name: 'Fixture', position: 'PG', eligible_positions: ['PG'], nba_team: 'BOS' }))
     const client = createClient(api, publicKey, { auth: { persistSession: false, autoRefreshToken: false } })
     const signed = await query(client.auth.signInWithPassword({ email, password }))
     for (const viewport of [{ name: 'iphone', width: 393, height: 852, mobile: true }, { name: 'desktop', width: 1440, height: 900, mobile: false }]) {
@@ -43,18 +42,6 @@ try {
             const page = await context.newPage()
             const errors = []
             page.on('pageerror', error => errors.push(error.message))
-            await page.goto(`${origin}/players`)
-            await page.getByRole('textbox', { name: 'Search players', exact: true }).fill('WebKit Fixture')
-            let watchTaps = 0
-            await page.getByText('WebKit Fixture', { exact: true }).click()
-            watchTaps++
-            const watch = page.getByRole('switch', { name: 'Watch player for drops', exact: true })
-            await watch.click()
-            watchTaps++
-            await page.waitForFunction(() => document.querySelector('[aria-label="Watch player for drops"]')?.getAttribute('aria-checked') === 'true')
-            assert.equal((await query(admin.from('player_watches').select('player_id').eq('member_id', member))).length, 1)
-            await page.screenshot({ path: path.join(evidence, 'screenshots', `${viewport.name}-watch.png`) })
-            await watch.click()
             await page.goto(`${origin}/commissioner-settings`)
             let publishTaps = 0
             const composer = page.getByRole('textbox', { name: 'League announcement', exact: true })
@@ -69,14 +56,13 @@ try {
             assert.ok(geometry.scrollWidth <= viewport.width)
             assert.equal(geometry.dpr, viewport.mobile ? 3 : 1)
             assert.deepEqual(errors, [])
-            report.push({ viewport: viewport.name, watchTaps, publishTaps, textEntryPerTask: 1, geometry })
+            report.push({ viewport: viewport.name, publishTaps, textEntryPerTask: 1, geometry })
         } finally { await context.close() }
     }
     await writeFile(path.join(evidence, 'tap-counts.json'), JSON.stringify({ provenance: 'SYNTHETIC', engine: 'Playwright WebKit', report }, null, 2))
 } finally {
     await browser.close()
     await admin.from('leagues').delete().eq('id', league)
-    await admin.from('players').delete().eq('id', player)
     if (userId) await admin.auth.admin.deleteUser(userId)
 }
 console.log(JSON.stringify({ provenance: 'SYNTHETIC', engine: 'Playwright WebKit', report }))

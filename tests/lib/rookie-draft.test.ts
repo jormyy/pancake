@@ -93,3 +93,17 @@ describe('rookie timer range', () => {
         expect(mocks.apiPost).not.toHaveBeenCalled()
     })
 })
+
+it('loads the fantasy season for the rookie draft year label', async () => {
+    const draft = query({ data: { id: 'draft', league_id: 'league', league_season_id: 'season', league_seasons: { is_current: true, season_year: 2028 } }, error: null })
+    mocks.from.mockImplementation((table: string) => table === 'drafts' ? draft : query({ data: [], error: null }))
+    const state = await getRookieDraftState('draft')
+    expect(state?.draft.seasonYear).toBe(2028)
+    expect(draft.select).toHaveBeenCalledWith(expect.stringContaining('league_seasons(is_current, season_year)'))
+})
+
+it('preserves player row metadata in rookie draft history', async () => {
+    mocks.from.mockImplementation((table: string) => query({ data: table === 'drafts' ? { id: 'draft' } : table === 'snake_draft_picks' ? [{ overall_pick: 1, players: { id: 'player', display_name: 'Player', years_exp: 0, career_regular_season_games: 10, injury_status: 'Out' } }] : [], error: null }))
+    const state = await getRookieDraftState('draft')
+    expect(state?.picks[0].player).toMatchObject({ yearsExp: 0, careerGames: 10, injuryStatus: 'Out' })
+})

@@ -1,3 +1,4 @@
+import { getPlayerRowMetadata } from '@/lib/players'
 import { supabase } from '@/lib/supabase'
 import type { Database, Json } from '@/types/database'
 import type {
@@ -6,7 +7,7 @@ import type {
 } from '@pancake/core'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
-export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_forecast_inputs']['Returns'][number]
+export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_forecast_inputs']['Returns'][number] & { career_regular_season_games?: number | null }
 export type UnmatchedRookieRanking = Pick<
     Database['public']['Tables']['dynasty_rankings']['Row'],
     'id' | 'source_rank' | 'source_player_name' | 'source_team' | 'source_positions' | 'age' | 'fetched_at'
@@ -167,5 +168,6 @@ export async function getDynastyDecisionInputs({
         p_offset: Math.max(Math.trunc(offset), 0),
     })
     if (error) throw error
-    return data ?? []
+    const metadata = await getPlayerRowMetadata((data ?? []).map(row => row.player_id))
+    return (data ?? []).map(row => ({ ...row, career_regular_season_games: metadata.get(row.player_id)?.career_regular_season_games ?? null }))
 }

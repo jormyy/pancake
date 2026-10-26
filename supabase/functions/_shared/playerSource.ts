@@ -102,9 +102,13 @@ type EspnRosterPayload = {
 
 type EspnInjuriesPayload = {
   injuries?: {
+    id?: string
+    displayName?: string
+    team?: { abbreviation?: string }
     injuries?: {
       status?: string
-      athlete?: { id?: string | number; displayName?: string; firstName?: string; lastName?: string }
+      athlete?: { id?: string | number; displayName?: string; firstName?: string; lastName?: string;
+        team?: { abbreviation?: string }; links?: { href?: string }[]; position?: { abbreviation?: string }; experience?: { years?: number } }
     }[]
   }[]
 }
@@ -118,9 +122,6 @@ function extractEspnTeams(payload: EspnTeamsPayload): { id: string; abbreviation
   })
 }
 
-// The injuries feed identifies athletes by name only (no id), so statuses
-// are keyed by normalized display name and joined to roster athletes the
-// same way.
 function extractEspnInjuryStatuses(payload: EspnInjuriesPayload): Map<string, string> {
   const byName = new Map<string, string>()
   for (const team of payload.injuries ?? []) {
@@ -176,11 +177,10 @@ export function espnListingGaps(rosters: EspnRoster[]): string[] {
 function buildEspnRecords(
   rosters: EspnRoster[],
   injuriesByName: Map<string, string> | null,
+  injuriesById: Map<string, string>,
 ): SourcePlayerRecord[] {
   const athleteName = (athlete: EspnAthlete) =>
     normalizeName(athlete.fullName ?? `${athlete.firstName ?? ''} ${athlete.lastName ?? ''}`)
-  // The injuries feed has no athlete ids; a name shared by two rostered
-  // players cannot be attributed, so those names get no injury status.
   const nameCounts = new Map<string, number>()
   for (const roster of rosters) {
     for (const athlete of roster.athletes) {
@@ -204,7 +204,7 @@ function buildEspnRecords(
         position,
         eligible_positions: eligibleForPosition(position),
         status: athlete.status?.type === 'active' ? 'Active' : 'Inactive',
-        ...(injuriesByName ? { injury_status: nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null } : {}),
+        ...(injuriesByName ? { injury_status: injuriesById.get(espnId) ?? (nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null) } : {}),
         years_exp: yearsExperience(athlete, roster.seasonYear ?? currentSeasonYear()),
       })
     }
@@ -220,7 +220,9 @@ function yearsExperience(athlete: EspnAthlete, seasonYear: number): number | nul
     ? Math.max(0, seasonYear - 1 - firstYear) : null
 }
 
-export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, string> | null; failure: string | null }> {
+export type EspnInjuryIdentity = { provider_id: string; display_name: string; nba_team: string; years_exp: number | null; position: string | null }
+
+export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, string> | null; byId: Map<string, string>; identities: EspnInjuryIdentity[]; failure: string | null }> {
   const response = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`, { headers: ESPN_HEADERS })
   if (!response.ok) {
     await response.body?.cancel()
@@ -233,10 +235,35 @@ export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, strin
     throw new Error('ESPN injuries payload degraded; refusing to write')
   }
   const statuses = extractEspnInjuryStatuses(injuries)
-  if (statuses.size === 0) {
-    return { statuses: null, failure: 'ESPN injuries has no mapped statuses; injury_status unchanged' }
+  const byId = new Map<string, string>()
+  const identities: EspnInjuryIdentity[] = []
+  for (const team of injuries.injuries ?? []) {
+    for (const injury of team.injuries ?? []) {
+      const athlete = injury.athlete!
+      const status = mapEspnInjuryStatus(injury.status)
+      const ids = new Set<string>()
+      if (athlete.id != null && /^\d+$/.test(String(athlete.id))) ids.add(String(athlete.id))
+      for (const link of athlete.links ?? []) {
+        try {
+          const url = new URL(link.href ?? '')
+          const match = url.pathname.match(/^\/nba\/player\/_\/id\/(\d+)(?:\/|$)/)
+          if (url.protocol === 'https:' && ['www.espn.com', 'espn.com'].includes(url.hostname) && match) ids.add(match[1])
+        } catch { continue }
+      }
+      const id = ids.size === 1 ? [...ids][0] : null
+      if (id && status) byId.set(id, status)
+      const teamIds: Record<string, string> = { '1': 'ATL', '2': 'BOS', '3': 'NOP', '4': 'CHI', '5': 'CLE', '6': 'DAL', '7': 'DEN', '8': 'DET', '9': 'GSW', '10': 'HOU', '11': 'IND', '12': 'LAC', '13': 'LAL', '14': 'MIA', '15': 'MIL', '16': 'MIN', '17': 'BKN', '18': 'NYK', '19': 'ORL', '20': 'PHI', '21': 'PHX', '22': 'POR', '23': 'SAC', '24': 'SAS', '25': 'OKC', '26': 'UTA', '27': 'WAS', '28': 'TOR', '29': 'MEM', '30': 'CHA' }
+      const code = mapEspnTeam(athlete.team?.abbreviation ?? team.team?.abbreviation ?? teamIds[team.id ?? ''])
+      const name = athlete.displayName ?? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ')
+      if (id && code && name) identities.push({ provider_id: id, display_name: name, nba_team: code,
+        years_exp: typeof athlete.experience?.years === 'number' ? athlete.experience.years : null,
+        position: mapEspnPosition(athlete.position?.abbreviation) })
+    }
   }
-  return { statuses, failure: null }
+  if (statuses.size === 0) {
+    return { statuses: null, byId, identities, failure: 'ESPN injuries has no mapped statuses; injury_status unchanged' }
+  }
+  return { statuses, byId, identities, failure: null }
 }
 
 export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[]; failure: string | null; injuryWarnings: number }> {
@@ -262,10 +289,12 @@ export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerR
   }), 6)
 
   let statuses: Map<string, string> | null = null
+  let statusesById = new Map<string, string>()
   let injuryWarnings = 0
   try {
     const injuries = await fetchEspnInjuries()
     statuses = injuries.statuses
+    statusesById = injuries.byId
     if (injuries.failure) {
       injuryWarnings++
       console.warn(`[sync-players] ${injuries.failure}`)
@@ -275,7 +304,7 @@ export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerR
     console.warn(`[sync-players] ${errorMessage(error)}; injury_status unchanged`)
   }
 
-  const records = buildEspnRecords(rosters, statuses)
+  const records = buildEspnRecords(rosters, statuses, statusesById)
   if (records.length < MIN_PLAYERS) {
     throw new Error(`ESPN player payload degraded: ${records.length} players (< ${MIN_PLAYERS}); refusing to write`)
   }

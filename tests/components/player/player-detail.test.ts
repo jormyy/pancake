@@ -1,3 +1,4 @@
+import { Badge } from '@/components/Badge'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +21,6 @@ vi.mock('react-native', () => ({
 vi.mock('@/components/ui', () => ({ Card: 'Card', FilterSelect: 'FilterSelect' }))
 vi.mock('@/components/ui/useEdgeFade', () => ({ useEdgeFade: () => ({}) }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
-vi.mock('@/components/Badge', () => ({ Badge: 'Badge' }))
 vi.mock('@/components/PosTag', () => ({ PosTag: 'PosTag' }))
 vi.mock('@/components/player/TransactionHistory', () => ({ TransactionHistory: 'TransactionHistory' }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null }))
@@ -98,7 +98,7 @@ describe('player decision summary', () => {
         expect(text()).toContain('Player A')
         expect(text()).toContain('LAL')
         expect(text()).toContain(status)
-        expect(screen.root.findAllByType(type('Badge')).map(node => node.props.label)).toContain('GTD')
+        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toContain('DTD')
         expect(screen.root.findByType(type('PosTag')).props.position).toBe('PG')
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
@@ -108,9 +108,9 @@ describe('player decision summary', () => {
             player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        expect(screen.root.findAllByType(type('Badge')).map(node => node.props.label)).toEqual(['GTD', 'Dynasty #8', 'Yr 7'])
+        expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toEqual(['DTD', 'Dynasty #8', 'Yr 7'])
         expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
-        expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBe(2)
+        expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBe(1)
     })
 
     it('reserves a fixed action slot from the first frame and takes its label from props', async () => {
@@ -150,7 +150,7 @@ describe('player decision summary', () => {
         }))
         const name = screen.root.findAllByType(type('Text')).find(node => node.props.children === 'Player A')!
         const roster = screen.root.findAllByType(type('Text')).find(node => node.props.children === label)!
-        expect(roster.parent === name.parent?.parent?.children[1]).toBe(true)
+        expect(roster.parent?.props.testID).toBe('player-summary-line')
         const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
         expect(styles.alignItems).toBe('center')
         const button = screen.root.findByProps({ accessibilityLabel: action })
@@ -161,16 +161,17 @@ describe('player decision summary', () => {
         }
     })
 
-    it('puts injury before the other metadata on narrow screens', async () => {
+    it('puts injury after positions and keeps the summary on its own line', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ nba_team: 'LAC', eligible_positions: ['PG', 'SG', 'SF'], dynasty_rank: 100, injury_status: 'Out' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
-        const injury = screen.root.findAllByType(type('Badge')).find(node => node.props.label === 'Out')!
-        const core = injury.parent!
-        expect(core.children[0] === injury).toBe(true)
+        const injury = screen.root.findAllByType(Badge).find(node => node.props.label === 'O')!
+        const core = screen.root.findByProps({ testID: 'player-position-line' })
+        expect(core.findAllByType(Badge)).toContain(injury)
         expect(core.findAllByType(type('PosTag'))).toHaveLength(3)
-        expect(core.findAllByType(type('Badge')).map(node => node.props.label)).toContain('Dynasty #100')
+        expect(core.findAllByType(Badge).map(node => node.props.label)).not.toContain('Dynasty #100')
+        expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(Badge).map(node => node.props.label)).toContain('Dynasty #100')
     })
 
     it('never calls a started game next and shows live points from the log', async () => {
@@ -256,4 +257,12 @@ it('keeps history collapsed until requested and omits empty history', async () =
     expect(screen.root.findByType(type('TransactionHistory')).props.transactions).toEqual(props.transactions)
     await act(async () => screen.update(React.createElement(PlayerHistory, { ...props, transactions: [] })))
     expect(screen.toJSON()).toBeNull()
+})
+
+it('shows the owning team on the third header line for your player', async () => {
+    await render(React.createElement(PlayerHeader, {
+        player: headerPlayer(), rosterStatus: { status: 'mine', rosterPlayerId: 'roster' },
+        ownTeamName: 'Maple Hoops', leagueActive: true,
+    }))
+    expect(screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(type('Text')).map(node => node.props.children)).toContain('Maple Hoops')
 })

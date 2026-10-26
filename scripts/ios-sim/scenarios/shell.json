@@ -138,7 +138,12 @@
         }
       }
     ],
-    "theme": "light"
+    "theme": "light",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "shell-light-leagues",
@@ -147,11 +152,29 @@
     "steps": [
       {
         "action": {
-          "open": "/"
+          "tap": "Switch league"
         },
         "expected": {
-          "route": "/",
-          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
+          "selector": "[aria-label='Join or create a league']"
+        }
+      },
+      {
+        "name": "join-or-create",
+        "action": {
+          "tap": "Join or create a league"
+        },
+        "expected": {
+          "selector": "[role='dialog'][aria-label='Join or create a league'] [aria-label='Join with Invite Code']"
+        }
+      },
+      {
+        "name": "join",
+        "action": {
+          "tap": "Join with Invite Code"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],
@@ -286,7 +309,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline · showing saved data"
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ],
@@ -431,7 +454,12 @@
         }
       }
     ],
-    "theme": "dark"
+    "theme": "dark",
+    "prepare": [
+      {
+        "reveal": "Open auto-set lineup options"
+      }
+    ]
   },
   {
     "name": "shell-dark-leagues",
@@ -440,11 +468,29 @@
     "steps": [
       {
         "action": {
-          "open": "/"
+          "tap": "Switch league"
         },
         "expected": {
-          "route": "/",
-          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
+          "selector": "[aria-label='Join or create a league']"
+        }
+      },
+      {
+        "name": "join-or-create",
+        "action": {
+          "tap": "Join or create a league"
+        },
+        "expected": {
+          "selector": "[role='dialog'][aria-label='Join or create a league'] [aria-label='Join with Invite Code']"
+        }
+      },
+      {
+        "name": "join",
+        "action": {
+          "tap": "Join with Invite Code"
+        },
+        "expected": {
+          "route": "/join-league",
+          "selector": "[aria-label='Invite code']"
         }
       }
     ],
@@ -579,7 +625,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline · showing saved data"
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ],

@@ -549,7 +549,7 @@ export const runInvariants = async (supabase, leagueId, scenarios = {}) => {
         .map((pick) => `${pick.season_year}:${pick.round}:${pick.original_owner_id}`),
     )
     const currentYear = currentSeason.season_year
-    for (let seasonYear = currentYear + 1; seasonYear <= currentYear + 5; seasonYear += 1) {
+    for (let seasonYear = currentYear + 1; seasonYear <= currentYear + 3; seasonYear += 1) {
       for (let round = 1; round <= 3; round += 1) {
         for (const memberId of memberIds) {
           if (!pickKeys.has(`${seasonYear}:${round}:${memberId}`)) {

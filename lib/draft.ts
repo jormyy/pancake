@@ -36,6 +36,9 @@ export type DraftNomination = {
         nbaTeam: string | null
         position: string | null
         nbaId: string | null
+        yearsExp?: number | null
+        careerGames?: number | null
+        injuryStatus?: string | null
         age: number | null
     } | null
 }
@@ -124,6 +127,7 @@ type NominationPollRow = {
 }
 
 export type DraftSearchPlayer = {
+    injury_status?: string | null
     years_exp?: number | null
     career_regular_season_games?: number | null
     id: string
@@ -368,7 +372,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
         id, status, current_bid_amount, current_bidder_id, current_bid_to_taxi, countdown_expires_at,
         winning_member_id, final_price, nominating_member_id, nominated_at, nomination_order, closed_at,
         player_id,
-        players ( display_name, nba_team, position, nba_id )
+        players ( display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, injury_status )
       `,
                 )
                 .eq('draft_id', draftId)
@@ -425,7 +429,7 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
     const playerIds = [...new Set(nominations.map((n) => n.player_id).filter(Boolean))]
     const ageByPlayerId = await getLatestDynastyAges(playerIds)
 
-    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null }
+    type PlayerRef = { display_name: string | null; nba_team: string | null; position: string | null; nba_id: string | null; years_exp?: number | null; career_regular_season_games?: number | null; injury_status?: string | null }
     const mappedNominations: DraftNomination[] = nominations.map((n) => ({
         id: n.id,
         status: n.status,
@@ -444,6 +448,9 @@ export async function getDraftState(draftId: string, previous?: DraftState | nul
                   nbaTeam: (n.players as PlayerRef).nba_team,
                   position: (n.players as PlayerRef).position,
                   nbaId: (n.players as PlayerRef).nba_id,
+                  yearsExp: (n.players as PlayerRef).years_exp,
+                  careerGames: (n.players as PlayerRef).career_regular_season_games,
+                  injuryStatus: (n.players as PlayerRef).injury_status,
                   age: ageByPlayerId.get(n.player_id) ?? null,
               }
             : null,
@@ -543,7 +550,7 @@ export async function searchPlayers(
     // NBA player, so unranked players fall back alphabetically).
     let playerQuery = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at, nominated:nominations!nominations_player_id_fkey()')
+        .select('id, display_name, nba_team, position, nba_id, injury_status, years_exp, career_regular_season_games, dynasty_rank, dynasty_rank_source, dynasty_rank_fetched_at, nominated:nominations!nominations_player_id_fkey()')
         .eq('nominated.draft_id', draftId)
         .is('nominated', null)
     playerQuery =

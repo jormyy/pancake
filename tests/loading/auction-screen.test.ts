@@ -37,3 +37,5 @@ it('keeps a load error and its retry visible', async () => {
     await act(async () => screen.root.findByType('MotionPressable' as React.ElementType).props.onPress())
     expect(state.refresh).toHaveBeenCalledOnce()
 })
+
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:54321/functions/v1/api' }))

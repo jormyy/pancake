@@ -1,38 +1,49 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 
 type Variant = 'solid' | 'soft'
 
 type Props = {
     label: string
+    accessibilityLabel?: string
     /** Background color (solid) or tint color (soft — 13% opacity bg) */
     color?: string
     /** Text color override (defaults to white for solid, color for soft) */
     textColor?: string
     variant?: Variant
+    inline?: boolean
     maxWidth?: number
 }
 
 /** A player's injury status (Out, GTD…) in its status color; nothing when healthy. */
 export function InjuryBadge({ status }: { status: string | null | undefined }) {
     if (!status) return null
-    return <Badge label={status} color={INJURY_COLORS[status] ?? colors.textMuted} variant="solid" />
+    const value = status.toLowerCase()
+    const label = value === 'out' ? 'O' : ['day-to-day', 'gtd', 'dtd'].includes(value) ? 'DTD' : value === 'ir' ? 'IR' : status
+    const accessibilityLabel = label === 'O' ? 'Out' : label === 'DTD' ? 'Day-To-Day' : label === 'IR' ? 'Injured reserve' : status
+    const colorKey = label === 'O' ? 'Out' : label === 'IR' ? 'IR' : status
+    return <Badge inline label={label} accessibilityLabel={accessibilityLabel} color={INJURY_COLORS[colorKey] ?? colors.textMuted} variant="solid" />
 }
 
 /** Small pill badge for status, injury, role, etc. */
 export function Badge({
     label,
+    accessibilityLabel,
     color = colors.bgMuted,
     textColor,
     variant = 'soft',
     maxWidth,
+    inline = false,
 }: Props) {
     const fg = textColor ?? (variant === 'solid' ? colors.textWhite : color)
 
     return (
         <View
+            accessibilityLabel={accessibilityLabel}
+            accessible={Boolean(accessibilityLabel)}
             style={[
                 styles.badge,
+                inline && styles.inline,
                 variant === 'solid' && { backgroundColor: color },
                 maxWidth ? { maxWidth } : undefined,
             ]}
@@ -42,7 +53,7 @@ export function Badge({
             {variant === 'soft' ? (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: 0.13 }]} />
             ) : null}
-            <Text style={[styles.text, { color: fg }]} numberOfLines={1}>
+            <Text style={[styles.text, inline && styles.inlineText, { color: fg }]} numberOfLines={1}>
                 {label}
             </Text>
         </View>
@@ -57,6 +68,8 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
+    inline: { height: textStyles.rowTitle.lineHeight, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
+    inlineText: { lineHeight: textStyles.rowTitle.lineHeight },
     text: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,

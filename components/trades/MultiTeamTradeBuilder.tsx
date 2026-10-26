@@ -1,3 +1,5 @@
+import { playerSeasonContextText } from '@/lib/player-context'
+import { pickLabel } from '@/lib/picks'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
@@ -113,7 +115,7 @@ export function MultiTeamTradeBuilder({
         const label = item.kind === 'player'
             ? player?.players.display_name ?? assetLabels?.get(assetKey) ?? 'Player'
             : item.kind === 'pick'
-                ? pick ? `${pick.seasonYear} Round ${pick.round}` : assetLabels?.get(assetKey) ?? 'Draft pick'
+                ? pick ? pickLabel(pick.seasonYear, pick.round) : assetLabels?.get(assetKey) ?? 'Draft pick'
                 : `$${item.faabAmount} FAAB`
         const sender = participants.find((participant) => participant.memberId === item.fromMemberId)
         const available = item.kind === 'player'
@@ -124,9 +126,15 @@ export function MultiTeamTradeBuilder({
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label,
+            player: item.kind === 'player' ? {
+                name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,
+                positions: player?.players.eligible_positions ?? (player?.players.position ? [player.players.position] : []),
+                yearsExp: player?.players.years_exp, careerGames: player?.players.career_regular_season_games, injuryStatus: player?.players.injury_status,
+                stats: playerSeasonContextText({ avgFantasyPoints: avgMap.get(item.playerId), avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played }),
+            } : undefined,
             detail: available ? null : 'Unavailable from this team',
         }
-    }), [assetLabels, items, participants])
+    }), [assetLabels, items, participants, avgMap, avgStatsMap])
 
     const removeItem = (key: string) => {
         const item = items[overviewItems.findIndex((entry) => entry.key === key)]

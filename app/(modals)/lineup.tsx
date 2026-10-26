@@ -1,10 +1,11 @@
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { AutoSetModal } from '@/components/AutoSetModal'
-import { Avatar } from '@/components/Avatar'
+
 import { DaySelector } from '@/components/DaySelector'
-import { PosTag } from '@/components/PosTag'
-import { InjuryBadge } from '@/components/Badge'
+
+
 import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
@@ -28,7 +29,7 @@ import {
     type LineupMoveTargetState,
 } from '@/lib/lineup'
 import { getLineupOptimizerEnabled, setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
-import { playerHeadshotUrl } from '@/lib/format'
+
 import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
@@ -102,22 +103,8 @@ const StarterRow = memo(function StarterRow({
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
                 <>
-                    <Avatar
-                        name={p.displayName}
-                        color={colors.bgMuted}
-                        size={36}
-                        uri={playerHeadshotUrl(p.nbaId && /^\d+$/.test(p.nbaId) ? p.nbaId : null)}
-                    />
-                    <View style={styles.playerInfo}>
-                        <Text style={styles.playerName} numberOfLines={1}>{p.displayName}</Text>
-                        <View style={styles.playerMetaRow}>
-                            <InjuryBadge status={p.injuryStatus} />
-                            {p.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                            {starterMatchupLabel !== null && (
-                                <Text style={styles.playerMeta} numberOfLines={1}>{p.nbaTeam} {starterMatchupLabel}</Text>
-                            )}
-                        </View>
-                    </View>
+<PlayerRowContent name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
+                        yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                         {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
                     </Text>
@@ -177,23 +164,9 @@ const BenchRow = memo(function BenchRow({
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
-            <Avatar
-                name={player.displayName}
-                color={colors.bgMuted}
-                size={36}
-                uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null)}
-            />
-            <View style={styles.playerInfo}>
-                <Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text>
-                <View style={styles.playerMetaRow}>
-                    <InjuryBadge status={player.injuryStatus} />
-                    {player.eligiblePositions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {benchMatchupLabel !== null && (
-                        <Text style={styles.playerMeta} numberOfLines={1}>{player.nbaTeam} {benchMatchupLabel}</Text>
-                    )}
-                </View>
-            </View>
-            <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
+<PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
+                        yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
+                    <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
         </MotionPressable>

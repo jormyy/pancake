@@ -63,7 +63,7 @@ BEGIN
 
   v_result := resolve_player_imports_atomic('sleeper', jsonb_build_array(jsonb_build_object(
     'provider_id',v_tag||'-sleeper','first_name','Renamed','last_name',v_tag,
-    'metadata',jsonb_build_object('position','PG','eligible_positions',ARRAY['PG'],'nba_team','LAL',
+    'metadata',jsonb_build_object('position','PG','eligible_positions',ARRAY['PG'],'nba_team','NYK',
       'status','ACT','injury_status',NULL,'years_exp',6))));
   IF (v_result->'results'->0->>'player_id')::uuid <> v_id OR NOT EXISTS(
     SELECT FROM players WHERE id=v_id AND sleeper_id=v_tag||'-sleeper' AND position='PG'

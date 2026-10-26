@@ -22,6 +22,9 @@ export type SnakePick = {
         nbaTeam: string | null
         position: string | null
         nbaId: string | null
+        yearsExp?: number | null
+        careerGames?: number | null
+        injuryStatus?: string | null
     } | null
 }
 
@@ -30,6 +33,7 @@ export type RookieDraftState = {
         id: string
         leagueId: string
         leagueSeasonId: string
+        seasonYear?: number
         isCurrentSeason: boolean
         status: string
         isMock: boolean
@@ -48,6 +52,7 @@ export type RookieDraftState = {
 }
 
 export type RookieProspect = {
+    injury_status?: string | null
     years_exp?: number | null
     career_regular_season_games?: number | null
     id: string
@@ -100,14 +105,14 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
     const [draftResult, picksResult, ordersResult] = await Promise.all([
         supabase
             .from('drafts')
-            .select('id, league_id, league_season_id, league_seasons(is_current), status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
+            .select('id, league_id, league_season_id, league_seasons(is_current, season_year), status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
             .eq('id', draftId)
             .maybeSingle(),
         supabase
             .from('snake_draft_picks')
             .select(
                 `overall_pick, round, pick_in_round, member_id, picked_at, skipped_at, skip_reason, timer_expires_at,
-                 players ( id, display_name, nba_team, position, nba_id ),
+                 players ( id, display_name, nba_team, position, nba_id, years_exp, career_regular_season_games, injury_status ),
                  league_members ( team_name )`,
             )
             .eq('draft_id', draftId)
@@ -145,6 +150,9 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
                   nbaTeam: (p.players as { nba_team: string | null }).nba_team,
                   position: (p.players as { position: string | null }).position,
                   nbaId: (p.players as { nba_id: string | null }).nba_id,
+                  yearsExp: p.players.years_exp,
+                  careerGames: p.players.career_regular_season_games,
+                  injuryStatus: p.players.injury_status,
               }
             : null,
     }))
@@ -154,6 +162,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             id: draft.id,
             leagueId: draft.league_id,
             leagueSeasonId: draft.league_season_id,
+            seasonYear: draft.league_seasons?.season_year,
             isCurrentSeason: draft.league_seasons?.is_current === true,
             status: draft.status,
             isMock: draft.is_mock,
@@ -180,7 +189,7 @@ export async function getRookieDraftPollRevision(draftId: string): Promise<strin
     const [draftResult, pickResult] = await Promise.all([
         supabase
             .from('drafts')
-            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at, league_season_id, league_seasons(is_current)')
+            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at, league_season_id, league_seasons(is_current, season_year)')
             .eq('id', draftId)
             .maybeSingle(),
         supabase
@@ -239,7 +248,7 @@ export async function getRookiePlayers(draftId: string, query?: string): Promise
 
     let q = supabase
         .from('players')
-        .select('id, display_name, nba_team, position, nba_id, nba_draft_number, years_exp, career_regular_season_games')
+        .select('id, display_name, nba_team, position, nba_id, injury_status, nba_draft_number, years_exp, career_regular_season_games')
         .not('nba_draft_number', 'is', null)
         .eq('years_exp', 0)
         .order('nba_draft_number', { ascending: true })

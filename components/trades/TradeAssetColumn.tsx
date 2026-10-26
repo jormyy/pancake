@@ -1,10 +1,10 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { pickLabel, draftYear } from '@/lib/picks'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
-import { Avatar } from '@/components/Avatar'
-import { Badge } from '@/components/Badge'
-import { PosTag } from '@/components/PosTag'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors, INJURY_COLORS } from '@/constants/tokens'
+
+
+import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
@@ -50,37 +50,12 @@ function PlayerRow({
             testID={testID}
             id={testID}
         >
-            <Avatar
-                name={p.display_name}
-                color={selected ? colors.primary : colors.bgMuted}
-                textColor={selected ? colors.textWhite : colors.textSecondary}
-                size={36}
-            />
-            <View style={styles.playerInfo}>
-                <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
-                    {p.display_name}
-                </Text>
-                <View style={styles.playerMetaRow}>
-                    {p.nba_team ? <Text style={styles.playerMeta}>{p.nba_team}</Text> : null}
-                    {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                    {p.injury_status ? (
-                        <Badge
-                            label={p.injury_status}
-                            color={INJURY_COLORS[p.injury_status] ?? colors.textMuted}
-                            variant="solid"
-                        />
-                    ) : null}
-                    <PlayerEligibilityTags yearsExp={p.years_exp} careerGames={p.career_regular_season_games} />
-                </View>
-                <Text style={styles.playerContext} numberOfLines={1}>
-                    {blocked && !selected ? 'Remove the earlier route to select this player.' : statText}
-                </Text>
-                {selected && destinationLabel ? (
-                    <Text style={styles.routeMeta} numberOfLines={1}>
-                        To {destinationLabel}
-                    </Text>
-                ) : null}
-            </View>
+            <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+                yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
+                stats={<View>
+                    <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Remove the earlier route to select this player.' : statText}</Text>
+                    {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}
+                </View>} />
             {selected && (
                 <View style={styles.removeBadge} aria-hidden>
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />
@@ -113,16 +88,16 @@ function PickRow({
             disabled={blocked && !selected}
             accessibilityRole="button"
             accessibilityState={{ disabled: blocked && !selected }}
-            accessibilityLabel={`${action} ${pick.seasonYear} round ${pick.round} pick via ${pick.originalTeamName} for trade`}
+            accessibilityLabel={`${action} ${pickLabel(pick.seasonYear, pick.round)} pick via ${pick.originalTeamName} for trade`}
             testID={testID}
             id={testID}
         >
             <View style={[styles.pickCircle, selected && styles.pickCircleSelected]}>
-                <Text style={styles.pickCircleText}>{yearShort(pick.seasonYear)}</Text>
+                <Text style={styles.pickCircleText}>{yearShort(draftYear(pick.seasonYear))}</Text>
             </View>
             <View style={styles.playerInfo}>
                 <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
-                    {pick.seasonYear} Round {pick.round}
+                    {pickLabel(pick.seasonYear, pick.round)}
                 </Text>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
                 {blocked && !selected ? <Text style={styles.playerContext}>Remove the earlier route to select this pick.</Text> : null}

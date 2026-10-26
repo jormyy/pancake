@@ -21,8 +21,12 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 const healthyInjuries = { injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Team0 Player0' } }] }] }
 
-async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200) {
+async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200, earlierWorkMs = 0) {
   const originalFetch = globalThis.fetch
+  const originalNow = performance.now.bind(performance)
+  const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
+  let elapsed = 0
+  Object.defineProperty(performance, 'now', { configurable: true, value: () => originalNow() + elapsed })
   const requests: URL[] = []
   const imports: { metadata: Record<string, unknown> }[] = []
   const runs: Record<string, unknown>[] = []
@@ -38,7 +42,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
         experience: { years: 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
       })) })
       if (url.pathname === '/injuries') return Response.json(injuries, { status: injuryStatus })
-      if (url.pathname === '/news') return Response.json({ articles: [] })
+      if (url.pathname === '/news') { elapsed = earlierWorkMs; return Response.json({ articles: [] }) }
     }
     if (url.hostname === 'nba.invalid') return Response.json({ resultSets: [{
       headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [],
@@ -56,13 +60,15 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       imports.push(...args.p_records)
       return Response.json({ stale_draft_numbers_cleared: 0, results: args.p_records.map((row: { provider_id: string }, index: number) => ({ index, player_id: row.provider_id, action: 'updated' })) })
     }
+    if (url.pathname === '/rest/v1/rpc/complete_player_career_base_atomic') return Response.json(false)
+    if (url.pathname === '/rest/v1/rpc/claim_player_career_base_atomic') return Response.json(true)
     if (url.pathname === '/rest/v1/rpc/merge_duplicate_players') return Response.json(0)
     if (url.pathname === '/rest/v1/roster_players') return Response.json([])
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     return Response.json([
-      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: null, career_games_checked_at: null, injury_status: 'Out' },
-      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 1, career_regular_season_games: null, career_games_checked_at: null, injury_status: null },
+      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, sleeper_id: 'fixture-rookie', position: 'G', career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
+      { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, sleeper_id: 'fixture-veteran', position: 'G', career_games_base: null, career_games_base_attempted_at: null, injury_status: null },
     ])
   }
   try {
@@ -72,6 +78,8 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
     return { response, result: await response.json(), requests, imports, runs }
   } finally {
     globalThis.fetch = originalFetch
+    if (nowDescriptor) Object.defineProperty(performance, 'now', nowDescriptor)
+    else Reflect.deleteProperty(performance, 'now')
   }
 }
 
@@ -81,7 +89,9 @@ Deno.test('sync-players with the old injuries mode runs every full-sync step', a
   assert.equal(result.imports.length, 360)
   assert.equal(result.result.updated, 360)
   assert.equal(result.result.careerUnverified, 1)
-  for (const path of ['/teams', '/news', '/staticData/playerIndex.json', '/athletes/rookie/stats', '/athletes/veteran/stats']) {
+  assert.deepEqual(result.result.rosterRefreshSkipped, ['NBA roster has fewer than 350 active players', 'NBA roster does not cover all 30 teams'])
+  assert.ok(!result.requests.some(url => url.pathname === '/rest/v1/rpc/complete_player_roster_cycle_atomic'))
+  for (const path of ['/teams', '/news', '/staticData/playerIndex.json', '/athletes/veteran/stats']) {
     assert.ok(result.requests.some(url => url.pathname === path), path)
   }
   assert.equal(result.runs[0].function_name, 'sync-players')
@@ -106,3 +116,9 @@ for (const [label, injuries, status] of [
     assert.equal(result.runs.at(-1)?.rows_affected, 360)
   })
 }
+
+Deno.test('earlier sync work can exhaust the career base lookup budget without claiming a player', async () => {
+  const result = await sync({}, healthyInjuries, 200, 120000)
+  assert.equal(result.response.status, 200)
+  assert.ok(!result.requests.some(url => url.pathname === '/rest/v1/rpc/claim_player_career_base_atomic'))
+})

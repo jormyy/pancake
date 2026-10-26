@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -35,6 +35,7 @@ export type PlayerHeaderAction = {
 type Props = {
     player: PlayerHeaderPlayer
     rosterStatus: PlayerRosterStatus | null
+    ownTeamName?: string | null
     action?: PlayerHeaderAction | null
     backControl?: ReactNode
     leagueActive: boolean
@@ -44,13 +45,13 @@ type Props = {
     compact?: boolean
 }
 
-export function PlayerHeader({ player, rosterStatus, action, backControl,
+export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backControl,
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
-    const headshotSize = compact ? spacing['5xl'] : spacing['4xl'] * 2
+    const headshotSize = compact ? spacing['4xl'] + spacing.xs : spacing['5xl']
     const eligiblePositions = getEligiblePositions(player)
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
-        : rosterStatus?.status === 'mine' ? 'On your roster'
+        : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
         : rosterStatus?.status === 'taken' ? rosterStatus.ownerTeamName : ' '
     const showDrop = rosterStatus?.status === 'mine' && onDrop != null
     const busy = action?.busy || (!rosterStatus && leagueActive) || !actionsReady
@@ -61,7 +62,7 @@ export function PlayerHeader({ player, rosterStatus, action, backControl,
                 <View style={styles.avatarWrap}>
                     <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
                 </View>
-                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={2} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
                     {action ? (
                         <Pressable style={[styles.action, showDrop && styles.rosterPrimary, action.blockedReason && styles.pickupBlocked]}
@@ -80,13 +81,14 @@ export function PlayerHeader({ player, rosterStatus, action, backControl,
                     ) : null}
                 </View>
             </View>
-            <View style={styles.metaRow}>
-                {player.injury_status ? <Badge label={player.injury_status} color={INJURY_COLORS[player.injury_status] ?? colors.textMuted} variant="solid" /> : null}
+            <View style={styles.metaRow} testID="player-position-line">
                 {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
                 {eligiblePositions.map(pos => <PosTag key={pos} position={pos} />)}
-                {player.dynasty_rank != null ? <Badge label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-{player.years_exp != null && player.years_exp > 0 ? <Badge label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
-                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
+                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
+            </View>
+            <View style={styles.summaryRow} testID="player-summary-line">
+                {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>
         </View>
@@ -99,9 +101,10 @@ const styles = StyleSheet.create({
     avatarWrap: { flexShrink: 0 },
     name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
     nameCompact: { ...textStyles.rowTitle, fontSize: fontSize.lg },
-    metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', alignContent: 'flex-start', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
+    metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
+    summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
-    rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, minWidth: controlSize.minTouch + spacing['4xl'], backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
+    rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'center' },
     action: { minHeight: controlSize.minTouch, width: '100%', paddingHorizontal: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     actionText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },

@@ -1,4 +1,6 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { RookiePickRow, rookiePickRowStyles } from '@/components/league/draft-room/RookiePickRow'
+import { draftYear } from '@/lib/picks'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import {
     View,
     Text,
@@ -14,19 +16,19 @@ import { FlashList } from '@shopify/flash-list'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { type RookieProspect, type SnakePick } from '@/lib/rookieDraft'
+import { type RookieProspect } from '@/lib/rookieDraft'
 import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
-import { countLabel, playerHeadshotUrl } from '@/lib/format'
-import { Avatar } from '@/components/Avatar'
+import { countLabel } from '@/lib/format'
+
 import { DraftAdminBar } from '@/components/league/draft-room/DraftAdminBar'
 import { DraftScreenHeader } from '@/components/league/draft-room/DraftScreenHeader'
 import { DraftNotFoundState } from '@/components/league/draft-room/DraftNotFoundState'
 import { useDraftAdminControls } from '@/components/league/draft-room/useDraftAdminControls'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import { SettingsRow, SettingsToggle } from '@/components/settings/SettingsGroup'
-import { PosTag } from '@/components/PosTag'
+
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { LoadingState } from '@/components/ui/LoadingState'
 
@@ -130,7 +132,7 @@ export default function RookieDraftRoomScreen() {
     const canUsePauseControl = !canCommissionerPick
     const pickTimerExpired =
         draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
-    const draftTitle = draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'
+    const draftTitle = `${draft.seasonYear == null ? '' : `${draftYear(draft.seasonYear)} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
 
     const isPending = draft.status === 'pending'
     const totalPicks = picks.length
@@ -168,21 +170,9 @@ export default function RookieDraftRoomScreen() {
                                             onPress={() => resolveByDrop(rp.id)}
                                             disabled={resolvingOverflow || !actionsReady}
                                         >
-                                            <Avatar
-                                                name={rp.players?.display_name ?? 'Player'}
-                                                uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
-                                                color={colors.bgMuted}
-                                                textColor={colors.textSecondary}
-                                                size={32}
-                                            />
-                                            <View style={styles.overflowDropInfo}>
-                                                <Text style={styles.overflowDropName} numberOfLines={1}>
-                                                    {rp.players?.display_name ?? 'Player'}
-                                                </Text>
-                                                <Text style={styles.overflowDropPos}>
-                                                    {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
-                                                </Text>
-                                            </View>
+                                            <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                                positions={rp.players?.position ? [rp.players.position] : []}
+                                                yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
                                         </MotionPressable>
                                     ))}
                                 </ScrollView>
@@ -216,21 +206,9 @@ export default function RookieDraftRoomScreen() {
                                     onPress={() => handleTrimDrop(rp.id)}
                                     disabled={!!trimmingId || !actionsReady}
                                 >
-                                    <Avatar
-                                        name={rp.players?.display_name ?? 'Player'}
-                                        uri={playerHeadshotUrl(rp.players?.nba_id) ?? undefined}
-                                        color={colors.bgMuted}
-                                        textColor={colors.textSecondary}
-                                        size={32}
-                                    />
-                                    <View style={styles.overflowDropInfo}>
-                                        <Text style={styles.overflowDropName} numberOfLines={1}>
-                                            {rp.players?.display_name ?? 'Player'}
-                                        </Text>
-                                        <Text style={styles.overflowDropPos}>
-                                            {rp.players?.position ?? ''} · {rp.players?.nba_team ?? ''}
-                                        </Text>
-                                    </View>
+                                    <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
+                                                positions={rp.players?.position ? [rp.players.position] : []}
+                                                yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
                                 </MotionPressable>
                             ))}
                         </ScrollView>
@@ -435,7 +413,7 @@ export default function RookieDraftRoomScreen() {
                             ItemSeparatorComponent={ItemSeparator}
                             ListHeaderComponent={PickBoardHeader}
                             renderItem={({ item }) => (
-                                <PickRow item={item} myMemberId={memberId} nextPick={nextPick} />
+                                <RookiePickRow item={item} myMemberId={memberId} nextPick={nextPick} />
                             )}
                         />
                     )}
@@ -468,25 +446,9 @@ function ProspectRow({
             accessibilityRole={canPick ? 'button' : 'text'}
             accessibilityLabel={canPick ? `${actionLabel} ${player.display_name}` : player.display_name}
         >
-            <Avatar
-                name={player.display_name}
-                uri={playerHeadshotUrl(player.nba_id) ?? undefined}
-                color={colors.bgMuted}
-                textColor={colors.textSecondary}
-                size={32}
-            />
-            <View style={styles.resultInfo}>
-                <View style={styles.resultNameRow}>
-                    <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
-                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
-                    {player.nba_draft_number != null && (
-                        <PosTag position={player.position ?? '?'} />
-                    )}
-                </View>
-                <Text style={styles.resultTeam}>
-                    {player.nba_draft_number != null ? `#${player.nba_draft_number} · ` : ''}{player.nba_team ?? 'FA'}
-                </Text>
-            </View>
+            <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team}
+                positions={player.position ? [player.position] : []} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                stats={player.nba_draft_number != null ? `NBA draft #${player.nba_draft_number}` : undefined} />
             {canPick && (
                 <Text style={styles.pickBtn}>{actionLabel}</Text>
             )}
@@ -494,64 +456,7 @@ function ProspectRow({
     )
 }
 
-function PickRow({
-    item,
-    myMemberId,
-    nextPick,
-}: {
-    item: SnakePick
-    myMemberId?: string
-    nextPick: SnakePick | null
-}) {
-    const isMe = item.memberId === myMemberId
-    const isSkipped = !!item.skippedAt
-    const isOnClock = !item.player && !isSkipped && nextPick?.overallPick === item.overallPick
 
-    return (
-        <View
-            style={[
-                styles.pickRow,
-                isMe && styles.pickRowMe,
-                isOnClock && styles.pickRowOnClock,
-            ]}
-        >
-            <Text style={[styles.pickNum, isMe && styles.meText]}>
-                {item.overallPick}
-            </Text>
-            <View style={styles.pickTeam}>
-                <Text style={[styles.pickTeamName, isMe && styles.meText]} numberOfLines={1}>
-                    {item.teamName}
-                </Text>
-                {item.round > 1 && item.pickInRound === 1 ? (
-                    <Text style={styles.pickRoundStart}>Round {item.round}</Text>
-                ) : null}
-            </View>
-            {item.player ? (
-                <View style={styles.pickPlayerCell}>
-                    <Avatar
-                        name={item.player.displayName}
-                        uri={playerHeadshotUrl(item.player.nbaId) ?? undefined}
-                        color={colors.bgMuted}
-                        textColor={colors.textSecondary}
-                        size={28}
-                    />
-                    <View>
-                        <Text style={[styles.pickedName, isMe && styles.meText]} numberOfLines={1}>
-                            {item.player.displayName}
-                        </Text>
-                        <Text style={styles.pickedTeam}>{item.player.nbaTeam ?? 'FA'}</Text>
-                    </View>
-                </View>
-            ) : isSkipped ? (
-                <Text style={styles.pickSkipped}>Skipped</Text>
-            ) : (
-                <Text style={[styles.pickPlayer, isOnClock && styles.onClockText]}>
-                    {isOnClock ? '▶ On the clock' : '—'}
-                </Text>
-            )}
-        </View>
-    )
-}
 
 const ItemSeparator = () => <View style={styles.separator} />
 
@@ -687,29 +592,23 @@ const styles = StyleSheet.create({
     pickHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
     headerText: { ...textStyles.tableHeader },
 
-    pickRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: spacing.xl,
-        minHeight: table.rowHeight,
-        gap: spacing.md,
-    },
-    pickRowMe: { backgroundColor: colors.primaryLight },
-    pickRowOnClock: { backgroundColor: uiColors.successSurface },
 
-    pickNum: { width: 28, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
-    pickTeam: { width: 140, gap: spacing.xxs },
-    pickTeamName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    pickRoundStart: { ...textStyles.tableHeader },
-    pickPlayer: { flex: 1, fontSize: fontSize.sm, color: colors.textPlaceholder },
-    pickSkipped: { flex: 1, fontSize: fontSize.sm, color: colors.textMuted, fontWeight: fontWeight.semibold },
 
-    pickPlayerCell: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+
+
+
+
+
+
+
+
+
+
     pickedName: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.textPrimary },
     pickedTeam: { fontSize: fontSize.xs, color: colors.textMuted },
 
-    onClockText: { color: uiColors.successText, fontWeight: fontWeight.bold },
-    meText: { color: colors.primaryDark, fontWeight: fontWeight.bold },
+
+
 
     overflowOverlay: {
         flex: 1,
@@ -780,9 +679,9 @@ const styles = StyleSheet.create({
 })
 
 const PickBoardHeader = (
-    <View style={[styles.pickRow, styles.pickHeader]}>
-        <Text style={[styles.pickNum, styles.headerText]}>#</Text>
-        <Text style={[styles.pickTeam, styles.headerText]}>Team</Text>
-        <Text style={[styles.pickPlayer, styles.headerText]}>Player</Text>
+    <View style={[rookiePickRowStyles.pickRow, styles.pickHeader]}>
+        <Text style={[rookiePickRowStyles.pickNum, styles.headerText]}>#</Text>
+        <Text style={[rookiePickRowStyles.pickTeam, styles.headerText]}>Team</Text>
+        <Text style={[rookiePickRowStyles.pickPlayer, styles.headerText]}>Player</Text>
     </View>
 )

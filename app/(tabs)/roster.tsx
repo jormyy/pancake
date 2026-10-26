@@ -1,7 +1,7 @@
 import { getRosterProblems } from '@/lib/roster-problems'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import {
@@ -25,18 +25,18 @@ import { getPicksForMember, TradePickItem } from '@/lib/trades'
 import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { getMyWaiverClaims, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim, getMyWaiverPriority, WaiverClaim } from '@/lib/waivers'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, RosterAverage } from '@/lib/roster-stats'
-import { colors, controlSize, fontSize, fontWeight, INJURY_COLORS, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { EmptyState } from '@/components/EmptyState'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { countLabel, formatPoints, playerHeadshotUrl } from '@/lib/format'
+import { countLabel, formatPoints } from '@/lib/format'
 import { ROSTER_SLOT_TAG_WIDTH, RosterClaimItem, RosterPickItem, RosterPlayerItem, RosterSectionBand, RosterSlotTag, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet, type RosterSheetAction } from '@/components/roster/RosterPlayerSheet'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
 import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
-import { Avatar } from '@/components/Avatar'
+
 import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
@@ -47,7 +47,6 @@ import { todayET } from '@/lib/shared/dates'
 import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
 import { getMemberTransactionState, isTradingClosed } from '@/lib/league'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
-import { Badge } from '@/components/Badge'
 
 type RosterSlotSection = 'starters' | 'bench' | 'ir' | 'taxi'
 type RosterListItem = (
@@ -197,25 +196,9 @@ function RosterTablePlayerItem({
             >
                 <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
-                    <Avatar
-                        name={item.players.display_name}
-                        uri={playerHeadshotUrl(item.players.nba_id) ?? undefined}
-                        color={colors.bgMuted}
-                        textColor={colors.textSecondary}
-                        size={34}
-                    />
-                    <View style={styles.rosterTablePlayerInfo}>
-                        <View style={styles.rosterTableNameRow}>
-                            <Text style={styles.rosterTableName} numberOfLines={1}>{item.players.display_name}</Text>
-                            {item.players.injury_status ? (
-                                <Badge label={item.players.injury_status} color={INJURY_COLORS[item.players.injury_status] ?? colors.textMuted} variant="solid" />
-                            ) : null}
-                        </View>
-                        <View style={styles.rosterTableNameRow}>
-                            <Text style={styles.rosterTableMeta} numberOfLines={1}>{[item.players.nba_team, ...positions].filter(Boolean).join(' · ')}</Text>
-                            <PlayerEligibilityTags yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} />
-                        </View>
-                    </View>
+                    <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
+                        yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
+                        stats={`${fmtStat(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
                 <Text style={[styles.rosterTableStat, styles.rosterTableFp]}>{fmtStat(avgFpts)}</Text>
                 <Text style={styles.rosterTableStat}>{fmtStat(stats?.avg_minutes_played)}</Text>

@@ -21,28 +21,28 @@ afterEach(async () => {
     renderer = null
 })
 
-async function expectInitials(element: React.ReactElement) {
+async function expectPlayerAvatar(element: React.ReactElement) {
     await act(async () => { renderer = create(element) })
     const avatar = renderer!.root.findByType('Avatar' as React.ElementType)
     expect(avatar.props.name).toBe('Player A')
-    expect(avatar.props.uri).toBeUndefined()
+    expect(avatar.props.uri).toBe('/player-headshot')
 }
 
 describe('trade player identity', () => {
-    it('keeps card and detail identities independent of a headshot request', async () => {
-        await expectInitials(React.createElement(AssetList, { items: [asset], label: 'You receive' }))
+    it('keeps card and detail identities on the shared avatar contract', async () => {
+        await expectPlayerAvatar(React.createElement(AssetList, { items: [asset], label: 'You receive' }))
     })
 
-    it('keeps league block identities independent of a headshot request', async () => {
-        await expectInitials(React.createElement(TradeBlockListingRow, {
+    it('keeps league block identities on the shared avatar contract', async () => {
+        await expectPlayerAvatar(React.createElement(TradeBlockListingRow, {
             item: { _type: 'blockItem', item: { id: 'listing', memberId: 'other', teamName: 'Other', asset, note: null, updatedAt: '2026-10-24T12:00:00Z' } },
             myMemberId: 'mine', blockBusyId: null, onRemove: vi.fn(), onSaveNote: vi.fn(),
         }))
     })
 
-    it('keeps owned block identities independent of a headshot request', async () => {
+    it('keeps owned block identities on the shared avatar contract', async () => {
         const player = rosterPlayer()
-        await expectInitials(React.createElement(TradeBlockPlayerRow, {
+        await expectPlayerAvatar(React.createElement(TradeBlockPlayerRow, {
             item: { _type: 'blockPlayer', player: { ...player, players: { ...player.players, nba_id: '123' } } },
             listed: false, busy: false, blockAvgMap: new Map(), blockAvgStatsMap: new Map(), onList: vi.fn(),
         }))

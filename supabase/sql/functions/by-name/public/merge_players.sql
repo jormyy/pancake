@@ -11,6 +11,7 @@ AS $$
 DECLARE
   v_winner players%ROWTYPE;
   v_loser players%ROWTYPE;
+  v_career players%ROWTYPE;
 BEGIN
   PERFORM pg_advisory_xact_lock(1347174745, 1);
   IF winner_id = loser_id THEN RETURN; END IF;
@@ -27,6 +28,9 @@ BEGIN
     RAISE EXCEPTION 'Cannot merge conflicting provider identities.' USING ERRCODE = '23514';
   END IF;
 
+  SELECT * INTO v_career FROM players WHERE id IN (winner_id,loser_id) AND career_games_base IS NOT NULL
+    ORDER BY (career_games_base_source='espn') DESC,career_games_base_season DESC,career_games_base DESC,id LIMIT 1;
+
   -- Release unique provider links before moving them to the surviving identity.
   UPDATE players SET
     sleeper_id = CASE WHEN v_winner.sleeper_id IS NULL THEN NULL ELSE sleeper_id END,
@@ -40,6 +44,12 @@ BEGIN
     nba_id = COALESCE(v_winner.nba_id, v_loser.nba_id),
     espn_id = COALESCE(v_winner.espn_id, v_loser.espn_id),
     sportsdata_id = COALESCE(v_winner.sportsdata_id, v_loser.sportsdata_id),
+    career_regular_season_games = greatest(v_winner.career_regular_season_games,v_loser.career_regular_season_games),
+    career_games_base = v_career.career_games_base,
+    career_games_base_season = v_career.career_games_base_season,
+    career_games_base_source = v_career.career_games_base_source,
+    career_games_base_checked_at = v_career.career_games_base_checked_at,
+    career_games_base_attempted_at = greatest(v_winner.career_games_base_attempted_at,v_loser.career_games_base_attempted_at),
     nba_team = COALESCE(v_winner.nba_team, v_loser.nba_team),
     position = COALESCE(v_winner.position, v_loser.position),
     eligible_positions = CASE WHEN cardinality(v_winner.eligible_positions) = 0
@@ -192,7 +202,7 @@ BEGIN
     SELECT winner_id, game_id, first_seen_at, nba_team FROM private.player_game_memberships WHERE player_id = loser_id
     ON CONFLICT (player_id, game_id) DO UPDATE
       SET first_seen_at = LEAST(player_game_memberships.first_seen_at, EXCLUDED.first_seen_at),
-        nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
+    nba_team = COALESCE(player_game_memberships.nba_team, EXCLUDED.nba_team);
 
   -- The time ESPN last listed this person anchors the release sweep's departure evidence, and the time it
   -- has listed him on that team since gates the box-to-ESPN link, so the survivor keeps the later of the two
@@ -228,5 +238,6 @@ BEGIN
     ON CONFLICT (member_id, player_id) DO NOTHING;
 
   DELETE FROM players WHERE id = loser_id;
+  PERFORM private.recount_player_career_games(ARRAY[winner_id]);
 END;
 $$;

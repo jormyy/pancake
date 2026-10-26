@@ -556,7 +556,7 @@ export default function ProposeTradeScreen() {
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
     const verdict = (
-        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
     const reviewReady = !tradeAnalysis.loading
@@ -613,7 +613,7 @@ export default function ProposeTradeScreen() {
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
                             value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
                             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
-                        <TradeAnalysisSummary analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
                         {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
                     </View>
