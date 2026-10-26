@@ -17,7 +17,7 @@ import { updateProfile, uploadAvatar, signOut } from '@/lib/auth'
 import { updateTeamName } from '@/lib/league'
 import { useProfileResource } from '@/hooks/use-profile-resource'
 import { useLeagueContext } from '@/contexts/league-context'
-import { colors, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { Avatar } from '@/components/Avatar'
 import { SettingsGroup, SettingsRow } from '@/components/settings/SettingsGroup'
 import { Button, ErrorBanner, Page, PageHeader, SegmentedControl, usePageMetrics } from '@/components/ui'
@@ -228,7 +228,7 @@ export default function ProfileScreen() {
                     >
                         <Avatar
                             name={profile?.display_name ?? profile?.username ?? '?'}
-                            size={64}
+                            size={controlSize.avatar.profile}
                             uri={profile?.avatar_url}
                         />
                         <View style={styles.avatarBadge}>

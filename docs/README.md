@@ -4,6 +4,8 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Reference
 
+- [Interface design](interface-design.md): Phone density, player badges, missing averages and brand asset generation.
+
 - [Architecture](architecture.md): Code boundaries, authorization, change hints, and season transitions.
 - [Database readiness catalog](database-readiness-catalog.md): Attested migration phases and database security checks.
 - [Dynasty decision tools](dynasty-decision-tools.md): Published ranks, value calculations, Trade Analyzer, and cache rules.

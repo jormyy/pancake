@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
-import { memo } from 'react'
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native'
+import { memo, useEffect, useRef } from 'react'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
 import type { GameLogEntry } from '@/lib/players'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
@@ -12,6 +12,8 @@ type Props = {
     onLoadMore: () => void
     loading?: boolean
     compact?: boolean
+    error?: string | null
+    onRetry?: () => void
 }
 
 function fmtDate(dateStr: string): string {
@@ -45,7 +47,27 @@ export const GameLogTable = memo(function GameLogTable({
     onLoadMore,
     loading = false,
     compact = false,
+    error,
+    onRetry,
 }: Props) {
+    const endRef = useRef<View>(null)
+    const pageKey = games.map(game => game.gameId).join(',')
+    const automatic = compact && Platform.OS === 'web' && typeof IntersectionObserver !== 'undefined'
+    useEffect(() => {
+        if (!automatic || !hasMore || loading || loadingMore || error || typeof IntersectionObserver === 'undefined') return
+        const sentinel = endRef.current as unknown as HTMLElement | null
+        if (!sentinel) return
+        let root = sentinel.parentElement
+        while (root && !/(auto|scroll)/.test(getComputedStyle(root).overflowY)) root = root.parentElement
+        let requested = false
+        const observer = new IntersectionObserver(entries => {
+            if (!entries.some(entry => entry.isIntersecting) || requested) return
+            requested = true
+            onLoadMore()
+        }, { root, rootMargin: '0px 0px 180px 0px' })
+        observer.observe(sentinel)
+        return () => observer.disconnect()
+    }, [automatic, hasMore, loading, loadingMore, error, pageKey, onLoadMore])
     const showFpts = fantasyPointsMap !== null
     const { fadeStyle, scrollProps } = useEdgeFade()
 
@@ -83,6 +105,7 @@ export const GameLogTable = memo(function GameLogTable({
                 const fpts = dnp ? undefined : fantasyPointsMap?.get(g.gameId)
                 return (
                     <View
+                        testID={`game-log-row-${g.gameId}`}
                         key={'nbaGameId' in g && typeof g.nbaGameId === 'string' ? g.nbaGameId : g.gameId}
                         style={[styles.row, i < games.length - 1 && styles.rowDivider]}
                     >
@@ -91,8 +114,8 @@ export const GameLogTable = memo(function GameLogTable({
                             {g.opponent || '—'}
                         </Text>
                         {showFpts && (
-                            <Text style={[...fptsCell, fpts != null && styles.fptsValue]}>
-                                {dnp && compact ? 'DNP' : fpts != null ? fpts.toFixed(1) : ''}
+                            <Text style={[...fptsCell, fpts != null && styles.fptsValue]} numberOfLines={1}>
+                                {dnp ? 'DNP' : (fpts ?? 0).toFixed(1)}
                             </Text>
                         )}
                         {!compact && <Text style={numCell}>
@@ -115,7 +138,7 @@ export const GameLogTable = memo(function GameLogTable({
                     </View>
                 )
             })}
-            {rows.length === 0 ? <View style={[styles.row, styles.emptyRow]}><Text style={styles.emptyText}>{loading ? 'Loading recent games…' : 'No games available.'}</Text></View> : null}
+            {rows.length === 0 ? <View style={[styles.row, styles.emptyRow]}><Text style={styles.emptyText}>{loading ? 'Loading recent games…' : error ? 'Recent games unavailable.' : 'No games available.'}</Text></View> : null}
         </View>
     )
 
@@ -127,7 +150,16 @@ export const GameLogTable = memo(function GameLogTable({
                     {content}
                 </ScrollView>
             )}
-            {hasMore && (
+            <View ref={endRef} testID="game-log-end" style={styles.pageStatus}>
+                {error && !loading ? <>
+                    <Text style={styles.loadMoreText}>Could not load recent games. {error}</Text>
+                    {onRetry ? <Pressable accessibilityRole="button" accessibilityLabel="Retry recent games" onPress={onRetry} style={styles.loadMoreBtn}>
+                        <Text style={styles.loadMoreText}>Retry</Text>
+                    </Pressable> : null}
+                </> : loading || loadingMore ? rows.length > 0 ? <Text role="status" style={styles.loadMoreText}>Loading recent games…</Text> : null
+                    : !hasMore && rows.length > 0 ? <Text style={styles.loadMoreText}>All games shown.</Text> : null}
+            </View>
+            {hasMore && !automatic && !error && (
                 <Pressable
                     style={styles.loadMoreBtn}
                     onPress={onLoadMore}
@@ -182,11 +214,12 @@ const styles = StyleSheet.create({
 
     compactDateCell: { width: controlSize.minTouch, fontSize: fontSize['2sm'] },
     compactOppCell: { width: controlSize.minTouch, flexGrow: 0, fontSize: fontSize['2sm'] },
-    compactFptsCell: { width: spacing['4xl'] + spacing.xs, fontSize: fontSize['2sm'] },
+    compactFptsCell: { width: table.statColWidth, fontSize: fontSize['2sm'] },
     compactNumCell: { ...textStyles.tableCell, flex: 1, minWidth: 0, textAlign: 'center', fontSize: fontSize['2sm'] },
     colHdr: { ...textStyles.tableHeader },
     dnpText: { color: colors.textPlaceholder },
 
+    pageStatus: { minHeight: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
     loadMoreBtn: {
         alignSelf: 'center',
         minHeight: table.rowHeightCompact,

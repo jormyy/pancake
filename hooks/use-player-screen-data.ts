@@ -131,15 +131,17 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const seasonCache = useMemo(() => ({ owner: resourceKey, entries: new Map(cache?.seasons ?? []), averages: new Map(cache?.averages ?? []), fantasyAverages: new Map(cache?.fantasyAverages ?? []) }), [cache, resourceKey])
     const [visibleGames, setVisibleGames] = useState({ key: '', count: GAME_LOG_PAGE })
     const seasonKey = JSON.stringify([resourceKey, selectedSeason])
+    const [retryingSeason, setRetryingSeason] = useState<string | null>(null)
     const readPlayer = useCallback(() => getPlayer(playerId), [playerId])
     const readSeasons = useCallback(() => getAvailableSeasons(playerId), [playerId])
     const readAverageFantasy = useCallback(() => leagueId ? getPlayerAverageFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null), [playerId, leagueId, selectedSeason])
     const readAverages = useCallback(() => getPlayerSeasonAverages(playerId, selectedSeason), [playerId, selectedSeason])
     const readLines = useCallback(async () => {
-        const next = await getPlayerSeasonLines(playerId, selectedSeason)
+        const fetched = await getPlayerSeasonLines(playerId, selectedSeason).finally(() => setRetryingSeason(previous => previous === seasonKey ? null : previous))
+        const next = [...new Map(fetched.map(line => [line.nba_games.id, line])).values()]
         const previous = seasonCache.entries.get(selectedSeason)
         return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
-    }, [playerId, selectedSeason, seasonCache])
+    }, [playerId, selectedSeason, seasonCache, seasonKey])
     const suppliedScoringKey = JSON.stringify(options.scoringSettings ?? null)
     const readScoring = useCallback(() => suppliedScoringKey !== 'null' && refreshes.scoring === 0
         ? Promise.resolve(JSON.parse(suppliedScoringKey) as unknown)
@@ -189,9 +191,14 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const count = visibleGames.key === displayedSeasonKey ? visibleGames.count : GAME_LOG_PAGE
     const gameLog = useMemo(() => summary.games.slice(0, count), [summary.games, count])
     const loadMoreGames = useCallback(async () => {
-        if (!lines.settled) return
-        setVisibleGames(previous => ({ key: seasonKey, count: (previous.key === seasonKey ? previous.count : GAME_LOG_PAGE) + GAME_LOG_PAGE }))
-    }, [seasonKey, lines.settled])
+        if (!lines.settled || lines.error || displayedSeasonKey !== seasonKey || count >= summary.games.length) return
+        setVisibleGames({ key: seasonKey, count: Math.min(count + GAME_LOG_PAGE, summary.games.length) })
+    }, [seasonKey, displayedSeasonKey, lines.settled, lines.error, count, summary.games.length])
+    const retrySeason = useCallback(() => {
+        if (!canRead() || retryingSeason === seasonKey) return
+        setRetryingSeason(seasonKey)
+        setRefreshes(previous => ({ ...previous, season: previous.season + 1, scoring: previous.scoring + 1 }))
+    }, [canRead, retryingSeason, seasonKey])
     const handleSeasonSelect = useCallback((year: number) => setSelection({ key: resourceKey, year }), [resourceKey])
     const useLines = lines.value !== undefined || (averages.value === undefined && displayedLines.length > 0)
     const seasonAverages = averages.value !== undefined ? averages.value : summary.averages
@@ -202,7 +209,7 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         player: player.value ?? null, loading: !player.settled, playerError: player.error,
         availableSeasons, selectedSeason, handleSeasonSelect,
         seasonAverages, seasonLoading: lines.value === undefined && averages.value === undefined && (!lines.settled || !averages.settled), seasonError: averages.error ?? fantasyAverage.error ?? lines.error ?? scoringSettings.error,
-        gameLogLoading: !lines.settled,
+        gameLogLoading: !lines.settled || retryingSeason === seasonKey, gameLogError: lines.error ?? scoringSettings.error, retrySeason,
         includesLive: summary.includesLive, liveGame: summary.games.find(game => game.live && !game.didNotPlay) ?? null,
         gameLog, hasMoreGames: summary.games.length > count, loadMoreGames,
         fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: averageFP,

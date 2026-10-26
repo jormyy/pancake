@@ -174,5 +174,5 @@ test('taxi scenarios parse through the runner and cover every surface in both th
   const list = scenarios.find((row: any) => row.name === 'taxi-player-tags-light')!
   assert.equal(list.steps.length, 3)
   assert.ok(list.steps[2].expected.selector.includes(":not(:has([aria-label='Rookie']))"))
-  assert.ok(list.steps[2].expected.selector.includes(":not(:has([aria-label='Taxi eligible']))"))
+  assert.ok(list.steps[2].expected.selector.includes(":not(:has([aria-label^='Taxi eligible,']))"))
 })

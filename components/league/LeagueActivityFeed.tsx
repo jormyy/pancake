@@ -5,7 +5,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
-import { alpha, colors, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
 import { timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -18,7 +18,7 @@ import { usePageMetrics } from '@/components/ui'
 function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
-    const avatarSize = 32
+    const avatarSize = controlSize.avatar.md
     if (item.isSystem) {
         return (
             <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>

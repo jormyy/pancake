@@ -78,7 +78,7 @@ it('fences late responses and never reloads an inactive route', async () => {
 })
 
 it('pages the downloaded season locally and keeps the season across suspension', async () => {
-    state.lines.mockResolvedValue(Array.from({ length: 31 }, (_, index) => seasonLine({ id: `stat-${index}` })))
+    state.lines.mockResolvedValue(Array.from({ length: 31 }, (_, index) => seasonLine({ id: `stat-${index}`, nba_games: { ...seasonLine().nba_games, id: `game-${index}` } })))
     await act(async () => { renderer = create(React.createElement(Probe)) })
     expect(latest.gameLog).toHaveLength(15)
     expect(latest.seasonAverages?.gamesPlayed).toBe(31)
@@ -163,7 +163,7 @@ it('keeps public player data available without private scoring or history', asyn
 })
 
 it('keeps the prior season and expanded log visible until the selected season arrives', async () => {
-    state.lines.mockResolvedValueOnce(Array.from({ length: 31 }, (_, index) => seasonLine({ id: `current-${index}` })))
+    state.lines.mockResolvedValueOnce(Array.from({ length: 31 }, (_, index) => seasonLine({ id: `current-${index}`, nba_games: { ...seasonLine().nba_games, id: `game-${index}` } })))
     await act(async () => { renderer = create(React.createElement(Probe)) })
     await act(async () => { await latest.loadMoreGames(); await latest.loadMoreGames() })
     const previousGames = latest.gameLog
@@ -291,4 +291,28 @@ it('ignores activity-only inventory without reloading player cards or roster act
     })
     expect(reads()).toEqual(before)
     expect(latest.rosterRevision).toBe(0)
+})
+
+
+it('coalesces repeated near-end events, deduplicates games and retries a failed season read', async () => {
+    state.lines.mockRejectedValueOnce(new Error('Season temporarily unavailable'))
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(latest.seasonError).toBe('Season temporarily unavailable')
+    let release!: (rows: ReturnType<typeof seasonLine>[]) => void
+    state.lines.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    await act(async () => { latest.retrySeason() })
+    expect(latest.seasonLoading).toBe(true)
+    const rows = Array.from({ length: 31 }, (_, index) => seasonLine({ id: `stat-${index}`, nba_games: { ...seasonLine().nba_games, id: `game-${index}` } }))
+    await act(async () => { release([...rows, rows[0]]) })
+    expect(latest.seasonError).toBeNull()
+    expect(latest.seasonAverages?.gamesPlayed).toBe(31)
+    expect(latest.gameLog).toHaveLength(15)
+    const before = reads()
+    await act(async () => { latest.loadMoreGames(); latest.loadMoreGames(); latest.loadMoreGames() })
+    expect(latest.gameLog).toHaveLength(30)
+    expect(new Set(latest.gameLog.map(game => game.nbaGameId)).size).toBe(30)
+    await act(async () => { latest.loadMoreGames() })
+    expect(latest.gameLog).toHaveLength(31)
+    expect(latest.hasMoreGames).toBe(false)
+    expect(reads()).toEqual(before)
 })

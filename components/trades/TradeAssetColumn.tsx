@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 
 
-import { colors, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: spacing.md,
         paddingHorizontal: spacing.xl,
-        paddingTop: spacing['2xl'],
+        paddingTop: spacing.md,
         paddingBottom: spacing.md,
     },
     flex1: { flex: 1, minWidth: 0 },
@@ -254,8 +254,8 @@ const styles = StyleSheet.create({
     },
     playerRowSelected: { backgroundColor: colors.primaryLight },
     pickCircle: {
-        width: 36,
-        height: 36,
+        width: controlSize.avatar.md,
+        height: controlSize.avatar.md,
         borderRadius: radii.full,
         borderCurve: 'continuous' as const,
         backgroundColor: colors.info,

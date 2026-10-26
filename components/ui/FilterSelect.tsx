@@ -197,7 +197,7 @@ export function MultiSelect<T extends string>({
 const styles = StyleSheet.create({
     pressed: { opacity: 0.76 },
     chip: {
-        minHeight: 36,
+        minHeight: controlSize.minTouch,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.xs,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     multiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
     multiChip: {
         minWidth: 56,
-        minHeight: 40,
+        minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: spacing.md,

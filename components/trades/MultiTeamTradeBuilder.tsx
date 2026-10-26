@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
     },
     reviewTerms: {
         marginHorizontal: spacing.xl,
-        marginTop: spacing.xl,
+        marginTop: spacing.md,
         paddingTop: spacing.lg,
         gap: spacing.xs,
         borderTopWidth: 1,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         fontSize: fontSize.lg,
         color: colors.textPrimary,
-        minHeight: 80,
+        minHeight: controlSize.minTouch + spacing.lg,
         textAlignVertical: 'top',
     },
     notesInputInvalid: { borderColor: colors.danger },

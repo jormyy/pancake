@@ -15,7 +15,7 @@ import { rosterSlotLabel } from '@/lib/roster-slots'
 
 import { MotionPressable, MotionView } from '@/components/Motion'
 
-const ROW_AVATAR = 36
+const ROW_AVATAR = controlSize.avatar.md
 const ROSTER_TAG_HEIGHT = 22
 export const ROSTER_SLOT_TAG_WIDTH = controlSize.minTouch
 
@@ -52,9 +52,9 @@ export function RosterSectionBand({ label, detail, tone = 'default' }: { label: 
 
 function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: number | null }) {
     return <Text style={styles.averages}>
-        {avgFpts != null ? <Text style={styles.fantasyPoints}>{formatPoints(avgFpts)} FP</Text> : null}
-        {avgFpts != null && avgMinutes != null ? ' · ' : ''}
-        {avgMinutes != null ? `${formatPoints(avgMinutes)} MIN` : null}
+        <Text style={styles.fantasyPoints}>{formatPoints(avgFpts ?? 0)} FP</Text>
+        {' · '}
+        {`${formatPoints(avgMinutes ?? 0)} mins`}
     </Text>
 }
 
@@ -239,7 +239,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
             >
                 <RosterSlotTag slotType={slotType} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 
@@ -287,7 +287,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             accessibilityLabel={`Open ${player.display_name}`}
         >
             <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
         </MotionPressable>
@@ -322,7 +322,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             >
                 <RosterSlotTag slotType="TX" />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 

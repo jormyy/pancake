@@ -43,7 +43,7 @@ vi.mock('@/components/ui/Sheet', () => ({ Sheet: () => null }))
 let close: (() => Promise<void>) | undefined
 afterEach(async () => { await close?.(); close = undefined; vi.restoreAllMocks() })
 
-it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-case', 'ir-case', 'taxi-case', 'trade-case', 'draft-case', 'desktop-case'])('keeps %s in three lines at iPhone widths', async caseId => {
+it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-case', 'ir-case', 'taxi-case', 'trade-case', 'draft-case', 'desktop-case'])('keeps %s metadata aligned at iPhone widths', async caseId => {
     const directory = process.env.PANCAKE_LAYOUT_OUTPUT ?? await mkdtemp(path.join(tmpdir(), 'pancake-client-layout-'))
     await mkdir(directory, { recursive: true })
     const moduleLoader = Module as typeof Module & { _load: (name: string, ...args: unknown[]) => unknown }
@@ -77,7 +77,7 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
             {
                 const id = caseId === 'desktop-case' ? 'players-case' : caseId
                 expect(await page.getByTestId(id).getByTestId('player-meta-line').count()).toBe(1)
-                expect(await page.getByTestId(id).getByTestId('player-stats-line').count()).toBe(1)
+                expect(await page.getByTestId(id).getByTestId('player-stats-line').count()).toBe(caseId === 'draft-case' ? 0 : 1)
                 const geometry = await page.getByTestId(id).evaluate(root => {
                     const box = (node: Element) => {
                         const rect = node.getBoundingClientRect()
@@ -93,19 +93,21 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
                     const positions = Array.from(meta.querySelectorAll('[data-testid="position-chip"]')).map(box)
                     const row = root.querySelector('[data-testid="player-row-content"]')!
                     const action = root.querySelector('[aria-label^="Add "], [aria-label^="Move "], [aria-label^="Activate "]')
-                    return { team: box(team), teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: box(stats), avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
+                    return { team: box(team), teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: stats ? box(stats) : null, avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
                 })
                 expect(geometry.text).toBe(name)
                 expect(geometry.teamClipped).toBe(false)
                 expect(geometry.name.bottom).toBeLessThanOrEqual(geometry.meta.top)
-                expect(geometry.meta.bottom).toBeLessThanOrEqual(geometry.stats.top)
-                expect(geometry.stats.height).toBeLessThanOrEqual(18)
+                if (geometry.stats) {
+                    expect(geometry.meta.bottom).toBeLessThanOrEqual(geometry.stats.top)
+                    expect(geometry.stats.height).toBeLessThanOrEqual(18)
+                }
                 expect(geometry.avatar.right).toBeLessThanOrEqual(geometry.name.left)
                 expect(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
                 if (geometry.action) expect(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
-                expect(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], ['T', 'Taxi eligible']])
+                expect(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], [caseId === 'draft-case' ? 'T:0' : 'T:—', caseId === 'draft-case' ? 'Taxi eligible, 0 career regular-season games' : 'Taxi eligible, career games unknown']])
                 expect(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
-                expect(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xs)
+                expect(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xxs)
                 expect(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)
                 expect(geometry.tags.every(tag => tag.height === geometry.positions[0].height)).toBe(true)
                 expect(geometry.row.right).toBeLessThanOrEqual(width)

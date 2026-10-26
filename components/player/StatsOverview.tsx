@@ -19,9 +19,9 @@ type Props = {
 /** Season averages as one stat strip, fantasy points first. */
 export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, columns, seasonControl, loading = false, includesLive = false, actions, showFantasy = avgFantasyPoints != null }: Props) {
     const cells = [
-        showFantasy ? { label: 'FP/G', value: (loading && !averages) || avgFantasyPoints == null ? '—' : avgFantasyPoints.toFixed(1), lead: true } : null,
+        showFantasy ? { label: 'FP/G', value: (avgFantasyPoints ?? 0).toFixed(1), lead: true } : null,
         { label: 'GP', value: averages ? String(averages.gamesPlayed) : '—' },
-        { label: 'MIN', value: averages ? averages.avgMinutesPlayed.toFixed(1) : '—' },
+        { label: 'MIN', value: (averages?.avgMinutesPlayed ?? 0).toFixed(1) },
         { label: 'PTS', value: averages ? averages.avgPoints.toFixed(1) : '—' },
         { label: 'REB', value: averages ? averages.avgRebounds.toFixed(1) : '—' },
         { label: 'AST', value: averages ? averages.avgAssists.toFixed(1) : '—' },

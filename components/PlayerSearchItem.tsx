@@ -13,7 +13,6 @@ import { MotionPressable, MotionView } from '@/components/Motion'
 import { blockedActionProps } from '@/lib/a11y'
 import {
     formatProjectionGame,
-    numberOrDash,
 } from '@/lib/projections'
 
 function PlayerSearchItemImpl({
@@ -65,7 +64,7 @@ function PlayerSearchItemImpl({
         next_game_opponent: item.projection_opponent ?? null,
     })
     const stats = playerStats(item, statMode)
-    const compactStats = stats.filter(stat => stat.label !== 'FP').slice(0, 7)
+    const compactStats = stats.filter(stat => stat.label !== 'FP' && stat.label !== 'MIN').slice(0, 7)
     const denseProjectionRow = statMode === 'projection' && !showStats
 
     const statusBadge = currentMemberId && (!isFA || showStats) ? (
@@ -94,12 +93,13 @@ function PlayerSearchItemImpl({
     ) : null
 
     const summary = showStats ? <View style={styles.statsGrid}>
-        {stats.map(stat => <StatCell key={stat.label} value={stat.value} highlight={stat.highlight} integer={stat.integer} />)}
+        {stats.map(stat => <StatCell key={stat.label} value={stat.label === 'FP' || stat.label === 'MIN' ? stat.value ?? 0 : stat.value} highlight={stat.highlight} integer={stat.integer} />)}
     </View> : <View style={styles.playerMetaRow}>
         <Text style={styles.playerMeta} numberOfLines={1}>
             <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]}>
-                {statMode === 'projection' ? numberOrDash(item.projection_fantasy_points) : formatPoints(stats[0]?.value)} {item.playing_now ? 'LIVE' : 'FP'}
+                {formatPoints(stats[0]?.value ?? 0)} {item.playing_now ? 'LIVE' : 'FP'}
             </Text>
+            {` · ${formatPoints(stats.find(stat => stat.label === 'MIN')?.value ?? 0)} mins`}
             {denseProjectionRow && projectionGame ? ` · ${projectionGame}` : null}
             {showCompactStats ? compactStats.map(stat => ` · ${stat.label} ${formatPoints(stat.value)}`).join('') : null}
         </Text>
@@ -116,7 +116,7 @@ function PlayerSearchItemImpl({
                 accessibilityLabel={`Open ${item.display_name}`}
             >
                 <PlayerRowContent name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
-                    yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} metadata={showStats ? statusBadge : undefined} stats={summary} />
+                    yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
 
             </Pressable>
             <View style={styles.addCol}>
@@ -205,7 +205,7 @@ function StatCell({
 }
 
 const ADD_COL_W = controlSize.minTouch
-const HEADSHOT = spacing['4xl'] + spacing.xs
+const HEADSHOT = controlSize.avatar.md
 
 /** Geometry the stat-table header mirrors so its columns line up with rows. */
 export const playerRowGeometry = {
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statusCell: { backgroundColor: 'transparent' },
-    statusBadgeNarrow: { width: 'auto', paddingHorizontal: spacing.xs, maxWidth: spacing['4xl'] * 2 },
+    statusBadgeNarrow: { width: 'auto', paddingHorizontal: spacing.xs, maxWidth: 96 },
     statusBadgeMe: { backgroundColor: colors.successLight },
     statusBadgeWaiver: { backgroundColor: colors.infoLight },
     statusBadgeFA: { backgroundColor: colors.bgMuted },

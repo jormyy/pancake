@@ -68,7 +68,7 @@ export default function PlayerDetailScreen() {
         player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonLoading, seasonError, gameLogLoading,
+        seasonAverages, seasonLoading, seasonError, gameLogLoading, gameLogError, retrySeason,
         gameLog, hasMoreGames, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
@@ -205,7 +205,7 @@ export default function PlayerDetailScreen() {
     const dataWarnings = [
         playerError ? 'Player details could not refresh.' : null,
         rosterStatusError ? 'Roster status could not refresh.' : null,
-        seasonError ? 'Season stats could not refresh.' : null,
+        seasonError && seasonError !== gameLogError ? 'Season stats could not refresh.' : null,
         projectionError ? 'Projection could not refresh.' : null,
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
@@ -243,6 +243,8 @@ export default function PlayerDetailScreen() {
             hasMore={hasMoreGames}
             loadingMore={false}
             onLoadMore={loadMoreGames}
+            error={gameLogError}
+            onRetry={retrySeason}
         />
     )
     const historySection = showTransactions ? (
@@ -259,7 +261,7 @@ export default function PlayerDetailScreen() {
             <Stack.Screen options={{ title: player.display_name, headerShown: false }} />
             <Page title={player.display_name}>
                 <View key={ownerIdentity} style={styles.initialSlot}>
-                <ScrollView contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
+                <ScrollView testID="player-detail-scroll" contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
                     <PlayerHeader
                         player={player}
                         rosterStatus={rosterStatus}

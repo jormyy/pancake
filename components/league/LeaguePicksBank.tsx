@@ -203,7 +203,7 @@ function PicksLedgerHeader({
                     accessibilityLabel={filterAccessibilityLabel}
                     idBase={PICK_FILTER_TAB_ID_BASE}
                     controlledPanelId={PICK_FILTER_PANEL_ID}
-                    scrollable
+                    equalWidth
                 />
                 {summary ? <Text style={styles.pickSummary}>{summary}</Text> : null}
             </View>
@@ -309,8 +309,7 @@ export function PicksBankList({
     )
     const visiblePicks = useMemo(() => {
         if (activeFilter === 'mine' && myMemberId) {
-            return picks.filter((pick) => pick.originalOwnerMemberId !== pick.currentOwnerMemberId
-                && (pick.currentOwnerMemberId === myMemberId || pick.originalOwnerMemberId === myMemberId))
+            return picks.filter((pick) => pick.currentOwnerMemberId === myMemberId)
         }
         if (activeFilter === 'traded') {
             return picks.filter((pick) => pick.originalOwnerMemberId !== pick.currentOwnerMemberId)
@@ -421,7 +420,7 @@ export function PicksBankList({
                             </Fragment>
                         ))}
                     </View>
-                ) : activeFilter === 'mine' && summary ? null : (
+                ) : (
                     <View
                         role="status"
                         aria-live="polite"
@@ -431,7 +430,7 @@ export function PicksBankList({
                         accessibilityState={{ busy: loading }}
                         accessibilityLiveRegion="polite"
                     >
-                        <View style={{ minHeight: 320 }}>{!loading ? <EmptyState message={empty.message} fullScreen={false} /> : null}</View>
+                        <View style={loading ? { minHeight: 320 } : undefined}>{!loading ? <EmptyState message={empty.message} description={empty.description} fullScreen={false} /> : null}</View>
                     </View>
                 )}
             </View>

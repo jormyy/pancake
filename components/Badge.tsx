@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { INJURY_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 
 type Variant = 'solid' | 'soft'
 
@@ -69,8 +69,8 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
-    inline: { height: textStyles.meta.lineHeight, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
-    inlineCircle: { width: textStyles.meta.lineHeight, paddingHorizontal: 0, borderRadius: radii.full, alignItems: 'center' },
+    inline: { height: controlSize.badge.height, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
+    inlineCircle: { width: controlSize.badge.height, paddingHorizontal: 0, borderRadius: radii.full, alignItems: 'center' },
     inlineText: { lineHeight: textStyles.meta.lineHeight },
     text: {
         fontSize: fontSize.xs,

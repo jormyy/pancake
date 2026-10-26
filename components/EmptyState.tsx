@@ -1,7 +1,7 @@
 import { ComponentProps } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 
@@ -30,6 +30,7 @@ export function EmptyState({ message, description, icon, actionLabel, onAction, 
         return (
             <View style={styles.inline}>
                 <Text style={styles.inlineText}>{message}</Text>
+                {description ? <Text style={styles.description}>{description}</Text> : null}
                 {actionLabel && onAction ? <Button title={actionLabel} variant="outline" size="sm" onPress={onAction} /> : null}
             </View>
         )
@@ -39,7 +40,7 @@ export function EmptyState({ message, description, icon, actionLabel, onAction, 
         <PromptFrame fullScreen={fullScreen} framed={framed}>
             {icon ? (
                 <View style={styles.iconCircle}>
-                    <MaterialIcons name={icon} size={28} color={colors.primary} />
+                    <MaterialIcons name={icon} size={controlSize.icon.lg} color={colors.primary} />
                 </View>
             ) : null}
             {reserveCopy ? (
@@ -65,8 +66,8 @@ const styles = StyleSheet.create({
     inline: { alignItems: 'center', paddingVertical: spacing.lg, gap: spacing.sm },
     inlineText: { ...textStyles.body, color: colors.textMuted, textAlign: 'center' },
     iconCircle: {
-        width: 64,
-        height: 64,
+        width: controlSize.minTouch,
+        height: controlSize.minTouch,
         borderRadius: radii.full,
         backgroundColor: colors.primaryLight,
         alignItems: 'center',
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     },
     title: {
         color: colors.textSecondary,
-        fontSize: fontSize.xl,
+        fontSize: fontSize.md,
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.black,
         textAlign: 'center',
