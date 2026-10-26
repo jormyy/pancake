@@ -155,6 +155,7 @@ function LeagueScreen() {
                 tabs={(
                     <SegmentedControl
                         variant="tabs"
+                        scrollable
                         value={screen.tab}
                         onChange={screen.handleTabChange}
                         options={LEAGUE_TABS.map((tab) => ({ label: tab.label, value: tab.key }))}
@@ -197,7 +198,7 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     freshness: { color: colors.textSecondary, fontSize: fontSize.sm, padding: spacing.md },
     panel: { flex: 1, minHeight: 0 },
-    tabs: { flexWrap: 'nowrap', justifyContent: 'space-between', gap: 0 },
+    tabs: { minWidth: '100%', flexWrap: 'nowrap', justifyContent: 'space-between', gap: 0 },
 })
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'

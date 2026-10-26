@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native'
 import { brand, colors, controlSize, fontFamily, fontSize, fontWeight, layout, motion, radii, shadows, spacing, textStyles, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
 
-const MOBILE_TOPBAR_HEIGHT = controlSize.minTouch
+const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
 const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
 
 export const styles = StyleSheet.create({
@@ -316,8 +316,9 @@ export const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        paddingHorizontal: spacing.lg,
-        backgroundColor: webOverlays.mobileTopbar,
+        paddingLeft: `calc(${spacing.lg}px + env(safe-area-inset-left, 0px))`,
+        paddingRight: `calc(${spacing.lg}px + env(safe-area-inset-right, 0px))`,
+        backgroundColor: colors.bgCard,
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderBottomWidth: 1,
@@ -331,6 +332,7 @@ export const styles = StyleSheet.create({
     mobileMenuButton: {
         width: controlSize.minTouch,
         height: controlSize.minTouch,
+        flexShrink: 0,
         borderRadius: radii.lg,
         alignItems: 'center',
         justifyContent: 'center',
