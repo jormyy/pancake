@@ -4,8 +4,8 @@ Auto-set daily fills unlocked starter slots before tipoff for enabled teams. Thi
 
 ## Team setting
 
-The lineup screen groups its controls in the Auto lineup panel.
-Set now offers Today, This week, and Rest of season.
+The lineup screen groups its controls in one compact strip.
+Today, This week, and Rest of season sit beside the separate automatic switch.
 These actions run once and leave the automatic setting unchanged.
 Keep updated automatically saves the current team and season preference.
 The default-on migration enables existing teams once. New teams start enabled.

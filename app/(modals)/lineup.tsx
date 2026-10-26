@@ -46,7 +46,7 @@ import {
     View,
 } from 'react-native'
 import { MotionPressable, MotionView } from '@/components/Motion'
-import { Button, Page, PageHeader, usePageMetrics } from '@/components/ui'
+import { Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { useGoBack } from '@/components/ui/useGoBack'
 
 const TWO_COLUMN_MIN_WIDTH = 940
@@ -645,22 +645,21 @@ function LineupScreen() {
                 compact
             />
 
-            <View style={[styles.autoLineup, { marginHorizontal: padX }]}>
-                <Text style={styles.autoLineupTitle} accessibilityRole="header">Auto lineup</Text>
+            <View style={[styles.autoLineup, { marginHorizontal: padX }]} accessibilityLabel="Auto lineup">
                 <View style={styles.autoLineupActions}>
-                    <Text style={textStyles.meta}>Set now</Text>
-                    <Button title="Today" size="inline" variant="outline"
-                        onPress={() => { void doAutoSet(todayET()) }}
-                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
-                        accessibilityLabel="Auto-set today" />
-                    <Button title="This week" size="inline" variant="outline"
-                        onPress={() => { void doAutoSet(null) }}
-                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
-                        accessibilityLabel="Auto-set this week" />
-                    <Button title="Rest of season" size="inline" variant="outline"
-                        onPress={() => { void doAutoSet(null, true) }}
-                        disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
-                        accessibilityLabel="Auto-set rest of season" />
+                    {[
+                        { title: 'Today', label: 'Auto-set today', run: () => { void doAutoSet(todayET()) } },
+                        { title: 'This week', label: 'Auto-set this week', run: () => { void doAutoSet(null) } },
+                        { title: 'Rest of season', label: 'Auto-set rest of season', run: () => { void doAutoSet(null, true) } },
+                    ].map(({ title, label, run }) => (
+                        <MotionPressable key={label} style={styles.autoLineupAction}
+                            onPress={run}
+                            disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
+                            accessibilityRole="button"
+                            accessibilityLabel={label}>
+                            <Text style={styles.autoLineupActionLabel}>{title}</Text>
+                        </MotionPressable>
+                    ))}
                 </View>
                 <MotionPressable style={styles.autoLineupPreference}
                     onPress={() => { void (seasonOptimizerEnabled ? handleDisableSeasonOptimizer() : handleEnableSeasonOptimizer()) }}
@@ -835,24 +834,30 @@ export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFa
 
 const styles = StyleSheet.create({
     autoLineup: {
-        marginTop: spacing.sm,
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.sm,
-        borderRadius: radii.lg,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-        backgroundColor: colors.bgCard,
+        marginTop: spacing.xxs,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
     },
-    autoLineupTitle: { ...textStyles.body, fontWeight: fontWeight.bold, marginBottom: spacing.xxs },
-    autoLineupActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.xs },
+    autoLineupActions: { width: controlSize.minTouch * 4 + spacing.lg, flexDirection: 'row', gap: spacing.xs },
+    autoLineupAction: {
+        flex: 1,
+        minHeight: controlSize.minTouch,
+        minWidth: controlSize.minTouch,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+        borderWidth: 1,
+        borderColor: colors.primaryBorder,
+    },
+    autoLineupActionLabel: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.semibold, textAlign: 'center' },
     autoLineupPreference: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: spacing.sm,
+        gap: spacing.xs,
         minHeight: controlSize.minTouch,
-        borderTopWidth: 1,
-        borderTopColor: colors.borderLight,
     },
     autoLineupPreferenceLabel: { ...textStyles.body, flex: 1 },
     preDraftHint: {
@@ -896,7 +901,7 @@ const styles = StyleSheet.create({
     errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
-    scroll: { paddingTop: spacing.sm, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
+    scroll: { paddingTop: spacing.xxs, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
     scrollWide: { maxWidth: 2 * layout.lineupMaxWidth },
     columns: { gap: spacing.md },
     columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -906,7 +911,7 @@ const styles = StyleSheet.create({
 
     sectionLabel: {
         ...textStyles.sectionLabel,
-        marginBottom: spacing.sm,
+        marginBottom: spacing.xxs,
         marginLeft: spacing.xs,
     },
 
