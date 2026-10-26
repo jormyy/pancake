@@ -29,7 +29,7 @@ Article links, player details and feed filters retain their behavior.
 ## Matchup
 
 Phone Matchup rows use 44px touch targets and shared row text sizes.
-Names and injury badges share one line on both sides. Phone rows omit headshots to keep those labels readable.
+Phone names use the first initial and full surname, with suffixes retained. A 24px face sits on the right of each label, with initials as its fallback. Long names can wrap to two lines. The profile target retains the full accessible name and injury badge.
 Day-to-day badges use the same red as Out. DTD, GTD and day-to-day spellings share that treatment.
 
 The player identity opens the player profile. Only the points target opens the scoring breakdown.
@@ -80,6 +80,8 @@ The central mark fits the maskable icon safe region.
 The manifest launch background matches the icon background; browser chrome retains the app's theme color.
 
 ## Recent games
+
+Every game row includes MIN beside fantasy points. Minutes use one decimal place, including zero; DNP rows retain their DNP label. Missing stored minutes follow the existing zero display convention.
 
 On iPhone web layouts, scrolling near the game table’s end reveals the next 15 games. The observer uses the actual vertical scroll container. It does not wait for transaction history below the table. Existing rows retain their keys and scroll position.
 

@@ -227,12 +227,15 @@ describe('player decision summary', () => {
     })
 })
 
-it('keeps fantasy points before counting stats and preserves older-game pagination', async () => {
+it.each([false, true])('keeps minutes and game paging with compact=%s', async compact => {
     const onLoadMore = vi.fn()
     await render(React.createElement(GameLogTable, {
-        games: [game(), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
+        compact, games: [game({ minutes: 34.5 }), game({ gameId: 'zero', minutes: 0 }), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
         fantasyPointsMap: new Map([['latest', 45.2], ['dnp', 99]]), hasMore: true, loadingMore: false, onLoadMore,
     }))
+    expect(text()).toContain('MIN')
+    expect(text()).toContain('34.5')
+    expect(text()).toContain('0.0')
     expect(text().indexOf('FP')).toBeLessThan(text().indexOf('MIN'))
     expect(text()).toContain('45.2')
     expect(text()).toContain('DNP')

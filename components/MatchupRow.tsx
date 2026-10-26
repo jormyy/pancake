@@ -36,12 +36,6 @@ function emptySlotLabel(slotType: string): string {
     return 'No starter'
 }
 
-function compactLineupName(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(part => part && !/^(?:jr\.?|sr\.?|ii|iii|iv|\d+)$/i.test(part))
-    const last = parts.at(-1) ?? name
-    return last.split('-')[0]
-}
-
 function matchupLine(team: string | null | undefined, matchup: { opponent: string; isHome: boolean } | undefined): string {
     if (!team || !matchup) return ''
     return matchup.isHome ? `${matchup.opponent} @ ${team}` : `${team} @ ${matchup.opponent}`
@@ -50,7 +44,7 @@ function matchupLine(team: string | null | undefined, matchup: { opponent: strin
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
     const size = dense || compact ? 24 : 28
     return (
-        <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
+        <View style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
                 name={player.displayName}
                 uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
@@ -217,7 +211,7 @@ function PlayerSide({
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
-    const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
+    const mirror = (items: ReactNode[]) => (left || compact ? items : [...items].reverse())
 
     let block: ReactNode
     if (!player) {
@@ -250,12 +244,12 @@ function PlayerSide({
                         <Text
                             key="name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
-                            numberOfLines={1}
+                            numberOfLines={compact ? 2 : 1}
                             ellipsizeMode="tail"
                         >
-                            {compact ? compactLineupName(player.displayName) : shortName(player.displayName)}
+                            {shortName(player.displayName)}
                         </Text>,
-                        compact ? null : <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
+                        <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
                 </View>
                 {(!dense || compact) && (detail || !compact) ? (

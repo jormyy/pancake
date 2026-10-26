@@ -84,7 +84,7 @@ export const GameLogTable = memo(function GameLogTable({
                 <Text style={[...dateCell, styles.colHdr]}>DATE</Text>
                 <Text style={[...oppCell, styles.colHdr]}>OPP</Text>
                 {showFpts && <Text style={[...fptsCell, styles.colHdr]}>FP</Text>}
-                {!compact && <Text style={[...numCell, styles.colHdr]}>MIN</Text>}
+                <Text style={[...numCell, styles.colHdr]}>MIN</Text>
                 <Text style={[...numCell, styles.colHdr]}>PTS</Text>
                 <Text style={[...numCell, styles.colHdr]}>REB</Text>
                 <Text style={[...numCell, styles.colHdr]}>AST</Text>
@@ -118,9 +118,9 @@ export const GameLogTable = memo(function GameLogTable({
                                 {dnp ? 'DNP' : (fpts ?? 0).toFixed(1)}
                             </Text>
                         )}
-                        {!compact && <Text style={numCell}>
+                        <Text style={numCell} testID={`game-minutes-${g.gameId}`}>
                             {dnp ? 'DNP' : g.minutes.toFixed(1)}
-                        </Text>}
+                        </Text>
                         <Text style={[...numCell, dnp && styles.dnpText]}>
                             {dnp ? compact && !showFpts ? 'DNP' : '' : g.points}
                         </Text>
