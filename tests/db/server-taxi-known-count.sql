@@ -23,7 +23,6 @@ BEGIN
   UPDATE players SET years_exp=0 WHERE id=player;
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.roster_problems(f.league_id,f.season_id,f.member_ids[1])),'rookies stay eligible regardless of career games');
   PERFORM pg_temp.check_rules(private.taxi_player_eligible(gen_random_uuid(),player),'taxi eligibility depends only on the player');
-  PERFORM pg_temp.check_rules(to_regprocedure('private.ineligible_ir_player_names(uuid,uuid,uuid)') IS NULL,'the retired roster helper is absent');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

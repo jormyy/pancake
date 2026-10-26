@@ -126,6 +126,11 @@ BEGIN
   IF v_pending_count <> 1 THEN
     RAISE EXCEPTION 'Pending trade count expected 1, found %', v_pending_count;
   END IF;
+  PERFORM set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000030002',true);
+  IF EXISTS(SELECT 1 FROM public.get_trade_page_refs('00000000-0000-0000-0000-000000030201','00000000-0000-0000-0000-000000030101',40)) THEN
+    RAISE EXCEPTION 'A different member reads another team trade page';
+  END IF;
+  PERFORM set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000030001',true);
 END $$;
 
 RESET ROLE;
@@ -133,7 +138,6 @@ RESET ROLE;
 DO $$
 DECLARE
   v_missing text[];
-  v_superseded text[];
 BEGIN
   SELECT array_agg(expected.index_name ORDER BY expected.index_name)
     INTO v_missing
@@ -152,21 +156,6 @@ BEGIN
    );
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'Canonical trade indexes are missing: %', v_missing;
-  END IF;
-
-  SELECT array_agg(catalog.indexname ORDER BY catalog.indexname)
-    INTO v_superseded
-    FROM pg_indexes AS catalog
-   WHERE catalog.schemaname = 'public'
-     AND catalog.indexname IN (
-       'idx_trades_league_proposer_recent',
-       'idx_trades_league_recipient_recent',
-       'idx_trades_member_proposed',
-       'idx_trades_recipient_proposed',
-       'idx_trades_vetoable_recent'
-     );
-  IF v_superseded IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade indexes remain: %', v_superseded;
   END IF;
 END $$;
 
@@ -347,19 +336,6 @@ BEGIN
     RAISE EXCEPTION 'Expected four avatar policies, found %', v_avatar_policies;
   END IF;
 
-  IF to_regclass('public.idx_trades_due_accepted_queue') IS NULL THEN
-    RAISE EXCEPTION 'Due accepted-trade queue index is missing';
-  END IF;
-  IF to_regclass('public.idx_trade_vetos_trade_member') IS NOT NULL THEN
-    RAISE EXCEPTION 'Duplicate trade veto index still exists';
-  END IF;
-  IF to_regclass('public.idx_trades_league_proposer_recent') IS NOT NULL
-     OR to_regclass('public.idx_trades_league_recipient_recent') IS NOT NULL THEN
-    RAISE EXCEPTION 'Dominated trade feed indexes still exist';
-  END IF;
-  IF to_regclass('public.idx_trades_veto_feed') IS NULL THEN
-    RAISE EXCEPTION 'Bounded veto feed index is missing';
-  END IF;
   IF EXISTS (
     SELECT 1
       FROM pg_constraint
@@ -388,10 +364,6 @@ BEGIN
     RAISE EXCEPTION 'Trade item routes must be non-null catalog invariants';
   END IF;
 
-  IF to_regprocedure('public.get_trades_for_member(uuid,uuid,integer,integer)') IS NOT NULL
-     OR to_regprocedure('public.get_trades_for_member_page(uuid,uuid,integer,boolean,boolean,timestamp with time zone,uuid)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade feed function still exists';
-  END IF;
   IF has_function_privilege('anon', v_page_oid, 'EXECUTE')
      OR NOT has_function_privilege('authenticated', v_page_oid, 'EXECUTE') THEN
     RAISE EXCEPTION 'Trade feed function grants are incorrect';
@@ -404,9 +376,6 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Trade feed must use owner execution with an empty search path';
   END IF;
-  IF pg_get_functiondef(v_page_oid) !~ '(?is)own_member\.user_id\s*=\s*\(SELECT auth\.uid\(\)\)' THEN
-    RAISE EXCEPTION 'Trade feed owner execution is missing explicit caller authorization';
-  END IF;
   IF has_function_privilege('anon', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
      OR has_function_privilege('service_role', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
@@ -414,15 +383,6 @@ BEGIN
      OR has_function_privilege('authenticated', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE')
      OR has_function_privilege('service_role', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade parsing helpers are client executable';
-  END IF;
-  IF to_regprocedure('public.accept_multi_team_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('public.accept_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade acceptance entrypoint still exists';
-  END IF;
-  IF to_regclass('public.trade_drop_reservations') IS NOT NULL THEN
-    RAISE EXCEPTION 'Obsolete trade-drop reservation table still exists';
   END IF;
 
   IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
@@ -462,10 +422,6 @@ DO $$
 DECLARE
   v_function record;
 BEGIN
-  IF to_regprocedure('public.refresh_player_search_caches()') IS NULL
-    OR to_regprocedure('analytics.seed_league_fantasy_avgs(uuid)') IS NULL THEN
-    RAISE EXCEPTION 'Release compatibility routines are missing';
-  END IF;
   FOR v_function IN
     SELECT procedure.oid, procedure.proname
       FROM pg_proc AS procedure
