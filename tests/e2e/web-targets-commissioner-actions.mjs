@@ -1,7 +1,7 @@
 import { ensureWebActionCalendar } from './web-targets-action-calendar.mjs'
 import assert from 'node:assert/strict'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
-import { setupBrowserPlayoffLeague } from './browser-playoff-gameplay.mjs'
+import { setupScoredPlayoffFixture } from './scored-playoff-fixture.mjs'
 
 export async function auditWebCommissionerActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect }) {
   const field = (label) => page.getByText(label, { exact: true }).locator('..').locator('input')
@@ -128,37 +128,37 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     return { operations, limitation: 'Success responses are simulated. The real local API denies these global operations without an admin allowlist. External provider jobs and global sync writes are not exercised here.' }
   })
   await check('commissioner-playoffs-rollover-archive', async () => {
-    const fixture = await setupBrowserPlayoffLeague(env, season)
-    await ensureWebActionCalendar(fixture)
+    const fixture = await setupScoredPlayoffFixture(env, season)
+    const scoring = [await fixture.scoreThrough(17)]
     await signIn(fixture)
     await open('/commissioner-settings')
-    const rounds = (type) => db(fixture.admin.from('matchups').select('id,home_member_id,away_member_id,is_finalized').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id).eq('matchup_type', type))
-    const finalize = async (type) => {
-      for (const row of await rounds(type)) await db(fixture.admin.from('matchups').update({ home_points: 150, away_points: 100,
-        winner_member_id: row.home_member_id, is_finalized: true, finalized_at: new Date().toISOString() }).eq('id', row.id))
-    }
+    const rounds = round => db(fixture.admin.from('matchups').select('id,home_member_id,away_member_id,is_finalized,home_points,away_points,winner_member_id')
+      .eq('league_season_id', fixture.currentSeason.id).eq('playoff_round', round))
     await press(page.getByRole('button', { name: /^Generate Playoff Bracket/ }))
-    await wait(async () => (await rounds('playoff_quarterfinal')).length === 2)
+    await wait(async () => (await rounds(1)).length === 2)
     await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await page.getByText(/Quarterfinals are not yet finalized/).last().waitFor()
+    await page.getByText(/not yet finalized|not finalized|not complete/i).last().waitFor()
     await press(button('Dismiss').last())
-    await finalize('playoff_quarterfinal')
+    assert.equal((await rounds(2)).length, 0)
+    scoring.push(await fixture.scoreThrough(19))
     await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await wait(async () => (await rounds('playoff_semifinal')).length === 2)
-    await finalize('playoff_semifinal')
-    await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await wait(async () => (await rounds('playoff_final')).length === 1)
-    await finalize('playoff_final')
+    await wait(async () => (await rounds(2)).length === 1)
+    scoring.push(await fixture.scoreThrough(21))
+    const final = await rounds(2)
+    assert.equal(final[0].is_finalized, true)
     await press(page.getByRole('button', { name: /^Advance to Next Season/ }))
     await press(button('Advance'))
     const current = () => db(fixture.admin.from('league_seasons').select('id,season_year').eq('league_id', fixture.league.id).eq('is_current', true).single())
     await wait(async () => (await current()).id !== fixture.currentSeason.id)
-    assert.equal((await current()).season_year, fixture.currentSeason.season_year + 1)
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const calendarYear = Number(today.slice(0, 4)) + (Number(today.slice(5, 7)) >= 10 ? 1 : 0)
+    assert.equal((await current()).season_year, Math.max(fixture.currentSeason.season_year + 1, calendarYear))
     await press(page.getByRole('button', { name: /^Archive League\./ }))
     await press(button('Archive League'))
     await wait(async () => Boolean((await db(fixture.admin.from('leagues').select('deleted_at').eq('id', fixture.league.id).single())).deleted_at))
     await wait(async () => new URL(page.url()).pathname === '/league')
-    assert.equal((await db(fixture.admin.from('matchups').select('id').eq('league_id', fixture.league.id).eq('matchup_type', 'playoff_final'))).length, 1)
-    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true }
+    assert.deepEqual(await rounds(2), final)
+    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true,
+      scoring, fixture: 'Ten fictional teams, one scoring player each, four playoff teams, two weeks per round. Synthetic historical stats pass through the real scoring worker; no expected winner is written.' }
   })
 }
