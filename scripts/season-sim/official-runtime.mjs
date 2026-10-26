@@ -62,7 +62,7 @@ export async function officialRuntime(at, report, inputPlan, sample = async () =
       inventory.invocations.push({ id: Number(row.id), invocation_key: row.invocation_key, function_name: row.function_name })
       await classify(row)
     }
-    const count = Number(await sql(`SELECT count(*) FROM edge_invocations WHERE id>${before}`))
+    const count = inventory.nativeCount + Number(await sql(`SELECT count(*) FROM edge_invocations WHERE id>${reconciledThrough}`))
     assert.equal(count, seen.size, 'Every invocation must have one outcome')
     assert.equal(count, inventory.invocations.length, 'Native inventory must include every invocation')
     reconciledThrough = Math.max(reconciledThrough, ...rows.map(row => Number(row.id)))
