@@ -1,7 +1,7 @@
 BEGIN;
 \ir rules-support.sql
 DO $$
-DECLARE f record; a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid; d uuid; result_count int;
+DECLARE f record; a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid; d uuid; result_count int; roster uuid; hold_state text; saved_history jsonb;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2, 9581);
   UPDATE leagues SET waiver_mode='faab',faab_starting_budget=100 WHERE id=f.league_id;
@@ -29,8 +29,27 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT priority FROM waiver_priorities WHERE member_id=f.member_ids[1])>(SELECT priority FROM waiver_priorities WHERE member_id=f.member_ids[2]),'winner moves behind other team');
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',f.user_ids[1],'role','authenticated')::text,true);
-  PERFORM pg_temp.reject_rules(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,b),'%claim%','old client cannot add instantly');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_id=f.league_id AND player_id=b),'rejected instant add leaves ownership unchanged');
+  SELECT id INTO roster FROM roster_players WHERE league_id=f.league_id AND player_id=a;
+  SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) INTO saved_history FROM roster_transactions t WHERE league_id=f.league_id;
+  UPDATE leagues SET roster_size=1 WHERE id=f.league_id;
+  FOREACH hold_state IN ARRAY ARRAY['none','uncleared','cleared'] LOOP
+    IF hold_state='uncleared' THEN
+      INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
+        VALUES(f.league_id,f.season_id,b,now()-interval '4 days');
+    ELSIF hold_state='cleared' THEN
+      UPDATE waiver_wire_log SET cleared_at=now() WHERE league_id=f.league_id AND player_id=b;
+    END IF;
+    PERFORM pg_temp.reject_rules(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,b),
+      '%scheduled waiver claim%',hold_state||' instant add requires a claim');
+    PERFORM pg_temp.reject_rules(format('SELECT public.drop_and_add_free_agent_atomic(%L,%L,%L,%L)',roster,f.member_ids[1],f.league_id,b),
+      '%scheduled waiver claim%',hold_state||' compound add requires a claim');
+    PERFORM pg_temp.reject_rules(format('INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(%L,%L,%L,%L,''free_agent'')',
+      f.league_id,f.season_id,f.member_ids[1],b), '%scheduled waiver claim%',hold_state||' direct free-agent insert requires a claim');
+    PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM roster_players WHERE id=roster)
+      AND NOT EXISTS(SELECT 1 FROM roster_players WHERE league_id=f.league_id AND player_id=b)
+      AND saved_history=(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM roster_transactions t WHERE league_id=f.league_id),
+      hold_state||' rejected pickups preserve ownership and exact transaction history');
+  END LOOP;
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

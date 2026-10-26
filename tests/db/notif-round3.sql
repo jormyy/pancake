@@ -68,7 +68,7 @@ BEGIN
   INSERT INTO players(id,first_name,last_name,position,eligible_positions,nba_team,injury_status)
     VALUES(p,'Notify','Inactive','PG',ARRAY['PG'],p::text,'Out'),(bench,'Notify','Bench','SG',ARRAY['SG'],bench::text,NULL);
   INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
-    VALUES(f.league,f.season,f.member,p,'free_agent'),(f.league,f.season,f.member,bench,'free_agent');
+    VALUES(f.league,f.season,f.member,p,'draft'),(f.league,f.season,f.member,bench,'draft');
   INSERT INTO nba_games(id,sportsdata_game_id,season_year,game_date,week_number,home_team,away_team,status,game_time)
     VALUES(game,game::text,f.fixture_year,today,1,p::text,bench::text,'Scheduled',tip);
   INSERT INTO weekly_lineups(league_id,league_season_id,member_id,player_id,week_number,game_date,slot_type)

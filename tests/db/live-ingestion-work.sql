@@ -115,7 +115,6 @@ BEGIN
     EXCEPTION WHEN insufficient_privilege THEN NULL;
     END;
     RESET ROLE;
-    PERFORM pg_temp.check_live(true,role_name||' denied internal work and stamps');
   END LOOP;
 END;
 $$;

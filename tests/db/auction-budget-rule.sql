@@ -209,13 +209,23 @@ END $$;
 
 -- T7: open slots are filled through free agency after the draft.
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000e0002', true);
-SELECT public.add_free_agent_atomic('00000000-0000-0000-0000-0000000e0202', '00000000-0000-0000-0000-0000000e0101', '00000000-0000-0000-0000-0000000e0407');
+INSERT INTO public.waiver_priorities(league_id, league_season_id, member_id, priority)
+SELECT league_id, id, '00000000-0000-0000-0000-0000000e0202', 1 FROM public.league_seasons
+WHERE league_id = '00000000-0000-0000-0000-0000000e0101' AND is_current
+ON CONFLICT DO NOTHING;
+SELECT public.create_waiver_claim_atomic(p_member_id => '00000000-0000-0000-0000-0000000e0202',
+  p_league_id => '00000000-0000-0000-0000-0000000e0101', p_player_id => '00000000-0000-0000-0000-0000000e0407',
+  p_user_id => '00000000-0000-0000-0000-0000000e0002');
+UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1
+WHERE member_id = '00000000-0000-0000-0000-0000000e0202';
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT * FROM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
 DO $$
 DECLARE ids auction_ids%ROWTYPE;
 BEGIN
   SELECT * INTO ids FROM auction_ids;
   IF (SELECT count(*) FROM public.roster_players WHERE member_id = ids.member_b) <> 2 THEN
-    RAISE EXCEPTION 'T7: free-agent add after an all-in draft did not land';
+    RAISE EXCEPTION 'T7: waiver award after an all-in draft did not land';
   END IF;
 END $$;
 SELECT set_config('request.jwt.claim.sub', '', true);

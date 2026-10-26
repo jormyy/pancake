@@ -74,8 +74,8 @@ VALUES
 
 INSERT INTO public.waiver_wire_log (league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at)
 VALUES
-  ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0408', '00000000-0000-0000-0000-0000000a0203', now() - interval '3 days', now() - interval '1 minute'),
-  ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0409', '00000000-0000-0000-0000-0000000a0203', now() - interval '3 days', now() - interval '1 minute');
+  ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0408', '00000000-0000-0000-0000-0000000a0203', now() - interval '4 days', now() - interval '3 days'),
+  ('00000000-0000-0000-0000-0000000a0101', '00000000-0000-0000-0000-0000000a0301', '00000000-0000-0000-0000-0000000a0409', '00000000-0000-0000-0000-0000000a0203', now() - interval '4 days', now() - interval '3 days');
 
 CREATE TEMP TABLE lifecycle_ids AS
 SELECT
@@ -365,7 +365,7 @@ BEGIN
   SELECT * INTO ids FROM lifecycle_ids;
   BEGIN
     PERFORM public.add_trade_block_item_atomic(ids.member_a, ids.league_id, ids.flagg, NULL, NULL, ids.user_a);
-    RAISE EXCEPTION 'T13: listed a player who is not on the roster';
+    RAISE EXCEPTION 'T13: listed a player who is not on the roster' USING ERRCODE = '23514';
   EXCEPTION
     WHEN SQLSTATE 'P0001' THEN NULL;
   END;
