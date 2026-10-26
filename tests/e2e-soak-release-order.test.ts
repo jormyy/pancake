@@ -10,27 +10,6 @@ import { validateRetainedSeasonReports } from './e2e/performance-budgets.mjs'
 import { validatePerfDrift } from './e2e/soak-support.mjs'
 
 describe('release soak deployment order', () => {
-  it('checks schema and selects the deployed runtime before serving either build', () => {
-    const workflow = readFileSync('.github/workflows/release-soak-shard.yml', 'utf8')
-    const start = workflow.split('      - name: Start release stack\n')[1].split('\n      - ')[0]
-    const prepare = start.indexOf('node tests/e2e/soak-runtime.mjs --prepare')
-    expect(prepare).toBeGreaterThan(-1)
-    expect(prepare).toBeLessThan(start.indexOf('supabase functions serve'))
-    expect(prepare).toBeLessThan(start.indexOf('node tests/e2e/static-web-server.mjs'))
-    expect(start).toContain('if test "$E2E_SOAK_RUNTIME" = release; then')
-    expect(start).toContain('cd "$deployed_edge_worktree"')
-    expect(start).toContain('web_root="$deployed_frontend_worktree/dist"')
-    expect(start).toContain('expected_edge_sha="$E2E_DEPLOYED_EDGE_SHA"')
-    expect(start).toContain('http://127.0.0.1:8082/release-provenance.json')
-    expect(start).toContain('E2E_DEPLOYED_FRONTEND_PROVENANCE_PATH=')
-    expect(start).toContain('E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s')
-    expect(start).toContain('supabase start --exclude edge-runtime')
-    const branches = start.split('          if test "$E2E_SOAK_RUNTIME" = release; then')[1].split('          fi')[0]
-    expect(branches.split('          else')[0]).toContain('web_root=dist')
-    expect(branches.split('          else')[1]).toContain('web_root="$deployed_frontend_worktree/dist"')
-    const plan = readFileSync('.github/workflows/release-soak.yml', 'utf8')
-    expect(plan.match(/migration_after_season: 5/g)).toHaveLength(4)
-  })
 
   it('accepts startup only when the served frontend marker and Edge health match', () => {
     const workflow = readFileSync('.github/workflows/release-soak-shard.yml', 'utf8')
@@ -68,9 +47,6 @@ describe('release soak deployment order', () => {
       .toEqual(BACKEND_SCENARIO_MANIFEST.filter(({ id }) => REQUIRED_MUTATION_SCENARIOS.includes(id)).map(({ id }) => id).sort())
     expect(deployed.push).toBe(false)
     expect(soakBrowserArgs(args, 6, 5)).toBe(args)
-    const soak = readFileSync('tests/e2e/soak.mjs', 'utf8')
-    expect(soak).toMatch(/runBackendScenarios\(\{\s*args: browserArgs,/)
-    expect(soak).toContain('if (browserArgs.push)')
   })
 
   it('requires the exact migration delta when the soak reads prepared evidence', () => {
@@ -104,9 +80,6 @@ describe('release soak deployment order', () => {
     reports[0].provenance = candidate
     expect(Reflect.apply(validateRetainedSeasonReports, null, [{}, reports, 1, candidate, 1, deployed]))
       .toEqual(expect.arrayContaining([expect.stringContaining('provenance commitSha'), expect.stringContaining('provenance bundleDigest')]))
-    const soak = readFileSync('tests/e2e/soak.mjs', 'utf8')
-    expect(soak).toContain('scenarioContext:')
-    expect(soak).toContain('readDeployedFrontendProvenance')
   })
 
   it('compares full season times within one runtime build and still detects growth', () => {

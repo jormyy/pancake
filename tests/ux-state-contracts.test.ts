@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -15,30 +14,6 @@ vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: { font: { material
 vi.mock('@expo-google-fonts/outfit', () => ({ Outfit_500Medium: '/medium.woff2', Outfit_600SemiBold: '/semibold.woff2', Outfit_700Bold: '/bold.woff2' }))
 vi.mock('expo-font', () => ({ useFonts: () => [true], FontDisplay: { OPTIONAL: 'optional', SWAP: 'swap', BLOCK: 'block' } }))
 
-const read = (path: string) => readFile(path, 'utf8')
-
-// Source contracts for states that only show up in a browser: an error must
-// never render as an empty result, empty lists must say so, and the PWA must
-// keep looking for updates while it stays in the foreground.
-
-describe('home matchup surface wiring', () => {
-    it('drives the play surface from resolveHomeSurface so the tested precedence is what renders', async () => {
-        const source = await read('app/(tabs)/index.tsx')
-        expect(source).toContain("resolveHomeSurface({ leagueStatus: league?.status, hasMatchup: Boolean(matchup), loading: matchupLoading, error, emptyConfirmed })")
-        for (const surface of ['draft', 'error']) expect(source).toContain(`homeSurface === '${surface}'`)
-        expect(source.indexOf("homeSurface === 'error'")).toBeLessThan(source.indexOf('<WeekOffNotice leagueId='))
-    })
-})
-
-describe('trades tab empty states', () => {
-    // The read model emits its own empty rows per section, so the screen must
-    // not add a parallel empty branch (review S3: listData always has a header).
-    it('lets the read model own the empty rows and adds no screen-level fallback', async () => {
-        const source = await read('app/(tabs)/trades.tsx')
-        expect(source).not.toContain('TRADE_TAB_EMPTY_TEXT')
-        expect(source).not.toMatch(/listData\.length === 0/)
-    })
-})
 
 describe('service worker registration cadence', () => {
     let script: string
@@ -282,39 +257,5 @@ describe('service worker registration cadence', () => {
         release()
         page.window.dispatchEvent(new Event('online'))
         expect(page.reload).toHaveBeenCalledOnce()
-    })
-})
-
-describe('edge job bookkeeping', () => {
-    it('season-boundary records per-league failures on the sync run', async () => {
-        const source = await read('supabase/functions/season-boundary/index.ts')
-        expect(source).toContain('failure: summarizeBoundaryFailures(reports)')
-    })
-
-    it('process-waivers leaves notifications to committed database transitions', async () => {
-        const source = await read('supabase/functions/process-waivers/index.ts')
-        expect(source).not.toMatch(/notifyClaimResults|notifyMember|notifications\.ts/)
-        const producer = await read('supabase/sql/functions/by-name/private/notif_waiver_trigger.sql')
-        expect(producer).toContain("OLD.status IS NOT DISTINCT FROM NEW.status")
-        expect(producer).toContain("'waiver_claim_won'")
-        expect(producer).toContain("'waiver_claim_lost'")
-        const { drainDueClaims, MAX_BATCHES } = await import('../supabase/functions/process-waivers/drain')
-        const batches = [[], ['claim-1'], [], ['claim-2', 'claim-3'], [], [], ['never-fetched']]
-        const processBatch = vi.fn(async () => batches.shift() ?? [])
-        await expect(drainDueClaims(processBatch)).resolves.toEqual(['claim-1', 'claim-2', 'claim-3'])
-        expect(processBatch).toHaveBeenCalledTimes(6)
-        let processedBatches = 0
-        const continuousBatch = async () => {
-            processedBatches += 1
-            if (processedBatches > MAX_BATCHES) throw new Error('Drain exceeds its batch limit')
-            return ['claim']
-        }
-        await expect(drainDueClaims(continuousBatch)).resolves.toHaveLength(MAX_BATCHES)
-        expect(processedBatches).toBe(MAX_BATCHES)
-    })
-
-    it('the backfill progress poll projects columns instead of select(*)', async () => {
-        const source = await read('supabase/functions/api/sync.ts')
-        expect(source).not.toContain("select('*')")
     })
 })

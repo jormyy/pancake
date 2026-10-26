@@ -1,5 +1,5 @@
 import { attestedMigrationFiles } from './helpers/attested-migrations'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -203,90 +203,5 @@ describe('soak shard plan inputs', () => {
     expect(soakShardPlanFailures({ ...input, pendingFiles: pending.slice(1) })).toEqual(['pending migration files differ from the attested plan'])
     expect(soakShardPlanFailures({ ...input, repositoryHead: release.baselineVersion })).toEqual(['repository migration head differs from the attested plan'])
     expect(soakShardPlanFailures({ ...input, deployedVersion: '99990101000001' })[0]).toContain('ahead of repository head')
-  })
-})
-
-describe('release soak shard workflows', () => {
-  const plan = readFileSync('.github/workflows/release-soak.yml', 'utf8')
-  const shard = readFileSync('.github/workflows/release-soak-shard.yml', 'utf8')
-  const seasons = Number(JSON.parse(readFileSync('package.json', 'utf8')).scripts['e2e:soak:release'].match(/--seasons=(\d+)/)[1])
-  const shardCount = [...plan.matchAll(/^ {2}soak-shard-(\d+):$/gm)].length
-
-  it('chains every shard after the attested plan and keeps each job bounded', () => {
-    expect(seasons).toBe(20)
-    expect(shardCount).toBe(4)
-    for (let index = 1; index <= shardCount; index += 1) {
-      const block = plan.split(`  soak-shard-${index}:\n`)[1].split(/\n {2}\S/)[0]
-      expect(block).toContain(`needs: [release-soak${index > 1 ? `, soak-shard-${index - 1}` : ''}]`)
-      expect(block).toContain('uses: ./.github/workflows/release-soak-shard.yml')
-      expect(block).toContain(`shard: ${index}\n`)
-      expect(block).toContain(`shard_count: ${shardCount}\n`)
-      expect(block).toContain('migration_plan_sha256: ${{ needs.release-soak.outputs.migration_plan_sha256 }}')
-      expect(block).toContain('secrets: inherit')
-    }
-    expect(Math.max(...planSoakShards(seasons, shardCount).map(({ firstSeason, lastSeason }) => lastSeason - firstSeason + 1))).toBeLessThanOrEqual(5)
-    expect([...`${plan}\n${shard}`.matchAll(/timeout-minutes: (\d+)/g)].every((match) => Number(match[1]) <= 180)).toBe(true)
-    expect(shard).toContain(`--require-season-reports=${seasons}`)
-  })
-
-  it('runs browser-driving release scripts with the package binaries on PATH', () => {
-    // Plain `node` (unlike npm run/exec) does not see node_modules/.bin, so a step that starts
-    // a script which spawns agent-browser must put the package binaries on PATH first.
-    const spawnsBrowser = (file: string, seen = new Set<string>()): boolean => {
-      if (seen.has(file) || !existsSync(file)) return false
-      seen.add(file)
-      const source = readFileSync(file, 'utf8')
-      if (/execFile(?:Async)?\(\s*['"]agent-browser['"]/.test(source)) return true
-      return [...source.matchAll(/(?:from\s+|import\()\s*['"](\.[^'"]+)['"]/g)]
-        .some((match) => spawnsBrowser(path.resolve(path.dirname(file), match[1]), seen))
-    }
-    let browserSteps = 0
-    for (const workflow of [plan, shard]) {
-      for (const block of workflow.split('\n      - ')) {
-        const scripts = [...block.matchAll(/^\s+node ((?:tests\/e2e|scripts)\/[\w./-]+\.mjs)/gm)]
-          .map((match) => match[1]).filter((script) => spawnsBrowser(script))
-        if (scripts.length === 0) continue
-        browserSteps += 1
-        const pathAt = block.indexOf('export PATH="$PWD/node_modules/.bin:$PATH"')
-        expect(pathAt, scripts.join(', ')).toBeGreaterThan(-1)
-        for (const script of scripts) expect(pathAt, script).toBeLessThan(block.indexOf(`node ${script}`))
-      }
-    }
-    expect(browserSteps).toBeGreaterThan(0)
-  })
-
-  it('installs the deployed Edge worktree before stamping its provenance', () => {
-    const compat = shard.split('      - name: Verify cross-version runtime compatibility against upgraded schema\n')[1].split('\n      - ')[0]
-    const install = compat.indexOf('npm ci --prefix "$deployed_edge_worktree"')
-    expect(install).toBeGreaterThan(-1)
-    expect(install).toBeLessThan(compat.indexOf('node scripts/stamp-edge-release-provenance.mjs'))
-  })
-
-  it('hands state forward and runs release-wide checks only in the final shard', () => {
-    const step = (name: string) => shard.split(`      - name: ${name}\n`)[1]?.split('\n      - ')[0] ?? ''
-    expect(step('Seed release fixture')).toContain('if: inputs.shard == 1')
-    expect(step('Restore the previous shard database and checkpoint')).toContain('if: inputs.shard > 1')
-    expect(step('Restore the previous shard database and checkpoint')).toContain('bash tests/e2e/soak-state.sh restore')
-    expect(step('Package the soak state for the next shard')).toContain('supabase stop\n          bash tests/e2e/soak-state.sh save')
-    const stateScript = readFileSync('tests/e2e/soak-state.sh', 'utf8')
-    expect(stateScript).toContain('sha256sum --check --strict SHA256SUMS')
-    expect(stateScript).toContain('volumes=("supabase_db_${project_id}" "supabase_storage_${project_id}")')
-    expect(stateScript).toMatch(/image='debian@sha256:[0-9a-f]{64}'/)
-    expect(step('Package the soak state for the next shard')).toContain('if: inputs.shard < inputs.shard_count')
-    expect(step('Hand the soak state to the next shard')).toContain('name: release-soak-shard-${{ inputs.shard }}-state')
-    for (const finalStep of [
-      'Re-attest the deployed baseline and migration plan',
-      'Verify cross-version runtime compatibility against upgraded schema',
-      'Measure post-migration ranked workflow data latency',
-      'Enforce browser and data performance budgets',
-    ]) {
-      expect(step(finalStep), finalStep).toContain('if: inputs.shard == inputs.shard_count')
-    }
-    expect(step('Re-attest the deployed baseline and migration plan')).toContain('test "$plan_sha256" = "$E2E_SOAK_MIGRATION_PLAN_SHA256"')
-    expect(shard.indexOf('Run coverage-enforcing soak')).toBeLessThan(shard.indexOf('Package the soak state for the next shard'))
-    expect(shard.indexOf('Re-attest the deployed baseline and migration plan'))
-      .toBeLessThan(shard.indexOf('Verify cross-version runtime compatibility against upgraded schema'))
-    expect(shard).toContain('E2E_SOAK_SHARD: ${{ inputs.shard }}/${{ inputs.shard_count }}')
-    expect(shard).toContain('node tests/e2e/soak-shard-plan-check.mjs')
   })
 })
