@@ -16,6 +16,8 @@ export const productionJobs = [
   ['nba-sync-draft-order-june', '0 13 20-30 6 *', "SELECT public.invoke_edge_function('sync-draft-order')"],
   ['nba-sync-draft-order-july', '0 13 1-15 7 *', "SELECT public.invoke_edge_function('sync-draft-order')"],
   ['edge-invocation-reconcile', '*/5 * * * *', 'SELECT private.reconcile_edge_invocations()'],
+  ['matchup-forecasts', '* * * * *', 'SELECT public.invoke_matchup_forecasts_if_due()'],
+  ['cleanup-trade-estimates', '35 8 * * *', 'SELECT public.cleanup_trade_estimate_quotes()'],
 ].map(([jobname, schedule, command]) => ({ jobname, schedule, command }))
 
 function fieldMatches(field, value, maximum) {

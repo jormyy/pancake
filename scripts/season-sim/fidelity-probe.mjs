@@ -71,7 +71,7 @@ try {
   } finally { await rm(faultFile) }
   const archive = path.join(miniRoot, 'rejected-fidelity-20261026T072354Z/evidence/dispatch.jsonl')
   const bytes = await readFile(archive)
-  const rows = bytes.toString('utf8').trim().split('\n').map(JSON.parse)
+  const rows = bytes.toString('utf8').trim().split('\n').map(row => JSON.parse(row))
   const failures = rows.filter(row => ['sync-rankings', 'sync-sleeper-projections'].includes(row.function_name) && row.worker_status === 'failed')
   assert.ok(failures.length >= 48)
   const durableFailures = await sqlJson(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT i.id,i.invocation_key,s.status AS sync_status,s.error AS sync_error FROM edge_invocations i JOIN sync_runs s ON s.id=i.sync_run_id WHERE i.id IN (${failures.map(row => Number(row.id)).join(',')})) r`, 'Retained routing failure outcomes')

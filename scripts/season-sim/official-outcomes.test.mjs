@@ -32,11 +32,10 @@ function receipt(worker, source, original, overrides = {}) {
     transport: providerTransport(original).href, method: 'GET', at: timestamp,
     status: 503, unavailable, bodySha256: hash(JSON.stringify(payload)), ...overrides,
   }
-  row.originReceipt = {
+  return { ...row, originReceipt: {
     requestId: row.requestId, transport: row.transport, method: row.method,
     at: row.at, status: row.status, bodySha256: row.bodySha256, unavailable: structuredClone(row.unavailable),
-  }
-  return row
+  } }
 }
 
 function rankingCase() {
@@ -92,8 +91,8 @@ test('provider gap evidence fails closed when any required link changes', () => 
 
 test('a valid historical response cannot excuse a later provider fault', () => {
   const { worker, providers } = rankingCase()
-  providers.push({ ...structuredClone(providers[0]), requestId: 'retry-failed', error: 'Injected worker fault' })
-  assert.equal(classify(worker, providers).kind, 'unexpected')
+  const failed = { ...structuredClone(providers[0]), requestId: 'retry-failed', error: 'Injected worker fault' }
+  assert.equal(classify(worker, [...providers, failed]).kind, 'unexpected')
 })
 
 test('player sync keeps identity gaps separate from attributed injury warnings', () => {
@@ -141,12 +140,12 @@ test('player career source gaps require independent exact receipts and unverifie
   const worker = outcome('sync-players', { sync_error: failure, content: JSON.stringify({ failure, injuryWarnings: 0, careerUnverified: 4 }) })
   const identities = receipt(worker, 'sleeper-identities', `${originUrl('replay')}/sleeper/players/nba`)
   const sources = [
-    ['espn-career-stats', '/career/athletes/123/stats?seasontype=2', 200],
-    ['espn-career-biography', '/career/athletes/123', 503],
-    ['espn-career-search', '/career-search?query=Example+Player&type=player&limit=50', 503],
-    ['nba-career-profile', '/nba/player/123', 503],
+    { source: 'espn-career-stats', path: '/career/athletes/123/stats?seasontype=2', status: 200 },
+    { source: 'espn-career-biography', path: '/career/athletes/123', status: 503 },
+    { source: 'espn-career-search', path: '/career-search?query=Example+Player&type=player&limit=50', status: 503 },
+    { source: 'nba-career-profile', path: '/nba/player/123', status: 503 },
   ]
-  for (const [source, path, status] of sources) {
+  for (const { source, path, status } of sources) {
     const career = receipt(worker, source, `${originUrl('replay')}${path}`, { status })
     assert.deepEqual(classify(worker, [identities, career]), { kind: 'known-source-gap', gaps: ['sleeper-identities', source] })
     for (const count of [undefined, 0, -1, 1.5, '1']) {
@@ -167,8 +166,8 @@ test('player career source gaps require independent exact receipts and unverifie
       assert.equal(classify(worker, [identities, changed]).kind, 'unexpected', source)
     }
   }
-  const providers = sources.map(([source, path, status]) => receipt(worker, source, `${originUrl('replay')}${path}`, { status }))
-  assert.deepEqual(classify(worker, [identities, ...providers]), { kind: 'known-source-gap', gaps: ['sleeper-identities', ...sources.map(([source]) => source)] })
+  const providers = sources.map(({ source, path, status }) => receipt(worker, source, `${originUrl('replay')}${path}`, { status }))
+  assert.deepEqual(classify(worker, [identities, ...providers]), { kind: 'known-source-gap', gaps: ['sleeper-identities', ...sources.map(({ source }) => source)] })
 })
 
 function projectionsCase() {

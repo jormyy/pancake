@@ -58,7 +58,11 @@ add('waiver-order', r, 'AND claim_order > v_claim.claim_order', 'AND claim_order
 add('waiver-order', r, 'ORDER BY claim_order, submitted_at, id', 'ORDER BY claim_order DESC, submitted_at, id', 'ORDER ASC -> DESC', 'Reverse normalization')
 add('waiver-order', r, 'SET claim_order = v_claim.claim_order', 'SET claim_order = v_other.claim_order', 'ARG-SWAP claim -> other', 'Swap does not update other claim')
 add('waiver-order', r, "(v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)", "(v_waiver_mode = 'faab' OR bid_amount = v_claim.bid_amount)", 'CONST rolling -> faab', 'Normalize unequal FAAB bids as a group')
-add('waiver-order', p, 'AND due_wwl.clears_at <= now()', 'AND due_wwl.clears_at < now()', 'ROR <= -> <', 'Exact clears_at boundary is delayed', 0)
+rows.append(dict(id='waiv-waiver-order-13', area='waiver-order', symbol=p,
+                 file='supabase/migrations/20260827000001_roster_lifecycle_invariants.sql', line=1190,
+                 operator='ROR <= -> <', original='AND due_wwl.clears_at <= now()',
+                 mutated='AND due_wwl.clears_at < now()',
+                 notes='Retired: scheduled claims replace the due waiver-log join', retired=True))
 add('waiver-limits', 'private.weekly_add_limit_reached', '>= p_limit', '> p_limit', 'ROR >= -> >', 'Allow one add above the limit')
 add('waiver-limits', 'private.weekly_add_limit_reached', 'IS NOT NULL AND', 'IS NOT NULL OR', 'LCR AND -> OR', 'Reject below-limit adds')
 add('waiver-limits', 'private.weekly_add_limit_reached', 'COALESCE(p_used, 0)', 'COALESCE(p_used, p_limit)', 'CONST zero -> limit', 'Null usage incorrectly exhausts limit')
@@ -105,6 +109,8 @@ add('waiver-limits', 'private.current_add_week', 'v_elapsed_weeks := (v_today - 
 
 add('trade-deadline', 'private.create_trade_offer', "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock proposals on the deadline date instead of the next New York date')
 add('trade-deadline', 'public.prevent_trade_acceptance_after_deadline', "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock acceptance on the deadline date instead of the next New York date')
+
+add('waiver-order', p, "AND (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()", "AND (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York' < now()", 'ROR <= -> <', 'Exact scheduled 03:00 boundary is delayed')
 
 oracles = {
     'initial': [

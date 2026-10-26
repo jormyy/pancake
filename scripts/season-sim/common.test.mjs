@@ -11,8 +11,8 @@ test('database connections cannot inherit a different host or service', () => {
     const env = databaseEnvironment(new URL(`postgresql://postgres:fixture@localhost:${config.ports.db}/postgres`))
     assert.equal(env.PGHOST, '127.0.0.1')
     assert.equal(env.PGHOSTADDR, '127.0.0.1')
-    assert.equal(env.PGSERVICE, undefined)
-    assert.equal(env.PGSERVICEFILE, undefined)
+    assert.equal(Object.hasOwn(env, 'PGSERVICE'), false)
+    assert.equal(Object.hasOwn(env, 'PGSERVICEFILE'), false)
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]

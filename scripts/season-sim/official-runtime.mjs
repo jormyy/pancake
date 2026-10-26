@@ -68,7 +68,7 @@ export async function officialRuntime(at, report, inputPlan, sample = async () =
     reconciledThrough = Math.max(reconciledThrough, ...rows.map(row => Number(row.id)))
     inventory.through = reconciledThrough
     inventory.nativeCount = count
-    inventory.counts = Object.fromEntries(Object.entries(fidelity.counts).map(([name, total]) => [name, total - (initialCounts[name] ?? 0)]).filter(([, total]) => total > 0))
+    inventory.counts = Object.fromEntries(Object.entries(fidelity.counts).map(([name, total]) => ({ name, total: total - (initialCounts[name] ?? 0) })).filter(row => row.total > 0).map(row => [row.name, row.total]))
     fidelity.catalogVerified = true
     fidelity.coverage = { invoked: { ...fidelity.counts }, coalesced: { ...report.compression.coalesced } }
     fidelity.reconciled = true
