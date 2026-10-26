@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { dynastyAnalyzerRouteSignature, dynastyScoringSignature } from '@/lib/dynasty-decisions'
-import { requestTradeEstimate, type TradeEstimateQuote } from '@/lib/trade-estimates'
+import { requestTradeEstimate, requestTradeRevaluation, type TradeEstimateQuote, type TradeRevaluation } from '@/lib/trade-estimates'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { Json } from '@/types/database'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
@@ -14,6 +14,7 @@ type Input = {
     debounceMs?: number
     leagueId: string
     memberId: string
+    tradeId?: string
     scoringSettings: Json | null | undefined
     teams: number
     faabBudget: number
@@ -25,11 +26,12 @@ export function useDynastyTradeAnalysis(input: Input): {
     analysis: DynastyTradeAnalysis | null
     quote: TradeEstimateQuote | null
     seasonYear: number | null
+    calculatedAt: string | null
     loading: boolean
     error: string | null
     retry: () => void
 } {
-    const [result, setResult] = useState<{ scope: string; quote: TradeEstimateQuote | null; error: string | null } | null>(null)
+    const [result, setResult] = useState<{ scope: string; value: TradeEstimateQuote | TradeRevaluation | null; error: string | null } | null>(null)
     const [refresh, setRefresh] = useState(0)
     const sequence = useRef(0)
     const retry = useCallback(() => {
@@ -39,8 +41,8 @@ export function useDynastyTradeAnalysis(input: Input): {
     }, [])
     const online = useOnlineStatus()
     const visible = usePanelActivity()
-    const active = input.enabled && online && visible && Boolean(input.leagueId && input.memberId && input.items.length)
-    const scope = `${active}:${input.leagueId}:${input.memberId}:${dynastyAnalyzerRouteSignature(input.items)}:${dynastyScoringSignature(input.scoringSettings)}:${input.teams}:${input.faabBudget}`
+    const active = input.enabled && online && visible && Boolean(input.leagueId && input.memberId && (input.tradeId || input.items.length))
+    const scope = `${active}:${input.leagueId}:${input.memberId}:${input.tradeId ?? ''}:${dynastyAnalyzerRouteSignature(input.items)}:${dynastyScoringSignature(input.scoringSettings)}:${input.teams}:${input.faabBudget}`
     const currentScope = useRef(scope)
     currentScope.current = scope
     const itemsRef = useRef(input.items)
@@ -68,16 +70,18 @@ export function useDynastyTradeAnalysis(input: Input): {
         let cancelled = false
         let expiry: ReturnType<typeof setTimeout> | undefined
         const timer = setTimeout(() => {
-            void requestTradeEstimate(input.memberId, itemsRef.current).then(quote => {
+            const requested = input.tradeId ? requestTradeRevaluation(input.memberId, input.tradeId)
+                : requestTradeEstimate(input.memberId, itemsRef.current)
+            void requested.then(value => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
-                setResult({ scope, quote, error: null })
+                setResult({ scope, value, error: null })
                 expiry = setTimeout(() => {
                     setResult(null)
                     setRefresh(value => value + 1)
-                }, Math.max(1000, Date.parse(quote.expiresAt) - Date.now()))
+                }, Math.max(1000, Date.parse(value.expiresAt) - Date.now()))
             }).catch(error => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
-                setResult({ scope, quote: null, error: error instanceof Error ? error.message : 'Trade estimate unavailable.' })
+                setResult({ scope, value: null, error: error instanceof Error ? error.message : 'Trade estimate unavailable.' })
             })
         }, debounceMs)
         return () => {
@@ -85,13 +89,14 @@ export function useDynastyTradeAnalysis(input: Input): {
             clearTimeout(timer)
             if (expiry) clearTimeout(expiry)
         }
-    }, [active, debounceMs, input.memberId, scope, refresh])
+    }, [active, debounceMs, input.memberId, input.tradeId, scope, refresh])
 
     const shown = active && result?.scope === scope ? result : null
     return {
-        analysis: shown?.quote?.analysis ?? null,
-        quote: shown?.quote ?? null,
-        seasonYear: shown?.quote?.seasonYear ?? null,
+        analysis: shown?.value?.analysis ?? null,
+        quote: !input.tradeId && shown?.value && 'id' in shown.value ? shown.value : null,
+        seasonYear: shown?.value?.seasonYear ?? null,
+        calculatedAt: shown?.value?.createdAt ?? null,
         loading: active && !shown,
         error: shown?.error ?? null,
         retry,

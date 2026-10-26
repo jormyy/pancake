@@ -4,6 +4,9 @@ CREATE OR REPLACE FUNCTION public.save_trade_estimate_quote(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE result public.trade_estimate_quotes%ROWTYPE; v_input_version text:=md5(p_inputs::text);
 BEGIN
+  IF p_inputs ? 'revaluationTradeId' THEN
+    RAISE EXCEPTION 'A historical revaluation cannot become an offer quote.' USING ERRCODE='22023';
+  END IF;
   IF NOT EXISTS(SELECT 1 FROM public.league_members m JOIN public.league_seasons s ON s.league_id=m.league_id
     WHERE m.id=p_member_id AND m.user_id=p_user_id AND m.league_id=(p_inputs->>'leagueId')::uuid
       AND s.id=(p_inputs->>'seasonId')::uuid AND s.is_current) THEN

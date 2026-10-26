@@ -21,6 +21,13 @@ export type TradeEstimateSummary = {
     teams: DynastyTradeTeamResult[]
 }
 
+export type TradeRevaluation = Omit<TradeEstimateQuote, 'id'> & { tradeId: string }
+
+export async function requestTradeRevaluation(memberId: string, tradeId: string): Promise<TradeRevaluation> {
+    const result = await apiPost<{ revaluation: TradeRevaluation }>(`/trades/${tradeId}/revalue`, { memberId })
+    return result.revaluation
+}
+
 export async function requestTradeEstimate(memberId: string, items: MultiTeamTradeItemPayload[]): Promise<TradeEstimateQuote> {
     const result = await apiPost<{ quote: TradeEstimateQuote }>('/trades/estimate', { memberId, items })
     return result.quote

@@ -4,7 +4,7 @@ import { act, create } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
 import { trade } from './helpers/fixtures'
-import type { TradeItem } from '@/lib/trades'
+import type { RoutedTradeItem } from '@/lib/trades'
 
 const league = vi.hoisted(() => ({ id: 'league-a', taxi_slots: 3, allow_inactive_trades: false }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: league }) }))
@@ -23,7 +23,7 @@ const actions = { acting: false, onAccept: vi.fn(), onReject: vi.fn(), onVeto: v
 describe('trade roster destination', () => {
     it.each([false, true])('uses one full plan editor when inactive trades are %s', async (allowInactive) => {
         league.allow_inactive_trades = allowInactive
-        const item: TradeItem = { ...incoming, yearsExp: 0, nbaDraftNumber: 12 }
+        const item: RoutedTradeItem = { ...incoming, yearsExp: 0, nbaDraftNumber: 12 }
         const value = trade({ status: 'pending', routedItems: [item] })
         let renderer!: ReturnType<typeof create>
         await act(async () => { renderer = create(React.createElement(TradeDetailsPanel, {

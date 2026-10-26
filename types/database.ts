@@ -5266,6 +5266,10 @@ export type Database = {
           trade_id: string
         }[]
       }
+      get_trade_revaluation_inputs: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Returns: Json
+      }
       get_trade_roster_preview: {
         Args: { p_trade_id: string; p_user_id: string }
         Returns: Json

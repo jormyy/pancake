@@ -4,9 +4,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import type { TradeEstimateQuote } from '@/lib/trade-estimates'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn(), change: null as null | ((value: { topic: string }) => void),
+const mocks = vi.hoisted(() => ({ request: vi.fn(), revalue: vi.fn(), change: null as null | ((value: { topic: string }) => void),
     delay: false, pendingRefresh: null as null | (() => void) }))
-vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.request }))
+vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.request, requestTradeRevaluation: mocks.revalue }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
@@ -129,4 +129,24 @@ it('rejects a prior input response during the source refresh delay', async () =>
     await act(async () => { mocks.pendingRefresh?.() })
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(latest.quote?.id).toBe('updated-source')
+})
+
+it('revalues saved terms without exposing a quote that can submit an offer', async () => {
+    const current = { ...quote(), tradeId: 'completed-trade' }
+    mocks.revalue.mockResolvedValue(current)
+    await render({ ...base, tradeId: 'completed-trade' })
+    expect(mocks.revalue).toHaveBeenCalledExactlyOnceWith('member-a', 'completed-trade')
+    expect(mocks.request).not.toHaveBeenCalled()
+    expect(latest.analysis).toEqual(current.analysis)
+    expect(latest.calculatedAt).toBe(current.createdAt)
+    expect(latest.quote).toBeNull()
+})
+
+it('rejects a historical response after switching to editable terms', async () => {
+    const previous = deferred<TradeEstimateQuote & { tradeId: string }>()
+    mocks.revalue.mockReturnValue(previous.promise)
+    await render({ ...base, tradeId: 'completed-trade' })
+    await render(base)
+    await act(async () => { previous.resolve({ ...quote('old'), tradeId: 'completed-trade' }); await previous.promise })
+    expect(latest.quote?.id).toBe('quote-a')
 })

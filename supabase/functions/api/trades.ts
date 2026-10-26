@@ -1,7 +1,7 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
-import { createTradeEstimate } from './tradeEstimates.ts'
+import { createTradeEstimate, revalueTrade } from './tradeEstimates.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
   MAX_TRADE_FAAB_AMOUNT,
@@ -541,6 +541,12 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
 
   const userId = await requireUser(req)
   const body = await readJsonObject(req)
+
+  if (action.action === 'revalue') {
+    const memberId = uuidField(body, 'memberId')
+    await verifyOwnMember(userId, memberId)
+    return json({ ok: true, revaluation: await revalueTrade(userId, memberId, action.tradeId) })
+  }
 
   if (action.action === 'roster-preview') {
     const { data, error } = await supabase.rpc('get_trade_roster_preview', { p_trade_id: action.tradeId, p_user_id: userId })

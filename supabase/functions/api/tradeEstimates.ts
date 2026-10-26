@@ -28,3 +28,21 @@ export async function createTradeEstimate(userId: string, memberId: string, item
   if (saveError) throwDb(saveError)
   return quote as unknown as TradeEstimateQuote
 }
+
+export async function revalueTrade(userId: string, memberId: string, tradeId: string) {
+  const { data, error } = await supabase.rpc('get_trade_revaluation_inputs', {
+    p_user_id: userId, p_member_id: memberId, p_trade_id: tradeId,
+  })
+  if (error) throwDb(error)
+  const inputs = data as unknown as TradeEstimateInputs & { inputVersion: string; observedAt: string }
+  return {
+    tradeId,
+    analysis: analyzeTradeEstimate(inputs, Date.parse(inputs.observedAt)),
+    modelVersion: DYNASTY_TRADE_MODEL_VERSION,
+    inputVersion: inputs.inputVersion,
+    createdAt: inputs.observedAt,
+    expiresAt: new Date(Date.parse(inputs.observedAt) + 600000).toISOString(),
+    seasonYear: inputs.seasonYear,
+    terms: inputs.terms,
+  }
+}

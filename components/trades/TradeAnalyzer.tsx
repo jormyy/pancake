@@ -54,6 +54,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const [members, setMembers] = useState<TradeComposerMember[]>([])
     const [membersLoaded, setMembersLoaded] = useState(false)
     const [showAnalysis, setShowAnalysis] = useState(Boolean(prefillTrade))
+    const [historical, setHistorical] = useState(Boolean(prefillTrade))
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
     const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
@@ -77,11 +78,12 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const networkAvailable = online && !networkUnavailable
     const teamCount = Math.max(4, members.length + 1)
     const faabBudget = currentLeague?.faab_starting_budget ?? 100
-    const { analysis, quote, seasonYear, loading, error, retry: retryAnalysis } = useDynastyTradeAnalysis({
+    const { analysis, calculatedAt, seasonYear, loading, error, retry: retryAnalysis } = useDynastyTradeAnalysis({
         debounceMs: 300,
         enabled: composer.assetsReady,
         leagueId,
         memberId: myMemberId,
+        tradeId: historical ? prefillTrade?.id : undefined,
         scoringSettings: currentLeague?.scoring_settings,
         teams: teamCount,
         faabBudget,
@@ -114,7 +116,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const lastRouteSignature = latestRouteKey ? readPersistentCache<string>(latestRouteKey) : null
     const cacheRouteSignature = routeSignature || (!networkAvailable ? lastRouteSignature : null)
     const snapshotKey = analyzerCacheScope && cacheRouteSignature
-        ? dynastyAnalyzerSnapshotCacheKey(analyzerCacheScope, cacheRouteSignature)
+        ? dynastyAnalyzerSnapshotCacheKey(analyzerCacheScope, `${historical ? `revaluation:${prefillTrade?.id}:` : ''}${cacheRouteSignature}`)
         : null
     const storedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
     const cachedSnapshot = storedSnapshot?.leagueId === leagueId && storedSnapshot.memberId === myMemberId ? storedSnapshot : null
@@ -123,6 +125,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         setMembers([])
         setMembersLoaded(false)
         setShowAnalysis(Boolean(prefillTrade))
+        setHistorical(Boolean(prefillTrade))
         setNetworkUnavailable(false)
         prefillRef.current = ''
         resetComposer()
@@ -167,10 +170,12 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             leagueId,
             memberId: myMemberId,
         })
-        writePersistentCache(latestRouteKey, routeSignature)
-        writePersistentCache(latestScopeKey, liveCacheScope)
+        if (!historical) {
+            writePersistentCache(latestRouteKey, routeSignature)
+            writePersistentCache(latestScopeKey, liveCacheScope)
+        }
     }, [analysis, latestRouteKey, latestScopeKey, leagueId, liveCacheScope, myMemberId, participantName,
-        routeSignature, snapshotKey, loading, error])
+        routeSignature, snapshotKey, loading, error, historical])
 
     const setMode = useCallback((nextMulti: boolean) => {
         setMultiTeamMode(nextMulti)
@@ -185,7 +190,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const routeIsComplete = items.length > 0 &&
         participantCountReady &&
         composer.participantIds.every((memberId) => twoTeamInvolved.has(memberId))
-    const canMakeOffer = networkAvailable && !isTradingClosed(currentLeague) && composer.selectedAssetsAvailable && routeIsComplete
+    const canMakeOffer = !historical && networkAvailable && !isTradingClosed(currentLeague) && composer.selectedAssetsAvailable && routeIsComplete
     const offerHelp = !online ? 'Connect to make an offer.'
         : networkUnavailable ? 'Retry loading league teams to make an offer.'
         : isTradingClosed(currentLeague) ? 'Trades are locked for this league.'
@@ -240,6 +245,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     const verdict = (
         <View style={styles.verdict}>
+            {historical ? <Text style={styles.copy}>Current values for the original trade terms. The saved estimate stays unchanged.</Text> : null}
             {error || composer.rosterError || networkUnavailable ? <View style={styles.analysisError}>
                 <Text accessibilityRole="alert" style={styles.offline}>{error || composer.rosterError || 'Could not load league teams.'}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Retry trade analysis"
@@ -247,7 +253,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                     <Text style={styles.copy}>Retry analysis</Text>
                 </Pressable>
             </View> : null}
-            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={quote?.createdAt} participantName={analysisParticipantName}
+            <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={calculatedAt ?? undefined} participantName={analysisParticipantName}
                 loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
         </View>
     )
@@ -255,9 +261,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady && !loading)}>
         <View style={styles.scroll}>
         <View style={styles.analysisActions}>
-            <Button title="Edit assets" variant="secondary" size="sm" onPress={() => setShowAnalysis(false)} />
-            <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
-                accessibilityLabel="Make Offer from this analysis" />
+            <Button title="Edit assets" variant="secondary" size="sm" onPress={() => { setHistorical(false); setShowAnalysis(false) }} />
+            {!historical ? <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
+                accessibilityLabel="Make Offer from this analysis" /> : null}
         </View>
         <ScrollView contentContainerStyle={styles.content}>{verdict}</ScrollView>
         </View>
