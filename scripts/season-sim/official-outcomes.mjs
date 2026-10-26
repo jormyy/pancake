@@ -11,6 +11,10 @@ export function classifyOutcome(outcome, evidence = {}) {
   try { return classifyNativeOutcome(outcome, evidence) } catch { return { kind: 'unexpected', reason: 'Malformed outcome evidence' } }
 }
 
+export function sourceGapReference({ phase, outcome, classification }) {
+  return { phase, invocationKey: outcome.invocation_key, function: outcome.function_name, gaps: classification.gaps }
+}
+
 function classifyNativeOutcome(outcome, { providers = [], at, draftAvailableAt } = {}) {
   const reject = reason => ({ kind: 'unexpected', reason })
   let body

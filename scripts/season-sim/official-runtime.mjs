@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { providerEvidence } from './provider-evidence.mjs'
 import { randomUUID } from 'node:crypto'
-import { catalogIdentity, classifyOutcome, fidelityPass } from './official-outcomes.mjs'
+import { catalogIdentity, classifyOutcome, fidelityPass, sourceGapReference } from './official-outcomes.mjs'
 import { advanceCron, cronMatches, verifyCronCatalog } from './cron.mjs'
 import { cronDispatcher } from './cron-dispatcher.mjs'
 import { miniRoot, writeJson, originUrl } from './common.mjs'
@@ -48,7 +48,7 @@ export async function officialRuntime(at, report, inputPlan, sample = async () =
     const receipt = { phase, draftAvailableAt: inputPlan.draft.availableAt, at: new Date(clock).toISOString(), outcome: { ...outcome, providerOrigin: originUrl('replay') }, providers: evidence, classification }
     fidelity.outcomes.push(receipt)
     seen.add(outcome.invocation_key)
-    if (classification.kind === 'known-source-gap') fidelity.unsupportedInputs.push(receipt)
+    if (classification.kind === 'known-source-gap') fidelity.unsupportedInputs.push(sourceGapReference(receipt))
     if (classification.kind === 'unexpected') {
       fidelity.unexpected.push(receipt)
       assert.fail(`Official replay dispatch failed: ${JSON.stringify(receipt)}`)
