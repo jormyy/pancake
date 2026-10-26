@@ -28,6 +28,14 @@ Its Supabase origin comes from `app.supabase_url` or the corresponding Vault fal
 The CI database setup in `.github/workflows/test.yml` shows the local dispatch wiring.
 Do not apply that wiring to a hosted project.
 
+For `npm run test:db`, set `PANCAKE_TEST_DB_PORT` and `PANCAKE_TEST_API_PORT` to this checkout's private ports.
+Set `PANCAKE_TEST_PROJECT_ID` to its private project ID.
+Keep those values aligned with `supabase/config.toml` throughout the run.
+The player-data Deno recipes check the config ports directly.
+Use PostgreSQL client 15 or newer; recipe guards use `psql`'s `\getenv` command.
+Run ordinary Edge checks without the database test environment, which enables separate integration cases.
+Stop the private stack before removing its generated `supabase/.temp/start-secrets` files and running the quality gate.
+
 The [layout setup](../tests/e2e/layout-stability-README.md) generates local-only environment and seed files outside the checkout.
 The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench/README.md) require their own fixed targets.
 

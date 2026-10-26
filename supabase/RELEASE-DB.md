@@ -13,6 +13,7 @@ Apply these follow-up migrations after that baseline, in version order:
 - `20261027000200_player_identity_matching.sql`
 - `20261027000201_player_career_counter.sql`
 - `20261027000202_player_source_coverage.sql`
+- `20261027000203_preserve_explicit_career_writes.sql`
 
 The counter migration replaces its earlier unpublished rehearsal version.
 Rebuild the rehearsal from the production baseline before applying this revised file.
@@ -72,6 +73,9 @@ No player with at least 65 stored games enters the lookup queue, regardless of b
 The database claim checks that limit again before any external request.
 Existing counts remain stored; exact totals above 65 do not affect taxi eligibility.
 Transactional recounts continue, but cannot lower a count once it reaches 65.
+Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
+The final migration limits the career guard to base changes and preserves timestamp-only updates.
+It changes no stored counts when applied.
 The lookup replaces coverage with the completed-season ESPN base and recounts later local appearances.
 Unavailable ESPN data leaves coverage unchanged and permits another attempt after at least seven days.
 Any base lookup that would lower the stored total is rejected, preserving the count for a later attempt.
@@ -127,6 +131,8 @@ The eight players missing both ESPN and NBA IDs can link independently from eith
 These counts can overlap; they do not establish that all 692 team labels remain current.
 A player absent from both complete rosters for a full daily cycle loses the stale team label.
 Partial rosters, one-source omissions, recent box evidence, and stale refreshes keep the existing hold protections.
+An incomplete NBA roster records `rosterRefreshSkipped` without failing an otherwise successful sync.
+Provider fetch or identity-write failures still fail the sync and report their cause.
 Unassigned-player history remains available through the existing list behavior.
 The audit lists unresolved current players and pending absence holds after each complete cycle.
 
@@ -144,6 +150,7 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-coverage-upgrade.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career-queue.sql
 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql

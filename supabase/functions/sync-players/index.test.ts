@@ -89,6 +89,8 @@ Deno.test('sync-players with the old injuries mode runs every full-sync step', a
   assert.equal(result.imports.length, 360)
   assert.equal(result.result.updated, 360)
   assert.equal(result.result.careerUnverified, 1)
+  assert.deepEqual(result.result.rosterRefreshSkipped, ['NBA roster has fewer than 350 active players', 'NBA roster does not cover all 30 teams'])
+  assert.ok(!result.requests.some(url => url.pathname === '/rest/v1/rpc/complete_player_roster_cycle_atomic'))
   for (const path of ['/teams', '/news', '/staticData/playerIndex.json', '/athletes/veteran/stats']) {
     assert.ok(result.requests.some(url => url.pathname === path), path)
   }

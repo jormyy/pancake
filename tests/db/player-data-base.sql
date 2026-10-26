@@ -25,8 +25,8 @@ BEGIN
   END IF;
   PERFORM save_game_stats_atomic(v_game,'0022600903',v_stats,true);
   IF (SELECT career_regular_season_games FROM players WHERE id=v_player) <> 21 THEN RAISE EXCEPTION 'Base double counts on re-save'; END IF;
-  UPDATE players SET career_regular_season_games=999,career_games_checked_at=v_at WHERE id=v_player;
-  IF (SELECT career_regular_season_games FROM players WHERE id=v_player) <> 21 THEN RAISE EXCEPTION 'Deployed daily Edge overwrites the counter'; END IF;
+  UPDATE players SET career_regular_season_games=19,career_games_checked_at=v_at WHERE id=v_player;
+  IF (SELECT career_regular_season_games FROM players WHERE id=v_player) <> 19 THEN RAISE EXCEPTION 'Deployed daily Edge count write is discarded'; END IF;
   INSERT INTO players(id,first_name,last_name,years_exp,sleeper_id) VALUES(v_loser,'Base','Veteran',10,'data-base-sleeper');
   INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,minutes_played,points,did_not_play)
     VALUES(v_loser,v_second,2027,1,0,1,true);

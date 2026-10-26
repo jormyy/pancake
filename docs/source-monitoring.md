@@ -280,6 +280,8 @@ Unknown source records do not create players during injury or projection refresh
 A complete roster cycle requires both ESPN and NBA to cover all 30 teams and at least 350 players each.
 Every listed source ID must resolve before the cycle records membership.
 One-source omissions, partial cycles, and older cycles cannot remove team membership.
+Partial NBA rosters report `rosterRefreshSkipped`; they do not fail an otherwise successful sync.
+Provider fetch failures and identity-write failures remain sync failures.
 Two complete cycles at least 24 hours apart can clear a player absent from both sources.
 A gap of more than 36 hours restarts that absence period.
 A newer ESPN listing or NBA box also restarts it.

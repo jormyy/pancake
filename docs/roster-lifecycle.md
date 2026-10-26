@@ -166,8 +166,9 @@ Once a stored count reaches 65, later recounts cannot lower it.
 Corrections below 65 still use the recounted total.
 Unbased players retain their existing counts until a base succeeds.
 Replays do not add games twice.
-The deployed daily Edge writer remains compatible and cannot overwrite a based count.
-It also cannot lower an unbased legacy count.
+Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
+Timestamp-only writes preserve that value.
+A later stats save recounts players with a base; automatic recounts preserve known counts of at least 65.
 
 The server stores the current total in `players.career_regular_season_games`.
 The phone uses stored experience and career counts for display-only Rookie and Taxi tags.
