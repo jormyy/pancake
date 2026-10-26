@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
+import { isPwaUpdateHeld } from '@/lib/pwa-update-guard'
 import { NotificationAnnouncementComposer } from '@/components/settings/NotificationAnnouncementComposer'
 
 const publish = vi.hoisted(() => vi.fn(async () => {}))
@@ -21,4 +22,24 @@ it('explains in-app delivery and optional commissioner push after publishing', a
         expect(text).toContain('Members see this in the app.')
         expect(text).toContain('Only members who turned on Commissioner messages also get a push.')
     } finally { await act(async () => screen.unmount()) }
+})
+
+it('holds automatic updates while text is unsent and releases after clearing or leaving', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    let screen!: ReactTestRenderer
+    try {
+        await act(async () => { screen = create(React.createElement(NotificationAnnouncementComposer)) })
+        expect(isPwaUpdateHeld()).toBe(false)
+        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText('Keep this draft.'))
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText(''))
+        expect(isPwaUpdateHeld()).toBe(false)
+        await act(async () => screen.root.findByType('TextInput' as React.ElementType).props.onChangeText('Another draft.'))
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => screen.unmount())
+        expect(isPwaUpdateHeld()).toBe(false)
+    } finally {
+        await act(async () => screen?.unmount())
+        vi.unstubAllGlobals()
+    }
 })
