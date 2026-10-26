@@ -20,6 +20,20 @@ export function scoreForecastReceipt(receipt, matchup) {
   return { outcome, probability, homePoints: matchup.home_points, awayPoints: matchup.away_points, brier: probability == null ? null : (probability - outcome) ** 2, constantBrier: (0.5 - outcome) ** 2, meanWinnerBrier: meanPrediction == null ? null : (meanPrediction - outcome) ** 2 }
 }
 
+export function officialForecastHistorySql(c, date, matchup) {
+  return `SELECT coalesce(json_agg(h.game_record || jsonb_build_object('recency',h.recency)
+    ORDER BY h.player_id,h.game_date,h.game_id),'[]') FROM (
+    SELECT p.player_id,p.game_id,g.game_date,
+      to_jsonb(p) || jsonb_build_object('game_date',g.game_date) AS game_record,
+      row_number() OVER(PARTITION BY p.player_id ORDER BY g.game_date DESC,p.id) AS recency
+    FROM player_game_stats p JOIN nba_games g ON g.id=p.game_id
+    WHERE g.game_date<'${date}' AND g.status='Final' AND g.nba_game_id LIKE '002%' AND NOT p.did_not_play
+      AND g.season_year BETWEEN ${c.seasonYear - 1} AND ${c.seasonYear}
+      AND p.player_id IN (SELECT player_id FROM roster_players WHERE league_season_id='${c.leagueSeasonId}'
+        AND member_id IN ('${matchup.home_member_id}','${matchup.away_member_id}'))
+  ) h WHERE h.recency<=30`
+}
+
 export async function captureOfficialForecasts(c, date, week, report) {
   report.forecasts ??= []
   if (await sql("SELECT to_regprocedure('public.get_matchup_forecast_context(uuid)') IS NOT NULL") !== 't') {
@@ -37,7 +51,7 @@ export async function captureOfficialForecasts(c, date, week, report) {
     const context = await sqlJson(`SELECT public.get_matchup_forecast_context('${matchup.id}')`, 'Forecast source receipt')
     const forecast = await c.rpc(c.users[0], 'get_matchup_forecast', { p_matchup_id: matchup.id })
     const settings = (await c.rest(c.users[0], `leagues?select=scoring_settings&id=eq.${c.leagueId}`))[0].scoring_settings
-    const history = await sqlJson(`SELECT coalesce(json_agg(h ORDER BY player_id,game_date,game_id),'[]') FROM (SELECT p.*,g.game_date,row_number() OVER(PARTITION BY p.player_id ORDER BY g.game_date DESC,p.id) AS recency FROM player_game_stats p JOIN nba_games g ON g.id=p.game_id WHERE g.game_date<'${date}' AND g.status='Final' AND g.nba_game_id LIKE '002%' AND NOT p.did_not_play AND g.season_year BETWEEN ${c.seasonYear - 1} AND ${c.seasonYear} AND p.player_id IN (SELECT player_id FROM roster_players WHERE league_season_id='${c.leagueSeasonId}' AND member_id IN ('${matchup.home_member_id}','${matchup.away_member_id}'))) h WHERE recency<=30`, 'Independent prior-only forecast history')
+    const history = await sqlJson(officialForecastHistorySql(c, date, matchup), 'Independent prior-only forecast history')
     const means = new Map()
     for (const player of context.roster) {
       const rows = history.filter(row => row.player_id === player.player_id)
