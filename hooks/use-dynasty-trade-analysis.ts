@@ -49,14 +49,18 @@ export function useDynastyTradeAnalysis(input: Input): {
 
     useEffect(() => {
         if (!active) return
-        const refresh = deferLeagueRefresh(retry)
+        const refresh = deferLeagueRefresh(() => setRefresh(value => value + 1))
         let registering = true
         const stop = listenForLeagueChanges(input.leagueId, change => {
-            if (!registering && ['catchup', 'roster', 'inventory', 'resources'].includes(change.topic)) refresh.trigger()
+            if (!registering && ['catchup', 'roster', 'inventory', 'resources'].includes(change.topic)) {
+                sequence.current++
+                setResult(null)
+                refresh.trigger()
+            }
         })
         registering = false
         return () => { stop(); refresh.cancel() }
-    }, [active, input.leagueId, retry])
+    }, [active, input.leagueId])
 
     useEffect(() => {
         const request = ++sequence.current

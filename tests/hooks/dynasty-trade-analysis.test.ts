@@ -4,13 +4,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import type { TradeEstimateQuote } from '@/lib/trade-estimates'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn(), change: null as null | ((value: { topic: string }) => void) }))
+const mocks = vi.hoisted(() => ({ request: vi.fn(), change: null as null | ((value: { topic: string }) => void),
+    delay: false, pendingRefresh: null as null | (() => void) }))
 vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.request }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
 vi.mock('@/lib/league-changes', () => ({
-    deferLeagueRefresh: (fn: () => void) => ({ trigger: fn, cancel: vi.fn() }),
+    deferLeagueRefresh: (fn: () => void) => ({ trigger: () => { if (mocks.delay) mocks.pendingRefresh = fn; else fn() }, cancel: vi.fn() }),
     listenForLeagueChanges: (_league: string, fn: typeof mocks.change) => { mocks.change = fn; return () => { mocks.change = null } },
 }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -47,6 +48,8 @@ function deferred<T>() {
 beforeEach(() => {
     vi.useFakeTimers()
     vi.resetAllMocks()
+    mocks.delay = false
+    mocks.pendingRefresh = null
     observations.length = 0
     mocks.request.mockResolvedValue(quote())
 })
@@ -113,4 +116,17 @@ it('refreshes source changes and expiry without changing selected terms', async 
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(mocks.request.mock.calls.every(call => JSON.stringify(call[1]) === JSON.stringify(base.items))).toBe(true)
     expect(mocks.request.mock.calls.length).toBeGreaterThanOrEqual(3)
+})
+
+it('rejects a prior input response during the source refresh delay', async () => {
+    const old = deferred<TradeEstimateQuote>()
+    mocks.request.mockReturnValueOnce(old.promise).mockResolvedValueOnce(quote('updated-source'))
+    await render()
+    mocks.delay = true
+    await act(async () => { mocks.change?.({ topic: 'resources' }) })
+    await act(async () => { old.resolve(quote('old-source')); await old.promise })
+    expect(latest.quote).toBeNull()
+    await act(async () => { mocks.pendingRefresh?.() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(latest.quote?.id).toBe('updated-source')
 })

@@ -64,7 +64,7 @@ it('keeps injuries beside names and games visible without no-game team text', as
     for (const badge of screen.root.findAllByType('InjuryBadge' as React.ElementType)) {
         expect(badge.parent!.findAllByType('Text' as React.ElementType).some(node => ['Mine', 'Theirs'].includes(node.props.children))).toBe(true)
     }
-    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set(), teamMatchups: new Map() })))
+    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set<string>(), teamMatchups: new Map<string, { opponent: string; isHome: boolean }>() })))
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
 })
 

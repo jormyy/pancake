@@ -5,7 +5,7 @@ import { useMatchupForecast } from '@/hooks/use-matchup-forecast'
 import type { Matchup } from '@/lib/scoring'
 
 const f = vi.hoisted(() => ({
-    rpc: vi.fn(), subscribe: vi.fn(() => ({})), dispose: vi.fn(async () => {}), write: vi.fn(),
+    rpc: vi.fn(), subscribe: vi.fn((_name: string, _options: { watches: unknown[] }) => ({})), dispose: vi.fn(async () => {}), write: vi.fn(),
     read: vi.fn(), focused: true, active: true, owner: 'user', generation: 1,
     change: null as null | ((value: { topic: string }) => void), delay: false,
     pendingRead: null as null | (() => Promise<unknown>),
