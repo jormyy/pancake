@@ -10,7 +10,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[aria-label^='Add ']"
+          "selector": "[data-testid='player-name-line'] > [data-testid='player-eligibility-tags']"
         }
       }
     ],
@@ -75,7 +75,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
+          "selector": "body:not(:has([aria-label='Watch player for drops'])):has([data-testid='player-position-line']):has([data-testid='player-summary-line']) [aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ],
@@ -115,7 +115,7 @@
       {
         "select": "Season",
         "value": "2027",
-        "option": "2026–27"
+        "option": "2026\u201327"
       }
     ],
     "steps": [
@@ -123,7 +123,7 @@
         "action": {
           "select": "Season",
           "value": "2026",
-          "option": "2025–26"
+          "option": "2025\u201326"
         },
         "expected": {
           "value": {
@@ -230,7 +230,7 @@
         },
         "expected": {
           "route": "/players",
-          "selector": "[aria-label^='Add ']"
+          "selector": "[data-testid='player-name-line'] > [data-testid='player-eligibility-tags']"
         }
       }
     ],
@@ -295,7 +295,7 @@
         },
         "expected": {
           "route": "/player/{{freeAgent.id}}",
-          "selector": "[aria-busy='false'] > [data-testid='recent-games-table']"
+          "selector": "body:not(:has([aria-label='Watch player for drops'])):has([data-testid='player-position-line']):has([data-testid='player-summary-line']) [aria-busy='false'] > [data-testid='recent-games-table']"
         }
       }
     ],
@@ -335,7 +335,7 @@
       {
         "select": "Season",
         "value": "2027",
-        "option": "2026–27"
+        "option": "2026\u201327"
       }
     ],
     "steps": [
@@ -343,7 +343,7 @@
         "action": {
           "select": "Season",
           "value": "2026",
-          "option": "2025–26"
+          "option": "2025\u201326"
         },
         "expected": {
           "value": {

@@ -1,13 +1,13 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { pickLabel } from '@/lib/picks'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import { View, Text, StyleSheet } from 'react-native'
 import { useRouter } from 'expo-router'
-import { INJURY_COLORS, TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
 import { MotionPressable } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import { PosTag } from '@/components/PosTag'
-import { Badge } from '@/components/Badge'
 import { type TradeFlowItem } from '@/components/trades/MultiTeamTradeOverview'
 import { tradeDisplayPerspective } from '@/lib/trade-perspective'
 import type { TradeVetoMode } from '@/types/app'
@@ -116,19 +116,11 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
                     size={28}
                 />
                 <View style={styles.assetCopy}>
-                    <Text style={styles.assetName} numberOfLines={1}>{item.playerName}</Text>
+                    <PlayerNameLine name={item.playerName} textStyle={styles.assetName} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus} />
                     <View style={styles.assetMetaRow}>
                         {item.nbaTeam ? <Text style={styles.assetMeta}>{item.nbaTeam}</Text> : null}
-                        <PlayerEligibilityTags yearsExp={item.yearsExp} careerGames={item.careerGames} />
                         {item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                         {positions.map((pos) => <PosTag key={pos} position={pos} />)}
-                        {item.injuryStatus ? (
-                            <Badge
-                                label={item.injuryStatus}
-                                color={INJURY_COLORS[item.injuryStatus] ?? colors.textMuted}
-                                variant="solid"
-                            />
-                        ) : null}
                     </View>
                     {showContext ? (
                         <Text style={styles.assetContext} numberOfLines={1}>{playerSeasonContextText(item)}</Text>
@@ -149,7 +141,7 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
         <View style={styles.assetRow}>
             <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
             <View style={styles.assetCopy}>
-                <Text style={styles.assetName}>{item.seasonYear} Round {item.round}</Text>
+                <Text style={styles.assetName}>{pickLabel(item.seasonYear, item.round)}</Text>
                 <Text style={styles.assetMeta} numberOfLines={1}>via {item.originalTeamName}</Text>
             </View>
         </View>
@@ -187,7 +179,7 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             key: tradeItemKey(item, index),
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
-            label: `${item.seasonYear} Round ${item.round}`,
+            label: pickLabel(item.seasonYear, item.round),
             detail: `${item.originalTeamName} pick`,
         }
     }

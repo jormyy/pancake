@@ -30,6 +30,7 @@ export type RookieDraftState = {
         id: string
         leagueId: string
         leagueSeasonId: string
+        seasonYear?: number
         isCurrentSeason: boolean
         status: string
         isMock: boolean
@@ -100,7 +101,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
     const [draftResult, picksResult, ordersResult] = await Promise.all([
         supabase
             .from('drafts')
-            .select('id, league_id, league_season_id, league_seasons(is_current), status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
+            .select('id, league_id, league_season_id, league_seasons(is_current, season_year), status, is_mock, pick_timer_seconds, timer_expiry_behavior, rounds, started_at, completed_at, pause_reason, paused_at, timer_paused_remaining_seconds')
             .eq('id', draftId)
             .maybeSingle(),
         supabase
@@ -154,6 +155,7 @@ export async function getRookieDraftState(draftId: string): Promise<RookieDraftS
             id: draft.id,
             leagueId: draft.league_id,
             leagueSeasonId: draft.league_season_id,
+            seasonYear: draft.league_seasons?.season_year,
             isCurrentSeason: draft.league_seasons?.is_current === true,
             status: draft.status,
             isMock: draft.is_mock,
@@ -180,7 +182,7 @@ export async function getRookieDraftPollRevision(draftId: string): Promise<strin
     const [draftResult, pickResult] = await Promise.all([
         supabase
             .from('drafts')
-            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at, league_season_id, league_seasons(is_current)')
+            .select('status, pause_reason, paused_at, timer_paused_remaining_seconds, completed_at, league_season_id, league_seasons(is_current, season_year)')
             .eq('id', draftId)
             .maybeSingle(),
         supabase

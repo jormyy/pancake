@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native'
-import { INJURY_COLORS, colors, fontSize, fontWeight, radii } from '@/constants/tokens'
+import { INJURY_COLORS, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 
 type Variant = 'solid' | 'soft'
 
@@ -10,6 +10,7 @@ type Props = {
     /** Text color override (defaults to white for solid, color for soft) */
     textColor?: string
     variant?: Variant
+    inline?: boolean
     maxWidth?: number
 }
 
@@ -26,6 +27,7 @@ export function Badge({
     textColor,
     variant = 'soft',
     maxWidth,
+    inline = false,
 }: Props) {
     const fg = textColor ?? (variant === 'solid' ? colors.textWhite : color)
 
@@ -33,6 +35,7 @@ export function Badge({
         <View
             style={[
                 styles.badge,
+                inline && styles.inline,
                 variant === 'solid' && { backgroundColor: color },
                 maxWidth ? { maxWidth } : undefined,
             ]}
@@ -42,7 +45,7 @@ export function Badge({
             {variant === 'soft' ? (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: 0.13 }]} />
             ) : null}
-            <Text style={[styles.text, { color: fg }]} numberOfLines={1}>
+            <Text style={[styles.text, inline && styles.inlineText, { color: fg }]} numberOfLines={1}>
                 {label}
             </Text>
         </View>
@@ -57,6 +60,8 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
+    inline: { height: textStyles.rowTitle.lineHeight, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
+    inlineText: { lineHeight: textStyles.rowTitle.lineHeight },
     text: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,

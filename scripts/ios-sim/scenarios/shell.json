@@ -147,11 +147,28 @@
     "steps": [
       {
         "action": {
-          "open": "/"
+          "tap": "Switch league"
         },
         "expected": {
-          "route": "/",
-          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
+          "selector": "[aria-label='Join or create a league']"
+        }
+      },
+      {
+        "name": "join-or-create",
+        "action": {
+          "tap": "Join or create a league"
+        },
+        "expected": {
+          "selector": "[role='dialog'][aria-label='Join or create a league'] [aria-label='Join with Invite Code']"
+        }
+      },
+      {
+        "name": "join",
+        "action": {
+          "tap": "Join with Invite Code"
+        },
+        "expected": {
+          "route": "/join-league"
         }
       }
     ],
@@ -286,7 +303,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline · showing saved data"
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ],
@@ -440,11 +457,28 @@
     "steps": [
       {
         "action": {
-          "open": "/"
+          "tap": "Switch league"
         },
         "expected": {
-          "route": "/",
-          "selector": "body:not(:has([aria-label='Switch league'])) [aria-label='Open auto-set lineup options']"
+          "selector": "[aria-label='Join or create a league']"
+        }
+      },
+      {
+        "name": "join-or-create",
+        "action": {
+          "tap": "Join or create a league"
+        },
+        "expected": {
+          "selector": "[role='dialog'][aria-label='Join or create a league'] [aria-label='Join with Invite Code']"
+        }
+      },
+      {
+        "name": "join",
+        "action": {
+          "tap": "Join with Invite Code"
+        },
+        "expected": {
+          "route": "/join-league"
         }
       }
     ],
@@ -579,7 +613,7 @@
           "offline": true
         },
         "expected": {
-          "text": "Offline · showing saved data"
+          "text": "Offline \u00b7 showing saved data"
         }
       }
     ],

@@ -1,5 +1,5 @@
 import { isTaxiEligible } from '@pancake/core'
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { getLeagueMembers } from '@/lib/league'
@@ -320,14 +320,13 @@ export default function ClaimPlayerScreen() {
                         size={controlSize.minTouch}
                     />
                     <View style={styles.claimPlayerCopy}>
-                        <Text style={styles.claimName} numberOfLines={1}>{player?.display_name ?? '—'}</Text>
+                        <PlayerNameLine name={player?.display_name ?? '—'} textStyle={styles.claimName} yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status} />
                         <Text style={styles.claimMeta} numberOfLines={1}>
                             {[player?.nba_team, player?.position].filter(Boolean).join(' · ')}
                         </Text>
                     </View>
                 </View>
                 <Text style={styles.claimFacts}>{claimFacts}</Text>
-                <PlayerEligibilityTags yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} />
                 {renderIRChoice()}
                 {faab ? (
                     <View style={styles.bidRow}>
@@ -533,7 +532,7 @@ const styles = StyleSheet.create({
     },
     claimPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
     claimPlayerCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
-    claimName: { fontFamily: fontFamily.display, fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    claimName: { ...textStyles.rowTitle },
     claimMeta: { ...textStyles.meta },
     claimFacts: { ...textStyles.meta, color: colors.textSecondary },
     irChoice: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },

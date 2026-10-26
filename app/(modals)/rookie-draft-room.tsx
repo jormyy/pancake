@@ -1,4 +1,5 @@
-import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { draftYear } from '@/lib/picks'
+import { PlayerNameLine } from '@/components/player/PlayerNameLine'
 import {
     View,
     Text,
@@ -130,7 +131,7 @@ export default function RookieDraftRoomScreen() {
     const canUsePauseControl = !canCommissionerPick
     const pickTimerExpired =
         draft.status === 'in_progress' && !!nextPick?.timerExpiresAt && secondsLeft === 0
-    const draftTitle = draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'
+    const draftTitle = `${draft.seasonYear == null ? '' : `${draftYear(draft.seasonYear)} `}${draft.isMock ? 'Mock Rookie Draft' : 'Rookie Draft'}`
 
     const isPending = draft.status === 'pending'
     const totalPicks = picks.length
@@ -477,8 +478,7 @@ function ProspectRow({
             />
             <View style={styles.resultInfo}>
                 <View style={styles.resultNameRow}>
-                    <Text style={styles.resultName} numberOfLines={1}>{player.display_name}</Text>
-                    <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
+                    <PlayerNameLine name={player.display_name} textStyle={styles.resultName} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} />
                     {player.nba_draft_number != null && (
                         <PosTag position={player.position ?? '?'} />
                     )}

@@ -44,7 +44,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028–2032"
+          "text": "You own all your picks, 2027\u20132029"
         }
       },
       {
@@ -53,7 +53,7 @@
           "tapPrefix": "Show all draft picks,"
         },
         "expected": {
-          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+          "selector": "[role='list'][aria-label^='All draft picks,']:has([aria-label^='2027 Round 1,']):has([aria-label^='2028 Round 1,']):has([aria-label^='2029 Round 1,']):not(:has([aria-label^='2030 Round ']))"
         }
       },
       {
@@ -72,7 +72,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -83,7 +83,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }
@@ -555,7 +555,7 @@
         },
         "expected": {
           "route": "/league?tab=picks",
-          "text": "You own all your picks, 2028–2032"
+          "text": "You own all your picks, 2027\u20132029"
         }
       },
       {
@@ -564,7 +564,7 @@
           "tapPrefix": "Show all draft picks,"
         },
         "expected": {
-          "selector": "[role='list'][aria-label^='All draft picks,'] [role='listitem']"
+          "selector": "[role='list'][aria-label^='All draft picks,']:has([aria-label^='2027 Round 1,']):has([aria-label^='2028 Round 1,']):has([aria-label^='2029 Round 1,']):not(:has([aria-label^='2030 Round ']))"
         }
       },
       {
@@ -583,7 +583,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       },
@@ -594,7 +594,7 @@
         },
         "expected": {
           "route": "/league",
-          "text": "You own all your picks, 2028–2032",
+          "text": "You own all your picks, 2027\u20132029",
           "selector": "[id='league-panel-picks'] [aria-label^='Show my draft picks,']"
         }
       }

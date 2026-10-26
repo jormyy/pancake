@@ -130,6 +130,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
         <Image
             source={require('@/assets/images/pancake_logo.png')}
             style={compact ? styles.brandMarkCompact : styles.brandMark}
+            testID={compact ? 'pancake-brand' : undefined}
             resizeMode="contain"
         />
     )
@@ -154,6 +155,8 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const menuRef = useRef<ScrollView>(null)
     const pathname = usePathname()
     const light = tone === 'light'
+    const router = useRouter()
+    const [joining, setJoining] = useState(false)
     const closeMenu = useCallback(() => {
         setOpen(false)
         triggerRef.current?.focus()
@@ -162,7 +165,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     // The menu renders in a layer on document.body (this shell is web-only), so
     // nothing in the page can clip it. It sits under the switch; a tap anywhere
     // else closes it without reaching the page, as do Escape and a page change.
-    useEffect(() => { setOpen(false) }, [pathname])
+    useEffect(() => { setOpen(false); setJoining(false) }, [pathname])
     useEffect(() => {
         if (!open || typeof document === 'undefined') return
         activeOptionRef.current?.focus()
@@ -226,19 +229,6 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
     const currentLeagueName = current.leagues?.name ?? 'Pancake League'
     const currentTeamName = current.team_name ?? 'Team'
 
-    if (memberships.length <= 1) {
-        return (
-            <View style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
-                <View style={[styles.leagueSwitch, light && styles.leagueSwitchLight, styles.leagueSwitchStatic]}>
-                    <View style={styles.flex1}>
-                        <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{currentLeagueName}</Text>
-                        {light ? null : <Text style={metaStyle} numberOfLines={1}>{currentTeamName}</Text>}
-                    </View>
-                </View>
-            </View>
-        )
-    }
-
     return (
         <View ref={wrapRef} style={[styles.leagueSwitchWrap, light && styles.leagueSwitchWrapLight]}>
             <Pressable
@@ -292,6 +282,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                                 }}
                                 accessibilityRole="button"
                                 accessibilityLabel={`Switch to ${membership.leagues?.name ?? 'League'}`}
+                                accessibilityState={{ selected: active }}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.leagueMenuItem,
                                     active && styles.leagueMenuItemActive,
@@ -307,10 +298,25 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                             </Pressable>
                         )
                     })}
+                    <Pressable style={styles.leagueMenuItem} accessibilityRole="button" accessibilityLabel="Join or create a league"
+                        onPress={() => { closeMenu(); setJoining(true) }}>
+                        <MaterialIcons name="add" size={controlSize.icon.sm} color={colors.primary} />
+                        <Text style={[styles.leagueMenuName, styles.flex1]}>Join or create a league</Text>
+                    </Pressable>
                 </ScrollView>
                 </View>,
                 document.body,
             ) : null}
+            <Sheet visible={joining} accessibilityLabel="Join or create a league" onClose={() => setJoining(false)}>
+                <Pressable style={styles.leagueMenuItem} accessibilityRole="button" accessibilityLabel="Join with Invite Code"
+                    onPress={() => { setJoining(false); router.push('/(modals)/join-league') }}>
+                    <Text style={styles.leagueMenuName}>Join with Invite Code</Text>
+                </Pressable>
+                <Pressable style={styles.leagueMenuItem} accessibilityRole="button" accessibilityLabel="Create a League"
+                    onPress={() => { setJoining(false); router.push('/(modals)/create-league') }}>
+                    <Text style={styles.leagueMenuName}>Create a League</Text>
+                </Pressable>
+            </Sheet>
         </View>
     )
 }
@@ -508,13 +514,13 @@ function WebSidebar() {
 
 function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
     return (
-        <View style={styles.mobileTopbar}>
+        <View style={styles.mobileTopbar} testID="mobile-topbar">
             <BrandMark compact />
             <View style={styles.mobileLeagueWrap}>
                 <LeagueSwitcher tone="light" />
             </View>
             <Pressable onPress={onMenuPress} style={styles.mobileMenuButton} accessibilityRole="button" accessibilityLabel="Open menu">
-                <MaterialIcons name="menu" size={controlSize.icon.lg} color={colors.textPrimary} />
+                <MaterialIcons name="menu" size={controlSize.icon.md} color={colors.textPrimary} />
             </Pressable>
         </View>
     )
