@@ -7,6 +7,7 @@ import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
 
 const mocks = vi.hoisted(() => ({
+    push: vi.fn(),
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
@@ -22,7 +23,7 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league, membershipValidated: false,
 }) }))
@@ -280,4 +281,18 @@ it('re-snapshots announcements when Home returns to the foreground', async () =>
         await act(async () => screen.unmount())
         vi.unstubAllGlobals()
     }
+})
+
+it('routes player identity to the profile and points to the scoring sheet', async () => {
+    populatedStarters()
+    mocks.push.mockClear()
+    await mount()
+    const row = rows('PG')[0]
+    const player = row.props.myPlayer
+    await act(async () => row.props.onOpenPlayer(player))
+    expect(mocks.push).toHaveBeenCalledExactlyOnceWith({ pathname: '/player/[id]', params: { id: player.playerId } })
+    expect(screen.root.findByType('ScoreBreakdownSheet' as React.ElementType).props.visible).toBe(false)
+    await act(async () => row.props.onOpenDetails({ myPlayer: player, oppPlayer: row.props.oppPlayer, slotType: 'PG' }))
+    expect(screen.root.findByType('ScoreBreakdownSheet' as React.ElementType).props.visible).toBe(true)
+    expect(mocks.push).toHaveBeenCalledTimes(1)
 })

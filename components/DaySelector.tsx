@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
 import { todayET } from '@/lib/shared/dates'
-import { colors, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
 // react-native-web forwards aria-* props to the DOM, but React Native's prop
@@ -34,7 +34,7 @@ export function DaySelector({
 }) {
     const today = todayET()
     return (
-        <View style={[styles.row, styles.content, compact && styles.contentCompact]}>
+        <View style={[styles.content, compact && styles.contentCompact]}>
             {days.map((day) => {
                 const isSelected = day.date === selectedDate
                 const isToday = day.date === today
@@ -79,13 +79,10 @@ export function DaySelector({
 }
 
 const styles = StyleSheet.create({
-    row: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
     content: { flexDirection: 'row', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
-    contentCompact: { paddingVertical: spacing.xs, gap: spacing.xs },
+    contentCompact: { paddingVertical: spacing.xxs, paddingHorizontal: 0, gap: spacing.xxs },
     cell: { width: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous' as const, gap: spacing.xxs },
-    // flexBasis + shrink (not a fixed width) so all 7 cells fit 320px screens.
-    // Height stays at the 44px touch target; only the width flexes for 320px screens.
-    cellCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 40, minWidth: 34, minHeight: 44, paddingVertical: spacing.xxs, gap: 0, borderRadius: radii.lg },
+    cellCompact: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, paddingVertical: spacing.xxs, gap: 0, borderRadius: radii.lg },
     cellSelected: { backgroundColor: colors.primary },
     cellToday: { backgroundColor: colors.primaryLight },
     cellNoGames: { opacity: 0.4 },

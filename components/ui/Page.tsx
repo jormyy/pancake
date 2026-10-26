@@ -104,7 +104,7 @@ export function PageHeader({
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
-        <View style={[styles.header, !tabs && styles.headerCentered, { paddingHorizontal: padX }]}>
+        <View style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, { paddingHorizontal: padX }]}>
             {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={backLabel} /></View> : null}
             <View style={styles.headerMain}>
                 {tabs ?? (title ? (
@@ -131,6 +131,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     // Tabs sit on the bottom border; titles and back controls center in the row.
+    headerTabs: { alignItems: 'center', minHeight: controlSize.minTouch + 1 },
     headerCentered: { alignItems: 'center', minHeight: layout.pageHeaderHeight, paddingVertical: spacing.xs },
     headerBack: { alignSelf: 'center' },
     headerMain: { flex: 1, minWidth: 0 },

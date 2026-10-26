@@ -372,6 +372,7 @@ export const controlSize = {
     icon: { sm: unit(4), md: unit(5), lg: unit(6) },
     avatar: { sm: unit(7), md: unit(8), lg: unit(11), profile: unit(13) },
     button: {
+        inline: { height: unit(7), padX: spacing.md, font: fontSize.sm, icon: unit(4), gap: spacing.xs },
         sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
         md: { height: unit(11), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
         lg: { height: unit(12), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
@@ -625,6 +626,7 @@ export const INJURY_COLORS: Record<string, string> = {
     Questionable: palette.amber700,
     Doubtful: palette.maple600,
     Out: palette.red900,
+    DTD: palette.red900,
     IR: palette.redDark,
 }
 

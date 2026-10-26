@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react'
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
@@ -42,18 +42,9 @@ function compactLineupName(name: string): string {
     return last.split('-')[0]
 }
 
-function matchupLine(
-    team: string | null | undefined,
-    matchup: { opponent: string; isHome: boolean } | undefined,
-    compact: boolean,
-    compactWithBadge = false,
-): string {
-    if (!team) return STABLE_PLACEHOLDER
-    if (compactWithBadge) return team
-    if (!matchup) return compact ? `${team} OFF` : `${team} · No game`
-    return compact
-        ? `${team}${matchup.isHome ? ' v ' : ' @ '}${matchup.opponent}`
-        : `${team} ${matchup.isHome ? 'vs' : '@'} ${matchup.opponent}`
+function matchupLine(team: string | null | undefined, matchup: { opponent: string; isHome: boolean } | undefined): string {
+    if (!team || !matchup) return ''
+    return matchup.isHome ? `${matchup.opponent} @ ${team}` : `${team} @ ${matchup.opponent}`
 }
 
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
@@ -71,23 +62,17 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
     )
 }
 
-// One line under the name: the NBA game before tip-off, the box score after.
-// It is always present, so rows keep their height when live stats arrive.
 function detailLine(
     team: string | null | undefined,
     matchup: { opponent: string; isHome: boolean } | undefined,
     stats: LiveStatLine | undefined,
     compact: boolean,
-    compactWithBadge: boolean,
     includeStats: boolean,
 ): string {
-    const game = matchupLine(team, matchup, compact, compactWithBadge)
-    if (stats?.didNotPlay) return compact ? 'DNP' : `${game} · DNP`
-    if (!stats || !includeStats) return game
-    // The points/rebounds/assists slash line fits every width; the full box
-    // score is a tap away in the breakdown, or in columns on wide screens.
-    const slash = `${stats.points}/${stats.rebounds}/${stats.assists}`
-    return compact ? slash : `${game} · ${slash}`
+    const game = matchupLine(team, matchup)
+    if (compact || !stats || !includeStats) return game
+    const summary = stats.didNotPlay ? 'DNP' : `${stats.points}/${stats.rebounds}/${stats.assists}`
+    return [game, summary].filter(Boolean).join(' · ')
 }
 
 // G and F only restate PG/SG and SF/PF; rows keep the space for the game line.
@@ -211,6 +196,8 @@ function PlayerSide({
     compact,
     dense,
     statColumns,
+    onOpenPlayer,
+    onOpenDetails,
 }: {
     side: 'left' | 'right'
     player: LineupPlayer | null
@@ -225,24 +212,23 @@ function PlayerSide({
     compact: boolean
     dense: boolean
     statColumns: StatColumn[] | null
+    onOpenPlayer?: () => void
+    onOpenDetails?: () => void
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
-    // Under 360px wide the avatar costs the name its last letters.
-    const { width } = useWindowDimensions()
-    const tiny = compact && width < 360
     const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
 
     let block: ReactNode
     if (!player) {
         block = (
             <>
-                <View style={[styles.nameRow, { justifyContent: align }]}>
+                <View style={[styles.nameRow, compact && styles.nameRowCompact, { justifyContent: align }]}>
                     <Text style={placeholderOnly ? styles.sideMeta : styles.emptySlotText} numberOfLines={1} ellipsizeMode="clip">
-                        {placeholderOnly ? STABLE_PLACEHOLDER : tiny ? 'Empty' : emptySlotLabel(slotType)}
+                        {placeholderOnly ? STABLE_PLACEHOLDER : compact ? 'Empty' : emptySlotLabel(slotType)}
                     </Text>
                 </View>
-                {!dense ? (
+                {!dense && !compact ? (
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
                     </View>
@@ -252,14 +238,15 @@ function PlayerSide({
     } else {
         const playedToday = stats != null && !stats.didNotPlay
         const injury = player.injuryStatus ?? null
-        const compactBadge = compact && !!injury && !playedToday
+        const detail = detailLine(player.nbaTeam, matchup, stats, compact, statColumns == null)
+        const summary = compact && stats ? stats.didNotPlay ? 'DNP' : `${stats.points}/${stats.rebounds}/${stats.assists}` : null
         // A ruled-out player's team can be live without him, so the tag would mislead.
         const sittingOut = !playedToday && injury?.toLowerCase() === 'out'
         block = (
             <>
-                <View style={[styles.nameRow, { justifyContent: align }]}>
+                <View style={[styles.nameRow, compact && styles.nameRowCompact, { justifyContent: align }]}>
                     {mirror([
-                        !compact && !playedToday ? <InjuryBadge key="injury" status={injury} /> : null,
+                        <InjuryBadge key="injury" status={injury} />,
                         <Text
                             key="name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
@@ -268,37 +255,42 @@ function PlayerSide({
                         >
                             {compact ? compactLineupName(player.displayName) : shortName(player.displayName)}
                         </Text>,
-                        tiny ? null : <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
+                        compact ? null : <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
                 </View>
-                {!dense ? (
+                {(!dense || compact) && (detail || !compact) ? (
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
-                            isLive && !sittingOut ? <LiveTag key="live" dotOnly={tiny} /> : null,
-                            compactBadge ? <InjuryBadge key="injury" status={injury} /> : null,
+                            isLive && !sittingOut ? <LiveTag key="live" dotOnly={compact} /> : null,
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"
-                                style={[styles.sideMeta, styles.detailText, { textAlign: left ? 'right' : 'left' }, playedToday && styles.detailTextStats, isLive && styles.statLineLive]}
+                                style={[styles.sideMeta, styles.detailText, { textAlign: left ? 'right' : 'left' }, matchup && styles.gameText, playedToday && !compact && styles.detailTextStats, isLive && styles.statLineLive]}
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                {detailLine(player.nbaTeam, matchup, stats, compact, compactBadge, statColumns == null)}
+                                {detail}
                             </Text>,
                         ])}
                     </View>
                 ) : null}
+                {summary ? <Text style={styles.statSummary} numberOfLines={1}>{summary}</Text> : null}
             </>
         )
     }
 
     const score = (
-        <FantasyScore key="score" value={player ? fpts ?? 0 : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
+        <MotionPressable key="score" style={styles.scoreTarget} onPress={onOpenDetails} disabled={!player || !onOpenDetails}
+            accessibilityRole="button" accessibilityLabel={player ? `Score breakdown for ${player.displayName}` : 'Empty score'}>
+            <FantasyScore value={player ? fpts ?? 0 : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
+        </MotionPressable>
     )
     const body = (
-        <View key="body" style={[styles.playerBlock, compact && styles.playerBlockCompact, dense && styles.playerBlockDense, { alignItems: align }]}>
+        <MotionPressable key="body" style={[styles.playerBlock, compact && styles.playerBlockCompact, dense && !compact && styles.playerBlockDense, { alignItems: align }]}
+            onPress={onOpenPlayer} disabled={!player || !onOpenPlayer} accessibilityRole="button"
+            accessibilityLabel={player ? `Open ${player.displayName} player profile` : emptySlotLabel(slotType)}>
             {block}
-        </View>
+        </MotionPressable>
     )
     const cells = statColumns ? <StatCells key="cells" columns={statColumns} stats={player ? stats : undefined} isLive={isLive} /> : null
     return <>{left ? [score, cells, body] : [body, cells, score]}</>
@@ -324,6 +316,7 @@ type MatchupRowProps = {
     motionDelay?: number
     targetState?: LineupMoveTargetState
     statColumns?: StatColumn[] | null
+    onOpenPlayer?: (player: LineupPlayer) => void
     onOpenDetails?: (row: { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }) => void
 }
 
@@ -348,6 +341,7 @@ function MatchupRowImpl({
     targetState = null,
     statColumns = null,
     onOpenDetails,
+    onOpenPlayer,
 }: MatchupRowProps) {
     const isSel = isSelected
     const slotColor = slotType === 'IR'
@@ -368,7 +362,7 @@ function MatchupRowImpl({
         : undefined
 
     return (
-        <MotionView style={styles.matchupRowWrap} preset="fade" delay={motionDelay}>
+        <MotionView preset="fade" delay={motionDelay}>
             <View
                 style={[
                     styles.matchupRow,
@@ -376,13 +370,7 @@ function MatchupRowImpl({
                     dense && styles.matchupRowDense,
                 ]}
             >
-            <MotionPressable
-                style={[styles.rowSideLeft, compact && styles.rowSideCompact]}
-                onPress={openDetails}
-                disabled={!myPlayer}
-                accessibilityRole="button"
-                accessibilityLabel={myPlayer ? `Score breakdown for ${myPlayer.displayName}` : 'Score breakdown'}
-            >
+            <View style={[styles.rowSideLeft, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="left"
                     player={myPlayer}
@@ -397,8 +385,10 @@ function MatchupRowImpl({
                     compact={compact}
                     dense={dense}
                     statColumns={statColumns}
+                    onOpenDetails={openDetails}
+                    onOpenPlayer={myPlayer && onOpenPlayer ? () => onOpenPlayer(myPlayer) : undefined}
                 />
-            </MotionPressable>
+            </View>
 
             <MotionPressable
                 style={[
@@ -418,20 +408,13 @@ function MatchupRowImpl({
                     : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
                 accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
-                hitSlop={7}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
                 </Text>
             </MotionPressable>
 
-            <MotionPressable
-                style={[styles.rowSideRight, compact && styles.rowSideCompact]}
-                onPress={openDetails}
-                disabled={!oppPlayer}
-                accessibilityRole="button"
-                accessibilityLabel={oppPlayer ? `Score breakdown for ${oppPlayer.displayName}` : 'Score breakdown'}
-            >
+            <View style={[styles.rowSideRight, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="right"
                     player={oppPlayer}
@@ -446,8 +429,10 @@ function MatchupRowImpl({
                     compact={compact}
                     dense={dense}
                     statColumns={statColumns}
+                    onOpenDetails={openDetails}
+                    onOpenPlayer={oppPlayer && onOpenPlayer ? () => onOpenPlayer(oppPlayer) : undefined}
                 />
-            </MotionPressable>
+            </View>
             </View>
         </MotionView>
     )
@@ -456,10 +441,6 @@ function MatchupRowImpl({
 export const MatchupRow = memo(MatchupRowImpl)
 
 const styles = StyleSheet.create({
-    matchupRowWrap: {
-        borderBottomWidth: 1,
-        borderBottomColor: colors.separator,
-    },
     matchupRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -467,8 +448,8 @@ const styles = StyleSheet.create({
         gap: spacing.md,
     },
     matchupRowCompact: {
-        paddingVertical: spacing.xs,
-        gap: spacing.xs,
+        paddingVertical: 0,
+        gap: spacing.xxs,
     },
     matchupRowDense: {
         paddingVertical: spacing.xxs,
@@ -483,7 +464,8 @@ const styles = StyleSheet.create({
     },
     rowSideLeft: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', paddingLeft: spacing.sm },
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
-    rowSideCompact: { paddingLeft: spacing.xs, paddingRight: spacing.xs },
+    rowSideCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xxs },
+    scoreTarget: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, justifyContent: 'center' },
     playerBlock: { flex: 1, minWidth: 0, minHeight: 48, justifyContent: 'center', gap: spacing.xxs },
     playerBlockCompact: { minHeight: controlSize.minTouch },
     playerBlockDense: { minHeight: 28 },
@@ -497,22 +479,25 @@ const styles = StyleSheet.create({
         marginRight: spacing.sm,
         fontVariant: ['tabular-nums'] as const,
     },
-    fptsNumCompact: { width: 40, fontSize: fontSize.lg },
+    fptsNumCompact: { width: controlSize.minTouch, fontSize: fontSize.md },
     fptsNumDense: { width: 54, fontSize: fontSize.lg },
     fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: spacing.sm },
-    fptsLeftCompact: { marginRight: spacing.xs },
-    fptsRightCompact: { marginLeft: spacing.xs },
+    fptsLeftCompact: { marginRight: 0 },
+    fptsRightCompact: { marginLeft: 0 },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLeading: { color: colors.textPrimary },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { fontSize: fontSize.sm },
+    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.sm, flexShrink: 1 },
     sideNameDense: { fontSize: fontSize['2sm'] },
-    noGameName: { color: colors.textDisabled },
+    noGameName: { color: colors.textMuted },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 16, maxWidth: '100%' },
-    sideMeta: { fontSize: fontSize.xs, color: colors.textPlaceholder },
+    nameRowCompact: { minHeight: controlSize.badge.height, gap: spacing.xxs },
+    gameText: { color: colors.textPrimary, fontWeight: fontWeight.semibold },
+    statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
+    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, minHeight: textStyles.meta.lineHeight, maxWidth: '100%' },
+    sideMeta: { ...textStyles.meta, fontSize: fontSize.xs },
     detailText: { flex: 1, minWidth: 0 },
     detailTextStats: { color: colors.textMuted },
     lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4 },
@@ -520,8 +505,8 @@ const styles = StyleSheet.create({
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
         width: SLOT_W,
-        height: 36,
-        borderRadius: 8,
+        height: controlSize.minTouch,
+        borderRadius: radii.md,
         borderCurve: 'continuous' as const,
         alignItems: 'center',
         justifyContent: 'center',

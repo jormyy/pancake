@@ -153,8 +153,9 @@ describe('player decision summary', () => {
         expect(roster.parent?.props.testID).toBe('player-summary-line')
         const styles = Object.assign({}, ...[roster.parent?.props.style].flat(Infinity).filter(Boolean))
         expect(styles.alignItems).toBe('center')
-        const button = screen.root.findByProps({ accessibilityLabel: action })
-        expect(name.parent?.findAllByProps({ accessibilityLabel: action })).toHaveLength(1)
+        const buttons = name.parent!.findAllByType(type('Pressable')).filter(node => node.props.accessibilityLabel === action)
+        expect(buttons).toHaveLength(1)
+        const button = buttons[0]
         if (status.status === 'free_agent') {
             await act(async () => button.props.onPress())
             expect(onAdd).toHaveBeenCalledOnce()
