@@ -57,7 +57,10 @@ export function TradeAnalysisSummary({
                     {asset.kind === 'player' ? <PlayerRowContent name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
                         positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
                         yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status}
-                        stats={`Value ${asset.values[analysis.strategy]} · Current ${asset.components.shortTermPoints} · Long-term ${asset.components.longTermValue}${asset.ranges[analysis.strategy] ? ` · Range ${asset.ranges[analysis.strategy]?.low}–${asset.ranges[analysis.strategy]?.high}` : ''}`} /> : <View style={styles.assetCopy}>
+                        stats={<View>
+                            <Text style={styles.detail}>Value {asset.values[analysis.strategy]} · Current {asset.components.shortTermPoints} · Long-term {asset.components.longTermValue}</Text>
+                            {asset.ranges[analysis.strategy] ? <Text style={styles.detail}>Range {asset.ranges[analysis.strategy]?.low}–{asset.ranges[analysis.strategy]?.high}</Text> : null}
+                        </View>} /> : <View style={styles.assetCopy}>
                         <Text style={styles.assetName}>{asset.label}</Text>
                         <Text style={styles.detail}>Value {asset.values[analysis.strategy]} · Current {asset.components.shortTermPoints} · Long-term {asset.components.longTermValue}</Text>
                         {asset.ranges[analysis.strategy] ? (

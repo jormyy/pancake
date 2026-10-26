@@ -27,6 +27,7 @@ if (window.isSecureContext) {
     var workerReconciled = !documentVersion;
     var reloaded = false;
     var assetMissed = false;
+    var manualReload = false;
     var recoveryCompatible = false;
     var noticeTimer = null;
     var registration = null;
@@ -59,12 +60,14 @@ if (window.isSecureContext) {
       button.textContent = 'Reload';
       button.disabled = held();
       button.style.cssText = 'margin-left:12px;padding:8px 12px;font:inherit';
-      button.addEventListener('click', function () { tryReload(true); });
+      button.addEventListener('click', function () { reloadScreen(); });
       notice.appendChild(button);
       document.body.appendChild(notice);
     };
     var tryReload = function (manual) {
       if (!pendingVersion || reloaded) return;
+      manual = manual || manualReload;
+      if (registration?.waiting) { requestActivation(); showNotice(); return; }
       if ((!workerReconciled && navigator.serviceWorker?.controller) || held(assetMissed) || document.readyState === 'loading' || document.readyState === 'interactive' ||
           document.visibilityState === 'hidden' || navigator.onLine === false) {
         if (assetMissed) showNotice();
@@ -159,6 +162,16 @@ if (window.isSecureContext) {
       checkForUpdate(true);
       tryReload(false);
     };
+    var reloadScreen = function () {
+      manualReload = true;
+      recoverChunk();
+      requestActivation();
+      tryReload(true);
+    };
+    window.addEventListener('pancake-pwa-reload', function (event) {
+      event.preventDefault();
+      reloadScreen();
+    });
     var failedChunk = function (event) {
       var message = String(event.reason?.message || event.message || '');
       var source = event.target?.tagName === 'SCRIPT' ? event.target.src : event.filename;

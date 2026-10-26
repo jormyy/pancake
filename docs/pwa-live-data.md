@@ -87,6 +87,11 @@ Updates never reload a hidden page. Reconnecting retries a failed update check i
 A long wait shows a notice; it never forces a held reload.
 A session marker limits repeated automatic reloads for the same release.
 Missing old route files use the same guarded recovery path.
+Reload requests worker activation and waits for the replacement worker to control the page.
+A registration without a waiting worker permits a direct reload after its update check.
+An explicit idle reply from any shell permits activation. A held reply or timeout blocks activation.
+Returning from player details restores the Matchup, Players, and Roster scroll positions.
+Positions stay separate for each account, team, matchup date, and player search.
 
 Web Push needs all three VAPID variables in `.env.example`.
 Subscription notices, reconnect, controller changes, and foreground return reconcile existing subscriptions.

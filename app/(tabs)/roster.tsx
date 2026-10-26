@@ -1,3 +1,4 @@
+import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { getRosterProblems } from '@/lib/roster-problems'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
@@ -258,6 +259,7 @@ export default function RosterScreen() {
         [current?.id, leagueId, snapshotScope],
     )
     const listRef = useRef<ScrollView>(null)
+    const scrollRestoration = useScrollRestoration(JSON.stringify(['roster', user?.id, current?.id, leagueId]), listRef)
     const claimsOffsetRef = useRef(0)
     const [togglingId, setTogglingId] = useState<string | null>(null)
     const [taxiingId, setTaxiingId] = useState<string | null>(null)
@@ -1005,10 +1007,10 @@ export default function RosterScreen() {
                     <Button
                         size="inline"
                         variant={lineupLocked ? 'secondary' : 'primary'}
-                        title={rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Set Lineup'}
+                        title={rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Auto-set'}
                         onPress={() => setAutoSetVisible(true)}
                         disabled={rosterOverflow > 0 || autoSetting}
-                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Set lineup automatically'}
+                        accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Open auto-set lineup options'}
                     />
                 ) : null}
             />
@@ -1035,6 +1037,7 @@ export default function RosterScreen() {
                     <View style={styles.main}>
                         <ScrollView
                             ref={listRef}
+                            {...scrollRestoration}
                             contentContainerStyle={[styles.listContent, { paddingHorizontal: twoPane ? 0 : padX }]}
                         >
                             {roster.length === 0 ? (

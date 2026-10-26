@@ -26,6 +26,7 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league, membershipValidated: false,

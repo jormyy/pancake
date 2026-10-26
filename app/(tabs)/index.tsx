@@ -1,3 +1,4 @@
+import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { useMatchupForecast, type MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
@@ -249,6 +250,7 @@ export default function HomeScreen() {
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
+                            scrollKey={JSON.stringify([user.id, league?.id, matchup.myMemberId, matchup.opponentMemberId, selectedDate])}
                             playerForecasts={playerForecasts}
                             forecastStale={forecastState.stale}
                             myMemberId={matchup.myMemberId}
@@ -450,6 +452,7 @@ function AroundLeagueCard({ item, style }: { item: LeagueWeekMatchup; style?: St
 }
 
 function MatchupLineupView({
+    scrollKey,
     playerForecasts, forecastStale, myMemberId, opponentMemberId,
     myLineup,
     oppLineup,
@@ -474,6 +477,7 @@ function MatchupLineupView({
     autoSetControl,
     footer,
 }: {
+    scrollKey: string
     playerForecasts: Map<string, MatchupForecast['games'][number]>
     forecastStale: boolean
     myMemberId: string
@@ -502,6 +506,8 @@ function MatchupLineupView({
     autoSetControl?: ReactNode
     footer?: ReactNode
 }) {
+    const listRef = useRef<ScrollView>(null)
+    const scrollRestoration = useScrollRestoration(scrollKey, listRef)
     const pullRefresh = usePullToRefresh(onRefresh, refreshing)
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
@@ -587,6 +593,8 @@ function MatchupLineupView({
 
             <ScrollView
                 {...pullRefresh}
+                {...scrollRestoration}
+                ref={listRef}
                 style={styles.lineupRows}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryDark} />}
                 contentContainerStyle={styles.lineupRowsContent}
