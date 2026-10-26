@@ -128,10 +128,49 @@ An undrafted rookie qualifies.
 A second-year player with 64 games qualifies.
 A nonrookie needs a known count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
-No local box-score count substitutes for a career count.
+The server stores a completed-season base in `career_games_base` and its cutoff in `career_games_base_season`.
+Below 65, the current total adds regular-season appearances after that cutoff.
+An appearance has positive minutes or any positive counting statistic.
+The DNP flag does not decide whether a player appeared.
+The one-time ESPN lookup sums per-season GP through the previous season.
+The current ESPN season and its career total do not set the base.
+This avoids old gaps in our boxes and a delayed ESPN current-game update.
+ESPN, rookie, and threshold bases are never fetched again.
+Players with 65 or more stored games never enter the lookup queue, regardless of base source.
+Their stored counts remain available; exact totals above 65 do not affect taxi eligibility.
+A coverage base below 65 remains due for one successful ESPN lookup because our historical boxes have gaps.
+A successful lookup replaces coverage only when the new total does not lower the stored count.
+Unavailable or lower ESPN totals leave the existing count and base unchanged.
+Failed lookups retry no more than weekly.
+The worker attempts at most 300 players per run, with 16 concurrent jobs and a 90-second start budget.
+Each player's external lookups stop after eight seconds.
+Earlier sync work reduces the remaining lookup budget.
+Players on an NBA team run first, followed by players closest to 65 stored career games.
+Within each group, unknown counts follow known counts; the oldest attempts break ties.
+Unstarted players keep their place for the next daily run.
 
-The server stores career regular-season games in `players.career_regular_season_games`.
-Career counts refresh daily for NBA team players.
+The migration preserves every existing non-null count and leaves its base unset.
+Those players keep their count until an ESPN base lookup or a fallback that does not lower the count.
+For missing counts, a verified rookie gets base zero through the previous season.
+That requires no observed appearance before the current season.
+Otherwise, complete covered experience gets a provisional base of zero through 2020.
+That coverage base stays usable while its one-time ESPN lookup is pending.
+Completed covered seasons must equal `years_exp`; a current-season appearance adds one additional season.
+A player with at least 65 covered appearances also gets base zero through 2020.
+This last value is a lower bound that keeps taxi decisions correct.
+Other missing counts remain unknown.
+A late first appearance alone never proves complete career coverage.
+
+Stats saves, corrections, deletions, game corrections, and merges recount based players within the same transaction.
+Once a stored count reaches 65, later recounts cannot lower it.
+Corrections below 65 still use the recounted total.
+Unbased players retain their existing counts until a base succeeds.
+Replays do not add games twice.
+Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
+Timestamp-only writes preserve that value.
+A later stats save recounts players with a base; automatic recounts preserve known counts of at least 65.
+
+The server stores the current total in `players.career_regular_season_games`.
 The phone uses stored experience and career counts for display-only Rookie and Taxi tags.
 Rookie means `years_exp = 0`; Taxi also requires the league to have taxi slots.
 The server remains authoritative for every roster action.

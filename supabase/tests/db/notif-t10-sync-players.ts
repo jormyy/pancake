@@ -10,7 +10,7 @@ const clock = new Clock(), fixture = new Fixture(), transport = new Transport()
 const file = 'supabase/tests/db/notif-t10-sync-players.ts'
 const run = crypto.randomUUID().slice(0, 8)
 const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM', 'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
-const athletes = Array.from({ length: codes.length * 12 }, (_, index) => ({ id: crypto.randomUUID(), espn: `notif-t10-${run}-${index}`, team: Math.floor(index / 12), last: `T10${run}n${index}` }))
+const athletes = Array.from({ length: codes.length * 12 }, (_, index) => ({ id: crypto.randomUUID(), espn: `notif-t10-${run}-${index}`, team: Math.floor(index / 12), last: `T10${run}n${String.fromCharCode(65 + Math.floor(index / 26), 65 + index % 26)}` }))
 const [owned, foreign, free] = athletes
 let feed = new Map<string, string>()
 let career = new Map<string, number | null>()
@@ -22,6 +22,10 @@ const provider = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, r
   if (route === '/site/injuries') return Response.json({ injuries: [{ injuries: [...feed].map(([last, status]) => ({ status, athlete: { displayName: `Synthetic ${last}` } })) }] })
   if (route === '/site/news') return Response.json({ articles: [] })
   if (route === '/cdn/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
+  if (route === '/sleeper/players/nba') return Response.json(Object.fromEntries(athletes.map((athlete, index) => [String(990000000 + index), {
+    player_id: String(990000000 + index), sport: 'nba', first_name: 'Synthetic', last_name: athlete.last,
+    team: codes[athlete.team], position: 'PG', years_exp: 0,
+  }])))
   if (stats) {
     const games = career.get(decodeURIComponent(stats[1]))
     return Response.json(games === undefined || games === null
@@ -61,7 +65,10 @@ try {
     const response = await transport.invoke(worker)
     assert.equal(response.status, 200, JSON.stringify(response.body))
     assert.equal(response.body.ok, true)
+    assert.equal(response.body.failure, null)
+    assert.deepEqual(response.body.rosterRefreshSkipped, ['NBA roster has fewer than 350 active players', 'NBA roster does not cover all 30 teams'])
     assert.equal(response.body.inserted, 0, 'Every synthetic athlete resolves to its existing espn_id player')
+    assert.equal(await sql(`SELECT count(*) FROM players WHERE id=ANY(ARRAY[${athletes.map(athlete => q(athlete.id))}]::uuid[]) AND sleeper_id IS NOT NULL`), String(athletes.length), 'Sleeper enrichment links the fixture roster')
   }
   const states = [
     { owned: 'Out', free: 'Out', stored: 'Out', events: ['owned_player_status', 'owned_player_injured', 'owned_player_ruled_out'] },

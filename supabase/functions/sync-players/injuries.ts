@@ -3,10 +3,12 @@ import { fetchEspnInjuries } from '../_shared/playerSource.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { fetchAllPlayers } from './players.ts'
+import { linkPlayerSources } from '../_shared/sourceLinks.ts'
 
 export async function syncInjuries(): Promise<{ updated: number; failure: string | null }> {
-  const { statuses, failure } = await fetchEspnInjuries()
+  const { statuses, byId, identities, failure } = await fetchEspnInjuries()
   if (!statuses) return { updated: 0, failure }
+  if (identities.length) await linkPlayerSources(supabase, 'espn', [...new Map(identities.map(row => [row.provider_id, row])).values()])
   const rows = await fetchAllPlayers<{
     id: string; display_name: string; espn_id: string | null; nba_team: string | null; injury_status: string | null
   }>(supabase, 'id, display_name, espn_id, nba_team, injury_status')
@@ -20,8 +22,8 @@ export async function syncInjuries(): Promise<{ updated: number; failure: string
   const failures: string[] = []
   for (const player of players) {
     const name = normalizeName(player.display_name)
-    if (counts.get(name) !== 1) continue
-    const status = statuses.get(name) ?? null
+    if (!byId.has(player.espn_id!) && counts.get(name) !== 1) continue
+    const status = byId.get(player.espn_id!) ?? statuses.get(name) ?? null
     if (status === player.injury_status) continue
     let query = supabase.from('players').update({ injury_status: status })
       .eq('id', player.id).eq('display_name', player.display_name)

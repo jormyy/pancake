@@ -35,5 +35,20 @@ BEGIN
   LOOP
     PERFORM merge_players(r.winner_id, r.loser_id);
   END LOOP;
+  FOR r IN
+    SELECT ids[1] AS winner_id, unnest(ids[2:]) AS loser_id FROM (
+      SELECT array_agg(id ORDER BY (nba_id IS NOT NULL) DESC, created_at, id) AS ids
+      FROM players
+      WHERE nullif(private.player_identity_team(nba_team), '') IS NOT NULL
+        AND private.player_identity_name(display_name) <> ''
+      GROUP BY private.player_identity_name(display_name), private.player_identity_team(nba_team)
+      HAVING count(*) > 1
+        AND count(DISTINCT nba_id) <= 1 AND count(DISTINCT sleeper_id) <= 1
+        AND count(DISTINCT espn_id) <= 1 AND count(DISTINCT sportsdata_id) <= 1
+        AND count(nba_id) + count(sleeper_id) + count(espn_id) + count(sportsdata_id) > 0
+    ) AS compatible
+  LOOP
+    PERFORM merge_players(r.winner_id, r.loser_id);
+  END LOOP;
 END;
 $$;

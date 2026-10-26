@@ -2462,6 +2462,11 @@ export type Database = {
       }
       players: {
         Row: {
+          career_games_base: number | null
+          career_games_base_attempted_at: string | null
+          career_games_base_checked_at: string | null
+          career_games_base_season: number | null
+          career_games_base_source: string | null
           career_games_checked_at: string | null
           career_regular_season_games: number | null
           created_at: string
@@ -2488,6 +2493,11 @@ export type Database = {
           years_exp: number | null
         }
         Insert: {
+          career_games_base?: number | null
+          career_games_base_attempted_at?: string | null
+          career_games_base_checked_at?: string | null
+          career_games_base_season?: number | null
+          career_games_base_source?: string | null
           career_games_checked_at?: string | null
           career_regular_season_games?: number | null
           created_at?: string
@@ -2514,6 +2524,11 @@ export type Database = {
           years_exp?: number | null
         }
         Update: {
+          career_games_base?: number | null
+          career_games_base_attempted_at?: string | null
+          career_games_base_checked_at?: string | null
+          career_games_base_season?: number | null
+          career_games_base_source?: string | null
           career_games_checked_at?: string | null
           career_regular_season_games?: number | null
           created_at?: string
@@ -4486,6 +4501,10 @@ export type Database = {
           push_token: string
         }[]
       }
+      claim_player_career_base_atomic: {
+        Args: { p_now?: string; p_player_id: string }
+        Returns: boolean
+      }
       claim_stats_sync_job_atomic: {
         Args: { p_job_id?: string; p_stale_after_seconds?: number }
         Returns: {
@@ -4550,6 +4569,25 @@ export type Database = {
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
+      }
+      complete_player_career_base_atomic: {
+        Args: {
+          p_base?: number
+          p_base_season?: number
+          p_espn_id: string
+          p_nba_id: string
+          p_player_id: string
+          p_season_year?: number
+        }
+        Returns: boolean
+      }
+      complete_player_roster_cycle_atomic: {
+        Args: {
+          p_espn_records: Json
+          p_nba_records: Json
+          p_started_at?: string
+        }
+        Returns: Json
       }
       complete_sleeper_projection_sync: {
         Args: {
@@ -5084,6 +5122,10 @@ export type Database = {
       lineup_slot_allowed_positions: {
         Args: { p_slot_type: Database["public"]["Enums"]["roster_slot_type"] }
         Returns: string[]
+      }
+      link_player_sources_atomic: {
+        Args: { p_current_roster?: boolean; p_records: Json; p_source: string }
+        Returns: Json
       }
       make_snake_pick_atomic: {
         Args: {

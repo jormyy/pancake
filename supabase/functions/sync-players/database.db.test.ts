@@ -77,7 +77,7 @@ Deno.test({
     const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
       'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
     const athletes = Array.from({ length: 360 }, (_, index) => ({
-      id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${index}`,
+      id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${String.fromCharCode(65 + Math.floor(index / 26))}${String.fromCharCode(65 + index % 26)}`,
       experience: { years: index === 0 ? 0 : 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
     }))
     let injuryMode = 'malformed'
@@ -90,7 +90,14 @@ Deno.test({
         ? new Response('unavailable', { status: 500 })
         : Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Other Player' } }, { status: 'Out' }] }] })
       if (url.pathname === '/news') return Response.json({ articles: [] })
-      if (url.pathname === '/staticData/playerIndex.json') return Response.json({ resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [] }] })
+      if (url.pathname === '/players/nba') return Response.json(Object.fromEntries(athletes.map((athlete, index) => [String(700000 + index), {
+        player_id: String(700000 + index), sport: 'nba', first_name: athlete.firstName, last_name: athlete.lastName, team: codes[Math.floor(index / 12)], years_exp: athlete.experience.years, position: 'PG',
+      }])))
+      if (url.pathname === '/staticData/playerIndex.json') return Response.json({ resultSets: [{
+        headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS', 'TEAM_ABBREVIATION', 'POSITION', 'FROM_YEAR'],
+        rowSet: athletes.map((athlete, index) => [900000 + index, athlete.firstName, athlete.lastName, 1,
+          ({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[codes[Math.floor(index / 12)]] ?? codes[Math.floor(index / 12)], 'PG', 2026 - athlete.experience.years]),
+      }] })
       return new Response('unavailable', { status: 404 })
     })
     const base = `http://127.0.0.1:${upstream.addr.port}`
@@ -98,6 +105,7 @@ Deno.test({
     Deno.env.set('ESPN_SITE_BASE_URL', base)
     Deno.env.set('ESPN_CAREER_BASE_URL', base)
     Deno.env.set('NBA_CDN_BASE_URL', base)
+    Deno.env.set('SLEEPER_BASE_URL', base)
     Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'private-data-test')
     type Handler = (request: Request) => Promise<Response>
     let handler: Handler | undefined
@@ -109,6 +117,12 @@ Deno.test({
     try {
       await resolvePlayerImports('espn', [{ provider_id: athletes[0].id, first_name: athletes[0].firstName, last_name: athletes[0].lastName,
         metadata: { nba_team: 'BOS', years_exp: 0, injury_status: 'Out' } }])
+      const rookieBase = await supabase.rpc('complete_player_career_base_atomic', {
+        p_player_id: (await supabase.from('players').select('id').eq('espn_id', athletes[0].id).single()).data!.id,
+        p_espn_id: athletes[0].id, p_nba_id: '', p_season_year: 2027,
+      })
+      assert.ifError(rookieBase.error)
+      assert.equal(rookieBase.data, true)
       for (injuryMode of ['malformed', 'http']) {
         const response = await handler!(new Request('http://function.invalid', { method: 'POST', headers: { 'x-internal-function-token': 'private-data-test' }, body: JSON.stringify({ mode: 'injuries' }) }))
         const result = await response.json()
@@ -117,9 +131,13 @@ Deno.test({
         assert.equal(result.injuryWarnings, 1)
         assert.equal(result.careerUnverified, 359)
         assert.equal(result.updated + result.inserted, 360)
+        const connected = await supabase.from('players').select('nba_id,sleeper_id,position,years_exp').eq('first_name', athletes[0].firstName)
+        assert.ifError(connected.error)
+        assert.equal(connected.data?.length, 360)
+        assert.ok(connected.data!.every(row => row.nba_id && row.sleeper_id && row.position && row.years_exp != null))
         const imported = await supabase.from('players').select('nba_team, injury_status, years_exp, career_regular_season_games').eq('espn_id', athletes[0].id).single()
         assert.ifError(imported.error)
-        assert.deepEqual(imported.data, { nba_team: 'ATL', injury_status: 'Out', years_exp: 0, career_regular_season_games: null })
+        assert.deepEqual(imported.data, { nba_team: 'ATL', injury_status: 'Out', years_exp: 0, career_regular_season_games: 0 })
       }
     } finally {
       const removed = await supabase.from('players').delete().eq('first_name', athletes[0].firstName)

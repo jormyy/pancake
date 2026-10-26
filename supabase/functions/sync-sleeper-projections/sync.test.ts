@@ -68,3 +68,26 @@ Deno.test('surfaces a committed coverage failure without overwriting its diagnos
   assert.equal(completion, true)
   assert.equal(failures.length, 0)
 })
+
+Deno.test('a missing Sleeper identity is stored before its projections are written', async () => {
+  const player = { id: '00000000-0000-0000-0000-000000000001', sleeper_id: null as string | null, display_name: 'Mike Conley', nba_team: 'BOS' }
+  const calls: string[] = []
+  const client = createClient<Database>('http://127.0.0.1:1', 'fixture-only', { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : String(input))
+    calls.push(url.pathname)
+    if (url.pathname.endsWith('/players')) return Response.json([player])
+    if (url.pathname.endsWith('/link_player_sources_atomic')) {
+      const body = JSON.parse(String(init?.body))
+      assert.deepEqual(body, { p_source: 'sleeper', p_current_roster: false, p_records: [{ provider_id: '1200', display_name: 'Mike Conley', nba_team: 'BOS', position: 'PG', years_exp: 19 }] })
+      player.sleeper_id = '1200'
+      return Response.json({ results: [{ index: 0, player_id: player.id, action: 'updated' }] })
+    }
+    if (url.pathname.endsWith('/complete_sleeper_projection_sync')) return Response.json(1)
+    if (url.pathname.endsWith('/projection_sync_runs')) return Response.json(init?.method === 'POST' ? { id: '00000000-0000-0000-0000-000000000010' } : { status: 'success', error_message: null })
+    throw new Error(`Unexpected request ${url.pathname}`)
+  } } })
+  const result = await syncSleeperProjections(client, context, () => Promise.resolve(Response.json([fixture[0]])))
+  assert.equal(result.rows, 1)
+  assert.equal(player.sleeper_id, '1200')
+  assert.ok(calls.indexOf('/rest/v1/rpc/link_player_sources_atomic') < calls.indexOf('/rest/v1/rpc/complete_sleeper_projection_sync'))
+})

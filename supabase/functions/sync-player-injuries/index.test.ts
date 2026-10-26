@@ -40,6 +40,17 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
       if (request.method === 'POST') return Response.json({ id: 'run' })
       return Response.json({})
     }
+    if (url.pathname === '/rest/v1/rpc/link_player_sources_atomic') {
+      const body = await request.json()
+      assert.equal(body.p_source, 'espn')
+      const result = body.p_records.map((row: { provider_id: string; display_name: string }, index: number) => {
+        const matched = players.find(player => player.display_name === row.display_name)!
+        assert.ok(matched)
+        matched.espn_id = row.provider_id
+        return { index, player_id: matched.id, action: 'updated' }
+      })
+      return Response.json({ results: result })
+    }
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') {
       writes.push({ id: url.searchParams.get('id'), body: await request.json() })
@@ -72,6 +83,18 @@ Deno.test('players without an ESPN id keep their injury', async () => {
   const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [scratch])
   assert.equal(result.response.status, 200)
   assert.deepEqual(result.writes, [])
+})
+
+Deno.test('an injury player-card link connects the missing ESPN identity before applying the injury', async () => {
+  const scratch = { ...player('unlinked', 'Afternoon Scratch'), espn_id: null }
+  const result = await refresh({ injuries: [{ id: '2', displayName: 'Boston Celtics', injuries: [{
+    status: 'Out', athlete: { displayName: 'Afternoon Scratch', links: [{ href: 'https://www.espn.com/nba/player/_/id/12345/afternoon-scratch' }],
+      position: { abbreviation: 'G' }, experience: { years: 2 } },
+  }] }] }, [scratch])
+  assert.equal(result.response.status, 200)
+  assert.equal(scratch.espn_id, '12345')
+  assert.deepEqual(result.writes, [{ id: 'eq.unlinked', body: { injury_status: 'Out' } }])
+  assert.ok(result.requests.indexOf('/rest/v1/rpc/link_player_sources_atomic') < result.requests.indexOf('/rest/v1/players'))
 })
 
 Deno.test('unchanged injuries fetch once and write no player rows', async () => {
