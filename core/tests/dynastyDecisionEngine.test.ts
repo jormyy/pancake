@@ -57,6 +57,51 @@ const player = (id: string, rank: number, points: number, age = 25): DynastyPlay
 })
 
 describe('dynasty decision engine', () => {
+    it('rejects repeated assets and routes that do not transfer ownership', () => {
+        const route = { fromMemberId: 'a', toMemberId: 'b', asset: player('one', 40, 20) }
+        expect(() => analyzeDynastyTrade(context, 'overall', [route, route])).toThrow(/once/)
+        expect(() => analyzeDynastyTrade(context, 'overall', [{ ...route, toMemberId: 'a' }])).toThrow(/different/)
+    })
+
+    it('exposes exact package accounting and reverses uneven trade adjustments', () => {
+        const routes = [
+            { fromMemberId: 'a', toMemberId: 'b', asset: player('one', 40, 20) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: player('two', 80, 15) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: player('elite', 8, 28) },
+        ]
+        const input = { ...context, replacementValue: 125 }
+        const forward = analyzeDynastyTrade(input, 'overall', routes)
+        const reverse = analyzeDynastyTrade(input, 'overall', routes.map(route => ({
+            ...route, fromMemberId: route.toMemberId, toMemberId: route.fromMemberId,
+        })))
+        expect(forward.teams[0].valuesSent).toBe(forward.assets[0].values.overall + forward.assets[1].values.overall)
+        for (const [index, team] of forward.teams.entries()) {
+            expect(team.impact).toBe(team.valuesReceived - team.valuesSent + team.packageEffect + team.rosterSlotEffect + team.replacementEffect)
+            expect(reverse.teams[index].impact).toBe(-team.impact)
+            expect(reverse.teams[index].replacementEffect).toBe(-team.replacementEffect)
+        }
+    })
+
+    it('values all transferred FAAB even when a manager holds more than the season grant', () => {
+        const asset = { kind: 'faab' as const, id: 'funds', label: 'FAAB', budget: 100, freeAgentQuality: 0.5, amount: 200 }
+        expect(valueDynastyAsset(context, asset).values.overall).toBe(195)
+        expect(valueDynastyAsset(context, { ...asset, amount: 100 }).values.overall).toBe(98)
+    })
+
+    it('reports wider value ranges when player evidence is missing or the player is a rookie', () => {
+        const veteran = valueDynastyAsset(context, player('veteran', 50, 20))
+        const rookie = valueDynastyAsset(context, { ...player('rookie', 50, 20), isRookie: true })
+        const unknown = valueDynastyAsset(context, {
+            kind: 'player', id: 'unknown', label: 'Unknown', age: null, dynastyRank: null, rankMovement: null, healthStatus: null,
+        })
+        expect(veteran.ranges.overall).toBeDefined()
+        const width = (result: typeof veteran) => (result.ranges.overall?.high ?? 0) - (result.ranges.overall?.low ?? 0)
+        expect(width(rookie)).toBeGreaterThan(width(veteran))
+        expect(width(unknown)).toBeGreaterThan(width(veteran))
+        expect(unknown.values.overall).toBeGreaterThan(0)
+        expect(unknown.missingInputs).toContain('current production')
+    })
+
     it('returns the same result for the same input', () => {
         const asset = player('player-1', 12, 24)
         expect(valueDynastyAsset(context, asset)).toEqual(valueDynastyAsset(context, asset))

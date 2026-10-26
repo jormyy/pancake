@@ -60,6 +60,7 @@ export {
 // Dynasty decision tools
 export {
     analyzeDynastyTrade,
+    DYNASTY_TRADE_MODEL_VERSION,
     DYNASTY_STRATEGIES,
     DYNASTY_STRATEGY_WEIGHTS,
     valueDynastyAsset,

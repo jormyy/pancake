@@ -3,6 +3,8 @@ import type { ScoringSettings, StatLine } from '../scoring/types'
 
 export type DynastyStrategy = 'overall' | 'contend' | 'rebuild'
 
+export const DYNASTY_TRADE_MODEL_VERSION = 'dynasty-accounting-v2'
+
 export const DYNASTY_STRATEGIES: DynastyStrategy[] = ['overall', 'contend', 'rebuild']
 
 export const DYNASTY_STRATEGY_WEIGHTS = {
@@ -142,7 +144,7 @@ const EMPTY_COMPONENTS: DynastyAssetComponents = {
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value))
 const finite = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value)
-const round = (value: number) => Math.round(value)
+const round = (value: number) => Math.sign(value) * Math.round(Math.abs(value))
 const roundOne = (value: number) => Math.round(value * 10) / 10
 
 function normalizedAge(age: number | null): number {
@@ -209,13 +211,18 @@ function valuePlayer(context: DynastyEngineContext, asset: DynastyPlayerAsset): 
         !finite(asset.age) ? 'age' : null,
     ].filter((value): value is string => value != null)
     const confidence = clamp(1 - missingInputs.length * 0.13 - (asset.sources?.some((source) => !source.fetchedAt) ? 0.05 : 0), 0.35, 1)
+    const spread = 0.12 + missingInputs.length * 0.08 + (asset.isRookie ? 0.08 : 0)
+    const ranges = Object.fromEntries(DYNASTY_STRATEGIES.map(strategy => [strategy, {
+        low: round(Math.max(0, values[strategy] * (1 - spread))),
+        high: round(Math.min(1000, values[strategy] * (1 + spread))),
+    }]))
 
     return {
         assetId: asset.id,
         kind: asset.kind,
         label: asset.label,
         values,
-        ranges: {},
+        ranges,
         components: {
             production: round(production * 1000),
             projection: round(projection * 1000),
@@ -236,6 +243,8 @@ function valuePlayer(context: DynastyEngineContext, asset: DynastyPlayerAsset): 
             'Current production and projection use the active league scoring settings.',
             'Health changes value by no more than 12%.',
             'Rank movement changes value by no more than 4%.',
+            'Player ranges are heuristic sensitivity bands, not statistical confidence intervals.',
+            ...(asset.isRookie ? ['Rookie value ranges include extra development uncertainty.'] : []),
         ],
     }
 }
@@ -301,7 +310,7 @@ function valuePick(context: DynastyEngineContext, asset: DynastyPickAsset): Dyna
 
 function valueFaab(asset: DynastyFaabAsset): DynastyAssetResult {
     const budget = finite(asset.budget) && asset.budget > 0 ? asset.budget : 100
-    const amount = clamp(finite(asset.amount) ? asset.amount : 0, 0, budget)
+    const amount = Math.max(0, finite(asset.amount) ? asset.amount : 0)
     const quality = clamp(finite(asset.freeAgentQuality) ? asset.freeAgentQuality : 0.5, 0, 1)
     const overall = round((amount / budget) * (45 + quality * 105))
     const values = {
@@ -372,6 +381,15 @@ export function analyzeDynastyTrade(
     strategy: DynastyStrategy,
     routes: DynastyTradeRoute[],
 ): DynastyTradeAnalysis {
+    const seen = new Set<string>()
+    for (const route of routes) {
+        if (!route.fromMemberId || !route.toMemberId || route.fromMemberId === route.toMemberId) {
+            throw new Error('Each asset must move between two different teams.')
+        }
+        const identity = `${route.asset.kind}:${route.asset.id}`
+        if (!route.asset.id || seen.has(identity)) throw new Error('Each trade asset must appear exactly once.')
+        seen.add(identity)
+    }
     const results = routes.map((route) => valueDynastyAsset(context, route.asset))
     const memberIds = [...new Set(routes.flatMap((route) => [route.fromMemberId, route.toMemberId]))].sort()
     const replacementValue = clamp(context.replacementValue ?? 180, 0, 500)
@@ -382,13 +400,13 @@ export function analyzeDynastyTrade(
         const receivedValues = receivedIndexes.map((index) => results[index].values[strategy])
         const sentPenalty = packagePenalty(sentValues)
         const receivedPenalty = packagePenalty(receivedValues)
-        const valuesSent = Math.max(0, sentValues.reduce((total, value) => total + Math.max(0, value), 0) - sentPenalty)
-        const valuesReceived = Math.max(0, receivedValues.reduce((total, value) => total + Math.max(0, value), 0) - receivedPenalty)
+        const valuesSent = sentValues.reduce((total, value) => total + Math.max(0, value), 0)
+        const valuesReceived = receivedValues.reduce((total, value) => total + Math.max(0, value), 0)
         const sentPlayers = sentIndexes.filter((index) => routes[index].asset.kind === 'player').length
         const receivedPlayers = receivedIndexes.filter((index) => routes[index].asset.kind === 'player').length
         const slotDelta = sentPlayers - receivedPlayers
         const rosterSlotEffect = round(slotDelta * replacementValue * 0.18)
-        const replacementEffect = slotDelta > 0 ? round(slotDelta * replacementValue * 0.08) : 0
+        const replacementEffect = round(slotDelta * replacementValue * 0.08)
         const shortTermPoints = roundOne(
             receivedIndexes.reduce((total, index) => total + results[index].components.shortTermPoints, 0) -
             sentIndexes.reduce((total, index) => total + results[index].components.shortTermPoints, 0),
@@ -406,7 +424,7 @@ export function analyzeDynastyTrade(
             packageEffect: sentPenalty - receivedPenalty,
             replacementEffect,
             rosterSlotEffect,
-            impact: round(valuesReceived - valuesSent + rosterSlotEffect + replacementEffect),
+            impact: round(valuesReceived - valuesSent + sentPenalty - receivedPenalty + rosterSlotEffect + replacementEffect),
         }
     })
     const confidence = results.length === 0
