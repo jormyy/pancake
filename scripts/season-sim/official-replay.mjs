@@ -19,6 +19,7 @@ import { beginOfficialWaivers, verifyOfficialWaivers } from './official-waivers.
 import { checkCalendar } from './calendar-oracle.mjs'
 
 export async function officialReplay(options, scenario) {
+  assert.ok(!options.afterRestoreSql, 'Official continuation requires unchanged application SQL; overlays use the generic diagnostic mode')
   const { profile } = scenario
   assert.equal(season.year, profile.firstYear, 'Official replay year must match the historical profile')
   assert.equal(process.env.SEASON_SIM_MODE, 'two-season', 'Official replay requires the retained two-season corpus')
