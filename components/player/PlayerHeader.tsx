@@ -1,9 +1,10 @@
+import { Button } from '@/components/ui/Button'
 import { PlayerEligibilityTags } from './PlayerEligibilityTags'
-import { View, Text, StyleSheet, Pressable } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -65,19 +66,17 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                 <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
                     {action ? (
-                        <Pressable style={[styles.action, showDrop && styles.rosterPrimary, action.blockedReason && styles.pickupBlocked]}
+                        <Button size="inline" title={action.label}
+                            variant={action.blockedReason ? 'secondary' : 'primary'}
+                            labelStyle={action.blockedReason ? { color: colors.textPlaceholder } : undefined}
                             onPress={action.onPress} disabled={action.disabled || action.busy}
-                            accessibilityRole="button" accessibilityLabel={action.accessibilityLabel ?? `${action.label} ${player.display_name}`}
-                            {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)}>
-                            <Text style={[styles.actionText, action.blockedReason && styles.pickupBlockedText]} numberOfLines={1}>{action.label}</Text>
-                        </Pressable>
-                    ) : <View style={[styles.action, showDrop && styles.rosterPrimary, styles.placeholder]} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
+                            accessibilityLabel={action.accessibilityLabel ?? `${action.label} ${player.display_name}`}
+                            {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)} />
+                    ) : <View style={styles.placeholder} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
                     {showDrop ? (
-                        <Pressable style={styles.dropButton} onPress={onDrop} disabled={action?.busy || dropDisabled || !actionsReady}
-                            accessibilityRole="button" accessibilityLabel={`Drop ${player.display_name}`}
-                            accessibilityState={{ disabled: action?.busy || dropDisabled || !actionsReady }}>
-                            <Text style={styles.dropText}>Drop</Text>
-                        </Pressable>
+                        <Button size="inline" title="Drop" variant="outline" onPress={onDrop}
+                            disabled={action?.busy || dropDisabled || !actionsReady}
+                            accessibilityLabel={`Drop ${player.display_name}`} />
                     ) : null}
                 </View>
             </View>
@@ -105,13 +104,6 @@ const styles = StyleSheet.create({
     summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
     rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
-    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'center' },
-    action: { minHeight: controlSize.minTouch, width: '100%', paddingHorizontal: spacing.sm, borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-    actionText: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.sm },
-    placeholder: { backgroundColor: colors.bgMuted },
-    pickupBlocked: { backgroundColor: colors.bgMuted, borderWidth: 1, borderColor: colors.borderLight },
-    pickupBlockedText: { color: colors.textPlaceholder },
-    rosterPrimary: { width: 'auto', flex: 1, paddingHorizontal: spacing.xs },
-    dropButton: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, paddingHorizontal: spacing.xs, borderWidth: 1, borderColor: colors.primaryBorder, borderRadius: radii.lg, alignItems: 'center', justifyContent: 'center' },
-    dropText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
+    actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
+    placeholder: { height: controlSize.button.inline.height, width: controlSize.minTouch, backgroundColor: colors.bgMuted, borderRadius: radii.md },
 })

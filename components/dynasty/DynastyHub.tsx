@@ -1,3 +1,4 @@
+import { NewsRow } from './NewsRow'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } from '@/components/dynasty/news-cache'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -5,7 +6,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
 import { memo, useCallback, useEffect, useState } from 'react'
 import {
-    Linking,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -117,34 +117,6 @@ function RankingRowImpl({
 }
 
 const RankingRow = memo(RankingRowImpl)
-
-function NewsRow({ item }: { item: DynastyNewsItem }) {
-    const open = () => {
-        if (item.url) void Linking.openURL(item.url)
-    }
-
-    return (
-        <Pressable
-            onPress={open}
-            disabled={!item.url}
-            style={styles.newsRow}
-            accessibilityRole={item.url ? 'link' : undefined}
-            accessibilityLabel={item.title}
-        >
-            <View style={styles.newsTopLine}>
-                <Text style={styles.newsSource}>{item.source}</Text>
-                <Text style={styles.newsDate}>{formatDate(item.publishedAt)}</Text>
-            </View>
-            <Text style={styles.newsTitle}>{item.title}</Text>
-            <Text style={styles.newsSummary}>{item.summary}</Text>
-            {item.playerName ? (
-                <View style={styles.newsPlayerRow}>
-                    <PlayerRowContent name={item.playerName} nbaId={item.playerNbaId} team={item.playerTeam} positions={item.playerPosition ? [item.playerPosition] : []} yearsExp={item.playerYearsExp} careerGames={item.playerCareerGames} injuryStatus={item.playerInjuryStatus} />
-                </View>
-            ) : null}
-        </Pressable>
-    )
-}
 
 /**
  * Dynasty rankings or news, shown as a section of the Players page. The
@@ -320,7 +292,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 ) : (
                                     activeNews.map((item, index) => (
                                         <View key={item.id}>
-                                            <NewsRow item={item} />
+                                            <NewsRow item={item} dateLabel={formatDate(item.publishedAt)} />
                                             {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
                                         </View>
                                     ))
@@ -396,14 +368,6 @@ const styles = StyleSheet.create({
     sourceFootnote: { ...textStyles.meta, paddingVertical: spacing.lg },
     newsContent: { paddingBottom: spacing.xl, gap: spacing.md, width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center' },
     listCard: { overflow: 'hidden' },
-    newsRow: { paddingVertical: spacing.lg, paddingHorizontal: spacing.md, gap: spacing.sm },
-    newsTopLine: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg },
-    newsSource: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, color: colors.primaryDark, textTransform: 'uppercase' },
-    newsDate: { fontSize: fontSize.xs, fontWeight: fontWeight.semibold, color: colors.textMuted },
-    newsTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    newsSummary: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
-    newsPlayerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-    newsPlayer: { flex: 1, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textMuted },
     separator: { height: 1, backgroundColor: colors.borderLight },
     emptyContainer: { flexGrow: 1, justifyContent: 'center' },
     errorState: {

@@ -262,6 +262,8 @@ const styles = StyleSheet.create({
         gap: spacing.sm,
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
+        borderTopWidth: 2,
+        borderTopColor: 'transparent',
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',
     },

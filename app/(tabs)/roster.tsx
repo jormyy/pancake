@@ -983,7 +983,7 @@ export default function RosterScreen() {
             <PageHeader
                 tabs={(
                     <View style={styles.summary}>
-                        <Text style={[styles.summaryText, { minWidth: 240, minHeight: 20, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
+                        <Text style={[styles.summaryText, { minWidth: 240, minHeight: textStyles.meta.lineHeight, opacity: !data ? 0 : 1 }]} aria-busy={!data} accessibilityState={{ busy: !data }}>
                             {data ? `${active.length}/${rosterSize} active · ${ir.length}/${irSlots} IR · ${taxi.length}/${taxiSlots} taxi` : ''}
                         </Text>
                         {pendingClaimCount > 0 && !twoPane ? (
@@ -1002,7 +1002,7 @@ export default function RosterScreen() {
                 )}
                 actions={roster.length > 0 ? (
                     <Button
-                        size="sm"
+                        size="inline"
                         variant={lineupLocked ? 'secondary' : 'primary'}
                         title={rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Set Lineup'}
                         onPress={() => setAutoSetVisible(true)}
