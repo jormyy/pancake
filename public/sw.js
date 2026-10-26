@@ -235,7 +235,7 @@ self.addEventListener('message', (event) => {
     const replyWhenActive = () => {
       if (worker.state !== 'activated' && worker.state !== 'redundant') return
       worker.removeEventListener('statechange', replyWhenActive)
-      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION })
+      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION, draftRecoveryVersion: 1 })
       resolve()
     }
     worker.addEventListener('statechange', replyWhenActive)

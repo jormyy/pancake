@@ -14,6 +14,7 @@ function boot({ held = false, recoverable = false, online = true, previous = nul
             setAttribute: vi.fn(), addEventListener: vi.fn(), appendChild: (child: unknown) => result.children.push(child), querySelector: () => result.children[0] }
         return result
     }
+    const ports: { onmessage?: (event: unknown) => void; close: ReturnType<typeof vi.fn> }[] = []
     const reload = vi.fn()
     const storage = new Map<string, string>()
     if (previous) storage.set('pancake-update-reload:/players', previous)
@@ -23,10 +24,13 @@ function boot({ held = false, recoverable = false, online = true, previous = nul
         document: { readyState: 'complete', visibilityState: 'visible', querySelector: () => ({ content: 'build-old' }), addEventListener: vi.fn(), createElement: element,
             getElementById: (id: string) => elements.get(id), body: { appendChild: (node: ReturnType<typeof element>) => elements.set(node.id, node) } },
         sessionStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) },
-        setTimeout: vi.fn(), clearTimeout: vi.fn(), setInterval: vi.fn(), MessageChannel: class { port1 = { close: vi.fn() }; port2 = {} },
+        setTimeout: vi.fn(), clearTimeout: vi.fn(), setInterval: vi.fn(), MessageChannel: class { port1 = { close: vi.fn() }; port2 = {}; constructor() { ports.push(this.port1) } },
     }
     runInNewContext(script, scope)
-    return { events, workerEvents, reload, elements, scope, storage }
+    return { events, workerEvents, reload, elements, scope, storage, reconcile: (draftRecoveryVersion?: number) => {
+        workerEvents.get('controllerchange')?.({})
+        ports.at(-1)?.onmessage?.({ data: { version: 'build-target', draftRecoveryVersion } })
+    } }
 }
 
 it.each([
@@ -76,17 +80,44 @@ it('ignores unrelated application failures', () => {
 })
 
 it('recovers a missing chunk when the open draft is safely stored', () => {
-    const f = boot({ held: true, recoverable: true })
+    const f = boot({ held: true, recoverable: true, worker: true })
+    f.reconcile(1)
     f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
     expect(f.reload).toHaveBeenCalledOnce()
 })
 
 it('never reloads a saved draft while a mutation is still active', () => {
-    const f = boot({ held: true, recoverable: true })
+    const f = boot({ held: true, recoverable: true, worker: true })
+    f.reconcile(1)
     f.scope.window.__pancakePwaHolds.add('active mutation')
     f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
     expect(f.reload).not.toHaveBeenCalled()
     f.scope.window.__pancakePwaHolds.delete('active mutation')
     f.events.get('pancake-pwa-hold-change')?.()
     expect(f.reload).toHaveBeenCalledOnce()
+})
+
+it('holds a saved draft when the rollback worker cannot restore it', () => {
+    const f = boot({ held: true, recoverable: true, worker: true })
+    f.reconcile()
+    f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
+    expect(f.reload).not.toHaveBeenCalled()
+    expect(f.elements.get('pancake-update-notice')?.textContent).toContain('Finish your current work')
+    f.scope.window.__pancakePwaHolds.clear()
+    f.events.get('pancake-pwa-hold-change')?.()
+    expect(f.reload).toHaveBeenCalledOnce()
+})
+
+it('holds a saved draft when there is no verified recovery target', () => {
+    const f = boot({ held: true, recoverable: true })
+    f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
+    expect(f.reload).not.toHaveBeenCalled()
+})
+
+it('does not reuse recovery support while a replacement worker is still unknown', () => {
+    const f = boot({ held: true, recoverable: true, worker: true })
+    f.reconcile(1)
+    f.workerEvents.get('controllerchange')?.({})
+    f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
+    expect(f.reload).not.toHaveBeenCalled()
 })

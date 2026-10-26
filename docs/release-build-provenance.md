@@ -106,3 +106,5 @@ For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the p
 The generated `release-compatibility.json` records the retained files and their source. They stay lazy and remain outside the startup precache. Each build retains one predecessor's own assets. It excludes assets inherited by that predecessor, old HTML, and old service workers. Conflicting immutable paths fail the build. Changing the predecessor requires a clean export.
 
 Before publishing, verify the predecessor still matches the live deployment. Test an unfinished edit in that release, update detection, closing and reopening, and offline use. Recheck the displayed release identity after deployment.
+
+Missing-script recovery preserves an open editor during rollback. A saved draft permits an automatic recovery reload only when the controlling worker confirms draft recovery version 1. Older or unknown workers leave the current editor open until its hold ends. Each new worker observation clears the previous compatibility result. Keep the worker capability aligned with the draft readers shipped in the same release.

@@ -27,6 +27,7 @@ if (window.isSecureContext) {
     var workerReconciled = !documentVersion;
     var reloaded = false;
     var assetMissed = false;
+    var recoveryCompatible = false;
     var noticeTimer = null;
     var registration = null;
     var observation = 0;
@@ -35,7 +36,7 @@ if (window.isSecureContext) {
     var held = function (recovering) {
       var holds = window.__pancakePwaHolds;
       if (!holds?.size) return false;
-      if (!recovering) return true;
+      if (!recovering || !recoveryCompatible) return true;
       for (var hold of holds.values()) {
         try { if (!hold?.canRecover?.()) return true; } catch { return true; }
       }
@@ -86,14 +87,16 @@ if (window.isSecureContext) {
     var observeWorkerVersion = function (worker) {
       if (!worker) return;
       var currentObservation = ++observation;
+      recoveryCompatible = false;
       var channel = new MessageChannel();
       var settled = false;
-      var finish = function (version) {
+      var finish = function (version, draftRecoveryVersion) {
         if (settled) return;
         settled = true;
         channel.port1.close();
         if (!version || reloaded || currentObservation !== observation ||
             (navigator.serviceWorker?.controller && worker !== navigator.serviceWorker?.controller)) return;
+        recoveryCompatible = draftRecoveryVersion === 1;
         var previous;
         try {
           previous = sessionStorage.getItem(workerVersionKey);
@@ -114,7 +117,7 @@ if (window.isSecureContext) {
         if (!workerReconciled) checkForUpdate(true);
         tryReload(false);
       };
-      channel.port1.onmessage = function (event) { finish(event.data && event.data.version); };
+      channel.port1.onmessage = function (event) { finish(event.data && event.data.version, event.data && event.data.draftRecoveryVersion); };
       worker.postMessage({ type: 'PANCAKE_WORKER_VERSION' }, [channel.port2]);
       setTimeout(function () { finish(null); }, 10000);
     };
