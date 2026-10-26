@@ -4,7 +4,7 @@ import { virtualDate } from '../../../scripts/season-sim/virtual-clock.mjs'
 import { Clock, Fixture, Transport, expectRows, q, rows, sql, type OutboxRow } from './notif-t9-support.ts'
 
 // SYNTHETIC season worker chain. Production cron job commands dispatch through
-// pg_net to the real served sync-scores and season-boundary workers, which read a
+// pg_net to the real served live-poll and season-boundary workers, which read a
 // local fake NBA CDN, finalize the season, seed the final, roll the season over and
 // complete the rookie draft. The production minute entry then finds the first
 // scoring day, and the in-process process-trades worker delivers to fake Expo.
@@ -139,7 +139,7 @@ try {
   })
   const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
   for (const [name, load] of [
-    ['sync-scores', () => import('../../functions/sync-scores/index.ts')],
+    ['live-poll', () => import('../../functions/live-poll/index.ts')],
     ['season-boundary', () => import('../../functions/season-boundary/index.ts')],
   ] as const) {
     Object.defineProperty(Deno, 'serve', { value: (handler: Deno.ServeHandler) => { handlers.set(name, handler) } })
@@ -182,11 +182,11 @@ try {
     INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,points,did_not_play)
       SELECT player,${q(game)},${league.year},${week},1,false FROM unnest(ARRAY[${veterans.map(q)}]::uuid[]) player;`)
 
-  // Week 1 closes: the idle score-recovery branch of nba-live-poll dispatches sync-scores.
+  // Week 1 closes: overdue final stats dispatch the live-poll repair worker.
   await at('2026-10-26T04:00:00Z')
   await provisionalFinal(weekOneGame, 1)
   await at('2026-10-26T14:00:00Z')
-  assert.deepEqual(await cron('nba-live-poll', 'sync-scores'), { ok: true })
+  assert.equal((await cron('nba-live-poll', 'live-poll'))?.ok, true)
   assert.ok(providerRequests.includes(`/static/json/liveData/boxscore/boxscore_${await providerId(weekOneGame)}.json`), 'The served worker re-reads the corrected final box')
   assert.deepEqual((await matchups(league.season)).map(row => [row.home, row.home_points, row.away, row.away_points, row.finalized, row.winner]),
     [[A, 40, D, 10, true, A], [B, 30, C, 20, true, B]], 'Corrected provider stats finalize week 1')
@@ -203,7 +203,7 @@ try {
   await at('2026-11-02T04:00:00Z')
   await provisionalFinal(finalGame, 2)
   await at('2026-11-02T15:00:00Z')
-  assert.deepEqual(await cron('nba-live-poll', 'sync-scores'), { ok: true })
+  assert.equal((await cron('nba-live-poll', 'live-poll'))?.ok, true)
   assert.deepEqual((await matchups(league.season)).filter(row => row.type === 'playoff_final').map(row => [row.home_points, row.away_points, row.finalized, row.winner]),
     [[5, 50, true, B]], 'Corrected provider stats decide the final')
 
