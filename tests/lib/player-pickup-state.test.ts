@@ -25,7 +25,7 @@ it('reads known pickup limits beside ownership without waiting for the roster re
     release({ status: { status: 'free_agent' }, roster: [{ is_on_ir: true }] })
     expect(await result).toEqual({ status: { status: 'free_agent' }, roster: [{ is_on_ir: true }], transactionState: { weeklyAddCount: 0 }, claimPending: false })
     expect(state.limit).toHaveBeenCalledOnce()
-    expect(state.pending).not.toHaveBeenCalled()
+    expect(state.pending).toHaveBeenCalledExactlyOnceWith('member', 'season')
 })
 
 it('keeps the server ownership result when a pickup hint is stale', async () => {
@@ -41,8 +41,8 @@ it('skips pickup limits for rostered players without a hint', async () => {
     expect(state.limit).not.toHaveBeenCalled()
 })
 
-it('reads pending claims only after the server confirms waivers', async () => {
-    state.context.mockResolvedValue({ status: { status: 'on_waivers', logId: 'wire', clearsAt: 'later' }, roster: [] })
+it.each([{ status: 'free_agent' }, { status: 'on_waivers', logId: 'wire', clearsAt: 'later' }])('reads pending claims for pickup status $status', async status => {
+    state.context.mockResolvedValue({ status, roster: [] })
     state.pending.mockResolvedValue(new Set(['player']))
     expect(await loadPickupState('player', 'member', 'league', () => true, true)).toMatchObject({ claimPending: true })
     expect(state.pending).toHaveBeenCalledExactlyOnceWith('member', 'season')

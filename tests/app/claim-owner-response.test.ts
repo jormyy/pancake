@@ -5,6 +5,8 @@ import {afterEach,beforeEach,expect,it,vi} from 'vitest'
 import ClaimPlayerScreen from '@/app/(modals)/claim-player'
 import { memberTransactionState } from '@/tests/helpers/fixtures'
 
+vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
+
 const state=vi.hoisted(()=>({owner:'a',waiverMode:'rolling',balance:vi.fn(),claim:vi.fn(),success:vi.fn(),report:vi.fn(),back:vi.fn(),player:vi.fn(),members:vi.fn()}))
 vi.mock('react-native',()=>({View:'View',Text:'Text',Pressable:'Pressable',TextInput:'TextInput',ScrollView:'ScrollView',Platform:{OS:'web'},StyleSheet:{create:(styles:unknown)=>styles},useWindowDimensions:()=>({width:1280,height:900})}))
 vi.mock('@expo/vector-icons/MaterialIcons',()=>({default:'Icon'}))
@@ -20,7 +22,7 @@ vi.mock('@/components/EmptyState',()=>({EmptyState:'EmptyState'}))
 vi.mock('@/lib/league',()=>({getLeagueMembers:state.members}))
 vi.mock('@/lib/roster',()=>({getRoster:async()=>[]}))
 vi.mock('@/lib/players',()=>({getPlayer:state.player}))
-vi.mock('@/lib/waivers',()=>({claimProcessDateLabel:()=> 'Tomorrow',claimProcessTimeLabel:()=> 'tomorrow',getMyWaiverPriority:async()=>1,getWaiverClearsAt:async()=>null,submitWaiverClaim:state.claim}))
+vi.mock('@/lib/waivers',()=>({claimProcessDateLabel:()=> 'Tomorrow',claimProcessTimeLabel:()=> 'tomorrow',getMyWaiverPriority:async()=>1,scheduledClaimLabel: () => 'Tomorrow', getWaiverClearsAt:async()=>null,submitWaiverClaim:state.claim}))
 vi.mock('@/lib/roster-add-flow',()=>({loadAddLimitState:state.balance}))
 vi.mock('@/lib/format',()=>({isIneligibleIR:()=>false,playerHeadshotUrl:()=>null}))
 vi.mock('@/lib/pickup',()=>({addLimitSummary:()=>'',reportPickupError:state.report}))

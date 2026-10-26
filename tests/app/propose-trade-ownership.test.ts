@@ -834,7 +834,7 @@ it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s m
     let renderer!: ReactTestRenderer
     try {
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
-        const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'] }
+        const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'], rosterMoves: [] }
         await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
         expect(renderer.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(expected)
         await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())

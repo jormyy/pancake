@@ -33,7 +33,7 @@ it('keeps player and roster summaries width-stable without unknown counts', asyn
     expect(players).toContain('minWidth: 240, minHeight: textStyles.body.lineHeight')
     expect(players).toContain('opacity: listIsInitialLoading ? 0 : 1')
     expect(roster).toContain('opacity: !data ? 0 : 1')
-    expect(roster).toContain('minWidth: 240, minHeight: 20')
+    expect(roster).toContain('minWidth: 240, minHeight: textStyles.meta.lineHeight')
     const picks = await read('components/league/LeaguePicksBank.tsx')
     expect(picks).toContain('badge: loading ? undefined : badge, reserveBadge: true')
 })

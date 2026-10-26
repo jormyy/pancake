@@ -4,6 +4,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ClaimPlayerScreen from '@/app/(modals)/claim-player'
 import { rosterPlayer } from './helpers/fixtures'
 
+vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
+
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), read: vi.fn(), injury: 'Out' as string | null, epoch: 0, alert: vi.fn() }))
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Switch: 'Switch', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
@@ -19,7 +21,7 @@ vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/lib/league', () => ({ getLeagueMembers: async () => [{ id: 'member', user_id: 'user' }] }))
 vi.mock('@/lib/roster', () => ({ getRoster: mocks.read }))
 vi.mock('@/lib/players', () => ({ getPlayer: async () => ({ id: 'target', display_name: 'IR target', injury_status: mocks.injury }) }))
-vi.mock('@/lib/waivers', () => ({ claimProcessDateLabel: () => 'Tomorrow', claimProcessTimeLabel: () => 'tomorrow', getMyWaiverPriority: async () => 1, getWaiverClearsAt: async () => null, submitWaiverClaim: mocks.claim }))
+vi.mock('@/lib/waivers', () => ({ claimProcessDateLabel: () => 'Tomorrow', claimProcessTimeLabel: () => 'tomorrow', getMyWaiverPriority: async () => 1, scheduledClaimLabel: () => 'Tomorrow', getWaiverClearsAt: async () => null, submitWaiverClaim: mocks.claim }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadAddLimitState: async () => null }))
 vi.mock('@/lib/format', () => ({ isIneligibleIR: () => false, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: vi.fn(), confirmAction: vi.fn() }))

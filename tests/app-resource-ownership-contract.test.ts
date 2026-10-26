@@ -7,6 +7,8 @@ import ClaimPlayerScreen from '@/app/(modals)/claim-player'
 import BracketScreen from '@/app/(modals)/bracket'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
+vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
+
 const state = vi.hoisted(() => ({
     user: { id: 'actor' }, member: { id: 'member' }, league: { id: 'league', roster_size: 1, waiver_mode: 'faab' },
     visible: true, online: true,
@@ -43,7 +45,7 @@ vi.mock('@/lib/players', () => ({ getPlayer: state.player }))
 vi.mock('@/lib/bracket', () => ({ getPlayoffBracket: state.bracket }))
 vi.mock('@/lib/waivers', () => ({
     claimProcessDateLabel: () => 'Tomorrow', claimProcessTimeLabel: () => 'tomorrow',
-    getMyWaiverPriority: async () => 1, getWaiverClearsAt: async () => null, submitWaiverClaim: state.claim,
+    getMyWaiverPriority: async () => 1, scheduledClaimLabel: () => 'Tomorrow', getWaiverClearsAt: async () => null, submitWaiverClaim: state.claim,
 }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadAddLimitState: async () => ({ weeklyAddCount: 0, weeklyAddLimit: 7, waiverMode: 'faab', faabBalance: 100 }) }))
 vi.mock('@/lib/format', () => ({ isIneligibleIR: () => false, playerHeadshotUrl: () => null, formatPoints: String }))

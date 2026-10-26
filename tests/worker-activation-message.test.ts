@@ -24,7 +24,7 @@ describe('worker version replies follow native activation', () => {
         expect(request.reply).not.toHaveBeenCalled()
         active.transition('activated')
         await request.done
-        expect(request.reply).toHaveBeenCalledExactlyOnceWith({ version: 'pancake-dev' })
+        expect(request.reply).toHaveBeenCalledExactlyOnceWith({ version: 'pancake-dev', draftRecoveryVersion: 1 })
         expect(remove).toHaveBeenCalledWith('statechange', expect.any(Function))
         active.transition('redundant')
         expect(request.reply).toHaveBeenCalledTimes(1)
@@ -33,7 +33,7 @@ describe('worker version replies follow native activation', () => {
     it('answers an already activated worker after a restart without another activate event', async () => {
         const request = await askVersion(new ActiveWorker('activated'))
         await request.done
-        expect(request.reply).toHaveBeenCalledExactlyOnceWith({ version: 'pancake-dev' })
+        expect(request.reply).toHaveBeenCalledExactlyOnceWith({ version: 'pancake-dev', draftRecoveryVersion: 1 })
     })
 
     it('settles a replaced worker without telling a waiting page to reload', async () => {

@@ -26,7 +26,7 @@ vi.mock('@/hooks/use-player-screen-data', () => ({ usePlayerScreenData: vi.fn(()
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/hooks/use-quick-add', () => ({ useQuickAdd: (options: { onChanged: () => Promise<void> }) => {
     state.refresh = options.onChanged
-    return { adding: null, addBlockedReason: null, handleAdd: state.add, dropPickerPlayer: null, irModal: null, irMoveCandidates: [] }
+    return { adding: null, addBlockedReason: null, handleAdd: state.add, handleClaim: state.add, dropPickerPlayer: null, irModal: null, irMoveCandidates: [] }
 } }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadPickupState: state.roster }))
 vi.mock('@/lib/roster', () => ({ dropPlayer: vi.fn() }))
@@ -44,7 +44,7 @@ vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer | undefined
-const button = () => screen!.root.findByProps({ accessibilityLabel: 'Add Player A' })
+const button = () => screen!.root.findByProps({ accessibilityLabel: 'Claim Player A' })
 beforeEach(() => {
     vi.clearAllMocks()
     state.params = { id: 'player', playerHeader: undefined }
@@ -85,7 +85,7 @@ it('reveals the header and averages while other resources are still pending', as
     expect(button().props.disabled).toBe(false)
 })
 
-it('never removes, relabels or disables Add during status refresh, failure, or unrelated stats updates', async () => {
+it('never removes, relabels or disables Claim during status refresh, failure, or unrelated stats updates', async () => {
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(button().props.disabled).toBe(false)
     let reject!: (error: Error) => void
@@ -93,7 +93,7 @@ it('never removes, relabels or disables Add during status refresh, failure, or u
     let refresh!: Promise<void>
     await act(async () => { refresh = state.refresh!() })
     expect(button().props.disabled).toBe(false)
-    expect(button().findByProps({ children: 'Add' })).toBeDefined()
+    expect(button().findByProps({ children: 'Claim' })).toBeDefined()
     state.data = { ...state.data, avgFantasyPoints: 45, projectionSettled: true }
     await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
     expect(state.roster).toHaveBeenCalledTimes(2)
@@ -149,11 +149,11 @@ it.each([
     expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player')
 })
 
-it('keeps Add to IR visible during roster refresh and passes the injury designation', async () => {
+it('keeps Claim visible for an injured player during roster refresh and passes the injury designation', async () => {
     state.data.player = { ...headerPlayer({ injury_status: 'Out' }), id: 'player' }
     state.roster.mockResolvedValue({ status: { status: 'free_agent' }, transactionState: memberTransactionState(), claimPending: false, roster: [] })
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
-    const action = () => screen!.root.findByProps({ accessibilityLabel: 'Add to IR Player A' })
+    const action = () => screen!.root.findByProps({ accessibilityLabel: 'Claim Player A' })
     expect(action().props.disabled).toBe(false)
     state.roster.mockReturnValueOnce(new Promise(() => {}))
     await act(async () => { void state.refresh!() })
@@ -178,7 +178,7 @@ it('dismisses the player page when viewing an existing claim', async () => {
     const action = screen!.root.findByType(PlayerHeader).props.action
     expect(action.label).toBe('View claim')
     await act(async () => action.onPress())
-    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/roster?claims=1')
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/players?section=waivers')
     expect(state.push).not.toHaveBeenCalled()
 })
 

@@ -35,7 +35,7 @@ test('the exported worker installs and claims the exact bytes served by the harn
       },
     }
     vm.runInNewContext(await readFile(path.join(build.root, 'sw.js'), 'utf8'), {
-      self: { location: { origin }, addEventListener: (type: string, callback: any) => listeners.set(type, callback), skipWaiting: async () => { installed = true }, clients: { claim: async () => { claimed = true } } },
+      self: { location: { origin }, addEventListener: (type: string, callback: any) => listeners.set(type, callback), skipWaiting: async () => { installed = true }, clients: { matchAll: async () => [], claim: async () => { claimed = true } } },
       caches, fetch, Request: WorkerRequest, Response, URL, crypto: webcrypto, AbortController, setTimeout, clearTimeout,
     })
     for (const type of ['install', 'activate']) {

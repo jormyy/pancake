@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261028000200",
+  "candidateVersion": "20261029000800",
   "common": {
     "functions": [
       {
@@ -574,7 +574,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "a21a739129132564825230ed15c6f056f73d461b40a7ae936f87c35d283c48c7",
+          "bodySha256": "6d8c892143c6100e8232a321dd42a51387277e6494aa9238a06aa56960251f86",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -614,7 +614,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
-          "bodySha256": "06377400799d75c7576ee52bc41cda96fb955d6c60f79bc757ac9635dfadd206",
+          "bodySha256": "56e74b8c9aeeac6dfa18bd829e85e4379ae135a6ea97387586d58b79b860dd79",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -705,6 +705,20 @@
         }
       ],
       "triggers": [
+        {
+          "name": "check_accepted_trade_capacity",
+          "enabled": "O",
+          "definition": "CREATE CONSTRAINT TRIGGER check_accepted_trade_capacity AFTER INSERT OR DELETE OR UPDATE ON public.roster_players DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION private.guard_accepted_trade_capacity()",
+          "functionName": "guard_accepted_trade_capacity",
+          "functionSchema": "private"
+        },
+        {
+          "name": "lock_accepted_trade_capacity",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER lock_accepted_trade_capacity BEFORE INSERT OR DELETE OR UPDATE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.guard_accepted_trade_capacity()",
+          "functionName": "guard_accepted_trade_capacity",
+          "functionSchema": "private"
+        },
         {
           "name": "prevent_pre_draft_rookie_acquisition",
           "enabled": "O",
@@ -1330,6 +1344,38 @@
     {
       "filename": "20261028000200_fence_final_stat_revisions.sql",
       "sha256": "3f01462681702344db6327f9e8b62edd2dec396322d6ee27c8b88866123d4691"
+    },
+    {
+      "filename": "20261029000100_continuous_faab.sql",
+      "sha256": "189aeb8d871e41af65d9ba29bbafdefe90e13be2f37e2b2ff3733f23e25724eb"
+    },
+    {
+      "filename": "20261029000200_inactive_trade_block.sql",
+      "sha256": "ca23f96e655fc23f44734792f3dcba86145ca0b767313f76686fae7d75f91a71"
+    },
+    {
+      "filename": "20261029000300_trade_plan_moves_and_capacity.sql",
+      "sha256": "59816d8b025cc85aff551880708f1eccce7a1fc7e6d56dba38c29f88e9629f8f"
+    },
+    {
+      "filename": "20261029000400_trade_estimate_snapshots.sql",
+      "sha256": "c708231ad3e1fe6d62ef1fce3fa0d45d43e6ee58a2d2e08a129beb5a64915749"
+    },
+    {
+      "filename": "20261029000500_matchup_forecasts.sql",
+      "sha256": "da07d3ae6deb20f1991c5dbb81796924a6f41da56211d34096fcd713a5508f42"
+    },
+    {
+      "filename": "20261029000600_historical_trade_revaluation.sql",
+      "sha256": "88b57eb7b7be631ccb479d3cdb884dd8a104dd0a3be2b9bf89c3889aadda6b20"
+    },
+    {
+      "filename": "20261029000700_pre_tipoff_live_lock_compatibility.sql",
+      "sha256": "e3ca7da15e3e558a6a7b82eac1f84dd039821ddcb74781ad47098e2f5d07872b"
+    },
+    {
+      "filename": "20261029000800_matchup_forecast_lock_order.sql",
+      "sha256": "91ca011a796b587cb573538bfa57cc487a44bbaa59a15698e0400ab41b38587c"
     }
   ],
   "preMigration": {

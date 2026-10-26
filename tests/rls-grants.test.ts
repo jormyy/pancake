@@ -218,7 +218,7 @@ describe('waiver intent oracle closure', () => {
         expect(rosterStatusBody).toContain(".gt('clears_at', now)")
     })
 
-    it('lets the uncleared-entry guard own the free-agent add rule without branching on hidden claims', () => {
+    it('rejects instant adds through the shared guard without branching on hidden claims', () => {
         const addBody = latestFunctionDefinition('add_free_agent_atomic')
         const guardBody = latestFunctionDefinition('prevent_uncleared_waiver_free_agent_add', 'private')
 
@@ -229,7 +229,8 @@ describe('waiver intent oracle closure', () => {
         expect(guardBody).toContain('private.assert_free_agent_waiver_cleared(NEW.league_id, NEW.league_season_id, NEW.player_id)')
         expect(addBody).toContain('private.assert_free_agent_waiver_cleared(p_league_id, v_season_id, p_player_id)')
         expect(addBody.indexOf('private.assert_free_agent_waiver_cleared')).toBeLessThan(addBody.indexOf("ERRCODE = 'PA003'"))
-        expect(assertion).toContain('cleared_at IS NULL')
+        expect(assertion).toContain('Every pickup requires a scheduled waiver claim.')
+        expect(assertion).not.toMatch(/waiver_wire_log|waiver_claims|IF EXISTS/)
         expect(assertion).not.toContain('clears_at')
         expect(assertion).toContain("ERRCODE = 'PA002'")
     })

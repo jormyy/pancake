@@ -35,7 +35,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     it('search rows announce the block and still explain it on tap', async () => {
         const onAdd = vi.fn()
         const tree = await renderSearchItem({ addBlockedReason: REASON, onAdd })
-        const add = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+        const add = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(add.props.accessibilityState).toEqual({ disabled: true })
         expect(add.props.accessibilityHint).toBe(REASON)
         expect(add.props.disabled).toBe(false)
@@ -43,7 +43,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         expect(onAdd).toHaveBeenCalledWith(playerRow())
     })
 
-    it('shows the scheduled waiver day and keeps the claim action distinct from an add', async () => {
+    it('shows the scheduled waiver day and keeps the scheduled claim action visible', async () => {
         const clearsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
         const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), waiverClearsAt: clearsAt })
         const claim = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
@@ -56,7 +56,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     it('opens the claim list for an already pending claim', async () => {
         const onAdd = vi.fn()
         const tree = await renderSearchItem({ waiverIds: new Set(['player-a']), claimPending: true, onAdd })
-        const pending = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
+        const pending = tree.root.findByProps({ accessibilityLabel: 'View claim for Player A' })
         expect(pending.findByProps({ name: 'schedule' }).props).toMatchObject({ name: 'schedule', color: uiColors.waiverText })
         await act(async () => { pending.props.onPress() })
         expect(onAdd).toHaveBeenCalledWith(playerRow())
@@ -64,14 +64,14 @@ describe('pickup entry points when the weekly add limit is reached', () => {
 
     it('search rows disable pickup while the screen is offline', async () => {
         const tree = await renderSearchItem({ addDisabled: true })
-        const add = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+        const add = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(add.props.disabled).toBe(true)
         expect(add.props.accessibilityState).toEqual({ disabled: true })
     })
 
-    it('search rows are plain add buttons when adds are available', async () => {
+    it('search rows are claim buttons when claims are available', async () => {
         const tree = await renderSearchItem()
-        const add = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+        const add = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(add.props.accessibilityState).toEqual({ disabled: false })
         expect(add.props.accessibilityHint).toBeUndefined()
     })
@@ -80,7 +80,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
         await act(async () => {
             renderer = create(React.createElement(PlayerHeader, {
                 player: headerPlayer(), rosterStatus: status, leagueActive: true,
-                action: { label: status.status === 'on_waivers' ? 'Claim' : 'Add', disabled: false, busy: false,
+                action: { label: 'Claim', disabled: false, busy: false,
                     onPress: status.status === 'on_waivers' ? handlers.onClaim : handlers.onAdd,
                     blockedReason: status.status === 'free_agent' ? REASON : null },
             }))
@@ -91,7 +91,7 @@ describe('pickup entry points when the weekly add limit is reached', () => {
     it('player header add action carries the supplied blocked reason', async () => {
         const onAdd = vi.fn()
         const tree = await renderHeader(rosterStatus.freeAgent(), { onAdd, onClaim: vi.fn() })
-        const action = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
+        const action = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
         expect(action.props.accessibilityState).toEqual({ disabled: true })
         expect(action.props.accessibilityHint).toBe(REASON)
         await act(async () => { action.props.onPress() })
@@ -124,12 +124,12 @@ describe('pickup entry points when the weekly add limit is reached', () => {
 
 })
 
-it('keeps the add icon accessible and disables it during a pending write', async () => {
+it('keeps the claim icon accessible and disables it during a pending write', async () => {
     const props = { item: playerRow(), currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, animate: false, onAdd: vi.fn(), onPress: vi.fn() }
     const tree = await renderSearchItem(props)
-    const button = tree.root.findByProps({ accessibilityLabel: 'Add Player A' })
-    expect(button.findByProps({ name: 'add' })).toBeDefined()
+    const button = tree.root.findByProps({ accessibilityLabel: 'Claim Player A' })
+    expect(button.findByProps({ name: 'schedule' })).toBeDefined()
     await act(async () => tree.update(React.createElement(PlayerSearchItem, { ...props, isAdding: true })))
-    expect(tree.root.findByProps({ accessibilityLabel: 'Add Player A' }).props.disabled).toBe(true)
+    expect(tree.root.findByProps({ accessibilityLabel: 'Claim Player A' }).props.disabled).toBe(true)
     expect(tree.root.findByProps({ name: 'schedule' })).toBeDefined()
 })

@@ -36,6 +36,7 @@ Approved replacements change the expected convergence body only after their migr
 | `20261011000010` | `auto_set_lineup_atomic`, `set_player_slot_moves_atomic` |
 | `20261011000012` | `update_lineup_slots_atomic_unchecked` |
 | `20261018000012` | `auto_set_lineup_atomic`, `set_player_slot_moves_atomic` |
+| `20261029000700` | `auto_set_lineup_atomic_unchecked` |
 
 Each `convergenceRedefinitions` entry must name an approved migration containing the recorded body in dollar-quoted SQL.
 An early replacement or a late baseline body fails.
@@ -144,3 +145,23 @@ The scheduler retains dispatch claims and invocation reconciliation.
 Frontend rollback retains these database changes.
 [Source monitoring](source-monitoring.md) owns projection and retention behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
+
+The approved candidate now ends at `20261029000800`, with 564 migrations.
+The audit baseline stays at `20261005000003`, with 329 migrations.
+The recorded production phase stays at `20261020000007`, with 431 migrations.
+
+| Migration | Change |
+| --- | --- |
+| `20261029000100` | Requires scheduled FAAB claims for every pickup |
+| `20261029000200` | Allows eligible IR and taxi players on the trade block |
+| `20261029000300` | Stores trade roster moves and reserves settlement capacity |
+| `20261029000400` | Stores trade estimates with their exact terms and inputs |
+| `20261029000500` | Stores matchup forecasts and schedules their updates |
+| `20261029000600` | Revalues historical trades with current inputs |
+| `20261029000700` | Allows scheduled lineup updates beside live game locks |
+| `20261029000800` | Uses a consistent lock order when saving matchup forecasts |
+
+Local checks on 2026-10-26 compare a fresh installation with an ordered upgrade from the audit baseline.
+Both paths have equal migration names, statement counts, stored-SQL fingerprints, helper definitions, and security catalogs.
+An intermediate state at `20261011000010` matches its expected mix of helper definitions.
+The upgrade from that state also matches the fresh installation through `20261029000800`.

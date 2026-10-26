@@ -13,7 +13,7 @@ describe('Sleeper lazy roster-limit contracts', () => {
 
         expect(screen).not.toContain('DropPlayerPickerModal')
         expect(hook).not.toMatch(/getRoster|dropPicker|selectDrop|rosterSize/)
-        expect(client).toContain("apiPost(`/trades/${tradeId}/accept`, { memberId })")
+        expect(client).toContain("apiPost(`/trades/${tradeId}/accept`, { memberId, ...(rosterPlan ? { rosterPlan } : {}) })")
         expect(client).not.toContain('dropRosterPlayerIds')
         expect(api).not.toContain('p_drop_roster_player_ids')
     })
