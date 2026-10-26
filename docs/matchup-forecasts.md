@@ -19,3 +19,17 @@ Historical model validation and observed limits belong in the release evidence. 
 The matchup screen retains a user-scoped cache. It reads the cached RPC when visible, on reconnect, and after relevant league changes. Public completion events are filtered to the current league and matchup. Hidden screens release their subscription. Account changes reject late results.
 
 The header separates earned points from projected final points. It shows win odds, coverage, calculation time, sources, and limited or stale status. Missing inputs never become zero points or 50% odds. Player rows show a projection separately from earned points; their accessible label includes source and source time. The player profile uses the existing next-game projection pipeline and shows its source and freshness.
+
+## Concurrent publication
+
+Completion locks the league and matchup with `FOR KEY SHARE` before it locks the forecast queue. Scoring locks these parents before queue invalidation. This order prevents a cache insert from holding the queue while its foreign keys wait for scoring. Shared parent locks still permit concurrent forecast completions.
+
+Revision and claim-token checks run after these locks. A score change after publication marks that result stale. A worker with older inputs cannot clear the new work.
+
+Run the focused database regression on an isolated local database:
+
+```sh
+PANCAKE_TEST_DB_PORT=57822 node supabase/tests/db/matchup-forecast-concurrency.mjs
+```
+
+Supply `SUPABASE_DB_URL` through the local fixture environment. The check creates and deletes its own fixtures. It observes concurrent scoring and parallel completion. It checks stale results, expired tokens, retries, and account access. It also detects a deliberately corrupted cache revision.
