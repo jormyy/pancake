@@ -57,6 +57,26 @@ CREATE FUNCTION pg_temp.listed(p_member uuid, p_player uuid DEFAULT NULL, p_pick
   SELECT EXISTS (SELECT 1 FROM public.trade_block_items WHERE member_id = p_member
                    AND (p_player IS NULL OR player_id = p_player) AND (p_pick IS NULL OR pick_id = p_pick))
 $$;
+CREATE FUNCTION pg_temp.award_claim(p_member uuid, p_league uuid, p_player uuid) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_claim uuid;
+  v_actor text := current_setting('request.jwt.claim.sub', true);
+  v_result record;
+BEGIN
+  v_claim := public.create_waiver_claim_atomic(p_member_id => p_member, p_league_id => p_league,
+    p_player_id => p_player, p_user_id => NULLIF(v_actor, '')::uuid);
+  UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE id = v_claim;
+  UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days'
+    WHERE league_id = p_league AND player_id = p_player AND cleared_at IS NULL;
+  PERFORM pg_temp.act_as(NULL);
+  SELECT * INTO v_result FROM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
+  PERFORM set_config('request.jwt.claim.sub', COALESCE(v_actor, ''), true);
+  IF v_result.claim_id IS DISTINCT FROM v_claim OR v_result.status IS DISTINCT FROM 'succeeded'::public.waiver_claim_status THEN
+    RAISE EXCEPTION '%', COALESCE(v_result.failure_reason, 'Scheduled claim was not awarded')
+      USING ERRCODE = CASE WHEN v_result.failure_reason ILIKE '%roster%' THEN 'PA003' ELSE 'P0001' END;
+  END IF;
+END;
+$$;
 CREATE FUNCTION pg_temp.trade_status(p_trade uuid) RETURNS text LANGUAGE sql STABLE AS $$
   SELECT status::text FROM public.trades WHERE id = p_trade
 $$;
@@ -65,8 +85,8 @@ CREATE FUNCTION pg_temp.next_week(p_year int) RETURNS void LANGUAGE sql AS $$
   UPDATE public.season_weeks SET week_start = week_start - 7, week_end = week_end - 7 WHERE season_year = p_year
 $$;
 CREATE FUNCTION pg_temp.make_claims_due(p_league uuid) RETURNS void LANGUAGE sql AS $$
-  UPDATE public.waiver_wire_log SET clears_at = now() - interval '1 minute' WHERE league_id = p_league AND cleared_at IS NULL;
-  UPDATE public.waiver_claims SET process_date = current_date WHERE league_id = p_league AND status = 'pending';
+  UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days' WHERE league_id = p_league AND cleared_at IS NULL;
+  UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE league_id = p_league AND status = 'pending';
 $$;
 CREATE FUNCTION pg_temp.process_claims() RETURNS int LANGUAGE plpgsql AS $$
 DECLARE v_total int := 0; v_n int; v_guard int := 0;
@@ -356,34 +376,34 @@ DECLARE i ids%ROWTYPE; v_message text; v_state record;
 BEGIN
   SELECT * INTO i FROM ids;
   PERFORM pg_temp.act_as(i.u1);
-  PERFORM pg_temp.ok('add 1', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(7))));
-  PERFORM pg_temp.ok('add 2', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(8))));
-  PERFORM pg_temp.ok('add 3', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(9))));
-  PERFORM pg_temp.rejected('add retry', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(9))), '23505%');
-  v_message := pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(10)));
+  PERFORM pg_temp.ok('add 1', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(7))));
+  PERFORM pg_temp.rejected('add retry', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(7))), '%already on a roster%');
+  PERFORM pg_temp.ok('add 2', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(8))));
+  PERFORM pg_temp.ok('add 3', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(9))));
+  v_message := pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(10)));
   PERFORM pg_temp.rejected('fourth add', v_message, 'PA001: Weekly add limit reached (3/3 adds used this week). Adds reset %');
   SELECT * INTO v_state FROM public.get_member_transaction_state(i.a1, i.a);
   PERFORM pg_temp.assert(v_state.weekly_add_count = 3 AND v_state.add_limit_message = substr(v_message, 8), 'state and rejection disagree: ' || COALESCE(v_state.add_limit_message, 'null'));
   -- The commissioner hands back one add; the week then resets on its own.
   PERFORM pg_temp.assert(public.commissioner_override_weekly_add_count_atomic(i.a, i.a1, 2) = 2, 'override did not return the new count');
-  PERFORM pg_temp.ok('add after override', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(10))));
-  PERFORM pg_temp.rejected('limit again', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(11))), 'PA001:%');
+  PERFORM pg_temp.ok('add after override', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(10))));
+  PERFORM pg_temp.rejected('limit again', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(11))), 'PA001:%');
   PERFORM pg_temp.next_week(2098);
   SELECT * INTO v_state FROM public.get_member_transaction_state(i.a1, i.a);
   PERFORM pg_temp.assert(v_state.week_number = 2 AND v_state.weekly_add_count = 0 AND v_state.add_limit_message IS NULL, 'the new week did not reset the count');
-  PERFORM pg_temp.rejected('roster full', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a1, i.a, pg_temp.vet(11))), 'PA003:%');
+  PERFORM pg_temp.rejected('roster full', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a1, i.a, pg_temp.vet(11))), 'PA003:%');
   PERFORM pg_temp.assert(pg_temp.active_count(i.a1) = 6, 'A1 should be full');
   -- Others fill up too; A3 keeps one open slot.
   PERFORM pg_temp.act_as(i.u2);
-  PERFORM pg_temp.ok('A2 add 12', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a2, i.a, pg_temp.vet(12))));
-  PERFORM pg_temp.ok('A2 add 13', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a2, i.a, pg_temp.vet(13))));
+  PERFORM pg_temp.ok('A2 add 12', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a2, i.a, pg_temp.vet(12))));
+  PERFORM pg_temp.ok('A2 add 13', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a2, i.a, pg_temp.vet(13))));
   PERFORM pg_temp.act_as(i.u3);
-  PERFORM pg_temp.ok('A3 add 14', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(14))));
-  PERFORM pg_temp.ok('A3 add 15', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(15))));
+  PERFORM pg_temp.ok('A3 add 14', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a3, i.a, pg_temp.vet(14))));
+  PERFORM pg_temp.ok('A3 add 15', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a3, i.a, pg_temp.vet(15))));
   -- League B has no limit: two more adds go through unchecked.
   PERFORM pg_temp.act_as(i.u4);
   FOR n IN 29..30 LOOP
-    PERFORM pg_temp.ok('B3 add ' || n, pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.b3, i.b, pg_temp.vet(n))));
+    PERFORM pg_temp.ok('B3 add ' || n, pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.b3, i.b, pg_temp.vet(n))));
   END LOOP;
 END $$;
 SELECT pg_temp.checkpoint('season 1: free agency');
@@ -627,21 +647,21 @@ BEGIN
   PERFORM pg_temp.act_as(i.u3);
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.a3, pg_temp.any_player(i.a3, false)));
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.a3, pg_temp.any_player(i.a3, false)));
-  PERFORM pg_temp.ok('A3 add under new limit', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(32))));
-  PERFORM pg_temp.ok('A3 second add', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(33))));
-  PERFORM pg_temp.rejected('A3 third add', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.a3, i.a, pg_temp.vet(34))), 'PA001: Weekly add limit reached (2/2%');
+  PERFORM pg_temp.ok('A3 add under new limit', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a3, i.a, pg_temp.vet(32))));
+  PERFORM pg_temp.ok('A3 second add', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a3, i.a, pg_temp.vet(33))));
+  PERFORM pg_temp.rejected('A3 third add', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.a3, i.a, pg_temp.vet(34))), 'PA001: Weekly add limit reached (2/2%');
   -- B2 spends its one add, then a claim past the limit fails at submission for B2
   -- and at processing for B3, who spends the add after claiming.
   v_dropped := pg_temp.any_player(i.b2, false);
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.b2, v_dropped));
-  PERFORM pg_temp.ok('B2 one add', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.b2, i.b, pg_temp.vet(35))));
+  PERFORM pg_temp.ok('B2 one add', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.b2, i.b, pg_temp.vet(35))));
   PERFORM pg_temp.act_as(NULL);
   PERFORM pg_temp.rejected('claim past the limit at submission', pg_temp.try(format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, NULL, %L, 0)', i.b, i.b2, v_dropped, i.u3)), 'PA001:%');
   v_claim := public.create_waiver_claim_atomic(i.b, i.b3, v_dropped, NULL, i.u4, 0);
   PERFORM pg_temp.act_as(i.u4);
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.b3, pg_temp.any_player(i.b3, false)));
   PERFORM public.drop_player_atomic(pg_temp.row_of(i.b3, pg_temp.any_player(i.b3, false)));
-  PERFORM pg_temp.ok('B3 one add', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.b3, i.b, pg_temp.vet(36))));
+  PERFORM pg_temp.ok('B3 one add', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.b3, i.b, pg_temp.vet(36))));
   PERFORM pg_temp.make_claims_due(i.b);
   v_n := pg_temp.process_claims();
   PERFORM pg_temp.assert((SELECT failure_reason FROM public.waiver_claims WHERE id = v_claim) LIKE 'Weekly add limit reached%', 'claim past the limit did not record the limit as its reason');
@@ -654,7 +674,7 @@ BEGIN
   -- The run also expired the entry nobody could claim, so next week the player is a free agent.
   PERFORM pg_temp.assert(NOT EXISTS (SELECT 1 FROM public.waiver_wire_log WHERE player_id = v_dropped AND cleared_at IS NULL), 'the run left an unclaimed entry open');
   PERFORM pg_temp.act_as(i.u4);
-  PERFORM pg_temp.ok('B3 adds next week', pg_temp.try(format('SELECT public.add_free_agent_atomic(%L, %L, %L)', i.b3, i.b, v_dropped)));
+  PERFORM pg_temp.ok('B3 adds next week', pg_temp.try(format('SELECT pg_temp.award_claim(%L, %L, %L)', i.b3, i.b, v_dropped)));
   PERFORM pg_temp.assert(pg_temp.owner_of(i.b, v_dropped) = i.b3, 'the next-week add did not land');
   PERFORM pg_temp.checkpoint('season 2: activity');
 

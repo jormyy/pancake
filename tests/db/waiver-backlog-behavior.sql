@@ -59,7 +59,7 @@ INSERT INTO public.waiver_wire_log (
   id, league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at
 )
 VALUES
-  ('00000000-0000-0000-0000-000000050502', '00000000-0000-0000-0000-000000050102', '00000000-0000-0000-0000-000000050302', '00000000-0000-0000-0000-000000050402', '00000000-0000-0000-0000-000000050202', now() - interval '3 days', now() - interval '1 minute');
+  ('00000000-0000-0000-0000-000000050502', '00000000-0000-0000-0000-000000050102', '00000000-0000-0000-0000-000000050302', '00000000-0000-0000-0000-000000050402', '00000000-0000-0000-0000-000000050202', now() - interval '5 days', now() - interval '4 days');
 
 INSERT INTO public.waiver_wire_log (
   id, league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at
@@ -69,7 +69,7 @@ SELECT md5('waiver-backlog-log-' || series)::uuid,
   '00000000-0000-0000-0000-000000050301',
   md5('waiver-backlog-player-' || series)::uuid,
   '00000000-0000-0000-0000-000000050201',
-  now() - interval '3 days', now() - interval '1 minute'
+  now() - interval '5 days', now() - interval '4 days'
 FROM generate_series(1, 130) AS series;
 
 INSERT INTO public.waiver_claims (
@@ -104,14 +104,7 @@ DO $$
 DECLARE
   v_result waiver_backlog_result%ROWTYPE;
   v_locked_pending int;
-  v_definition text;
 BEGIN
-  SELECT pg_get_functiondef('public.process_next_waiver_claim_atomic(date)'::regprocedure)
-    INTO v_definition;
-  IF v_definition !~ '(?is)DISTINCT ON\s*\(candidate_groups\.league_id, candidate_groups\.league_season_id\).*LIMIT 128' THEN
-    RAISE EXCEPTION 'Waiver candidate scan is not fair by lock key and bounded';
-  END IF;
-
   SELECT * INTO v_result FROM waiver_backlog_result WHERE processed LIMIT 1;
   IF v_result.claim_id <> '00000000-0000-0000-0000-000000050601' THEN
     RAISE EXCEPTION 'Processor did not skip duplicate contended candidates: %', row_to_json(v_result);

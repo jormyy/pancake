@@ -26,7 +26,7 @@ BEGIN
   offer:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[2],f.member_ids[1],'{}','{}',ARRAY[picks[2]],ARRAY[picks[1]]);
   UPDATE players SET years_exp=1,career_regular_season_games=65 WHERE id=taxi;
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
-  PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,target),'PA009','Taxi Expired','taxi blocks a free-agent add');
+  PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],target,f.user_ids[1]),'PA009','Taxi Expired','taxi blocks an available-player claim');
   PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],claimed,f.user_ids[1]),'PA009','Taxi Expired','taxi blocks claim creation');
   PERFORM pg_temp.roster_error(format('SELECT public.edit_waiver_claim_atomic(%L,%L,%L)',claim,f.member_ids[1],f.user_ids[1]),'PA009','Taxi Expired','taxi blocks claim edits');
   PERFORM pg_temp.roster_error(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,''{}'',''{}'',ARRAY[%L]::uuid[],ARRAY[%L]::uuid[])',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],picks[1],picks[2]),'PA009','Taxi Expired','taxi blocks sent offers');
@@ -48,10 +48,10 @@ BEGIN
   PERFORM public.toggle_ir_atomic(roster,true,f.user_ids[1]);
   UPDATE players SET injury_status=NULL WHERE id=taxi;
   PERFORM pg_temp.roster_error(format('SELECT public.edit_waiver_claim_atomic(%L,%L,%L)',claim,f.member_ids[1],f.user_ids[1]),'P0002','Pending waiver claim not found','settled claims stay immutable');
-  PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,claimed),'PA005','Taxi Expired','IR retains its deployed error code and player name');
+  PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],claimed,f.user_ids[1]),'PA005','Taxi Expired','IR retains its deployed error code and player name');
   PERFORM public.toggle_ir_atomic(roster,false,f.user_ids[1]);
   INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(f.league_id,f.season_id,f.member_ids[1],claimed,'trade');
-  PERFORM pg_temp.roster_error(format('SELECT public.add_free_agent_atomic(%L,%L,%L)',f.member_ids[1],f.league_id,gen_random_uuid()),'PA003','','over-limit roster uses PA003');
+  PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],gen_random_uuid(),f.user_ids[1]),'PA003','','over-limit roster uses PA003');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

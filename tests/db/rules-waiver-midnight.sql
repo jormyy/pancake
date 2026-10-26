@@ -33,8 +33,8 @@ BEGIN
     UPDATE public.waiver_claims SET process_date = CASE WHEN id = v_claim THEN v_process_date ELSE v_process_date - 1 END
     WHERE league_id = v_fixture.league_id;
     UPDATE public.waiver_wire_log SET clears_at =
-      ((v_process_date - 1)::timestamp + CASE WHEN player_id = v_players[1] THEN interval '23 hours 59 minutes'
-        ELSE interval '24 hours 1 minute' END) AT TIME ZONE 'America/New_York'
+      ((v_process_date - 1)::timestamp + CASE WHEN player_id = v_players[1] THEN interval '2 hours 59 minutes'
+        ELSE interval '3 hours 1 minute' END) AT TIME ZONE 'America/New_York'
     WHERE league_id = v_fixture.league_id;
     SELECT * INTO v_result FROM public.process_next_waiver_claim_atomic(v_process_date);
     PERFORM pg_temp.check_rules(v_result.claim_id = v_older_claim AND v_result.status = 'succeeded',
@@ -42,7 +42,11 @@ BEGIN
     PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.roster_players
       WHERE league_season_id = v_fixture.season_id AND member_id = v_fixture.member_ids[CASE WHEN v_mode = 'preference' THEN 1 ELSE 2 END] AND player_id = v_players[1]),
       v_mode || ' awards the older eligible player first');
-    UPDATE public.waiver_claims SET status = 'cancelled' WHERE league_id = v_fixture.league_id AND status = 'pending';
+    PERFORM pg_temp.check_rules((SELECT status = 'pending' FROM public.waiver_claims WHERE id = v_claim),
+      v_mode || ' keeps the newer claim pending until the older run settles');
+    SELECT * INTO v_result FROM public.process_next_waiver_claim_atomic(v_process_date);
+    PERFORM pg_temp.check_rules(v_result.claim_id = v_claim,
+      v_mode || ' resumes with the newer claim after settling the older run');
   END LOOP;
 END;
 $$;

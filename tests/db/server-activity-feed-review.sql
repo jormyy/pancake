@@ -35,6 +35,8 @@ BEGIN
   INSERT INTO feed_trades(label,activity_id) VALUES('legacy',private.log_league_activity(f.league_id,f.season_id,
     'trade_completed','Legacy completed trade',NULL,f.member_ids[1],f.member_ids[2]));
   PERFORM private.log_league_activity(f.league_id,f.season_id,'trade_block_updated','Hidden listing',NULL,f.member_ids[1]);
+  INSERT INTO league_activity(league_id,actor_member_id,event_type,title,created_at)
+    VALUES(f.league_id,f.member_ids[1],'trade_block_updated','Legacy hidden listing',now()+interval '2 hours');
   UPDATE league_activity SET created_at=now()+interval '1 hour'
     WHERE league_id=f.league_id AND event_type IN ('trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated');
   FOR sample IN SELECT * FROM (VALUES(0,NULL::int),(1,64),(2,65),(1,NULL::int),(NULL::int,12)) AS samples(experience,games) LOOP
@@ -50,7 +52,7 @@ END;
 $$;
 SET LOCAL ROLE authenticated;
 DO $$
-DECLARE f record; idx int;
+DECLARE f record; idx int; expected uuid[]; actual uuid[];
 BEGIN
   IF current_setting('test.activity_case') NOT IN ('all','privacy') THEN RETURN; END IF;
   SELECT * INTO f FROM feed_fixture;
@@ -64,6 +66,12 @@ BEGIN
     PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.get_league_activity_feed(f.league_id,1,0)
       WHERE transaction_type NOT IN ('trade_offered','trade_countered','trade_edited','trade_expired','trade_block_updated')),
       'hidden offers do not consume the first page for member '||idx);
+    SELECT array_agg(feed.id ORDER BY feed.occurred_at DESC,feed.id DESC) INTO expected
+      FROM public.get_league_activity_feed(f.league_id,100,0) feed;
+    SELECT array_agg(feed.id) INTO actual FROM public.get_league_activity_feed(f.league_id,2,0) feed;
+    PERFORM pg_temp.check_rules(actual=expected[1:2],'first page preserves public event order for member '||idx);
+    SELECT array_agg(feed.id) INTO actual FROM public.get_league_activity_feed(f.league_id,1,1) feed;
+    PERFORM pg_temp.check_rules(actual=expected[2:2],'offset ignores hidden listings for member '||idx);
   END LOOP;
 END;
 $$;

@@ -17,6 +17,7 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
   const queued: Record<string, unknown>[] = []
   let isMock = false
   let providerReads = 0
+  let recipientReads = 0
   let release: (() => void) | undefined
   let timeout: ReturnType<typeof setTimeout> | undefined
   globalThis.fetch = async (input, init) => {
@@ -24,8 +25,11 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
     const table = url.pathname.split('/').at(-1)
     if (table === 'user') return Response.json({ id: user, aud: 'authenticated', role: 'authenticated' })
     if (table === 'drafts') return Response.json({ id: draft, league_id: league })
-    if (table === 'league_members') return Response.json(url.searchParams.has('role') ? [{ league_id: league }]
-      : { id: member, user_id: user, role: 'commissioner' })
+    if (table === 'league_members') {
+      if (url.searchParams.get('select')?.startsWith('user_id')) recipientReads++
+      return Response.json(url.searchParams.has('role') ? [{ league_id: league }]
+        : { id: member, user_id: user, role: 'commissioner' })
+    }
     if (table === 'commissioner_snake_pick_atomic') return Response.json({
       pick: { id: 'pick', overall_pick: 1, round: 1, pick_in_round: 1, member_id: member, draft_pick_id: null },
       player_id: player, remaining: 0, league_id: league, league_season_id: 'season', is_mock: isMock,
@@ -56,11 +60,15 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
     })])
     assert.equal(response?.status, 200, 'push delivery must not delay the completed pick response')
     assert.equal(providerReads, 0)
+    assert.equal(recipientReads, 0)
     assert.equal(queued.length, 1)
     assert.equal(queued[0].category, 'draft')
+    assert.equal(queued[0].event_type, 'rookie_draft_pick')
+    assert.equal(queued[0].member_id, member)
     isMock = true
     assert.equal((await request())?.status, 200)
     assert.equal(queued.length, 1)
+    assert.equal(recipientReads, 0)
   } finally {
     clearTimeout(timeout)
     release?.()

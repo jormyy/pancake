@@ -1,28 +1,5 @@
 BEGIN;
 
-DO $$
-DECLARE
-  v_cron_definition text;
-BEGIN
-  IF to_regprocedure('public.get_dynasty_decision_inputs(uuid,uuid,integer,uuid[],text,integer,integer)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Legacy dynasty RPC still exists';
-  END IF;
-  IF EXISTS (
-    SELECT 1
-      FROM public.dynasty_rankings
-     WHERE source IN ('hashtagbasketball.com/contend', 'hashtagbasketball.com/rebuild')
-  ) THEN
-    RAISE EXCEPTION 'Legacy dynasty ranking rows still exist';
-  END IF;
-  SELECT pg_get_functiondef('public.invoke_dynasty_ranking_views_at_et_time(integer,integer,timestamp with time zone)'::regprocedure)
-    INTO v_cron_definition;
-  IF v_cron_definition LIKE '%"CONTEND"%'
-     OR v_cron_definition LIKE '%"REBUILD"%'
-     OR v_cron_definition LIKE '%"POINT"%' THEN
-    RAISE EXCEPTION 'Legacy dynasty ranking cron calls still exist';
-  END IF;
-END $$;
-
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at

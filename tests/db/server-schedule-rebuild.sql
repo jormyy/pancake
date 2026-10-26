@@ -11,6 +11,9 @@ BEGIN
   result:=public.replace_regular_season_matchups_atomic(p_league_id=>f.league_id,p_league_season_id=>f.season_id,p_force=>false,p_matchups=>'[]');
   PERFORM pg_temp.check_rules((result->>'inserted')::int=19 AND NOT (result->>'skipped')::boolean,'initial SQL schedule includes two teams');
   SELECT array_agg(id) INTO original FROM matchups WHERE league_season_id=f.season_id;
+  result:=public.replace_regular_season_matchups_atomic(f.league_id,f.season_id,false,'[]');
+  PERFORM pg_temp.check_rules(result='{"inserted":0,"skipped":true}'::jsonb,'existing schedule skips without changing identities');
+  PERFORM pg_temp.check_rules((SELECT array_agg(id ORDER BY id)=(SELECT array_agg(id ORDER BY id) FROM unnest(original) id) FROM matchups WHERE league_season_id=f.season_id),'skipped generation preserves every matchup identity');
   FOR n IN 1..2 LOOP
     u:=gen_random_uuid(); m:=gen_random_uuid();
     INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(u,u::text||'@example.test','{}');
@@ -29,6 +32,11 @@ BEGIN
     'The season has started; the schedule can no longer be rebuilt.','force refuses a started schedule');
   result:=public.replace_regular_season_matchups_atomic(f.league_id,f.season_id,false,'[]');
   PERFORM pg_temp.check_rules((result->>'skipped')::boolean,'existing schedule is reported as skipped');
+  UPDATE matchups SET home_points=0,is_finalized=true WHERE league_season_id=f.season_id;
+  SELECT array_agg(id ORDER BY id) INTO original FROM matchups WHERE league_season_id=f.season_id;
+  PERFORM pg_temp.reject_rules(format('SELECT public.replace_regular_season_matchups_atomic(%L,%L,true,%L)',f.league_id,f.season_id,'[]'),
+    'The season has started; the schedule can no longer be rebuilt.','force refuses finalized schedules');
+  PERFORM pg_temp.check_rules((SELECT array_agg(id ORDER BY id)=original FROM matchups WHERE league_season_id=f.season_id),'refused reset preserves finalized matchup identities');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

@@ -84,7 +84,7 @@ BEGIN
     VALUES(f.league,f.season,player,now()-interval '1 hour',now()+interval '47 hours');
   PERFORM create_waiver_claim_atomic(f.league,f.member,player,NULL,f.owner,5,1);
   PERFORM create_waiver_claim_atomic(f.league,f.other_member,player,NULL,f.opponent,3,1);
-  UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id=f.league;
+  UPDATE waiver_wire_log SET clears_at=now()-interval '3 days' WHERE league_id=f.league;
   UPDATE waiver_claims SET process_date=current_date-1 WHERE league_id=f.league;
   PERFORM * FROM process_due_waiver_claims_atomic(current_date,100);
   SELECT id INTO claim FROM waiver_claims WHERE member_id=f.member AND player_id=player AND status='succeeded';

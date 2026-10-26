@@ -128,7 +128,7 @@ const assertExpiredAcceptanceCommits = async (fixture) => {
   ])
 }
 
-const assertLazyRosterEnforcement = async (fixture) => {
+const assertTradePlanCapacityAndRosterRecovery = async (fixture) => {
   await setLeagueRules(fixture, {
     status: 'active',
     roster_size: 1,
@@ -168,8 +168,30 @@ const assertLazyRosterEnforcement = async (fixture) => {
     p_request_pick_ids: [],
     p_offer_faab_amount: 0,
     p_request_faab_amount: 1,
-    p_notes: 'DB two-team lazy roster completion',
+    p_notes: 'DB two-team roster-plan capacity',
     p_expires_at: null,
+  })
+  const capacityFailures = []
+  try {
+    const capacityResponse = await fetch(`${env.supabaseUrl}/rest/v1/rpc/accept_trade_atomic`, {
+      method: 'POST',
+      headers: { apikey: env.serviceRoleKey, authorization: `Bearer ${env.serviceRoleKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_trade_id: twoTeamTradeId, p_accepting_member_id: fixture.recipient.id }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    assert.equal(capacityResponse.status, 400, 'over-cap acceptance returns a client error')
+    assert.equal((await capacityResponse.json()).code, 'PT001')
+  } catch (error) {
+    capacityFailures.push(error)
+  }
+  assert.equal((await fetchTrade(fixture, twoTeamTradeId)).status, 'pending')
+  await rpc(fixture.admin, 'set_trade_roster_plan_atomic', {
+    p_trade_id: twoTeamTradeId,
+    p_member_id: fixture.recipient.id,
+    p_user_id: fixture.users[1].id,
+    p_taxi_player_ids: [],
+    p_ir_player_ids: [],
+    p_drop_player_ids: [fixture.recipientPlayer.id],
   })
   await accept(fixture, twoTeamTradeId, fixture.recipient.id)
   assert.equal((await fetchTrade(fixture, twoTeamTradeId)).status, 'completed')
@@ -185,7 +207,16 @@ const assertLazyRosterEnforcement = async (fixture) => {
     if (error) throw new Error(`active roster count: ${error.message}`)
     return count
   }
-  assert.equal(await activeCount(fixture.recipient.id), 2, 'two-team trade did not complete above the roster cap')
+  assert.equal(await activeCount(fixture.recipient.id), 1, 'two-team plan keeps the recipient within capacity')
+  const { error: recoveryRosterError } = await fixture.admin.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    member_id: fixture.recipient.id,
+    player_id: fixture.recipientPlayer.id,
+    acquired_via: 'draft',
+  })
+  if (recoveryRosterError) throw new Error(`legacy over-cap recovery fixture: ${recoveryRosterError.message}`)
+  assert.equal(await activeCount(fixture.recipient.id), 2)
 
   await expectRpcError(recipientClient, 'set_player_slot_moves_atomic', {
     p_member_id: fixture.recipient.id,
@@ -270,16 +301,32 @@ const assertLazyRosterEnforcement = async (fixture) => {
     },
     { fromMemberId: fixture.recipient.id, toMemberId: fixture.proposer.id, faabAmount: 1 },
     { fromMemberId: fixture.proposer.id, toMemberId: fixture.observer.id, faabAmount: 1 },
-  ], 'DB multi-team lazy roster completion')
+  ], 'DB multi-team roster-plan capacity')
   const { data: proposerConsent, error: consentError } = await fixture.admin.from('trade_participants')
     .select('accepted_at').eq('trade_id', multiTradeId).eq('member_id', fixture.proposer.id).single()
   if (consentError) throw new Error(`legal proposer consent lookup: ${consentError.message}`)
   assert(proposerConsent.accepted_at, 'legal proposer was not auto-consented')
 
+  await rpc(fixture.admin, 'set_trade_roster_plan_atomic', {
+    p_trade_id: multiTradeId,
+    p_member_id: fixture.recipient.id,
+    p_user_id: fixture.users[1].id,
+    p_taxi_player_ids: [],
+    p_ir_player_ids: [],
+    p_drop_player_ids: [fixture.proposerPlayer.id],
+  })
   await accept(fixture, multiTradeId, fixture.recipient.id)
   await accept(fixture, multiTradeId, fixture.observer.id)
   assert.equal((await fetchTrade(fixture, multiTradeId)).status, 'completed')
-  assert.equal(await activeCount(fixture.recipient.id), 2, 'multi-team trade did not complete above the roster cap')
+  assert.equal(await activeCount(fixture.recipient.id), 1, 'multi-team plan keeps the recipient within capacity')
+  const { error: legacyRosterError } = await fixture.admin.from('roster_players').insert({
+    league_id: fixture.league.id,
+    league_season_id: fixture.currentSeason.id,
+    member_id: fixture.recipient.id,
+    player_id: fixture.proposerPlayer.id,
+    acquired_via: 'draft',
+  })
+  if (legacyRosterError) throw new Error(`legacy corrective-drop fixture: ${legacyRosterError.message}`)
 
   const { error: rookieError } = await fixture.admin.from('players')
     .update({ nba_draft_number: 1, years_exp: 0 }).eq('id', proposerExtraOne.id)
@@ -301,6 +348,7 @@ const assertLazyRosterEnforcement = async (fixture) => {
   if (dropRosterError) throw new Error(`drop roster lookup: ${dropRosterError.message}`)
   await rpc(recipientClient, 'drop_player_atomic', { p_roster_player_id: dropRoster.id })
   assert.equal(await activeCount(fixture.recipient.id), 1, 'drop did not reduce the over-cap active roster')
+  if (capacityFailures.length) throw new AggregateError(capacityFailures, 'Over-cap acceptance must return a client error')
 }
 
 const assertConcurrentAcceptanceCompletesOnce = async (fixture) => {
@@ -442,6 +490,9 @@ const proposeStandardAssetTrade = (fixture, { playerId, pickId, notes }) => rpc(
 const assertInactivePlayerAcceptanceAndDirectTriggerReject = async (fixture) => {
   await setLeagueRules(fixture, {
     roster_size: 20,
+    ir_slots: 1,
+    taxi_slots: 1,
+    allow_inactive_trades: false,
     waiver_mode: 'faab',
     trade_veto_mode: 'commissioner',
     trade_veto_window_hours: 1,
@@ -708,20 +759,37 @@ const assertTwoTeamUsesCanonicalRoutes = async (fixture) => {
 }
 
 const run = async () => {
-  const fixture = await setupMultiTeamTradeGameplayFixture(env, 0, { isolatedPlayers: true })
-  await assertMultiTeamPayloadBounds(fixture)
-  await assertAggregateFaabRejectionIsAtomic(fixture)
-  await assertExpiredAcceptanceCommits(fixture)
-  await assertLazyRosterEnforcement(fixture)
-  await assertConcurrentAcceptanceCompletesOnce(fixture)
-  await assertCompetingStandardAndMultiTeamTradesSerialize(fixture)
-  await assertInactivePlayerAcceptanceAndDirectTriggerReject(fixture)
-  await assertStaleAndUsedPickAcceptanceReject(fixture)
-  await assertCompetingAcceptedPickTradesSerialize(fixture)
-  await assertTwoTeamUsesCanonicalRoutes(fixture)
-  await assertVetoRowsSurviveMemberHistoryPagination(fixture)
-  await assertCompletionFailureIsTerminal(fixture)
-  console.log('PASS multi-team trade DB: canonical asset assertions, lazy roster limits, keyset pages, mixed-trade races, and terminal failures')
+  const failures = []
+  const cases = [
+    assertMultiTeamPayloadBounds,
+    assertAggregateFaabRejectionIsAtomic,
+    assertExpiredAcceptanceCommits,
+    assertTradePlanCapacityAndRosterRecovery,
+    assertConcurrentAcceptanceCompletesOnce,
+    assertCompetingStandardAndMultiTeamTradesSerialize,
+    assertInactivePlayerAcceptanceAndDirectTriggerReject,
+    assertStaleAndUsedPickAcceptanceReject,
+    assertCompetingAcceptedPickTradesSerialize,
+    assertTwoTeamUsesCanonicalRoutes,
+    assertVetoRowsSurviveMemberHistoryPagination,
+    assertCompletionFailureIsTerminal,
+  ]
+  for (const check of cases) {
+    try {
+      const fixture = await setupMultiTeamTradeGameplayFixture(env, 0, { isolatedPlayers: true })
+      fixture.admin = createClient(env.supabaseUrl, env.serviceRoleKey, {
+        auth: { persistSession: false },
+        global: { fetch: (input, options) => fetch(input, { ...options, signal: AbortSignal.timeout(10_000) }) },
+      })
+      await check(fixture)
+      console.log(`PASS ${check.name}`)
+    } catch (error) {
+      failures.push(new Error(check.name, { cause: error }))
+      console.error(`FAIL ${check.name}`, error)
+    }
+  }
+  console.log(`Multi-team trade DB: ${cases.length - failures.length} passed, ${failures.length} failed`)
+  if (failures.length) throw new AggregateError(failures, 'Multi-team trade checks failed')
 }
 
 runWithScenarioResourceOwner('multi-team trade DB', run).catch((error) => {

@@ -42,15 +42,26 @@ INSERT INTO notification_preferences(user_id,event_settings)
 SELECT owner,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture
 UNION ALL SELECT opponent,(SELECT jsonb_object_agg(event_type,true) FROM notif_event_catalog) FROM notif_fixture;
 DO $$
-DECLARE f record; a uuid:=gen_random_uuid();
+DECLARE f record; a uuid:=gen_random_uuid(); newest uuid:=gen_random_uuid(); oldest uuid:=gen_random_uuid(); actual uuid[];
 BEGIN
   SELECT * INTO f FROM notif_fixture;
   PERFORM set_config('request.jwt.claim.sub',f.owner::text,true);
   PERFORM notif_publish_announcement_atomic(f.league,'Keep league history',a);
+  INSERT INTO league_announcements(id,league_id,author_member_id,body,published_at)
+    VALUES(newest,f.league,f.member,'Newest',now()+interval '1 day'),(oldest,f.league,f.member,'Oldest',now()-interval '1 day');
   DELETE FROM league_members WHERE id=f.member;
   IF NOT EXISTS(SELECT 1 FROM league_announcements WHERE id=a AND author_member_id IS NULL AND body='Keep league history') THEN RAISE EXCEPTION 'Deleting the author must preserve announcement history'; END IF;
   PERFORM set_config('request.jwt.claim.sub',f.opponent::text,true);
-  IF (SELECT count(*) FROM notif_list_announcements(f.league) WHERE id=a)<>1 THEN RAISE EXCEPTION 'Members must still read past announcements'; END IF;
+  SET LOCAL ROLE authenticated;
+  SELECT array_agg(id) INTO actual FROM notif_list_announcements(p_league_id=>f.league);
+  IF actual IS DISTINCT FROM ARRAY[newest,a,oldest] THEN RAISE EXCEPTION 'Members must read authorless announcements newest first'; END IF;
+  PERFORM set_config('request.jwt.claim.sub',f.outsider::text,true);
+  BEGIN
+    PERFORM * FROM notif_list_announcements(p_league_id=>f.league);
+    RAISE EXCEPTION 'Outsider reads private announcements';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RESET ROLE;
   PERFORM set_config('request.jwt.claim.sub','',true);
   INSERT INTO league_members(league_id,user_id,role) VALUES(f.league,f.owner,'commissioner');
   PERFORM set_config('request.jwt.claim.sub',f.owner::text,true);

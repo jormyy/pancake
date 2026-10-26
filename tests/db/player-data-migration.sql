@@ -1,4 +1,11 @@
 BEGIN;
+DROP TRIGGER player_career_guard ON public.players;
+DROP TRIGGER career_stats_insert ON public.player_game_stats;
+DROP TRIGGER career_stats_update ON public.player_game_stats;
+DROP TRIGGER career_stats_delete ON public.player_game_stats;
+DROP TRIGGER career_game_update ON public.nba_games;
+ALTER TABLE public.players DROP COLUMN career_games_base,DROP COLUMN career_games_base_season,
+  DROP COLUMN career_games_base_checked_at,DROP COLUMN career_games_base_attempted_at,DROP COLUMN career_games_base_source;
 CREATE TEMP TABLE legacy_counts(id uuid PRIMARY KEY, games integer NOT NULL);
 DO $$
 DECLARE v_id uuid; v_game uuid; v_i integer; v_null_ids uuid[] := '{}'; v_legacy uuid;

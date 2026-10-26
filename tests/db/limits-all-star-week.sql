@@ -133,11 +133,17 @@ BEGIN
   RAISE NOTICE '%',jsonb_build_object('provenance','REAL-DERIVED C2 ranges; SYNTHETIC uniform date translation','season',y,'checkpoint',checkpoint,'shift_days',shift_days,'week',w,'resets_at',actual.resets_at);
 END $$;
 CREATE FUNCTION pg_temp.claim(f pg_temp.all_star_fixture,team int,p uuid,bid int,ready boolean) RETURNS uuid LANGUAGE plpgsql AS $$
+DECLARE claim uuid;
 BEGIN
   INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
   SELECT f.l,f.s,p,CASE WHEN ready THEN now()-interval '73 hours' ELSE now() END
   WHERE NOT EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL);
-  RETURN create_waiver_claim_atomic(f.l,f.m[team],p,NULL,f.u[team],bid);
+  claim:=create_waiver_claim_atomic(f.l,f.m[team],p,NULL,f.u[team],bid);
+  IF ready THEN
+    UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
+    UPDATE waiver_wire_log SET clears_at=now()-interval '3 days' WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL;
+  END IF;
+  RETURN claim;
 END $$;
 CREATE FUNCTION pg_temp.drain() RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
@@ -173,10 +179,12 @@ BEGIN
         IF skipped THEN
           SELECT week_start INTO start_day FROM c2_calendar WHERE season_year=y AND week_number=1;
           PERFORM pg_temp.expect_week(f,y,start_day,1,(SELECT week_end+1 FROM c2_calendar WHERE season_year=y AND week_number=1));
-          PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+          PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
           SELECT week_start INTO start_day FROM c2_calendar WHERE season_year=y AND week_number=2;
           PERFORM pg_temp.expect_week(f,y,start_day,2,(SELECT week_end+1 FROM c2_calendar WHERE season_year=y AND week_number=2));
-          PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+          PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
           PERFORM pg_temp.check_that((SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,1] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1]),'skipped week does not consume first eligible bucket');
         END IF;
         PERFORM pg_temp.expect_week(f,y,merged.week_start+3,17,merged.week_end+1);
@@ -191,12 +199,13 @@ BEGIN
         PERFORM pg_temp.expect_week(f,y,merged.week_start+7,17,merged.week_end+1);
         PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=17),'no reset on Monday during break');
         PERFORM pg_temp.expect_week(f,y,merged.week_end-3,17,merged.week_end+1);
-        PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+        PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
         PERFORM pg_temp.check_that((SELECT add_count=2 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=17),'pre/post-break additions share one limit');
         PERFORM pg_temp.expect_limit(f);
-        UPDATE waiver_wire_log SET placed_on_waivers_at=now()-interval '73 hours',clears_at=now()-interval '1 second'
+        UPDATE waiver_wire_log SET placed_on_waivers_at=now()-interval '73 hours',clears_at=now()-interval '3 days'
           WHERE league_season_id=f.s AND player_id IN(SELECT player_id FROM waiver_claims WHERE id IN(limited,after_claim));
-        UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date WHERE id IN(limited,after_claim);
+        UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id IN(limited,after_claim);
         PERFORM pg_temp.drain();
         PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE 'Weekly add limit reached (2/2 adds used this week). Adds reset % ET.' FROM waiver_claims WHERE id=limited),'processing rechecks shared merged limit');
         PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=after_claim),'post-break claim succeeds');
@@ -209,7 +218,8 @@ BEGIN
         PERFORM pg_temp.expect_limit(f);
         PERFORM pg_temp.expect_week(f,y,following.week_start,18,following.week_end+1);
         PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
-        PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+        PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
         PERFORM pg_temp.check_that((SELECT array_agg(add_count ORDER BY week_number)=ARRAY[2,1] FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number IN(17,18)),'following week starts one fresh bucket');
         PERFORM pg_temp.check_that((SELECT array_agg(priority ORDER BY array_position(f.m,member_id))=ARRAY[3,4] FROM waiver_priorities WHERE league_season_id=f.s),'weekly reset does not reset rolling priority');
         UPDATE leagues SET status='playoffs' WHERE id=f.l;
@@ -219,7 +229,8 @@ BEGIN
         PERFORM pg_temp.expect_week(f,y,last_week.week_end,24,last_week.week_end+1);
         UPDATE leagues SET status='offseason' WHERE id=f.l;
         PERFORM pg_temp.expect_week(f,y,last_week.week_end+1,25,last_week.week_end+8);
-        PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+        PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
         PERFORM pg_temp.expect_week(f,y,last_week.week_end+7,25,last_week.week_end+8);
         PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE league_season_id=f.s AND member_id=f.m[1] AND week_number=25),'post-schedule bucket lasts seven days');
         PERFORM pg_temp.expect_week(f,y,last_week.week_end+8,26,last_week.week_end+15);
@@ -242,6 +253,8 @@ BEGIN
     END LOOP;
   END LOOP;
 END $$;
+SET CONSTRAINTS ALL IMMEDIATE;
+SET CONSTRAINTS ALL DEFERRED;
 \set clock_source `cat scripts/season-sim/clock.sql`
 SELECT replace(replace(replace(replace(
   substring(:'clock_source' FROM '(?s)BEGIN;(.*)COMMIT;'),
@@ -359,7 +372,8 @@ BEGIN
   pending:=pg_temp.offer(f);
   PERFORM pg_temp.at_time('2026-02-16 00:00 America/New_York');
   PERFORM pg_temp.locked(f,pending,'middle of merged matchup');
-  PERFORM add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM private.assert_weekly_add_available(f.l,f.s,f.m[1]);
+        PERFORM private.consume_weekly_add(f.l,f.s,f.m[1]);
   PERFORM pg_temp.expect_limit(f);
   SELECT week_number,resets_at INTO w,reset_after FROM private.current_add_week(f.l,f.s);
   PERFORM pg_temp.check_that(w=17 AND reset_after=reset_before

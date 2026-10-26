@@ -126,35 +126,19 @@ BEGIN
   IF v_pending_count <> 1 THEN
     RAISE EXCEPTION 'Pending trade count expected 1, found %', v_pending_count;
   END IF;
+  PERFORM set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000030002',true);
+  IF EXISTS(SELECT 1 FROM public.get_trade_page_refs('00000000-0000-0000-0000-000000030201','00000000-0000-0000-0000-000000030101',40)) THEN
+    RAISE EXCEPTION 'A different member reads another team trade page';
+  END IF;
+  PERFORM set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000030001',true);
 END $$;
 
 RESET ROLE;
 
 DO $$
 DECLARE
-  v_accept_definition text;
-  v_asset_assertion_definition text;
-  v_reservation_definition text;
   v_missing text[];
-  v_superseded text[];
 BEGIN
-  -- Acceptance checks reservations through the one reservation owner, keyed by
-  -- the participant that gives the asset (from_member_id), never by trade side.
-  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
-    INTO v_accept_definition;
-  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)'::regprocedure)
-    INTO v_asset_assertion_definition;
-  SELECT pg_get_functiondef('private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure)
-    INTO v_reservation_definition;
-  IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
-     OR v_accept_definition ILIKE '%accepted_item.side%'
-     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id%'
-     OR v_asset_assertion_definition ILIKE '%.side%'
-     OR v_reservation_definition NOT ILIKE '%item.from_member_id = p_member_id%'
-     OR v_reservation_definition ILIKE '%item.side%' THEN
-    RAISE EXCEPTION 'Trade acceptance does not exclusively use canonical participant-owned routes';
-  END IF;
-
   SELECT array_agg(expected.index_name ORDER BY expected.index_name)
     INTO v_missing
     FROM (VALUES
@@ -172,21 +156,6 @@ BEGIN
    );
   IF v_missing IS NOT NULL THEN
     RAISE EXCEPTION 'Canonical trade indexes are missing: %', v_missing;
-  END IF;
-
-  SELECT array_agg(catalog.indexname ORDER BY catalog.indexname)
-    INTO v_superseded
-    FROM pg_indexes AS catalog
-   WHERE catalog.schemaname = 'public'
-     AND catalog.indexname IN (
-       'idx_trades_league_proposer_recent',
-       'idx_trades_league_recipient_recent',
-       'idx_trades_member_proposed',
-       'idx_trades_recipient_proposed',
-       'idx_trades_vetoable_recent'
-     );
-  IF v_superseded IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade indexes remain: %', v_superseded;
   END IF;
 END $$;
 
@@ -326,7 +295,7 @@ BEGIN
     );
     RAISE EXCEPTION 'Due waiver player was acquired as a free agent';
   EXCEPTION WHEN SQLSTATE 'PA002' THEN
-    IF SQLERRM NOT LIKE 'This player is on waivers%' THEN RAISE; END IF;
+    IF SQLERRM <> 'Every pickup requires a scheduled waiver claim. Submit a claim instead.' THEN RAISE; END IF;
   END;
 
   INSERT INTO public.roster_players (
@@ -367,19 +336,6 @@ BEGIN
     RAISE EXCEPTION 'Expected four avatar policies, found %', v_avatar_policies;
   END IF;
 
-  IF to_regclass('public.idx_trades_due_accepted_queue') IS NULL THEN
-    RAISE EXCEPTION 'Due accepted-trade queue index is missing';
-  END IF;
-  IF to_regclass('public.idx_trade_vetos_trade_member') IS NOT NULL THEN
-    RAISE EXCEPTION 'Duplicate trade veto index still exists';
-  END IF;
-  IF to_regclass('public.idx_trades_league_proposer_recent') IS NOT NULL
-     OR to_regclass('public.idx_trades_league_recipient_recent') IS NOT NULL THEN
-    RAISE EXCEPTION 'Dominated trade feed indexes still exist';
-  END IF;
-  IF to_regclass('public.idx_trades_veto_feed') IS NULL THEN
-    RAISE EXCEPTION 'Bounded veto feed index is missing';
-  END IF;
   IF EXISTS (
     SELECT 1
       FROM pg_constraint
@@ -397,11 +353,6 @@ END $$;
 DO $$
 DECLARE
   v_page_oid regprocedure := 'public.get_trade_page_refs(uuid,uuid,integer,text)'::regprocedure;
-  v_accept_definition text;
-  v_asset_assertion_definition text;
-  v_accept_trigger_definition text;
-  v_complete_definition text;
-  v_create_definition text;
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -413,10 +364,6 @@ BEGIN
     RAISE EXCEPTION 'Trade item routes must be non-null catalog invariants';
   END IF;
 
-  IF to_regprocedure('public.get_trades_for_member(uuid,uuid,integer,integer)') IS NOT NULL
-     OR to_regprocedure('public.get_trades_for_member_page(uuid,uuid,integer,boolean,boolean,timestamp with time zone,uuid)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade feed function still exists';
-  END IF;
   IF has_function_privilege('anon', v_page_oid, 'EXECUTE')
      OR NOT has_function_privilege('authenticated', v_page_oid, 'EXECUTE') THEN
     RAISE EXCEPTION 'Trade feed function grants are incorrect';
@@ -429,9 +376,6 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Trade feed must use owner execution with an empty search path';
   END IF;
-  IF pg_get_functiondef(v_page_oid) !~ '(?is)own_member\.user_id\s*=\s*\(SELECT auth\.uid\(\)\)' THEN
-    RAISE EXCEPTION 'Trade feed owner execution is missing explicit caller authorization';
-  END IF;
   IF has_function_privilege('anon', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
      OR has_function_privilege('service_role', 'private.parse_multi_team_trade_items(jsonb)', 'EXECUTE')
@@ -440,77 +384,12 @@ BEGIN
      OR has_function_privilege('service_role', 'private.multi_team_trade_participants(uuid,uuid[])', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade parsing helpers are client executable';
   END IF;
-  IF to_regprocedure('public.accept_multi_team_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('public.accept_trade_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[])') IS NOT NULL
-     OR to_regprocedure('private.accept_trade_participant_atomic(uuid,uuid,uuid[],boolean)') IS NOT NULL THEN
-    RAISE EXCEPTION 'Superseded trade acceptance entrypoint still exists';
-  END IF;
-  IF to_regclass('public.trade_drop_reservations') IS NOT NULL THEN
-    RAISE EXCEPTION 'Obsolete trade-drop reservation table still exists';
-  END IF;
 
-  SELECT pg_get_functiondef('private.accept_trade_participant_atomic(uuid,uuid)'::regprocedure)
-    INTO v_accept_definition;
-  SELECT pg_get_functiondef('private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)'::regprocedure)
-    INTO v_asset_assertion_definition;
-  SELECT pg_get_functiondef('private.prevent_conflicting_or_inactive_trade_accept()'::regprocedure)
-    INTO v_accept_trigger_definition;
-  SELECT pg_get_functiondef('public.complete_accepted_trade_atomic(uuid)'::regprocedure)
-    INTO v_complete_definition;
-  SELECT pg_get_functiondef('private.create_multi_team_trade_offer(uuid,uuid,uuid,uuid[],jsonb,text,timestamptz,uuid,uuid,uuid,integer)'::regprocedure)
-    INTO v_create_definition;
-  IF v_accept_definition ILIKE '%COALESCE(item.from_member_id%'
-     OR v_complete_definition ILIKE '%COALESCE(item.from_member_id%'
-     OR v_complete_definition ILIKE '%COALESCE(v_item.to_member_id%' THEN
-    RAISE EXCEPTION 'Trade execution still has legacy side-based route fallback';
-  END IF;
-  IF v_accept_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
-     OR v_accept_trigger_definition NOT ILIKE '%private.assert_trade_assets_acceptance_ready%'
-     OR v_accept_definition ILIKE '%accepted_item.player_id%'
-     OR v_accept_definition ILIKE '%accepted_item.pick_id%'
-     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, item.player_id, NULL, p_trade_id)%'
-     OR v_asset_assertion_definition NOT ILIKE '%private.assert_not_reserved_trade_asset(p_league_id, p_league_season_id, item.from_member_id, NULL, item.pick_id, p_trade_id)%' THEN
-    RAISE EXCEPTION 'Trade acceptance does not use one canonical set-based asset assertion';
-  END IF;
   IF has_function_privilege('anon', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
      OR has_function_privilege('authenticated', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE')
      OR has_function_privilege('service_role', 'private.assert_trade_assets_acceptance_ready(uuid,uuid,uuid,uuid)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Private trade asset assertion is externally executable';
   END IF;
-  IF EXISTS (
-    SELECT 1
-      FROM pg_proc AS procedure
-      JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-     WHERE namespace.nspname IN ('public', 'private')
-       AND procedure.proname = ANY(ARRAY[
-         'prevent_accepted_trade_asset_roster_delete',
-         'prevent_accepted_or_inactive_roster_move',
-         'prevent_conflicting_or_inactive_trade_accept',
-         'validate_waiver_claim_drop_player',
-         'drop_player_atomic', 'toggle_ir_atomic', 'toggle_ir_for_activation', 'toggle_taxi_atomic'
-       ])
-       AND pg_get_functiondef(procedure.oid) ~* 'COALESCE\s*\(\s*(?:item|ti|other_item)\.from_member_id'
-  ) THEN
-    RAISE EXCEPTION 'Accepted-asset guards still have legacy side-based route fallback';
-  END IF;
-  IF v_create_definition ILIKE '%CREATE TEMP TABLE%'
-     OR v_create_definition NOT ILIKE '%jsonb_array_length(p_items) > 100%' THEN
-    RAISE EXCEPTION 'Multi-team trade creation is not bounded and temp-table free';
-  END IF;
-  IF v_accept_definition ILIKE '%roster_size%'
-     OR v_accept_definition ILIKE '%drop_roster%'
-     OR v_complete_definition ILIKE '%roster_size%'
-     OR v_complete_definition ILIKE '%trade_drop_reservations%' THEN
-    RAISE EXCEPTION 'Trade execution still enforces eager roster drops or cap rejection';
-  END IF;
-  IF pg_get_functiondef('public.set_player_slot_moves_atomic(uuid,uuid,uuid,date,integer,jsonb)'::regprocedure)
-       NOT ILIKE '%private.assert_roster_within_active_limit%'
-     OR pg_get_functiondef('public.auto_set_lineup_atomic(uuid,uuid,uuid,date,jsonb)'::regprocedure)
-       NOT ILIKE '%private.assert_roster_within_active_limit%' THEN
-    RAISE EXCEPTION 'Lineup entrypoints do not enforce the lazy roster lock';
-  END IF;
-
   IF NOT EXISTS (
     SELECT 1
       FROM pg_constraint

@@ -6,7 +6,6 @@ const DRAFT = '44444444-4444-4444-8444-444444444444'
 const PLAYER = '55555555-5555-4555-8555-555555555555'
 const LEAGUE = '66666666-6666-4666-8666-666666666666'
 let role: string | null = 'manager'
-let isMock = false
 let activated = false
 const requests: string[] = []
 const rpcCalls: { name: string; body: Record<string, unknown> }[] = []
@@ -30,14 +29,8 @@ const server = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, asy
     if (name === 'activate_rookie_draft_league_for_user_atomic') { activated = true; data = true }
     else data = {
       pick: { id: 'pick', overall_pick: 1, round: 1, pick_in_round: 1, member_id: MEMBER, draft_pick_id: null },
-      player_id: PLAYER, remaining: 0, league_id: LEAGUE, league_season_id: 'season', is_mock: isMock,
+      player_id: PLAYER, remaining: 0, league_id: LEAGUE, league_season_id: 'season', is_mock: false,
     }
-  }
-  if (url.pathname === '/rest/v1/notification_outbox') {
-    const body = await req.json()
-    assert.equal(body.event_type, 'rookie_draft_pick')
-    assert.equal(body.member_id, MEMBER)
-    assert.equal(body.category, 'draft')
   }
   return Response.json(data, { headers: select === 'id' && url.pathname === '/rest/v1/roster_players' ? { 'content-range': '0-0/0' } : {} })
 })
@@ -73,7 +66,6 @@ Deno.test('an outsider cannot trigger rookie activation', async () => {
 
 Deno.test('manual and self auto-picks return without reading notification recipients or player names', async () => {
   role = 'manager'
-  isMock = false
   for (const name of ['snake-pick', 'auto-pick']) {
     const response = await action(name)
     assert.equal(response?.status, 200)
@@ -81,19 +73,6 @@ Deno.test('manual and self auto-picks return without reading notification recipi
     assert.equal(requests.some(path => path.includes('select=user_id')), false)
     assert.equal(requests.some(path => path.includes('notification_preferences')), false)
   }
-})
-
-Deno.test('commissioner picks queue notification delivery, except in mock drafts', async () => {
-  role = 'commissioner'
-  isMock = false
-  const response = await action('commissioner-pick')
-  assert.equal(response?.status, 200)
-  assert.equal(requests.some(path => path.startsWith('/rest/v1/notification_outbox')), true)
-  assert.equal(requests.some(path => path.includes('select=user_id')), false)
-  isMock = true
-  await action('commissioner-pick')
-  assert.equal(requests.some(path => path.startsWith('/rest/v1/notification_outbox')), false)
-  assert.equal(requests.some(path => path.includes('select=user_id')), false)
 })
 
 Deno.test({ name: 'draft test server closes', sanitizeOps: false, sanitizeResources: false, fn: () => server.shutdown() })
