@@ -1,3 +1,5 @@
+import { fidelityPass } from './official-outcomes.mjs'
+
 export function reliabilityBins(rows) {
   return Array.from({ length: 5 }, (_, index) => {
     const selected = rows.map(row => row.outcome).filter(row => Number.isFinite(row.probability) && row.probability >= 0 && row.probability <= 1 && Math.min(4, Math.floor(row.probability * 5)) === index)
@@ -11,6 +13,7 @@ export function summarizeOfficial(report) {
   const regularWeeks = new Set(report.days.filter(day => day.seasonYear === firstYear).flatMap(day => (day.closedWeeks ?? []).map(row => row.week)))
   const nextWeeks = new Set(report.days.filter(day => day.seasonYear === firstYear + 1).flatMap(day => (day.closedWeeks ?? []).map(row => row.week)))
   const gates = {
+    workerFidelity: fidelityPass(report.triggerFidelity),
     noFailure: !report.error && !report.cleanupError,
     sourceIntegrity: report.sourceMismatch !== true,
     requestedRangeComplete: report.complete === true && report.fullRangeComplete === true,

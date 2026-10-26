@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import path from 'node:path'
-import { readFileSync } from 'node:fs'
+import { readFileSync, appendFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { fixtureDirectory, config, assertTarget, delay, etDate, historicalSummary, laneDirectory, miniRoot, season, sha256, teamCode, writeJson } from './common.mjs'
 import { fakeExpoRecorder } from './push-origin.mjs'
@@ -11,6 +11,7 @@ import { orderedActions, snapshot, gameEndTime } from './snapshots.mjs'
 import { clockTime } from './virtual-clock.mjs'
 import { rosterForDate, playerIndexAt, openingRosters, observeSide, boxTransfers, rosterSourceAudit } from './origin-people.mjs'
 import { scheduleObservation } from './schedule-view.mjs'
+import { gapSource, unavailableResponse, validGapRoute } from './provider-transport.mjs'
 import { upstreamRecorder } from './recorder.mjs'
 
 function scoreboardTeam(team) {
@@ -110,6 +111,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         response.end(JSON.stringify({ ok: true }))
         return
       }
+      const recordProvider = (payload, status, at) => appendFileSync(path.join(miniRoot, 'state/provider-responses.jsonl'), `${JSON.stringify({ requestId: request.headers['x-sim-provider-request'], transport: url.href, method: request.method, at: new Date(at).toISOString(), status, bodySha256: sha256(JSON.stringify(payload)), unavailable: payload.unavailable })}\n`)
       const at = now(), date = etDate(new Date(at).toISOString())
       let fault
       try { fault = JSON.parse(readFileSync(path.join(miniRoot, 'state/fault.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
@@ -174,22 +176,27 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
           for (const team of [boxes.get(game.id).game.homeTeam, boxes.get(game.id).game.awayTeam]) for (const player of team.players) latest.set(player.personId, player)
         }
         payload = { injuries: [{ injuries: [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason })) }] }
+        if (!payload.injuries[0].injuries.length) payload.unavailable = unavailableResponse('espn-injury-observations', at)
       } else if (url.pathname === '/espn/news') payload = { articles: articles.filter(article => Date.parse(article.published) <= at).sort((a, b) => b.published.localeCompare(a.published)).slice(0, Number(url.searchParams.get('limit') ?? 50)) }
-      else if (url.pathname.startsWith('/sleeper/')) {
-        response.writeHead(503, { 'Content-Type': 'application/json', 'X-Sim-Provenance': 'SYNTHETIC' })
-        response.end(JSON.stringify({ error: 'Historical Sleeper identity and projection archives are unavailable' }))
-        recorder.record({ path: url.pathname, at, provenance: 'SYNTHETIC', source: 'documented historical source gap', status: 503 })
+      else if (gapSource(url.pathname)) {
+        const provider = gapSource(url.pathname)
+        assert.ok(validGapRoute(provider, url), 'Unpinned historical provider route')
+        const unavailable = unavailableResponse(provider, at)
+        const status = provider === 'espn-career-stats' ? 200 : 503
+        response.writeHead(status, { 'Content-Type': 'application/json', 'X-Sim-Provenance': 'HISTORICAL-UNAVAILABLE' })
+        recordProvider({ unavailable }, status, at)
+        response.end(JSON.stringify({ unavailable }))
+        recorder.record({ path: url.pathname, at, provenance: 'HISTORICAL-UNAVAILABLE', source: unavailable, status })
         return
       }
       else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date, openings, process.env.SEASON_SIM_PROFILE ? at : null)
-      else if (url.pathname.startsWith('/career/')) {
-        payload = { unavailable: 'Historical career totals have not been collected. Unknown remains null.' }
-        source = 'documented source gap'
-        provenance = 'SYNTHETIC'
-      } else if (plan && (url.pathname.startsWith('/nba/') || url.pathname === '/stats/stats/drafthistory')) {
+      else if (url.pathname.startsWith('/nba/player/')) throw new Error(`Unimplemented historical endpoint: ${url.pathname}`)
+      else if (plan && (url.pathname.startsWith('/nba/') || url.pathname === '/stats/stats/drafthistory')) {
         if(at<Date.parse(plan.draft.availableAt)){
           response.writeHead(503,{'Content-Type':'application/json','X-Sim-Provenance':'SYNTHETIC'})
-          response.end(JSON.stringify({error:'Complete pinned draft board unavailable before declared replay availability'}))
+          const payload = { error: 'Complete pinned draft board unavailable before declared replay availability', unavailable: unavailableResponse('nba-draft-before-publication', at) }
+          recordProvider(payload, 503, at)
+          response.end(JSON.stringify(payload))
           recorder.record({path:url.pathname,at,provenance:'SYNTHETIC',source:plan.draft.availabilityProvenance,status:503})
           return
         }
@@ -217,6 +224,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       }
       response.setHeader('Content-Type', 'application/json')
       response.setHeader('X-Sim-Provenance', provenance)
+      if (payload.unavailable?.source === 'espn-injury-observations') recordProvider(payload, 200, at)
       response.end(JSON.stringify(payload))
       recorder.record({ path: url.pathname, at, provenance, source, status: 200, ...gameEvent })
     } catch (error) {

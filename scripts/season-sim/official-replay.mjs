@@ -89,6 +89,7 @@ export async function officialReplay(options, scenario) {
       if (date === input.bounds.checkpoint && !options.resume) {
         await waitForSnapshotWorkers({ advance: runtime.move })
         runtime.origin.flushCoverage()
+        await runtime.verifyFidelity()
         report.snapshots.push(await saveSnapshot('pre-playoffs', { date, at: new Date(runtime.now()).toISOString(), context: serializableContext(context), profileSha256: scenario.sha256, previous, checked, evidence: structuredClone(report) }))
       }
       const day = { date, seasonYear: context.seasonYear }
@@ -133,6 +134,7 @@ export async function officialReplay(options, scenario) {
       await observeOfficialChampion(context, report, runtime.now())
       if (report.rollover && !report.rookieDraft && date >= input.draft.availableAt.slice(0, 10)) await runOfficialRookieDraft(context, input, report, runtime.move, runtime.now())
       day.state = await sqlJson(`SELECT json_build_object('seasons',(SELECT json_agg(s ORDER BY season_year) FROM league_seasons s WHERE league_id='${context.leagueId}'),'drafts',(SELECT coalesce(json_agg(d ORDER BY created_at),'[]') FROM drafts d WHERE league_id='${context.leagueId}'))`, 'Official lifecycle state')
+      await runtime.verifyFidelity()
       report.days.push(day)
       await persistCursor(shiftDay(date, 1))
       await writeJson(path.join(miniRoot, 'evidence/official-replay.json'), report)
@@ -140,7 +142,7 @@ export async function officialReplay(options, scenario) {
     report.firstSeasonId = firstContext.leagueSeasonId
     report.complete = true
     report.fullRangeComplete = report.days.at(-1)?.date === input.bounds.secondThrough
-    report.triggerFidelity.verified = true
+    await runtime.verifyFidelity()
     const finalSource = await sourceEvidence()
     report.sourceMismatch = finalSource.harness.sha256 !== source.harness.sha256 || JSON.stringify(finalSource.application) !== JSON.stringify(source.application)
     report.acceptance = summarizeOfficial(report)

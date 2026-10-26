@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
+import { providerTransport, gapSource } from './provider-transport.mjs'
 import { assertFetchTarget } from './fetch-guard.mjs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { businessTimers } from './business-timers.mjs'
 import { appendFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
-import { config, originUrl, assertTarget, laneDirectory, miniRoot } from './common.mjs'
+import { config, originUrl, assertTarget, laneDirectory, miniRoot, sha256 } from './common.mjs'
 import { virtualDate } from './virtual-clock.mjs'
 import { virtualTimers } from './timers.mjs'
 import { trackWorkerWait, workerHealth } from './worker-waits.mjs'
@@ -24,6 +25,13 @@ const nativeSetTimeout = setTimeout
 const nativeSetInterval = setInterval
 const nativeClearTimeout = clearTimeout
 const requestContext = new AsyncLocalStorage()
+const nativeWarn = console.warn.bind(console)
+console.warn = (...values) => {
+  const warning = values.map(value => value instanceof Error ? value.message : String(value)).join(' ')
+  const owner = requestContext.getStore()
+  if (owner?.invocation && warning.startsWith('[sync-players] career ')) appendFileSync(path.join(directory, 'provider-requests.jsonl'), `${JSON.stringify({ invocation: owner.invocation, function: owner.function, at: new Date().toISOString(), warning })}\n`)
+  nativeWarn(...values)
+}
 const requests = new Set()
 let fetches = 0
 const nativeAbortTimeout = AbortSignal.timeout
@@ -43,7 +51,23 @@ const sampleLive = (phase,owner=requestContext.getStore()) => trackWorkerWait(ow
   assert.ok(response.ok, `Internal live score sample fails: ${await response.text()}`)
 })
 globalThis.fetch = async (input, init) => {
-  const url = assertFetchTarget(input instanceof Request ? input.url : input)
+  const original = String(input instanceof Request ? input.url : input)
+  const owner = requestContext.getStore()
+  const requestId = crypto.randomUUID()
+  let url
+  try {
+    let mapped = providerTransport(original)
+    if (mapped.pathname.startsWith('/career/athletes/')) {
+      let fault
+      try { fault = JSON.parse(readFileSync(path.join(directory, 'fault.json'), 'utf8')) } catch (error) { if (error.code !== 'ENOENT') throw error }
+      if (fault?.type === 'guarded-provider') mapped = new URL(`https://blocked.invalid${mapped.pathname}${mapped.search}`)
+    }
+    url = assertFetchTarget(mapped)
+  } catch (error) {
+    appendFileSync(path.join(directory, 'provider-requests.jsonl'), `${JSON.stringify({ requestId, invocation: owner?.invocation, function: owner?.function, original, at: new Date().toISOString(), error: error.message, boundaryRejected: true })}\n`)
+    throw error
+  }
+  if (url.href !== original) input = input instanceof Request ? new Request(url, input) : url
   if (url.port === String(config.ports.api) && url.pathname.startsWith('/functions/v1/')) {
     url.port = String(config.ports.edge)
     input = input instanceof Request ? new Request(url, input) : url
@@ -51,11 +75,27 @@ globalThis.fetch = async (input, init) => {
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
   if (url.pathname === '/rest/v1/rpc/get_live_poll_work' && headers.has('x-pancake-live-holder')) await sampleLive('before-work')
   fetches++
-  try { return await trackWorkerWait(requestContext.getStore(),'fetch-headers',url.pathname,()=>nativeFetch(input, { ...init, redirect: 'error' })) } finally { fetches-- }
+  const provider = url.port === String(config.ports.replay) && (gapSource(url.pathname) || url.pathname === '/espn/injuries' || url.pathname.startsWith('/nba/') || url.pathname === '/stats/stats/drafthistory')
+  const headersForFetch = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+  if (provider) headersForFetch.set('x-sim-provider-request', requestId)
+  const receipt = { requestId, invocation: owner?.invocation, function: owner?.function, original, transport: url.href, method: init?.method ?? (input instanceof Request ? input.method : 'GET'), at: new Date().toISOString() }
+  try {
+    const response = await trackWorkerWait(owner,'fetch-headers',url.pathname,()=>nativeFetch(input, { ...init, headers: headersForFetch, redirect: 'error' }))
+    if (provider) {
+      const bytes = await response.clone().text()
+      let body
+      try { body = JSON.parse(bytes) } catch {}
+      appendFileSync(path.join(directory, 'provider-requests.jsonl'), `${JSON.stringify({ ...receipt, status: response.status, bodySha256: sha256(bytes), unavailable: body?.unavailable ?? null })}\n`)
+    }
+    return response
+  } catch (error) {
+    if (provider || owner?.invocation) appendFileSync(path.join(directory, 'provider-requests.jsonl'), `${JSON.stringify({ ...receipt, error: error.message })}\n`)
+    throw error
+  } finally { fetches-- }
 }
 for (const [name, suffix] of Object.entries({
-  NBA_CDN_BASE_URL: '/static/json', ESPN_SITE_BASE_URL: '/espn', ESPN_CAREER_BASE_URL: '/career',
-  SLEEPER_BASE_URL: '/sleeper', NBA_STATS_BASE_URL: '/stats', NBA_COM_BASE_URL: '/nba',
+  NBA_CDN_BASE_URL: '/static/json', ESPN_SITE_BASE_URL: '/espn', ESPN_CAREER_BASE_URL: '/career', ESPN_SEARCH_BASE_URL: '/career-search',
+  HASHTAG_BASE_URL: '', SLEEPER_BASE_URL: '/sleeper', NBA_STATS_BASE_URL: '/stats', NBA_COM_BASE_URL: '/nba',
   EXPO_PUSH_URL: '/push', EXPO_RECEIPTS_URL: '/receipts',
 })) Deno.env.set(name, `${originUrl('replay')}${suffix}`)
 const handlers = new Map()
