@@ -11,7 +11,7 @@ import { playerRow } from './helpers/fixtures'
 
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
-vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null, numberOrDash: String }))
+vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null }))
 
 const ROWS = 20
 const players = Array.from({ length: ROWS }, (_, index) => playerRow({ id: `player-${index}`, display_name: `Player ${index}` }))

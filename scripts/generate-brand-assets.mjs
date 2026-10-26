@@ -5,21 +5,21 @@ import { chromium } from 'playwright'
 const root = new URL('../', import.meta.url)
 const svg = await readFile(new URL('assets/images/pancake-mark.svg', root), 'utf8')
 const exports = [
-    ['assets/images/pancake_logo.png', 150, false],
-    ['assets/images/pancake_logo@2x.png', 300, false],
-    ['assets/images/pancake_logo@3x.png', 450, false],
-    ['assets/images/favicon.png', 64, false],
-    ['assets/images/icon.png', 1024, true],
-    ['public/boot-logo.png', 128, false],
-    ['public/apple-touch-icon.png', 180, true],
-    ['public/pwa-192.png', 192, true],
-    ['public/pwa-512.png', 512, true],
-    ['public/pwa-512-maskable.png', 512, true],
+    { path: 'assets/images/pancake_logo.png', size: 150, opaque: false },
+    { path: 'assets/images/pancake_logo@2x.png', size: 300, opaque: false },
+    { path: 'assets/images/pancake_logo@3x.png', size: 450, opaque: false },
+    { path: 'assets/images/favicon.png', size: 64, opaque: false },
+    { path: 'assets/images/icon.png', size: 1024, opaque: true },
+    { path: 'public/boot-logo.png', size: 128, opaque: false },
+    { path: 'public/apple-touch-icon.png', size: 180, opaque: true },
+    { path: 'public/pwa-192.png', size: 192, opaque: true },
+    { path: 'public/pwa-512.png', size: 512, opaque: true },
+    { path: 'public/pwa-512-maskable.png', size: 512, opaque: true },
 ]
 const browser = await chromium.launch()
 try {
     const page = await browser.newPage()
-    for (const [path, size, opaque] of exports) {
+    for (const { path, size, opaque } of exports) {
         const png = await page.evaluate(async ({ svg, size, opaque }) => {
             const image = new Image()
             image.src = `data:image/svg+xml;base64,${btoa(svg)}`

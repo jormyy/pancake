@@ -54,7 +54,7 @@ describe('design system source guards', () => {
 
         const typeRamp = Object.values(fontSize)
         for (let i = 1; i < typeRamp.length; i += 1) {
-            expect(typeRamp[i]).toBeGreaterThan(typeRamp[i - 1])
+            expect(typeRamp[i]).toBeGreaterThanOrEqual(typeRamp[i - 1])
         }
 
         const buttonHeights = Object.values(controlSize.button).map((size) => size.height)

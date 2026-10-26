@@ -97,11 +97,6 @@ export function formatProjectionGame(row: Pick<LeagueProjectionRow, 'projection_
     return ''
 }
 
-export function numberOrDash(value: number | null | undefined, digits = 1): string {
-    if (value == null || !Number.isFinite(Number(value))) return '-'
-    return Number(value).toFixed(digits)
-}
-
 function shortDate(date: string): string {
     const parsed = new Date(`${date}T12:00:00Z`)
     if (!Number.isFinite(parsed.getTime())) return date
