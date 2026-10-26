@@ -43,15 +43,15 @@ async function offer(c, a, b, year, round, mixedDate = null) {
   const giving = picks.find(row => row.current_owner_id === a.memberId), receiving = picks.find(row => row.current_owner_id === b.memberId)
   assert.ok(giving && receiving)
   const body = { requestId: randomUUID(), leagueId: c.leagueId, leagueSeasonId: c.leagueSeasonId, memberId: a.memberId, recipientMemberId: b.memberId, offerPickIds: [giving.id], requestPickIds: [receiving.id] }
-  const items = [{ fromMemberId: a.memberId, toMemberId: b.memberId, pickId: giving.id }, { fromMemberId: b.memberId, toMemberId: a.memberId, pickId: receiving.id }]
+  const pickRoutes = [{ fromMemberId: a.memberId, toMemberId: b.memberId, pickId: giving.id }, { fromMemberId: b.memberId, toMemberId: a.memberId, pickId: receiving.id }]
   let before, playerRoutes, faabRoutes
   if (mixedDate) {
     before = await playerState(c, [a, b], mixedDate)
     playerRoutes = [a, b].map((user, index) => ({ fromMemberId: user.memberId, toMemberId: [b, a][index].memberId, playerId: before.players.find(row => row.member_id === user.memberId).player_id }))
     faabRoutes = [{ fromMemberId: a.memberId, toMemberId: b.memberId, faabAmount: 7 }, { fromMemberId: b.memberId, toMemberId: a.memberId, faabAmount: 3 }]
     Object.assign(body, { offerPlayerIds: [playerRoutes[0].playerId], requestPlayerIds: [playerRoutes[1].playerId], offerFaabAmount: 7, requestFaabAmount: 3, rosterPlan: regularPlan })
-    items.push(...playerRoutes, ...faabRoutes)
   }
+  const items = [...pickRoutes, ...(playerRoutes ?? []), ...(faabRoutes ?? [])]
   const { quote } = await c.api(a, '/trades/estimate', { memberId: a.memberId, items })
   body.estimateId = quote.id
   const { tradeId } = await c.api(a, '/trades/propose', body)

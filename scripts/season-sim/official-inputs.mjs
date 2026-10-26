@@ -8,7 +8,7 @@ import { scenarioBounds } from './scenario-profile.mjs'
 export async function officialInputs(profile) {
   const files = ['two-season-plan.json', 'games.json', 'manifest.jsonl']
   const bytes = await Promise.all(files.map(file => readFile(path.join(fixtureDirectory, file))))
-  const plan = JSON.parse(bytes[0]), { games } = JSON.parse(bytes[1])
+  const plan = JSON.parse(bytes[0].toString('utf8')), { games } = JSON.parse(bytes[1].toString('utf8'))
   assert.equal(plan.mode, 'two-real-seasons')
   assert.ok(games.every(game => game.provenance !== 'SYNTHETIC'), 'Official input games must have real historical provenance')
   const seasons = plan.seasons.map(season => {

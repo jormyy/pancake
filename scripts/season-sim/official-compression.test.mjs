@@ -12,18 +12,19 @@ test('material coverage retains first live, each period, final, and unchanged-fi
 })
 
 test('coalescing fails closed for changed commands, pending work, and active workers', async () => {
-  let state = { inventory: false }
-  const receipt = {}, policy = compressionPolicy(new Set(), receipt, async () => state)
+  const states = [{ inventory: false }, { inventory: true }, {}]
+  let stateIndex = 0
+  const receipt = {}, policy = compressionPolicy(new Set(), receipt, async () => states[stateIndex])
   const empty = { nextAt: null }, active = { nextAt: 60001 }
   const job = { jobname: 'league-inventory-hint-drain', command: 'SELECT private.flush_league_inventory_hints(1000)' }
   await policy.refresh(0, empty)
   assert.deepEqual(policy.select([job], 30000, empty), [])
   assert.equal(policy.select([{ ...job, command: `${job.command};SELECT 1` }], 30000, empty).length, 1)
   assert.equal(policy.select([job], 30000, active).length, 1)
-  state = { inventory: true }
+  stateIndex = 1
   await policy.refresh(30000, empty)
   assert.equal(policy.select([job], 60000, empty).length, 1)
-  state = {}
+  stateIndex = 2
   await policy.refresh(60000, empty)
   assert.equal(policy.select([job], 90000, empty).length, 1)
 })
@@ -61,17 +62,18 @@ test('notification and optimizer compression preserves time boundaries and queue
 })
 
 test('forecast compression never skips expiry or dirty input work', async () => {
-  let state = { forecasts: false, forecastExpires: 180000 }
-  const policy = compressionPolicy(new Set(), {}, async () => state)
+  const states = [{ forecasts: false, forecastExpires: 180000 }, { forecasts: true, forecastExpires: 999999 }, {}]
+  let stateIndex = 0
+  const policy = compressionPolicy(new Set(), {}, async () => states[stateIndex])
   const workers = { nextAt: null }
   const job = { jobname: 'matchup-forecasts', command: 'SELECT public.invoke_matchup_forecasts_if_due()' }
   await policy.refresh(0, workers)
   assert.equal(policy.select([job], 60000, workers).length, 0)
   assert.equal(policy.select([job], 180000, workers).length, 1)
-  state = { forecasts: true, forecastExpires: 999999 }
+  stateIndex = 1
   await policy.refresh(0, workers)
   assert.equal(policy.select([job], 60000, workers).length, 1)
-  state = {}
+  stateIndex = 2
   await policy.refresh(0, workers)
   assert.equal(policy.select([job], 60000, workers).length, 1)
 })

@@ -59,9 +59,9 @@ export async function officialReplay(options, scenario) {
     } else {
       await runtime.move(`${start}T14:00:00Z`)
       context = await createLeagueActions(runtime.keys, start, profile.teamCount, { scenario: profile, move: runtime.move })
-      report.auction = context.auction
+      if ('auction' in context) report.auction = context.auction
     }
-    report.auction ??= context.auction
+    if ('auction' in context) report.auction ??= context.auction
     const preferences = await context.rest(context.users[0], `lineup_optimizer_settings?select=member_id,enabled&league_season_id=eq.${context.leagueSeasonId}`)
     assert.equal(preferences.length, profile.teamCount, 'Every official manager has an optimizer preference')
     assert.ok(preferences.every(row => row.enabled === true), 'All official managers start with their saved optimizer preference enabled')
