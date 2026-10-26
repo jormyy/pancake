@@ -350,7 +350,10 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (!WORKFLOW_FEEDBACK_IDS.includes(workflowId)) throw new Error(`No workflow feedback probe for ${workflowId}`)
   if (workflowId === 'home-live-lineup' || workflowId === 'lineup-day-change') {
     const label = await markDynamicTarget(browser, session,
-      `document.querySelector('[aria-current="date"]')?.parentElement?.querySelector(':scope > button[aria-label]:not([aria-current])')`,
+      `[...document.querySelector('[aria-current="date"]')?.parentElement?.querySelectorAll(':scope > button[aria-label]:not([aria-current])') ?? []].find((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.width > 0 && bounds.left >= 0 && bounds.right <= innerWidth;
+      })`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
