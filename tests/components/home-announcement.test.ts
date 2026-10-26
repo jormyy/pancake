@@ -77,3 +77,14 @@ it('keeps passive arrivals still and shows new rows after an explicit refresh wi
     await act(async () => screen.update(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true, revision: 1 })))
     expect(text()).toContain('Draft tonight.')
 })
+
+it('shows a delayed initial response without admitting later passive announcements', async () => {
+    await act(async () => { screen = create(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: false, announcements: [] })) })
+    expect(text()).not.toContain('Draft tonight.')
+    await act(async () => screen.update(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true })))
+    expect(text()).toContain('Draft tonight.')
+    const later = { ...announcements[1], id: 'later', body: 'Next announcement.', published_at: '2026-10-24T15:00:00Z' }
+    await act(async () => screen.update(React.createElement(HomeAnnouncementOnEntry, { ...props, loaded: true, announcements: [later, ...announcements] })))
+    expect(text()).toContain('Draft tonight.')
+    expect(text()).not.toContain('Next announcement.')
+})

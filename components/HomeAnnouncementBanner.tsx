@@ -21,8 +21,10 @@ type BannerProps = {
 }
 
 export function HomeAnnouncementOnEntry({ loaded, revision = 0, ...props }: BannerProps & { loaded: boolean; revision?: number }) {
-    const [snapshot, setSnapshot] = useState(() => ({ revision, announcements: loaded ? props.announcements : [] }))
-    if (snapshot.revision !== revision) setSnapshot({ revision, announcements: loaded ? props.announcements : [] })
+    const [snapshot, setSnapshot] = useState(() => ({ revision, loaded, announcements: loaded ? props.announcements : [] }))
+    if (snapshot.revision !== revision || (!snapshot.loaded && loaded)) {
+        setSnapshot({ revision, loaded, announcements: loaded ? props.announcements : [] })
+    }
     return <HomeAnnouncementBanner {...props} announcements={snapshot.announcements} />
 }
 
