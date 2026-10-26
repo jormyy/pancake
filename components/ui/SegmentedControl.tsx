@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
@@ -21,6 +21,7 @@ type Props<T extends string> = {
     accessibilityLabel?: string
     idBase?: string
     controlledPanelId?: string
+    equalWidth?: boolean
     scrollable?: boolean
     /** `pills` filter a list; `tabs` switch between a page's sections. */
     variant?: 'pills' | 'tabs'
@@ -55,6 +56,7 @@ export function SegmentedControl<T extends string>({
     idBase,
     controlledPanelId,
     scrollable = false,
+    equalWidth = false,
     variant = 'pills',
     style,
 }: Props<T>) {
@@ -168,13 +170,13 @@ export function SegmentedControl<T extends string>({
                 } : undefined}
                 style={({ hovered, pressed }: PressableState) => tabs
                     ? [styles.tab, active && styles.tabActive, hovered && !active && styles.tabHover, pressed && styles.pressed]
-                    : [styles.segment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
+                    : [styles.segment, equalWidth && styles.equalSegment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
             >
                 <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]} numberOfLines={1}>
                     {opt.label}
                 </Text>
                 {opt.reserveBadge || typeof opt.badge === 'number' && opt.badge > 0 ? (
-                    <View style={[tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive], opt.reserveBadge && { width: 32 }, opt.reserveBadge && !opt.badge && { opacity: 0 }]}>
+                    <View style={[tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive], opt.reserveBadge && { minWidth: 20 }, opt.reserveBadge && typeof opt.badge !== 'number' && { opacity: 0 }]}>
                         <Text style={tabs ? styles.tabBadgeText : [styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
                     </View>
                 ) : null}
@@ -233,12 +235,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
-        minHeight: 44,
-        paddingHorizontal: spacing.xl,
+        minHeight: controlSize.minTouch,
+        paddingHorizontal: spacing.lg,
         borderRadius: radii['3xl'],
         backgroundColor: colors.bgMuted,
         borderCurve: 'continuous',
     },
+    equalSegment: { flex: 1, minWidth: 0, paddingHorizontal: spacing.sm },
     segmentActive: {
         backgroundColor: colors.primary,
     },
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
-        minHeight: 44,
+        minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',

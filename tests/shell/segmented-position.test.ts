@@ -63,3 +63,15 @@ it('positions a hidden track when it becomes visible and leaves user scrolling i
     await act(async () => screen.unmount())
     expect(disconnect).toHaveBeenCalledOnce()
 })
+
+it.each([0, undefined])('shows a known zero count and hides an unknown count: %s', async badge => {
+    await act(async () => {
+        screen = create(React.createElement(SegmentedControl, {
+            value: 'traded', options: [{ value: 'traded', label: 'Traded', badge, reserveBadge: true }], onChange: vi.fn(),
+        }))
+    })
+    const badgeText = screen.root.findAllByType('Text' as React.ElementType).at(-1)!
+    const style = Object.assign({}, ...badgeText.parent!.props.style.flat(Infinity).filter(Boolean))
+    expect(badgeText.props.children).toBe(badge)
+    expect(style.opacity ?? 1).toBe(badge === undefined ? 0 : 1)
+})

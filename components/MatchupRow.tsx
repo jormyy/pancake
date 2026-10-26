@@ -293,7 +293,7 @@ function PlayerSide({
     }
 
     const score = (
-        <FantasyScore key="score" value={player ? fpts : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
+        <FantasyScore key="score" value={player ? fpts ?? 0 : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
     )
     const body = (
         <View key="body" style={[styles.playerBlock, compact && styles.playerBlockCompact, dense && styles.playerBlockDense, { alignItems: align }]}>

@@ -69,3 +69,5 @@ The [release gates](docs/verification.md#release-gates) and [artifact contract](
 
 Start with the [documentation index](docs/README.md).
 Use the [browser guide](tests/e2e/README.md) for local UI checks.
+
+Brand assets and phone display rules: [Interface design](docs/interface-design.md).

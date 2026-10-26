@@ -36,9 +36,6 @@ it('keeps player and roster summaries width-stable without unknown counts', asyn
     expect(roster).toContain('minWidth: 240, minHeight: 20')
     const picks = await read('components/league/LeaguePicksBank.tsx')
     expect(picks).toContain('badge: loading ? undefined : badge, reserveBadge: true')
-    const filters = await read('components/ui/SegmentedControl.tsx')
-    expect(filters).toContain('opt.reserveBadge && { width: 32 }')
-    expect(filters).toContain('opt.reserveBadge && !opt.badge && { opacity: 0 }')
 })
 it('reserves the same title and description space for every week-off reason', async () => {
     const empty = await read('components/EmptyState.tsx')

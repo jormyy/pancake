@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { View, Text, Image, StyleSheet, Platform } from 'react-native'
-import { colors, fontWeight } from '@/constants/tokens'
+import { colors, controlSize, fontWeight } from '@/constants/tokens'
 import { getInitials } from '@/lib/format'
 
 const loadedImageUris = new Set<string>()
@@ -10,14 +10,14 @@ type Props = {
     color?: string
     /** Initials color — pass a dark tone when `color` is a light fill (default white). */
     textColor?: string
-    /** Diameter in px (default 44) */
+    /** Diameter in px (default 32) */
     size?: number
     /** Optional headshot image URI — shown instead of initials when provided */
     uri?: string | null
 }
 
 /** Circular avatar — shows headshot image when uri is provided, falls back to initials */
-export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSecondary, size = 44, uri }: Props) {
+export function Avatar({ name, color = colors.bgMuted, textColor = colors.textSecondary, size = controlSize.avatar.md, uri }: Props) {
     const containerRef = useRef<View | null>(null)
     const [visibleUri, setVisibleUri] = useState(() => uri && loadedImageUris.has(uri) ? uri : null)
     const half = size / 2

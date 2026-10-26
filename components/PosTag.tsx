@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native'
 import { getPositionColor } from '@/constants/positions'
-import { alpha, colors, fontWeight, radii } from '@/constants/tokens'
+import { alpha, colors, controlSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 /**
  * Small position tag. The bright position colors fail WCAG AA as 9px text on
@@ -18,9 +18,9 @@ export function PosTag({ position }: { position: string }) {
 
 const styles = StyleSheet.create({
     pill: {
-        paddingHorizontal: 5,
-        paddingVertical: 1,
-        height: 18,
+        paddingHorizontal: spacing.xxs,
+        paddingVertical: 0,
+        height: controlSize.badge.height,
         borderRadius: radii.xs,
         borderCurve: 'continuous',
         borderWidth: 1,

@@ -260,10 +260,10 @@ export const spacing = {
     lg: unit(3),
     xl: unit(4),
     '2xl': unit(5),
-    '3xl': unit(6),
-    '4xl': unit(8),
-    '5xl': unit(10),
-    '6xl': unit(12),
+    '3xl': unit(5),
+    '4xl': unit(6),
+    '5xl': unit(8),
+    '6xl': unit(10),
 } as const
 
 // ── Border radii ────────────────────────────────────────────────
@@ -288,7 +288,7 @@ export const radii = {
 
 // ── Typography ──────────────────────────────────────────────────
 
-const TYPE_SCALE = [10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36] as const
+const TYPE_SCALE = [10, 11, 12, 12, 13, 16, 17, 18, 20, 24, 28, 32] as const
 
 export const fontSize = {
     '2xs': TYPE_SCALE[0],
@@ -343,12 +343,12 @@ const tabularNums: TextStyle['fontVariant'] = ['tabular-nums']
 // Text roles. Screens pick a role instead of a raw size so the hierarchy reads
 // the same everywhere: hero number > page title > row title > body > meta > label.
 export const textStyles = {
-    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 40, fontWeight: fontWeight.black, fontVariant: tabularNums },
-    compactScore: { fontFamily: fontFamily.display, fontSize: fontSize['3xl'], lineHeight: unit(8), fontWeight: fontWeight.black, fontVariant: tabularNums },
-    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 26, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    rowTitle: { fontSize: fontSize.md, lineHeight: 18, fontWeight: fontWeight.semibold, color: colors.textPrimary },
-    body: { fontSize: fontSize.md, lineHeight: 20, color: colors.textSecondary },
-    meta: { fontSize: fontSize['2sm'], lineHeight: 16, color: colors.textMuted },
+    hero: { fontFamily: fontFamily.display, fontSize: fontSize['5xl'], lineHeight: 36, fontWeight: fontWeight.black, fontVariant: tabularNums },
+    compactScore: { fontFamily: fontFamily.display, fontSize: fontSize['3xl'], lineHeight: unit(7), fontWeight: fontWeight.black, fontVariant: tabularNums },
+    pageTitle: { fontFamily: fontFamily.display, fontSize: fontSize.xl, lineHeight: 24, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    rowTitle: { fontSize: fontSize.md, lineHeight: 16, fontWeight: fontWeight.semibold, color: colors.textPrimary },
+    body: { fontSize: fontSize.md, lineHeight: 18, color: colors.textSecondary },
+    meta: { fontSize: fontSize['2sm'], lineHeight: 14, color: colors.textMuted },
     sectionLabel: { fontSize: fontSize.xs, lineHeight: 14, fontWeight: fontWeight.extrabold, letterSpacing: 0.8, textTransform: 'uppercase' as const, color: colors.textMuted },
     stat: { fontSize: fontSize['2sm'], fontVariant: tabularNums, color: colors.textSecondary },
     tableHeader: { fontSize: fontSize['2xs'], lineHeight: 12, fontWeight: fontWeight.extrabold, letterSpacing: 0.6, textTransform: 'uppercase' as const, color: colors.textMuted },
@@ -358,8 +358,8 @@ export const textStyles = {
 // Data tables (roster, players, standings, rankings, trades). One spec so
 // every table has the same header, row height, and column rhythm.
 export const table = {
-    headerHeight: 32,
-    rowHeight: 52,
+    headerHeight: 28,
+    rowHeight: 48,
     rowHeightCompact: 44,
     statColWidth: 44,
     scoreBreakdownRowHeight: unit(10),
@@ -368,15 +368,16 @@ export const table = {
 
 export const controlSize = {
     minTouch: foundation.minTouch,
+    badge: { height: unit(4) },
     icon: { sm: unit(4), md: unit(5), lg: unit(6) },
-    avatar: { md: unit(10) },
+    avatar: { sm: unit(7), md: unit(8), lg: unit(11), profile: unit(13) },
     button: {
         sm: { height: unit(11), padX: spacing.lg, font: fontSize.sm, icon: unit(4), gap: spacing.sm },
-        md: { height: unit(12), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
-        lg: { height: unit(13), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
+        md: { height: unit(11), padX: spacing.xl, font: fontSize.md, icon: halfUnit(9), gap: spacing.md },
+        lg: { height: unit(12), padX: spacing['3xl'], font: fontSize.lg, icon: unit(5), gap: spacing.md },
     },
     field: {
-        md: unit(12),
+        md: unit(11),
     },
 } as const
 

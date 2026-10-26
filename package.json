@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start --web",
+    "generate:brand-assets": "node scripts/generate-brand-assets.mjs",
     "web": "expo start --web",
     "build:web:release": "expo export --platform web --clear && node scripts/stamp-release-provenance.mjs",
     "release:recover-artifact": "node tests/e2e/recover-release-artifact.mjs",

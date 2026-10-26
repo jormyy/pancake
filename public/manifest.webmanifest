@@ -8,7 +8,7 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#FFFDF7",
+  "background_color": "#E9DFD2",
   "theme_color": "#FFFDF7",
   "categories": ["sports", "games"],
   "icons": [

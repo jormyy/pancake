@@ -15,8 +15,8 @@ function query(data: unknown, error: Error | null = null) {
     }
 }
 
-const ownRow = { id: 'own-row', player_id: 'own', member_id: 'member', is_on_ir: true, league_members: { team_name: 'Mine' } }
-const otherRow = { id: 'other-row', player_id: 'other', member_id: 'opponent', is_on_ir: true, league_members: { team_name: 'Theirs' } }
+const ownRow = { id: 'own-row', player_id: 'own', member_id: 'member', is_on_ir: true, is_on_taxi: false, league_members: { team_name: 'Mine' } }
+const otherRow = { id: 'other-row', player_id: 'other', member_id: 'opponent', is_on_ir: true, is_on_taxi: true, league_members: { team_name: 'Theirs' } }
 
 beforeEach(() => {
     vi.resetAllMocks()
@@ -24,8 +24,8 @@ beforeEach(() => {
 })
 
 it.each([
-    ['own', { status: 'mine', rosterPlayerId: 'own-row' }],
-    ['other', { status: 'taken', ownerTeamName: 'Theirs' }],
+    ['own', { status: 'mine', rosterPlayerId: 'own-row', isOnTaxi: false }],
+    ['other', { status: 'taken', ownerTeamName: 'Theirs', isOnTaxi: true }],
     ['free', { status: 'free_agent' }],
 ])('reads ownership and own IR occupancy together for %s', async (playerId, status) => {
     const rosterQuery = query([ownRow, ...(playerId === 'other' ? [otherRow] : [])])
@@ -34,7 +34,7 @@ it.each([
     await expect(getPlayerRosterContext(playerId as string, 'member', 'league')).resolves.toEqual({
         status, roster: [{ is_on_ir: true }],
     })
-    expect(rosterQuery.select).toHaveBeenCalledWith('id, player_id, member_id, is_on_ir, league_members ( team_name )')
+    expect(rosterQuery.select).toHaveBeenCalledWith('id, player_id, member_id, is_on_ir, is_on_taxi, league_members ( team_name )')
     expect(rosterQuery.eq.mock.calls).toEqual([['league_id', 'league'], ['league_season_id', 'season']])
     expect(rosterQuery.or).toHaveBeenCalledExactlyOnceWith(`player_id.eq.${playerId},member_id.eq.member`)
     expect(state.from.mock.calls).toEqual(playerId === 'free' ? [['roster_players'], ['waiver_wire_log']] : [['roster_players']])

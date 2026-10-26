@@ -35,7 +35,7 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
         ? date?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
     const summary = liveGame
         ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
-        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${next?.projection_fantasy_points?.toFixed(1) ?? '—'} FP proj`].filter(Boolean).join(' · ')
+        : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${(next?.projection_fantasy_points ?? 0).toFixed(1)} FP proj`].filter(Boolean).join(' · ')
     const card = (
         <View style={styles.card} aria-busy={loading}>
             <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1}>{summary}</Text>

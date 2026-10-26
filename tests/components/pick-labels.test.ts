@@ -39,3 +39,28 @@ it('uses the NBA draft year in roster, trade, trade block and accessible selecti
     expect(screen.root.findAll(node => node.props?.accessibilityLabel === 'List 2027 Round 1 pick on trade block')).toHaveLength(1)
     expect(screen.root.findAll(node => /2027 Round 1 pick via A for trade/.test(node.props?.accessibilityLabel ?? ''))).toHaveLength(1)
 })
+
+it('shows every currently owned pick in Mine and excludes traded-away picks', async () => {
+    const retained = { ...pick, id: 'retained' }
+    const received = { ...pick, id: 'received', originalOwnerMemberId: 'b', originalTeamName: 'B' }
+    const sent = { ...pick, id: 'sent', currentOwnerMemberId: 'b', currentTeamName: 'B' }
+    await act(async () => { screen = create(React.createElement(PicksBankList, { picks: [retained, received, sent], myMemberId: 'a' })) })
+    const rows = () => screen.root.findAll(node => node.props.role === 'listitem')
+    expect(rows()).toHaveLength(2)
+    expect(rows().map(row => row.props.accessibilityLabel)).toEqual([
+        '2027 Round 1, from A, owner You, original pick',
+        '2027 Round 1, from B, owner You, traded pick',
+    ])
+    const filters = screen.root.findByType('SegmentedControl' as React.ElementType)
+    expect(filters.props.options.map((option: { badge: number }) => option.badge)).toEqual([2, 3, 2])
+    await act(async () => filters.props.onChange('traded'))
+    expect(rows()).toHaveLength(2)
+    await act(async () => filters.props.onChange('all'))
+    expect(rows()).toHaveLength(3)
+})
+
+it('keeps an honest Mine empty state when all original picks were traded away', async () => {
+    await act(async () => { screen = create(React.createElement(PicksBankList, { picks: [{ ...pick, currentOwnerMemberId: 'b' }], myMemberId: 'a' })) })
+    expect(screen.root.findAll(node => node.props.role === 'listitem')).toHaveLength(0)
+    expect(screen.root.findByType('EmptyState' as React.ElementType).props.message).toBe('No picks assigned to you yet.')
+})

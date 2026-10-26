@@ -47,7 +47,7 @@ type Props = {
 
 export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backControl,
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
-    const headshotSize = compact ? spacing['4xl'] + spacing.xs : spacing['5xl']
+    const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
@@ -84,7 +84,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
             <View style={styles.metaRow} testID="player-position-line">
                 {player.nba_team ? <Text style={styles.meta}>{player.nba_team}</Text> : null}
                 {eligiblePositions.map(pos => <PosTag key={pos} position={pos} />)}
-                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} />
+                <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken' ? rosterStatus.isOnTaxi : false} />
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
                 {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}

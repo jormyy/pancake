@@ -28,8 +28,8 @@ export type RosterSheetAction = {
 function statCells(avgFpts: number | undefined, stats: RosterAverage | undefined): [string, string][] {
     const fmt = (value: number | null | undefined) => (value == null ? '—' : formatPoints(value))
     return [
-        ['FP', fmt(avgFpts)],
-        ['MIN', fmt(stats?.avg_minutes_played)],
+        ['FP', fmt(avgFpts ?? 0)],
+        ['MIN', fmt(stats?.avg_minutes_played ?? 0)],
         ['PTS', fmt(stats?.avg_points)],
         ['REB', fmt(stats?.avg_rebounds)],
         ['AST', fmt(stats?.avg_assists)],
@@ -68,8 +68,8 @@ export function RosterPlayerSheet({
                 <View style={styles.body}>
                     <View style={styles.identity}>
                         <PlayerRowContent name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
-                            yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status}
-                            stats={`${avgFpts == null ? '—' : formatPoints(avgFpts)} FP${status ? ` · ${status}` : ''}`} />
+                            yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
+                            stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatPoints(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
                     </View>
 
                     <View style={styles.statGrid}>
@@ -119,8 +119,6 @@ export function RosterPlayerSheet({
 const styles = StyleSheet.create({
     body: { gap: spacing.lg },
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-    identityText: { flex: 1, minWidth: 0, gap: spacing.xs },
-    metaRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs },
     statGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',

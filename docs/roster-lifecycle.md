@@ -172,9 +172,15 @@ A later stats save recounts players with a base; automatic recounts preserve kno
 
 The server stores the current total in `players.career_regular_season_games`.
 The phone uses stored experience and career counts for display-only Rookie and Taxi tags.
+The combined taxi badge reads `T:12` for 12 career regular-season games.
+It never uses the current season game count.
 Rookie means `years_exp = 0`; Taxi also requires the league to have taxi slots.
 The server remains authoritative for every roster action.
-An unknown count hides the Taxi tag unless `years_exp = 0`.
+An eligible rookie with an unknown count shows `T:—`; unknown never means zero.
+An unknown count hides the Taxi tag for other players unless they already occupy taxi.
+A taxi-held player keeps the count visible in roster rows, previews and player detail.
+A known ineligible taxi player uses the warning color and an accessible “no longer eligible” label.
+The badge does not override activation or roster legality rules.
 Game-day injury refreshes run separately every 15 minutes.
 
 `taxi_start_season_year` records the first taxi season. Trades and season carryover retain that value.

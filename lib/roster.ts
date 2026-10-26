@@ -30,8 +30,8 @@ export type RosterPlayer = {
 }
 
 export type PlayerRosterStatus =
-    | { status: 'mine'; rosterPlayerId: string }
-    | { status: 'taken'; ownerTeamName: string }
+    | { status: 'mine'; rosterPlayerId: string; isOnTaxi?: boolean }
+    | { status: 'taken'; ownerTeamName: string; isOnTaxi?: boolean }
     | { status: 'on_waivers'; logId: string; clearsAt: string }
     | { status: 'free_agent' }
 
@@ -82,18 +82,19 @@ export async function toggleTaxi(rosterPlayerId: string, isOnTaxi: boolean): Pro
 }
 
 export type RosterOccupancy = Pick<RosterPlayer, 'is_on_ir'>
-export type OwnedEntry = { teamName: string; memberId: string; isOnIR?: boolean }
+export type OwnedEntry = { teamName: string; memberId: string; isOnIR?: boolean; isOnTaxi?: boolean }
 type OwnedPlayerRow = {
     player_id: string
     member_id: string
     is_on_ir: boolean
+    is_on_taxi: boolean
     league_members: { team_name: string | null } | null
 }
 
 export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: string): Promise<Map<string, OwnedEntry>> {
     const { data, error } = await supabase
         .from('roster_players')
-        .select('player_id, member_id, is_on_ir, league_members(team_name)')
+        .select('player_id, member_id, is_on_ir, is_on_taxi, league_members(team_name)')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
 
@@ -104,6 +105,7 @@ export async function getOwnedPlayerMapForSeason(leagueId: string, seasonId: str
             teamName: r.league_members?.team_name ?? 'Team',
             memberId: r.member_id,
             isOnIR: r.is_on_ir,
+            isOnTaxi: r.is_on_taxi,
         })
     }
     return map
@@ -122,7 +124,7 @@ export async function getPlayerRosterContext(
 
     const { data, error } = await supabase
         .from('roster_players')
-        .select('id, player_id, member_id, is_on_ir, league_members ( team_name )')
+        .select('id, player_id, member_id, is_on_ir, is_on_taxi, league_members ( team_name )')
         .eq('league_id', leagueId)
         .eq('league_season_id', seasonId)
         .or(`player_id.eq.${playerId},member_id.eq.${memberId}`)
@@ -131,8 +133,8 @@ export async function getPlayerRosterContext(
     const owned = data?.find(row => row.player_id === playerId)
     if (owned) {
         const status: PlayerRosterStatus = owned.member_id === memberId
-            ? { status: 'mine', rosterPlayerId: owned.id }
-            : { status: 'taken', ownerTeamName: owned.league_members?.team_name ?? 'Another team' }
+            ? { status: 'mine', rosterPlayerId: owned.id, isOnTaxi: owned.is_on_taxi }
+            : { status: 'taken', ownerTeamName: owned.league_members?.team_name ?? 'Another team', isOnTaxi: owned.is_on_taxi }
         return { status, roster }
     }
 

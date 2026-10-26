@@ -278,3 +278,20 @@ it('keeps the projection space when the late card arrives or disappears', async 
     await act(async () => screen.update(React.createElement(NextProjectionCard, { projection: null, reserveSpace: true })))
     expect(screen.root.findByProps({ testID: 'player-projection-slot' }).props.style).toBe(initialStyle)
 })
+
+it('keeps failed recent games recoverable and distinguishes empty and completed logs', async () => {
+    const onRetry = vi.fn()
+    const props = { games: [], fantasyPointsMap: null, hasMore: false, loadingMore: false, onLoadMore: vi.fn(), onRetry }
+    await render(React.createElement(GameLogTable, { ...props, error: 'Read failed' }))
+    expect(text()).toContain('Recent games unavailable.')
+    expect(text()).not.toContain('No games available.')
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Retry recent games' }).props.onPress())
+    expect(onRetry).toHaveBeenCalledOnce()
+    await act(async () => screen.update(React.createElement(GameLogTable, { ...props, loading: true })))
+    expect(text()).toContain('Loading recent games…')
+    expect(screen.root.findAllByType(type('Text')).filter(node => node.props.children === 'Loading recent games…')).toHaveLength(1)
+    await act(async () => screen.update(React.createElement(GameLogTable, props)))
+    expect(text()).toContain('No games available.')
+    await act(async () => screen.update(React.createElement(GameLogTable, { ...props, games: [game()] })))
+    expect(text()).toContain('All games shown.')
+})

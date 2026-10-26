@@ -565,7 +565,7 @@ export default function ProposeTradeScreen() {
         <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
             actions={<Button title="Review" size="sm" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
                 accessibilityLabel="Review trade proposal" />} />
-        <DeferredContent ready={!tradeAnalysis.loading}>
+        <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {verdict}
                 {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
@@ -647,7 +647,7 @@ export default function ProposeTradeScreen() {
                     </Pressable>
                 )}
             />
-            <DeferredContent ready={editorReady} key={ownerIdentity}>
+            <DeferredContent ready={editorReady} key={ownerIdentity} style={styles.scrollRegion}>
             <ScrollView key="editor" style={styles.scroll} contentContainerStyle={[styles.scrollContent, sideBySide && styles.scrollContentWide]} keyboardShouldPersistTaps="handled">
               <View style={[styles.main, sideBySide && styles.mainWide]}>
                 {tradingClosed ? (
@@ -752,6 +752,7 @@ function ModeButton({ label, active, onPress }: { label: string; active: boolean
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.bgScreen },
     scroll: { flex: 1 },
+    scrollRegion: { flex: 1, minHeight: 0 },
     scrollContent: { width: '100%', maxWidth: BUILDER_WIDTH, minWidth: 0, alignSelf: 'center' },
     scrollContentWide: {
         maxWidth: BUILDER_WIDTH + spacing['3xl'] + layout.railWidth,
@@ -778,6 +779,7 @@ const styles = StyleSheet.create({
     submitTextDisabled: { color: colors.textPlaceholder },
     modeSwitch: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.sm },
     modeButton: {
+        flex: 1,
         minHeight: controlSize.minTouch,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,

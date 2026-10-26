@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 import { playerRowGeometry } from '@/components/PlayerSearchItem'
 
 // Shared chrome for the Players screen: stat-table header, search input, and
@@ -18,7 +18,7 @@ export const playerListStyles = StyleSheet.create({
     },
     filterCountDotText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textWhite },
     sortDirButton: {
-        minHeight: 38,
+        minHeight: controlSize.minTouch,
         alignSelf: 'flex-end',
         justifyContent: 'center',
         borderRadius: radii.md,

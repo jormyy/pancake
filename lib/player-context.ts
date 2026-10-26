@@ -14,8 +14,5 @@ export function playerEligiblePositions(player: PlayerContextInput): string[] {
 }
 
 export function playerSeasonContextText(player: PlayerContextInput): string {
-    return [
-        player.avgFantasyPoints != null ? `${formatPoints(player.avgFantasyPoints)} FP` : null,
-        player.avgMinutesPlayed != null ? `${formatPoints(player.avgMinutesPlayed)} MIN` : null,
-    ].filter(Boolean).join(' · ') || 'No season stats'
+    return `${formatPoints(player.avgFantasyPoints ?? 0)} FP · ${formatPoints(player.avgMinutesPlayed ?? 0)} mins`
 }
