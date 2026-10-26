@@ -85,7 +85,7 @@ export async function officialCompression(input, receipt) {
     assert.equal(actual, expected, `Reinspect changed idle gate before compression: ${file}`)
     receipt.inspectedSources.push({ file, sha256: actual })
   }
-  const hasForecast = await sqlJson("SELECT to_regprocedure('public.invoke_matchup_forecasts_if_due()') IS NOT NULL", 'Forecast compression availability')
+  const hasForecast = await sqlJson("SELECT to_json(to_regprocedure('public.invoke_matchup_forecasts_if_due()') IS NOT NULL)", 'Forecast compression availability')
   if (hasForecast) {
     const file = 'public/invoke_matchup_forecasts_if_due.sql'
     const actual = sha256(await readFile(`supabase/sql/functions/by-name/${file}`))
