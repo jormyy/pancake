@@ -12,8 +12,8 @@ const CDN_HEADERS = {
 export type CdnGame = {
   gameStatus?: number
   gameEt?: string
-  homeTeam?: { teamTricode?: string; players?: NBABoxScorePlayer[] }
-  awayTeam?: { teamTricode?: string; players?: NBABoxScorePlayer[] }
+  homeTeam?: { teamTricode?: string; score?: number; players?: NBABoxScorePlayer[] }
+  awayTeam?: { teamTricode?: string; score?: number; players?: NBABoxScorePlayer[] }
 }
 
 type CdnBoxScore = {

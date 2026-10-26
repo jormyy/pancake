@@ -13,7 +13,7 @@ const numeric = ['assists','blocks','fieldGoalsAttempted','fieldGoalsMade','foul
 const payload = () => {
   const players = playerIds.map((_, i) => ({ personId: nbaIds[i], name: `Synthetic ${token} ${i}`, played: '1', statistics: mode === 'partial' ? {minutes:'PT30M00.00S'} : {...Object.fromEntries(numeric.map(k=>[k,0])),minutes:'PT30M00.00S',points:corrected?30+i:20+i} }))
   if(mode === 'missing-stat') delete (players[1].statistics as any).reboundsTotal
-  return {game:{gameId:gameKey,gameStatus:3,gameEt:`${year-1}-10-15T19:00:00`,homeTeam:{teamTricode:'XCH',players:[players[0]]},awayTeam:{teamTricode:'XCA',players:mode==='empty-team'?[]:[players[1]]}}}
+  return {game:{gameId:gameKey,gameStatus:3,gameEt:`${year-1}-10-15T19:00:00`,homeTeam:{teamTricode:'XCH',score:corrected?30:20,players:[players[0]]},awayTeam:{teamTricode:'XCA',score:corrected?31:21,players:mode==='empty-team'?[]:[players[1]]}}}
 }
 const provider = Deno.serve({hostname:'127.0.0.1',port:0,onListen(){}},request=>{
   const pathname = new URL(request.url).pathname
@@ -70,7 +70,7 @@ try{
    p_weeks:[{season_year:year,week_number:1,week_start:`${year-1}-10-15`,week_end:`${year-1}-10-15`}],
   }))
   await syncStatsGame({id:gameId,nba_game_id:gameKey,season_year:year,week_number:1,status:'Final'})
-  const read=async()=>({stats:await q(supabase.from('player_game_stats').select('*').eq('game_id',gameId).order('player_id')),game:await q(supabase.from('nba_games').select('stats_synced_at').eq('id',gameId).single())})
+  const read=async()=>({stats:await q(supabase.from('player_game_stats').select('*').eq('game_id',gameId).order('player_id')),game:await q(supabase.from('nba_games').select('stats_synced_at,home_score,away_score').eq('id',gameId).single())})
   const initial=await read();assert.equal(initial.stats.length,2);assert.ok(initial.game.stats_synced_at)
   for(const source of ['cdn','cdn-enum'] as const){
    const jobId=await jobs.createBackfillJob(source,year);jobsOwned.push(jobId)
@@ -94,9 +94,10 @@ try{
     assert.equal(ledger.status,'failed');assert.deepEqual(writes,[])
    }
    // A verified complete refresh also restores the completion stamp on an incomplete prior import.
-   await q(supabase.from('nba_games').update({stats_synced_at:null}).eq('id',gameId))
+   await q(supabase.from('nba_games').update({stats_synced_at:null,home_score:0,away_score:0}).eq('id',gameId))
    mode='valid';corrected=true;writes.length=0;await run(true)
    const valid=await read();assert.deepEqual(valid.stats.map((r:any)=>r.points).sort(),[30,31]);assert.ok(valid.game.stats_synced_at)
+   assert.equal(valid.game.home_score,30);assert.equal(valid.game.away_score,31)
    assert.deepEqual(writes,['atomic-stats-and-marker','completed-ledger'])
    const ledger=await q(supabase.from('backfill_game_attempts').select('status').eq('job_id',jobId).eq('game_key',gameKey).single());assert.equal(ledger.status,'completed')
    console.log(JSON.stringify({source,control:'valid-retry',points:[30,31],marker:true,writes}))

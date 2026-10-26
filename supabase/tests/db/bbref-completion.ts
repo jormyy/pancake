@@ -128,7 +128,7 @@ try {
       }
     }
     const snapshot = async () => {
-      const game = await q(supabase.from('nba_games').select('id,status,stats_synced_at').eq('nba_game_id', gameKey).single())
+      const game = await q(supabase.from('nba_games').select('id,status,stats_synced_at,home_score,away_score').eq('nba_game_id', gameKey).single())
       gameDbId = game.id
       const stats = await q(supabase.from('player_game_stats').select('player_id,points,minutes_played').eq('game_id', game.id))
       const ledger = await q(supabase.from('backfill_game_attempts').select('status,last_error').eq('job_id', jobId!).eq('game_key', gameKey).single())
@@ -242,6 +242,8 @@ try {
     assert.equal(value.job.claim_token, null)
     console.log(JSON.stringify({ control: 'retry-complete', stats: 2, markerPresent: value.game.stats_synced_at !== null, writeOrder }))
     assert.ok(value.game.stats_synced_at, 'Successful BBRef import must stamp completion')
+    assert.equal(value.game.home_score, 12, 'Historical home score is stored')
+    assert.equal(value.game.away_score, 12, 'Historical away score is stored')
     assert.deepEqual(writeOrder, ['atomic-stats-and-marker', 'completed-ledger'], 'Complete stats and marker must commit together before the ledger')
     await syncScores(leagueId)
     const scored = await readSemis()

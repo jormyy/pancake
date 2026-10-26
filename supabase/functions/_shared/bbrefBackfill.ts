@@ -1,5 +1,5 @@
 import { assertGameUnambiguous } from './gameIdentity.ts'
-import { saveGameStats } from './syncStats.ts'
+import { saveFinalScore, saveGameStats } from './syncStats.ts'
 import { supabase } from './supabase.ts'
 import { fantasyCalendar, completeSeasonSchedule } from './schedule.ts'
 import { fetchBBRefSchedule, fetchBBRefBoxScore, sleep } from './bbref.ts'
@@ -252,5 +252,9 @@ async function upsertBBRefStats(
   }
 
   if (!stats.length) throw new Error(`BBRef box score has no resolved players for ${gameId}`)
+  await saveFinalScore({ id: dbGame.id, status: 'Final' }, gameId, {
+    homeTeam: { score: boxScore.home.reduce((total, player) => total + player.pts, 0) },
+    awayTeam: { score: boxScore.away.reduce((total, player) => total + player.pts, 0) },
+  })
   await saveGameStats(dbGame.id, gameId, stats, true)
 }

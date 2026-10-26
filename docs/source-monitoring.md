@@ -307,3 +307,5 @@ Injuries refresh every 15 minutes from 11:00 ET through the last tip-off on game
 Outside that window, they refresh hourly from 08:00 through 02:00 ET, including days without games.
 The existing claim, retry, dispatch, and empty-body contract stay unchanged.
 Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.
+
+Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete. Their completion regressions verify stored scores and preserve prior data on failed refreshes.

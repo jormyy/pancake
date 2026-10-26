@@ -195,7 +195,7 @@ const isTeamScore = (score: unknown): score is number => Number.isSafeInteger(sc
 // sample always applies and every later non-final sample is refused.
 // Feeds without team scores keep the earlier behavior. Live-poll work rows
 // carry the stored score, so a settled final is not rewritten on each recheck.
-async function saveFinalScore(game: StatsSyncGame, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
+export async function saveFinalScore(game: Pick<StatsSyncGame, 'id' | 'status' | 'home_score' | 'away_score' | 'game_status_text'>, providerGameId: string, boxScore: FinalBoxScore): Promise<void> {
   const home = boxScore.homeTeam?.score
   const away = boxScore.awayTeam?.score
   if (!isTeamScore(home) || !isTeamScore(away)) return

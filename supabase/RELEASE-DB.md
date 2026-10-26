@@ -3,13 +3,13 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261027000203`.
+Production currently stops at migration `20261028000100`.
 Apply `20261028000100_recheck_final_stats.sql` after that baseline.
 It allows overdue final-game checks without another active game.
 It also queues one seven-day correction window per Eastern date, starting after 06:20.
 The existing fenced worker processes that window one game at a time.
 The migration preserves game statistics, player identities, accounts, and league settings.
-Deploy the reviewed `sync-players` artifact to retain its placeholder filter.
+Deploy `sync-players` for the placeholder filter and `backfill` to retain final team scores.
 The current frontend and older Edge artifacts remain compatible with the added scheduler function.
 
 Verify the migration on the private stack with `npm run test:db:stats-corrections`.
