@@ -15,5 +15,5 @@ export function PlayerEligibilityTags({ yearsExp, careerGames, injuryStatus }: {
 }
 
 const styles = StyleSheet.create({
-    tags: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: textStyles.rowTitle.lineHeight, flexShrink: 0, overflow: 'hidden' },
+    tags: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: textStyles.meta.lineHeight, flexShrink: 0, overflow: 'hidden' },
 })

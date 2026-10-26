@@ -44,6 +44,7 @@ export function Badge({
             style={[
                 styles.badge,
                 inline && styles.inline,
+                inline && label.length === 1 && styles.inlineCircle,
                 variant === 'solid' && { backgroundColor: color },
                 maxWidth ? { maxWidth } : undefined,
             ]}
@@ -68,8 +69,9 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
-    inline: { height: textStyles.rowTitle.lineHeight, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
-    inlineText: { lineHeight: textStyles.rowTitle.lineHeight },
+    inline: { height: textStyles.meta.lineHeight, paddingVertical: 0, paddingHorizontal: spacing.xxs, justifyContent: 'center', flexShrink: 0 },
+    inlineCircle: { width: textStyles.meta.lineHeight, paddingHorizontal: 0, borderRadius: radii.full, alignItems: 'center' },
+    inlineText: { lineHeight: textStyles.meta.lineHeight },
     text: {
         fontSize: fontSize.xs,
         fontWeight: fontWeight.bold,

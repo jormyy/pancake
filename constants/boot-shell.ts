@@ -40,7 +40,7 @@ export const BOOT_SHELL_MARK = 'pancake-boot-shell'
 export const APP_MOUNTED_MARK = 'pancake-app-mounted'
 
 const SIDEBAR_WIDTH = layout.sidebarWidth
-const MOBILE_TOPBAR_HEIGHT = controlSize.minTouch
+const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
 const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
 const SANS = "-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 
@@ -127,11 +127,12 @@ ${themeVariablesCss()}
     bottom:calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom,0px));}
   .pbs-topbar{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.lg}px;
+    padding-left:calc(${spacing.lg}px + env(safe-area-inset-left,0px));padding-right:calc(${spacing.lg}px + env(safe-area-inset-right,0px));
     height:calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top,0px));
-    padding-top:env(safe-area-inset-top,0px);background:${webOverlays.mobileTopbar};
+    padding-top:env(safe-area-inset-top,0px);background:var(--pancake-bg-card);
     -webkit-backdrop-filter:blur(20px) saturate(180%);backdrop-filter:blur(20px) saturate(180%);
     border-bottom:1px solid var(--pancake-border-light);}
-  .pbs-topbar img{width:34px;height:44px;object-fit:contain;}
+  .pbs-topbar img{width:44px;height:44px;flex-shrink:0;object-fit:contain;}
   .pbs-topbar-league{flex:1;min-width:0;height:44px;display:flex;align-items:center;
     gap:${spacing.md}px;padding:0 ${spacing.md}px;border-radius:${radii.lg}px;
     background:var(--pancake-bg-muted);border:1px solid var(--pancake-border-light);}

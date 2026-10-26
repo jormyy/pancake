@@ -171,7 +171,7 @@ export default function TeamRosterScreen() {
                 contentContainerStyle={[styles.listContent, { paddingHorizontal: padX }]}
             >
                 {loadError ? <ErrorBanner message={loadError} onRetry={() => setAttempt((value) => value + 1)} /> : null}
-                <DeferredContent ready={ownsRoster || Boolean(loadError) || !memberId || !scope}>
+                <DeferredContent style={styles.sections} ready={ownsRoster || Boolean(loadError) || !memberId || !scope}>
                 {!memberId ? (
                     <Text>Choose a team to view its roster.</Text>
                 ) : !scope ? (
@@ -209,6 +209,7 @@ const styles = StyleSheet.create({
 
     list: { flex: 1 },
     listContent: { width: '100%', maxWidth: layout.formMaxWidth, alignSelf: 'center', paddingVertical: spacing.md, gap: spacing.md },
+    sections: { gap: spacing.md },
     card: {
         backgroundColor: colors.bgCard,
         borderWidth: 1,
