@@ -4,7 +4,8 @@ import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
 import { season, config, originUrl, assertTarget, miniRoot, writeJson } from './common.mjs'
 import { setClock } from './clock.mjs'
-import { sql } from './local-stack.mjs'
+import { sql, sqlJson } from './local-stack.mjs'
+import { runOfficialAuction } from './official-auction.mjs'
 import {plannedAuctionBid} from './auction-plan.mjs'
 import { ensureRegularSchedule } from './schedule.mjs'
 
@@ -51,6 +52,8 @@ export function actionClient(keys) {
 
 export async function createLeagueActions(keys, date, teamCount = 2, options = {}) {
   assertTarget(keys.API_URL, 'api')
+  const scenario = options.scenario
+  if (scenario) assert.equal(teamCount, scenario.teamCount)
   const run = randomBytes(6).toString('hex')
   /** @type {ReplayUser[]} */
   const users = []
@@ -64,17 +67,32 @@ export async function createLeagueActions(keys, date, teamCount = 2, options = {
     const session = await login.json()
     users.push({ id: session.user.id, token: session.access_token, refreshToken: session.refresh_token, expiresAt: Date.now() + session.expires_in * 1000 })
   }
-  const league = await rpc(users[0], 'create_league', { p_name: `Historical replay ${run}`, p_team_name: 'Synthetic home', p_auction_budget: 20 })
+  const league = await rpc(users[0], 'create_league', { p_name: `Historical replay ${run}`, p_team_name: 'Synthetic home', p_auction_budget: scenario?.auctionBudget ?? 20 })
   for (const [index, user] of users.slice(1).entries()) await rpc(user, 'join_league_by_invite_code', { p_invite_code: league.invite_code, p_team_name: `Synthetic away ${index + 1}` })
   const leagueId = league.id
   const skipped = options.skipPastWeeks ? JSON.parse(await sql(`SELECT coalesce(json_agg(week_number ORDER BY week_number),'[]') FROM season_weeks WHERE season_year=${season.year} AND week_end<'${date}'`)) : null
-  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: { ...(skipped ? { skipped_weeks: skipped } : {}), ...(options.integrated ? { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1 } : {}), roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
+  await rpc(users[0], 'update_league_configuration_atomic', { p_league_id: leagueId, p_settings: scenario?.settings ?? { ...(skipped ? { skipped_weeks: skipped } : {}), ...(options.integrated ? { waiver_mode: 'faab', faab_starting_budget: 100, weekly_add_limit: 1 } : {}), roster_size: 3, ir_slots: 2, taxi_slots: options.integrated ? 4 : 0, playoff_entrants: options.integrated ? 4 : 2, playoff_start_week: options.playoffStartWeek ?? (options.integrated ? 23 : 20), playoff_round_lengths: options.roundLengths ?? (options.integrated ? [1, 2] : [1]) }, p_slots: scenario?.slots.filter(row => row.slot_type !== 'IR') ?? [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 0 })), { slot_type: 'UTIL', slot_count: 2 }, { slot_type: 'BE', slot_count: 1 }] })
   const configuredSlots = await rest(users[0], `lineup_slot_templates?select=slot_type,slot_count&league_id=eq.${leagueId}`)
-  for (const row of configuredSlots) assert.equal(row.slot_count, row.slot_type === 'UTIL' ? 2 : row.slot_type === 'BE' ? 1 : row.slot_type === 'IR' ? 2 : 0, 'Commissioner slot configuration must match the declared scenario')
+  for (const row of configuredSlots) assert.equal(row.slot_count, scenario ? scenario.slots.find(slot => slot.slot_type === row.slot_type)?.slot_count : row.slot_type === 'UTIL' ? 2 : row.slot_type === 'BE' ? 1 : row.slot_type === 'IR' ? 2 : 0, 'Commissioner slot configuration must match the declared scenario')
+  if (scenario) {
+    const [configured] = await rest(users[0], `leagues?select=*&id=eq.${leagueId}`)
+    const [configuredSeason] = await rest(users[0], `league_seasons?select=skipped_weeks&league_id=eq.${leagueId}&is_current=eq.true`)
+    for (const [key, value] of Object.entries(scenario.settings)) assert.deepEqual(key === 'skipped_weeks' ? configuredSeason[key] : configured[key], value, `Official setting persists: ${key}`)
+    assert.equal(configuredSlots.length, scenario.slots.length, 'Every official slot template exists')
+  }
   const members = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT id,user_id FROM league_members WHERE league_id='${leagueId}') t`))
   const leagueSeasonId = await sql(`SELECT id FROM league_seasons WHERE league_id='${leagueId}' AND is_current`)
   for (const user of users) user.memberId = members.find(member => member.user_id === user.id).id
   const { draft } = await api(users[0], '/draft/start', { leagueId, timerSeconds: 5 })
+  if (scenario) {
+    const context = { leagueId, leagueSeasonId, seasonYear: season.year, seasonEnd: season.end, firstDate: date, draftId: draft.id, members, date, scenario, skippedWeeks: [...scenario.settings.skipped_weeks] }
+    const client = { ...context, users, rpc, api, rest, restWrite, onTokenRefresh }
+    const now = async () => Number(await sql('SELECT extract(epoch FROM now())*1000'))
+    context.auction = await runOfficialAuction(client, scenario, options.move, now, statement => sqlJson(statement, 'Official auction'))
+    await ensureRegularSchedule(client)
+    await writeJson(path.join(miniRoot, 'state/league.json'), context)
+    return { ...client, auction: context.auction }
+  }
   let clock = Date.parse(`${options.auctionDate ?? date}T14:00:00Z`)
   await (options.move ? options.move(clock) : setClock({ at: new Date(clock).toISOString(), rate: 0 }))
   const players = JSON.parse(await sql(`SELECT json_agg(t) FROM (SELECT p.id,p.nba_id FROM players p WHERE p.nba_team IN (SELECT home_team FROM nba_games WHERE game_date='${date}' UNION SELECT away_team FROM nba_games WHERE game_date='${date}') AND p.injury_status IS NULL AND p.position IS NOT NULL ORDER BY p.nba_id LIMIT ${teamCount * 3}) t`))

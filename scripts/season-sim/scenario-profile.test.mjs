@@ -21,3 +21,12 @@ test('profile is opt-in and maps playoffs without changing source calendars', as
   assert.deepEqual(scenarioBounds(profile(), seasons), { firstStart: '2024-10-22', firstEnd: '2025-04-13', playoffStart: '2025-02-24', playoffEnd: '2025-03-23', checkpoint: '2025-02-10', secondStart: '2025-10-21', secondThrough: '2025-11-03' })
   assert.deepEqual(seasons, before)
 })
+
+test('official scoring disables new-league bonuses absent from the saved league', () => {
+  const profile = officialProfile({ snapshotHashes: ['a'.repeat(64), 'b'.repeat(64)], actionSeed: 'official-bonuses' })
+  assert.equal(profile.settings.scoring_settings.double_double, 0)
+  assert.equal(profile.settings.scoring_settings.triple_double, 0)
+  const corrupted = structuredClone(profile)
+  corrupted.settings.scoring_settings.double_double = 1.5
+  assert.throws(() => validateProfile(corrupted))
+})

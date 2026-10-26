@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { assertFetchTarget } from './fetch-guard.mjs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { businessTimers } from './business-timers.mjs'
-import { appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { config, originUrl, assertTarget, laneDirectory, miniRoot } from './common.mjs'
 import { virtualDate } from './virtual-clock.mjs'
@@ -63,7 +63,8 @@ let loading
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
 Object.defineProperty(Deno, 'serve', { value: handler => { assert.ok(loading); handlers.set(loading, handler) }, configurable: true })
 try {
-  for (const name of ['api', 'sync-rankings', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']) {
+  const names = Deno.env.get('SEASON_SIM_PROFILE') ? readdirSync(new URL('../../supabase/functions/', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('_') && existsSync(new URL(`../../supabase/functions/${entry.name}/index.ts`, import.meta.url))).map(entry => entry.name).sort() : ['api', 'sync-rankings', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']
+  for (const name of names) {
     loading = name
     await import(new URL(`../../supabase/functions/${name}/index.ts`, import.meta.url).href)
     assert.ok(handlers.has(name), `No handler registered for ${name}`)

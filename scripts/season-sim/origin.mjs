@@ -51,11 +51,14 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       if(!nbaTeams.has(code))continue
       teams.set(String(side.team.id), { id: String(side.team.id), abbreviation: code })
       const team = [box.game.homeTeam, box.game.awayTeam].find(team => team.teamTricode === code)
-      observeSide(people, game, code, team?.players ?? [], (side.statistics ?? []).flatMap(group => group.athletes ?? []).map(line => line.athlete), plan?.firstYears)
+      const observedGame = process.env.SEASON_SIM_PROFILE && bounds.has(game.id) ? { ...game, time: new Date(bounds.get(game.id).end).toISOString() } : game
+      observeSide(people, observedGame, code, team?.players ?? [], (side.statistics ?? []).flatMap(group => group.athletes ?? []).map(line => line.athlete), plan?.firstYears)
     }
-    transfers.push(...boxTransfers(people, game, box))
+    const observedGame = process.env.SEASON_SIM_PROFILE && bounds.has(game.id) ? { ...game, time: new Date(bounds.get(game.id).end).toISOString() } : game
+    transfers.push(...boxTransfers(people, observedGame, box))
   }
-  const openings = openingRosters(games, game => boxes.get(game.id))
+  const openingGames = process.env.SEASON_SIM_PROFILE ? games.map(game => bounds.has(game.id) ? { ...game, time: new Date(bounds.get(game.id).end).toISOString() } : game) : games
+  const openings = openingRosters(openingGames, game => boxes.get(game.id))
   const postponements = new Map()
   for (const entry of (plan ? [] : schedule).filter(row => row.status === 'STATUS_POSTPONED')) {
     const note = entry.notes.map(note => note.headline).join(' ')
@@ -80,7 +83,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
     return { payload: snapshot(boxes.get(game.id), pbp, new Date(at).toISOString(), withCourt, summaries.get(game.espnId)), provenance: fault?.gameId === game.id || game.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-DERIVED', key: `playbyplay-${game.id}` }
   }
   function rosterAt(at) {
-    return rosterForDate([...people.values()], etDate(new Date(at).toISOString()), openings)
+    return rosterForDate([...people.values()], etDate(new Date(at).toISOString()), openings, process.env.SEASON_SIM_PROFILE ? at : null)
   }
   const expo=await fakeExpoRecorder(evidence,now,async(token,_data,outboxId)=>{
     const quoted=value=>"'"+value.replaceAll("'","''")+"'"
@@ -167,12 +170,18 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         payload = { athletes: rosterAt(at).filter(player => player.team === team?.abbreviation) }
       } else if (url.pathname === '/espn/injuries') {
         const latest = new Map()
-        for (const game of games.filter(game => game.date <= date).sort((a, b) => a.time.localeCompare(b.time))) {
+        for (const game of games.filter(game => game.date <= date && (!process.env.SEASON_SIM_PROFILE || bounds.get(game.id).end <= at)).sort((a, b) => a.time.localeCompare(b.time))) {
           for (const team of [boxes.get(game.id).game.homeTeam, boxes.get(game.id).game.awayTeam]) for (const player of team.players) latest.set(player.personId, player)
         }
         payload = { injuries: [{ injuries: [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason })) }] }
       } else if (url.pathname === '/espn/news') payload = { articles: articles.filter(article => Date.parse(article.published) <= at).sort((a, b) => b.published.localeCompare(a.published)).slice(0, Number(url.searchParams.get('limit') ?? 50)) }
-      else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date, openings)
+      else if (url.pathname.startsWith('/sleeper/')) {
+        response.writeHead(503, { 'Content-Type': 'application/json', 'X-Sim-Provenance': 'SYNTHETIC' })
+        response.end(JSON.stringify({ error: 'Historical Sleeper identity and projection archives are unavailable' }))
+        recorder.record({ path: url.pathname, at, provenance: 'SYNTHETIC', source: 'documented historical source gap', status: 503 })
+        return
+      }
+      else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date, openings, process.env.SEASON_SIM_PROFILE ? at : null)
       else if (url.pathname.startsWith('/career/')) {
         payload = { unavailable: 'Historical career totals have not been collected. Unknown remains null.' }
         source = 'documented source gap'

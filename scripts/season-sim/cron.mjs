@@ -27,8 +27,15 @@ function fieldMatches(field, value, maximum) {
 }
 
 export function cronMatches(schedule, instant) {
+  const interval = /^(\d+) seconds?$/.exec(schedule)
+  if (interval) {
+    const seconds = Number(interval[1])
+    assert.ok(seconds >= 1 && seconds <= 59, `Unsupported cron interval: ${schedule}`)
+    return new Date(instant).getTime() % (seconds * 1000) === 0
+  }
   const fields = schedule.split(' ')
   assert.equal(fields.length, 5, `Unsupported cron schedule: ${schedule}`)
+  if (new Date(instant).getTime() % 60000 !== 0) return false
   const date = new Date(instant)
   const values = [date.getUTCMinutes(), date.getUTCHours(), date.getUTCDate(), date.getUTCMonth() + 1, date.getUTCDay()]
   return fields.every((field, index) => fieldMatches(field, values[index], [59, 23, 31, 12, 7][index]))
@@ -45,8 +52,8 @@ export function verifyCronCatalog(catalog) {
   return true
 }
 
-export function cronCommands(instant) {
-  return productionJobs.filter(job => cronMatches(job.schedule, instant))
+export function cronCommands(instant, catalog = productionJobs) {
+  return catalog.filter(job => cronMatches(job.schedule, instant))
 }
 
 export function expiryCronTick(expiresAt) {
@@ -55,21 +62,24 @@ export function expiryCronTick(expiresAt) {
   return (Math.floor(at / 60000) + 1) * 60000
 }
 
-export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null }) {
+export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null, catalog = productionJobs }) {
   assert.ok(Number.isFinite(from) && Number.isFinite(to) && to >= from, 'Cron time cannot move backwards')
+  for (const job of catalog) cronMatches(job.schedule, from)
+  const intervals = catalog.map(job => /^(\d+) seconds?$/.exec(job.schedule)).filter(Boolean).map(match => Number(match[1]) * 1000)
+  const nextTick = at => Math.min(...[60000, ...intervals].map(period => (Math.floor(at / period) + 1) * period))
   if (settle) {
     let at = from
     let state = await settle(at)
     while (at < to) {
       const began = performance.now()
-      const minute = (Math.floor(at / 60000) + 1) * 60000
+      const minute = nextTick(at)
       const wake = state.nextAt == null ? Infinity : state.nextAt
       assert.ok(wake > at, 'Worker timer must settle before advancing the clock')
       at = Math.min(to, minute, wake)
       await move(at, at)
-      const jobs = at % 60000 === 0 ? cronCommands(at) : []
+      const jobs = cronCommands(at, catalog)
       if (jobs.length) {
-        await invoke(jobs.map(job => job.command).join('; '), { optional: true, defer: true })
+        await invoke(jobs.map(job => job.command.trim().replace(/;+$/, '')).join('; '), { optional: true, defer: true })
         for (const job of jobs) counts[job.jobname] = (counts[job.jobname] ?? 0) + 1
       }
       state = await settle(at)
@@ -79,10 +89,10 @@ export async function advanceCron({ from, to, move, invoke, sample = async (..._
     await move(to, to)
     return counts
   }
-  for (let at = (Math.floor(from / 60000) + 1) * 60000; at <= to; at += 60000) {
-    await move(at, Math.min(to, at + 60000))
-    const jobs = cronCommands(at)
-    await invoke(jobs.map(job => job.command).join('; '), { optional: true })
+  for (let at = nextTick(from); at <= to; at = nextTick(at)) {
+    await move(at, Math.min(to, nextTick(at)))
+    const jobs = cronCommands(at, catalog)
+    await invoke(jobs.map(job => job.command.trim().replace(/;+$/, '')).join('; '), { optional: true })
     for (const job of jobs) counts[job.jobname] = (counts[job.jobname] ?? 0) + 1
     await sample(at, jobs)
   }

@@ -25,7 +25,7 @@ export function officialProfile({ snapshotHashes, actionSeed, purpose = 'develop
       skipped_weeks: [1], allow_inactive_trades: true,
       trade_deadline: '2025-02-11', trade_veto_mode: 'member_vote',
       trade_veto_window_hours: 24, trade_veto_threshold_percent: 50,
-      scoring_settings: { points: 1, rebounds: 1, assists: 2, steals: 4, blocks: 4, turnovers: -2, field_goals_made: 2, field_goals_attempted: -1, free_throws_made: 1, free_throws_attempted: -1, three_pointers_made: 1 },
+      scoring_settings: { points: 1, rebounds: 1, assists: 2, steals: 4, blocks: 4, turnovers: -2, field_goals_made: 2, field_goals_attempted: -1, free_throws_made: 1, free_throws_attempted: -1, three_pointers_made: 1, double_double: 0, triple_double: 0 },
     },
     slots: [...['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].map(slot_type => ({ slot_type, slot_count: 1 })), { slot_type: 'UTIL', slot_count: 3 }, { slot_type: 'BE', slot_count: 10 }, { slot_type: 'IR', slot_count: 2 }],
     firstYear: 2025, secondSeasonThrough: '2025-11-03', checkpointDaysBeforePlayoffs: 14,
@@ -59,9 +59,9 @@ export function validateProfile(input) {
   assert.equal(value.slots.find(row => row.slot_type === 'UTIL')?.slot_count, 3)
   assert.equal(value.slots.find(row => row.slot_type === 'BE')?.slot_count, 10)
   assert.equal(value.slots.find(row => row.slot_type === 'IR')?.slot_count, 2)
-  const scoreKeys = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'field_goals_made', 'field_goals_attempted', 'free_throws_made', 'free_throws_attempted', 'three_pointers_made']
+  const scoreKeys = ['points', 'rebounds', 'assists', 'steals', 'blocks', 'turnovers', 'field_goals_made', 'field_goals_attempted', 'free_throws_made', 'free_throws_attempted', 'three_pointers_made', 'double_double', 'triple_double']
   assert.deepEqual(Object.keys(settings.scoring_settings).sort(), scoreKeys.sort())
-  assert.deepEqual(scoreKeys.map(key => settings.scoring_settings[key]), scoreKeys.map(key => ({ points: 1, rebounds: 1, assists: 2, steals: 4, blocks: 4, turnovers: -2, field_goals_made: 2, field_goals_attempted: -1, free_throws_made: 1, free_throws_attempted: -1, three_pointers_made: 1 })[key]))
+  assert.deepEqual(scoreKeys.map(key => settings.scoring_settings[key]), scoreKeys.map(key => ({ points: 1, rebounds: 1, assists: 2, steals: 4, blocks: 4, turnovers: -2, field_goals_made: 2, field_goals_attempted: -1, free_throws_made: 1, free_throws_attempted: -1, three_pointers_made: 1, double_double: 0, triple_double: 0 })[key]))
   return freeze(value)
 }
 
