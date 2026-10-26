@@ -199,3 +199,10 @@ Missing probabilities count as cold coverage, never as successful predictions.
 A snapshot restore must preserve its profile hash, fixture hashes, and database state.
 After an infrastructure interruption, resume at the saved current clock without rewinding retained database results.
 Keep interrupted-run receipts distinct from uninterrupted fresh-run evidence.
+### Official replay clock compression
+
+The official driver uses PBP-derived live checkpoints and the installed cron catalog. It keeps pre-tipoff, first-live, period, final, and unchanged-final retry checkpoints. Every worker retains its real internal timer boundaries. Other live polling intervals are omitted explicitly; the corpus does not contain archived 30-second provider responses.
+
+Empty hint, draft, and statistics queues can skip their idle gates. The driver reads those queues after each executed boundary. It retains notification time boundaries, pending transaction work, and pre-tipoff optimizer windows. Changed inspected SQL sources stop the compressed run. Unknown cron commands keep their installed cadence. Forecast expiry and daily statistics correction jobs keep their real cadence.
+
+The report stores the selected source hashes, game checkpoints, queue proof count, executed job counts, and omitted gate counts. Set `SEASON_SIM_STRICT_TICKS=1` to retain every installed cron tick. A short compressed diagnostic does not certify the full date range, transaction lifecycle, or performance budget.

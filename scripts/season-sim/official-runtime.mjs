@@ -8,6 +8,7 @@ import { setClock } from './clock.mjs'
 import { startRuntime } from './runtime.mjs'
 import { sql } from './local-stack.mjs'
 import { draftSourceUnavailable } from './two-checks.mjs'
+import { officialCompression } from './official-compression.mjs'
 
 export async function officialRuntime(at, report, inputPlan, sample = async () => {}, resume = false) {
   process.env.SEASON_SIM_PRODUCTION_ONLY = '1'
@@ -20,6 +21,8 @@ export async function officialRuntime(at, report, inputPlan, sample = async () =
     cronMatches(job.schedule, Date.parse(at))
   }
   report.triggerFidelity = { verified: false, catalog, counts: {}, unsupportedInputs: [], expectedUnavailable: [] }
+  report.compression = {}
+  const compression = process.env.SEASON_SIM_STRICT_TICKS === '1' ? null : await officialCompression(inputPlan, report.compression)
   let clock = Date.parse(at)
   const runtime = await startRuntime(at, { resume })
   const dispatcher = cronDispatcher(async outcome => {
@@ -53,7 +56,7 @@ export async function officialRuntime(at, report, inputPlan, sample = async () =
     const target = typeof value === 'number' ? value : Date.parse(value)
     await advanceCron({ from: clock, to: target, catalog, counts: report.triggerFidelity.counts,
       move: async instant => { clock = instant; await setClock({ at: new Date(instant).toISOString(), rate: 0, quiet: true }) },
-      invoke: dispatcher.enqueue, settle: dispatcher.settle, sample,
+      invoke: dispatcher.enqueue, settle: dispatcher.settle, sample, compression,
     })
     clock = target
   }

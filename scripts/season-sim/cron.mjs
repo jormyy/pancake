@@ -62,7 +62,7 @@ export function expiryCronTick(expiresAt) {
   return (Math.floor(at / 60000) + 1) * 60000
 }
 
-export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null, catalog = productionJobs }) {
+export async function advanceCron({ from, to, move, invoke, sample = async (..._args) => {}, counts = {}, settle = null, profile = null, catalog = productionJobs, compression = null }) {
   assert.ok(Number.isFinite(from) && Number.isFinite(to) && to >= from, 'Cron time cannot move backwards')
   for (const job of catalog) cronMatches(job.schedule, from)
   const intervals = catalog.map(job => /^(\d+) seconds?$/.exec(job.schedule)).filter(Boolean).map(match => Number(match[1]) * 1000)
@@ -70,19 +70,29 @@ export async function advanceCron({ from, to, move, invoke, sample = async (..._
   if (settle) {
     let at = from
     let state = await settle(at)
+    compression?.begin()
+    await compression?.refresh(at, state)
     while (at < to) {
       const began = performance.now()
-      const minute = nextTick(at)
       const wake = state.nextAt == null ? Infinity : state.nextAt
       assert.ok(wake > at, 'Worker timer must settle before advancing the clock')
-      at = Math.min(to, minute, wake)
+      let next = nextTick(at)
+      let jobs = []
+      while (next <= Math.min(to, wake)) {
+        const due = cronCommands(next, catalog)
+        jobs = compression ? compression.select(due, next, state) : due
+        if (jobs.length) break
+        next = nextTick(next)
+      }
+      at = Math.min(to, next, wake)
       await move(at, at)
-      const jobs = cronCommands(at, catalog)
+      if (at !== next) jobs = []
       if (jobs.length) {
         await invoke(jobs.map(job => job.command.trim().replace(/;+$/, '')).join('; '), { optional: true, defer: true })
         for (const job of jobs) counts[job.jobname] = (counts[job.jobname] ?? 0) + 1
       }
       state = await settle(at)
+      await compression?.refresh(at, state)
       if (jobs.length) await sample(at, jobs)
       await profile?.({ at, wallSeconds: (performance.now() - began) / 1000, minute: at % 60000 === 0 })
     }
