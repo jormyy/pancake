@@ -448,7 +448,7 @@ describe('release reconciliation', () => {
         page.reply('next')
         expect(page.reload).not.toHaveBeenCalled()
         await page.load()
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.hide()
         expect(page.reload).toHaveBeenCalledOnce()
     })
@@ -464,7 +464,7 @@ describe('release reconciliation', () => {
         expect(page.reload).not.toHaveBeenCalled()
     })
 
-    it('holds an update through a pending bid and its release, then reloads when hidden', async () => {
+    it('holds an update through a pending bid and reloads when it is released', async () => {
         const page = await updatePage({ held: true, previous: 'old' })
         await page.load()
         page.change()
@@ -473,31 +473,31 @@ describe('release reconciliation', () => {
         for (const timer of page.timers.filter(timer => timer.delay === 60000)) timer.callback()
         expect(page.reload).not.toHaveBeenCalled()
         page.release()
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.hide()
         expect(page.reload).toHaveBeenCalledOnce()
         page.release()
         expect(page.reload).toHaveBeenCalledOnce()
     })
 
-    it('keeps a visible page through controller changes, reconnect, and foreground checks', async () => {
+    it('reloads a visible page once through controller changes, reconnect, and foreground checks', async () => {
         const page = await updatePage()
         await page.load()
         page.change()
         page.reply('next')
         page.online()
         page.show()
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.hide()
         expect(page.reload).toHaveBeenCalledOnce()
     })
 
-    it('applies an update on pagehide even before visibility changes', async () => {
+    it('never starts a second reload on pagehide', async () => {
         const page = await updatePage()
         await page.load()
         page.change()
         page.reply('next')
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.pagehide()
         expect(page.reload).toHaveBeenCalledOnce()
     })
@@ -515,6 +515,8 @@ describe('release reconciliation', () => {
         expect(page.reload).not.toHaveBeenCalled()
         page.navigator.onLine = true
         page.online()
+        expect(page.reload).not.toHaveBeenCalled()
+        page.show()
         expect(page.reload).toHaveBeenCalledOnce()
     })
 

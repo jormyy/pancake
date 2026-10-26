@@ -1,3 +1,6 @@
+import { clearEditorDraft, readEditorDraft, saveEditorDraft } from '@/lib/editor-draft'
+import { isClaimDraft } from '@/lib/claim-draft'
+import { getCurrentSeasonId } from '@/lib/shared/season'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -44,7 +47,8 @@ const IRResolutionModal = lazy(() => import('@/components/IRResolutionModal').th
 type ClaimSnapshot = { taxiExitIds?: string[]; player: Awaited<ReturnType<typeof getPlayer>>; roster: RosterPlayer[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState | null }
 
 export default function ClaimPlayerScreen() {
-    useEffect(() => holdPwaUpdate('claim editor'), [])
+    const recoveryReady = useRef(false)
+    useEffect(() => holdPwaUpdate('claim editor', () => recoveryReady.current), [])
     const { playerId, claimId } = useLocalSearchParams<{ playerId: string; claimId?: string }>()
     const { current, currentLeague } = useLeagueContext()
     const { user } = useAuth()
@@ -57,6 +61,15 @@ export default function ClaimPlayerScreen() {
     const userId = user?.id
     const ownerKey = JSON.stringify([userId, memberId, leagueId, playerId, claimId])
     const cacheKey = `pancake:claim-player:v1:${ownerKey}`
+    const [draftOwner, setDraftOwner] = useState<{ key: string; scope: string } | null>(null)
+    const draftOwnerRef = useRef(draftOwner)
+    draftOwnerRef.current = draftOwner
+    const initializedForm = useRef<string | null>(null)
+    const submittedForm = useRef<string | null>(null)
+    if (draftOwner?.key !== ownerKey) recoveryReady.current = false
+    useEffect(() => () => {
+        if (draftOwnerRef.current) clearEditorDraft('claim', draftOwnerRef.current.scope)
+    }, [])
     const [initialCache] = useState(() => readPersistentCache<ClaimSnapshot>(cacheKey))
     const [loadError, setLoadError] = useState<string | null>(null)
     const [player, setPlayer] = useState<ClaimSnapshot['player'] | null>(initialCache?.player ?? null)
@@ -71,6 +84,14 @@ export default function ClaimPlayerScreen() {
     const [savedProcessDate, setSavedProcessDate] = useState<string | null>(null)
     const [loading, setLoading] = useState(!initialCache)
     const [selectedDrop, setSelectedDrop] = useState<RosterPlayer | null>(null)
+    useEffect(() => {
+        if (draftOwner?.key !== ownerKey || submittedForm.current === ownerKey) return
+        recoveryReady.current = saveEditorDraft('claim', draftOwner.scope, {
+            bid: bidInput, dropPlayerId: selectedDrop?.players.id ?? null,
+            toIr: irChoice?.owner === ownerKey ? irChoice.value : null,
+            toTaxi: taxiChoice?.owner === ownerKey ? taxiChoice.value : null,
+        })
+    }, [draftOwner, ownerKey, bidInput, selectedDrop, irChoice, taxiChoice])
     const [submittingOwner, setSubmittingOwner] = useState<{ key: string } | null>(null)
     const claimLoadSeqRef = useRef(0)
     const submittingRef = useRef<{ key: string } | null>(null)
@@ -125,7 +146,7 @@ export default function ClaimPlayerScreen() {
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState, waiverEnds, members, exits, claims] = await Promise.all([
+                const [p, roster, prio, txState, waiverEnds, members, exits, claims, seasonId] = await Promise.all([
                     getPlayer(requestedPlayerId),
                     getRoster(memberId, requestedLeagueId),
                     getMyWaiverPriority(memberId, requestedLeagueId),
@@ -134,6 +155,7 @@ export default function ClaimPlayerScreen() {
                     getLeagueMembers(requestedLeagueId),
                     (currentLeague?.taxi_slots ?? 0) > 0 ? getTaxiExitPlayerIds(memberId, requestedLeagueId) : Promise.resolve(new Set<string>()),
                     claimId ? getMyWaiverClaims(memberId, requestedLeagueId) : Promise.resolve([]),
+                    getCurrentSeasonId(requestedLeagueId),
                 ])
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
                 if (!members.some(member => member.id === memberId && member.user_id === userId)) {
@@ -148,15 +170,22 @@ export default function ClaimPlayerScreen() {
                 setPriority(prio)
                 setTransactionState(txState)
                 setSelectedDrop(previous => previous ? roster.find(row => row.id === previous.id) ?? null : null)
-                if (claimId) {
-                    const claim = claims.find(item => item.id === claimId && item.playerId === playerId && item.status === 'pending')
-                    if (!claim) throw new Error('This pending claim is no longer available.')
-                    setBidInput(String(claim.bidAmount))
-                    setSelectedDrop(roster.find(row => row.players.id === claim.dropPlayerId) ?? null)
-                    setIRChoice({ owner: ownerKey, value: Boolean(claim.toIr) })
-                    setTaxiChoice({ owner: ownerKey, value: Boolean(claim.toTaxi) })
-                    setSavedProcessDate(claim.processDate)
-                } else setSavedProcessDate(null)
+                const claim = claimId ? claims.find(item => item.id === claimId && item.playerId === playerId && item.status === 'pending') : null
+                if (claimId && !claim) throw new Error('This pending claim is no longer available.')
+                if (!seasonId) throw new Error('No active season is available.')
+                setSavedProcessDate(claim?.processDate ?? null)
+                const scope = JSON.stringify([userId, requestedLeagueId, seasonId, memberId, playerId, claimId ?? null])
+                if (initializedForm.current !== scope) {
+                    initializedForm.current = scope
+                    const draft = readEditorDraft('claim', scope, isClaimDraft)
+                    setBidInput(draft?.bid ?? String(claim?.bidAmount ?? 0))
+                    setSelectedDrop(roster.find(row => row.players.id === (draft ? draft.dropPlayerId : claim?.dropPlayerId)) ?? null)
+                    const toIr = draft ? draft.toIr : claim ? Boolean(claim.toIr) : null
+                    const toTaxi = draft ? draft.toTaxi : claim ? Boolean(claim.toTaxi) : null
+                    setIRChoice(toIr === null ? null : { owner: ownerKey, value: toIr })
+                    setTaxiChoice(toTaxi === null ? null : { owner: ownerKey, value: toTaxi })
+                    setDraftOwner({ key: ownerKey, scope })
+                }
                 markReady(generation)
             } catch (e) {
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
@@ -227,6 +256,9 @@ export default function ClaimPlayerScreen() {
                 await submitWaiverClaim(current.id, currentLeague.id, playerId, selectedDrop?.players.id, { bidAmount, ...(irEligible ? { toIr } : {}), ...(taxiEligible ? { toTaxi } : {}) })
             }
             if (ownerRef.current !== owner) return
+            submittedForm.current = ownerKey
+            recoveryReady.current = false
+            if (draftOwnerRef.current) clearEditorDraft('claim', draftOwnerRef.current.scope)
             showSuccess(
                 claimId ? 'Claim Updated' : 'Claim Submitted',
                 `Your claim processes ${savedProcessDate ? scheduledClaimLabel(savedProcessDate) : claimProcessTimeLabel(clearsAt)}.`,

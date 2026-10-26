@@ -58,8 +58,8 @@ type Harness = {
 }
 
 async function loadWorker(
-    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed, storage }:
-    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[]; storage?: FakeCaches } = {},
+    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed, storage, clients = [], claimFailure = false }:
+    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[]; storage?: FakeCaches; clients?: { url: string; postMessage: (message: unknown, ports: MessagePort[]) => void }[]; claimFailure?: boolean } = {},
 ): Promise<Harness> {
     let source = await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8')
     source = source
@@ -86,7 +86,7 @@ async function loadWorker(
     const self = {
         addEventListener: (type: string, listener: Listener) => listeners.set(type, listener),
         skipWaiting: async () => { harness.skipWaitingCalls += 1 },
-        clients: { claim: async () => { harness.claimCalls += 1 } },
+        clients: { matchAll: async () => clients, claim: async () => { harness.claimCalls += 1; if (claimFailure) throw new Error('Claim failed') } },
         location: { origin: 'https://app.test' },
     }
 
@@ -876,4 +876,29 @@ describe('service worker', () => {
         expect((await worker.respond(scoped(url))).status).toBe(502)
     })
 
+})
+
+it('waits to activate while another tab holds an editor', async () => {
+    const worker = await loadWorker({ clients: [{ url: 'https://app.test/claim-player', postMessage: (_message, ports) => { ports[0].postMessage({ held: true }); ports[0].close() } }] })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+})
+
+it('keeps verified installation usable when claiming clients fails', async () => {
+    const storage = new FakeCaches()
+    await storage.open('pancake-previous-public-v1-shell')
+    const worker = await loadWorker({ storage, claimFailure: true })
+    await worker.install()
+    await expect(worker.activate()).resolves.toBeUndefined()
+    expect(await storage.keys()).toContain('pancake-previous-public-v1-shell')
+})
+
+it('does not reject activation when obsolete cache cleanup fails', async () => {
+    const storage = new FakeCaches()
+    await storage.open('pancake-previous-public-v1-shell')
+    const worker = await loadWorker({ storage })
+    await worker.install()
+    vi.spyOn(storage, 'delete').mockRejectedValue(new Error('Storage busy'))
+    await expect(worker.activate()).resolves.toBeUndefined()
+    expect(worker.claimCalls).toBe(1)
 })

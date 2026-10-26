@@ -1,3 +1,4 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { Alert, Platform } from 'react-native'
 import { feedbackBridge } from '@/components/ui/feedback'
 
@@ -44,21 +45,22 @@ export function confirmAction(
     confirmText = 'Confirm',
     destructive = true,
 ) {
+    const releaseUpdate = holdPwaUpdate('confirmation')
     const api = feedbackBridge.api
     if (api) {
         void api.confirm({ title, message, confirmText, destructive }).then((ok) => {
-            if (ok) onConfirm()
-        })
+            if (ok) return onConfirm()
+        }).finally(releaseUpdate)
         return
     }
     if (Platform.OS === 'web') {
-        if (window.confirm(`${title}\n\n${message}`)) {
-            onConfirm()
-        }
+        try {
+            if (window.confirm(`${title}\n\n${message}`)) onConfirm()
+        } finally { releaseUpdate() }
     } else {
         Alert.alert(title, message, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: confirmText, style: destructive ? 'destructive' : 'default', onPress: onConfirm },
-        ])
+            { text: 'Cancel', style: 'cancel', onPress: releaseUpdate },
+            { text: confirmText, style: destructive ? 'destructive' : 'default', onPress: () => { try { onConfirm() } finally { releaseUpdate() } } },
+        ], { onDismiss: releaseUpdate })
     }
 }

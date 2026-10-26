@@ -67,7 +67,8 @@ function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children:
 const BUILDER_WIDTH = 900
 
 export default function ProposeTradeScreen() {
-    useEffect(() => holdPwaUpdate('trade editor'), [])
+    const recoveryReady = useRef(false)
+    useEffect(() => holdPwaUpdate('trade editor', () => recoveryReady.current), [])
     const { user } = useAuth()
     const { current, currentLeague, online } = useLeagueContext()
     const { usableWidth } = usePageMetrics()
@@ -99,6 +100,16 @@ export default function ProposeTradeScreen() {
     const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
     const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerIdentity)
+    const [draftSeason, setDraftSeason] = useState<{ owner: string; id: string } | null>(null)
+    const draftSeasonId = draftSeason?.owner === ownerIdentity ? draftSeason.id : null
+    useEffect(() => {
+        let disposed = false
+        recoveryReady.current = false
+        if (ownerIdentity && leagueId) void getCurrentSeasonId(leagueId).then(id => {
+            if (!disposed && id) setDraftSeason({ owner: ownerIdentity, id })
+        }).catch(() => {})
+        return () => { disposed = true }
+    }, [ownerIdentity, leagueId])
     const formOwnerRef = useRef(ownerIdentity)
     const writeEpoch = useRef(0)
     const tradePrefillKey = useRef<string | null>(null)
@@ -223,6 +234,7 @@ export default function ProposeTradeScreen() {
 
     // A page reload (an app update reloads the page) brings back the trade this tab had not sent.
     useEffect(() => {
+        if (!draftSeasonId) return
         if (draftOwnerRef.current !== null) {
             const sameOwner = draftOwnerRef.current === ownerIdentity
             if (!sameOwner) {
@@ -234,7 +246,7 @@ export default function ProposeTradeScreen() {
         }
         if (!ownerIdentity) return
         draftOwnerRef.current = ownerIdentity
-        const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId)
+        const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId, draftSeasonId)
         if (draft) {
             restoredDraftRef.current = true
             setMultiTeamMode(draft.multiTeamMode)
@@ -247,7 +259,7 @@ export default function ProposeTradeScreen() {
             routePrefillKeyRef.current = `${draft.selectedRecipientId}:${params.requestPlayerId ?? ''}:${params.requestPickId ?? ''}`
         }
         setDraftReady(true)
-    }, [mode, ownerIdentity, params.requestPickId, params.requestPlayerId, prefillFromItems, sourceTradeId])
+    }, [mode, ownerIdentity, params.requestPickId, params.requestPlayerId, prefillFromItems, sourceTradeId, draftSeasonId])
 
     // Closing the editor ends the draft. A reload skips this cleanup, which is what keeps the draft.
     useEffect(() => clearTradeComposerDraft, [])
@@ -370,7 +382,7 @@ export default function ProposeTradeScreen() {
             ? `This trade has ${participantIds.length} teams. Remove ${participantIds.length - MAX_TRADE_PARTICIPANTS} to meet the ${MAX_TRADE_PARTICIPANTS}-team limit.`
             : 'Trade team limit reached. Remove a team before selecting another.'
         : null
-    const intent = JSON.stringify({ ownerIdentity, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
+    const intent = JSON.stringify({ ownerIdentity, seasonId: draftSeasonId, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
         participantIds, items, notes, expirationDays, rosterPlan })
     const retainedAttempt = retainedAttemptRef.current?.ownerIdentity === ownerIdentity &&
         retainedAttemptRef.current.intent === intent ? retainedAttemptRef.current : null
@@ -379,13 +391,17 @@ export default function ProposeTradeScreen() {
     }, [intent])
     // Once Send starts, or a sent request's outcome is unknown, the server owns the trade: a restored
     // copy would send again under a new request key.
-    const draftToKeep = draftReady && draftOwnerRef.current === ownerIdentity && !submitting && !retainedAttempt &&
-        (items.length > 0 || notes !== '') ? intent : null
+    const draftToKeep = draftReady && draftOwnerRef.current === ownerIdentity && !submitting && !retainedAttempt ? intent : null
     useEffect(() => {
+        recoveryReady.current = false
         if (!draftReady) return
-        if (draftToKeep) saveTradeComposerDraft(draftToKeep)
-        else clearTradeComposerDraft()
-    }, [draftReady, draftToKeep])
+        if (!draftSeasonId || submitting || retainedAttempt) { clearTradeComposerDraft(); return }
+        if (draftToKeep) recoveryReady.current = saveTradeComposerDraft(draftToKeep)
+        else {
+            clearTradeComposerDraft()
+            recoveryReady.current = true
+        }
+    }, [draftReady, draftToKeep, draftSeasonId, submitting, retainedAttempt])
     const canSubmitNew = !tradingClosed && composer.selectedAssetsAvailable && withinItemLimit &&
         !notesError && !expirationError && (
         multiTeamMode

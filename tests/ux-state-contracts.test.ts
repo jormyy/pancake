@@ -138,10 +138,9 @@ describe('service worker registration cadence', () => {
         expect(page.update).toHaveBeenCalledTimes(2)
     })
 
-    it('throttles foreground and reconnect checks for five minutes and joins an unfinished check', async () => {
+    it('throttles foreground checks, retries reconnect, and joins an unfinished check', async () => {
         const page = updatePage()
         await page.load()
-        page.window.dispatchEvent(new Event('online'))
         await vi.advanceTimersByTimeAsync(299999)
         page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.update).not.toHaveBeenCalled()
@@ -168,7 +167,7 @@ describe('service worker registration cadence', () => {
         await vi.advanceTimersByTimeAsync(9000)
         expect(port.close).not.toHaveBeenCalled()
         page.reply('next')
-        expect(page.reload).not.toHaveBeenCalled()
+        expect(page.reload).toHaveBeenCalledOnce()
         page.document.visibilityState = 'hidden'
         page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()
@@ -195,8 +194,6 @@ describe('service worker registration cadence', () => {
         'recovers a missing lazy route while visible: %s', async failure => {
             const page = updatePage()
             await page.load()
-            page.serviceWorker.dispatchEvent(new Event('controllerchange'))
-            page.reply('next')
             expect(page.reload).not.toHaveBeenCalled()
             if (failure === 'asset') assetMiss(page)
             else page.window.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: new Error(failure) }))
@@ -278,7 +275,7 @@ describe('service worker registration cadence', () => {
         expect(page.reload).not.toHaveBeenCalled()
         page.navigator.onLine = true
         page.window.dispatchEvent(new Event('online'))
-        expect(page.reload).toHaveBeenCalledOnce()
+        expect(page.reload).not.toHaveBeenCalled()
         page.document.visibilityState = 'visible'
         page.document.dispatchEvent(new Event('visibilitychange'))
         expect(page.reload).toHaveBeenCalledOnce()

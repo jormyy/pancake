@@ -1,3 +1,7 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
+import { clearEditorDraft, readEditorDraft, saveEditorDraft } from '@/lib/editor-draft'
+import { isLineupDraft } from '@/lib/lineup-draft'
+import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     setPlayerSlotMoves,
@@ -60,6 +64,19 @@ export function useLineupActions({
     const ownerIdentity = actionOwner
         ? `${actionOwner.memberId}:${actionOwner.leagueId}:${actionOwner.seasonId}:${selectedDate}`
         : null
+    const draftScope = sessionOwner() && ownerIdentity ? `${sessionOwner()}:${ownerIdentity}` : null
+    const [draftKind] = useState(() => `lineup:${typeof window === 'undefined' ? 'native' : window.location?.pathname ?? 'native'}`)
+    const [restoredScope, setRestoredScope] = useState<string | null>(null)
+    const recoveryReady = useRef(false)
+    const previousLineup = useRef(myLineup)
+    const draftScopeRef = useRef(draftScope)
+    draftScopeRef.current = draftScope
+    const busy = useRef(false)
+    busy.current = saving || autoSetting || autoSetModalVisible || !!activationOverflowPending || activationOverflowSaving || restoredScope !== draftScope
+    const canRecover = useCallback(() => recoveryReady.current && !busy.current, [])
+    const hasSelection = selected !== null
+    useEffect(() => hasSelection ? holdPwaUpdate('lineup selection', canRecover) : undefined, [hasSelection, canRecover])
+    useEffect(() => () => { if (draftScopeRef.current) clearEditorDraft(draftKind, draftScopeRef.current) }, [draftKind])
     const renderedOwnerRef = useRef(ownerIdentity)
     const activeOwnerRef = useRef(ownerIdentity)
     const mutationGenerationRef = useRef(0)
@@ -91,8 +108,22 @@ export function useLineupActions({
     }, [ownerIdentity])
 
     useEffect(() => {
-        setSelected(null)
-    }, [myLineup])
+        recoveryReady.current = false
+        const changed = previousLineup.current !== myLineup
+        previousLineup.current = myLineup
+        if (!draftScope || !myLineup) { if (changed) setSelected(null); return }
+        const draft = readEditorDraft(draftKind, draftScope, isLineupDraft)
+        if (restoredScope !== draftScope) {
+            const player = draft?.selection ? selectionPlayer(myLineup, draft.selection) : null
+            setSelected(player && player.playerId === draft?.playerId && (!player.nbaTeam || !startedTeams.has(player.nbaTeam)) ? draft.selection : null)
+            setRestoredScope(draftScope)
+        } else if (draft?.selection ? selectionPlayer(myLineup, draft.selection)?.playerId !== draft.playerId : changed) setSelected(null)
+    }, [myLineup, draftScope, draftKind, restoredScope, startedTeams])
+    useEffect(() => {
+        if (!draftScope || restoredScope !== draftScope || !myLineup) return
+        const player = selected ? selectionPlayer(myLineup, selected) : null
+        recoveryReady.current = saveEditorDraft(draftKind, draftScope, { selection: player ? selected : null, playerId: player?.playerId ?? null })
+    }, [draftScope, restoredScope, myLineup, selected, draftKind, startedTeams])
 
     const handleTap = useCallback(async (newSel: LineupSelection) => {
         if (autoSetting || saving) return
@@ -116,78 +147,81 @@ export function useLineupActions({
         if (selected.kind === newSel.kind && selected.index === newSel.index) {
             setSelected(null); return
         }
-        setSelected(null)
-        if (!actionContext || !myLineup || !league) return
+        const releaseUpdate = holdPwaUpdate('lineup interaction')
+        try {
+            setSelected(null)
+            if (!actionContext || !myLineup || !league) return
 
-        const plan = planLineupMove({
-            lineup: myLineup,
-            league,
-            startedTeams,
-            from: selected,
-            to: newSel,
-        })
-
-        if (plan.kind === 'invalid') {
-            showAlert(plan.title, plan.message, 'info')
-            return
-        }
-
-        if (plan.kind === 'overflow') {
-            setActivationOverflowPending({
-                rosterPlayerId: plan.rosterPlayerId,
-                source: plan.source,
-                slotType: plan.slotType,
+            const plan = planLineupMove({
+                lineup: myLineup,
+                league,
+                startedTeams,
+                from: selected,
+                to: newSel,
             })
-            return
-        }
 
-        const mutationGeneration = mutationGenerationRef.current
-        const mutationOwner = ownerIdentity
-        const execute = async () => {
-            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            setSaving(true)
-            try {
-                if (plan.kind === 'activate') {
-                    await activateRosterPlayerWithLineup({
-                        activateRosterPlayerId: plan.activateRosterPlayerId,
-                        activateSource: plan.activateSource,
-                        freeRosterPlayerId: plan.freeRosterPlayerId,
-                        freeAction: plan.freeAction,
-                        memberId: actionContext.memberId,
-                        leagueId: actionContext.leagueId,
-                        seasonId: actionContext.seasonId,
-                        gameDate: selectedDate,
-                        weekNumber: actionContext.weekNumber,
-                        slotType: plan.slotType,
-                    })
-                } else if (plan.kind === 'toggle-ir') {
-                    await toggleIR(plan.rosterPlayerId, true)
+            if (plan.kind === 'invalid') {
+                showAlert(plan.title, plan.message, 'info')
+                return
+            }
 
-                } else {
-                    await setPlayerSlotMoves(
-                        {
+            if (plan.kind === 'overflow') {
+                setActivationOverflowPending({
+                    rosterPlayerId: plan.rosterPlayerId,
+                    source: plan.source,
+                    slotType: plan.slotType,
+                })
+                return
+            }
+
+            const mutationGeneration = mutationGenerationRef.current
+            const mutationOwner = ownerIdentity
+            const execute = async () => {
+                if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
+                setSaving(true)
+                try {
+                    if (plan.kind === 'activate') {
+                        await activateRosterPlayerWithLineup({
+                            activateRosterPlayerId: plan.activateRosterPlayerId,
+                            activateSource: plan.activateSource,
+                            freeRosterPlayerId: plan.freeRosterPlayerId,
+                            freeAction: plan.freeAction,
                             memberId: actionContext.memberId,
                             leagueId: actionContext.leagueId,
                             seasonId: actionContext.seasonId,
-                            weekNumber: actionContext.weekNumber,
                             gameDate: selectedDate,
-                        },
-                        plan.moves,
-                    )
+                            weekNumber: actionContext.weekNumber,
+                            slotType: plan.slotType,
+                        })
+                    } else if (plan.kind === 'toggle-ir') {
+                        await toggleIR(plan.rosterPlayerId, true)
+
+                    } else {
+                        await setPlayerSlotMoves(
+                            {
+                                memberId: actionContext.memberId,
+                                leagueId: actionContext.leagueId,
+                                seasonId: actionContext.seasonId,
+                                weekNumber: actionContext.weekNumber,
+                                gameDate: selectedDate,
+                            },
+                            plan.moves,
+                        )
+                    }
+                    if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
+                        await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
+                    }
+                } catch (e) {
+                    if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
+                } finally {
+                    if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
                 }
-                if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-                    await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
-                }
-            } catch (e) {
-                if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Error', getErrorMessage(e))
-            } finally {
-                if (mutationIsCurrent(mutationGeneration, mutationOwner)) setSaving(false)
             }
-        }
-        if (plan.kind === 'activate' && plan.activateSource === 'taxi') {
-            const reserve = myLineup.taxi?.find(player => player.rosterPlayerId === plan.activateRosterPlayerId)
-            if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
-        } else await execute()
+            if (plan.kind === 'activate' && plan.activateSource === 'taxi') {
+                const reserve = myLineup.taxi?.find(player => player.rosterPlayerId === plan.activateRosterPlayerId)
+                if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
+            } else await execute()
+        } finally { releaseUpdate() }
     }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
@@ -297,6 +331,7 @@ export function useLineupActions({
     }
 
     return {
+        canRecover,
         selected: ownsActionState ? selected : null,
         setSelected,
         saving: ownsActionState ? saving : false,

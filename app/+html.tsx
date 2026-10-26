@@ -32,7 +32,18 @@ if (window.isSecureContext) {
     var observation = 0;
     var lastCheck = 0;
     var checking = null;
-    var held = function () { return !!window.__pancakePwaHolds?.size; };
+    var held = function (recovering) {
+      var holds = window.__pancakePwaHolds;
+      if (!holds?.size) return false;
+      if (!recovering) return true;
+      for (var hold of holds.values()) {
+        try { if (!hold?.canRecover?.()) return true; } catch { return true; }
+      }
+      return false;
+    };
+    var requestActivation = function () {
+      if (!held(true)) registration?.waiting?.postMessage({ type: 'PANCAKE_ACTIVATE_WHEN_SAFE' });
+    };
     var showNotice = function (retry) {
       noticeTimer = null;
       if (!pendingVersion || reloaded) return;
@@ -53,7 +64,7 @@ if (window.isSecureContext) {
     };
     var tryReload = function (manual) {
       if (!pendingVersion || reloaded) return;
-      if ((!workerReconciled && navigator.serviceWorker?.controller) || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
+      if ((!workerReconciled && navigator.serviceWorker?.controller) || held(assetMissed) || document.readyState === 'loading' || document.readyState === 'interactive' ||
           document.visibilityState === 'hidden' || navigator.onLine === false) {
         if (assetMissed) showNotice();
         else if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
@@ -113,6 +124,7 @@ if (window.isSecureContext) {
       lastCheck = Date.now();
       checking = registration.update().catch(function () { lastCheck = 0; }).finally(function () {
         checking = null;
+        requestActivation();
         if (!registration.installing && !registration.waiting) workerReconciled = true;
         observeWorkerVersion(navigator.serviceWorker?.controller || registration.active);
       });
@@ -122,18 +134,20 @@ if (window.isSecureContext) {
       observeWorkerVersion(navigator.serviceWorker?.controller);
     });
     navigator.serviceWorker?.addEventListener('message', function (event) {
+      if (event.data?.type === 'PANCAKE_UPDATE_STATE') { event.ports?.[0]?.postMessage({ held: held(true) }); return; }
       if (event.data?.type === 'PANCAKE_ASSET_MISS') {
         recoverChunk();
       }
     });
     window.addEventListener('pancake-pwa-hold-change', function () {
+      requestActivation();
       var button = document.getElementById('pancake-update-notice')?.querySelector('button');
       if (button) button.disabled = held();
       tryReload(false);
     });
-    window.addEventListener('online', function () { checkForUpdate(true); tryReload(false); });
+    window.addEventListener('online', function () { checkForUpdate(true); requestActivation(); tryReload(false); });
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') { checkForUpdate(false); tryReload(false); }
+      if (document.visibilityState === 'visible') { checkForUpdate(false); requestActivation(); tryReload(false); }
     });
     var recoverChunk = function () {
       assetMissed = true;
@@ -156,6 +170,11 @@ if (window.isSecureContext) {
       if (!navigator.serviceWorker) return;
       navigator.serviceWorker.register('/sw.js').then(function (value) {
         registration = value;
+        registration.addEventListener?.('updatefound', function () {
+          var installing = registration.installing;
+          installing?.addEventListener('statechange', function () { if (installing.state === 'installed') requestActivation(); });
+        });
+        requestActivation();
         lastCheck = Date.now();
         if (pendingVersion && !workerReconciled) checkForUpdate(true);
         else observeWorkerVersion(navigator.serviceWorker?.controller || registration.active);

@@ -175,7 +175,8 @@ const BenchRow = memo(function BenchRow({
 })
 
 function LineupScreen() {
-    useEffect(() => holdPwaUpdate('lineup editor'), [])
+    const recoverLineup = useRef<(() => boolean) | null>(null)
+    useEffect(() => holdPwaUpdate('lineup editor', () => recoverLineup.current?.() === true), [])
     const back = useGoBack('/roster')
     const { padX, usableWidth, compact: compactDays } = usePageMetrics()
     // Wide screens set starters and bench side by side, so a move never needs a scroll.
@@ -490,6 +491,7 @@ function LineupScreen() {
         }
     }, [current?.id, currentLeague, load, selectedDate, visibleSeasonId, ownerKey, leagueRevision])
     const {
+        canRecover,
         selected,
         setSelected,
         saving,
@@ -509,6 +511,7 @@ function LineupScreen() {
         startedTeams,
         reloadLineup: reloadLineupForActions,
     })
+    recoverLineup.current = canRecover
 
     const preselectedKey = requestedPlayerId ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
     const preselectionPending = Boolean(preselectedKey && preselectedKeyRef.current !== preselectedKey && !readOnly && lineupForActions)

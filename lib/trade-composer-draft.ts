@@ -7,6 +7,7 @@ import type { MultiTeamTradeItemPayload, TradeRosterPlan } from '@/lib/trades'
 // navigation never restores it; only a reload, which skips React cleanup, finds it again.
 type TradeComposerDraft = {
     ownerIdentity: string
+    seasonId?: string
     mode: string
     sourceTradeId: string | null
     multiTeamMode: boolean
@@ -32,7 +33,7 @@ function parseDraft(raw: string): TradeComposerDraft | null {
     try {
         const draft = JSON.parse(raw) as Record<string, unknown>
         const optionalId = (value: unknown) => value === null || typeof value === 'string'
-        if (typeof draft.ownerIdentity !== 'string' || typeof draft.mode !== 'string' ||
+        if (typeof draft.ownerIdentity !== 'string' || (draft.seasonId !== undefined && typeof draft.seasonId !== 'string') || typeof draft.mode !== 'string' ||
             !optionalId(draft.sourceTradeId) || typeof draft.multiTeamMode !== 'boolean' ||
             !optionalId(draft.selectedRecipientId) || typeof draft.notes !== 'string' ||
             typeof draft.expirationDays !== 'string' ||
@@ -53,11 +54,15 @@ function parseDraft(raw: string): TradeComposerDraft | null {
 }
 
 /** Saves the editor exactly as the screen serialized it. */
-export function saveTradeComposerDraft(serialized: string): void {
+export function saveTradeComposerDraft(serialized: string): boolean {
     try {
-        draftStorage()?.setItem(DRAFT_KEY, serialized)
+        const storage = draftStorage()
+        if (!storage) return false
+        storage.setItem(DRAFT_KEY, serialized)
+        return true
     } catch {
         // Best effort only; the editor still holds the trade.
+        return false
     }
 }
 
@@ -74,6 +79,7 @@ export function readTradeComposerDraft(
     ownerIdentity: string,
     mode: string,
     sourceTradeId: string | null,
+    seasonId?: string,
 ): TradeComposerDraft | null {
     let raw: string | null | undefined
     try {
@@ -83,7 +89,8 @@ export function readTradeComposerDraft(
     }
     if (!raw) return null
     const draft = parseDraft(raw)
-    if (draft?.ownerIdentity === ownerIdentity && draft.mode === mode && draft.sourceTradeId === sourceTradeId) return draft
+    if (draft?.ownerIdentity === ownerIdentity && draft.mode === mode && draft.sourceTradeId === sourceTradeId &&
+        (!seasonId || draft.seasonId === seasonId)) return draft
     clearTradeComposerDraft()
     return null
 }

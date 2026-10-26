@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest'
 const script = readFileSync('app/+html.tsx', 'utf8').split("const SW_REGISTER = process.env.NODE_ENV === 'production' ? `")[1].split('` : `')[0]
     .replace(/\$\{[^}]+\}/g, 'inherit')
 
-function boot({ held = false, online = true, previous = null as string | null, worker = false } = {}) {
+function boot({ held = false, recoverable = false, online = true, previous = null as string | null, worker = false } = {}) {
     const events = new Map<string, (event?: unknown) => void>()
     const workerEvents = new Map<string, (event: unknown) => void>()
     const elements = new Map<string, ReturnType<typeof element>>()
@@ -18,7 +18,7 @@ function boot({ held = false, online = true, previous = null as string | null, w
     const storage = new Map<string, string>()
     if (previous) storage.set('pancake-update-reload:/players', previous)
     const scope = {
-        window: { isSecureContext: true, __pancakePwaHolds: new Set(held ? ['draft'] : []), location: { pathname: '/players', reload }, addEventListener: (name: string, fn: (event?: unknown) => void) => events.set(name, fn) },
+        window: { isSecureContext: true, __pancakePwaHolds: new Set(held ? [recoverable ? { canRecover: () => true } : 'draft'] : []), location: { pathname: '/players', reload }, addEventListener: (name: string, fn: (event?: unknown) => void) => events.set(name, fn) },
         navigator: { onLine: online, ...(worker ? { serviceWorker: { controller: { postMessage: vi.fn() }, addEventListener: (name: string, fn: (event: unknown) => void) => workerEvents.set(name, fn) } } : {}) },
         document: { readyState: 'complete', visibilityState: 'visible', querySelector: () => ({ content: 'build-old' }), addEventListener: vi.fn(), createElement: element,
             getElementById: (id: string) => elements.get(id), body: { appendChild: (node: ReturnType<typeof element>) => elements.set(node.id, node) } },
@@ -73,4 +73,20 @@ it('ignores unrelated application failures', () => {
     f.events.get('error')?.({ message: 'Cannot read property of undefined' })
     expect(f.reload).not.toHaveBeenCalled()
     expect(f.elements.size).toBe(0)
+})
+
+it('recovers a missing chunk when the open draft is safely stored', () => {
+    const f = boot({ held: true, recoverable: true })
+    f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
+    expect(f.reload).toHaveBeenCalledOnce()
+})
+
+it('never reloads a saved draft while a mutation is still active', () => {
+    const f = boot({ held: true, recoverable: true })
+    f.scope.window.__pancakePwaHolds.add('active mutation')
+    f.events.get('error')?.({ reason: new Error('ChunkLoadError') })
+    expect(f.reload).not.toHaveBeenCalled()
+    f.scope.window.__pancakePwaHolds.delete('active mutation')
+    f.events.get('pancake-pwa-hold-change')?.()
+    expect(f.reload).toHaveBeenCalledOnce()
 })
