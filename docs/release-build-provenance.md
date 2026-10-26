@@ -107,4 +107,10 @@ The generated `release-compatibility.json` records the retained files and their 
 
 Before publishing, verify the predecessor still matches the live deployment. Test an unfinished edit in that release, update detection, closing and reopening, and offline use. Recheck the displayed release identity after deployment.
 
+The worker requires each open document to confirm that it can recover creation confirmations before requesting immediate activation.
+Older documents keep their current worker until their last tab closes. Reopening then activates the downloaded release through the normal browser lifecycle.
+This one-time compatibility delay preserves confirmations that older code stores only in memory.
+Updated documents activate automatically when their pending work permits it.
+Verify both upgrade paths with `tests/e2e/form-submission-update.mjs` and its documented modes.
+
 Missing-script recovery preserves an open editor during rollback. A saved draft permits an automatic recovery reload only when the controlling worker confirms draft recovery version 1. Older or unknown workers leave the current editor open until its hold ends. Each new worker observation clears the previous compatibility result. Keep the worker capability aligned with the draft readers shipped in the same release.

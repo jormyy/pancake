@@ -9,6 +9,11 @@ const root = process.cwd(),
     require = createRequire(path.join(root, 'package.json'))
 const cancelPendingCreation = process.env.FORM_CONFIRMATION_CANCEL_PENDING === '1'
 const blockConfirmationStorage = process.env.FORM_CONFIRMATION_BLOCK_STORAGE === '1'
+const legacyConfirmation = process.env.FORM_LEGACY_CONFIRMATION === '1'
+if (legacyConfirmation) {
+    assert.equal(process.env.SUBMISSIONS_ONLY, 'create-league', 'Legacy confirmation proof requires only create-league')
+    assert.equal(blockConfirmationStorage || cancelPendingCreation, false, 'Legacy confirmation proof requires normal storage and completion')
+}
 const browserEngine = process.env.FORM_SUBMISSIONS_ENGINE ?? 'chromium'
 assert.ok(['chromium', 'webkit'].includes(browserEngine))
 const engine = require(process.env.FORM_SUBMISSIONS_PLAYWRIGHT ?? 'playwright')[browserEngine]
@@ -110,6 +115,7 @@ const report = {
     passed: false,
     browserEngine,
     blockConfirmationStorage,
+    legacyConfirmation,
     cancelPendingCreation,
     before,
     after,
@@ -348,6 +354,7 @@ try {
         const row = { name: def.name, samples: [], mutations: [] }
         report.cases.push(row)
         const actor = def.actor ?? owner
+        let legacyObserver = null
         let session = null
         if (!def.anonymous) session = (await sign(actor)).session
         const storage = session
@@ -446,7 +453,11 @@ try {
                 row.mutations.push({ method: request.method(), path: url.pathname })
         })
         page.on('dialog', (dialog) => dialog.accept())
-        await page.goto(origin + def.route)
+        await page.goto(origin + (legacyConfirmation ? '/profile' : def.route))
+        if (legacyConfirmation) {
+            await page.getByRole('button', { name: 'Create a league', exact: true }).click()
+            await page.waitForURL(url => url.pathname === '/create-league')
+        }
         if (def.anonymous)
             await page.waitForFunction(() => !document.getElementById('pancake-auth-document'))
         if (def.name === 'create-league') {
@@ -528,6 +539,13 @@ try {
         row.filled = await inspect(page)
         await exact()
         row.initial = await inspect(page)
+        if (legacyConfirmation) {
+            legacyObserver = await context.newPage()
+            await legacyObserver.goto(origin + '/profile')
+            await legacyObserver.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+            await legacyObserver.waitForFunction(() => !!navigator.serviceWorker.controller)
+            row.legacyObserverInitial = await inspect(legacyObserver)
+        }
         row.before = state()
         if (def.name !== 'create-league') await swap(after)
         await page.evaluate(() => dispatchEvent(new Event('online')))
@@ -729,19 +747,47 @@ try {
             row.expectedAccount = saved.id
         }
         if (def.name === 'change-password') owner.password = nextPassword
-        if (def.name === 'create-league' && blockConfirmationStorage) {
+        if (def.name === 'create-league' && (blockConfirmationStorage || legacyConfirmation)) {
             await page.getByRole('button', { name: 'Share invite code', exact: true }).waitFor()
             await wait(5000)
             row.storageFailureHeld = await inspect(page)
             assert.equal(row.storageFailureHeld.timeOrigin, row.initial.timeOrigin)
-            assert.ok(row.storageFailureHeld.holds.includes('create league form'))
+            if (blockConfirmationStorage) assert.ok(row.storageFailureHeld.holds.includes('create league form'))
+            if (legacyConfirmation) assert.equal(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting), true)
             assert.ok((await page.locator('body').innerText()).includes(row.saved.inviteCode))
             await page.screenshot({ path: path.join(output, 'create-league-storage-held.png') })
             await page.getByRole('button', { name: 'Done', exact: true }).click()
             row.chronology.push({
-                event: 'storage-failure-confirmation-dismissed',
+                event: legacyConfirmation ? 'legacy-confirmation-dismissed' : 'storage-failure-confirmation-dismissed',
                 at: new Date().toISOString(),
             })
+        }
+        if (legacyConfirmation) {
+            await page.waitForURL(url => url.pathname !== '/create-league')
+            row.legacyDonePath = new URL(page.url()).pathname
+            await context.setOffline(true)
+            await page.waitForFunction(() => navigator.onLine === false)
+            await wait(250)
+            await context.setOffline(false)
+            await page.waitForFunction(() => navigator.onLine === true)
+            await wait(1000)
+            row.legacyAfterReconnect = await inspect(page)
+            assert.equal(row.legacyAfterReconnect.timeOrigin, row.initial.timeOrigin)
+            assert.equal(row.legacyAfterReconnect.version, before.version)
+            assert.equal(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting), true)
+            await page.close()
+            await wait(1000)
+            row.legacyRemainingTab = await inspect(legacyObserver)
+            assert.equal(row.legacyRemainingTab.version, before.version)
+            assert.equal(row.legacyRemainingTab.timeOrigin, row.legacyObserverInitial.timeOrigin)
+            assert.equal(await legacyObserver.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting), true)
+            await legacyObserver.close()
+            await wait(1000)
+            page = await context.newPage()
+            page.setDefaultTimeout(20000)
+            page.on('pageerror', error => (row.errors ??= []).push(error.message))
+            await page.goto(origin + row.legacyDonePath)
+            row.chronology.push({ event: 'all-legacy-tabs-closed-and-app-reopened', at: new Date().toISOString() })
         }
         await page.waitForFunction(
             (expected) =>
@@ -750,7 +796,7 @@ try {
             { timeout: 60000 },
         )
         row.updated = await inspect(page)
-        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation) {
+        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation && !legacyConfirmation) {
             row.chronology.push({
                 event: 'automatic-reload-observed',
                 at: new Date().toISOString(),
@@ -812,7 +858,7 @@ try {
         assert.equal(identity.status, 200)
         assert.equal(identity.id, expectedAccount)
         row.serverVerifiedAccount = identity.id
-        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation) {
+        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation && !legacyConfirmation) {
             await page.getByRole('button', { name: 'Share invite code', exact: true }).click()
             await page.getByRole('button', { name: 'Share invite code', exact: true }).click()
             row.shareCalls = await page.evaluate(() => window.__confirmationShares)

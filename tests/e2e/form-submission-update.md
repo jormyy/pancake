@@ -88,3 +88,20 @@ It compares application and revision fingerprints with the state before fixture 
 Set `FORM_CONFIRMATION_CANCEL_PENDING=1` to leave the form while its real response waits.
 Creation still commits once upstream. The dismissed form must not save a stale confirmation.
 The update must complete, and reopening Create League must show a fresh form.
+
+## Upgrade from an older document
+
+Set `FORM_LEGACY_CONFIRMATION=1` and `SUBMISSIONS_ONLY=create-league`.
+Use an initial export without confirmation recovery and a candidate with the recovery capability.
+Leave the storage-failure and pending-cancellation modes off.
+The runner enters creation from Profile, then opens a second old tab.
+It publishes the candidate during the real creation request.
+The saved invite code must remain visible until Done.
+Reconnect and closing one tab must leave the other old document usable.
+After all old tabs close, reopening must load the candidate through the browser's normal worker lifecycle.
+The account, selected membership, and single saved league must remain correct.
+
+Older documents cannot safely recover every confirmation after a reload.
+The candidate therefore waits for their last tab to close before activation.
+Documents with confirmation recovery still activate automatically when their pending work permits it.
+Run both paths in Chromium and WebKit. Keep their release identities and cleanup receipts.

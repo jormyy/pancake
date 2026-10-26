@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // it. Load it into a stand-in ServiceWorkerGlobalScope and drive its events.
 
 type Listener = (event: WorkerEvent) => void
-type WorkerEvent = { request?: Request; waitUntil: (p: Promise<unknown>) => void; respondWith: (r: unknown) => void }
+type WorkerEvent = { request?: Request; data?: { type: string }; waitUntil: (p: Promise<unknown>) => void; respondWith: (r: unknown) => void }
 
 class FakeCache {
     entries = new Map<string, Response>()
@@ -879,9 +879,44 @@ describe('service worker', () => {
 })
 
 it('waits to activate while another tab holds an editor', async () => {
-    const worker = await loadWorker({ clients: [{ url: 'https://app.test/claim-player', postMessage: (_message, ports) => { ports[0].postMessage({ held: true }); ports[0].close() } }] })
+    const worker = await loadWorker({ clients: [{ url: 'https://app.test/claim-player', postMessage: (_message, ports) => { ports[0].postMessage({ held: true, confirmationRecoveryVersion: 1 }); ports[0].close() } }] })
     await worker.install()
     expect(worker.skipWaitingCalls).toBe(0)
+})
+
+it('keeps older pages usable until their last document closes', async () => {
+    const clients = [{ url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false }); ports[0].close() } }]
+    const worker = await loadWorker({ clients })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+    clients.splice(0)
+    const pending: Promise<unknown>[] = []
+    worker.listeners.get('message')!({ data: { type: 'PANCAKE_ACTIVATE_WHEN_SAFE' }, waitUntil: promise => pending.push(promise), respondWith: () => {} })
+    await Promise.all(pending)
+    expect(worker.skipWaitingCalls).toBe(1)
+})
+
+it('allows a recoverable create confirmation to update', async () => {
+    const worker = await loadWorker({ clients: [{ url: 'https://app.test/create-league', postMessage: (_message, ports) => { ports[0].postMessage({ held: false, confirmationRecoveryVersion: 1 }); ports[0].close() } }] })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(1)
+})
+
+it('keeps a recoverable tab waiting for an older same-origin tab', async () => {
+    const clients = [
+        { url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false }); ports[0].close() } },
+        { url: 'https://app.test/profile', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false, confirmationRecoveryVersion: 1 }); ports[0].close() } },
+        { url: 'https://other.test/', postMessage: vi.fn() },
+    ]
+    const worker = await loadWorker({ clients })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+    clients.splice(0, 1)
+    const pending: Promise<unknown>[] = []
+    worker.listeners.get('message')!({ data: { type: 'PANCAKE_ACTIVATE_WHEN_SAFE' }, waitUntil: promise => pending.push(promise), respondWith: () => {} })
+    await Promise.all(pending)
+    expect(worker.skipWaitingCalls).toBe(1)
+    expect(clients[1].postMessage).not.toHaveBeenCalled()
 })
 
 it('keeps verified installation usable when claiming clients fails', async () => {

@@ -160,7 +160,7 @@ async function activateWhenSafe() {
         resolve(held)
       }
       const timer = setTimeout(() => finish(true), 750)
-      channel.port1.onmessage = event => finish(event.data?.held !== false)
+      channel.port1.onmessage = event => finish(event.data?.held !== false || event.data?.confirmationRecoveryVersion !== 1)
       try { client.postMessage({ type: 'PANCAKE_UPDATE_STATE' }, [channel.port2]) }
       catch { finish(true) }
     })

@@ -137,7 +137,7 @@ if (window.isSecureContext) {
       observeWorkerVersion(navigator.serviceWorker?.controller);
     });
     navigator.serviceWorker?.addEventListener('message', function (event) {
-      if (event.data?.type === 'PANCAKE_UPDATE_STATE') { event.ports?.[0]?.postMessage({ held: held(true) }); return; }
+      if (event.data?.type === 'PANCAKE_UPDATE_STATE') { event.ports?.[0]?.postMessage({ held: held(true), confirmationRecoveryVersion: 1 }); return; }
       if (event.data?.type === 'PANCAKE_ASSET_MISS') {
         recoverChunk();
       }
