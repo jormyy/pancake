@@ -1,6 +1,7 @@
 # Trade estimates
 
-The trade editor requests an estimate from `POST /trades/estimate`. The server reads the current league season, scoring, roster depth, team count, FAAB budget, ownership, rankings, production, and projections. It uses the same dynasty engine as the other dynasty tools.
+The trade editor requests an estimate from `POST /trades/estimate`. The server reads the current league season, scoring, roster depth, team count, and FAAB budget.
+It also reads ownership, rankings, production, and projections. It uses the same dynasty engine as the other dynasty tools.
 
 Each request names the exact asset routes. A player or pick appears once. A FAAB amount appears once per sender and receiver. The server rejects assets that the sender no longer owns. Estimates do not replace the trade validity checks.
 
@@ -16,8 +17,36 @@ Submitting an offer attaches the displayed quote inside the same database transa
 
 An older client can submit without a quote. The API attempts to create one before submission. If calculation fails, the normal validity checks still apply and the offer records that no estimate is available. A calculation failure never changes assets or bypasses a server rule.
 
-Inbox, sent offers, details, and history show the saved estimate. Opening its source panel loads the frozen calculation. The separate revalue action uses current inputs and leaves the saved record intact. Counters create a new quote for the new terms.
+Inbox, sent offers, details, and history show the saved estimate.
+Saved estimate and sources loads the frozen calculation.
+Counters create a new quote for the new terms.
+
+## Historical revaluation
+
+Revalue with current inputs requests `POST /trades/:id/revalue` for a saved trade.
+The server reads the stored routes and checks the manager's membership and permission to view that trade.
+It uses the current league season and current source inputs.
+It permits historical assets that change owners or consume picks after settlement.
+New estimates and new offers still require current ownership.
+
+Revaluation returns a separate calculation without saving another quote or changing the trade's original estimate.
+Its result includes the trade ID, model version, input hash, calculation time, and expiry.
+No revaluation changes ownership, FAAB, roster plans, or offer validity.
 
 Quotes are read-only to clients. A manager can read their own quotes and quotes attached to trades they may view. Unattached expired quotes are removed after seven days. Attached quotes remain available with trade history.
 
-Focused checks cover exact and reversed accounting, pick slots and discounting, missing sources, stale responses, quote expiry, mismatched terms, retries, account access, counters, and immutable history. Full-season and browser checks also exercise the production API and saved views. Local measurements do not establish a market price or cloud performance.
+## Verification
+
+Run these checks against the isolated migrated database:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-estimate-snapshots.sql
+npm run test:db:trade-historical-revaluation
+```
+
+Snapshot checks cover quote expiry, mismatched terms, retries, access, and immutable offer attachments.
+Historical checks revalue completed trades after ownership changes and reject unauthorized reads.
+They also check that revaluation leaves saved quotes unchanged.
+Focused engine and client checks cover accounting, pick values, missing sources, stale responses, and counters.
+Use the [verification guide](verification.md) for setup and the [browser guide](../tests/e2e/README.md) for saved views.
+Local measurements do not establish a market price or cloud performance.

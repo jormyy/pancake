@@ -72,6 +72,11 @@ All projection windows use `America/Los_Angeles`, including daylight saving chan
 | FantasyPros backup | 08:00 and 15:00 PT |
 
 Late checks claim the current week and latest elapsed daily window.
+The Sleeper worker selects the scoring week whose start and end contain today's Pacific date.
+It does not require that scoring week to start during the current Monday–Sunday source window.
+Multiweek scoring periods retain their scoring week number while Sleeper source weeks advance each Monday.
+Days outside all scoring weeks return a successful skip with zero affected rows.
+The skip records `No current regular-season projection week` and preserves stored projections without a provider request.
 Game-day refreshes remain eligible after a failed Monday pull.
 Dispatch claims and reconciliation use the shared retry rules below.
 The game-day gate needs a known future first tipoff.
@@ -308,6 +313,10 @@ Outside that window, they refresh hourly from 08:00 through 02:00 ET, including 
 The existing claim, retry, dispatch, and empty-body contract stay unchanged.
 Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.
 
-Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete. Their completion regressions verify stored scores and preserve prior data on failed refreshes.
+Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete.
+Their completion regressions verify stored scores and preserve prior data on failed refreshes.
 
-Final NBA snapshots retain the provider publication time. Verified corrections set a newer revision, and the database rejects unversioned writes or skips older snapshots. Scores and stat rows commit together for each accepted revision.
+Final NBA snapshots retain the provider publication time.
+Verified corrections set a newer revision.
+The database rejects unversioned writes or skips older snapshots.
+Scores and stat rows commit together for each accepted revision.

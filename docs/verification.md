@@ -71,6 +71,9 @@ Use negative controls to prove that a gate detects the protected failure.
 | Public activity feed | `npm run test:db:server-activity-feed-review` |
 | Injury dispatch | `npm run test:db:server-injury-schedule`, `npm run test:db:server-roster-dispatch-repairs` |
 | Atomic trade plans | `npm run test:db:trade-roster-plans`, `npm run test:db:trade-plan-concurrency` |
+| Retained trade moves and reserved capacity | `npm run test:db:trade-plan-moves-capacity`, `npm run test:db:trade-waiver-concurrency` |
+| Continuous FAAB claims | `npm run test:db:continuous-faab`, `npm run test:db:continuous-faab-schedule` |
+| Historical trade revaluation | `npm run test:db:trade-historical-revaluation` |
 | Flexible playoff trees | `npm run test:db:general-brackets` |
 | Roster cleanup | `npm run test:db:roster-lifecycle`, `npm run test:db:roster-oracle` |
 | Daily automation | `npm run test:db:pre-tipoff`, `npm run test:db:optimizer-default` |
@@ -86,6 +89,37 @@ Use negative controls to prove that a gate detects the protected failure.
 | Auction turn notices, computed at commit from the settled draft | `npm run test:db:notif-t10-auction` |
 
 These checks use controlled fixtures. They do not establish hosted latency or physical-device behavior.
+
+## Release feature checks
+
+Run the lightweight release contracts on the Mac:
+
+```sh
+npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts
+npm run lint:all
+```
+
+Compatibility checks compare deployed consumers with the candidate database and require the current release order.
+Their negative controls remove the release section, baseline, and newest migration.
+Release contract checks reject missing measurements, incomplete browser evidence, and unsafe fixture handling.
+Lint checks the source tree for errors and warnings.
+
+Run these focused database checks on the isolated mini stack:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-estimate-snapshots.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/matchup-forecast-cache.sql
+node supabase/tests/db/matchup-forecast-concurrency.mjs
+```
+
+Set `PANCAKE_TEST_DB_PORT` to the stack's own database port for forecast concurrency.
+Inactive-trade checks cover IR and taxi listings across roster moves.
+Estimate checks cover frozen inputs, expiry, mismatched terms, retries, and authorized reads.
+Forecast checks cover invalidation, claims, stale publication, membership, and scoring overlap.
+The concurrency check includes a deliberately corrupted cache revision.
+See [trade estimates](trade-estimates.md), [matchup forecasts](matchup-forecasts.md), and [roster lifecycle](roster-lifecycle.md) for their contracts.
+Use the [simulator guide](season-simulator.md#fresh-replay-launch) for late-start historical acceptance and its unmeasured windows.
 
 ## Capacity profile and paired scoring
 
@@ -154,6 +188,7 @@ Ordinary Edge checks ignore those database tests.
 The fixture test pulls four recorded rows twice and verifies stable IDs, updated values, reader precedence, projected sits, and failure recovery.
 The SQL checks cover mixed weekly fallback, makes and attempts, next-game data, fingerprint stability, permissions, and deletion hints.
 Schedule checks cover Pacific midnight, both daylight saving transitions, late checks, claims, and injury refresh windows.
+Sleeper worker checks also cover multiweek scoring periods, Pacific dates, and successful skips when no scoring week contains today.
 Retention checks protect all league and NBA tables with write-rejecting triggers.
 Index checks run actual log and snapshot deletion statements against populated fixtures and inspect their execution plans.
 They also inspect indexed cron, Sleeper, FantasyPros, and run-selection plans.

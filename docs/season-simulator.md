@@ -117,11 +117,25 @@ node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA" --st
 Set `SEASON_SIM_YEAR=2025`, `SEASON_SIM_MODE=two-season`, and `SEASON_SIM_PROFILE` before launch.
 The replay skips completed earlier weeks and runs through November 3, 2025.
 The start date can fall within a week.
+Use a real date within the first historical season, from October 22, 2024, through April 13, 2025.
+Do not combine `--start` with `--check-first-date` or `--check-through`.
 Earlier scenario windows read `not measured: late start`.
 Remaining scoring, waivers, deadline trades, final forecasts, playoffs, rollover, rookie draft, opening week, and Realtime delivery must pass.
 The summary records `lateStart.start`, `lateStart.passed`, `lateStart.notMeasured`, and `lateStart.gaps`.
 `fullAcceptance` stays false because earlier windows remain unmeasured.
 The launcher records acceptance in `evidence/late-season-check.json`.
+Acceptance requires `complete: true`, `invariantFailures: 0`, `lateStart.passed: true`, and an empty `lateStart.gaps`.
+Runtime, source, assertion, and cleanup failures remain failures.
+The launcher exits unsuccessfully if remaining measured areas fail.
+The saved late-season receipt does not establish browser, load, app-update, or earlier-window coverage.
+
+Check the launch and acceptance rules without starting a stack:
+
+```sh
+node --test scripts/season-sim/launcher-check.test.mjs scripts/season-sim/official-replay.test.mjs scripts/season-sim/official-report.test.mjs
+```
+
+These checks reject invalid starts and missing acceptance areas, and retain explicit labels for skipped windows.
 
 ## Recovery from a real-season checkpoint
 

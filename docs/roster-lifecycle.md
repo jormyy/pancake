@@ -93,7 +93,11 @@ npm run test:db:roster-oracle
 npm run test:db:weekly-add-limit
 npm run test:db:waiver-window
 npm run test:db:dynasty-rules
+npm run test:db:continuous-faab
+npm run test:db:continuous-faab-schedule
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
 npm run test:db:trade-roster-plans
+npm run test:db:trade-plan-moves-capacity
 npm run test:db:trade-plan-concurrency
 npm run test:db:general-brackets
 ```
@@ -205,12 +209,13 @@ Players must stay eligible while on taxi.
 New game counts or experience can make a taxi roster illegal.
 
 Eligible players can enter taxi through drafts, trades, or scheduled waiver claims.
-Straight-to-taxi adds check eligibility, slots, tenure, and prior exits.
+Straight-to-taxi claims check eligibility, slots, tenure, and prior exits.
 Accepted trades hold their incoming taxi slots until settlement.
 Adds cannot use those slots, and claims fall back to active space or their planned drop.
 An add cannot request both IR and taxi.
 IR remains the default claim destination for eligible Out players when a slot is open.
-Straight-to-taxi adds remain allowed after the player's game starts.
+A manager can submit a straight-to-taxi claim after the player's game starts.
+The scheduled worker still decides ownership and placement.
 A `to_taxi` claim checks taxi placement again when the worker processes it.
 If taxi placement fails, the claim uses active roster space or its planned drop.
 If neither fits, the claim fails with a clear reason.
@@ -230,6 +235,14 @@ Managers can activate IR or taxi players, move eligible players to IR, drop play
 The acquisition guard does not block lineup edits, activations, or drops.
 Existing lineup capacity, reservation, and game-lock checks still apply.
 The Roster banner offers actions that make the team legal.
+
+## Inactive trade assets
+
+The league's inactive-trade setting controls IR and taxi assets in offers and on the trade block.
+Without that setting, IR and taxi players cannot enter new listings.
+With it enabled, owned inactive players can remain listed during roster-location changes.
+Losing ownership still removes a listing and expires dependent offers.
+The setting never bypasses resulting-roster limits or settlement checks.
 
 ## Trade plans
 
@@ -266,7 +279,7 @@ Vetoes and terminal outcomes release these reservations without an extra balance
 `test:db:trade-plan-moves-capacity` covers retained moves, recovery, authorization, combined capacity, failed awards, and release.
 `test:db:trade-plan-concurrency` and `test:db:trade-waiver-concurrency` verify competing transactions.
 Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
-For opted-in leagues, a pending claim whose drop leaves the roster becomes cancelled with an explicit reason.
+When a claim uses trade-plan reservations, losing its planned drop cancels the claim with an explicit reason.
 
 ## Flexible playoff rounds
 
