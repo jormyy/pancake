@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
     shellRemoved: vi.fn(),
 }))
 
+vi.mock('@/app/player/[id]', () => ({ default: () => null }))
 vi.mock('react-native-reanimated', () => ({}))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'view', Text: 'text',

@@ -6,7 +6,7 @@ import { setLeagueChangesConnected } from '@/lib/league-changes'
 
 const state = vi.hoisted(() => ({ focused: true, rpc: vi.fn() }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
-vi.mock('@/lib/players', () => ({
+vi.mock('@/lib/players', () => ({ getPlayerSeasonAverages: () => new Promise(() => {}), getPlayerAverageFantasyPoints: async () => null,
     getPlayer: async () => ({ id: 'player', nba_team: 'LAL' }), getAvailableSeasons: async () => [2026],
     getPlayerTransactionHistory: async () => [],
 }))

@@ -58,10 +58,18 @@ function playerScoringSettings(value: unknown): ScoringSettings | null {
 
 export function useWeeklyAvailability(enabled: boolean, active = true) {
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
+    const [loading, setLoading] = useState(enabled)
+    const [error, setError] = useState<Error | null>(null)
+    const [loadedDay, setLoadedDay] = useState<string | null>(null)
+    const [retryToken, setRetryToken] = useState(0)
+    const retry = useCallback(() => setRetryToken(value => value + 1), [])
 
     useEffect(() => {
         if (!enabled) {
             setWeekDays([])
+            setLoading(false)
+            setError(null)
+            setLoadedDay(null)
             return
         }
         if (!active) return
@@ -72,7 +80,9 @@ export function useWeeklyAvailability(enabled: boolean, active = true) {
         const load = async (includeSchedule: boolean) => {
             if ((typeof navigator !== 'undefined' && navigator.onLine === false)
                 || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
+            if (!includeSchedule && loadedDate === todayET()) return
             const requestId = ++requestSequence
+            setLoading(true)
             const seasonYear = currentSeasonYear()
             const today = todayET()
             try {
@@ -81,9 +91,16 @@ export function useWeeklyAvailability(enabled: boolean, active = true) {
                     : null
                 if (cancelled || requestSequence !== requestId) return
                 loadedDate = today
+                setLoadedDay(today)
+                setError(null)
                 if (days) setWeekDays(days)
             } catch (error) {
-                if (!cancelled && requestSequence === requestId) console.error(error)
+                if (!cancelled && requestSequence === requestId) {
+                    setError(error instanceof Error ? error : new Error(String(error)))
+                    console.error(error)
+                }
+            } finally {
+                if (!cancelled && requestSequence === requestId) setLoading(false)
             }
         }
         void load(true)
@@ -101,9 +118,9 @@ export function useWeeklyAvailability(enabled: boolean, active = true) {
             clearInterval(poll)
             subscription.remove()
         }
-    }, [enabled, active])
+    }, [enabled, active, retryToken])
 
-    return { weekDays }
+    return { weekDays, loading, error, retry, isSnapshot: loadedDay !== todayET() || loading || Boolean(error) }
 }
 
 export function usePlayerSearch(
@@ -177,6 +194,9 @@ export function usePlayerSearch(
     }, [])
 
     const weeklyAvailability = useWeeklyAvailability(enabled, focused && online && visible)
+    const scheduleRequired = playingFilter !== 'all'
+    const scheduleError = scheduleRequired ? weeklyAvailability.error : null
+    const searchAdmitted = admitted && (!scheduleRequired || !weeklyAvailability.isSnapshot)
     const todayTeams = useMemo(() => {
         const today = todayET()
         const todayRow = weeklyAvailability.weekDays.find((day) => day.date === today)
@@ -237,7 +257,7 @@ export function usePlayerSearch(
     const activeRef = useRef(false)
     const readActivity = enabled && online && focused && visible
     if (lastActivity.current !== readActivity) { lastActivity.current = readActivity; activityEpoch.current += 1 }
-    activeRef.current = admitted && readActivity
+    activeRef.current = searchAdmitted && readActivity
 
     const fetchPage = useCallback(async (params: PlayerSearchParams, offset: number, canRead?: () => boolean) => {
         const players = await searchPlayers(
@@ -335,7 +355,7 @@ export function usePlayerSearch(
             setHasMore(cached?.hasMore ?? false)
             offsetRef.current = cached?.offset ?? 0
         }
-        if (!admitted || !online || !focused || !visible) {
+        if (!searchAdmitted || !online || !focused || !visible) {
             setLoading(false)
             setRefreshing(false)
             return cancel
@@ -391,10 +411,10 @@ export function usePlayerSearch(
                 setRefreshing(false)
             })
         return cancel
-    }, [cachePage, enabled, admitted, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchPage, leagueId])
+    }, [cachePage, enabled, searchAdmitted, online, focused, visible, retryToken, searchParams, searchParamsKey, fetchPage, leagueId])
 
     const loadMore = useCallback(async () => {
-        if (!enabled || !admitted || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
+        if (!enabled || !searchAdmitted || !online || !focused || !visible || refreshing || loadingMore || !hasMore) return
         const params = searchParamsRef.current
         const paramsKey = currentKeyRef.current
         const nextOffset = offsetRef.current + PLAYER_SEARCH_PAGE_SIZE
@@ -423,18 +443,21 @@ export function usePlayerSearch(
             }
             setHasMore(results.length === PLAYER_SEARCH_PAGE_SIZE)
         } catch (e) {
+            if (loadMoreSeqRef.current === requestId && renderedKeyRef.current === paramsKey && activeRef.current) {
+                setError(e instanceof Error ? e : new Error(String(e)))
+            }
             console.error(e)
         } finally {
             if (loadMoreSeqRef.current === requestId && currentKeyRef.current === paramsKey) {
                 setLoadingMore(false)
             }
         }
-    }, [cachePage, enabled, admitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
+    }, [cachePage, enabled, searchAdmitted, online, focused, visible, refreshing, loadingMore, hasMore, fetchPage])
 
     const isFallbackSeason = dataKey === searchParamsKey
         && players[0]?.stats_season_year === currentSeasonYear() - 1
     useEffect(() => {
-        if (!enabled || !admitted || !online || !focused || !visible || seasonYear !== null || !isFallbackSeason) return
+        if (!enabled || !searchAdmitted || !online || !focused || !visible || seasonYear !== null || !isFallbackSeason) return
         let disposed = false
         let running = false
         const requestId = requestSeqRef.current
@@ -463,9 +486,13 @@ export function usePlayerSearch(
         }
         const timer = setInterval(() => { void probe() }, 60_000)
         return () => { disposed = true; clearInterval(timer) }
-    }, [enabled, admitted, online, focused, visible, seasonYear, isFallbackSeason, searchParams, searchParamsKey, fetchPage, cachePage, retryToken])
+    }, [enabled, searchAdmitted, online, focused, visible, seasonYear, isFallbackSeason, searchParams, searchParamsKey, fetchPage, cachePage, retryToken])
 
-    const retry = useCallback(() => setRetryToken((token) => token + 1), [])
+    const retrySchedule = weeklyAvailability.retry
+    const retry = useCallback(() => {
+        if (scheduleRequired) retrySchedule()
+        setRetryToken(token => token + 1)
+    }, [scheduleRequired, retrySchedule])
     const refreshIfChanged = useCallback(() => {
         const revision = leagueId ? leagueSnapshotRevision(leagueId, 'daily') : null
         const key = renderedKeyRef.current
@@ -505,6 +532,15 @@ export function usePlayerSearch(
         ? pageCacheRef.current.get(searchParamsKey) ?? readPersistentCache<CachedPage>(playerSearchCacheKey(searchParamsKey))
         : undefined
 
+    const resultPlayers = enabled ? dataKey === searchParamsKey ? players : returningPage?.players ?? [] : []
+    const resultError = scheduleError ?? (dataKey === searchParamsKey ? error : null)
+    const source = validatedSource.current
+    const sourceCurrent = source?.key === searchParamsKey && source.retry === retryToken && source.activity === activityEpoch.current
+        && source.revision === (leagueId ? leagueSnapshotRevision(leagueId, 'daily') : null)
+    const isSnapshot = !searchAdmitted || !online || query.trim() !== debouncedQuery.trim()
+        || validatedKey !== searchParamsKey || !sourceCurrent || refreshing || Boolean(resultError)
+    const resultLoading = loading || (enabled && resultPlayers.length === 0 && isSnapshot && !resultError)
+
     return {
         search: { query, setQuery },
         position: { value: position, setValue: setPosition },
@@ -518,7 +554,7 @@ export function usePlayerSearch(
         availabilityFilter: { value: availabilityFilter, setValue: setAvailabilityFilter },
         toggles: { rookiesOnly, setRookiesOnly },
         season: { value: seasonYear, setValue: setSeasonYear },
-        results: { players: enabled ? dataKey === searchParamsKey ? players : returningPage?.players ?? [] : [], totalsSnapshot: totalsSnapshot.current, loading: loading || Boolean(enabled && dataKey !== searchParamsKey && !returningPage), refreshing, loadingMore, error, listRef, loadMore, retry, refreshIfChanged, isSnapshot: !admitted || !online || validatedKey !== searchParamsKey || refreshing || Boolean(error) },
+        results: { players: resultPlayers, totalsSnapshot: totalsSnapshot.current, loading: resultLoading, refreshing, loadingMore, error: resultError, listRef, loadMore, retry, refreshIfChanged, isSnapshot },
         activeFilterCount,
         clearAllFilters,
     }

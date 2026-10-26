@@ -9,11 +9,12 @@ import type { PlayerGame } from './season-data'
 type Props = {
     projection: LeagueProjectionRow | null
     loading?: boolean
+    reserveSpace?: boolean
     liveGame?: PlayerGame | null
     liveFantasyPoints?: number | null
 }
 
-export function NextProjectionCard({ projection, loading = false, liveGame, liveFantasyPoints }: Props) {
+export function NextProjectionCard({ projection, loading = false, reserveSpace = false, liveGame, liveFantasyPoints }: Props) {
     const activity = useBrowserReadActivity()
     const [, updateTime] = useState(0)
     const tipoff = projection?.next_game_time ? new Date(projection.next_game_time).getTime() : null
@@ -27,7 +28,7 @@ export function NextProjectionCard({ projection, loading = false, liveGame, live
     const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
         ? tipoff > Date.now() : projection.next_game_date > todayET())
     const next = unstarted ? projection : null
-    if (!liveGame && !next) return null
+    if (!liveGame && !next) return reserveSpace ? <View style={styles.slot} testID="player-projection-slot" aria-hidden /> : null
     const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00`) : null
     const weekday = date?.toLocaleDateString('en-US', { weekday: 'short' })
     const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
@@ -35,14 +36,16 @@ export function NextProjectionCard({ projection, loading = false, liveGame, live
     const summary = liveGame
         ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
         : [next?.next_game_opponent, [weekday, time].filter(Boolean).join(' '), `${next?.projection_fantasy_points?.toFixed(1) ?? '—'} FP proj`].filter(Boolean).join(' · ')
-    return (
+    const card = (
         <View style={styles.card} aria-busy={loading}>
             <Text style={[styles.summary, liveGame && styles.live]} numberOfLines={1}>{summary}</Text>
         </View>
     )
+    return reserveSpace ? <View style={styles.slot} testID="player-projection-slot">{card}</View> : card
 }
 
 const styles = StyleSheet.create({
+    slot: { minHeight: textStyles.meta.lineHeight + spacing.md * 2 + 2 },
     card: { padding: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, borderCurve: 'continuous' },
     summary: { ...textStyles.meta, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     live: { color: colors.success, fontWeight: fontWeight.semibold },

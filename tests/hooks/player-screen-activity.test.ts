@@ -7,7 +7,7 @@ import { seasonLine } from '@/tests/components/player/season-fixtures'
 
 const state = vi.hoisted(() => ({ focused: true, player: vi.fn(), seasons: vi.fn(), lines: vi.fn(), scoring: vi.fn(), transactions: vi.fn(), projection: vi.fn(), write: vi.fn() }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
-vi.mock('@/lib/players', () => ({ getPlayer: state.player, getAvailableSeasons: state.seasons, getPlayerTransactionHistory: state.transactions }))
+vi.mock('@/lib/players', () => ({ getPlayerSeasonAverages: () => new Promise(() => {}), getPlayerAverageFantasyPoints: async () => null, getPlayer: state.player, getAvailableSeasons: state.seasons, getPlayerTransactionHistory: state.transactions }))
 vi.mock('@/components/player/season-data', async importOriginal => ({ ...await importOriginal<typeof import('@/components/player/season-data')>(), getPlayerSeasonLines: state.lines, getPlayerScoringSettings: state.scoring }))
 vi.mock('@/lib/projections', () => ({ getPlayerProjection: state.projection }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => undefined, writePersistentCache: state.write }))

@@ -3,7 +3,7 @@ import type { PlayerSupportResource } from '@/lib/player-availability'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { listenForMemberClaimsChanges } from '@/lib/claim-updates'
 import { usePanelActivity } from '@/contexts/panel-activity'
-import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
+import { deferLeagueRefresh, invalidateLeagueSnapshot, leagueResourceAffects, leagueChangeAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { reportRealtimeCleanup, subscribeToTableChanges, unsubscribeFromTableChanges } from '@/lib/realtime'
 
@@ -68,6 +68,8 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
                 invalidateSupport?.(null)
                 fullRecovery = true
                 refresh.trigger()
+            } else if (change.topic === 'roster') {
+                if (!season.current || leagueChangeAffects(change, { seasonId: season.current })) changed(...ALL_SUPPORT)
             } else if (change.topic === 'inventory') {
                 const selection = { seasonId: season.current, memberId }
                 const resources: PlayerSupportResource[] = []

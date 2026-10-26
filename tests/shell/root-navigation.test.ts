@@ -6,6 +6,7 @@ import * as ModalExports from '@/app/(modals)/_layout'
 
 const navigation = vi.hoisted(() => ({ ready: false, authenticated: false, replace: vi.fn() }))
 
+vi.mock('@/app/player/[id]', () => ({ default: () => null }))
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@react-navigation/native', () => ({ DefaultTheme: { colors: {} }, ThemeProvider: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('@/constants/fonts', () => ({ criticalFonts: {} }))

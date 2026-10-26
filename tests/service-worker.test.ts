@@ -232,10 +232,24 @@ describe('service worker', () => {
         const worker = await loadWorker({ fetchImpl: async () => html() })
         const response = await worker.respond(scoped('/_expo/static/js/web/old-chunk.js'))
 
-        expect(response.status).toBe(200)
+        expect(response.status).toBe(502)
+        expect(response.headers.get('cache-control')).toBe('no-store')
+        expect(response.headers.get('content-type')).not.toContain('text/html')
         const assets = await worker.caches.open('pancake-test-1-public-v1-assets')
         expect(assets.entries.size).toBe(0)
     })
+
+    it.each(['/unlisted.js', '/_expo/static/js/web/unlisted.js?old=1'])(
+        'rejects HTML for an unlisted script %s', async pathname => {
+            const worker = await loadWorker({ fetchImpl: async () => html() })
+            const request = scoped(pathname)
+            Object.defineProperty(request, 'destination', { value: 'script' })
+            const response = await worker.respond(request)
+            expect(response.status).toBe(502)
+            expect(response.headers.get('cache-control')).toBe('no-store')
+            expect(await response.text()).not.toContain('<!doctype')
+        },
+    )
 
     it('caches a real script under an immutable asset URL and serves it cache-first', async () => {
         const worker = await loadWorker({ fetchImpl: async () => script() })
@@ -333,7 +347,6 @@ describe('service worker', () => {
 
     it.each([
         ['/api/profile', {}], ['/auth/token', {}], ['/private.json', {}],
-        ['/assets/unknown.js', {}], ['/_expo/static/js/web/chunk.js?account=A', {}],
         ['/_expo/static/js/web/chunk.js', { headers: { Authorization: 'Bearer fixture' } }],
         ['/_expo/static/js/web/chunk.js', { headers: { apikey: 'fixture' } }],
         ['/_expo/static/js/web/chunk.js', { headers: { 'x-api-key': 'fixture' } }],
