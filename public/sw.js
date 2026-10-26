@@ -160,12 +160,12 @@ async function activateWhenSafe() {
         resolve(held)
       }
       const timer = setTimeout(() => finish(true), 750)
-      channel.port1.onmessage = event => finish(event.data?.held !== false || event.data?.confirmationRecoveryVersion !== 1)
+      channel.port1.onmessage = event => finish(event.data?.held !== false)
       try { client.postMessage({ type: 'PANCAKE_UPDATE_STATE' }, [channel.port2]) }
       catch { finish(true) }
     })
   ))
-  if (!holds.some(Boolean)) await self.skipWaiting()
+  if (!holds.some(Boolean)) void self.skipWaiting()
 }
 
 self.addEventListener('install', (event) => {

@@ -650,9 +650,9 @@ function LineupScreen() {
                     {[
                         { title: 'Today', label: 'Auto-set today', run: () => { void doAutoSet(todayET()) } },
                         { title: 'This week', label: 'Auto-set this week', run: () => { void doAutoSet(null) } },
-                        { title: 'Season', label: 'Auto-set rest of season', run: () => { void doAutoSet(null, true) } },
+                        { title: 'Rest of season', label: 'Auto-set rest of season', run: () => { void doAutoSet(null, true) } },
                     ].map(({ title, label, run }) => (
-                        <MotionPressable key={label} style={styles.autoLineupAction}
+                        <MotionPressable key={label} style={[styles.autoLineupAction, title === 'Rest of season' && styles.seasonAction]}
                             onPress={run}
                             disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
                             accessibilityRole="button"
@@ -844,6 +844,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.primaryBorder,
     },
+    seasonAction: { flex: 1.4 },
     autoLineupActionLabel: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.semibold, textAlign: 'center' },
     autoLineupPreference: {
         flexDirection: 'row',

@@ -1,3 +1,4 @@
+import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { WaiversSection } from '@/components/waivers/WaiversSection'
 import { ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { useIsFocused } from '@react-navigation/native'
@@ -246,6 +247,7 @@ function PlayerSearchSection() {
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading && !playerSupportRefreshing, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const scrollRestoration = useScrollRestoration(JSON.stringify(['players', user?.id, current?.id, leagueId, search.search.query, search.season.value, search.sort.mode, search.sort.dir, search.availabilityFilter.value, search.position.value, search.teamPicker.selectedTeams, search.playing.value, search.health.value, search.toggles]), search.results.listRef)
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
@@ -501,7 +503,8 @@ function PlayerSearchSection() {
 
             <View style={localStyles.results} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
             <FlashList
-                    onScroll={statusScroll.onScroll}
+                    {...scrollRestoration}
+                    onScroll={event => { statusScroll.onScroll?.(event); scrollRestoration.onScroll(event) }}
                     scrollEventThrottle={16}
                     ref={search.results.listRef}
                     data={liveRows.rows}

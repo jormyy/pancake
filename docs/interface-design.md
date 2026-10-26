@@ -95,8 +95,11 @@ A failed season read shows Retry. Existing rows remain visible during recovery. 
 The lineup title uses the compact header variant: 16px text and a 49px row at standard text size.
 Other title headers keep their existing size. Back controls retain 44px touch targets and safe-area spacing.
 Two compact control rows sit directly below the title, without a card title or divider.
-The first row has equal-width Today, This week, and Season buttons with single-line 13px labels.
-Season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
+The first row has Today, This week, and Rest of season buttons with single-line 13px labels.
+Rest of season gets extra width to keep its full label visible at larger text sizes.
+Rest of season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
+Home and Roster show Auto-set with the accessible label Open auto-set lineup options.
+Their sheets use Today, This week, Rest of season, and Edit lineup manually.
 The second row places Keep updated automatically on the left and the switch on the right.
 Both rows keep 44px touch targets.
 Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
@@ -107,3 +110,10 @@ The controls and first section add no extra vertical padding.
 Other section labels keep their existing spacing.
 Every empty starter, bench, IR, and taxi place remains individually visible.
 Players and slots retain the manual move flow. Offline and read-only states disable lineup changes.
+
+
+## Trades
+
+Asset values wrap fully. Each range appears on its own line at phone widths.
+Review trade states how many players an over-limit team must drop to accept.
+The count comes from the displayed regular, IR, and taxi roster counts.

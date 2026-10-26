@@ -7,7 +7,7 @@ import { clearSessionCaches, setSessionOwner } from '@/lib/session-cache-registr
 const mocks = vi.hoisted(() => ({ roster: vi.fn(), claims: vi.fn(), post: vi.fn() }))
 vi.mock('@react-navigation/native', async () => {
     const ReactModule = await import('react')
-    return { useFocusEffect: (callback: React.EffectCallback) => ReactModule.useEffect(callback, [callback]) }
+    return { useIsFocused: () => true, useFocusEffect: (callback: React.EffectCallback) => ReactModule.useEffect(callback, [callback]) }
 })
 vi.mock('@shopify/flash-list', () => ({ FlashList: 'FlashList' }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))

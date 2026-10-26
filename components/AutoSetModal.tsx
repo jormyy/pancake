@@ -25,7 +25,7 @@ export function AutoSetModal({
             <View style={styles.body}>
                 <View style={styles.row}>
                     <Button title="Today" onPress={onToday} disabled={disabled} accessibilityLabel="Auto-set today" style={styles.flex} />
-                    <Button title="Whole week" onPress={onWholeWeek} disabled={disabled} accessibilityLabel="Auto-set whole week" style={styles.flex} />
+                    <Button title="This week" onPress={onWholeWeek} disabled={disabled} accessibilityLabel="Auto-set this week" style={styles.flex} />
                 </View>
                 <Button
                     title="Rest of season"
@@ -37,7 +37,7 @@ export function AutoSetModal({
                 />
                 {onEditManually ? (
                     <Button
-                        title="Edit lineup"
+                        title="Edit lineup manually"
                         variant="ghost"
                         onPress={onEditManually}
                         accessibilityLabel="Edit lineup manually"

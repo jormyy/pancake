@@ -15,3 +15,9 @@ export function holdPwaUpdate(reason: string, canRecover?: () => boolean): () =>
 export function isPwaUpdateHeld(): boolean {
     return typeof window !== 'undefined' && !!(window as UpdateWindow).__pancakePwaHolds?.size
 }
+
+export function requestPwaReload(): void {
+    if (typeof window === 'undefined') return
+    if (!window.dispatchEvent(new Event('pancake-pwa-reload', { cancelable: true }))) return
+    if (!isPwaUpdateHeld()) window.location.reload()
+}

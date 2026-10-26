@@ -884,8 +884,8 @@ it('waits to activate while another tab holds an editor', async () => {
     expect(worker.skipWaitingCalls).toBe(0)
 })
 
-it('keeps older pages usable until their last document closes', async () => {
-    const clients = [{ url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false }); ports[0].close() } }]
+it('keeps an older page with a real hold waiting until it closes', async () => {
+    const clients = [{ url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: true }); ports[0].close() } }]
     const worker = await loadWorker({ clients })
     await worker.install()
     expect(worker.skipWaitingCalls).toBe(0)
@@ -902,9 +902,9 @@ it('allows a recoverable create confirmation to update', async () => {
     expect(worker.skipWaitingCalls).toBe(1)
 })
 
-it('keeps a recoverable tab waiting for an older same-origin tab', async () => {
+it('keeps a recoverable tab waiting for a held older same-origin tab', async () => {
     const clients = [
-        { url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false }); ports[0].close() } },
+        { url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: true }); ports[0].close() } },
         { url: 'https://app.test/profile', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false, confirmationRecoveryVersion: 1 }); ports[0].close() } },
         { url: 'https://other.test/', postMessage: vi.fn() },
     ]
