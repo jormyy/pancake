@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261026001000",
+  "candidateVersion": "20261027000202",
   "common": {
     "functions": [
       {
@@ -1298,6 +1298,26 @@
     {
       "filename": "20261026001000_remove_e2e_fixture_players.sql",
       "sha256": "e0296d90091c91da40d6e241a1d74677008f42670462d08cf5d56734d845374d"
+    },
+    {
+      "filename": "20261027000100_three_future_draft_classes.sql",
+      "sha256": "cdd60446a71b8dadca664c97e4d68e85c06cd7662faa489805aa76bfed22f889"
+    },
+    {
+      "filename": "20261027000101_remove_unreferenced_distant_picks.sql",
+      "sha256": "8f2ae48ef875625479ecfc9fa66e6f6c89e02362663c99c8c8a2e495a1230628"
+    },
+    {
+      "filename": "20261027000200_player_identity_matching.sql",
+      "sha256": "77553a0baf12198d65f06b274bb1eb788cd7208ae23d17f512570d9fe494fa13"
+    },
+    {
+      "filename": "20261027000201_player_career_counter.sql",
+      "sha256": "6ef1c5f853be7880b9334ddd59f34e71e770bd7caec0ae99a8f097482e846c16"
+    },
+    {
+      "filename": "20261027000202_player_source_coverage.sql",
+      "sha256": "a42a7e42317c28b8d3185369101c9f63f551ae53b68e50ad69c0fa71e02306b3"
     }
   ],
   "preMigration": {
