@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     alert: vi.fn(),
     success: vi.fn(),
     confirm: vi.fn(),
+    claim: vi.fn(),
     loadGate: vi.fn(),
     addOrRequestDrop: vi.fn(),
     dropAndAdd: vi.fn(),
@@ -45,7 +46,7 @@ async function mount(transactionState: MemberTransactionState | null, options: P
     const onChanged = vi.fn()
     let latest!: Latest
     const Probe = () => {
-        latest = useQuickAdd({ memberId: 'member-a', leagueId: 'league-a', onChanged, transactionState, ...options })
+        latest = useQuickAdd({ memberId: 'member-a', leagueId: 'league-a', onChanged, transactionState, onClaimInstead: mocks.claim, ...options })
         return null
     }
     await act(async () => { renderer = create(React.createElement(Probe)) })
@@ -77,56 +78,13 @@ describe('useQuickAdd weekly add limit', () => {
 
     it('proceeds once the reported week has ended, even if the cached count is full', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockResolvedValue({ status: 'added' })
         const probe = await mount(usedUp({ addLimitResetsAt: pastReset }))
         expect(probe.latest.addBlockedReason).toBeNull()
         await act(async () => { await probe.latest.handleAdd(player) })
 
-        expect(mocks.addOrRequestDrop).toHaveBeenCalledWith('member-a', 'league-a', 'player-a', [], false)
-        expect(mocks.success).toHaveBeenCalledWith('Added', 'Player A added to your roster.')
-    })
-
-    it('shows the server reset message and closes the drop picker when the last slot went elsewhere', async () => {
-        mocks.loadGate.mockResolvedValue({ roster: [ownRosterPlayer], ineligible: [] })
-        mocks.addOrRequestDrop.mockResolvedValue({ status: 'roster_full', activeRoster: [ownRosterPlayer] })
-        const probe = await mount(usedUp({ weeklyAddCount: 2, addLimitMessage: null }))
-        await act(async () => { await probe.latest.handleAdd(player) })
-        expect(probe.latest.dropPickerPlayer).toEqual(player)
-
-        mocks.dropAndAdd.mockRejectedValue(new RequestError(LIMIT_MESSAGE, { code: 'PA001' }))
-        await act(async () => { await probe.latest.handleDropAndAdd(ownRosterPlayer) })
-
-        expect(mocks.alert).toHaveBeenLastCalledWith('Weekly add limit reached', LIMIT_MESSAGE)
-        expect(probe.latest.dropPickerPlayer).toBeNull()
-        expect(probe.onChanged).toHaveBeenCalled()
-    })
-
-    it('offers the claim flow when the server still holds the player on waivers', async () => {
-        mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('This player is on waivers - submit a waiver claim instead.', { code: 'PA002' }))
-        const onClaimInstead = vi.fn()
-        const probe = await mount(usedUp({ weeklyAddCount: 1, addLimitMessage: null }), { onClaimInstead })
-        await act(async () => { await probe.latest.handleAdd(player) })
-
-        expect(mocks.alert).not.toHaveBeenCalled()
-        const [title, message, claim, confirmText, destructive] = mocks.confirm.mock.calls[0]
-        expect({ title, message, confirmText, destructive }).toEqual({
-            title: 'Still on waivers',
-            message: 'This player is on waivers - submit a waiver claim instead. Claims are processed on the next waiver run.',
-            confirmText: 'Claim',
-            destructive: false,
-        })
-        claim()
-        expect(onClaimInstead).toHaveBeenCalledWith(player)
-    })
-
-    it('keeps other server errors on the generic path', async () => {
-        mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockRejectedValue(new RequestError('Your active roster is full (20 players).', { code: 'P0001' }))
-        const probe = await mount(usedUp({ weeklyAddCount: 1, addLimitMessage: null }))
-        await act(async () => { await probe.latest.handleAdd(player) })
-
-        expect(mocks.alert).toHaveBeenCalledWith('Error', 'Your active roster is full (20 players).')
+        expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(player)
+        expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
+        expect(mocks.success).not.toHaveBeenCalled()
     })
 
     it('runs the IR gate before a claim and hands off once IR is clear', async () => {
@@ -144,12 +102,11 @@ describe('useQuickAdd weekly add limit', () => {
 
     it('does nothing special for unlimited leagues', async () => {
         mocks.loadGate.mockResolvedValue({ roster: [], ineligible: [] })
-        mocks.addOrRequestDrop.mockResolvedValue({ status: 'added' })
         const probe = await mount(memberTransactionState({ weeklyAddLimit: null, weeklyAddCount: 40 }))
         expect(probe.latest.addBlockedReason).toBeNull()
         await act(async () => { await probe.latest.handleAdd(player) })
 
-        expect(mocks.addOrRequestDrop).toHaveBeenCalled()
+        expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(player)
     })
 })
 
@@ -172,38 +129,29 @@ describe('useQuickAdd IR recovery errors', () => {
         expect(probe.onChanged).not.toHaveBeenCalled()
 
         mocks.resolveIR.mockResolvedValueOnce({ status: 'resolved', roster: [ownRosterPlayer], remaining: [] })
-        mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'added' })
         await act(async () => { await activate() })
         expect(probe.latest.irModal).toBeNull()
-        expect(mocks.addOrRequestDrop).toHaveBeenCalledOnce()
-        expect(probe.onChanged).toHaveBeenCalledOnce()
+        expect(mocks.claim).toHaveBeenCalledExactlyOnceWith(player)
+        expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
+        expect(probe.onChanged).not.toHaveBeenCalled()
     })
 })
 
 
 describe('useQuickAdd roster gate errors', () => {
-    it.each(['add', 'claim', 'drop-and-add'] as const)('explains a failed %s roster read and permits retry', async (action) => {
+    it.each(['add', 'claim'] as const)('explains a failed %s roster read and permits retry', async (action) => {
         const onClaimInstead = vi.fn()
         const probe = await mount(null, { onClaimInstead })
-        if (action === 'drop-and-add') {
-            mocks.loadGate.mockResolvedValueOnce({ roster: [ownRosterPlayer], ineligible: [] })
-            mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'roster_full', activeRoster: [ownRosterPlayer] })
-            await act(async () => { await probe.latest.handleAdd(player) })
-        }
         mocks.loadGate.mockRejectedValueOnce(new Error('Roster fetch failed'))
-        const run = () => action === 'add' ? probe.latest.handleAdd(player)
-            : action === 'claim' ? probe.latest.handleClaim(player)
-            : probe.latest.handleDropAndAdd(ownRosterPlayer)
+        const run = () => action === 'add' ? probe.latest.handleAdd(player) : probe.latest.handleClaim(player)
         await act(async () => { await run() })
         expect(mocks.alert).toHaveBeenLastCalledWith('Error', 'Roster fetch failed')
         expect(mocks.dropAndAdd).not.toHaveBeenCalled()
         expect(onClaimInstead).not.toHaveBeenCalled()
         expect(probe.latest.irModal).toBeNull()
         mocks.loadGate.mockResolvedValueOnce({ roster: [ownRosterPlayer], ineligible: [] })
-        mocks.addOrRequestDrop.mockResolvedValueOnce({ status: 'added' })
         await act(async () => { await run() })
-        if (action === 'claim') expect(onClaimInstead).toHaveBeenCalledWith(player)
-        else if (action === 'drop-and-add') expect(mocks.dropAndAdd).toHaveBeenCalledOnce()
-        else expect(mocks.success).toHaveBeenCalledOnce()
+        expect(onClaimInstead).toHaveBeenCalledExactlyOnceWith(player)
+        expect(mocks.addOrRequestDrop).not.toHaveBeenCalled()
     })
 })
