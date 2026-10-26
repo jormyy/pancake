@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.chooseBestAssignments = exports.NBA_POSITIONS = exports.ROSTER_SLOT_TYPES = exports.WAIVER_CLAIM_STATUSES = exports.MATCHUP_TYPES = exports.TRADE_SIDES = exports.TRADE_STATUSES = exports.NOMINATION_STATUSES = exports.DRAFT_TYPES = exports.DRAFT_STATUSES = exports.LEAGUE_STATUSES = exports.valueDynastyAssets = exports.valueDynastyAsset = exports.DYNASTY_STRATEGY_WEIGHTS = exports.DYNASTY_STRATEGIES = exports.analyzeDynastyTrade = exports.utf8ByteLength = exports.MAX_TRADE_PARTICIPANTS = exports.MAX_TRADE_NOTES_BYTES = exports.MAX_TRADE_ITEMS = exports.MAX_TRADE_FAAB_AMOUNT = exports.MAX_TRADE_EXPIRATION_DAYS = exports.SLOT_TYPES = exports.LINEUP_SLOT_TYPES = exports.LINEUP_SLOT_ALLOWED_POSITIONS = exports.canPlayLineupSlot = exports.isTaxiEligible = exports.isDTD = exports.isIREligible = exports.livePollCandidateDates = exports.dateFromETDate = exports.addDaysToETDate = exports.LIVE_POLL_LOCK_KEY = exports.LIVE_POLL_LEASE_TTL_SECONDS = exports.todayET = exports.toETDate = exports.endOfETDayUTC = exports.seasonYearForGameDate = exports.seasonEndYearFromScheduleLabel = exports.normalizedScheduleTimestamp = exports.etDateKey = exports.buildSeasonWeekRows = exports.buildScheduleSyncPlan = exports.assertScheduleFresh = exports.resolveSeasonWeekNumber = exports.isRegularSeasonGameId = exports.currentSeasonYear = exports.snakeToStatLine = exports.roundFantasyPoints = exports.calculateFantasyPoints = void 0;
+exports.MATCHUP_FORECAST_VERSION = exports.sampleScoringVariation = exports.estimateMatchup = void 0;
 // Scoring
 var formula_1 = require("./scoring/formula");
 Object.defineProperty(exports, "calculateFantasyPoints", { enumerable: true, get: function () { return formula_1.calculateFantasyPoints; } });
@@ -73,3 +74,7 @@ Object.defineProperty(exports, "ROSTER_SLOT_TYPES", { enumerable: true, get: fun
 Object.defineProperty(exports, "NBA_POSITIONS", { enumerable: true, get: function () { return enums_1.NBA_POSITIONS; } });
 var assignments_1 = require("./lineup/assignments");
 Object.defineProperty(exports, "chooseBestAssignments", { enumerable: true, get: function () { return assignments_1.chooseBestAssignments; } });
+var matchup_1 = require("./forecast/matchup");
+Object.defineProperty(exports, "estimateMatchup", { enumerable: true, get: function () { return matchup_1.estimateMatchup; } });
+Object.defineProperty(exports, "sampleScoringVariation", { enumerable: true, get: function () { return matchup_1.sampleScoringVariation; } });
+Object.defineProperty(exports, "MATCHUP_FORECAST_VERSION", { enumerable: true, get: function () { return matchup_1.MATCHUP_FORECAST_VERSION; } });

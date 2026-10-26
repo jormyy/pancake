@@ -1765,6 +1765,69 @@ export type Database = {
         }
         Relationships: []
       }
+      matchup_forecasts: {
+        Row: {
+          calculated_at: string
+          forecast: Json
+          input_revision: number
+          league_id: string
+          matchup_id: string
+          valid_until: string
+        }
+        Insert: {
+          calculated_at?: string
+          forecast: Json
+          input_revision: number
+          league_id: string
+          matchup_id: string
+          valid_until: string
+        }
+        Update: {
+          calculated_at?: string
+          forecast?: Json
+          input_revision?: number
+          league_id?: string
+          matchup_id?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_matchup_id_fkey"
+            columns: ["matchup_id"]
+            isOneToOne: true
+            referencedRelation: "matchups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_matchup_id_fkey"
+            columns: ["matchup_id"]
+            isOneToOne: true
+            referencedRelation: "v_matchup_detail"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matchups: {
         Row: {
           away_max_possible_points: number | null
@@ -4479,6 +4542,14 @@ export type Database = {
         Args: { p_tipoff_at: string; p_token: string }
         Returns: string
       }
+      claim_matchup_forecasts: {
+        Args: { p_limit?: number }
+        Returns: {
+          claim_token: string
+          matchup_id: string
+          revision: number
+        }[]
+      }
       claim_notification_outbox_atomic: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -4565,6 +4636,16 @@ export type Database = {
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
+      }
+      complete_matchup_forecast: {
+        Args: {
+          p_claim_token: string
+          p_forecast: Json
+          p_matchup_id: string
+          p_revision: number
+          p_valid_until: string
+        }
+        Returns: boolean
       }
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
@@ -4801,6 +4882,10 @@ export type Database = {
         Returns: undefined
       }
       expire_waiver_wire_logs: { Args: never; Returns: number }
+      fail_matchup_forecast: {
+        Args: { p_claim_token: string; p_error: string; p_matchup_id: string }
+        Returns: boolean
+      }
       fail_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
@@ -4979,6 +5064,11 @@ export type Database = {
           week_number: number
         }[]
       }
+      get_matchup_forecast: { Args: { p_matchup_id: string }; Returns: Json }
+      get_matchup_forecast_context: {
+        Args: { p_matchup_id: string }
+        Returns: Json
+      }
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
@@ -5091,6 +5181,7 @@ export type Database = {
       }
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
+      invoke_matchup_forecasts_if_due: { Args: never; Returns: undefined }
       invoke_player_injuries_if_due: {
         Args: { p_now?: string }
         Returns: undefined

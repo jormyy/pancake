@@ -165,6 +165,7 @@ async function lineupAssignments() {
 }
 
 const outputs = [
+  ['supabase/functions/_shared/matchupForecast.ts', `${HEADER}${await read('core/src/forecast/matchup.ts')}`],
   ['supabase/functions/_shared/lineupAssignments.ts', await lineupAssignments()],
   ['supabase/functions/_shared/lineupSlots.ts', `${HEADER}${await read('core/src/positions/lineupSlots.ts')}`],
   ['supabase/functions/_shared/date.ts', `${HEADER}${await read('core/src/dates/index.ts')}`],

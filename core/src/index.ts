@@ -110,3 +110,5 @@ export type {
 
 export { chooseBestAssignments } from './lineup/assignments'
 export type { AssignablePlayer } from './lineup/assignments'
+export { estimateMatchup, sampleScoringVariation, MATCHUP_FORECAST_VERSION } from './forecast/matchup'
+export type { ForecastGame, ForecastTeam, MatchupEstimate } from './forecast/matchup'
