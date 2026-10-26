@@ -1,4 +1,4 @@
-import { navigateWebTarget } from './web-targets-browser.mjs'
+import { navigateWebTarget, waitForWebAuthForm } from './web-targets-browser.mjs'
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
 import { setupTradeGameplayFixture, createFixtureResourceOwner } from './trade-fixture.mjs'
@@ -13,7 +13,7 @@ export async function auditWebAuthActions({ check, env, season, page, press, but
     const nextPassword = 'LocalWebChanged456!'
     await page.evaluate(() => localStorage.clear())
     await navigateWebTarget(page, new URL('/sign-up', env.frontendUrl).href)
-    await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
+    await waitForWebAuthForm(page, 'Maple Manager')
     await page.getByPlaceholder('Maple Manager').fill('Web Action Manager')
     await page.getByPlaceholder('hoopsgod').fill(username)
     await page.getByPlaceholder('you@example.com').fill(email)
