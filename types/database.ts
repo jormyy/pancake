@@ -5312,6 +5312,10 @@ export type Database = {
         Args: { p_games: Json; p_season_year: number; p_weeks: Json }
         Returns: number
       }
+      queue_daily_stat_corrections: {
+        Args: { p_now?: string }
+        Returns: string
+      }
       rebuild_nba_calendar_atomic: {
         Args: { p_season_year: number }
         Returns: number
@@ -5440,6 +5444,18 @@ export type Database = {
       revoke_push_token_atomic: {
         Args: { p_revocation_hash: string; p_token: string }
         Returns: boolean
+      }
+      save_final_game_snapshot_atomic: {
+        Args: {
+          p_away_score: number
+          p_game_id: string
+          p_home_score: number
+          p_provider_game_id: string
+          p_source_updated_at: string
+          p_stats: Json
+          p_status_text: string
+        }
+        Returns: number
       }
       save_game_stats_atomic: {
         Args: {

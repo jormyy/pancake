@@ -350,7 +350,10 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (!WORKFLOW_FEEDBACK_IDS.includes(workflowId)) throw new Error(`No workflow feedback probe for ${workflowId}`)
   if (workflowId === 'home-live-lineup' || workflowId === 'lineup-day-change') {
     const label = await markDynamicTarget(browser, session,
-      `document.querySelector('[aria-current="date"]')?.parentElement?.querySelector(':scope > button[aria-label]:not([aria-current])')`,
+      `[...document.querySelector('[aria-current="date"]')?.parentElement?.querySelectorAll(':scope > button[aria-label]:not([aria-current])') ?? []].find((button) => {
+        const bounds = button.getBoundingClientRect();
+        return bounds.width > 0 && bounds.left >= 0 && bounds.right <= innerWidth;
+      })`,
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
@@ -390,7 +393,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
   if (workflowId === 'trade-review-act' && label === 'propose-trade') {
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[aria-label="Use multi-team trade mode"]',
-      expected: `document.body.innerText.includes('Pick at least two more teams') && document.querySelectorAll('[aria-label^="Trade with "]').length > 1`,
+      expected: `document.body.innerText.includes('Choose two or more teams.') && document.querySelectorAll('[aria-label^="Trade with "]').length > 1`,
       interaction: 'trade-mode-change', target: 'Multi-Team',
     })
     await clickUnmeasured(browser, session, '[aria-label="Use 2-team trade mode"]')
@@ -435,7 +438,7 @@ export const measureWorkflowFeedback = async (browser, session, { workflowId, la
       'data-e2e-feedback-target')
     const result = await clickMeasuredTarget(browser, session, {
       selector: '[data-e2e-feedback-target="true"]',
-      expected: `document.querySelector('[role="dialog"]') && document.querySelector('[role="dialog"]')?.textContent?.includes('placed on waivers')`,
+      expected: `document.querySelector('[role="dialog"]') && document.querySelector('[role="dialog"]')?.textContent?.includes('stay on waivers')`,
       interaction: 'player-drop-confirmation', target,
     })
     await clickUnmeasured(browser, session, '[role="dialog"] [aria-label="Cancel"]')

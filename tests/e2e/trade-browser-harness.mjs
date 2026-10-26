@@ -122,7 +122,7 @@ export const assertPageText = async (session, required, label) => {
 
 /** @param {string} session @param {string} testID @param {string} label */
 export const clickTestId = async (session, testID, label) => {
-  if (process.env.E2E_WEB_TARGET_ID?.startsWith('desktop-') && (testID.startsWith('trade-sender-') || testID === 'trade-deal-summary')) {
+  if (testID.startsWith('trade-sender-') || testID === 'trade-deal-summary') {
     const memberId = testID.slice('trade-sender-'.length)
     const output = await browser(session, ['eval', `(() => {
       const visible = ${JSON.stringify(testID)} === 'trade-deal-summary'
@@ -130,11 +130,16 @@ export const clickTestId = async (session, testID, label) => {
         : [...document.querySelectorAll('[data-testid]')].some((node) =>
           ['trade-' + ${JSON.stringify(memberId)} + '-player-', 'trade-' + ${JSON.stringify(memberId)} + '-pick-', 'trade-faab-' + ${JSON.stringify(memberId)}]
             .some((prefix) => node.getAttribute('data-testid').startsWith(prefix)) && node.getBoundingClientRect().width > 0);
-      return JSON.stringify({ ok: visible, layout: 'desktop', panelsVisible: visible });
+      const control = document.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)})
+        || document.getElementById(${JSON.stringify(testID)});
+      return JSON.stringify({ ok: visible, layout: 'desktop', panelsVisible: visible, hasControl: Boolean(control?.getClientRects().length) });
     })()`])
     const result = parseEvalJson(output)
-    if (!result || typeof result !== 'object' || Reflect.get(result, 'ok') !== true) throw new Error(`${label}: desktop sender or overview panel is missing`)
-    return result
+    if (!result || typeof result !== 'object') throw new Error(`${label}: invalid sender or overview state`)
+    if (Reflect.get(result, 'hasControl') !== true) {
+      if (Reflect.get(result, 'ok') !== true) throw new Error(`${label}: desktop sender or overview panel is missing`)
+      return result
+    }
   }
   const result = parseEvalJson(await browser(session, ['eval', `(() => {
     const target = document.querySelector(${JSON.stringify(`[data-testid="${testID}"]`)})

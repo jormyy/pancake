@@ -124,7 +124,8 @@ async function syncPlayers(): Promise<PlayerImportTotals> {
       (p.first_name || p.last_name) &&
       // Sleeper returns all 30 teams as pseudo-players with player_id = team code (e.g. "PHI").
       // Exclude them: real player IDs are always numeric strings.
-      /^\d+$/.test(p.player_id ?? ''),
+      /^\d+$/.test(p.player_id ?? '') &&
+      `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim().replace(/\s+/g, ' ').toLowerCase() !== 'duplicate player',
   )
 
   let updated = 0

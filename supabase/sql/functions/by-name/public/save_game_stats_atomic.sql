@@ -17,6 +17,10 @@ BEGIN
   IF v_game.season_year IS DISTINCT FROM v_year THEN RAISE EXCEPTION 'Game inputs changed. Retry.' USING ERRCODE = 'PT409'; END IF;
   PERFORM public.assert_nba_game_unambiguous(p_game_id);
   IF NOT FOUND THEN RAISE EXCEPTION 'NBA game not found.' USING ERRCODE = 'P0002'; END IF;
+  IF EXISTS (SELECT 1 FROM private.game_stat_revisions WHERE game_id=p_game_id)
+    AND current_setting('app.verified_stats_game',true) IS DISTINCT FROM p_game_id::text THEN
+    RAISE EXCEPTION 'A versioned snapshot is required for verified game data.' USING ERRCODE='PT409';
+  END IF;
   IF v_game.nba_game_id IS DISTINCT FROM p_provider_game_id THEN
     RAISE EXCEPTION 'Game provider identity changed. Fetch the game again.' USING ERRCODE = 'PT409';
   END IF;

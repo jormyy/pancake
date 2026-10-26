@@ -58,7 +58,7 @@ CREATE TEMP TABLE notif_resources(players uuid[],games uuid[],calendar jsonb);
 SELECT set_config('notif.pref', :'notif_pref', true) \gset
 SELECT set_config('notif.case', :'notif_case', true) \gset
 DO $$
-DECLARE f record; p uuid := gen_random_uuid(); bench uuid := gen_random_uuid(); game uuid := gen_random_uuid(); m uuid := gen_random_uuid(); a uuid; w uuid; tip timestamptz:=clock_timestamp()+interval '1 hour'; r record; mode text; event text; category text;
+DECLARE f record; p uuid := gen_random_uuid(); bench uuid := gen_random_uuid(); game uuid := gen_random_uuid(); m uuid := gen_random_uuid(); a uuid; w uuid; tip timestamptz:=now()+interval '2 hours'; r record; mode text; event text; category text;
   today date := (clock_timestamp() AT TIME ZONE 'America/New_York')::date;
 BEGIN
   SELECT * INTO f FROM notif_fixture;

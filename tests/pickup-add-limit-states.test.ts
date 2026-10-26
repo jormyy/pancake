@@ -10,7 +10,7 @@ import { headerPlayer, playerRow, rosterStatus } from './helpers/fixtures'
 
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
-vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null, numberOrDash: String }))
+vi.mock('@/lib/projections', () => ({ formatProjectionGame: () => null }))
 
 const REASON = 'Weekly add limit reached (7/7 adds used this week). Adds reset Mon, Nov 2 at 12:00 AM ET.'
 const CAPTION = 'Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET'

@@ -1,5 +1,6 @@
 import { isRegularSeasonGameId } from './gameId.ts'
 import { fetchWithRetry } from './retry.ts'
+import { sourceTimestamp } from './sourceTimestamp.ts'
 export { isRegularSeasonGameId } from './gameId.ts'
 
 const NBA_CDN = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
@@ -28,6 +29,7 @@ type ScoreboardPayload = {
 }
 
 type BoxScorePayload = {
+  meta?: { time?: unknown }
   game?: NBABoxScore
 }
 
@@ -93,7 +95,8 @@ export async function fetchTodaysGames(): Promise<NBAGame[]> {
 export async function fetchBoxScore(gameId: string): Promise<NBABoxScore> {
   const data = await cdnGet(`/liveData/boxscore/boxscore_${gameId}.json`) as BoxScorePayload
   if (!data.game) throw new Error(`NBA box score missing game payload for ${gameId}`)
-  return data.game
+  const revision = sourceTimestamp(data.meta?.time)
+  return revision ? { ...data.game, sourceUpdatedAt: revision } : data.game
 }
 
 export async function fetchSeasonSchedule(): Promise<NBAScheduledGame[]> {
@@ -167,6 +170,7 @@ interface NBAScheduledGame {
 }
 
 interface NBABoxScore {
+  sourceUpdatedAt?: string
   period?: number
   gameClock?: string
   gameId: string

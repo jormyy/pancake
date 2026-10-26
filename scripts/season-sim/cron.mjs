@@ -6,6 +6,7 @@ export const productionJobs = [
   ['season-boundary', '*/15 * * * *', 'SELECT public.invoke_season_boundary_if_due()'],
   ['nba-close-expired-nominations', '* * * * *', 'SELECT public.invoke_close_expired_nominations_if_due()'],
   ['nba-dispatch-stats-sync-jobs', '* * * * *', 'SELECT public.invoke_stats_sync_dispatch_if_due()'],
+  ['daily-stat-corrections', '*/15 * * * *', 'SELECT public.queue_daily_stat_corrections()'],
   ['nba-lineup-optimizer', '* * * * *', 'SELECT public.invoke_pre_tipoff_optimizer_if_due()'],
   ['nba-sync-players', '*/15 * * * *', "SELECT public.invoke_edge_function_at_et_time('sync-players',6,0)"],
   ['nba-sync-schedule', '5,20,35,50 * * * *', "SELECT public.invoke_edge_function_at_et_time('sync-schedule',6,5)"],

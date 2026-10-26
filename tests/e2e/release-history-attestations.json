@@ -1935,6 +1935,20 @@
       "statementCount": 2,
       "statementsSha256": "ea9e8abab16d511506f48dcbc93ff19012f20ef4f25f2f4755ca9c06996c5668",
       "sha256": "b33b721ec888111cb08e3658cd17a3115a1d02afadb1f41a0ec6c0a72fc996d2"
+    },
+    {
+      "name": "recheck_final_stats",
+      "version": "20261028000100",
+      "statementCount": 9,
+      "statementsSha256": "27e222dc75ba5918236d757f9d5c33ad081650eb424723bebedb4c38fd6fb1b0",
+      "sha256": "bc03fede04bcdcaf05c6cb05991b8712bc2b72c2c3b67b8bdbf9e6f44e4f2bcd"
+    },
+    {
+      "name": "fence_final_stat_revisions",
+      "version": "20261028000200",
+      "statementCount": 9,
+      "statementsSha256": "06640df83e6a5e6b88829d530b72398e64a76667571057d6c30975efa32fc6fe",
+      "sha256": "3f01462681702344db6327f9e8b62edd2dec396322d6ee27c8b88866123d4691"
     }
   ]
 }

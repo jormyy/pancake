@@ -80,6 +80,17 @@ it('settles the preceding save reads before checking and tapping its opener', as
     expect(commands[0]).toEqual(['wait', '--load', 'networkidle'])
     expect(commands[1][0]).toBe('wait')
     expect(commands[1][2]).toContain('Open auto-set lineup options')
+    const child = {}
+    const node = {
+        getClientRects: () => [{}], getAttribute: () => null,
+        getBoundingClientRect: () => ({ left: 10, top: 10, width: 100, height: 40 }),
+        contains: (target: unknown) => target === child,
+    }
+    let target: unknown = {}
+    const document = { querySelector: () => node, elementFromPoint: () => target }
+    expect(runInNewContext(commands[1][2], { document })).toBe(false)
+    target = child
+    expect(runInNewContext(commands[1][2], { document })).toBe(true)
     expect(commands[2]).toEqual(['find', 'role', 'button', 'click', '--name', 'Open auto-set lineup options'])
     expect(commands[3][2]).toContain('Auto-set whole week')
 })

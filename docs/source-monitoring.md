@@ -29,6 +29,20 @@ FantasyPros zero-row skips can be expected during the offseason.
 Sleeper projection freshness and coverage are also marked expected-unavailable then.
 A successful empty scoreboard response differs from a failed request.
 
+## Final statistics and corrections
+
+Live polling revisits completed games from today and yesterday after thirty minutes.
+A completed game can trigger that check without another live or scheduled game.
+Recent attempts retain their thirty-minute retry limit.
+
+The daily correction job starts at or after 06:20 Eastern and covers the previous seven dates.
+The fifteen-minute scheduler can catch up after downtime.
+Each date window is queued once, including after completion.
+The existing fenced dispatcher processes one game at a time and records failures.
+The correction pass uses NBA final boxes and updates dependent totals through the normal stat writer.
+Older source corrections require an explicit historical replay.
+Check failed range jobs before treating a completed schedule check as proof of correct statistics.
+
 ## Injury refresh
 
 `sync-player-injuries` refreshes injuries each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
@@ -293,3 +307,7 @@ Injuries refresh every 15 minutes from 11:00 ET through the last tip-off on game
 Outside that window, they refresh hourly from 08:00 through 02:00 ET, including days without games.
 The existing claim, retry, dispatch, and empty-body contract stay unchanged.
 Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.
+
+Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete. Their completion regressions verify stored scores and preserve prior data on failed refreshes.
+
+Final NBA snapshots retain the provider publication time. Verified corrections set a newer revision, and the database rejects unversioned writes or skips older snapshots. Scores and stat rows commit together for each accepted revision.
