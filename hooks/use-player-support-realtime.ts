@@ -93,7 +93,6 @@ export function usePlayerSupportRealtime(memberId: string | undefined, leagueId:
                     const ownRoster = payload && 'member_id' in payload.new && payload.new.member_id === memberId
                     changed('ownership', ...(ownRoster ? ['claims' as const] : []), ...(!knownOtherPickup ? ['transactions' as const] : []))
                 } },
-                { table: 'waiver_claims', filter: `member_id=eq.${memberId}`, onChange: () => changed('claims', 'transactions') },
                 { table: 'league_members', filter: `league_id=eq.${leagueId}`, onChange: () => { if (!current()) return; invalidateLeagueSnapshot(leagueId, 'supportRaw'); changed(...ALL_SUPPORT) } },
             ],
             onReconnect: () => {

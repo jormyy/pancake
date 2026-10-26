@@ -2,6 +2,7 @@ import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type PropsWithChildren } from 'react'
 import { useLeagues, LeagueMembership } from '@/hooks/use-leagues'
 import { useAuth } from '@/hooks/use-auth'
+import { useMemberClaimsStream } from '@/hooks/use-member-claims-stream'
 import { useLeagueChangeStream } from '@/hooks/use-league-change-stream'
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import type { LeagueInfo } from '@/types/app'
@@ -58,6 +59,7 @@ export function LeagueProvider({ children }: PropsWithChildren) {
 
     const currentLeague = useMemo(() => current?.leagues ?? null, [current])
     useLeagueChangeStream(currentLeague?.id, userId, membershipValidated && !membershipError)
+    useMemberClaimsStream(current?.id, userId, membershipValidated && !membershipError)
 
     const isCommissioner = useMemo(() => {
         if (!current || !user) return false
