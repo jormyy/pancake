@@ -53,3 +53,38 @@ The password case authenticates with the new password and rejects the previous p
 The runner closes only its own browser and web server.
 The caller owns API shutdown and evidence copying.
 This bounded proof does not replace native checks, full replay, performance review, or release approval.
+
+## Create-league confirmation
+
+Run with `SUBMISSIONS_ONLY=create-league` for this bounded check.
+Both exports must include the code under test.
+The runner publishes the complete update while the real creation response waits.
+After release, the automatic reload must show “League created” and the saved invite code.
+An independent SQL read confirms exactly one matching league and code.
+The check fails before Profile navigation if this confirmation disappears.
+It then checks manual reload, share cancellation and retry, account isolation, dismissal, and form cancellation.
+The share API is intercepted at the operating-system boundary; no message is sent.
+The previous selected membership and the server-verified account must remain correct.
+
+Set `FORM_SUBMISSIONS_ENGINE=webkit` to use the installed Playwright WebKit engine.
+Chromium is the default. Neither engine proves physical iPhone Safari or an installed PWA.
+Set `FORM_SUBMISSIONS_LIVE` to a unique lowercase release-link name for an isolated source directory.
+
+Set `FORM_CONFIRMATION_BLOCK_STORAGE=1` to reject only confirmation-storage writes.
+The initial export must contain the fix.
+The confirmation must hold the update until the user presses Done.
+The waiting update must then reload within the existing timeout.
+This proves storage failure cannot erase the code or hold updates after dismissal.
+
+Cleanup scans every non-system table for owned identifiers, including JSON and array values.
+It deletes only references to the disposable fixture identifiers.
+The receipts record all scanned tables, removed references, and remaining references.
+WebKit holds the actual browser fetch response before application code consumes it.
+Chromium uses network routing. Neither path fabricates a server response.
+The runner waits for React to own the form before entering input.
+Cleanup records dependent memberships and seasons before league deletion.
+It compares application and revision fingerprints with the state before fixture creation.
+
+Set `FORM_CONFIRMATION_CANCEL_PENDING=1` to leave the form while its real response waits.
+Creation still commits once upstream. The dismissed form must not save a stale confirmation.
+The update must complete, and reopening Create League must show a fresh form.

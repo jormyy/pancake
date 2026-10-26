@@ -7,7 +7,11 @@ import path from 'node:path'
 const root = process.cwd(),
     base = path.resolve(root, '..'),
     require = createRequire(path.join(root, 'package.json'))
-const { chromium } = require(process.env.FORM_SUBMISSIONS_PLAYWRIGHT ?? 'playwright')
+const cancelPendingCreation = process.env.FORM_CONFIRMATION_CANCEL_PENDING === '1'
+const blockConfirmationStorage = process.env.FORM_CONFIRMATION_BLOCK_STORAGE === '1'
+const browserEngine = process.env.FORM_SUBMISSIONS_ENGINE ?? 'chromium'
+assert.ok(['chromium', 'webkit'].includes(browserEngine))
+const engine = require(process.env.FORM_SUBMISSIONS_PLAYWRIGHT ?? 'playwright')[browserEngine]
 const { createClient } = require('@supabase/supabase-js')
 const { readPwaRelease } = await import(path.join(root, 'tests/e2e/pwa-update-release.mjs'))
 assert.equal(process.env.E2E_SUPABASE_URL, 'http://127.0.0.1:57121')
@@ -30,14 +34,10 @@ const databaseEnvironment = {
 delete databaseEnvironment.PGSERVICE
 delete databaseEnvironment.PGSERVICEFILE
 const sql = (q) => {
-    const result = spawnSync(
-        'psql',
-        ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', q],
-        {
-            encoding: 'utf8',
-            env: databaseEnvironment,
-        },
-    )
+    const result = spawnSync('psql', ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', q], {
+        encoding: 'utf8',
+        env: databaseEnvironment,
+    })
     if (result.error || result.status !== 0) {
         throw new Error(
             'Local database query failed: ' + (result.stderr?.trim() || 'psql unavailable'),
@@ -81,8 +81,10 @@ assert.notDeepEqual(
     applicationPayloads.candidate,
     'Application JavaScript must differ beyond release labels',
 )
+const liveName = process.env.FORM_SUBMISSIONS_LIVE ?? 'submissions-live'
+assert.match(liveName, /^[a-z0-9-]+$/)
 const origin = 'http://127.0.0.1:57198',
-    live = path.join(base, 'releases/submissions-live')
+    live = path.join(base, 'releases/' + liveName)
 const output = path.resolve(process.env.FORM_SUBMISSIONS_OUTPUT)
 const admin = createClient(
     process.env.E2E_SUPABASE_URL,
@@ -106,6 +108,9 @@ const users = [],
     createdLeagueNames = []
 const report = {
     passed: false,
+    browserEngine,
+    blockConfirmationStorage,
+    cancelPendingCreation,
     before,
     after,
     applicationPayloads,
@@ -115,10 +120,12 @@ const report = {
         'Synthetic account passwords generated in process memory; never written to evidence.',
     ],
     limits: [
-        'Local Chromium with real service worker; no native device or provider claims.',
+        'Local ' +
+            browserEngine +
+            ' with real service worker; no physical iPhone, Safari or installed PWA claim.',
         'Successful upstream response is held at the browser network boundary; no fabricated responses.',
         'All public/private application tables fingerprinted separately from safe auth state.',
-        '619 broad baseline failures and existing readiness test-type error remain recorded; not rerun.',
+        'Existing broad-suite failures remain outside this bounded check; no broad suite rerun.',
         'No production, publishing, CI, historical replay, performance comparison or whole-app review.',
     ],
 }
@@ -223,6 +230,7 @@ const record = async () => {
     await writeFile(path.join(output, 'summary.json'), body + '\n')
 }
 try {
+    report.businessBeforeFixtures = fingerprints()
     await rm(live, { force: true })
     await rm(live + '.next', { force: true })
     await swap(before)
@@ -240,7 +248,7 @@ try {
             break
         await wait(100)
     }
-    browser = await chromium.launch({ headless: true })
+    browser = await engine.launch({ headless: true })
     const owner = await makeUser('owner'),
         joiner = await makeUser('joiner')
     const fixture = await createFixtureLeague(owner, 'main'),
@@ -371,6 +379,62 @@ try {
         })
         contexts.push(context)
         page = await context.newPage()
+        if (def.name === 'create-league') {
+            await page.addInitScript(
+                ({ blockStorage, holdFetch, apiOrigin }) => {
+                    if (holdFetch) {
+                        const originalFetch = window.fetch.bind(window)
+                        window.fetch = async (input, options) => {
+                            const target = new URL(
+                                input instanceof Request ? input.url : String(input),
+                                location.href,
+                            )
+                            const response = await originalFetch(input, options)
+                            if (
+                                window.__holdCreateResponse &&
+                                target.origin === apiOrigin &&
+                                target.pathname === '/rest/v1/rpc/create_league'
+                            ) {
+                                window.__heldCreateResponse = {
+                                    status: response.status,
+                                    path: target.pathname,
+                                }
+                                await new Promise((resolve) => {
+                                    window.__releaseCreateResponse = resolve
+                                })
+                                window.__holdCreateResponse = false
+                            }
+                            return response
+                        }
+                    }
+                    window.__confirmationShares = []
+                    Object.defineProperty(navigator, 'share', {
+                        configurable: true,
+                        value: async (data) => {
+                            window.__confirmationShares.push(data)
+                            if (window.__confirmationShares.length === 1)
+                                throw new DOMException('Cancelled', 'AbortError')
+                        },
+                    })
+                    if (blockStorage) {
+                        const original = Storage.prototype.setItem
+                        Storage.prototype.setItem = function (key, value) {
+                            if (
+                                this === sessionStorage &&
+                                key === 'pancake:editor-draft:created-league'
+                            )
+                                throw new DOMException('Full', 'QuotaExceededError')
+                            return original.call(this, key, value)
+                        }
+                    }
+                },
+                {
+                    blockStorage: blockConfirmationStorage,
+                    holdFetch: browserEngine === 'webkit',
+                    apiOrigin: process.env.E2E_SUPABASE_URL,
+                },
+            )
+        }
         page.setDefaultTimeout(20000)
         page.on('pageerror', (e) => (row.errors ??= []).push(e.message))
         context.on('request', (request) => {
@@ -385,6 +449,13 @@ try {
         await page.goto(origin + def.route)
         if (def.anonymous)
             await page.waitForFunction(() => !document.getElementById('pancake-auth-document'))
+        if (def.name === 'create-league') {
+            await page.waitForFunction(() =>
+                Object.keys(document.querySelector('input[aria-label="League name"]') ?? {}).some(
+                    (key) => key.startsWith('__reactFiber'),
+                ),
+            )
+        }
         const inputs = []
         const fill = async (label, value, placeholder = false) => {
             const input = placeholder
@@ -458,18 +529,23 @@ try {
         await exact()
         row.initial = await inspect(page)
         row.before = state()
-        await swap(after)
+        if (def.name !== 'create-league') await swap(after)
         await page.evaluate(() => dispatchEvent(new Event('online')))
-        await page.waitForFunction(
-            async () => !!(await navigator.serviceWorker.getRegistration())?.waiting,
-            { timeout: 45000 },
-        )
-        const worker = await browser.newBrowserCDPSession()
-        row.workers = (await worker.send('Target.getTargets')).targetInfos
-            .filter((t) => t.type === 'service_worker')
-            .map((t) => ({ url: t.url, attached: t.attached }))
-        assert.ok(row.workers.length && row.workers.every((t) => !t.attached))
-        await worker.detach()
+        if (def.name !== 'create-league') {
+            await page.waitForFunction(
+                async () => !!(await navigator.serviceWorker.getRegistration())?.waiting,
+                undefined,
+                { timeout: 45000 },
+            )
+        }
+        if (browserEngine === 'chromium') {
+            const worker = await browser.newBrowserCDPSession()
+            row.workers = (await worker.send('Target.getTargets')).targetInfos
+                .filter((t) => t.type === 'service_worker')
+                .map((t) => ({ url: t.url, attached: t.attached }))
+            assert.ok(row.workers.length && row.workers.every((t) => !t.attached))
+            await worker.detach()
+        }
         for (let i = 0; i < 5; i++) {
             await wait(1000)
             await exact()
@@ -481,31 +557,32 @@ try {
         row.afterWaiting = state()
         assert.deepEqual(row.afterWaiting, row.before)
         row.exactUnsentRetained = true
-        row.waitingCandidate = true
+        row.waitingCandidate = def.name !== 'create-league'
         let gate = null,
             arrived = null,
             held = null
-        await context.route(
-            (url) => url.origin === process.env.E2E_SUPABASE_URL && url.pathname === def.match,
-            async (route) => {
-                if (route.request().method() !== def.method || !gate) return route.continue()
-                const release = gate
-                gate = null
-                try {
-                    const response = await route.fetch({ maxRetries: 0 })
-                    held = {
-                        status: response.status(),
-                        path: new URL(route.request().url()).pathname,
+        if (browserEngine !== 'webkit' || def.name !== 'create-league')
+            await context.route(
+                (url) => url.origin === process.env.E2E_SUPABASE_URL && url.pathname === def.match,
+                async (route) => {
+                    if (route.request().method() !== def.method || !gate) return route.continue()
+                    const release = gate
+                    gate = null
+                    try {
+                        const response = await route.fetch({ maxRetries: 0 })
+                        held = {
+                            status: response.status(),
+                            path: new URL(route.request().url()).pathname,
+                        }
+                        arrived.resolve()
+                        await release.promise
+                        await route.fulfill({ response })
+                    } catch (e) {
+                        arrived.reject(e)
+                        throw e
                     }
-                    arrived.resolve()
-                    await release.promise
-                    await route.fulfill({ response })
-                } catch (e) {
-                    arrived.reject(e)
-                    throw e
-                }
-            },
-        )
+                },
+            )
         const deferred = () => {
             let resolve, reject
             const promise = new Promise((a, b) => {
@@ -518,7 +595,20 @@ try {
             gate = deferred()
             const pending = gate
             arrived = deferred()
-            const received = arrived.promise
+            const fetchBoundary = browserEngine === 'webkit' && def.name === 'create-league'
+            if (fetchBoundary)
+                await page.evaluate(() => {
+                    window.__holdCreateResponse = true
+                })
+            const received = fetchBoundary
+                ? page
+                      .waitForFunction(() => window.__heldCreateResponse, undefined, {
+                          timeout: 25000,
+                      })
+                      .then(async (handle) => {
+                          held = await handle.jsonValue()
+                      })
+                : arrived.promise
             const submit =
                 def.name.startsWith('commissioner-') && def.name !== 'commissioner-settings'
                     ? page.getByText(def.submit, { exact: true })
@@ -534,6 +624,26 @@ try {
                 reject ? held.status >= 400 : held.status >= 200 && held.status < 300,
                 'Expected real upstream response status',
             )
+            if (def.name === 'create-league') {
+                row.chronology = [{ event: 'real-response-held', at: new Date().toISOString() }]
+                await swap(after)
+                row.chronology.push({
+                    event: 'complete-update-published',
+                    at: new Date().toISOString(),
+                })
+                await page.evaluate(() => dispatchEvent(new Event('online')))
+                await page.waitForFunction(
+                    async () => !!(await navigator.serviceWorker.getRegistration())?.waiting,
+                    undefined,
+                    { timeout: 45000 },
+                )
+                row.waitingCandidate = true
+                row.chronology.push({
+                    event: 'update-waiting-during-request',
+                    at: new Date().toISOString(),
+                })
+                await page.screenshot({ path: path.join(output, 'create-league-held.png') })
+            }
             const samples = []
             for (let i = 0; i < 4; i++) {
                 await wait(1000)
@@ -548,9 +658,19 @@ try {
             row[reject ? 'rejectedRequest' : 'successfulRequest'] = {
                 ...held,
                 responseHeld: true,
+                holdBoundary: fetchBoundary
+                    ? 'real browser fetch response before application consumption'
+                    : 'browser network route',
                 samples,
                 upstreamCompleted: committed,
             }
+            if (def.name === 'create-league' && cancelPendingCreation) {
+                await page.getByRole('button', { name: 'Back', exact: true }).click()
+                await page.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+                row.pendingCreationDismissed = true
+            }
+            row.chronology?.push({ event: 'response-released', at: new Date().toISOString() })
+            if (fetchBoundary) await page.evaluate(() => window.__releaseCreateResponse())
             pending.resolve()
             return committed
         }
@@ -570,7 +690,18 @@ try {
                 admin.from('leagues').select('*').eq('name', row.leagueName).single(),
             )
             leagues.push(saved.id)
-            row.saved = { league: saved.id, auctionBudget: saved.auction_budget }
+            row.saved = {
+                league: saved.id,
+                auctionBudget: saved.auction_budget,
+                inviteCode: saved.invite_code,
+            }
+            row.independentReceipt = JSON.parse(
+                sql(
+                    `select json_agg(x) from (select id, name, invite_code, auction_budget from leagues where name='${row.leagueName}') x`,
+                ),
+            )
+            assert.equal(row.independentReceipt.length, 1)
+            assert.equal(row.independentReceipt[0].invite_code, saved.invite_code)
             assert.equal(saved.auction_budget, 321)
             const member = await db(
                 admin
@@ -598,6 +729,20 @@ try {
             row.expectedAccount = saved.id
         }
         if (def.name === 'change-password') owner.password = nextPassword
+        if (def.name === 'create-league' && blockConfirmationStorage) {
+            await page.getByRole('button', { name: 'Share invite code', exact: true }).waitFor()
+            await wait(5000)
+            row.storageFailureHeld = await inspect(page)
+            assert.equal(row.storageFailureHeld.timeOrigin, row.initial.timeOrigin)
+            assert.ok(row.storageFailureHeld.holds.includes('create league form'))
+            assert.ok((await page.locator('body').innerText()).includes(row.saved.inviteCode))
+            await page.screenshot({ path: path.join(output, 'create-league-storage-held.png') })
+            await page.getByRole('button', { name: 'Done', exact: true }).click()
+            row.chronology.push({
+                event: 'storage-failure-confirmation-dismissed',
+                at: new Date().toISOString(),
+            })
+        }
         await page.waitForFunction(
             (expected) =>
                 document.querySelector('meta[name="pancake-release"]')?.content === expected,
@@ -605,6 +750,30 @@ try {
             { timeout: 60000 },
         )
         row.updated = await inspect(page)
+        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation) {
+            row.chronology.push({
+                event: 'automatic-reload-observed',
+                at: new Date().toISOString(),
+            })
+            await page
+                .getByRole('button', { name: /Create league|Share invite code/i })
+                .first()
+                .waitFor()
+            row.updated = await inspect(page)
+            row.immediateBody = await page.locator('body').innerText()
+            await page.screenshot({ path: path.join(output, 'create-league-immediate.png') })
+            await record()
+            assert.ok(
+                row.immediateBody.includes('League created'),
+                'Immediate confirmation survives automatic reload',
+            )
+            assert.ok(
+                row.immediateBody.includes(row.saved.inviteCode),
+                'Immediate confirmation shows the independently saved invite code',
+            )
+            await page.getByRole('button', { name: 'Share invite code', exact: true }).waitFor()
+            row.immediateConfirmation = true
+        }
         assert.notEqual(row.updated.timeOrigin, row.initial.timeOrigin)
         assert.equal(row.updated.holds.length, 0)
         row.afterUpdate = state()
@@ -643,6 +812,75 @@ try {
         assert.equal(identity.status, 200)
         assert.equal(identity.id, expectedAccount)
         row.serverVerifiedAccount = identity.id
+        if (def.name === 'create-league' && !blockConfirmationStorage && !cancelPendingCreation) {
+            await page.getByRole('button', { name: 'Share invite code', exact: true }).click()
+            await page.getByRole('button', { name: 'Share invite code', exact: true }).click()
+            row.shareCalls = await page.evaluate(() => window.__confirmationShares)
+            assert.equal(row.shareCalls.length, 2)
+            assert.ok(row.shareCalls.every((call) => call.text.includes(row.saved.inviteCode)))
+            assert.equal(await page.getByRole('button', { name: 'Done', exact: true }).count(), 1)
+            row.shareCancellationAndRetry = true
+            const ownedConfirmation = await page.evaluate(() =>
+                sessionStorage.getItem('pancake:editor-draft:created-league'),
+            )
+            await page.reload()
+            await page.getByRole('button', { name: 'Share invite code', exact: true }).waitFor()
+            assert.ok((await page.locator('body').innerText()).includes(row.saved.inviteCode))
+            row.manualReloadRetainsConfirmation = true
+            const otherSession = (await sign(joiner)).session
+            const otherContext = await browser.newContext({
+                viewport: { width: 390, height: 844 },
+                isMobile: true,
+                hasTouch: true,
+                storageState: {
+                    cookies: [],
+                    origins: [
+                        {
+                            origin,
+                            localStorage: [
+                                { name: 'sb-127-auth-token', value: JSON.stringify(otherSession) },
+                            ],
+                        },
+                    ],
+                },
+            })
+            contexts.push(otherContext)
+            const otherPage = await otherContext.newPage()
+            await otherPage.addInitScript(
+                (value) => sessionStorage.setItem('pancake:editor-draft:created-league', value),
+                ownedConfirmation,
+            )
+            await otherPage.goto(origin + '/create-league')
+            await otherPage.getByLabel('League name', { exact: true }).waitFor()
+            await otherPage.waitForFunction(
+                () => sessionStorage.getItem('pancake:editor-draft:created-league') === null,
+            )
+            assert.ok(!(await otherPage.locator('body').innerText()).includes(row.saved.inviteCode))
+            assert.equal(
+                await otherPage.evaluate(() =>
+                    sessionStorage.getItem('pancake:editor-draft:created-league'),
+                ),
+                null,
+            )
+            row.otherAccountRejectsConfirmation = true
+            await otherPage.screenshot({
+                path: path.join(output, 'create-league-other-account.png'),
+            })
+            await otherContext.close()
+            await page.getByRole('button', { name: 'Done', exact: true }).click()
+            await page.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+            await page.goto(origin + '/create-league')
+            await page.getByLabel('League name', { exact: true }).waitFor()
+            assert.equal(await page.getByLabel('League name', { exact: true }).inputValue(), '')
+            assert.equal(
+                await page.getByRole('button', { name: 'Share invite code', exact: true }).count(),
+                0,
+            )
+            await page.getByLabel('League name', { exact: true }).fill('Cancelled owned draft')
+            await page.getByRole('button', { name: 'Back', exact: true }).click()
+            await page.getByRole('button', { name: 'Edit', exact: true }).waitFor()
+            row.dismissalAndCancellation = true
+        }
         if (def.name === 'join-league') {
             const saved = await db(
                 admin
@@ -768,6 +1006,28 @@ try {
         for (const password of secrets)
             assert.ok(!storageText.includes(password), 'No password persisted in browser storage')
         row.passwordsAbsentFromStorage = true
+        if (def.name === 'create-league' && cancelPendingCreation) {
+            assert.equal(
+                await page.evaluate(() =>
+                    sessionStorage.getItem('pancake:editor-draft:created-league'),
+                ),
+                null,
+                'Dismissed pending creation leaves no stale confirmation',
+            )
+            await page.goto(origin + '/create-league')
+            await page.waitForFunction(() =>
+                Object.keys(document.querySelector('input[aria-label="League name"]') ?? {}).some(
+                    (key) => key.startsWith('__reactFiber'),
+                ),
+            )
+            assert.equal(
+                await page.getByRole('button', { name: 'Share invite code', exact: true }).count(),
+                0,
+                'Dismissed pending creation leaves no stale confirmation',
+            )
+            assert.equal(await page.getByLabel('League name', { exact: true }).inputValue(), '')
+            row.pendingCancellationLeavesFreshForm = true
+        }
         row.released = true
         row.passed = true
         await page.screenshot({ path: path.join(output, def.name + '-after.png') })
@@ -789,7 +1049,8 @@ try {
 } catch (e) {
     report.failure = String(e.stack ?? e)
     process.exitCode = 1
-    if (page && !page.isClosed())
+    if (page && !page.isClosed()) {
+        await page.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {})
         await writeFile(
             path.join(output, 'failure-body.txt'),
             await page
@@ -797,6 +1058,7 @@ try {
                 .innerText()
                 .catch(() => ''),
         )
+    }
 } finally {
     for (const c of contexts) await c.close().catch(() => {})
     await browser?.close()
@@ -811,6 +1073,16 @@ try {
         const found = await db(admin.from('leagues').select('id').eq('name', name))
         leagues.push(...found.map((x) => x.id))
     }
+    const dependentIds = leagues.length
+        ? sql(
+              `select id from league_members where league_id in (${[...new Set(leagues)].map((id) => "'" + id + "'").join(',')}) union select id from league_seasons where league_id in (${[...new Set(leagues)].map((id) => "'" + id + "'").join(',')})`,
+          )
+              .split('\n')
+              .filter(Boolean)
+        : []
+    report.revisionsBeforeFixtureCleanup = JSON.parse(
+        sql("select coalesce(json_agg(t),'[]') from private.score_input_revisions t"),
+    )
     for (const id of [...new Set(leagues)].reverse()) {
         try {
             await db(admin.from('leagues').delete().eq('id', id))
@@ -822,7 +1094,67 @@ try {
         const r = await admin.auth.admin.deleteUser(id)
         if (r.error) errors.push(r.error.message)
     }
+    const ownedIds = new Set([...users, ...leagues, ...dependentIds])
+    const collectOwnedIds = (value) => {
+        if (typeof value === 'string' && /^[a-f0-9]{8}-[a-f0-9-]{27}$/.test(value))
+            ownedIds.add(value)
+        else if (Array.isArray(value)) value.forEach(collectOwnedIds)
+        else if (value && typeof value === 'object') Object.values(value).forEach(collectOwnedIds)
+    }
+    collectOwnedIds(report.fixture)
+    for (const row of report.cases) collectOwnedIds(row.saved)
+    let cleanupTables = []
+    const remainingReferences = {}
+    const removedReferences = {}
+    try {
+        cleanupTables = sql(
+            "select schemaname||'.'||tablename from pg_tables where schemaname not in ('pg_catalog','information_schema') and schemaname not like 'pg_%' order by 1",
+        )
+            .split('\n')
+            .filter(Boolean)
+        if (ownedIds.size) {
+            const pattern = [...ownedIds].join('|')
+            for (const table of cleanupTables) {
+                const quoted = table
+                    .split('.')
+                    .map((part) => '"' + part.replaceAll('"', '""') + '"')
+                    .join('.')
+                const predicate = `to_jsonb(t)::text ~ '${pattern}'`
+                const count = Number(sql(`select count(*) from ${quoted} t where ${predicate}`))
+                if (count) {
+                    removedReferences[table] = Number(
+                        sql(
+                            `with removed as (delete from ${quoted} t where ${predicate} returning 1) select count(*) from removed`,
+                        ),
+                    )
+                }
+            }
+            for (const table of cleanupTables) {
+                const quoted = table
+                    .split('.')
+                    .map((part) => '"' + part.replaceAll('"', '""') + '"')
+                    .join('.')
+                const count = Number(
+                    sql(`select count(*) from ${quoted} t where to_jsonb(t)::text ~ '${pattern}'`),
+                )
+                if (count) remainingReferences[table] = count
+            }
+            assert.deepEqual(remainingReferences, {}, 'No owned references remain across any table')
+        }
+        report.businessAfterCleanup = fingerprints()
+        assert.deepEqual(
+            report.businessAfterCleanup,
+            report.businessBeforeFixtures,
+            'Cleanup preserves unrelated business and revision state',
+        )
+    } catch (error) {
+        errors.push(String(error))
+    }
     report.cleanup = {
+        ownedIds: [...ownedIds],
+        tablesScanned: cleanupTables,
+        removedReferences,
+        remainingReferences,
         errors,
         usersRemaining: users.length
             ? Number(
