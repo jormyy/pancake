@@ -28,7 +28,7 @@ assert.equal(databaseTarget.pathname, '/postgres')
 assert.equal(databaseTarget.search, '')
 assert.equal(databaseTarget.hash, '')
 const databaseEnvironment = {
-    ...process.env,
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !['PGSERVICE', 'PGSERVICEFILE'].includes(key))),
     PGHOST: databaseTarget.hostname,
     PGHOSTADDR: databaseTarget.hostname,
     PGPORT: databaseTarget.port,
@@ -36,8 +36,6 @@ const databaseEnvironment = {
     PGUSER: decodeURIComponent(databaseTarget.username),
     PGPASSWORD: decodeURIComponent(databaseTarget.password),
 }
-delete databaseEnvironment.PGSERVICE
-delete databaseEnvironment.PGSERVICEFILE
 const sql = (q) => {
     const result = spawnSync('psql', ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', q], {
         encoding: 'utf8',
@@ -162,11 +160,11 @@ const state = () => ({ business: fingerprints(), auth: authState() })
 const changed = (a, b) => Object.keys(a).filter((k) => a[k] !== b[k])
 const inspect = (p) =>
     p.evaluate(() => ({
-        version: document.querySelector('meta[name="pancake-release"]')?.content,
+        version: document.querySelector('meta[name="pancake-release"]')?.getAttribute('content'),
         timeOrigin: performance.timeOrigin,
         path: location.pathname,
         holds: [...(window.__pancakePwaHolds?.values() ?? [])].map((h) => h.reason),
-        fields: [...document.querySelectorAll('input,textarea')].map((i) => ({
+        fields: [...document.querySelectorAll('input,textarea')].filter((field) => field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement).map((i) => ({
             label: i.getAttribute('aria-label') ?? i.placeholder,
             value: i.type === 'password' ? (i.value ? '<nonempty>' : '') : i.value,
         })),
@@ -407,7 +405,7 @@ try {
                                     path: target.pathname,
                                 }
                                 await new Promise((resolve) => {
-                                    window.__releaseCreateResponse = resolve
+                                    window.__releaseCreateResponse = () => resolve(undefined)
                                 })
                                 window.__holdCreateResponse = false
                             }
@@ -607,7 +605,17 @@ try {
                 resolve = a
                 reject = b
             })
-            return { promise, resolve, reject }
+            return {
+                promise,
+                resolve: () => {
+                    if (!resolve) throw new Error('Held submission has no release callback')
+                    resolve(undefined)
+                },
+                reject: (error) => {
+                    if (!reject) throw new Error('Held submission has no rejection callback')
+                    reject(error)
+                },
+            }
         }
         const heldSubmit = async (reject) => {
             gate = deferred()
@@ -688,7 +696,10 @@ try {
                 row.pendingCreationDismissed = true
             }
             row.chronology?.push({ event: 'response-released', at: new Date().toISOString() })
-            if (fetchBoundary) await page.evaluate(() => window.__releaseCreateResponse())
+            if (fetchBoundary) await page.evaluate(() => {
+                if (!window.__releaseCreateResponse) throw new Error('Held create response has no release callback')
+                window.__releaseCreateResponse()
+            })
             pending.resolve()
             return committed
         }
@@ -791,7 +802,7 @@ try {
         }
         await page.waitForFunction(
             (expected) =>
-                document.querySelector('meta[name="pancake-release"]')?.content === expected,
+                document.querySelector('meta[name="pancake-release"]')?.getAttribute('content') === expected,
             after.version,
             { timeout: 60000 },
         )

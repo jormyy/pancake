@@ -1,4 +1,5 @@
 import { catalogIdentity } from './official-outcomes.mjs'
+import { shiftDay } from './season-model.mjs'
 import { productionJobs } from './cron.mjs'
 import assert from 'node:assert/strict'
 import test from 'node:test'
@@ -35,4 +36,89 @@ test('reliability bins retain direction, boundary probabilities, and separate ti
   assert.equal(bins[4].ties, 1)
   assert.equal(bins.reduce((sum, bin) => sum + bin.count, 0), 5)
   assert.equal(bins[2].observedWinFrequency, null)
+})
+
+const lateComplete = (start = '2025-02-10') => {
+  const report = complete()
+  const weeks = Array.from({ length: 24 }, (_, index) => {
+    const week = index + 1
+    const begin = shiftDay('2024-10-21', (index + (week > 17 ? 1 : 0)) * 7)
+    return { week_number: week, week_start: week === 1 ? '2024-10-22' : begin, week_end: shiftDay(begin, week === 17 ? 13 : 6) }
+  })
+  report.scenario.profile.settings = { skipped_weeks: [1], playoff_start_week: 18, playoff_round_lengths: [2, 2] }
+  report.bounds = { checkpoint: '2025-02-10' }
+  report.lateStart = { start, weeks }
+  report.days = [
+    ...weeks.filter(row => row.week_number >= 17 && row.week_number <= 21).map(row => ({ date: row.week_start < start ? start : row.week_start, week: row.week_number, seasonYear: 2025, scores: { passed: true, matchups: 5 }, closedWeeks: row.week_number === 17 ? [{ week: 17 }] : [] })),
+    { date: '2025-11-03', week: 2, seasonYear: 2026, scores: { passed: true, matchups: 5 }, closedWeeks: [{ week: 2 }] },
+  ]
+  report.snapshots = []
+  delete report.trades.completed
+  delete report.trades.playerCycle
+  delete report.trades.vetoed
+  report.tradeValueAudits = report.tradeValueAudits.filter(row => row.week === 17)
+  report.forecasts = [17, 18, 20].map(week => ({ week, split: 'final-held-out', outcome: { brier: 0.2, constantBrier: 0.25, meanWinnerBrier: 0.5 } }))
+  report.realtime = { passed: true }
+  return report
+}
+
+test('late acceptance measures the remaining season without granting full acceptance', () => {
+  const summary = summarizeOfficial(lateComplete())
+  assert.equal(summary.fullAcceptance, false)
+  assert.equal(summary.lateStart.start, '2025-02-10')
+  assert.equal(summary.lateStart.passed, true)
+  assert.deepEqual(summary.lateStart.gaps, [])
+  assert.deepEqual(summary.gaps, [])
+  for (const name of ['regularSeasonWeek2', 'regularSeasonWeek16', 'forecastCalibration', 'forecastCalibrationWeek10', 'forecastCalibrationWeek13', 'forecastCalibrationWeek16', 'taxiWeekTwoAcquisitions', 'mixedPlayerTrade', 'threeTeamPlayerTrade', 'memberVeto', 'tradeQuotes', 'checkpoint']) {
+    assert.equal(summary.gates[name], 'not measured: late start')
+    assert.ok(summary.lateStart.notMeasured.includes(name))
+  }
+  for (const name of ['regularSeasonWeek17', 'continuousFaab', 'deadline', 'forecastFinalHoldout', 'forecastFinalWeek17', 'forecastFinalWeek18', 'forecastFinalWeek20', 'championship', 'rollover', 'rookieDraft', 'nextEligibleWeek', 'realtimeDelivery', 'workerFidelity', 'noFailure']) assert.equal(summary.gates[name], true)
+})
+
+test('each missing measurable late area fails acceptance', () => {
+  const controls = [
+    { area: 'regularSeason', change: report => { report.days[0].closedWeeks = [] } },
+    { area: 'measuredScoring', change: report => { report.days[2].scores.passed = false } },
+    { area: 'initialAuction', change: report => { report.auction.players = 199 } },
+    { area: 'continuousFaab', change: report => { report.waivers.checked = false } },
+    { area: 'deadline', change: report => { report.trades.deadline.checked = false } },
+    { area: 'forecastFinalHoldout', change: report => { report.forecasts.pop() } },
+    { area: 'forecastFinalHoldout', change: report => { report.forecasts[0].outcome.brier = null } },
+    { area: 'championship', change: report => { report.champion.passed = false } },
+    { area: 'rollover', change: report => { report.rollover.passed = false } },
+    { area: 'rookieDraft', change: report => { report.rookieDraft.picks = 29 } },
+    { area: 'nextEligibleWeek', change: report => { report.days.at(-1).closedWeeks = [] } },
+    { area: 'nextOpeningScoring', change: report => { report.days.at(-1).scores.passed = false } },
+    { area: 'realtimeDelivery', change: report => { report.realtime.passed = false } },
+    { area: 'workerFidelity', change: report => { report.triggerFidelity.verified = false } },
+    { area: 'noFailure', change: report => { report.invariantFailures = 1 } },
+    { area: 'noFailure', change: report => { report.failures = [{ message: 'failure' }] } },
+    { area: 'noFailure', change: report => { report.cleanupError = 'failed' } },
+    { area: 'noFailure', change: report => { report.error = 'failed' } },
+    { area: 'sourceIntegrity', change: report => { report.sourceMismatch = true } },
+    { area: 'requestedRangeComplete', change: report => { report.fullRangeComplete = false } },
+    { area: 'tradeValueAudits', change: report => { report.tradeValueAudits = [] } },
+    { area: 'tradeValueAnchors', change: report => { report.tradeValueAudits[0].anchors.passed = false } },
+    { area: 'corruptionControls', change: report => { report.corruptionControls.pop() } },
+  ]
+  for (const { area, change } of controls) {
+    const report = lateComplete()
+    change(report)
+    const summary = summarizeOfficial(report)
+    assert.equal(summary.lateStart.passed, false, area)
+    assert.ok(summary.lateStart.gaps.includes(area), area)
+  }
+})
+
+test('midweek late acceptance excludes preweek receipts but still requires partial-week scoring', () => {
+  const report = lateComplete('2025-02-12')
+  report.forecasts = report.forecasts.filter(row => row.week !== 17)
+  report.tradeValueAudits = []
+  delete report.trades.deadline
+  const summary = summarizeOfficial(report)
+  assert.equal(summary.lateStart.passed, true)
+  for (const name of ['regularSeasonWeek17', 'deadline', 'forecastFinalWeek17', 'tradeValueAuditsWeek17']) assert.equal(summary.gates[name], 'not measured: late start')
+  report.days[0].scores.passed = false
+  assert.equal(summarizeOfficial(report).lateStart.passed, false)
 })

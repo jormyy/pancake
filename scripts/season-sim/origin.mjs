@@ -175,8 +175,8 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         for (const game of games.filter(game => game.date <= date && (!process.env.SEASON_SIM_PROFILE || bounds.get(game.id).end <= at)).sort((a, b) => a.time.localeCompare(b.time))) {
           for (const team of [boxes.get(game.id).game.homeTeam, boxes.get(game.id).game.awayTeam]) for (const player of team.players) latest.set(player.personId, player)
         }
-        payload = { injuries: [{ injuries: [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason })) }] }
-        if (!payload.injuries[0].injuries.length) payload.unavailable = unavailableResponse('espn-injury-observations', at)
+        const injuries = [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason }))
+        payload = { injuries: [{ injuries }], ...(!injuries.length ? { unavailable: unavailableResponse('espn-injury-observations', at) } : {}) }
       } else if (url.pathname === '/espn/news') payload = { articles: articles.filter(article => Date.parse(article.published) <= at).sort((a, b) => b.published.localeCompare(a.published)).slice(0, Number(url.searchParams.get('limit') ?? 50)) }
       else if (gapSource(url.pathname)) {
         const provider = gapSource(url.pathname)

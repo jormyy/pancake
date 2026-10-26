@@ -18,7 +18,7 @@ assert.equal(target.pathname, '/postgres')
 assert.equal(target.search, '')
 assert.equal(target.hash, '')
 const databaseEnvironment = {
-    ...process.env,
+    ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !['PGSERVICE', 'PGSERVICEFILE'].includes(key))),
     PGHOST: target.hostname,
     PGHOSTADDR: target.hostname,
     PGPORT: target.port,
@@ -26,8 +26,6 @@ const databaseEnvironment = {
     PGUSER: decodeURIComponent(target.username),
     PGPASSWORD: decodeURIComponent(target.password),
 }
-delete databaseEnvironment.PGSERVICE
-delete databaseEnvironment.PGSERVICEFILE
 const sql = query => {
     const result = spawnSync('psql', ['-XAt', '-v', 'ON_ERROR_STOP=1', '-c', query], {
         encoding: 'utf8',

@@ -25,6 +25,10 @@ test('replay jobs match the cron catalog installed by the migrations', async () 
   const files = (await readdir(directory)).filter(name => name.endsWith('.sql'))
   const installed = installedCronJobs(await Promise.all(files.map(async name => ({ name, source: await readFile(new URL(name, directory), 'utf8') }))))
   verifyCronCatalog(installed)
+  for (const name of ['matchup-forecasts', 'cleanup-trade-estimates']) {
+    assert.throws(() => verifyCronCatalog(installed.filter(job => job.jobname !== name)), new RegExp(`Missing production cron job: ${name}`))
+    assert.throws(() => verifyCronCatalog(installed.map(job => job.jobname === name ? { ...job, schedule: '0 0 * * *' } : job)), new RegExp(`Changed production cadence: ${name}`))
+  }
   const maintenance = new Set(['mock-room-expiry', 'retention-prune', 'pg-net-response-vacuum', 'player-stats-hints', 'league-inventory-hint-drain'])
   assert.deepEqual(installed.filter(job => !maintenance.has(job.jobname)).map(job => job.jobname), productionJobs.map(job => job.jobname).sort())
 })

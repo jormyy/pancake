@@ -47,5 +47,62 @@ export function summarizeOfficial(report) {
   })
   gates.forecastReceipts = [10, 13, 16, 17].every(week => (report.forecasts ?? []).some(row => row.week === week && row.outcome && row.preweek !== false))
   gates.forecastCalibration = ['calibration-held-out', 'final-held-out'].every(split => forecast.some(row => row.split === split && row.covered > 0))
-  return { scope: 'Historical replay core; browser, load, and app updates require separate evidence', gates, gaps: Object.entries(gates).filter(([, passed]) => !passed).map(([name]) => name), fullAcceptance: Object.values(gates).every(Boolean), forecast, complete: report.complete, completedDates: report.days.length, verifiedGames: report.days.reduce((sum, day) => sum + (day.finals?.games ?? 0), 0), requestedDates: report.requestedDates, freshDatabase: report.freshDatabase, liveSamples: report.liveSamples, invariantFailures: report.error ? 1 : 0, metadataLimits: report.metadataLimits }
+  const late = report.lateStart ? lateStartAcceptance(report, gates, regularWeeks) : null
+  const measuredGates = late?.gates ?? gates
+  return { scope: 'Historical replay core; browser, load, and app updates require separate evidence', gates: measuredGates, gaps: Object.entries(measuredGates).filter(([, passed]) => passed === false).map(([name]) => name), fullAcceptance: !late && Object.values(gates).every(Boolean), ...(late ? { lateStart: late.summary, failures: report.failures ?? [] } : {}), forecast, complete: report.complete, completedDates: report.days.length, verifiedGames: report.days.reduce((sum, day) => sum + (day.finals?.games ?? 0), 0), requestedDates: report.requestedDates, freshDatabase: report.freshDatabase, liveSamples: report.liveSamples, invariantFailures: late ? Math.max(report.invariantFailures ?? 0, report.error || report.cleanupError ? 1 : 0) : report.error ? 1 : 0, metadataLimits: report.metadataLimits }
+}
+
+function lateStartAcceptance(report, fullGates, regularWeeks) {
+  const { start, weeks } = report.lateStart
+  const profile = report.scenario.profile
+  const skipped = profile.settings.skipped_weeks
+  const gates = { ...fullGates }
+  const notMeasured = 'not measured: late start'
+  const window = (name, begins, passed) => { gates[name] = begins < start ? notMeasured : passed }
+  const weekStart = week => weeks.find(row => row.week_number === week)?.week_start ?? ''
+  const eligibleRegular = weeks.filter(row => row.week_number < profile.settings.playoff_start_week && !skipped.includes(row.week_number))
+  for (const row of eligibleRegular) window(`regularSeasonWeek${row.week_number}`, row.week_start, regularWeeks.has(row.week_number))
+  const measuredRegular = eligibleRegular.filter(row => row.week_start >= start)
+  gates.regularSeason = measuredRegular.length ? measuredRegular.every(row => regularWeeks.has(row.week_number)) : notMeasured
+  const firstDays = report.days.filter(day => day.seasonYear === profile.firstYear)
+  const playoffEnd = profile.settings.playoff_start_week + profile.settings.playoff_round_lengths.reduce((sum, length) => sum + length, 0) - 1
+  const scoringWeeks = weeks.filter(row => row.week_end >= start && row.week_number <= playoffEnd && !skipped.includes(row.week_number))
+  gates.measuredScoring = scoringWeeks.length > 0 && scoringWeeks.every(row => firstDays.some(day => day.week === row.week_number && day.scores?.passed === true && day.scores.matchups > 0))
+  window('checkpoint', report.bounds.checkpoint, fullGates.checkpoint)
+  if (start === report.bounds.checkpoint) gates.checkpoint = notMeasured
+  for (const name of ['completedTrade', 'mixedPlayerTrade', 'tradeQuotes']) window(name, '2024-11-01', fullGates[name])
+  window('threeTeamPlayerTrade', '2025-01-10', fullGates.threeTeamPlayerTrade)
+  window('memberVeto', '2024-12-01', fullGates.memberVeto)
+  window('deadline', '2025-02-10', fullGates.deadline)
+  window('taxiWeekTwoAcquisitions', weekStart(2), report.taxiAcquisitions?.checked === true)
+  const auditWeeks = [10, 13, 16, 17]
+  for (const week of auditWeeks) {
+    window(`tradeValueAuditsWeek${week}`, weekStart(week), report.tradeValueAudits?.some(row => row.week === week && row.receipts.length === 3) === true)
+    window(`tradeValueAnchorsWeek${week}`, weekStart(week), report.tradeValueAudits?.some(row => row.week === week && row.anchors?.passed === true) === true)
+  }
+  const audits = auditWeeks.filter(week => weekStart(week) >= start)
+  gates.tradeValueAudits = audits.length ? audits.every(week => gates[`tradeValueAuditsWeek${week}`] === true) : notMeasured
+  gates.tradeValueAnchors = audits.length ? audits.every(week => gates[`tradeValueAnchorsWeek${week}`] === true) : notMeasured
+  const forecasts = (report.forecasts ?? []).filter(row => row.outcome && row.preweek !== false)
+  const covered = week => forecasts.some(row => row.week === week && row.split === (week >= 17 ? 'final-held-out' : 'calibration-held-out') && Number.isFinite(row.outcome.brier))
+  for (const week of [10, 13, 16]) window(`forecastCalibrationWeek${week}`, weekStart(week), covered(week))
+  const calibration = [10, 13, 16].filter(week => weekStart(week) >= start)
+  gates.forecastCalibration = calibration.length ? calibration.every(covered) : notMeasured
+  const receiptWeeks = auditWeeks.filter(week => weekStart(week) >= start)
+  gates.forecastReceipts = receiptWeeks.length ? receiptWeeks.every(week => forecasts.some(row => row.week === week)) : notMeasured
+  let roundStart = profile.settings.playoff_start_week
+  const finalWeeks = [17, ...profile.settings.playoff_round_lengths.map(length => {
+    const first = roundStart
+    roundStart += length
+    return first
+  })]
+  for (const week of finalWeeks) window(`forecastFinalWeek${week}`, weekStart(week), covered(week))
+  const final = finalWeeks.filter(week => weekStart(week) >= start)
+  gates.forecastFinalHoldout = final.length ? final.every(covered) : notMeasured
+  gates.nextOpeningScoring = report.days.some(day => day.seasonYear === profile.firstYear + 1 && day.week === 2 && day.scores?.passed === true && day.scores.matchups > 0)
+  gates.realtimeDelivery = report.realtime?.passed === true
+  gates.noFailure = fullGates.noFailure && !report.failure && !(report.failures?.length > 0) && (report.invariantFailures ?? 0) === 0
+  const entries = Object.entries(gates)
+  const gaps = entries.filter(([, passed]) => passed === false).map(([name]) => name)
+  return { gates, summary: { start, passed: gaps.length === 0, notMeasured: entries.filter(([, passed]) => passed === notMeasured).map(([name]) => name), gaps } }
 }

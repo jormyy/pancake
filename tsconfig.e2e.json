@@ -10,7 +10,8 @@
   },
   "include": [
     "scripts/**/*.mjs",
-    "tests/e2e/**/*.mjs"
+    "tests/e2e/**/*.mjs",
+    "tests/e2e/form-submission-update-globals.d.ts"
   ],
   "exclude": [
     "node_modules"

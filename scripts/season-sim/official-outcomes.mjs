@@ -15,7 +15,7 @@ export function sourceGapReference({ phase, outcome, classification }) {
   return { phase, invocationKey: outcome.invocation_key, function: outcome.function_name, gaps: classification.gaps }
 }
 
-function classifyNativeOutcome(outcome, { providers = [], at, draftAvailableAt } = {}) {
+function classifyNativeOutcome(outcome, { providers = [], at = NaN, draftAvailableAt = '' } = {}) {
   const reject = reason => ({ kind: 'unexpected', reason })
   let body
   try { body = JSON.parse(outcome.content ?? '{}') } catch { return reject('Invalid worker response') }

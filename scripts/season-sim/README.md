@@ -195,6 +195,23 @@ Forecast weeks 10, 13, and 16 form the calibration holdout. Week 17 and playoffs
 Forecast receipts retain source inputs, independent prior-game scoring, actual outcomes, and constant/prior-mean baselines.
 Missing probabilities count as cold coverage, never as successful predictions.
 
+Start the official replay late without a saved checkpoint:
+
+```sh
+node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA" --start 2025-02-10
+```
+
+Keep the official profile and two-season environment settings above.
+The start date can fall within a week.
+The replay keeps profile skips and skips every week that ends before the start.
+It runs through November 3, 2025, including playoffs, rollover, the rookie draft, and the next opening week.
+It omits the pre-playoff snapshot when the start falls on or after February 10.
+Earlier windows read `not measured: late start` in the summary.
+Every remaining check must pass, including scoring, waivers, deadline trades, final forecasts, and Realtime delivery.
+Final forecasts cover week 17 and the playoff rounds across weeks 18–21.
+`lateStart.passed` records this acceptance; `fullAcceptance` stays false.
+The launcher writes `evidence/late-season-check.json` after acceptance.
+
 `state/official-cursor.json` retains private manager sessions and completed evidence for recovery.
 A snapshot restore must preserve its profile hash, fixture hashes, and database state.
 After an infrastructure interruption, resume at the saved current clock without rewinding retained database results.

@@ -17,9 +17,20 @@ import { advanceOfficialTrades, auditOfficialTradeValues, recordPostTradeScoring
 import { observeOfficialChampion, verifyOfficialRollover, runOfficialRookieDraft } from './official-lifecycle.mjs'
 import { beginOfficialWaivers, verifyOfficialWaivers } from './official-waivers.mjs'
 import { checkCalendar } from './calendar-oracle.mjs'
+import { startRealtimeProbe } from './realtime-probe.mjs'
+
+export function officialReplayStart(options, bounds) {
+  assert.ok(!options.start || options.resume || options['late-season'] === true, 'A later official start requires --late-season or a saved checkpoint')
+  const start = options.resume?.date ?? options.start ?? bounds.firstStart
+  assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
+  assert.equal(new Date(`${start}T12:00:00Z`).toISOString().slice(0, 10), start, 'Official start requires a real calendar date')
+  if (!options.resume) assert.ok(start >= bounds.firstStart && start <= bounds.firstEnd, 'Official start must be inside the first season')
+  return start
+}
 
 export async function officialReplay(options, scenario) {
   assert.ok(!options.afterRestoreSql, 'Official continuation requires unchanged application SQL; overlays use the generic diagnostic mode')
+  assert.ok(!options.start || options.resume || options['late-season'] === true, 'A later official start requires --late-season or a saved checkpoint')
   const { profile } = scenario
   assert.equal(season.year, profile.firstYear, 'Official replay year must match the historical profile')
   assert.equal(process.env.SEASON_SIM_MODE, 'two-season', 'Official replay requires the retained two-season corpus')
@@ -29,24 +40,25 @@ export async function officialReplay(options, scenario) {
     assert.equal(source.harness.sha256, options.resume.evidence.source.harness.sha256, 'A historical replay cannot resume under changed checker code')
     assert.deepEqual(source.application, options.resume.evidence.source.application, 'A historical replay cannot resume under a changed application build')
   }
-  assert.ok(!options.start || options.resume, 'A later official start requires a saved checkpoint')
-  const start = options.resume?.date ?? input.bounds.firstStart
+  const start = officialReplayStart(options, input.bounds)
   const selected = dates(start, input.bounds.secondThrough).slice(0, options.days == null ? Infinity : Number(options.days))
   const report = { ...(options.resume?.evidence ?? {}), kind: 'official', source, complete: false, fullAcceptance: false, scenario, bounds: input.bounds,
     requestedDates: options.resume?.evidence?.requestedDates ?? selected.length, sourceFiles: input.files, inputGaps: input.gaps, postponementGaps: input.postponements?.gaps, draftAvailability: input.draft.availabilityProvenance, metadataLimits: input.metadataLimits, liveSamples: 0, startedAt: options.resume?.evidence?.startedAt ?? new Date().toISOString(), days: [...(options.resume?.evidence?.days ?? [])], snapshots: [...(options.resume?.evidence?.snapshots ?? [])],
     forecastHoldout: { calibration: [10, 13, 16], final: [17, 18, 19, 20, 21] },
     gaps: ['Forecast calibration receipts pending', 'Transaction scenario coverage pending', 'Automatic app update, browser, and performance evidence remain separate gates'],
   }
+  if (!options.resume && options['late-season'] === true) report.lateStart = { start, weeks: input.seasons.find(row => row.year === profile.firstYear).calendar.weeks }
   const before = await sqlJson("SELECT json_build_object('leagues',(SELECT count(*) FROM leagues),'rosters',(SELECT count(*) FROM roster_players))", 'Official fresh database')
   report.freshDatabase = before.leagues === 0 && before.rosters === 0
   if (!options.resume) assert.ok(report.freshDatabase, 'Official replay requires an empty application database')
-  let runtime, context, previous = options.resume?.previous ?? {}, checked = options.resume?.checked ?? []
+  let runtime, context, probe, previous = options.resume?.previous ?? {}, checked = options.resume?.checked ?? []
+  const skippedWeeks = () => context.seasonYear === profile.firstYear ? context.skippedWeeks ?? profile.settings.skipped_weeks : profile.settings.skipped_weeks
   const sample = async (_at, jobs) => {
     if (!context || !jobs.some(job => job.jobname === 'nba-live-poll')) return
     const date = etDate(new Date(runtime.now()).toISOString())
     if (!Number(await sql(`SELECT count(*) FROM nba_games WHERE game_date='${date}' AND status='InProgress'`))) return
     const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear} AND '${date}' BETWEEN week_start AND week_end`))
-    if (!week || profile.settings.skipped_weeks.includes(week)) return
+    if (!week || skippedWeeks().includes(week)) return
     if (!Number(await sql(`SELECT count(*) FROM matchups WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND ${week} BETWEEN week_number AND coalesce(end_week_number,week_number)`))) return
     const result = await assertClientScores(context, { week, previous })
     previous = { ...previous, ...result.observations }
@@ -59,7 +71,7 @@ export async function officialReplay(options, scenario) {
       context = { ...options.resume.context, ...actionClient(runtime.keys) }
     } else {
       await runtime.move(`${start}T14:00:00Z`)
-      context = await createLeagueActions(runtime.keys, start, profile.teamCount, { scenario: profile, move: runtime.move })
+      context = await createLeagueActions(runtime.keys, start, profile.teamCount, { scenario: profile, move: runtime.move, skipPastWeeks: options['late-season'] === true })
       if ('auction' in context) report.auction = context.auction
     }
     if ('auction' in context) report.auction ??= context.auction
@@ -67,6 +79,7 @@ export async function officialReplay(options, scenario) {
     assert.equal(preferences.length, profile.teamCount, 'Every official manager has an optimizer preference')
     assert.ok(preferences.every(row => row.enabled === true), 'All official managers start with their saved optimizer preference enabled')
     report.preferences = preferences
+    if (report.lateStart) probe = await startRealtimeProbe(context, runtime.keys)
     runtime.origin.onLiveSample = () => sample(null, [{ jobname: 'nba-live-poll' }])
     await laneDirectory(path.join(miniRoot, 'state/eligibility'))
     const persistCursor = async date => {
@@ -82,11 +95,16 @@ export async function officialReplay(options, scenario) {
       const current = await sqlJson(`SELECT row_to_json(s) FROM league_seasons s WHERE league_id='${context.leagueId}' AND is_current`, 'Official current season')
       if (current.id !== context.leagueSeasonId) {
         const previousContext = context
+        if (probe) {
+          report.realtime = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
+          await probe.close()
+          probe = null
+        }
         context = { ...context, leagueSeasonId: current.id, seasonYear: current.season_year, firstDate: input.seasons.find(row => row.year === current.season_year)?.start ?? date }
         await verifyOfficialRollover(context, previousContext, report, runtime.now())
         previous = {}; checked = []
       }
-      if (date === input.bounds.checkpoint && !options.resume) {
+      if (date === input.bounds.checkpoint && !options.resume && start < input.bounds.checkpoint) {
         await waitForSnapshotWorkers({ advance: runtime.move })
         runtime.origin.flushCoverage()
         await runtime.verifyFidelity()
@@ -107,19 +125,24 @@ export async function officialReplay(options, scenario) {
       }
       const calendar = input.seasons.find(row => row.year === context.seasonYear)?.calendar
       const week = calendar?.weeks.find(row => date >= row.week_start && date <= row.week_end)
+      if (report.lateStart && week) day.week = week.week_number
       if (date === input.bounds.firstStart || date === input.bounds.secondStart) {
         const rows = await sqlJson(`SELECT coalesce(json_agg(w ORDER BY week_number),'[]') FROM season_weeks w WHERE season_year=${context.seasonYear}`, 'Official published calendar')
         const matchups = await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`)
-        day.calendar = checkCalendar(calendar, rows, matchups, context.users.map(user => user.memberId), profile.settings.skipped_weeks)
+        day.calendar = checkCalendar(calendar, rows, matchups, context.users.map(user => user.memberId), skippedWeeks())
       }
-      if (week && !profile.settings.skipped_weeks.includes(week.week_number)) await captureOfficialForecasts(context, date, week.week_number, report)
+      if (week && !skippedWeeks().includes(week.week_number)) await captureOfficialForecasts(context, date, week.week_number, report)
       if (week && context.seasonYear === profile.firstYear && [10, 13, 16, 17].includes(week.week_number)) await auditOfficialTradeValues(context, week.week_number, report)
       await advanceOfficialTrades(context, date, report, runtime.now())
-      if (!report.waivers && context.seasonYear === profile.firstYear && date === calendar.weeks.find(row => !profile.settings.skipped_weeks.includes(row.week_number)).week_start) await beginOfficialWaivers(context, runtime.now(), report)
+      if (!report.waivers && context.seasonYear === profile.firstYear) {
+        const firstEligible = calendar.weeks.find(row => !skippedWeeks().includes(row.week_number)).week_start
+        const waiverStart = report.lateStart && start > firstEligible ? start : firstEligible
+        if (date === waiverStart) await beginOfficialWaivers(context, runtime.now(), report)
+      }
       await runtime.move(`${shiftDay(date, 1)}T09:59:00Z`)
       await verifyOfficialWaivers(context, report.waivers, runtime.now())
       if (input.games.some(game => game.date === date)) day.finals = await assertFinals(date)
-      if (week && !profile.settings.skipped_weeks.includes(week.week_number)) {
+      if (week && !skippedWeeks().includes(week.week_number)) {
         const count = Number(await sql(`SELECT count(*) FROM matchups WHERE league_season_id='${context.leagueSeasonId}' AND NOT is_voided AND ${week.week_number} BETWEEN week_number AND coalesce(end_week_number,week_number)`))
         const result = count ? await assertClientScores(context, { week: week.week_number, previous }) : null
         if (result) {
@@ -135,6 +158,11 @@ export async function officialReplay(options, scenario) {
       if (report.rollover && !report.rookieDraft && date >= input.draft.availableAt.slice(0, 10)) await runOfficialRookieDraft(context, input, report, runtime.move, runtime.now())
       day.state = await sqlJson(`SELECT json_build_object('seasons',(SELECT json_agg(s ORDER BY season_year) FROM league_seasons s WHERE league_id='${context.leagueId}'),'drafts',(SELECT coalesce(json_agg(d ORDER BY created_at),'[]') FROM drafts d WHERE league_id='${context.leagueId}'))`, 'Official lifecycle state')
       await runtime.verifyFidelity()
+      if (probe?.events.some(event => event.scoreChanged)) {
+        report.realtime = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
+        await probe.close()
+        probe = null
+      }
       report.days.push(day)
       await persistCursor(shiftDay(date, 1))
       await writeJson(path.join(miniRoot, 'evidence/official-replay.json'), report)
@@ -154,7 +182,8 @@ export async function officialReplay(options, scenario) {
     throw error
   } finally {
     let cleanupError
-    try { await runtime?.close() } catch (error) { cleanupError = error; report.cleanupError = error.stack }
+    try { await probe?.close() } catch (error) { cleanupError = error; report.cleanupError = error.stack }
+    try { await runtime?.close() } catch (error) { cleanupError ??= error; report.cleanupError = error.stack }
     report.finishedAt = new Date().toISOString()
     const summary = summarizeOfficial(report)
     report.fullAcceptance = summary.fullAcceptance
