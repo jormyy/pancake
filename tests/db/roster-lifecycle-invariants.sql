@@ -156,6 +156,7 @@ SELECT public.add_trade_block_item_atomic(ids.member_a, ids.league_id, ids.injur
 INSERT INTO public.weekly_lineups (league_id, league_season_id, member_id, player_id, slot_type, game_date)
 SELECT ids.league_id, ids.season_id, ids.member_a, ids.injured, 'SG', current_date + 2 FROM lifecycle_ids AS ids;
 SELECT public.toggle_ir_atomic('00000000-0000-0000-0000-0000000a0502', true, ids.user_a) FROM lifecycle_ids AS ids;
+SELECT public.toggle_ir_atomic('00000000-0000-0000-0000-0000000a0502', true, ids.user_a) FROM lifecycle_ids AS ids;
 DO $$
 DECLARE ids lifecycle_ids%ROWTYPE;
 BEGIN
@@ -166,7 +167,11 @@ BEGIN
   IF EXISTS (SELECT 1 FROM public.weekly_lineups WHERE member_id = ids.member_a AND player_id = ids.injured) THEN
     RAISE EXCEPTION 'T3: future lineup slot survived an IR move';
   END IF;
+  IF (SELECT count(*) FROM roster_transactions WHERE member_id=ids.member_a AND player_id=ids.injured AND transaction_type='ir_designate')<>1 THEN
+    RAISE EXCEPTION 'Repeated IR placement writes duplicate history';
+  END IF;
 END $$;
+SELECT public.toggle_ir_atomic('00000000-0000-0000-0000-0000000a0502', false, ids.user_a) FROM lifecycle_ids AS ids;
 SELECT public.toggle_ir_atomic('00000000-0000-0000-0000-0000000a0502', false, ids.user_a) FROM lifecycle_ids AS ids;
 DO $$
 DECLARE ids lifecycle_ids%ROWTYPE;
@@ -174,6 +179,9 @@ BEGIN
   SELECT * INTO ids FROM lifecycle_ids;
   IF pg_temp.listing_count(ids.member_a, ids.injured) <> 1 THEN
     RAISE EXCEPTION 'T3: activation lost an existing listing';
+  END IF;
+  IF (SELECT count(*) FROM roster_transactions WHERE member_id=ids.member_a AND player_id=ids.injured AND transaction_type='ir_return')<>1 THEN
+    RAISE EXCEPTION 'Repeated IR activation writes duplicate history';
   END IF;
 END $$;
 

@@ -1,5 +1,5 @@
 BEGIN;
-SET LOCAL app.supabase_url='http://127.0.0.1:57521';
+SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='local-forecast-dispatch-probe';
 \ir rules-support.sql
 DO $$

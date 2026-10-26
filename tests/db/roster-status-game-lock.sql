@@ -43,6 +43,16 @@ BEGIN
   EXCEPTION WHEN SQLSTATE '22023' THEN
     IF SQLERRM <> 'Invalid roster overflow action: taxi' THEN RAISE; END IF;
   END;
+  BEGIN
+    PERFORM public.activate_roster_player_with_lineup_atomic(
+      '00000000-0000-0000-0000-0000f6d40502'::uuid, 'ir',
+      '00000000-0000-0000-0000-0000f6d40501'::uuid, 'taxi',
+      '00000000-0000-0000-0000-0000f6d40201', '00000000-0000-0000-0000-0000f6d40101',
+      '00000000-0000-0000-0000-0000f6d40301',current_date,1,NULL);
+    RAISE EXCEPTION 'Lineup taxi overflow action unexpectedly succeeded';
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    IF SQLERRM <> 'Invalid roster overflow action: taxi' THEN RAISE; END IF;
+  END;
 END;
 $$;
 

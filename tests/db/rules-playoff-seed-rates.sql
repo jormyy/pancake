@@ -13,7 +13,7 @@ BEGIN
     ('win percentage', 2, 2, 0, 100, 0, 0, 4, 3, 0, 125, 0, 0),
     ('half-win ties', 2, 1, 1, 100, 0, 0, 2, 1, 0, 250, 0, 0),
     ('points per game', 2, 1, 0, 110, 0, 0, 4, 2, 0, 100, 0, 0),
-    ('maximum points', 2, 1, 0, 100, 250, 0, 4, 2, 0, 100, 100, 0),
+    ('maximum points before points against', 2, 1, 0, 100, 250, 100, 4, 2, 0, 100, 100, 0),
     ('points against', 2, 1, 0, 100, 0, 50, 4, 2, 0, 100, 0, 50),
     ('equal rates', 2, 1, 0, 100, 0, 0, 4, 2, 0, 100, 0, 0)
   ) cases(label, a_games, a_wins, a_ties, a_points, a_max, a_against,

@@ -21,6 +21,17 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT count(*)=5 FROM injury_dispatches WHERE job='et:player-injuries'),'after last tipoff and off days dispatch hourly');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM cron.job WHERE jobname='nba-sync-players' AND schedule='*/15 * * * *' AND command ILIKE '%invoke_edge_function_at_et_time%'),'existing quarter-hour player cron calls the game-day gate');
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM injury_dispatches WHERE job='et-time:sync-players' AND body='{}'::jsonb),'full player refresh remains once per day');
+  TRUNCATE injury_dispatches;
+  DELETE FROM cron_dispatch_state WHERE job_key='et:player-injuries';
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '08:00') AT TIME ZONE 'America/New_York');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '08:15') AT TIME ZONE 'America/New_York');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM injury_dispatches),'off-day quarter hour does not repeat an hourly dispatch');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '09:00') AT TIME ZONE 'America/New_York');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '23:00') AT TIME ZONE 'America/New_York');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '01:00') AT TIME ZONE 'America/New_York');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '02:00') AT TIME ZONE 'America/New_York');
+  PERFORM invoke_player_injuries_if_due((game_day+1+time '03:00') AT TIME ZONE 'America/New_York');
+  PERFORM pg_temp.check_rules((SELECT count(*)=5 FROM injury_dispatches),'off-day daytime and overnight windows dispatch while three AM stays quiet');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

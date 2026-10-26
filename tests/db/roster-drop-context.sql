@@ -105,7 +105,7 @@ BEGIN
     'fixture is exactly one active player over capacity');
 
   -- Context and inactive-target denials run while a genuine active overflow exists.
-  FOREACH v_case IN ARRAY ARRAY['wrong_owner','wrong_expected_season','historical_row',
+  FOREACH v_case IN ARRAY ARRAY['wrong_owner','wrong_expected_season','wrong_owner_ordinary','wrong_expected_season_ordinary','historical_row',
     'old_draft','wrong_league','missing_expected_season','mock','pending',
     'auction','ir_target','taxi_target','missing_draft'] LOOP
     UPDATE public.drafts SET is_mock=false,draft_type='snake',status='completed' WHERE id=v_draft;
@@ -113,6 +113,8 @@ BEGIN
       v_rows[1],v_season,v_draft);
     CASE v_case
       WHEN 'wrong_owner' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_rows[4],v_season,v_draft);
+      WHEN 'wrong_owner_ordinary' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid)',v_rows[4],v_season);
+      WHEN 'wrong_expected_season_ordinary' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid)',v_rows[1],v_old_season);
       WHEN 'wrong_expected_season' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_rows[1],v_old_season,v_draft);
       WHEN 'historical_row' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_old_row,v_old_season,v_old_draft);
       WHEN 'old_draft' THEN v_sql:=format('SELECT public.drop_player_atomic(%L::uuid,%L::uuid,%L::uuid)',v_rows[1],v_season,v_old_draft);

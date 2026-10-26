@@ -12,7 +12,7 @@ SELECT set_config('app.edge_internal_token','local-database-ci-token',true);
 DO $$
 DECLARE
   game uuid:=gen_random_uuid(); player uuid:=gen_random_uuid(); ref timestamptz;
-  holder uuid; replacement uuid; before_count bigint; saved_updated timestamptz; saved_revision bigint;
+  holder uuid; replacement uuid; age interval; before_count bigint; saved_updated timestamptz; saved_revision bigint;
 BEGIN
   FOREACH ref IN ARRAY ARRAY['2026-01-15 01:30 America/New_York'::timestamptz,'2026-07-15 01:30 America/New_York'::timestamptz] LOOP
     INSERT INTO nba_games(id,nba_game_id,game_date,season_year,week_number,home_team,away_team,status,game_time)
@@ -28,9 +28,20 @@ BEGIN
     PERFORM pg_temp.check_live(NOT EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game),'postponed does not poll '||ref);
     UPDATE nba_games SET game_status_text='',game_time=ref-interval '1 hour' WHERE id=game;
     INSERT INTO private.live_poll_game_state(game_id,checked_at) VALUES(game,ref);
+    FOREACH age IN ARRAY ARRAY[interval '11 minutes',interval '43 minutes',interval '45 minutes'] LOOP
+      UPDATE nba_games SET game_time=ref-age WHERE id=game;
+      UPDATE private.live_poll_game_state SET checked_at=ref-interval '2 minutes' WHERE game_id=game;
+      PERFORM pg_temp.check_live(EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game AND needs_scoreboard AND NOT needs_stats),'delayed tip remains due at '||age||' '||ref);
+    END LOOP;
+    UPDATE nba_games SET game_time=ref-interval '45 minutes 0.001 seconds' WHERE id=game;
+    UPDATE private.live_poll_game_state SET checked_at=ref-interval '29 minutes 59.999 seconds' WHERE game_id=game;
     PERFORM pg_temp.check_live(NOT EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game),'stale scheduled backoff '||ref);
     UPDATE private.live_poll_game_state SET checked_at=ref-interval '30 minutes' WHERE game_id=game;
     PERFORM pg_temp.check_live(EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game AND needs_scoreboard),'stale scheduled recovers '||ref);
+    UPDATE nba_games SET status='InProgress' WHERE id=game;
+    UPDATE private.live_poll_game_state SET checked_at=ref,stats_attempted_at=ref WHERE game_id=game;
+    PERFORM pg_temp.check_live(EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game AND needs_scoreboard AND needs_stats),'live status ignores scheduled backoff '||ref);
+    UPDATE private.live_poll_game_state SET stats_attempted_at=NULL WHERE game_id=game;
     UPDATE nba_games SET status='Final',updated_at=ref WHERE id=game;
     PERFORM pg_temp.check_live(EXISTS(SELECT 1 FROM get_live_poll_work(ref) WHERE id=game AND needs_stats AND NOT needs_scoreboard),'first final uses marker not updated timestamp '||ref);
     UPDATE private.live_poll_game_state SET stats_attempted_at=ref-interval '29 minutes 59.999 seconds' WHERE game_id=game;
@@ -48,6 +59,9 @@ BEGIN
   INSERT INTO player_game_stats(player_id,game_id,season_year,week_number,game_date,points)
     VALUES(player,game,9001,1,(now() AT TIME ZONE 'America/New_York')::date,1);
   PERFORM pg_temp.check_live(EXISTS(SELECT 1 FROM get_live_poll_work() WHERE id=game AND needs_stats),'partial stat row does not certify final');
+  SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='live-poll';
+  PERFORM invoke_live_poll_if_due();
+  PERFORM pg_temp.check_live((SELECT count(*)=before_count+1 FROM edge_invocations WHERE function_name='live-poll'),'uncertified final dispatches live poll');
   SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='live-poll';
   holder:=try_live_poll_lease(779001,90);
   PERFORM pg_temp.check_live(holder IS NOT NULL,'lease admitted');
@@ -91,7 +105,18 @@ BEGIN
   UPDATE player_game_stats SET points=3 WHERE game_id=game;
   PERFORM pg_temp.check_live((SELECT points=3 FROM player_game_stats WHERE game_id=game),'replacement writes');
   PERFORM set_config('request.headers','{}',true);
-  PERFORM release_live_poll_lease(779001,replacement);
+  PERFORM pg_temp.check_live(renew_live_poll_lease(779001,replacement,90),'current lease holder renews');
+  PERFORM pg_temp.check_live(try_live_poll_lease(779001,90) IS NULL,'renewed lease blocks takeover');
+  UPDATE live_poll_leases SET expires_at=now()-interval '1 second' WHERE lock_key=779001;
+  PERFORM pg_temp.check_live(NOT renew_live_poll_lease(779001,replacement,90),'expired holder cannot renew');
+  holder:=try_live_poll_lease(779001,90);
+  PERFORM pg_temp.check_live(holder IS NOT NULL AND holder<>replacement,'expired lease admits new holder');
+  PERFORM pg_temp.check_live(NOT renew_live_poll_lease(779001,replacement,90),'displaced holder cannot renew');
+  PERFORM release_live_poll_lease(779001,holder);
+  UPDATE nba_games SET stats_synced_at=now() WHERE id=game;
+  SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='live-poll';
+  PERFORM invoke_live_poll_if_due();
+  PERFORM pg_temp.check_live((SELECT count(*)=before_count FROM edge_invocations WHERE function_name='live-poll'),'certified final does not dispatch live poll');
 END;
 $$;
 DO $$
