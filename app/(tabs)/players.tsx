@@ -648,7 +648,7 @@ function PlayersScreen() {
                         <PlayerSearchSection />
                     </RetainedPanel>
                 ) : null}
-                {opened.has('waivers') ? <RetainedPanel active={focused && section === 'waivers'}><WaiversSection active={focused && section === 'waivers'} /></RetainedPanel> : null}
+                {opened.has('waivers') ? <RetainedPanel active={focused && section === 'waivers'}><WaiversSection active={focused && section === 'waivers'} onFindPlayer={() => openSection('players')} /></RetainedPanel> : null}
                 {/* Rankings and News share one instance, so each loads its data once. */}
                 {opened.has('rankings') || opened.has('news') ? (
                     <RetainedPanel active={focused && (section === 'rankings' || section === 'news')}>

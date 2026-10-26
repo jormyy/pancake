@@ -10,7 +10,7 @@ import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } fro
 import { cancelWaiverClaim, claimProcessDateLabel, editWaiverClaim, getMyWaiverClaims, getMyWaiverPriority, reorderWaiverClaim, scheduledClaimRunAt, type WaiverClaim } from '@/lib/waivers'
 import { colors, spacing, textStyles } from '@/constants/tokens'
 
-export function WaiversSection({ active }: { active: boolean }) {
+export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFindPlayer: () => void }) {
     const { current, currentLeague } = useLeagueContext()
     const router = useRouter()
     const online = useOnlineStatus()
@@ -88,7 +88,7 @@ export function WaiversSection({ active }: { active: boolean }) {
         <Text style={textStyles.meta}>Next run {claimProcessDateLabel(null)}. Dropped players wait at least 48 hours.</Text>
         {visible?.state ? <Text style={textStyles.meta}>Successful pickups {visible.state.weeklyAddCount}/{visible.state.weeklyAddLimit ?? '∞'} this scoring week.</Text> : null}
         <Text style={textStyles.meta}>Bids stay private until processing. Higher bids go first. Claim order decides between your equal bids.</Text>
-        <Pressable style={styles.action} accessibilityRole="button" onPress={() => router.push('/players?section=players')}><Text style={styles.link}>Find a player to claim</Text></Pressable>
+        <Pressable style={styles.action} accessibilityRole="button" onPress={onFindPlayer}><Text style={styles.link}>Find a player to claim</Text></Pressable>
         {!online ? <Text style={textStyles.meta}>Offline. Connect to change claims.</Text> : null}
         {error ? <View><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable style={styles.action} accessibilityRole="button" onPress={() => { void refresh() }}><Text style={styles.link}>Retry</Text></Pressable></View> : null}
         {loading && !visible ? <Text style={textStyles.meta}>Loading claims…</Text> : null}
