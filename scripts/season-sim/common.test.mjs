@@ -1,6 +1,25 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { assertTarget, config, configuration, dates, etDate, historicalSummary, scheduleEntries } from './common.mjs'
+import { databaseEnvironment } from './local-stack.mjs'
+
+test('database connections cannot inherit a different host or service', () => {
+  const poisoned = { PGHOSTADDR: '198.51.100.1', PGSERVICE: 'wrong-service', PGSERVICEFILE: '/missing-service' }
+  const previous = Object.fromEntries(Object.keys(poisoned).map(key => [key, process.env[key]]))
+  Object.assign(process.env, poisoned)
+  try {
+    const env = databaseEnvironment(new URL(`postgresql://postgres:fixture@localhost:${config.ports.db}/postgres`))
+    assert.equal(env.PGHOST, '127.0.0.1')
+    assert.equal(env.PGHOSTADDR, '127.0.0.1')
+    assert.equal(env.PGSERVICE, undefined)
+    assert.equal(env.PGSERVICEFILE, undefined)
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
 
 test('write targets reject hosted, disguised, wrong-port, and redirected origins', () => {
   for (const target of [
