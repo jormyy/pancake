@@ -146,6 +146,16 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     scoring.push(await fixture.scoreThrough(21))
     const final = await rounds(2)
     assert.equal(final[0].is_finalized, true)
+    const champion = fixture.members.find(member => member.id === final[0].winner_member_id)
+    assert.ok(champion)
+    await open('/bracket')
+    await page.getByText('Champion', { exact: true }).locator('..').getByText(champion.team_name, { exact: true }).waitFor()
+    const championship = page.getByText('Weeks 20–21', { exact: true }).locator('../..')
+    await championship.getByText(final[0].home_points.toFixed(1), { exact: true }).waitFor()
+    await championship.getByText(final[0].away_points.toFixed(1), { exact: true }).waitFor()
+    await championship.getByText('Final', { exact: true }).waitFor()
+    await press(button('Back to league standings'))
+    await open('/commissioner-settings')
     await press(page.getByRole('button', { name: /^Advance to Next Season/ }))
     await press(button('Advance'))
     const current = () => db(fixture.admin.from('league_seasons').select('id,season_year').eq('league_id', fixture.league.id).eq('is_current', true).single())
@@ -161,7 +171,8 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await button('Create a League').waitFor()
     await button('Join with Invite Code').waitFor()
     while (await button('Dismiss').count()) await press(button('Dismiss').last())
-    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true, emptyLeagueActionsVisible: true,
+    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, championVisible: champion.team_name,
+      finalPointsVisible: [final[0].home_points, final[0].away_points], rolledOver: true, archivedWithHistory: true, emptyLeagueActionsVisible: true,
       scoring, fixture: 'Ten fictional teams, one scoring player each, four playoff teams, two weeks per round. Synthetic historical stats pass through the real scoring worker; no expected winner is written.' }
   })
 }
