@@ -96,11 +96,15 @@ function pruneEdgeExports(source, label, privateNames, removedNames = []) {
   const sourceFile = sourceFileFor(source, label)
   const replacements = []
   sourceFile.forEachChild(node => {
-    const name = ts.isVariableStatement(node) ? node.declarationList.declarations[0]?.name.getText(sourceFile) : node.name?.getText(sourceFile)
+    const name = ts.isVariableStatement(node)
+      ? node.declarationList.declarations[0]?.name.getText(sourceFile)
+      : ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node)
+        ? node.name?.getText(sourceFile)
+        : undefined
     if (removedNames.includes(name)) {
       replacements.push({ start: node.getFullStart(), end: node.getEnd(), text: '' })
     } else if (privateNames.includes(name)) {
-      const modifier = node.modifiers?.find(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+      const modifier = (ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined)?.find(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
       if (!modifier) throw new Error(`Cannot generate ${label}: ${name} is not exported`)
       replacements.push({ start: modifier.getStart(sourceFile), end: modifier.getEnd() + 1, text: '' })
     }
