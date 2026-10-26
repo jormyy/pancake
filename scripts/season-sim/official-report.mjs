@@ -29,6 +29,7 @@ export function summarizeOfficial(report) {
     deadline: report.trades?.deadline?.checked === true,
     tradeQuotes: ['received', 'accepted', 'executed'].every(phase => report.trades?.completed?.quoteReceipts?.some(row => row.phase === phase)),
     tradeValueAudits: [10, 13, 16, 17].every(week => report.tradeValueAudits?.some(row => row.week === week && row.receipts.length === 3)),
+    tradeValueAnchors: [10, 13, 16, 17].every(week => report.tradeValueAudits?.some(row => row.week === week && row.anchors?.passed === true)),
     liveScores: report.liveSamples > 0,
     corruptionControls: report.corruptionControls?.length === 4 && report.corruptionControls.every(row => row.detected),
   }

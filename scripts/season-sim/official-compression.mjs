@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { appendFile, readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { fixtureStore } from './fixtures.mjs'
-import { fixtureDirectory, sha256 } from './common.mjs'
+import { fixtureDirectory, miniRoot, sha256 } from './common.mjs'
 import { orderedActions, gameEndTime } from './snapshots.mjs'
 import { sqlJson } from './local-stack.mjs'
 
@@ -104,7 +105,9 @@ export async function officialCompression(input, receipt) {
     games.push({ id: game.id, start: Date.parse(game.time), end, frames, source: store.manifest.get(`playbyplay-${game.id}`).sha256 })
   }
   receipt.games = games
-  return compressionPolicy(materialLiveTicks(games), receipt, () => sqlJson(`SELECT json_build_object(
+  receipt.proofFile = 'official-compression-proofs.jsonl'
+  return compressionPolicy(materialLiveTicks(games), receipt, async at => {
+    const state = await sqlJson(`SELECT json_build_object(
     'inventory',EXISTS(SELECT 1 FROM private.league_hint_pending),
     'scores',EXISTS(SELECT 1 FROM private.player_stats_hint_pending),
     'tips',(SELECT coalesce(json_agg(game_time),'[]') FROM nba_games WHERE game_date BETWEEN (now() AT TIME ZONE 'America/New_York')::date AND (now() AT TIME ZONE 'America/New_York')::date+1),
@@ -114,5 +117,8 @@ export async function officialCompression(input, receipt) {
     'forecastExpires',(SELECT min(extract(epoch FROM f.valid_until)*1000) FROM matchup_forecasts f JOIN matchups m ON m.id=f.matchup_id JOIN league_seasons s ON s.id=m.league_season_id AND s.is_current JOIN season_weeks e ON e.season_year=s.season_year AND e.week_number=coalesce(m.end_week_number,m.week_number) WHERE NOT m.is_voided AND e.week_end>=(now() AT TIME ZONE 'America/New_York')::date-1),` : ''}
     'drafts',EXISTS(SELECT 1 FROM drafts d WHERE d.status IN ('in_progress','paused') OR (d.draft_type='snake' AND d.status='completed' AND EXISTS(SELECT 1 FROM snake_draft_picks p WHERE p.draft_id=d.id AND p.player_id IS NULL AND p.skipped_at IS NOT NULL))),
     'stats',EXISTS(SELECT 1 FROM sync_jobs WHERE job_type LIKE 'sync_stats_range:%' AND (status IN ('pending','running') OR (status='failed' AND failed_items<3)))
-  )`, 'Empty-queue compression proof'))
+  )`, 'Empty-queue compression proof')
+    await appendFile(path.join(miniRoot, 'evidence', receipt.proofFile), `${JSON.stringify({ at, state })}\n`)
+    return state
+  })
 }

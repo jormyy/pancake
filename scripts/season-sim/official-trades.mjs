@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { sql, sqlJson } from './local-stack.mjs'
+import { checkAnchoredValue, productionAnchors, valueAnchors } from './official-value-anchors.mjs'
+
+export { offer as proposeOfficialMixedTrade, verifyPlayerSettlement, verifyQuote }
 
 const regularPlan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }
 
@@ -167,14 +170,19 @@ export async function auditOfficialTradeValues(c, week, report) {
     if (scenario.kind === 'picks') {
       const value = id => quote.analysis.assets.find(asset => asset.assetId === id).values.overall
       assert.ok(value(scenario.items[0].pickId) > value(scenario.items[1].pickId), 'A same-class first-round pick exceeds a third-round pick')
+      checkAnchoredValue(value(scenario.items[0].pickId), 'nextFirst')
+      checkAnchoredValue(value(scenario.items[1].pickId), 'nextThird')
     }
     if (scenario.kind === 'faab') {
       const value = item => quote.analysis.assets.find(asset => asset.assetId === `faab:${item.fromMemberId}:${item.toMemberId}`).values.overall
       assert.ok(value(scenario.items[1]) > value(scenario.items[0]), 'More budget has greater value under the same league conditions')
+      checkAnchoredValue(value(scenario.items[0]), 'tenPercentFaab')
+      checkAnchoredValue(value(scenario.items[1]), 'halfBudgetFaab')
     }
     const [frozenQuote] = await c.rest(a, `trade_estimate_quotes?select=*&id=eq.${quote.id}`)
     assert.ok(frozenQuote?.inputs, 'Held-out value audit retains its frozen source inputs')
     receipts.push({ ...scenario, quote, frozenQuote })
   }
-  report.tradeValueAudits.push({ week, split: week === 17 ? 'final-held-out' : 'calibration-held-out', scope: 'Prespecified sensitivity and ordering checks; not independent market-price calibration', receipts })
+  const anchors = await productionAnchors(c)
+  report.tradeValueAudits.push({ week, split: week === 17 ? 'final-held-out' : 'calibration-held-out', scope: valueAnchors.scope, judgments: valueAnchors, anchors, receipts })
 }
