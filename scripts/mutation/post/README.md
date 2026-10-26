@@ -94,23 +94,6 @@ A new calendar can merge a qualifying All-Star gap.
 Existing calendars retain saved numbering unless a reviewed migration changes it.
 Partial snapshots do not cancel unseen games or rewrite finalized history.
 
-## Paired proofs and residue
-
-Historical proof helpers require their original source files in external evidence directories.
-Read each helper's required paths before running it.
-Use the corresponding baseline commit, keep fixtures unchanged, and verify restoration hashes.
-
-```sh
-node scripts/mutation/post/verify-review.mjs
-node scripts/mutation/post/verify-skipped-week.mjs
-node scripts/mutation/post/verify-stale-boundary.mjs
-node scripts/mutation/post/residue.mjs
-```
-
-These helpers apply temporary definitions and run real local database oracles.
-A before/after proof counts only when the same assertion fails before and passes after.
-Residue checks must preserve unrelated fixtures after repeated recipe execution.
-
 The [verification guide](../../../docs/verification.md) supplies ordinary database setup.
 The local guard variables are `PANCAKE_TEST_API_PORT` and `PANCAKE_TEST_DB_PORT`.
 The wrapper supplies this directory's assigned values.
@@ -118,18 +101,3 @@ The wrapper supplies this directory's assigned values.
 ## Served Edge paths
 
 `edge.mjs` starts the real server and stops only its recorded process.
-`post-t10-boundary-http.ts` sends boundary ticks through the served `season-boundary` function.
-`post-t11-schedule-http.ts` sends calendar publication through `sync-schedule` and reads fit through the API.
-The fake NBA CDN serves pinned fixtures on a separate local port.
-Its whole-week date shift preserves calendar shape while satisfying current source freshness.
-
-Served-path TypeScript mutations restart Edge after mutation and after restoration.
-The container's file hash must match both times.
-SQL overlays need no Edge restart.
-The Edge runtime does not type-check; served oracles must detect behavior, not compilation failure.
-
-Use `t10-scan.py` to compare catalog targets with the source used for prior verdicts.
-Use `rerun-t10.mjs --baseline` before selecting changed targets for a rerun.
-Use `t10-merge.py` to summarize the retained results.
-`t11-plan.py` selects served schedule reruns from earlier result files and a baseline commit.
-Keep generated plans and summaries with the external evidence for the reviewed source.
