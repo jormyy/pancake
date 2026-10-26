@@ -29,6 +29,20 @@ FantasyPros zero-row skips can be expected during the offseason.
 Sleeper projection freshness and coverage are also marked expected-unavailable then.
 A successful empty scoreboard response differs from a failed request.
 
+## Final statistics and corrections
+
+Live polling revisits completed games from today and yesterday after thirty minutes.
+A completed game can trigger that check without another live or scheduled game.
+Recent attempts retain their thirty-minute retry limit.
+
+The daily correction job starts at or after 06:20 Eastern and covers the previous seven dates.
+The fifteen-minute scheduler can catch up after downtime.
+Each date window is queued once, including after completion.
+The existing fenced dispatcher processes one game at a time and records failures.
+The correction pass uses NBA final boxes and updates dependent totals through the normal stat writer.
+Older source corrections require an explicit historical replay.
+Check failed range jobs before treating a completed schedule check as proof of correct statistics.
+
 ## Injury refresh
 
 `sync-player-injuries` refreshes injuries each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.

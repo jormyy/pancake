@@ -465,7 +465,8 @@
     "test:db:player-roster-cycle": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-roster-cycle.sql",
     "test:db:player-source-box": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-source-box.sql",
     "test:db:player-source-connectivity": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-source-connectivity.sql",
-    "test:db:player-data-legacy-writes": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql"
+    "test:db:player-data-legacy-writes": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql",
+    "test:db:stats-corrections": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/stats-correction-schedule.sql"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

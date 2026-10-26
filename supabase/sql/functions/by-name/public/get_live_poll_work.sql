@@ -32,13 +32,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     WHERE game.game_date IN ((p_now AT TIME ZONE 'America/New_York')::date-1,(p_now AT TIME ZONE 'America/New_York')::date)
       AND game.nba_game_id LIKE '002%'
       AND private.lineup_game_available(game.status,game.game_status_text)
-  ), primary_work AS (
-    SELECT * FROM candidates WHERE board_due OR (stats_due AND stats_synced_at IS NULL)
   )
   SELECT game.id,game.nba_game_id,game.game_date,game.season_year,game.week_number,game.status,
     game.game_time,game.started_at,game.home_team,game.away_team,game.home_score,game.away_score,
     game.game_status_text,game.stats_synced_at,game.board_due,game.stats_due
   FROM candidates game
-  WHERE game.board_due OR (game.stats_due AND (game.stats_synced_at IS NULL OR EXISTS(SELECT 1 FROM primary_work)))
+  WHERE game.board_due OR game.stats_due
   ORDER BY game.game_date,game.id;
 $$;

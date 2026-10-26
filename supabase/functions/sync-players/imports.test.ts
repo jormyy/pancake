@@ -28,7 +28,7 @@ const players = Array.from({ length: 634 }, (_, index) => ({
 }))
 const conflictPlayerId = '00000000-0000-4000-8000-000000000123'
 
-async function runSync(source: string, conflicts: Set<string>, otherError = false, indexAction?: string, injuries: 'healthy' | 'empty' | 'unmapped' = 'healthy') {
+async function runSync(source: string, conflicts: Set<string>, otherError = false, indexAction?: string, injuries: 'healthy' | 'empty' | 'unmapped' = 'healthy', sleeperExtras: Record<string, unknown>[] = []) {
   const originalFetch = globalThis.fetch
   const originalLog = console.log
   const originalError = console.error
@@ -52,9 +52,9 @@ async function runSync(source: string, conflicts: Set<string>, otherError = fals
       if (url.pathname === '/api/injuries') return Response.json({ injuries: injuries === 'empty' ? [] : [{ injuries: [{ status: injuries === 'unmapped' ? 'Unknown' : 'Out', athlete: { displayName: 'Fixture Player0' } }] }] })
       if (url.pathname === '/api/news') { newsFetched = true; return Response.json({ articles: [] }) }
     }
-    if (url.hostname === 'sleeper.invalid' && url.pathname === '/v1/players/nba') return Response.json(Object.fromEntries(players.map((player) => [player.provider_id, {
+    if (url.hostname === 'sleeper.invalid' && url.pathname === '/v1/players/nba') return Response.json(Object.fromEntries([...players.map((player) => ({
       ...player, player_id: player.provider_id, sport: 'nba', position: 'PG', team: 'BOS', status: 'Active', years_exp: 1,
-    }])))
+    })), ...sleeperExtras].map(player => [player.player_id, player])))
     if (url.hostname === 'nba.invalid' && url.pathname === '/static/json/staticData/playerIndex.json') return Response.json({ resultSets: [{
       headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: indexAction ? [['nba-index-id', 'Index', 'Candidate', 1]] : [],
     }] })
@@ -168,3 +168,14 @@ for (const injuries of ['empty', 'unmapped'] as const) {
     assert.equal(result.runs.at(-1)?.error, undefined)
   })
 }
+
+Deno.test('sleeper excludes upstream placeholders and retains inactive free agents', async () => {
+  const result = await runSync('sleeper', new Set(), false, undefined, 'healthy', [
+    { player_id: '9001', sport: 'nba', first_name: 'Duplicate', last_name: 'Player', team: null, status: 'Inactive' },
+    { player_id: '9002', sport: 'nba', first_name: 'Retired', last_name: 'Veteran', team: null, status: 'Inactive' },
+  ])
+  assert.equal(result.response.status, 200)
+  assert.equal(result.imported.length, 635)
+  assert.ok(!result.imported.includes('9001'))
+  assert.ok(result.imported.includes('9002'))
+})

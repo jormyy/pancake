@@ -5312,6 +5312,10 @@ export type Database = {
         Args: { p_games: Json; p_season_year: number; p_weeks: Json }
         Returns: number
       }
+      queue_daily_stat_corrections: {
+        Args: { p_now?: string }
+        Returns: string
+      }
       rebuild_nba_calendar_atomic: {
         Args: { p_season_year: number }
         Returns: number
