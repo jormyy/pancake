@@ -243,3 +243,14 @@ test('a nickname links by surname and jersey number only when they name one play
   assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey})),{...was,4845374:1642267},'No ESPN jersey, no nickname link')
   assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey.map(athlete=>({...athlete,jersey:athlete.jersey??''})),players:slices.was.players.map(player=>({...player,jerseyNum:player.personId===1642259?'':player.jerseyNum}))})),{...was,4845374:1642267},'Two blank jerseys are no number')
 })
+
+test('broad later positions retain earlier same-family precision without inventing eligibility', () => {
+  const player = { ...people[0], observations: [{ date: '2025-10-20', team: 'DAL', position: 'PG' }, { date: '2025-10-21', team: 'DAL', position: 'PF' }, { date: '2025-10-22', team: 'DAL', position: 'F' }] }
+  assert.equal(rosterForDate([player], '2025-10-22')[0].position.abbreviation, 'PF')
+  player.observations.push({ date: '2025-10-23', team: 'DAL', position: 'SF' })
+  assert.equal(rosterForDate([player], '2025-10-23')[0].position.abbreviation, 'SF')
+  player.observations.push({ date: '2025-10-24', team: 'DAL', position: 'G' })
+  assert.equal(rosterForDate([player], '2025-10-24')[0].position.abbreviation, 'G')
+  player.observations.push({ date: '2025-10-25', team: 'DAL', position: 'C' })
+  assert.equal(rosterForDate([player], '2025-10-25')[0].position.abbreviation, 'C')
+})

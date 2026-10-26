@@ -1,9 +1,13 @@
-import { season } from './common.mjs'
+import { withHistoricalEligibility } from './eligibility-oracle.mjs'
+import { scoreCorruptionControls } from './oracle-controls.mjs'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
+import { season, miniRoot } from './common.mjs'
 import assert from 'node:assert/strict'
 import { sqlJson } from './local-stack.mjs'
 import { checkMatchupPoints, checkWeeklyRows, checkStarterCoverage, rosterCandidates } from './score-oracle.mjs'
 
-export async function assertClientScores(c, { week = null, previous = {}, expectedCount = null } = {}) {
+export async function assertClientScores(c, { week = null, previous = {}, expectedCount = null, corruptionControls = false } = {}) {
   const read = `matchups?select=*&league_id=eq.${c.leagueId}&league_season_id=eq.${c.leagueSeasonId}&is_voided=eq.false&order=week_number,id`
   const all = await c.rest(c.users[0], read)
   const matchups = all.filter(row => week == null || row.week_number <= week && (row.end_week_number ?? row.week_number) >= week)
@@ -13,6 +17,15 @@ export async function assertClientScores(c, { week = null, previous = {}, expect
   if (matchups.some(row => row.is_finalized)) {
     const startWeek = Math.min(...matchups.map(row => row.week_number)), endWeek = Math.max(...matchups.map(row => row.end_week_number ?? row.week_number))
     const history = await sqlJson(`SELECT json_build_object('roster',(SELECT coalesce(json_agg(r),'[]') FROM roster_players r WHERE league_season_id='${c.leagueSeasonId}'),'transactions',(SELECT coalesce(json_agg(t),'[]') FROM roster_transactions t WHERE league_season_id='${c.leagueSeasonId}'),'stats',(SELECT coalesce(json_agg(r),'[]') FROM (SELECT s.*,g.week_number,g.game_time,g.game_date AS lineup_date,p.position,p.eligible_positions FROM player_game_stats s JOIN nba_games g ON g.id=s.game_id JOIN players p ON p.id=s.player_id WHERE g.season_year=${c.seasonYear ?? season.year} AND g.week_number BETWEEN ${startWeek} AND ${endWeek} AND g.game_time<=now() AND s.player_id IN (SELECT player_id FROM roster_players WHERE league_season_id='${c.leagueSeasonId}' UNION SELECT player_id FROM roster_transactions WHERE league_season_id='${c.leagueSeasonId}')) r))`, 'Independent roster-history candidates')
+    if (c.scenario) {
+      const snapshots = new Map()
+      for (const date of new Set(history.stats.map(row => row.lineup_date))) {
+        const saved = JSON.parse(await readFile(path.join(miniRoot, 'state/eligibility', `${date}.json`), 'utf8'))
+        assert.equal(saved.date, date)
+        snapshots.set(date, { ...saved, players: new Map(saved.players.map(row => [row.id, row])) })
+      }
+      history.stats = withHistoricalEligibility(history.stats, snapshots)
+    }
     input.candidates = rosterCandidates({ ...history, members: c.users.map(user => user.memberId) })
   } else input.candidates = []
   const result = checkMatchupPoints({ matchups, ...input, previous, expectedCount })
@@ -20,7 +33,8 @@ export async function assertClientScores(c, { week = null, previous = {}, expect
     const allowed = (c.seasonYear ?? season.year) === season.year && matchup.week_number === 2 && matchup.matchup_type === 'regular_season' ? c.plannedEmptyWeekMembers ?? [] : []
     checkStarterCoverage(matchup, result.observations[matchup.id], allowed)
   }
-  return { ...result, route: `/rest/v1/${read}`, matchups }
+  const controls = corruptionControls ? scoreCorruptionControls({ matchups, ...input, previous, expectedCount }) : []
+  return { ...result, controls, route: `/rest/v1/${read}`, matchups }
 }
 
 export async function assertClosedWeeks(c, date, checked = []) {

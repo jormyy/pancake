@@ -171,3 +171,31 @@ A non-rookie needs a known career count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
 The refusal must name the illegal players and use the matching roster error code.
 IR and active roster problems can take precedence when those problems also exist.
+
+## Official historical profile
+
+Set `SEASON_SIM_PROFILE` to an absolute JSON file produced by `officialProfile`.
+Keep the file outside the checkout. Pin the two configuration snapshot hashes and an explicit action seed.
+Set `SEASON_SIM_YEAR=2025` and `SEASON_SIM_MODE=two-season`.
+The usual fresh launcher then selects the official driver. Without the profile, existing modes stay available.
+
+The profile creates ten managers and two hundred authenticated auction awards.
+It preserves twenty regular roster places, two IR places, three taxi places, and the saved scoring rules.
+Missing double-double and triple-double rules normalize to zero, overriding new-league defaults.
+Historical broad positions do not imply finer eligibility. The auction records missing preferred starters.
+
+The driver derives periods from the retained schedule under the current calendar rule.
+It saves the pre-playoff checkpoint on February 10, 2025, and continues through November 3, 2025.
+Daily eligibility snapshots precede tipoff. Historical maximum checks use those retained snapshots.
+Installed cron entries and Edge entry points supply the production dispatch catalog, including subminute jobs.
+
+`official-replay.json` contains detailed receipts. `official-summary.json` and `final-run.json` distinguish bounded completion from full acceptance.
+Missing gates prevent full acceptance. Browser, load, and app-update checks require separate receipts.
+Forecast weeks 10, 13, and 16 form the calibration holdout. Week 17 and playoffs form the final holdout.
+Forecast receipts retain source inputs, independent prior-game scoring, actual outcomes, and constant/prior-mean baselines.
+Missing probabilities count as cold coverage, never as successful predictions.
+
+`state/official-cursor.json` retains private manager sessions and completed evidence for recovery.
+A snapshot restore must preserve its profile hash, fixture hashes, and database state.
+After an infrastructure interruption, resume at the saved current clock without rewinding retained database results.
+Keep interrupted-run receipts distinct from uninterrupted fresh-run evidence.

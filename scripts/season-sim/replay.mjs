@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { loadScenarioProfile } from './scenario-profile.mjs'
 import {captureSeasonFeatures,capturePlayers} from './feature-evidence.mjs'
 import {registerPushOwners} from './push-evidence.mjs'
 import path from 'node:path'
@@ -36,6 +37,8 @@ import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 import { recoveryHistoryQuery, draftRecoveryFields, openingRecoveryFields, realSecondRecoveryFields, postDraftStateQuery } from './recovery.mjs'
 
 export async function replay(options = {}) {
+  const scenario = await loadScenarioProfile()
+  if (scenario) return (await import('./official-replay.mjs')).officialReplay(options, scenario)
   const realPlan = await twoPlan(), profile = realPlan?.seasons[0]
   // A real launch replays season one over the range its pinned schedule gives (prepare-two.mjs), not the fallback table.
   const season = profile ?? fallbackSeason

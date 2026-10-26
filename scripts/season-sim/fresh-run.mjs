@@ -13,6 +13,7 @@ import { launcherCheck } from './launcher-check.mjs'
 const { values } = parseArgs({ options: { 'source-sha': { type: 'string' }, 'check-first-date': { type: 'boolean' }, 'check-through': { type: 'string' } } })
 const check = launcherCheck(values)
 const real = process.env.SEASON_SIM_MODE === 'two-season'
+const official = Boolean(process.env.SEASON_SIM_PROFILE)
 if (real) { assert.equal(season.year,2025); assert.ok(!path.resolve(fixtureDirectory).startsWith(path.resolve(miniRoot,'../../shared/sim') + '/'),'The new leg cannot read or write the running replay input folder') }
 assert.match(values['source-sha'] ?? '', /^[a-f0-9]{40}$/, 'A committed integration SHA is required')
 assert.equal(await realpath(process.cwd()), path.join(miniRoot, 'repo'))
@@ -28,7 +29,7 @@ process.env.SEASON_SIM_SNAPSHOT_ROOT = path.join(config.snapshots, runId)
 await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: check?.scope ?? (real ? 'Fresh real two-season replay' : 'Fresh full replay'), inputDirectory: fixtureDirectory, check })
 let exit = 1, ready = false
 try {
-  if (real) execFileSync(process.execPath, ['scripts/season-sim/plan-audit.mjs'], { env: process.env, stdio: 'inherit' })
+  if (real && !official) execFileSync(process.execPath, ['scripts/season-sim/plan-audit.mjs'], { env: process.env, stdio: 'inherit' })
   execFileSync(config.cli, ['stop', '--project-id', config.project, '--no-backup'], { stdio: ['ignore', 'ignore', 'inherit'] })
   const backupRemoved = await clearOwnBackup()
   await writeJson(path.join(evidence, 'fresh-reset.json'), { project: config.project, backupRemoved })
@@ -37,7 +38,14 @@ try {
   await replay(check ? { days: check.days } : {})
   execFileSync(process.execPath, ['scripts/season-sim/report.mjs'], { env: process.env, stdio: 'inherit' })
   const result = JSON.parse(await readFile(path.join(evidence, 'final-run.json'), 'utf8'))
-  if (check) {
+  if (check && official) {
+    assert.equal(result.fullAcceptance, false)
+    assert.equal(result.complete, true)
+    assert.equal(result.completedDates, check.days)
+    assert.equal(result.freshDatabase, true)
+    assert.ok(result.verifiedGames > 0)
+    await writeJson(path.join(evidence, 'official-launcher-check.json'), { passed: true, scope: 'Official profile bounded diagnostic; full historical acceptance remains untested', dates: check.dates, games: result.verifiedGames })
+  } else if (check) {
     assert.equal(result.fullAcceptance, false)
     assert.equal(result.complete, true)
     assert.equal(result.completedDates, check.days)

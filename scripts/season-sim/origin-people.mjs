@@ -109,9 +109,16 @@ export function rosterForDate(people, date, openings = new Map(), availableAt = 
     group.sort((a,b)=>(a.observations[0].time??a.observations[0].date).localeCompare(b.observations[0].time??b.observations[0].date)||a.id.localeCompare(b.id))
     const person=group[0],observations=group.flatMap(row=>row.observations).sort((a,b)=>(a.time??a.date).localeCompare(b.time??b.date)),observation=observations.at(-1)
     const years = person.fromYear == null ? observation.yearsExp ?? null : Math.max(0, year - person.fromYear)
-    return { ...person,observations,sourceAliases:group.map(row=>row.id),team: observation.team, position: { abbreviation: observation.position }, experience: { years }, status: { type: observation.date >= `${year}-07-01` ? 'active' : 'inactive' } }
+    return { ...person,observations,sourceAliases:group.map(row=>row.id),team: observation.team, position: { abbreviation: historicalPosition(observations) }, experience: { years }, status: { type: observation.date >= `${year}-07-01` ? 'active' : 'inactive' } }
   })
 }
+function historicalPosition(observations) {
+  const latest = observations.at(-1)?.position
+  const precise = latest === 'G' ? ['PG', 'SG'] : latest === 'F' ? ['SF', 'PF'] : []
+  const specific = observations.findLast(row => ['PG', 'SG', 'SF', 'PF', 'C'].includes(row.position))?.position
+  return precise.includes(specific) ? specific : latest
+}
+
 export function playerIndexAt(people, date, openings = new Map(), availableAt = null) {
   return { resultSets: [{ headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS', 'TEAM_ABBREVIATION', 'POSITION', 'FROM_YEAR'], rowSet: rosterForDate(people, date, openings, availableAt).map(player => [player.nbaId, player.firstName, player.lastName, Number(player.status.type === 'active'), player.team, player.position.abbreviation, player.fromYear]) }] }
 }
