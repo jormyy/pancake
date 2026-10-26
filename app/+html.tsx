@@ -19,7 +19,7 @@ import { AuthDocumentForm } from '@/components/auth/AuthDocumentForm'
 // stale-while-revalidate would replay outdated module graphs after every edit
 // ("Requiring unknown module"). Registration is a production-build concern only.
 const SW_REGISTER = process.env.NODE_ENV === 'production' ? `
-if ('serviceWorker' in navigator && window.isSecureContext) {
+if (window.isSecureContext) {
   (function () {
     var documentVersion = document.querySelector?.('meta[name="pancake-release"]')?.content;
     var workerVersionKey = 'pancake-sw-worker-version';
@@ -33,14 +33,16 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     var lastCheck = 0;
     var checking = null;
     var held = function () { return !!window.__pancakePwaHolds?.size; };
-    var showNotice = function () {
+    var showNotice = function (retry) {
       noticeTimer = null;
-      if (!pendingVersion || reloaded || document.getElementById('pancake-update-notice')) return;
-      var notice = document.createElement('div');
+      if (!pendingVersion || reloaded) return;
+      var notice = document.getElementById('pancake-update-notice') || document.createElement('div');
       notice.id = 'pancake-update-notice';
       notice.setAttribute('role', 'status');
       notice.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:10000;padding:16px;border-radius:12px;background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font:14px system-ui';
-      notice.textContent = 'An update is ready. Finish your current work, then reload.';
+      notice.textContent = held() ? 'An update is ready. Finish your current work, then reload.' :
+        navigator.onLine === false ? 'Reconnect to update this screen.' :
+        retry ? 'Update could not finish. Reload to retry.' : assetMissed ? 'Updating…' : 'An update is ready. Reload to continue.';
       var button = document.createElement('button');
       button.textContent = 'Reload';
       button.disabled = held();
@@ -51,18 +53,22 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
     };
     var tryReload = function (manual, leaving) {
       if (!pendingVersion || reloaded) return;
-      if (!workerReconciled || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
+      if ((!workerReconciled && navigator.serviceWorker?.controller) || held() || document.readyState === 'loading' || document.readyState === 'interactive' ||
           (!manual && !leaving && !assetMissed && document.visibilityState !== 'hidden') ||
           (manual && document.visibilityState === 'hidden') || navigator.onLine === false) {
-        if (assetMissed && held()) showNotice();
+        if (assetMissed) showNotice();
         else if (!noticeTimer) noticeTimer = setTimeout(showNotice, 60000);
         return;
       }
       try {
         var key = 'pancake-update-reload:' + window.location.pathname;
-        if (!manual && sessionStorage.getItem(key) === pendingVersion) { showNotice(); return; }
+        if (!manual && sessionStorage.getItem(key) === pendingVersion) {
+          showNotice(true);
+          return;
+        }
         sessionStorage.setItem(key, pendingVersion);
       } catch { return; }
+      if (assetMissed) showNotice();
       reloaded = true;
       if (noticeTimer) clearTimeout(noticeTimer);
       window.location.reload();
@@ -77,13 +83,14 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
         settled = true;
         channel.port1.close();
         if (!version || reloaded || currentObservation !== observation ||
-            (navigator.serviceWorker.controller && worker !== navigator.serviceWorker.controller)) return;
+            (navigator.serviceWorker?.controller && worker !== navigator.serviceWorker?.controller)) return;
         var previous;
         try {
           previous = sessionStorage.getItem(workerVersionKey);
           sessionStorage.setItem(workerVersionKey, version);
         } catch { return; }
         if ((documentVersion || previous) === version || (!documentVersion && !previous)) {
+          if (assetMissed) { tryReload(false); return; }
           pendingVersion = null;
           if (noticeTimer) clearTimeout(noticeTimer);
           noticeTimer = null;
@@ -104,18 +111,16 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
       checking = registration.update().catch(function () {}).finally(function () {
         checking = null;
         if (!registration.installing && !registration.waiting) workerReconciled = true;
-        observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
+        observeWorkerVersion(navigator.serviceWorker?.controller || registration.active);
       });
     };
-    navigator.serviceWorker.addEventListener('controllerchange', function () {
+    navigator.serviceWorker?.addEventListener('controllerchange', function () {
       workerReconciled = true;
-      observeWorkerVersion(navigator.serviceWorker.controller);
+      observeWorkerVersion(navigator.serviceWorker?.controller);
     });
-    navigator.serviceWorker.addEventListener('message', function (event) {
+    navigator.serviceWorker?.addEventListener('message', function (event) {
       if (event.data?.type === 'PANCAKE_ASSET_MISS') {
-        assetMissed = true;
-        checkForUpdate(true);
-        tryReload(false);
+        recoverChunk();
       }
     });
     window.addEventListener('pancake-pwa-hold-change', function () {
@@ -129,24 +134,30 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
       else tryReload(false);
     });
     window.addEventListener('pagehide', function () { tryReload(false, true); });
+    var recoverChunk = function () {
+      assetMissed = true;
+      if (!pendingVersion) pendingVersion = (documentVersion || 'current') + ':asset-retry';
+      showNotice();
+      checkForUpdate(true);
+      tryReload(false);
+    };
     var failedChunk = function (event) {
       var message = String(event.reason?.message || event.message || '');
-      if (/Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed|Loading module .* failed|AsyncRequireError/.test(message)) {
-        assetMissed = true;
-        checkForUpdate(true);
-        tryReload(false);
-      }
+      var source = event.target?.tagName === 'SCRIPT' ? event.target.src : event.filename;
+      var buildScript = source && /[/](?:_expo|assets)[/].*[.]js(?:[?#]|$)/.test(source);
+      if (buildScript || /Loading chunk|ChunkLoadError|dynamically imported module|Importing a module script failed|Loading (?:module|bundle) .*failed|AsyncRequireError/.test(message)) recoverChunk();
     };
-    window.addEventListener('error', failedChunk);
+    window.addEventListener('error', failedChunk, true);
     window.addEventListener('unhandledrejection', failedChunk);
-    if (documentVersion) observeWorkerVersion(navigator.serviceWorker.controller);
+    if (documentVersion) observeWorkerVersion(navigator.serviceWorker?.controller);
     window.addEventListener('load', function () {
       tryReload(false);
+      if (!navigator.serviceWorker) return;
       navigator.serviceWorker.register('/sw.js').then(function (value) {
         registration = value;
         lastCheck = Date.now();
         if (pendingVersion && !workerReconciled) checkForUpdate(true);
-        else observeWorkerVersion(navigator.serviceWorker.controller || registration.active);
+        else observeWorkerVersion(navigator.serviceWorker?.controller || registration.active);
         setInterval(function () {
           if (document.visibilityState === 'visible') checkForUpdate(false);
         }, 60 * 60 * 1000);

@@ -4,7 +4,7 @@ import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
 import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
-import { getPlayer, getAvailableSeasons, getPlayerTransactionHistory, type PlayerDetailRow, type TransactionHistoryEntry } from '@/lib/players'
+import { getPlayer, getAvailableSeasons, getPlayerSeasonAverages, getPlayerAverageFantasyPoints, type PlayerSeasonAverages, getPlayerTransactionHistory, type PlayerDetailRow, type TransactionHistoryEntry } from '@/lib/players'
 import { getPlayerSeasonLines, getPlayerScoringSettings, summarizePlayerSeason, type PlayerSeasonLine } from '@/components/player/season-data'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { todayET } from '@/lib/shared/dates'
@@ -22,6 +22,8 @@ type PlayerScreenCache = {
     availableSeasons?: number[]
     selectedSeason: number
     seasons: [number, PlayerSeasonLine[]][]
+    averages?: [number, PlayerSeasonAverages | null][]
+    fantasyAverages?: [number, number | null][]
     nextProjection?: LeagueProjectionRow | null
     transactions?: TransactionHistoryEntry[]
 }
@@ -126,11 +128,13 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const [selection, setSelection] = useState({ key: resourceKey, year: cache?.selectedSeason ?? currentSeasonYear() })
     const selectedSeason = selection.key === resourceKey ? selection.year : cache?.selectedSeason ?? currentSeasonYear()
     selectedSeasonRef.current = selectedSeason
-    const seasonCache = useMemo(() => ({ owner: resourceKey, entries: new Map(cache?.seasons ?? []) }), [cache, resourceKey])
+    const seasonCache = useMemo(() => ({ owner: resourceKey, entries: new Map(cache?.seasons ?? []), averages: new Map(cache?.averages ?? []), fantasyAverages: new Map(cache?.fantasyAverages ?? []) }), [cache, resourceKey])
     const [visibleGames, setVisibleGames] = useState({ key: '', count: GAME_LOG_PAGE })
     const seasonKey = JSON.stringify([resourceKey, selectedSeason])
     const readPlayer = useCallback(() => getPlayer(playerId), [playerId])
     const readSeasons = useCallback(() => getAvailableSeasons(playerId), [playerId])
+    const readAverageFantasy = useCallback(() => leagueId ? getPlayerAverageFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null), [playerId, leagueId, selectedSeason])
+    const readAverages = useCallback(() => getPlayerSeasonAverages(playerId, selectedSeason), [playerId, selectedSeason])
     const readLines = useCallback(async () => {
         const next = await getPlayerSeasonLines(playerId, selectedSeason)
         const previous = seasonCache.entries.get(selectedSeason)
@@ -144,6 +148,8 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const readTransactions = useCallback(() => leagueId ? getPlayerTransactionHistory(playerId, leagueId) : Promise.resolve(EMPTY_TRANSACTIONS), [playerId, leagueId])
     const player = useScreenResource(resourceKey, readEpoch, refreshes.profile, cache?.player, readPlayer, canRead)
     const seasons = useScreenResource(resourceKey, readEpoch, refreshes.profile, cache?.availableSeasons, readSeasons, canRead)
+    const fantasyAverage = useScreenResource(seasonKey, readEpoch, refreshes.season + refreshes.scoring, seasonCache.fantasyAverages.get(selectedSeason), readAverageFantasy, canRead)
+    const averages = useScreenResource(seasonKey, readEpoch, refreshes.season, seasonCache.averages.get(selectedSeason), readAverages, canRead)
     const lines = useScreenResource(seasonKey, readEpoch, refreshes.season, seasonCache.entries.get(selectedSeason), readLines, canRead)
     const projection = useScreenResource(resourceKey, readEpoch, refreshes.projection, cache?.nextProjection, readProjection, canRead)
     const history = useScreenResource(resourceKey, readEpoch, refreshes.history, cache?.transactions, readTransactions, canRead)
@@ -168,16 +174,18 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
     const persistedSnapshot = useRef<string | null>(null)
     useEffect(() => {
         if (!canRead()) return
+        if (fantasyAverage.value !== undefined) seasonCache.fantasyAverages.set(selectedSeason, fantasyAverage.value)
+        if (averages.value !== undefined) seasonCache.averages.set(selectedSeason, averages.value)
         if (lines.value !== undefined) seasonCache.entries.set(selectedSeason, lines.value)
         const snapshot: PlayerScreenCache = {
             today: todayET(), player: player.value, availableSeasons: seasons.value, selectedSeason,
-            seasons: Array.from(seasonCache.entries.entries()).slice(-3), nextProjection: projection.value, transactions: history.value,
+            seasons: Array.from(seasonCache.entries.entries()).slice(-3), averages: Array.from(seasonCache.averages.entries()).slice(-3), fantasyAverages: Array.from(seasonCache.fantasyAverages.entries()).slice(-3), nextProjection: projection.value, transactions: history.value,
         }
         const serialized = JSON.stringify([resourceKey, snapshot])
         if (persistedSnapshot.current === serialized) return
         writePersistentCache(cacheKey, snapshot)
         persistedSnapshot.current = serialized
-    }, [cacheKey, resourceKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache])
+    }, [cacheKey, resourceKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache, averages.value, fantasyAverage.value])
     const count = visibleGames.key === displayedSeasonKey ? visibleGames.count : GAME_LOG_PAGE
     const gameLog = useMemo(() => summary.games.slice(0, count), [summary.games, count])
     const loadMoreGames = useCallback(async () => {
@@ -185,15 +193,19 @@ export function usePlayerScreenData(playerId: string, leagueId: string | null, o
         setVisibleGames(previous => ({ key: seasonKey, count: (previous.key === seasonKey ? previous.count : GAME_LOG_PAGE) + GAME_LOG_PAGE }))
     }, [seasonKey, lines.settled])
     const handleSeasonSelect = useCallback((year: number) => setSelection({ key: resourceKey, year }), [resourceKey])
+    const useLines = lines.value !== undefined || (averages.value === undefined && displayedLines.length > 0)
+    const seasonAverages = averages.value !== undefined ? averages.value : summary.averages
+    const averageFP = fantasyAverage.value ?? (useLines && scoring ? summary.avgFantasyPoints : null)
     return {
         canRead, readEpoch, isCurrentRead, rosterRevision: refreshes.roster,
         initialSettled: player.settled && seasons.settled && lines.settled && scoringSettings.settled && projection.settled && history.settled,
         player: player.value ?? null, loading: !player.settled, playerError: player.error,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages: summary.averages, seasonLoading: !lines.settled, seasonError: lines.error ?? scoringSettings.error,
+        seasonAverages, seasonLoading: lines.value === undefined && averages.value === undefined && (!lines.settled || !averages.settled), seasonError: averages.error ?? fantasyAverage.error ?? lines.error ?? scoringSettings.error,
+        gameLogLoading: !lines.settled,
         includesLive: summary.includesLive, liveGame: summary.games.find(game => game.live && !game.didNotPlay) ?? null,
         gameLog, hasMoreGames: summary.games.length > count, loadMoreGames,
-        fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: summary.avgFantasyPoints,
+        fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: averageFP,
         nextProjection: projection.value ?? null, projectionError: projection.error, projectionSettled: projection.settled,
         transactions: history.value ?? EMPTY_TRANSACTIONS, transactionsError: history.error, transactionsSettled: history.settled,
     }

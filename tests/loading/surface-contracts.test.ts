@@ -5,7 +5,7 @@ const read = (path: string) => readFile(path, 'utf8')
 it.each([
     'app/(tabs)/index.tsx', 'app/(tabs)/roster.tsx', 'app/(tabs)/players.tsx',
     'app/(tabs)/league.tsx', 'app/(tabs)/trades.tsx', 'app/(modals)/lineup.tsx',
-    'app/(modals)/propose-trade.tsx', 'app/player/[id].tsx', 'components/dynasty/DynastyHub.tsx',
+    'app/(modals)/propose-trade.tsx', 'components/dynasty/DynastyHub.tsx',
 ])('retains revealed content while the next view fills: %s', async path => {
     const source = await read(path)
     expect(source).toContain('<DeferredContent ready=')

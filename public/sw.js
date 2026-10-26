@@ -17,7 +17,6 @@ const BOOT_TIMEOUT_MS = 30000
 const CARRY_BYTES_LIMIT = 64 * 1024 * 1024
 const CARRY_GENERATION_LIMIT = 8
 const PUBLIC_ASSETS = new Set(PUBLIC_ASSET_URLS)
-const RELEASE_SCRIPT = /^\/_expo\/static\/js\/web\/[^/]+\.js$/
 const PRIVATE_DIRECTIVES = /(?:^|,)\s*(?:private|no-store|no-cache)\b/i
 
 function cacheable(response, { allowDocument = false } = {}) {
@@ -224,15 +223,35 @@ async function notifyClient(event, type) {
   if (client) client.postMessage({ type })
 }
 
+function scriptRequest(request) {
+  return request.destination === 'script' || /\.(?:m?js)$/.test(new URL(request.url).pathname)
+}
+
+async function rejectMissingScript(response, request, event) {
+  if (!scriptRequest(request) || (response.ok && !response.redirected &&
+      !/text\/html/i.test(response.headers.get('content-type') || ''))) return response
+  event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
+  return new Response('Release asset unavailable', {
+    status: response.ok ? 502 : response.status,
+    headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+  })
+}
+
+async function fetchScript(request, event) {
+  try {
+    return await rejectMissingScript(await publicAssetFetch(request.url), request, event)
+  } catch (error) {
+    if (scriptRequest(request)) event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
+    throw error
+  }
+}
+
 async function assetResponse(request, event) {
   const cache = await caches.open(ASSET_CACHE)
   const cached = await safeMatch(cache, request)
   if (cached) return cached
-  const response = await publicAssetFetch(request.url)
+  const response = await fetchScript(request, event)
   if (cacheable(response)) await cache.put(request, response.clone()).catch(() => {})
-  else if (RELEASE_SCRIPT.test(new URL(request.url).pathname)) {
-    event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
-  }
   return response
 }
 
@@ -278,13 +297,9 @@ self.addEventListener('fetch', (event) => {
     if (!shellRoute(url.pathname)) return
     event.respondWith(shellResponse(event).catch(() => onlineShell(event)))
   } else if (!url.search && PUBLIC_ASSETS.has(url.pathname)) {
-    event.respondWith(assetResponse(request, event)
-      .catch(() => publicAssetFetch(request.url)))
-  } else if (!url.search && RELEASE_SCRIPT.test(url.pathname)) {
-    event.respondWith(publicFetch(request.url).then((response) => {
-      if (!cacheable(response)) event.waitUntil(notifyClient(event, 'PANCAKE_ASSET_MISS'))
-      return response
-    }))
+    event.respondWith(assetResponse(request, event).catch(() => fetchScript(request, event)))
+  } else if (scriptRequest(request)) {
+    event.respondWith(fetchScript(request, event))
   }
 })
 

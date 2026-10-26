@@ -69,12 +69,12 @@ it('keeps the persistent player owner stable after a new session for the same me
     expect(vi.mocked(usePlayerScreenData).mock.calls.at(-1)![2]!.ownerKey).toBe(firstOwner)
 })
 
-it('reveals one complete initial view and keeps it visible while other resources refresh', async () => {
+it('reveals the header and averages while other resources are still pending', async () => {
     state.data.initialSettled = false
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
-    expect(screen!.root.findAllByType(PlayerHeader)).toHaveLength(0)
-    expect(screen!.root.findAllByType(StatsOverview)).toHaveLength(0)
-    expect(screen!.root.findAllByType(NextProjectionCard)).toHaveLength(0)
+    expect(screen!.root.findAllByType(PlayerHeader)).toHaveLength(1)
+    expect(screen!.root.findAllByType(StatsOverview)).toHaveLength(1)
+    expect(screen!.root.findAllByType(NextProjectionCard)).toHaveLength(1)
     state.data = { ...state.data, initialSettled: true, seasonLoading: false, projectionSettled: true }
     await act(async () => { screen!.update(React.createElement(PlayerDetailScreen)) })
     const header = screen!.root.findByType(PlayerHeader)
@@ -124,6 +124,8 @@ it('uses the tapped identity when fresh player details are unavailable', async (
     state.params.playerHeader = JSON.stringify({ ...headerPlayer({ nba_team: 'BOS' }), id: 'player' })
     state.data.player = null
     state.data.loading = true
+    state.data.initialSettled = false
+    state.roster.mockReturnValue(new Promise(() => {}))
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     const header = () => screen!.root.findByType(PlayerHeader).props.player
     expect(header().display_name).toBe('Player A')
@@ -214,4 +216,13 @@ it('reloads the claim after returning from the claim sheet while background read
 it('omits player watch controls from the player page', async () => {
     await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
     expect(screen!.root.findAllByProps({ accessibilityLabel: 'Watch player for drops' })).toHaveLength(0)
+})
+
+it('paints completed averages without waiting for history, projection, or pickup state', async () => {
+    state.roster.mockReturnValue(new Promise(() => {}))
+    state.data = { ...state.data, initialSettled: false, seasonLoading: false, seasonAverages: { gamesPlayed: 30, avgPoints: 24, avgRebounds: 5, avgAssists: 8, avgSteals: 1, avgBlocks: 1, avgTurnovers: 2, avgThreePointersMade: 3, avgMinutesPlayed: 30 }, projectionSettled: false }
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player A')
+    expect(screen!.root.findByType(StatsOverview).props.averages.avgPoints).toBe(24)
+    expect(screen!.root.findByType(StatsOverview).props.loading).toBe(false)
 })
