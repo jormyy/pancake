@@ -32,8 +32,7 @@ try{
  INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at,clears_at) VALUES('${league}','${season}','${first}',now()-interval '1 hour',now()+interval '47 hours'),('${league}','${season}','${preferred}',now()-interval '1 hour',now()+interval '47 hours');
  SELECT create_waiver_claim_atomic('${league}','${member}','${first}',NULL,'${user}',5,2);
  SELECT create_waiver_claim_atomic('${league}','${member}','${preferred}',NULL,'${user}',5,3);
- UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id='${league}';
- UPDATE waiver_claims SET process_date=current_date-1 WHERE league_id='${league}';COMMIT;`)
+ COMMIT;`)
  const claim=(await root.query(`SELECT id FROM waiver_claims WHERE member_id='${member}' AND player_id='${preferred}';`)).trim()
  await editor.query(process.argv.includes('--edit') ? `BEGIN; SELECT edit_waiver_claim_atomic('${claim}','${member}','${user}',NULL,5,1);` : `BEGIN; SELECT reorder_waiver_claim_atomic('${claim}','${member}','${user}','up');`)
  let finished=false
@@ -45,8 +44,12 @@ try{
   await new Promise(resolve=>setTimeout(resolve,20))
  }
  console.log(JSON.stringify({processorFinishedBeforeCommit:finished,observedWait:lock}))
+ assert.equal(await root.query(`SELECT count(*) FROM roster_players WHERE league_id='${league}';`),'0','Future claims cannot award while an editor is open')
  await editor.query('COMMIT;')
  console.log(JSON.stringify({initialProcessing:await processing}))
+ await root.query(`BEGIN;
+ UPDATE waiver_wire_log SET placed_on_waivers_at=(current_date-4+time '02:00') AT TIME ZONE 'America/New_York',clears_at=(current_date-2+time '02:00') AT TIME ZONE 'America/New_York' WHERE league_id='${league}';
+ UPDATE waiver_claims SET process_date=current_date-1 WHERE league_id='${league}';COMMIT;`)
  await root.query('SELECT count(*) FROM process_due_waiver_claims_atomic(current_date,100);')
  const state=JSON.parse(await root.query(`SELECT json_build_object('claims',(SELECT json_agg(json_build_object('player',player_id,'status',status,'order',claim_order)) FROM waiver_claims WHERE league_id='${league}'),'winner',(SELECT player_id FROM roster_players WHERE league_id='${league}'),'balance',(SELECT balance FROM faab_balances WHERE member_id='${member}'));`))
  console.log(JSON.stringify({state,preferred}))
