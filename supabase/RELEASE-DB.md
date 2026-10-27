@@ -27,6 +27,7 @@ Deploy these changed Edge functions after the database upgrade and before the fr
 - `api`: Continuous claims, trade plans, saved estimates, and historical revaluation.
 - `matchup-forecast`: Background forecast calculation and publication.
 - `sync-sleeper-projections`: Selects the scoring week containing today and skips calendar gaps.
+- `season-boundary`: Builds the new season's matchups in the same run that activates the league after the rookie draft.
 
 The source diff also includes `_shared`.
 That directory contains bundled helpers and tests, rather than a deployable function.
