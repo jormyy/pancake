@@ -1,3 +1,4 @@
+import { ListHeader } from '@/components/ui/ListHeader'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { WaiversSection } from '@/components/waivers/WaiversSection'
 import { ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
@@ -27,23 +28,23 @@ import { DynastyHub } from '@/components/dynasty/DynastyHub'
 import { RetainedPanel } from '@/components/ui/RetainedPanel'
 import { playerListStyles as styles } from '@/components/ui/playerListStyles'
 import { NBA_TEAM_OPTIONS } from '@/constants/nba'
-import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
+
 import { usePlayerSearch, useVisiblePlayerRows, SORT_OPTIONS } from '@/hooks/use-player-search'
 import { useAuth } from '@/hooks/use-auth'
 import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-search-state'
-import { todayET } from '@/lib/shared/dates'
+
 import { currentSeasonYear } from '@/lib/shared/season'
 import { useQuickAdd } from '@/hooks/use-quick-add'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
-import { sessionGeneration } from '@/lib/session-cache-registry'
-import { loadPlayerSupport, type PlayerSupport, type PlayerSupportResource } from '@/lib/player-availability'
-import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
-import { invalidateLeagueSnapshot, waitForLeagueChanges } from '@/lib/league-changes'
-import { usePlayerSupportRealtime } from '@/hooks/use-player-support-realtime'
+
+
+
+
+
 
 const POSITIONS = [
     { key: 'ALL', label: 'All' },
@@ -89,15 +90,9 @@ const STAT_LABELS: Record<string, string> = {
 const EMPTY_OWNED_MAP = new Map<string, OwnedEntry>()
 const EMPTY_WAIVER_IDS = new Set<string>()
 
-type PlayerSupportCache = Pick<PlayerSupport, 'seasonId' | 'memberId' | 'day'> & {
-    ownedEntries: [string, OwnedEntry][]
-    waiverIds: string[]
-    waiverClearsAtEntries: [string, string][]
-    pendingClaimIds: string[]
-    transactionState: PlayerSupport['transactionState']
-}
-const SUPPORT_CACHE_PREFIX = 'pancake:player-support:v5:'
-const supportCacheKey = (memberId: string, leagueId: string) => `${SUPPORT_CACHE_PREFIX}${leagueId}:${memberId}`
+
+
+
 
 function PlayerTableHeader({
     activeSort,
@@ -109,7 +104,7 @@ function PlayerTableHeader({
     onColumnSort?: (mode: PlayerSearchSortMode) => void
 }) {
     return (
-        <View style={[styles.tableHeader, { paddingRight: spacing.sm }]}>
+        <ListHeader interactive style={[styles.tableHeader, { paddingRight: spacing.sm }]}>
             <View style={styles.tableHeaderCardRow}>
                 <View style={styles.tableHeaderHeadshotSpacer} />
                 <Text style={styles.tableHeaderPlayer}>Player</Text>
@@ -139,7 +134,7 @@ function PlayerTableHeader({
                 </View>
             </View>
             <View style={styles.tableHeaderAddSpacer} />
-        </View>
+        </ListHeader>
     )
 }
 
@@ -151,7 +146,7 @@ function PlayerSearchSection() {
     const focused = useIsFocused()
     const { width } = useWindowDimensions()
     const leagueId = currentLeague?.id ?? null
-    const readGeneration = sessionGeneration()
+
     const searchEnabled = membershipValidated && !!user && !!current?.id && !!leagueId
     const { compact: compactToolbar, padX } = usePageMetrics()
     const showStatTable = width >= 1180
@@ -159,94 +154,19 @@ function PlayerSearchSection() {
     // screens show every filter as a chip in one toolbar row.
     const [filtersOpen, setFiltersOpen] = useState(false)
 
-    const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId ?? undefined, currentLeague)
-    const cachedSupport = useMemo(() => {
-        if (!current?.id || !leagueId) return undefined
-        const cached = readTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, leagueId, 'support', current.id)
-        if (!cached) return undefined
-        const value = cached.data
-        return { savedAt: cached.savedAt, data: {
-            leagueId, seasonId: value.seasonId, memberId: value.memberId, day: value.day,
-            ownedMap: new Map(value.ownedEntries),
-            waiverIds: new Set(value.waiverIds),
-            waiverClearsAt: new Map(value.waiverClearsAtEntries),
-            pendingClaimIds: new Set(value.pendingClaimIds),
-            transactionState: value.transactionState,
-        } }
-    }, [current?.id, leagueId, snapshotScope])
-
-    const supportReads = useRef<{ scope: string; previous?: PlayerSupport | null; resources?: Set<PlayerSupportResource>; forceFull?: boolean; savedAt: number }>({ scope: snapshotScope, previous: cachedSupport?.data, forceFull: !cachedSupport?.savedAt, savedAt: cachedSupport?.savedAt ?? 0 })
-    if (supportReads.current.scope !== snapshotScope) supportReads.current = { scope: snapshotScope, previous: cachedSupport?.data, forceFull: !cachedSupport?.savedAt, savedAt: cachedSupport?.savedAt ?? 0 }
-    const {
-        data: playerSupport,
-        loading: playerSupportFetchLoading,
-        refreshing: playerSupportRefreshing,
-        error: playerSupportError,
-        refresh: refreshSupportSnapshot,
-        refreshIfStale: refreshSupportIfStale,
-        isSnapshot: supportSnapshot,
-        markStale: markSupportStale,
-    } = useFocusAsyncData<PlayerSupport>(async () => {
-        if (!leagueId) {
-            return {
-                leagueId: null, seasonId: null, memberId: current?.id ?? null, day: todayET(),
-                ownedMap: new Map<string, OwnedEntry>(),
-                waiverIds: new Set<string>(),
-                waiverClearsAt: new Map<string, string>(),
-                pendingClaimIds: new Set<string>(),
-                transactionState: null,
-            }
-        }
-        const reads = supportReads.current
-        const resources = !reads.forceFull && Date.now() - reads.savedAt < 300_000 && reads.resources ? [...reads.resources] : undefined
-        reads.forceFull = true
-        reads.resources = undefined
-        return loadPlayerSupport(current?.id, leagueId, { previous: reads.previous, resources, canRead: () => browserReadsAllowed() && supportReads.current.scope === snapshotScope && readGeneration === sessionGeneration() })
-    }, [current?.id, leagueId, snapshotScope, readGeneration], {
-        enabled: focused && membershipValidated && searchEnabled,
-        followSourceChanges: true,
-        beforeRead: () => leagueId ? waitForLeagueChanges(leagueId) : Promise.resolve(),
-        initialData: cachedSupport?.data, initialFetchedAt: cachedSupport?.savedAt, staleMs: 300_000,
-        cacheRevision: () => leagueId ? tabSnapshotRevision(leagueId, 'support', current?.id) : null,
-        onFailed: () => { supportReads.current.forceFull = true; if (leagueId) invalidateLeagueSnapshot(leagueId) },
-        onLoaded: (support, revision) => {
-            supportReads.current.previous = support
-            supportReads.current.savedAt = Date.now()
-            supportReads.current.forceFull = revision !== (leagueId ? tabSnapshotRevision(leagueId, 'support', current?.id) : null)
-            if (current?.id && leagueId) {
-                writeTabSnapshot<PlayerSupportCache>(supportCacheKey(current.id, leagueId), snapshotScope, revision, {
-                    seasonId: support.seasonId, memberId: support.memberId, day: support.day,
-                    ownedEntries: Array.from(support.ownedMap.entries()),
-                    waiverIds: Array.from(support.waiverIds),
-                    waiverClearsAtEntries: Array.from(support.waiverClearsAt.entries()),
-                    pendingClaimIds: Array.from(support.pendingClaimIds),
-                    transactionState: support.transactionState,
-                })
-            }
-        },
-    })
-
-
-    const refreshPlayerSupport = useCallback(() => {
-        supportReads.current.resources = undefined
-        supportReads.current.forceFull = true
-        return refreshSupportSnapshot()
-    }, [refreshSupportSnapshot])
-    const invalidateSupport = useCallback((resources: readonly PlayerSupportResource[] | null) => {
-        markSupportStale()
-        if (!resources) { supportReads.current.forceFull = true; supportReads.current.resources = undefined; return }
-        supportReads.current.resources ??= new Set()
-        for (const resource of resources) supportReads.current.resources.add(resource)
-    }, [markSupportStale])
-    const refreshSupportResources = useCallback(() => refreshSupportIfStale(), [refreshSupportIfStale])
-    const playerSupportForLeague = playerSupport?.leagueId === leagueId ? playerSupport : null
+    const search = usePlayerSearch(leagueId, EMPTY_OWNED_MAP, EMPTY_WAIVER_IDS, current?.id, { enabled: searchEnabled, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const refreshSearchView = search.refresh
+    const playerSupportForLeague = search.support
     const ownedMap = playerSupportForLeague?.ownedMap ?? EMPTY_OWNED_MAP
     const waiverIds = playerSupportForLeague?.waiverIds ?? EMPTY_WAIVER_IDS
-    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && playerSupportForLeague == null
-    const playerSupportReady = !leagueId || playerSupportForLeague != null
+    const playerSupportFetchLoading = search.results.loading
+    const playerSupportRefreshing = search.results.refreshing
+    const playerSupportError = search.results.error
+    const supportSnapshot = search.results.isSnapshot
+    const playerSupportLoading = !!leagueId && playerSupportFetchLoading && !playerSupportForLeague
+    const playerSupportReady = !leagueId || Boolean(playerSupportForLeague)
     const transactionState = playerSupportForLeague?.transactionState ?? null
-
-    const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading && !playerSupportRefreshing, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const refreshPlayerSupport = useCallback(async () => { await refreshSearchView(true) }, [refreshSearchView])
     const scrollRestoration = useScrollRestoration(JSON.stringify(['players', user?.id, current?.id, leagueId, search.search.query, search.season.value, search.sort.mode, search.sort.dir, search.availabilityFilter.value, search.position.value, search.teamPicker.selectedTeams, search.playing.value, search.health.value, search.toggles]), search.results.listRef)
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
@@ -261,13 +181,6 @@ function PlayerSearchSection() {
         return support
     }, [retrySearch, refreshPlayerSupport])
 
-    const refreshChangedSearch = search.results.refreshIfChanged
-    const recoverPlayerResources = useCallback(() => {
-        const support = refreshSupportIfStale()
-        refreshChangedSearch()
-        return support
-    }, [refreshChangedSearch, refreshSupportIfStale])
-    usePlayerSupportRealtime(current?.id, leagueId, refreshSupportResources, recoverPlayerResources, focused, playerSupportForLeague?.seasonId, refreshChangedSearch, invalidateSupport)
 
     // ESPN-style column sort: click a stat header to sort the whole pool by it;
     // click the active one again to flip direction. All stats default to
@@ -297,7 +210,7 @@ function PlayerSearchSection() {
     const addBlockedReason = quickAdd.addBlockedReason
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
-        if (!online || availabilityUpdating) return
+        if (availabilityUpdating && online) return
         if (playerSupportForLeague?.pendingClaimIds.has(player.id)) push('/players?section=waivers')
         else if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
@@ -317,7 +230,7 @@ function PlayerSearchSection() {
             waiverClearsAt={playerSupportForLeague?.waiverClearsAt.get(item.id) ?? null}
             claimPending={playerSupportForLeague?.pendingClaimIds.has(item.id) ?? false}
             isAdding={quickAdd.adding === item.id}
-            addDisabled={!online || availabilityUpdating}
+            addDisabled={online && availabilityUpdating}
             showStats={showStatTable}
             showCompactStats={false}
             animate={false}
@@ -452,11 +365,11 @@ function PlayerSearchSection() {
                                     <Text style={localStyles.clearButtonText}>Clear</Text>
                                 </Pressable>
                             ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text>
+                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }}>{resultCountLabel ? summaryLine : ''}</Text>
                         </>
                     )}
                 </View>
-                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }} numberOfLines={1}>{resultCountLabel ? summaryLine : ''}</Text> : null}
+                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }}>{resultCountLabel ? summaryLine : ''}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}

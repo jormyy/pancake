@@ -67,7 +67,7 @@ describe('direct client write update protection', () => {
 
     it('releases after a failed direct table write', async () => {
         const response = deferred<{ error: Error }>()
-        from.mockReturnValue({ upsert: () => response.promise })
+        rpc.mockReturnValue(response.promise)
         const request = setLineupOptimizerEnabled('member', 'league', 'season', true)
         const result = expect(request).rejects.toThrow('denied')
         expect(isPwaUpdateHeld()).toBe(true)

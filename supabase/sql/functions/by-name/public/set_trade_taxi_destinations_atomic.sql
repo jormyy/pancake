@@ -3,6 +3,12 @@
 
 CREATE OR REPLACE FUNCTION public.set_trade_taxi_destinations_atomic(p_trade_id uuid,p_member_id uuid,p_player_ids uuid[],p_user_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,private AS $$
+DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.set_trade_taxi_destinations_atomic', jsonb_build_array(p_trade_id, p_member_id, p_player_ids, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
 DECLARE v_trade trades%ROWTYPE; v_player_id uuid; v_member_id uuid; v_slots int; v_count int;
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id=p_trade_id;
@@ -41,5 +47,8 @@ BEGIN
     RAISE EXCEPTION 'The selected players exceed your available taxi slots.' USING ERRCODE='P0001';
   END IF;
   UPDATE trade_items SET to_taxi=player_id=ANY(p_player_ids) WHERE trade_id=p_trade_id AND to_member_id=p_member_id AND player_id IS NOT NULL;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

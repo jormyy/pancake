@@ -1,6 +1,7 @@
 import { errorMessage } from './responses.ts'
 import { supabase } from './supabase.ts'
-import { withoutWorkContext } from './workContext.ts'
+import { startLeaseHeartbeat } from './leaseHeartbeat.ts'
+import { withWorkContext, withoutWorkContext } from './workContext.ts'
 
 // Best-effort sync_runs bookkeeping keeps cron health queryable without putting
 // observability writes on the critical path of the sync itself.
@@ -106,15 +107,27 @@ export async function runEdgeInvocation(
   if (startError) throw startError
   const invocation: InvocationRun = { functionName, rowsAffected: null, failure: null }
   invocationRuns.set(request, invocation)
+  const controller = new AbortController()
+  const heartbeat = request.headers.get('x-pancake-work-id') ? startLeaseHeartbeat(
+    () => withoutWorkContext(async () => {
+      const { data, error } = await supabase.rpc('renew_work_lease', { p_invocation_key: key }).abortSignal(AbortSignal.timeout(5000))
+      if (error) throw error
+      return data === true
+    }),
+    30_000,
+    () => controller.abort(new Error('Work lease lost')),
+  ) : null
   let response: Response
   try {
-    response = await handler(request)
+    response = await withWorkContext({ signal: controller.signal, ...(heartbeat ? { workInvocation: key } : {}) }, () => handler(request))
+    if (heartbeat?.lost) throw new Error('Work lease lost')
     if (!response.ok && !invocation.failure) invocation.failure = `HTTP ${response.status}`
   } catch (error) {
     invocation.failure = errorMessage(error)
     await finishInvocation(key, invocation)
     throw error
   } finally {
+    heartbeat?.stop()
     invocationRuns.delete(request)
   }
   await finishInvocation(key, invocation)

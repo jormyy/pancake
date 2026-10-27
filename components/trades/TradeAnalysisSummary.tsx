@@ -4,7 +4,6 @@ import { StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
-import { readableSourceName } from '@/lib/source-names'
 
 export function TradeAnalysisSummary({
     analysis,
@@ -54,32 +53,26 @@ export function TradeAnalysisSummary({
                 const player = players.find(item => item.players.id === asset.assetId)?.players
                 return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>
-                    {asset.kind === 'player' ? <PlayerRowContent name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
-                        positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
-                        yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status}
-                        stats={<View>
-                            <Text style={styles.detail}>Value {asset.values[analysis.strategy]} · Current {asset.components.shortTermPoints} · Long-term {asset.components.longTermValue}</Text>
-                            {asset.ranges[analysis.strategy] ? <Text style={styles.detail}>Range {asset.ranges[analysis.strategy]?.low}–{asset.ranges[analysis.strategy]?.high}</Text> : null}
-                        </View>} /> : <View style={styles.assetCopy}>
-                        <Text style={styles.assetName}>{asset.label}</Text>
-                        <Text style={styles.detail}>Value {asset.values[analysis.strategy]} · Current {asset.components.shortTermPoints} · Long-term {asset.components.longTermValue}</Text>
-                        {asset.ranges[analysis.strategy] ? (
-                            <Text style={styles.detail}>Range {asset.ranges[analysis.strategy]?.low}–{asset.ranges[analysis.strategy]?.high}</Text>
-                        ) : null}
-                    </View>}
-                    <Text style={styles.confidence}>{Math.round(asset.confidence * 100)}%</Text>
+                    <View style={styles.assetHeading}>
+                        {asset.kind === 'player' ? <PlayerRowContent name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
+                            positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
+                            injuryStatus={player?.injury_status} /> : <View style={styles.assetCopy}>
+                            <Text style={styles.assetName} numberOfLines={1}>{asset.label}</Text>
+                        </View>}
+                        <Text style={styles.confidence}>{Math.round(asset.confidence * 100)}%</Text>
+                    </View>
+                    <Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{assetValueLine(asset, analysis.strategy)}</Text>
                 </View>
                 )
             })}
-            <Text style={styles.subhead}>Sources and limits</Text>
-            <Text style={styles.detail}>{analysis.sources.length > 0
-                ? analysis.sources.map((source) => `${readableSourceName(source.name)} · ${source.fetchedAt ? new Date(source.fetchedAt).toLocaleDateString() : 'Not dated'}`).join('\n')
-                : 'No dated source was available.'}</Text>
-            <Text style={styles.detail}>Missing: {analysis.missingInputs.length > 0 ? analysis.missingInputs.join(', ') : 'None'}</Text>
-            <Text style={styles.detail}>{analysis.assumptions.join('\n')}</Text>
         </View>
         </DeferredContent>
     )
+}
+
+function assetValueLine(asset: DynastyTradeAnalysis['assets'][number], strategy: DynastyTradeAnalysis['strategy']): string {
+    const range = asset.ranges[strategy]
+    return `Value ${asset.values[strategy]} · Now ${asset.components.shortTermPoints} · Long ${asset.components.longTermValue}${range ? ` · ${range.low}–${range.high}` : ''}`
 }
 
 function signed(value: number): string {
@@ -100,7 +93,9 @@ const styles = StyleSheet.create({
     valueNegative: { color: colors.dangerDark },
     detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
     subhead: { ...textStyles.sectionLabel, marginTop: spacing.xs },
-    assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    assetRow: { gap: spacing.xxs, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    assetHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    assetValue: { ...textStyles.meta, fontSize: fontSize.xs, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     assetCopy: { flex: 1, minWidth: 0 },
     assetName: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.textPrimary },
 })

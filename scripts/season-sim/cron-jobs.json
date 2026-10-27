@@ -1,0 +1,3 @@
+[
+  {"jobname":"work-dispatcher","schedule":"* * * * *","command":"SELECT public.dispatch_work()"}
+]

@@ -56,7 +56,7 @@ export async function officialReplay(options, scenario) {
   let runtime, context, probe, previous = options.resume?.previous ?? {}, checked = options.resume?.checked ?? []
   const skippedWeeks = () => context.skippedWeeks ?? profile.settings.skipped_weeks
   const sample = async (_at, jobs) => {
-    if (!context || !jobs.some(job => job.jobname === 'nba-live-poll')) return
+    if (!context || !jobs.some(job => ['work-dispatcher', 'nba-live-poll'].includes(job.jobname))) return
     const date = etDate(new Date(runtime.now()).toISOString())
     if (!Number(await sql(`SELECT count(*) FROM nba_games WHERE game_date='${date}' AND status='InProgress'`))) return
     const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${context.seasonYear} AND '${date}' BETWEEN week_start AND week_end`))

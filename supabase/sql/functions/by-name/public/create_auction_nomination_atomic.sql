@@ -15,6 +15,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result public.nominations;
+BEGIN
+  __request_context := private.request_begin('public.create_auction_nomination_atomic', jsonb_build_array(p_draft_id, p_member_id, p_player_id, p_user_id, p_countdown_seconds), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN jsonb_populate_record(NULL::public.nominations, __request_context->'result'); END IF;
+  <<request_write>>
+DECLARE
   v_draft drafts%ROWTYPE;
   v_nomination nominations%ROWTYPE;
   v_order_count int;
@@ -136,6 +143,9 @@ BEGIN
   )
   RETURNING * INTO v_nomination;
 
-  RETURN v_nomination;
+  __request_result := v_nomination; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

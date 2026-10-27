@@ -37,7 +37,7 @@ BEGIN
   END IF;
 
   v_job_id := public.create_or_resume_stats_sync_job_atomic(v_start, v_end);
-  PERFORM public.invoke_stats_sync_dispatch_if_due();
+  PERFORM private.enqueue_stats_sync_dispatch(p_now);
   RETURN v_job_id;
 END;
 $$;

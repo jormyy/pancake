@@ -10,11 +10,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useSt
 import { useLeagueContext } from '@/contexts/league-context'
 import { NoLeagueState } from '@/components/NoLeagueState'
 import { isTradingClosed } from '@/lib/league'
-import {
-    getPicksForMember,
-    type Trade,
-    type TradePickItem,
-} from '@/lib/trades'
+import { type Trade } from '@/lib/trades'
 import { colors, controlSize, fontSize, layout, spacing, textStyles } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
 import { ItemSeparator } from '@/components/ItemSeparator'
@@ -30,14 +26,14 @@ import {
     TradeOfferRow,
     TradeSectionRow,
 } from '@/components/trades/TradeListRow'
-import { useFocusAsyncData } from '@/hooks/use-focus-async-data'
-import { readTabSnapshot, tabSnapshotRevision, tabSnapshotScope, writeTabSnapshot } from '@/lib/tab-snapshot'
-import { invalidateLeagueSnapshot } from '@/lib/league-changes'
+
+
+
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
-import { useTradeScreenRealtime } from '@/hooks/use-trade-screen-realtime'
+
 import { useAuth } from '@/hooks/use-auth'
 import {
     buildTradeScreenModel,
@@ -49,8 +45,7 @@ import {
 
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
-const PICKS_CACHE_PREFIX = 'pancake:trade-picks:v2:'
-const picksCacheKey = (userId: string, memberId: string, leagueId: string) => `${PICKS_CACHE_PREFIX}${userId}:${leagueId}:${memberId}`
+
 const TradeAnalyzer = lazy(() => import('@/components/trades/TradeAnalyzer'))
 const STATIC_TRADE_LIMIT = 10
 
@@ -79,13 +74,6 @@ function TradesScreen() {
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
-    const snapshotScope = tabSnapshotScope(user?.id, current?.id, leagueId, currentLeague)
-    const cachedPicks = useMemo(
-        () => user?.id && myMemberId && leagueId
-            ? readTabSnapshot<TradePickItem[]>(picksCacheKey(user.id, myMemberId, leagueId), snapshotScope, leagueId, 'picks')
-            : null,
-        [leagueId, myMemberId, user?.id, snapshotScope],
-    )
     const { padX, usableWidth } = usePageMetrics()
     const tab = normalizeTradeTab(params.tab)
     const openTradeId = Array.isArray(params.tradeId) ? params.tradeId[0] : params.tradeId
@@ -120,7 +108,7 @@ function TradesScreen() {
         refresh: load,
         loadMore: loadMoreOffers,
         updateRosterPlan,
-    } = useTradesFeed(myMemberId, leagueId, online, { autoLoad: false })
+    } = useTradesFeed(myMemberId, leagueId, online && tab === 'offers' && focused, { autoLoad: true })
     const {
         trades: historyTrades,
         hasData: historyHasData,
@@ -130,7 +118,7 @@ function TradesScreen() {
         refresh: refreshHistoryFeed,
         loadMore: loadMoreHistory,
     } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history')
-    const decisionsDisabled = !online || tradesSnapshot || Boolean(tradesError)
+    const decisionsDisabled = online && (tradesSnapshot || Boolean(tradesError))
     const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
     const tradeActions = useTradeActions({
         onRosterError: rosterLegality.report,
@@ -158,38 +146,18 @@ function TradesScreen() {
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
         setNote: handleSaveBlockNote,
-    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false })
+        picks: blockPicks,
+    } = useTradeBlock(myMemberId, leagueId, true, { visible: focused && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
     const listedPickIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'pick' ? [block.asset.pickId] : [],
     )), [blockItems, myMemberId])
-    const { data: picks, loading: picksLoading, error: picksError, isSnapshot: picksSnapshot, refresh: refreshPicks } = useFocusAsyncData(async () => {
-        if (!current || !leagueId) return [] as TradePickItem[]
-        return getPicksForMember(current.id, leagueId)
-    }, [current?.id, leagueId, user?.id, snapshotScope], {
-        initialData: cachedPicks?.data, initialFetchedAt: cachedPicks?.savedAt, staleMs: 300_000,
-        cacheRevision: () => tabSnapshotRevision(leagueId, 'picks'),
-        onFailed: () => invalidateLeagueSnapshot(leagueId),
-        onLoaded: (result, revision) => {
-            if (user?.id && current?.id && leagueId) writeTabSnapshot(picksCacheKey(user.id, current.id, leagueId), snapshotScope, revision, result)
-        },
-    })
-
-    useTradeScreenRealtime({
-        online,
-        focused,
-        leagueId,
-        memberId: myMemberId,
-        activeTab: tab,
-        refreshTrades: load,
-        refreshHistory: refreshHistoryFeed,
-        refreshTradeBlock: loadBlock,
-        refreshDraftPicks: refreshPicks,
-        draftPicksFresh: !picksSnapshot,
-        initialTradesRead: true,
-    })
+    const picks = blockPicks
+    const picksLoading = blockLoading
+    const picksError = blockError
+    const refreshPicks = loadBlock
 
     const picksList = useMemo(() => picks ?? [], [picks])
     const screenModel = useMemo(() => buildTradeScreenModel({
@@ -229,16 +197,16 @@ function TradesScreen() {
                 return <TradeEmptyRow item={item} />
             case 'blockItem':
                 return <TradeBlockListingRow item={item} myMemberId={myMemberId}
-                    blockBusyId={blockBusyId} disabled={!online} tile={gridColumns > 1} onRemove={handleRemoveBlockItem} onSaveNote={handleSaveBlockNote} />
+                    blockBusyId={blockBusyId} disabled={false} tile={gridColumns > 1} onRemove={handleRemoveBlockItem} onSaveNote={handleSaveBlockNote} />
             case 'blockPlayer': {
                 const playerId = item.player.players.id
                 return <TradeBlockPlayerRow item={item} listed={listedPlayerIds.has(playerId)}
-                    busy={!online || blockBusyId === playerId} blockAvgMap={blockAvgMap} tile={gridColumns > 1}
+                    busy={blockBusyId === playerId} blockAvgMap={blockAvgMap} tile={gridColumns > 1}
                     blockAvgStatsMap={blockAvgStatsMap} onList={handleListPlayer} />
             }
             case 'blockPick':
                 return <TradeBlockPickRow item={item} listed={listedPickIds.has(item.pick.pickId)}
-                    busy={!online || blockBusyId === item.pick.pickId} tile={gridColumns > 1} myTeamName={myTeamName}
+                    busy={blockBusyId === item.pick.pickId} tile={gridColumns > 1} myTeamName={myTeamName}
                     onList={handleListPick} />
             case 'trade':
                 return <TradeOfferRow item={item} myMemberId={myMemberId} tab={tab}
@@ -249,7 +217,7 @@ function TradesScreen() {
                     onAnalyze={openAnalyzer} selected={split && item.trade.id === openTrade?.id} brief={split}
                     onOpen={openTradeDetails} />
         }
-    }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, online, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
+    }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
         openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
         tradeActions.veto, tradeActions.withdraw])

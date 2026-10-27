@@ -9,6 +9,13 @@ CREATE OR REPLACE FUNCTION public.join_league_by_invite_code(p_invite_code text,
  SET search_path TO ''
 AS $function$
 DECLARE
+  __request_context jsonb;
+  __request_result jsonb;
+BEGIN
+  __request_context := private.request_begin('public.join_league_by_invite_code', jsonb_build_array(p_invite_code, p_team_name), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
+  <<request_write>>
+DECLARE
   v_league           public.leagues%ROWTYPE;
   v_user_id          uuid := (SELECT auth.uid());
   v_team_name        text := regexp_replace(p_team_name, '^[[:space:]]+|[[:space:]]+$', '', 'g');
@@ -98,10 +105,13 @@ BEGIN
   CROSS JOIN generate_series(1, 3) AS round_value
   ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
 
-  RETURN jsonb_build_object(
+  __request_result := jsonb_build_object(
     'id',     v_league.id,
     'name',   v_league.name,
     'status', v_league.status
-  );
+  ); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $function$;

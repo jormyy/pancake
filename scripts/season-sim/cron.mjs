@@ -1,24 +1,7 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 
-export const productionJobs = [
-  ['notification-dispatch-minute','* * * * *','SELECT public.invoke_process_trades_if_due()'],
-  ['nba-live-poll', '*/2 * * * *', 'SELECT public.invoke_live_poll_if_due()'],
-  ['season-boundary', '*/15 * * * *', 'SELECT public.invoke_season_boundary_if_due()'],
-  ['nba-close-expired-nominations', '* * * * *', 'SELECT public.invoke_close_expired_nominations_if_due()'],
-  ['nba-dispatch-stats-sync-jobs', '* * * * *', 'SELECT public.invoke_stats_sync_dispatch_if_due()'],
-  ['daily-stat-corrections', '*/15 * * * *', 'SELECT public.queue_daily_stat_corrections()'],
-  ['nba-lineup-optimizer', '* * * * *', 'SELECT public.invoke_pre_tipoff_optimizer_if_due()'],
-  ['nba-sync-players', '*/15 * * * *', "SELECT public.invoke_edge_function_at_et_time('sync-players',6,0)"],
-  ['nba-sync-schedule', '5,20,35,50 * * * *', "SELECT public.invoke_edge_function_at_et_time('sync-schedule',6,5)"],
-  ['nba-process-waivers', '*/15 * * * *', "SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)"],
-  ['nba-sync-projections', '*/15 * * * *', 'SELECT public.invoke_projection_sync_if_due()'],
-  ['nba-sync-rankings', '0 * * * *', 'SELECT public.invoke_dynasty_ranking_views_at_et_time(7,0)'],
-  ['nba-sync-draft-order-june', '0 13 20-30 6 *', "SELECT public.invoke_edge_function('sync-draft-order')"],
-  ['nba-sync-draft-order-july', '0 13 1-15 7 *', "SELECT public.invoke_edge_function('sync-draft-order')"],
-  ['edge-invocation-reconcile', '*/5 * * * *', 'SELECT private.reconcile_edge_invocations()'],
-  ['matchup-forecasts', '* * * * *', 'SELECT public.invoke_matchup_forecasts_if_due()'],
-  ['cleanup-trade-estimates', '35 8 * * *', 'SELECT public.cleanup_trade_estimate_quotes()'],
-].map(([jobname, schedule, command]) => ({ jobname, schedule, command }))
+export const productionJobs = JSON.parse(readFileSync(new URL('./cron-jobs.json', import.meta.url), 'utf8'))
 
 function fieldMatches(field, value, maximum) {
   return field.split(',').some(part => {

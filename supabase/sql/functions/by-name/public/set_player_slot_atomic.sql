@@ -16,6 +16,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.set_player_slot_atomic', jsonb_build_array(p_member_id, p_league_id, p_league_season_id, p_player_id, p_game_date, p_slot_type, p_week_number), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
 BEGIN
   PERFORM public.set_player_slot_moves_atomic(
     p_member_id,
@@ -28,5 +34,8 @@ BEGIN
       'slot_type', p_slot_type
     ))
   );
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

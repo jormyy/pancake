@@ -62,3 +62,13 @@ it('keeps exact unfinished bid text after failure and releases a successful unch
         vi.unstubAllGlobals()
     }
 })
+
+it('opens the history for a finished claim', async () => {
+    const onTimeline = vi.fn()
+    await act(async () => { renderer = create(React.createElement(RosterClaimItem, {
+        claim: { ...claim, status: 'failed_priority' }, cancellingId: null, onCancel: vi.fn(),
+        onReorder: vi.fn(), onEditBid: vi.fn(), onTimeline,
+    })) })
+    await act(async () => { renderer!.root.findByProps({ accessibilityLabel: 'What happened?' }).props.onPress() })
+    expect(onTimeline).toHaveBeenCalledOnce()
+})

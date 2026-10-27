@@ -21,6 +21,9 @@ BEGIN
   IF v_inv.queued_at < clock_timestamp() - interval '10 minutes' THEN
     RAISE EXCEPTION 'Invocation expired before worker startup';
   END IF;
+  IF v_inv.work_item_id IS NOT NULL AND NOT EXISTS(
+    SELECT 1 FROM private.work_items WHERE id=v_inv.work_item_id AND lease_token=v_inv.work_lease_token AND invocation_key=p_invocation_key AND status='running' AND lease_until>now()
+  ) THEN RAISE EXCEPTION 'Work lease is no longer current' USING ERRCODE='PT409'; END IF;
   INSERT INTO public.sync_runs (function_name, started_at)
   VALUES (p_function_name, clock_timestamp()) RETURNING id INTO v_run;
   UPDATE public.edge_invocations

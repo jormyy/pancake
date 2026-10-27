@@ -1,10 +1,8 @@
 import type { Json } from '@/types/database'
-import { getCurrentSeasonId } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
-import { isTradeHistoryForMember } from '@/lib/trade-perspective'
 import type { TradeEstimateSummary } from '@/lib/trade-estimates'
 export {
     needsMemberAcceptance,
@@ -137,12 +135,6 @@ export function parseTradeHistoryCursor(cursor: TradePageCursor | null): TradeHi
 
 export function tradeHistoryCursorFilter(cursor: TradeHistoryCursor): string {
     return `proposed_at.lt.${cursor.proposedAt},and(proposed_at.eq.${cursor.proposedAt},trade_id.lt.${cursor.tradeId})`
-}
-
-export type TradePage = { trades: Trade[]; nextCursor: TradePageCursor | null; hasMore: boolean }
-
-function normalizedTradePageSize(limit: number): number {
-    return Math.min(Math.max(Math.trunc(limit), 1), 99)
 }
 
 type TeamNameRow = { team_name: string | null } | null
@@ -281,11 +273,6 @@ export type TradeBlockItem = {
     note: string | null
     updatedAt: string
     asset: Exclude<TradeItem, { kind: 'faab' }>
-}
-
-export async function getPicksForMember(memberId: string, leagueId: string): Promise<TradePickItem[]> {
-    const picks = await getPicksForMembers([memberId], leagueId)
-    return picks[memberId] ?? []
 }
 
 export async function getPicksForMembers(
@@ -682,101 +669,6 @@ async function enrichTradesWithStats(trades: Trade[], leagueId: string): Promise
     })
 }
 
-export async function getTradesForScreen(
-    memberId: string,
-    leagueId: string,
-    limit = 40,
-    cursor: TradePageCursor | null = null,
-): Promise<TradePage> {
-    const pageSize = normalizedTradePageSize(limit)
-    const { data: refs, error: refsError } = await supabase
-        .rpc('get_trade_page_refs', {
-            p_member_id: memberId,
-            p_league_id: leagueId,
-            p_limit: pageSize + 1,
-            p_cursor: cursor?.token,
-        })
-
-    if (refsError) throw refsError
-    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
-    const hasMore = refs.length > pageSize
-    const pageRefs = refs.slice(0, pageSize)
-
-    const { data, error } = await supabase
-        .from('trades')
-        .select(TRADE_SELECT)
-        .in('id', pageRefs.map((ref) => ref.trade_id))
-        .overrideTypes<TradeQueryRow[]>()
-
-    if (error) throw error
-
-    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
-    const visible = pageRefs
-        .map((ref) => rowsById.get(ref.trade_id))
-        .filter((row): row is TradeQueryRow => row != null)
-        .map((row) => mapTradeRow(row, memberId))
-        .filter((trade) => isTradeVisibleOnScreen(trade, memberId))
-
-    return {
-        trades: await enrichTradesWithStats(visible, leagueId),
-        nextCursor: hasMore ? { token: pageRefs.at(-1)!.cursor_token } : null,
-        hasMore,
-    }
-}
-
-export async function getTradeHistoryForScreen(
-    memberId: string,
-    leagueId: string,
-    limit = 40,
-    cursor: TradePageCursor | null = null,
-): Promise<TradePage> {
-    const pageSize = normalizedTradePageSize(limit)
-    const parsedCursor = parseTradeHistoryCursor(cursor)
-    let query = supabase
-        .from('trade_participants')
-        .select('trade_id, proposed_at, trades!inner(status)')
-        .eq('league_id', leagueId)
-        .eq('member_id', memberId)
-        .neq('trades.status', 'pending')
-    if (parsedCursor) query = query.or(tradeHistoryCursorFilter(parsedCursor))
-    const { data: refs, error: refsError } = await query
-        .order('proposed_at', { ascending: false })
-        .order('trade_id', { ascending: false })
-        .limit(pageSize + 1)
-        .overrideTypes<{ trade_id: string; proposed_at: string }[]>()
-
-    if (refsError) throw refsError
-    if (!refs || refs.length === 0) return { trades: [], nextCursor: null, hasMore: false }
-    const hasMore = refs.length > pageSize
-    const pageRefs = refs.slice(0, pageSize)
-
-    const { data, error } = await supabase
-        .from('trades')
-        .select(TRADE_SELECT)
-        .in('id', pageRefs.map((ref) => ref.trade_id))
-        .overrideTypes<TradeQueryRow[]>()
-
-    if (error) throw error
-
-    const rowsById = new Map((data ?? []).map((row) => [row.id, row]))
-    const history = pageRefs
-        .map((ref) => rowsById.get(ref.trade_id))
-        .filter((row): row is TradeQueryRow => row != null)
-        .map((row) => mapTradeRow(row, memberId))
-        .filter((trade) => isTradeHistoryForMember(trade, memberId))
-
-    return {
-        trades: await enrichTradesWithStats(history, leagueId),
-        nextCursor: hasMore ? {
-            token: tradeHistoryCursorToken({
-                proposedAt: pageRefs.at(-1)!.proposed_at,
-                tradeId: pageRefs.at(-1)!.trade_id,
-            }),
-        } : null,
-        hasMore,
-    }
-}
-
 export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = Date.now()): boolean {
     const isParticipant = trade.proposerMemberId === memberId ||
         trade.recipientMemberId === memberId ||
@@ -785,16 +677,6 @@ export function isTradeVisibleOnScreen(trade: Trade, memberId: string, nowMs = D
     return trade.status === 'accepted' &&
         trade.vetoWindowExpiresAt != null &&
         Date.parse(trade.vetoWindowExpiresAt) > nowMs
-}
-
-export async function getPendingIncomingTradeCount(memberId: string, leagueId: string): Promise<number> {
-    const { data, error } = await supabase.rpc('get_pending_trade_count', {
-        p_member_id: memberId,
-        p_league_id: leagueId,
-    })
-
-    if (error) throw error
-    return data ?? 0
 }
 
 export async function getTradeById(tradeId: string, memberId: string): Promise<Trade | null> {
@@ -809,95 +691,6 @@ export async function getTradeById(tradeId: string, memberId: string): Promise<T
     const row = data as TradeQueryRow
     const [trade] = await enrichTradesWithStats([mapTradeRow(row, memberId)], row.league_id)
     return trade ?? null
-}
-
-type TradeBlockQueryRow = {
-    id: string
-    member_id: string
-    player_id: string | null
-    pick_id: string | null
-    note: string | null
-    updated_at: string
-    league_members: TeamNameRow
-    players: TradePlayerQueryRow
-    draft_picks: {
-        season_year: number
-        round: number
-        original_owner: TeamNameRow
-    } | null
-}
-
-export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockItem[]> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) return []
-    const { data, error } = await supabase
-        .from('trade_block_items')
-        .select(`
-            id,
-            member_id,
-            player_id,
-            pick_id,
-            note,
-            updated_at,
-            league_members ( team_name ),
-            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_ir, is_on_taxi ) ),
-            draft_picks (
-                season_year,
-                round,
-                original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name )
-            )
-        `)
-        .eq('league_id', leagueId)
-        .eq('players.roster_players.league_season_id', seasonId)
-        .order('updated_at', { ascending: false })
-
-    if (error) throw error
-
-    const items = ((data ?? []) as TradeBlockQueryRow[]).flatMap<TradeBlockItem>((row) => {
-        if (row.player_id && row.players) {
-            const roster = row.players.roster_players?.find(item => item.league_season_id === seasonId && item.member_id === row.member_id)
-            return [{
-                rosterLocation: roster ? roster.is_on_taxi ? 'taxi' : roster.is_on_ir ? 'ir' : 'active' : undefined,
-                id: row.id,
-                memberId: row.member_id,
-                teamName: row.league_members?.team_name ?? 'Unknown',
-                note: row.note ?? null,
-                updatedAt: row.updated_at,
-                asset: {
-                    kind: 'player' as const,
-                    playerId: row.player_id,
-                    playerName: row.players.display_name ?? 'Unknown',
-                    position: row.players.position ?? null,
-                    eligiblePositions: row.players.eligible_positions ?? (row.players.position ? [row.players.position] : []),
-                    nbaTeam: row.players.nba_team ?? null,
-                    nbaId: row.players.nba_id ?? null,
-                    injuryStatus: row.players.injury_status ?? null,
-                    yearsExp: row.players.years_exp ?? null,
-                    nbaDraftNumber: row.players.nba_draft_number ?? null,
-                    careerGames: row.players.career_regular_season_games ?? null,
-                },
-            }]
-        }
-        if (row.pick_id && row.draft_picks) {
-            return [{
-                id: row.id,
-                memberId: row.member_id,
-                teamName: row.league_members?.team_name ?? 'Unknown',
-                note: row.note ?? null,
-                updatedAt: row.updated_at,
-                asset: {
-                    kind: 'pick' as const,
-                    pickId: row.pick_id,
-                    seasonYear: row.draft_picks.season_year,
-                    round: row.draft_picks.round,
-                    originalTeamName: row.draft_picks.original_owner?.team_name ?? 'Unknown',
-                },
-            }]
-        }
-        return []
-    })
-
-    return items
 }
 
 /** Attaches season averages to listed players; the caller loads the averages once for listings and roster together. */

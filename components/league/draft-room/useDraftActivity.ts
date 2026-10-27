@@ -37,6 +37,7 @@ export function useDraftActivity(ownerKey: string | null) {
         && sessionGeneration() === generation && sessionOwner() === user
         && bindingRef.current.user === user && bindingRef.current.generation === generation,
     [identity, ownerKey, user, generation, environmentAllowsReads])
+    const canQueue = useCallback(() => Boolean(ownerKey) && mountedRef.current && ownerRef.current === identity && focusRef.current && user != null && sessionGeneration() === generation && sessionOwner() === user, [ownerKey, identity, user, generation])
     const capture = useCallback(() => epochRef.current, [])
     const isCurrent = useCallback((epoch: number) => canRead() && epochRef.current === epoch, [canRead])
     const canAct = useCallback(() => canRead() && readyRef.current === epochRef.current, [canRead])
@@ -88,5 +89,5 @@ export function useDraftActivity(ownerKey: string | null) {
             }
         }
     }, [identity, invalidate, environmentAllowsReads])
-    return { identity, capture, epoch: epochRef.current, canRead, isCurrent, canAct, markReady, blockActions, ready: canAct() }
+    return { identity, capture, epoch: epochRef.current, canRead, isCurrent, canAct, canQueue, markReady, blockActions, ready: canAct() }
 }

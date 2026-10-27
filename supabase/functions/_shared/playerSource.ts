@@ -6,6 +6,8 @@ import { runBounded } from './runBounded.ts'
 import { normalizeName } from './nameMatch.ts'
 import { currentSeasonYear } from './season.ts'
 import { errorMessage } from './responses.ts'
+import { sourceBirthdate, sourceYearsExperience } from './playerSourceDetails.ts'
+import { sourceInjuryDetails, type InjuryDetails } from './injurySourceDetails.ts'
 
 const ESPN_SITE_BASE_URL = Deno.env.get('ESPN_SITE_BASE_URL') ??
   'https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba'
@@ -60,6 +62,7 @@ type SourcePlayerRecord = {
   status: string | null
   injury_status?: string | null
   years_exp: number | null
+  birthdate: string | null
 }
 
 export function mapEspnTeam(abbreviation: string | null | undefined): string | null {
@@ -93,6 +96,7 @@ type EspnAthlete = {
   experience?: { years?: number }
   draft?: { year?: number }
   debutYear?: number
+  dateOfBirth?: string
 }
 
 type EspnRosterPayload = {
@@ -107,6 +111,7 @@ type EspnInjuriesPayload = {
     team?: { abbreviation?: string }
     injuries?: {
       status?: string
+      details?: unknown
       athlete?: { id?: string | number; displayName?: string; firstName?: string; lastName?: string;
         team?: { abbreviation?: string }; links?: { href?: string }[]; position?: { abbreviation?: string }; experience?: { years?: number } }
     }[]
@@ -205,28 +210,17 @@ function buildEspnRecords(
         eligible_positions: eligibleForPosition(position),
         status: athlete.status?.type === 'active' ? 'Active' : 'Inactive',
         ...(injuriesByName ? { injury_status: injuriesById.get(espnId) ?? (nameCounts.get(name) === 1 ? injuriesByName.get(name) ?? null : null) } : {}),
-        years_exp: yearsExperience(athlete, roster.seasonYear ?? currentSeasonYear()),
+        years_exp: sourceYearsExperience(athlete, roster.seasonYear ?? currentSeasonYear()),
+        birthdate: sourceBirthdate(athlete.dateOfBirth),
       })
     }
   }
   return records
 }
 
-function yearsExperience(athlete: EspnAthlete, seasonYear: number): number | null {
-  const years = completedSeasons(athlete.experience?.years)
-  if (years !== null) return years
-  const firstYear = athlete.debutYear ?? athlete.draft?.year
-  return typeof firstYear === 'number' && Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= seasonYear
-    ? Math.max(0, seasonYear - 1 - firstYear) : null
-}
-
-function completedSeasons(seasonNumber: number | undefined): number | null {
-  return typeof seasonNumber === 'number' && Number.isInteger(seasonNumber) && seasonNumber >= 0 ? Math.max(0, seasonNumber - 1) : null
-}
-
 export type EspnInjuryIdentity = { provider_id: string; display_name: string; nba_team: string; years_exp: number | null; position: string | null }
 
-export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, string> | null; byId: Map<string, string>; identities: EspnInjuryIdentity[]; failure: string | null }> {
+export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, string> | null; byId: Map<string, string>; identities: EspnInjuryIdentity[]; detailsById: Map<string, InjuryDetails>; detailsByName: Map<string, InjuryDetails>; failure: string | null }> {
   const response = await fetchWithRetry(`${ESPN_SITE_BASE_URL}/injuries`, { headers: ESPN_HEADERS })
   if (!response.ok) {
     await response.body?.cancel()
@@ -241,6 +235,8 @@ export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, strin
   const statuses = extractEspnInjuryStatuses(injuries)
   const byId = new Map<string, string>()
   const identities: EspnInjuryIdentity[] = []
+  const detailsById = new Map<string, InjuryDetails>()
+  const detailsByName = new Map<string, InjuryDetails>()
   for (const team of injuries.injuries ?? []) {
     for (const injury of team.injuries ?? []) {
       const athlete = injury.athlete!
@@ -259,15 +255,20 @@ export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, strin
       const teamIds: Record<string, string> = { '1': 'ATL', '2': 'BOS', '3': 'NOP', '4': 'CHI', '5': 'CLE', '6': 'DAL', '7': 'DEN', '8': 'DET', '9': 'GSW', '10': 'HOU', '11': 'IND', '12': 'LAC', '13': 'LAL', '14': 'MIA', '15': 'MIL', '16': 'MIN', '17': 'BKN', '18': 'NYK', '19': 'ORL', '20': 'PHI', '21': 'PHX', '22': 'POR', '23': 'SAC', '24': 'SAS', '25': 'OKC', '26': 'UTA', '27': 'WAS', '28': 'TOR', '29': 'MEM', '30': 'CHA' }
       const code = mapEspnTeam(athlete.team?.abbreviation ?? team.team?.abbreviation ?? teamIds[team.id ?? ''])
       const name = athlete.displayName ?? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ')
+      if (status) {
+        const details = sourceInjuryDetails(injury.details)
+        if (id) detailsById.set(id, details)
+        detailsByName.set(normalizeName(name), details)
+      }
       if (id && code && name) identities.push({ provider_id: id, display_name: name, nba_team: code,
-        years_exp: completedSeasons(athlete.experience?.years),
+        years_exp: sourceYearsExperience(athlete, currentSeasonYear()),
         position: mapEspnPosition(athlete.position?.abbreviation) })
     }
   }
   if (statuses.size === 0) {
-    return { statuses: null, byId, identities, failure: 'ESPN injuries has no mapped statuses; injury_status unchanged' }
+    return { statuses: null, byId, identities, detailsById, detailsByName, failure: 'ESPN injuries has no mapped statuses; injury_status unchanged' }
   }
-  return { statuses, byId, identities, failure: null }
+  return { statuses, byId, identities, detailsById, detailsByName, failure: null }
 }
 
 export async function fetchEspnPlayerListing(): Promise<{ records: SourcePlayerRecord[]; gaps: string[]; failure: string | null; injuryWarnings: number }> {

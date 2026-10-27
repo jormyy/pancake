@@ -10,11 +10,13 @@ It also preserves the recorded pre-migration security catalog.
 | Record | Version | Migration count |
 | --- | --- | --- |
 | Audit baseline | `20261005000003` | 329 |
-| Recorded production phase | `20261020000007` | 431 |
-| Approved candidate | `20261029000800` | 564 |
+| Deployed release 1 | `20261029000800` | 564 |
+| Approved release 2 candidate | `20261111000100` | 589 |
 
-The approved range contains 235 migrations after the audit baseline.
-The recorded production phase has 133 pending migrations.
+The approved range contains 260 migrations after the audit baseline.
+The deployed release 1 phase has 25 pending migrations.
+Release 1 reaches production on 2026-10-27.
+Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
 
 ```sh
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
@@ -42,3 +44,10 @@ Each later shard verifies the migrated schema before serving release builds.
 Earlier seasons run the same six browser scenarios as the deployed-build compatibility checks.
 Every season retains required evidence.
 Release seasons also retain smoke and performance reports.
+
+The 2026-10-27 refresh uses private mini project `pt4bafablefix`, database port `58722`.
+The stack first records the release 1 catalog at 564 migrations.
+It then applies all 25 candidate migrations and records the 589-row history and final catalog.
+The earlier production catalog remains in `historicalPhases`.
+Advance `preMigration` only with a catalog captured at the exact deployed version.
+The generator then preserves that catalog during candidate refreshes.

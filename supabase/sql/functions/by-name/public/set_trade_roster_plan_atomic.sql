@@ -3,6 +3,12 @@ CREATE OR REPLACE FUNCTION public.set_trade_roster_plan_atomic(
   p_taxi_player_ids uuid[], p_ir_player_ids uuid[], p_drop_player_ids uuid[], p_roster_moves jsonb DEFAULT '[]'::jsonb
 )
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.set_trade_roster_plan_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_taxi_player_ids, p_ir_player_ids, p_drop_player_ids, p_roster_moves), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
 DECLARE v_trade trades%ROWTYPE; v_member uuid; v_player uuid; v_all uuid[];
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
@@ -62,5 +68,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM trade_participants WHERE trade_id=p_trade_id AND member_id=p_member_id AND accepted_at IS NOT NULL) THEN
     PERFORM private.validate_trade_rosters(p_trade_id, p_member_id);
   END IF;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

@@ -1,3 +1,4 @@
+import { ListHeader } from '@/components/ui/ListHeader'
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native'
 import { memo, useEffect, useRef } from 'react'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
@@ -80,7 +81,7 @@ export const GameLogTable = memo(function GameLogTable({
     const content = (
         <View style={[styles.tableInner, compact && styles.compactTableInner]}>
             {/* Header row */}
-            <View style={[styles.row, styles.headerRow]}>
+            <ListHeader>
                 <Text style={[...dateCell, styles.colHdr]}>DATE</Text>
                 <Text style={[...oppCell, styles.colHdr]}>OPP</Text>
                 {showFpts && <Text style={[...fptsCell, styles.colHdr]}>FP</Text>}
@@ -97,7 +98,7 @@ export const GameLogTable = memo(function GameLogTable({
                     <Text style={[styles.shotCell, styles.colHdr]}>FT</Text>
                     <Text style={[...numCell, styles.colHdr]}>+/-</Text>
                 </>}
-            </View>
+            </ListHeader>
 
             {/* Data rows */}
             {rows.map((g, i) => {
@@ -197,13 +198,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: table.cellPadX,
     },
     rowDivider: { borderBottomWidth: 1, borderBottomColor: colors.separator },
-    headerRow: {
-        minHeight: table.headerHeight,
-        backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-
     dateCell: { ...textStyles.tableCell, width: controlSize.minTouch + spacing.lg },
     oppCell: { ...textStyles.tableCell, width: controlSize.minTouch + spacing.xl, flexGrow: 1 },
     numCell: { ...textStyles.tableCell, width: spacing['4xl'] + spacing.xs, textAlign: 'center' },

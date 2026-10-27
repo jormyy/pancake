@@ -11,6 +11,7 @@
     "generate:brand-assets": "node scripts/generate-brand-assets.mjs",
     "web": "expo start --web",
     "build:web:release": "expo export --platform web --clear && node scripts/stamp-release-provenance.mjs",
+    "release": "node scripts/release/release.mjs",
     "release:recover-artifact": "node tests/e2e/recover-release-artifact.mjs",
     "lint": "expo lint",
     "lint:all": "eslint app components constants contexts hooks lib types core/src core/tests scripts tests --max-warnings=0",
@@ -405,7 +406,16 @@
     "test:db:player-data-legacy-writes": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql",
     "test:db:stats-corrections": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/stats-correction-schedule.sql",
     "test:db:final-stat-revisions": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/final-stat-revisions.sql",
-    "test:db:trade-historical-revaluation": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/trade-historical-revaluation.sql"
+    "test:db:trade-historical-revaluation": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/trade-historical-revaluation.sql",
+    "e2e:screen-cache-identity": "node tests/e2e/screen-cache-identity.mjs",
+    "e2e:screen-offline-replay": "node tests/e2e/screen-offline-replay.mjs",
+    "e2e:screen-view-parity": "node tests/e2e/screen-view-parity.mjs",
+    "e2e:screen-write-freshness": "node tests/e2e/screen-write-freshness.mjs",
+    "e2e:timeline": "node tests/lib/timeline/app-browser.mjs",
+    "e2e:timeline:fixture": "node tests/lib/timeline/browser/check.mjs",
+    "e2e:timeline:fixture:serve": "node node_modules/vite/bin/vite.js --config tests/lib/timeline/browser/vite.config.mjs",
+    "e2e:claims-navigation": "node tests/ui/claims-navigation.mjs",
+    "test:db:season-lineup-full-roster": "node tests/db/season-lineup-full-roster.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

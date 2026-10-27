@@ -207,38 +207,6 @@ export async function getRookieDraftPollRevision(draftId: string): Promise<strin
     return JSON.stringify([draftResult.data, pickResult.data])
 }
 
-export async function getAllLeaguePicks(leagueId: string): Promise<LeaguePickItem[]> {
-    const { data, error } = await supabase
-        .from('draft_picks')
-        .select(
-            `id, season_year, round, is_used,
-             original_owner_id,
-             current_owner_id,
-             original_owner:league_members!draft_picks_original_owner_id_fkey ( team_name ),
-             current_owner:league_members!draft_picks_current_owner_id_fkey ( team_name )`,
-        )
-        .eq('league_id', leagueId)
-        .eq('is_used', false)
-        .order('season_year', { ascending: true })
-        .order('round', { ascending: true })
-
-    if (error) throw error
-    type PickRow = (typeof data extends (infer T)[] | null ? T : never) & {
-        original_owner: { team_name: string } | null
-        current_owner: { team_name: string } | null
-    }
-    return ((data ?? []) as PickRow[]).map((p) => ({
-        id: p.id,
-        seasonYear: p.season_year,
-        round: p.round,
-        isUsed: p.is_used,
-        originalOwnerMemberId: p.original_owner_id,
-        originalTeamName: p.original_owner?.team_name ?? 'Unknown',
-        currentOwnerMemberId: p.current_owner_id,
-        currentTeamName: p.current_owner?.team_name ?? 'Unknown',
-    }))
-}
-
 export async function getRookiePlayers(draftId: string, query?: string): Promise<RookieProspect[]> {
     const pickedQuery = supabase
         .from('snake_draft_picks')

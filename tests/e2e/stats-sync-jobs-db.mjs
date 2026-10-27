@@ -391,17 +391,17 @@ try {
   }), true, 'current worker could not release pending work')
 
   assert.equal(
-    scalar("SELECT count(*) FROM cron.job WHERE jobname = 'nba-dispatch-stats-sync-jobs';"),
+    scalar("SELECT count(*) FROM cron.job WHERE jobname = 'work-dispatcher';"),
     '1',
     'durable stats dispatcher cron is not installed',
   )
   assert.equal(
-    scalar("SELECT command FROM cron.job WHERE jobname = 'nba-dispatch-stats-sync-jobs';"),
-    'SELECT public.invoke_stats_sync_dispatch_if_due()',
+    scalar("SELECT command FROM cron.job WHERE jobname = 'work-dispatcher';"),
+    'SELECT public.dispatch_work()',
     'durable stats dispatcher cron does not go through its idle gate',
   )
   assert.match(
-    scalar("SELECT pg_get_functiondef('public.invoke_stats_sync_dispatch_if_due()'::regprocedure);"),
+    scalar("SELECT pg_get_functiondef('private.enqueue_stats_sync_dispatch(timestamp with time zone)'::regprocedure);"),
     /"dispatch":true,"jobId":"00000000-0000-4000-8000-000000000000"/,
     'dispatcher cron payload is not backward-safe during Edge rollout',
   )

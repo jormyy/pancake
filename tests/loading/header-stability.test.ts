@@ -53,7 +53,7 @@ it('keeps nomination controls and the same hint height while the live connection
     } as unknown as React.ComponentProps<typeof AuctionIdlePanel>['controller']
     await act(async () => { screen = create(React.createElement(AuctionIdlePanel, { controller, memberId: 'me', compact: false })) })
     const before = screen.root.findAllByType('Text' as React.ElementType).map(node => flatten(node.props.style))
-    expect(before.some(style => style.textAlign === 'left' && Number(style.height) > 0)).toBe(true)
+    expect(before.some(style => style.textAlign === 'left' && Number(style.minHeight) > 0)).toBe(true)
     await act(async () => screen.update(React.createElement(AuctionIdlePanel, {
         controller: { ...controller, realtimeConnected: false, actionsReady: false }, memberId: 'me', compact: false,
     })))

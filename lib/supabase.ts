@@ -1,3 +1,4 @@
+import { queuedRpcFetch } from '@/lib/cache/rpc-queue'
 import 'react-native-url-polyfill/auto'
 import { createClient, isAuthApiError, isAuthSessionMissingError } from '@supabase/supabase-js'
 import { Platform } from 'react-native'
@@ -6,11 +7,12 @@ import { fenceDataRequests } from '@/lib/session-fetch'
 import { authStorageKey, inspectSession, readStoredAuth, type StoredAuthState } from '@/lib/auth-session'
 import { createAuthStorage } from '@/lib/auth-storage'
 import { createAuthInvalidation } from '@/lib/auth-invalidation'
-import { setSessionOwner } from '@/lib/session-cache-registry'
+import { sessionGeneration, setSessionOwner } from '@/lib/session-cache-registry'
 import { authNavigatorLock, createAuthClientLock } from '@/lib/auth-lock'
 import { createAuthStorageLock } from '@/lib/auth-storage-lock'
 import { createAuthLogoutGuard } from '@/lib/auth-logout-guard'
 import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { createMutationFetch } from '@/lib/api-client'
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
 const supabasePublicKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
@@ -109,7 +111,7 @@ export const supabase = createClient<Database>(
             detectSessionInUrl: false,
             ...(typeof navigator !== 'undefined' && navigator.locks ? { lock: createAuthClientLock() } : {}),
         },
-        global: { fetch: authStorage.fetch(fenceDataRequests((input, init) => fetch(input, init))) },
+        global: { fetch: authStorage.fetch(fenceDataRequests(queuedRpcFetch(createMutationFetch((input, init) => fetch(input, init), sessionGeneration), resolvedSupabaseUrl, resolvedSupabasePublicKey))) },
     },
 )
 

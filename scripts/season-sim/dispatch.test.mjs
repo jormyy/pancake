@@ -4,7 +4,7 @@ import { dispatch } from './dispatch.mjs'
 
 test('deferred minute gates retain their commands in one database round trip', async () => {
   const queries = []
-  const statement = 'SELECT public.invoke_live_poll_if_due(); SELECT public.invoke_process_trades_if_due()'
+  const statement = 'SELECT public.dispatch_work()'
   const rows = await dispatch(statement, { defer: true }, async query => { queries.push(query); return '[17,18]' })
   assert.equal(queries.length, 1)
   assert.ok(queries[0].includes(statement.replace(/(^|;)\s*SELECT\b/gi, '$1 PERFORM')))

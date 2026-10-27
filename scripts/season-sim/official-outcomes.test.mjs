@@ -209,7 +209,7 @@ test('supported worker success requires durable success and sound transport', ()
 test('fidelity acceptance recomputes classifications and rejects duplicated history', () => {
   const { worker, providers } = rankingCase()
   const row = { phase: 'opening', at: timestamp, outcome: worker, providers, classification: classify(worker, providers) }
-  const fidelity = { version: 2, coverage: { invoked: { 'nba-live-poll': 1 } }, phases: [{ phase: 'opening', catalogHash: catalogIdentity(productionJobs), before: 0, through: 1, nativeCount: 1, invocations: [{ id: 1, invocation_key: worker.invocation_key, function_name: worker.function_name }], counts: { 'nba-live-poll': 1 } }], catalogVerified: true, catalog: productionJobs, counts: { 'nba-live-poll': 1 }, verified: true, reconciled: true, outcomes: [row], unexpected: [] }
+  const fidelity = { version: 2, coverage: { invoked: { 'work-dispatcher': 1 } }, phases: [{ phase: 'opening', catalogHash: catalogIdentity(productionJobs), before: 0, through: 1, nativeCount: 1, invocations: [{ id: 1, invocation_key: worker.invocation_key, function_name: worker.function_name }], counts: { 'work-dispatcher': 1 } }], catalogVerified: true, catalog: productionJobs, counts: { 'work-dispatcher': 1 }, verified: true, reconciled: true, outcomes: [row], unexpected: [] }
   assert.equal(fidelityPass(fidelity), true)
   const forged = structuredClone(fidelity)
   forged.outcomes[0].outcome.sync_error = 'Only loopback targets are allowed'
@@ -225,7 +225,7 @@ test('fidelity acceptance recomputes classifications and rejects duplicated hist
 
 test('native phase inventories prevent lost outcomes and mismatched command counts', () => {
   const make = () => {
-    const counts = { 'nba-sync-schedule': 2 }
+    const counts = { 'work-dispatcher': 2 }
     const outcomes = [1, 2].map(id => ({ phase: 'opening', at: timestamp, outcome: outcome('sync-schedule', { id, invocation_key: `worker-${id}`, status_code: 200, worker_status: 'success', sync_status: 'success', sync_error: null, content: '{"ok":true}' }), providers: [], classification: { kind: 'supported-success', gaps: [] } }))
     return { version: 2, catalogVerified: true, catalog: productionJobs, counts, coverage: { invoked: { ...counts } }, verified: true, reconciled: true, unexpected: [], outcomes,
       phases: [{ phase: 'opening', catalogHash: catalogIdentity(productionJobs), before: 0, through: 2, nativeCount: 2, invocations: outcomes.map(row => ({ id: row.outcome.id, invocation_key: row.outcome.invocation_key, function_name: row.outcome.function_name })), counts: { ...counts } }] }
@@ -241,9 +241,9 @@ test('native phase inventories prevent lost outcomes and mismatched command coun
     value => { value.phases[0].nativeCount = 999 },
     value => { value.phases[0].through = 999 },
     value => { value.phases[0].catalogHash = 'wrong' },
-    value => { value.counts['nba-sync-schedule'] = 999 },
-    value => { value.phases[0].counts['nba-sync-schedule'] = 999 },
-    value => { value.coverage.invoked['nba-sync-schedule'] = 999 },
+    value => { value.counts['work-dispatcher'] = 999 },
+    value => { value.phases[0].counts['work-dispatcher'] = 999 },
+    value => { value.coverage.invoked['work-dispatcher'] = 999 },
     value => value.phases.push(value.phases[0]),
     value => { value.version = 1 },
   ]
@@ -252,10 +252,10 @@ test('native phase inventories prevent lost outcomes and mismatched command coun
   restored.phases[0].nativeCount = 1
   restored.phases[0].through = 1
   restored.phases[0].invocations.pop()
-  restored.phases[0].counts['nba-sync-schedule'] = 1
+  restored.phases[0].counts['work-dispatcher'] = 1
   restored.outcomes[1].phase = 'restored'
   restored.outcomes[1].outcome.id = 1
-  restored.phases.push({ phase: 'restored', catalogHash: catalogIdentity(productionJobs), before: 0, through: 1, nativeCount: 1, invocations: [{ id: 1, invocation_key: 'worker-2', function_name: 'sync-schedule' }], counts: { 'nba-sync-schedule': 1 } })
+  restored.phases.push({ phase: 'restored', catalogHash: catalogIdentity(productionJobs), before: 0, through: 1, nativeCount: 1, invocations: [{ id: 1, invocation_key: 'worker-2', function_name: 'sync-schedule' }], counts: { 'work-dispatcher': 1 } })
   assert.equal(fidelityPass(restored), true)
 })
 

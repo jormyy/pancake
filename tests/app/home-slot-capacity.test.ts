@@ -5,6 +5,8 @@ import type { LineupPlayer } from '@/lib/lineup'
 import { saveHomeGameDisplay } from '@/lib/home-surface'
 import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
+vi.mock('@/components/home/InlineLineupEditor', () => ({ InlineLineupEditor: 'InlineLineupEditor' }))
+vi.mock('@/components/home/DailyWaivers', () => ({ DailyWaivers: 'DailyWaivers' }))
 
 vi.mock('@/hooks/use-matchup-forecast', () => ({ useMatchupForecast: () => ({ forecast: null, loading: false }) }))
 vi.mock('@/components/MatchupForecastSummary', () => ({ MatchupForecastSummary: 'MatchupForecastSummary' }))
@@ -35,6 +37,9 @@ vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' }, loa
 vi.mock('@/hooks/use-league-announcements', () => ({ useLeagueAnnouncements: (...args: unknown[]) => { mocks.announcementRead(...args); return { announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements } } }))
 vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     refresh: mocks.refreshHome,
+    announcements: { announcements: mocks.announcements, loaded: mocks.announcementsLoaded, refreshing: false, refresh: mocks.refreshAnnouncements },
+    forecastState: { forecast: null, pending: false, error: false, stale: false },
+    liveSnapshot: { todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() },
     matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
     leagueMatchups: [], weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
     myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
@@ -79,7 +84,10 @@ beforeEach(() => {
     mocks.league.taxi_slots = 2
 })
 afterEach(async () => { await act(async () => screen?.unmount()) })
-const mount = async () => { await act(async () => { screen = create(React.createElement(HomeScreen)) }) }
+const mount = async (details = true) => {
+    await act(async () => { screen = create(React.createElement(HomeScreen)) })
+    if (details && screen.root.findAllByProps({ accessibilityLabel: 'Toggle matchup details' }).length) await act(async () => screen.root.findByProps({ accessibilityLabel: 'Toggle matchup details' }).props.onPress())
+}
 const rows = (slot: string) => screen.root.findAllByType('MatchupRow' as React.ElementType).filter((node) => node.props.slotType === slot)
 
 const populatedStarters = () => {
@@ -136,6 +144,7 @@ it('shows the first matchup with complete game data and retains it through reval
     mocks.freshness = 'fresh'
     mocks.games = [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }]
     await act(async () => screen.update(React.createElement(HomeScreen)))
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Toggle matchup details' }).props.onPress())
     expect(rows('PG')).toHaveLength(1)
     mocks.freshness = 'refreshing'
     await act(async () => screen.update(React.createElement(HomeScreen)))
@@ -234,11 +243,6 @@ it('renders the cached score card offline without an announcement read', async (
     } finally { vi.unstubAllGlobals() }
 })
 
-it('starts the membership-checked announcement RPC without waiting for membership revalidation', async () => {
-    await mount()
-    expect(mocks.announcementRead).toHaveBeenCalledWith('user', 'league')
-})
-
 it('keeps the first Home layout when a later announcement read returns a banner', async () => {
     await mount()
     const card = screen.root.findByType('ScoreCard' as React.ElementType)
@@ -296,4 +300,14 @@ it('routes player identity to the profile and points to the scoring sheet', asyn
     await act(async () => row.props.onOpenDetails({ myPlayer: player, oppPlayer: row.props.oppPlayer, slotType: 'PG' }))
     expect(screen.root.findByType('ScoreBreakdownSheet' as React.ElementType).props.visible).toBe(true)
     expect(mocks.push).toHaveBeenCalledTimes(1)
+})
+
+it('leads with the matchup, shared inline editor, and today’s waivers', async () => {
+    await mount(false)
+    const types = screen.root.findAll(node => typeof node.type === 'string').map(node => String(node.type))
+    expect(types.indexOf('ScoreCard')).toBeLessThan(types.indexOf('InlineLineupEditor'))
+    expect(types.indexOf('InlineLineupEditor')).toBeLessThan(types.indexOf('DailyWaivers'))
+    expect(screen.root.findAllByType('MatchupRow' as React.ElementType)).toHaveLength(0)
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Toggle matchup details' }).props.onPress())
+    expect(rows('BE')).toHaveLength(3)
 })

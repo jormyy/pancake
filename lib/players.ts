@@ -1,7 +1,6 @@
 import { calculateFantasyPoints, snakeToStatLine, roundFantasyPoints, type ScoringSettings } from '@pancake/core'
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/types/database'
-import { currentSeasonYear } from '@/lib/shared/season'
 import { TRANSACTION_LABELS } from '@/lib/shared/transaction-labels'
 import {
     type PlayerSearchSortDir,
@@ -244,19 +243,6 @@ export async function getPlayer(id: string): Promise<PlayerDetailRow> {
     if (error) throw error
     if (!data) throw new Error('Player not found.')
     return mapPlayerDetail(data)
-}
-
-export async function getAvailableSeasons(playerId: string): Promise<number[]> {
-    const { data, error } = await supabase
-        .from('mv_player_season_averages')
-        .select('season_year')
-        .eq('player_id', playerId)
-        .order('season_year', { ascending: false })
-
-    if (error) throw error
-    if (!data || data.length === 0) return [currentSeasonYear()]
-
-    return data.map((r) => r.season_year).filter((year): year is number => year != null)
 }
 
 export async function getPlayerAverageFantasyPoints(playerId: string, leagueId: string, seasonYear: number): Promise<number | null> {

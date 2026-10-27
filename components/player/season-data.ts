@@ -1,17 +1,7 @@
 import { calculateFantasyPoints, snakeToStatLine, type ScoringSettings } from '@pancake/core'
 import type { GameLogEntry, PlayerSeasonAverages, PlayerSeasonLine } from '@/lib/players'
-import { readLeagueDaily } from '@/lib/league-daily-cache'
-import { supabase } from '@/lib/supabase'
 
 export { getPlayerSeasonLines, type PlayerSeasonLine } from '@/lib/players'
-
-export async function getPlayerScoringSettings(leagueId: string) {
-    return readLeagueDaily(leagueId, 'player-scoring-settings', async () => {
-        const { data, error } = await supabase.from('leagues').select('scoring_settings').eq('id', leagueId).single()
-        if (error) throw error
-        return data.scoring_settings
-    })
-}
 
 export type PlayerGame = GameLogEntry & { live: boolean; nbaGameId: string }
 

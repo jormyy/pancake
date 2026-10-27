@@ -13,6 +13,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result int;
+BEGIN
+  __request_context := private.request_begin('public.commissioner_override_weekly_add_count_atomic', jsonb_build_array(p_league_id, p_member_id, p_add_count), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::int; END IF;
+  <<request_write>>
+DECLARE
   v_user_id uuid := auth.uid();
   v_season_id uuid;
   v_week int;
@@ -91,6 +98,9 @@ BEGIN
     jsonb_build_object('week_number', v_week, 'add_count', v_count)
   );
 
-  RETURN v_count;
+  __request_result := v_count; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

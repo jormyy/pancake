@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/Badge'
 import { useEffect, useState } from 'react'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { getMockDraftRoomStatus } from '@/lib/mockDraftRooms'
@@ -8,7 +9,7 @@ import type {
     MockDraftRoomKind,
     MockDraftRoomStatus,
 } from '@/lib/mockDraftRooms'
-import { controlSize, colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { controlSize, colors, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import {
     DraftChips,
@@ -245,9 +246,7 @@ function RoomCard({
                     )}
                 </View>
                 {compact ? <View style={styles.roomCompactActionWrap}>{action}</View> : (
-                    <View style={styles.roomStatusPill}>
-                        <Text style={styles.roomStatusText}>{ROOM_STATUS_LABELS[room.roomStatus]}</Text>
-                    </View>
+                    <Badge size="outlined" variant="solid" color={colors.bgSubtle} textColor={colors.textSecondary} label={ROOM_STATUS_LABELS[room.roomStatus]} />
                 )}
             </View>
             {compact ? null : (
@@ -538,16 +537,6 @@ const styles = StyleSheet.create({
     roomTitleWrap: { flex: 1, minWidth: 0 },
     roomTitle: { ...textStyles.rowTitle },
     roomMeta: { ...textStyles.meta },
-    roomStatusPill: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgSubtle,
-        borderWidth: 1,
-        borderColor: colors.borderLight,
-    },
-    roomStatusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textSecondary },
     roomActionRow: {
         flexDirection: 'row',
         alignItems: 'center',

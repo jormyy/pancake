@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { AuthScaffold } from '@/components/auth/AuthScaffold'
 import type { AuthHeroContent } from '@/components/auth/AuthHero'
 import { Button, Input } from '@/components/ui'
-import { colors, fontSize, fontWeight, spacing } from '@/constants/tokens'
+import { colors, componentTokens, fontSize, fontWeight, spacing } from '@/constants/tokens'
 
 const SIGN_IN_HERO: AuthHeroContent = {
     title: 'A calmer command center for serious dynasty leagues.',
@@ -77,6 +77,7 @@ const signinStyles = StyleSheet.create({
     submit: { marginTop: spacing.sm },
     // Padded to a 44px tap target.
     link: {
+        ...componentTokens.textLink,
         paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,
@@ -176,6 +177,7 @@ const signupStyles = StyleSheet.create({
     submit: { marginTop: spacing.sm },
     // Padded to a 44px tap target.
     link: {
+        ...componentTokens.textLink,
         paddingVertical: spacing.lg,
         textAlign: 'center',
         color: colors.primaryDark,

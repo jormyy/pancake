@@ -1,0 +1,10 @@
+SELECT count(*) AS passed_checks FROM rules_checks;
+SELECT set_config('request.headers', '{}', false);
+SELECT set_config('request.jwt.claim.sub', '', false);
+SELECT set_config('request.jwt.claims', '{}', false);
+DELETE FROM private.request_receipts WHERE actor IN (SELECT unnest(user_ids) FROM idempotency_fixture);
+DELETE FROM public.drafts WHERE league_id IN (SELECT id FROM leagues WHERE commissioner_id IN (SELECT unnest(user_ids) FROM idempotency_fixture));
+DELETE FROM public.leagues WHERE commissioner_id IN (SELECT unnest(user_ids) FROM idempotency_fixture);
+DELETE FROM auth.users WHERE id IN (SELECT unnest(user_ids) FROM idempotency_fixture);
+DELETE FROM public.players WHERE id IN (SELECT id FROM idempotency_players);
+DROP SCHEMA idempotency_test CASCADE;

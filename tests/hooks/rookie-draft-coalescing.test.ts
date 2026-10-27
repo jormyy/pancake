@@ -14,6 +14,11 @@ const boundary = vi.hoisted(() => ({
     stateDelay: 50, prospectDelay: 50, revisionDelay: 50, failState: false, failProspects: false,
     activeState: 0, activeProspects: 0, activeRevision: 0, maxState: 0, maxProspects: 0, maxRevision: 0,
 }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { params: { draftId: string; query?: string } }, options: { checkVersion: boolean }) => options.checkVersion === false
+    ? { prospects: await boundary.prospects(scope.params.draftId, scope.params.query) }
+    : await boundary.state(scope.params.draftId),
+}))
+vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: {
@@ -238,39 +243,7 @@ it('coalesces a 20-event reset and returns picked players to prospects', async (
     expect(measured.prospectReads).toBe(1)
 })
 
-it('queues one follow-up when a slow room read overlaps the 15-second poll', async () => {
-    await mount()
-    await advance(14200) // First event at 14.7 s; the coalesced read starts at 14.95 s.
-    pickFirst()
-    boundary.stateDelay = 500; boundary.prospectDelay = 500
-    const signalAt = Date.now()
-    await transaction()
-    await advance(1000)
-    const measured = report('500ms-room-read/poll-overlap', signalAt)
-    expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-    expect(measured.stateReads).toBe(2)
-    expect(measured.prospectReads).toBe(0)
-    expect(measured.revisionProbes).toBe(1)
-    expect(measured.maxState).toBe(1)
-    expect(measured.maxProspects).toBe(0)
-})
 
-it('gates a 20-second revision probe while realtime still processes a pick', async () => {
-    await mount()
-    boundary.revisionDelay = 20000
-    await advance(14500)
-    await advance(15000)
-    pickFirst()
-    const signalAt = Date.now()
-    await transaction()
-    await advance(5600)
-    const measured = report('20s-revision-probe/poll-overlap+pick', signalAt)
-    expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-    expect(measured.revisionProbes).toBe(1)
-    expect(measured.maxRevision).toBe(1)
-    expect(measured.stateReads).toBe(1)
-    expect(measured.prospectReads).toBe(0)
-})
 
 it('defers hidden notifications and catches up once on resume', async () => {
     await mount()
@@ -299,12 +272,15 @@ it('keeps failed board reads due without reloading unchanged prospects', async (
     await event()
     await advance(500)
     expect(latest.prospects.map((p) => p.id)).toEqual(['a', 'b'])
-    await advance(15000)
-    const measured = report('failed-pair/next-poll-recovery', signalAt)
+    let recovery!: Promise<void>
+    await act(async () => { recovery = latest.refresh() })
+    await advance(200)
+    await act(async () => recovery)
+    const measured = report('failed-view/explicit-recovery', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
     expect(measured.stateReads).toBe(2)
-    expect(measured.prospectReads).toBe(0)
-    expect(measured.revisionProbes).toBe(1)
+    expect(measured.prospectReads).toBe(1)
+    expect(measured.revisionProbes).toBe(0)
 })
 
 it('retries prospects as well as the board on explicit refresh', async () => {
@@ -411,8 +387,8 @@ it('reads current state once after resume during an old pending revision probe',
     await advance(700)
     const measured = report('resume/during-500ms-revision-probe', signalAt)
     expect(latest.prospects.map((p) => p.id)).toEqual(['b'])
-    expect(measured.revisionProbes).toBe(1)
-    expect(measured.maxRevision).toBe(1)
+    expect(measured.revisionProbes).toBe(0)
+    expect(measured.maxRevision).toBe(0)
     expect(measured.stateReads).toBe(1)
     expect(measured.prospectReads).toBe(0)
 })
@@ -513,10 +489,10 @@ it('caps retry frequency without permanently latching a very fast device clock',
 it('loads initial prospects beside the board without another request', async () => {
     boundary.stateDelay = 200
     await act(async () => { renderer = create(tree()) })
-    await advance(60)
+    await advance(260)
     expect(boundary.prospects).toHaveBeenCalledOnce()
     expect(latest.prospects.map(player => player.id)).toEqual(['a', 'b'])
-    await advance(150)
+    await advance(250)
     expect(latest.state?.draft.id).toBe('draft')
     expect(latest.actionsReady).toBe(true)
     expect(boundary.state).toHaveBeenCalledOnce()
@@ -529,7 +505,7 @@ it('shows the first board and prospects together when the prospect read finishes
     await advance(60)
     expect(latest.state).toBeNull()
     expect(latest.loading).toBe(true)
-    await advance(150)
+    await advance(250)
     expect(latest.state?.draft.id).toBe('draft')
     expect(latest.prospects.map(player => player.id)).toEqual(['a', 'b'])
     expect(latest.actionsReady).toBe(true)

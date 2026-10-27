@@ -83,7 +83,7 @@ The stamper gives that entry a digest-based URL so returning browsers load the m
 
 The configured Edge inventory includes `sync-sleeper-projections` and `sync-player-injuries`.
 Include both in the stamped Edge artifact.
-Apply the approved database migrations before deploying Edge or the frontend.
+The manual database recipe applies approved migrations before Edge and frontend deployment.
 The [database release steps](../supabase/RELEASE-DB.md) define the ordered checks and rollback contract.
 Before Edge deployment, an absent injury function can return HTTP 404 without alerts or rapid retries.
 After rollback, that function can remain deployed or be absent; the daily full player sync still refreshes injuries.
@@ -114,3 +114,41 @@ Updated documents activate automatically when their pending work permits it.
 Verify both upgrade paths with `tests/e2e/form-submission-update.mjs` and its documented modes.
 
 Missing-script recovery preserves an open editor during rollback. A saved draft permits an automatic recovery reload only when the controlling worker confirms draft recovery version 1. Older or unknown workers leave the current editor open until its hold ends. Each new worker observation clears the previous compatibility result. Keep the worker capability aligned with the draft readers shipped in the same release.
+
+
+## Resumable Mac release
+
+`npm run release -- --dry-run --candidate <full-sha>` checks an isolated release before promotion.
+The [runner guide](../scripts/release/README.md) defines inputs, receipts, resume behavior, and rollback.
+It requires a clean candidate, unchanged main, passing full local checks, and candidate-bound replay evidence.
+The runner consumes full-check receipts so development does not rerun full suites.
+
+The command follows the manual runbook's Edge-first order.
+It backs up migration history, schema, data, and both deployed identities before changing Edge.
+It computes changed functions from the main-to-candidate diff and adds transitive shared importers.
+It checks the DB push plan, applies migrations, and squash-merges with the release notes.
+It waits for the frontend marker to report the squash SHA.
+It restamps the same Edge source with that SHA and requires the artifact digest to stay unchanged.
+Smoke checks require healthy Edge, a missing chunk returning 404 no-store, and no recent invocation errors.
+This order requires replay evidence for candidate Edge against the old database.
+The database-first manual recipe remains separate.
+
+Dry runs use only the private loopback stack.
+They exercise backup, migration planning, Edge source checks, provenance, and smoke checks without hosted writes.
+They simulate GitHub merge and Vercel promotion using local evidence and the served candidate build.
+Missing prerequisites fail instead of producing a passing receipt.
+The receipt distinguishes simulation from deployment evidence.
+
+The backup reconstructs the previous Edge source from its recorded commit.
+Its digest must match live health before any deployment.
+Rollback verifies that saved artifact, redeploys it, and prints the recovery SQL path.
+It leaves database recovery and frontend rollback to the operator.
+
+## Deployed release 1
+
+Release 1 reaches production on 2026-10-27.
+Its frontend source is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
+Its database head is `20261029000800`, with 564 migrations.
+This record identifies the source and schema.
+It does not invent an artifact digest or replace captured deployment evidence.
+Release 2 targets database head `20261109000900`, with 574 migrations.

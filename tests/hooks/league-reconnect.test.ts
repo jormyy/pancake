@@ -1,240 +1,136 @@
+import { boundary, bumpView, held } from '../helpers/screen-view-boundary'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, expect, it } from 'vitest'
+import type { LeagueTab } from '@/lib/league/tabs'
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 
-const state = vi.hoisted(() => ({ online: true, focused: true, standings: vi.fn(), history: vi.fn(), rooms: vi.fn(), announcements: vi.fn() }))
-vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => state.online }))
-vi.mock('@react-navigation/native', async () => {
-    const ReactModule = await import('react')
-    return { useFocusEffect: (callback: React.EffectCallback) => {
-        ReactModule.useEffect(() => state.focused ? callback() : undefined, [callback, state.focused])
-    } }
-})
-vi.mock('@/lib/scoring', () => ({ getLeagueStandings: state.standings }))
-vi.mock('@/lib/league-announcements', () => ({ listLeagueAnnouncements: state.announcements, mergeAnnouncementActivity: (rows: unknown) => rows }))
-vi.mock('@/lib/transactions', () => ({ getLeagueTransactions: state.history }))
-vi.mock('@/lib/mockDraftRooms', () => ({ getMockDraftRooms: state.rooms }))
-vi.mock('@/lib/waivers', () => ({ getWaiverPriorityOrder: vi.fn(async () => []) }))
-vi.mock('@/lib/rookieDraft', () => ({ getAllLeaguePicks: vi.fn(async () => []) }))
-vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: vi.fn(() => null), writePersistentCache: vi.fn() }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-beforeEach(() => {
-    vi.clearAllMocks()
-    state.online = true
-    state.focused = true
-    state.standings.mockResolvedValue([{ memberId: 'saved' }])
-    state.history.mockResolvedValue([])
-    state.rooms.mockResolvedValue([])
-    state.announcements.mockResolvedValue([])
-})
+let screen: ReactTestRenderer | undefined
+let latest: ReturnType<typeof useLeagueTabResources>
+const frames: string[][] = []
+const Probe = ({ league = 'league', member = 'member', authorized = true, tab = 'results' }: { league?: string; member?: string; authorized?: boolean; tab?: LeagueTab }) => {
+    latest = useLeagueTabResources(league, member, tab, authorized)
+    frames.push(latest.standings.map(row => row.memberId))
+    return null
+}
+const payload = (memberId: string) => ({ standings: [{ memberId }] })
+const mount = async () => { await act(async () => { screen = create(React.createElement(Probe)) }) }
+afterEach(async () => { await act(async () => screen?.unmount()); screen = undefined; frames.length = 0 })
 
-it('refreshes visible standings on reconnect without fetching hidden tabs or dropping saved data', async () => {
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    let renderer!: ReactTestRenderer
-    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'results'); return null }
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    state.online = false
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    let resolve!: (rows: { memberId: string }[]) => void
-    state.standings.mockReturnValueOnce(new Promise((done) => { resolve = done }))
-    state.online = true
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    expect(state.standings).toHaveBeenCalledTimes(2)
-    expect(state.history).not.toHaveBeenCalled()
-    expect(state.rooms).not.toHaveBeenCalled()
+it('retains visible standings offline and replaces them after the next version check', async () => {
+    boundary.read.mockResolvedValue(payload('saved'))
+    await mount()
+    boundary.online = false
+    await act(async () => screen!.update(React.createElement(Probe)))
     expect(latest.standings[0].memberId).toBe('saved')
-    await act(async () => { resolve([{ memberId: 'fresh' }]) })
+    const next = held<ReturnType<typeof payload>>()
+    boundary.read.mockReturnValueOnce(next.promise)
+    boundary.online = true
+    bumpView()
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(latest.standings[0].memberId).toBe('saved')
+    await act(async () => next.resolve(payload('fresh')))
     expect(latest.standings[0].memberId).toBe('fresh')
-    await act(async () => { renderer.unmount() })
+    expect(boundary.read.mock.calls.every(([scope]) => scope.screen === 'league' && scope.params.tab === 'results')).toBe(true)
 })
 
-it('defers hidden-screen reconnect reads until focus returns', async () => {
-    let renderer!: ReactTestRenderer
-    const Probe = () => { useLeagueTabResources('league', 'member', 'results'); return null }
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    state.focused = false
-    state.online = false
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    state.online = true
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    expect(state.standings).toHaveBeenCalledTimes(1)
-    state.focused = true
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    expect(state.standings).toHaveBeenCalledTimes(2)
-    await act(async () => { renderer.unmount() })
+it('defers an inactive route reconnect until focus returns', async () => {
+    boundary.read.mockResolvedValue(payload('saved'))
+    await mount()
+    boundary.focused = false; boundary.online = false
+    await act(async () => screen!.update(React.createElement(Probe)))
+    boundary.online = true
+    bumpView()
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(boundary.read).toHaveBeenCalledTimes(1)
+    boundary.focused = true
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(boundary.read).toHaveBeenCalledTimes(2)
 })
 
-it('replaces a suspended history read on reconnect and ignores the old response', async () => {
-    let finish!: (rows: { id: string }[]) => void
-    state.history.mockReturnValueOnce(new Promise((done) => { finish = done })).mockResolvedValueOnce([{ id: 'authoritative' }])
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    let renderer!: ReactTestRenderer
-    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    state.online = false
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    state.online = true
-    await act(async () => { renderer.update(React.createElement(Probe)); latest.invalidateTab('history') })
-    expect(state.history).toHaveBeenCalledTimes(2)
-    expect(latest.transactions.map(row => row.id)).toEqual(['authoritative'])
-    await act(async () => { finish([{ id: 'old' }]) })
-    expect(state.history).toHaveBeenCalledTimes(2)
-    expect(latest.transactions.map((row) => row.id)).toEqual(['authoritative'])
-    await act(async () => { renderer.unmount() })
+it('rejects a former league response after the league changes', async () => {
+    const old = held<ReturnType<typeof payload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(payload('new-member'))
+    await mount()
+    await act(async () => screen!.update(React.createElement(Probe, { league: 'other' })))
+    frames.length = 0
+    await act(async () => old.resolve(payload('old-member')))
+    expect(latest.standings[0].memberId).toBe('new-member')
+    expect(frames.flat()).not.toContain('old-member')
 })
 
-it('ignores the previous league response after reconnect and a league switch', async () => {
-    let finish!: (rows: { memberId: string }[]) => void
-    state.standings.mockImplementation((league: string) => league === 'first'
-        ? new Promise((done) => { finish = done })
-        : Promise.resolve([{ memberId: 'second-member' }]))
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    let renderer!: ReactTestRenderer
-    const Probe = ({ league }: { league: string }) => {
-        latest = useLeagueTabResources(league, 'member', 'results')
-        return null
-    }
-    await act(async () => { renderer = create(React.createElement(Probe, { league: 'first' })) })
-    state.online = false
-    await act(async () => { renderer.update(React.createElement(Probe, { league: 'first' })) })
-    state.online = true
-    await act(async () => { renderer.update(React.createElement(Probe, { league: 'second' })) })
-    await act(async () => { finish([{ memberId: 'first-member' }]) })
-    expect(latest.standings.map((row) => row.memberId)).toEqual(['second-member'])
-    await act(async () => { renderer.unmount() })
+it('retains standings after a failed reconnect and recovers through explicit retry', async () => {
+    boundary.read.mockResolvedValue(payload('saved'))
+    await mount()
+    boundary.read.mockRejectedValueOnce(new Error('network failed'))
+    await act(async () => bumpView())
+    expect(latest.standings[0].memberId).toBe('saved')
+    expect(latest.tabError).toBe('network failed')
+    boundary.read.mockResolvedValue(payload('recovered'))
+    await act(async () => latest.refreshTab('results'))
+    expect(latest.tabError).toBeUndefined()
+    expect(latest.standings[0].memberId).toBe('recovered')
 })
 
-it('loads each league panel only when selected and retains hidden invalidations until then', async () => {
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    const Probe = ({ tab }: { tab: 'results' | 'history' | 'mockRooms' }) => {
-        latest = useLeagueTabResources('league', 'member', tab)
-        return null
-    }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe, { tab: 'results' })) })
-        expect(state.history).not.toHaveBeenCalled()
-        expect(state.rooms).not.toHaveBeenCalled()
-        await act(async () => { latest.invalidateTab('history') })
-        expect(state.history).not.toHaveBeenCalled()
-        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'history' })) })
-        expect(state.history).toHaveBeenCalledTimes(1)
-        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'results' })) })
-        await act(async () => { latest.invalidateTab('history') })
-        expect(state.history).toHaveBeenCalledTimes(1)
-        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'history' })) })
-        expect(state.history).toHaveBeenCalledTimes(2)
-        expect(state.rooms).not.toHaveBeenCalled()
-        await act(async () => { renderer.update(React.createElement(Probe, { tab: 'mockRooms' })) })
-        expect(state.rooms).toHaveBeenCalledTimes(1)
-    } finally { await act(async () => { renderer.unmount() }) }
+it('does not start a view read before membership validation', async () => {
+    boundary.read.mockResolvedValue(payload('validated'))
+    await act(async () => { screen = create(React.createElement(Probe, { authorized: false })) })
+    expect(boundary.read).not.toHaveBeenCalled()
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(latest.standings[0].memberId).toBe('validated')
 })
 
-it('defers a hidden initial panel and manual retry until it is visible', async () => {
-    const doc = new EventTarget()
-    let hidden = true
-    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
-    vi.stubGlobal('document', doc)
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'results'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => { await latest.refreshTab('results'); latest.invalidateTab('history') })
-        expect(state.standings).not.toHaveBeenCalled()
-        expect(state.history).not.toHaveBeenCalled()
-        hidden = false
-        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
-        expect(state.standings).toHaveBeenCalledTimes(1)
-        expect(state.history).not.toHaveBeenCalled()
-    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+it('defers an inactive initial view and its manual retry until focus returns', async () => {
+    boundary.focused = false
+    boundary.read.mockResolvedValue(payload('visible'))
+    await mount()
+    await act(async () => latest.refreshTab('results'))
+    expect(boundary.read).not.toHaveBeenCalled()
+    boundary.focused = true
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(latest.standings[0].memberId).toBe('visible')
 })
 
-it('releases a suspended read and retains dirty intent without a hidden follow-up', async () => {
-    const doc = new EventTarget()
-    let hidden = false
-    Object.defineProperty(doc, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
-    vi.stubGlobal('document', doc)
-    let release!: (rows: { memberId: string }[]) => void
-    state.standings.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
-        .mockResolvedValue([{ memberId: 'new' }])
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'results'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        hidden = true
-        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')); latest.invalidateTab('results') })
-        await act(async () => { release([{ memberId: 'late' }]) })
-        expect(state.standings).toHaveBeenCalledTimes(1)
-        expect(latest.standings).toEqual([])
-        hidden = false
-        await act(async () => { doc.dispatchEvent(new Event('visibilitychange')) })
-        expect(state.standings).toHaveBeenCalledTimes(2)
-        expect(latest.standings[0].memberId).toBe('new')
-    } finally { await act(async () => { renderer.unmount() }); vi.unstubAllGlobals() }
+it('reads only the selected panel and catches its dirty cached view on return', async () => {
+    boundary.read.mockImplementation(async scope => scope.params.tab === 'results' ? payload('standings') : { rows: [{ id: 'activity' }] })
+    await mount()
+    expect(boundary.read).toHaveBeenCalledTimes(1)
+    await act(async () => screen!.update(React.createElement(Probe, { tab: 'history' })))
+    expect(latest.transactions.map(row => row.id)).toEqual(['activity'])
+    await act(async () => bumpView())
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(latest.standings[0].memberId).toBe('standings')
+    expect(boundary.read.mock.calls.map(([scope]) => scope.params.tab)).toEqual(['results', 'history', 'history', 'results'])
 })
 
-it('refreshes Activity and announcements on focus and pull while keeping loaded rows visible', async () => {
-    state.history.mockResolvedValueOnce([{ id: 'saved' }])
-    let latest!: ReturnType<typeof useLeagueTabResources>
-    let renderer!: ReactTestRenderer
-    const Probe = () => { latest = useLeagueTabResources('league', 'member', 'history'); return null }
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(state.history).toHaveBeenCalledOnce()
-        state.focused = false
-        await act(async () => renderer.update(React.createElement(Probe)))
-        let finish!: (rows: { id: string }[]) => void
-        state.history.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
-        state.focused = true
-        await act(async () => renderer.update(React.createElement(Probe)))
-        expect(state.history).toHaveBeenCalledTimes(2)
-        expect(state.announcements).toHaveBeenCalledTimes(2)
-        expect(latest.isTabLoaded).toBe(true)
-        expect(latest.isTabLoading).toBe(false)
-        expect(latest.isTabRefreshing).toBe(true)
-        expect(latest.transactions.map(row => row.id)).toEqual(['saved'])
-        await act(async () => finish([{ id: 'focused' }]))
-        state.history.mockResolvedValueOnce([{ id: 'pulled' }])
-        await act(async () => { await latest.refreshTab('history') })
-        expect(state.history).toHaveBeenCalledTimes(3)
-        expect(state.announcements).toHaveBeenCalledTimes(3)
-        expect(latest.transactions.map(row => row.id)).toEqual(['pulled'])
-    } finally { await act(async () => renderer.unmount()) }
+it('keeps activity rows through a forced refresh and replaces them with the complete reply', async () => {
+    boundary.read.mockResolvedValue({ rows: [{ id: 'saved' }] })
+    await act(async () => { screen = create(React.createElement(Probe, { tab: 'history' })) })
+    const next = held<{ rows: { id: string }[] }>()
+    boundary.read.mockReturnValueOnce(next.promise)
+    let refresh!: Promise<void>
+    await act(async () => { refresh = latest.refreshTab('history') })
+    expect(latest.transactions.map(row => row.id)).toEqual(['saved'])
+    await act(async () => { next.resolve({ rows: [{ id: 'fresh' }] }); await refresh })
+    expect(latest.transactions.map(row => row.id)).toEqual(['fresh'])
 })
 
-it('refreshes a loaded Activity panel on selection and browser foreground without a hint', async () => {
-    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' })
-    vi.stubGlobal('document', page)
-    state.history.mockResolvedValue([{ id: 'loaded' }])
-    let renderer!: ReactTestRenderer
-    const Probe = ({ tab = 'history' }: { tab?: 'history' | 'results' }) => { useLeagueTabResources('league', 'member', tab); return null }
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => renderer.update(React.createElement(Probe, { tab: 'results' })))
-        await act(async () => renderer.update(React.createElement(Probe)))
-        expect(state.history).toHaveBeenCalledTimes(2)
-        await act(async () => { page.visibilityState = 'hidden'; page.dispatchEvent(new Event('visibilitychange')) })
-        await act(async () => { page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')) })
-        expect(state.history).toHaveBeenCalledTimes(3)
-    } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
+it('does not accept a suspended reply for a former member', async () => {
+    const old = held<ReturnType<typeof payload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(payload('new-member'))
+    await mount()
+    await act(async () => screen!.update(React.createElement(Probe, { member: 'next' })))
+    await act(async () => old.resolve(payload('old-member')))
+    expect(latest.standings[0].memberId).toBe('new-member')
 })
 
-it('reads Activity once for foreground visibility and browser focus', async () => {
-    const browser = new EventTarget()
-    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' })
-    vi.stubGlobal('window', browser)
-    vi.stubGlobal('document', page)
-    let renderer!: ReactTestRenderer
-    const Probe = () => { useLeagueTabResources('league', 'member', 'history'); return null }
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => { page.visibilityState = 'hidden'; page.dispatchEvent(new Event('visibilitychange')) })
-        await act(async () => { page.visibilityState = 'visible'; page.dispatchEvent(new Event('visibilitychange')) })
-        await act(async () => { browser.dispatchEvent(new Event('focus')) })
-        expect(state.history).toHaveBeenCalledTimes(2)
-        expect(state.announcements).toHaveBeenCalledTimes(2)
-    } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
+it('shows the newest server view after a version changes during a suspended read', async () => {
+    const old = held<ReturnType<typeof payload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(payload('authoritative'))
+    await mount()
+    await act(async () => bumpView())
+    await act(async () => old.resolve(payload('stale')))
+    expect(latest.standings[0].memberId).toBe('authoritative')
+    expect(boundary.read).toHaveBeenCalledTimes(2)
 })

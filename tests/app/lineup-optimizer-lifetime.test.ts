@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import LineupScreen from '@/app/(modals)/lineup'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import LineupScreen, { LineupEditor } from '@/app/(modals)/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
@@ -16,6 +16,15 @@ vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
     setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), doAutoSet: mocks.autoSet, handleAutoSet: vi.fn(),
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
+vi.mock('@/lib/cache/screen-cache', () => ({
+    cachedScreenView: () => undefined, subscribeScreenView: () => () => {},
+    readScreenView: async (scope: { leagueId: string; params: { date: string } }) => ({
+        context: { seasonId: `season-${scope.leagueId}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' },
+        date: scope.params.date, weekDays: [{ date: '2026-10-11', playingTeams: [] }],
+        starters: [{ slotType: 'PG', player: null }], bench: [{ playerId: 'player', displayName: 'Bench Player', eligiblePositions: ['PG'] }],
+        benchSlots: 2, ir: [], taxi: [], optimizer: { enabled: mocks.enabled }, games: [], startedTeams: [], teamMatchups: {},
+    }),
+}))
 vi.mock('@/lib/lineup', () => ({
     clampDateToWeek: (date: string) => date,
     getLineupContext: async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }),
@@ -43,6 +52,7 @@ vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'ScreenErrorFallback' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+describe.each([['screen', LineupScreen], ['inline', () => React.createElement(LineupEditor, { inline: true })]] as const)('%s lineup', (_mode, Component) => {
 let screen: ReactTestRenderer
 const toggle = () => screen.root.findByType('Switch' as React.ElementType)
 beforeEach(() => {
@@ -53,7 +63,7 @@ beforeEach(() => {
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
-const mount = async () => { await act(async () => { screen = create(React.createElement(LineupScreen)) }) }
+const mount = async () => { await act(async () => { screen = create(React.createElement(Component)) }) }
 
 it.each([true, false])('keeps a delayed setting reply from changing another league when enabling=%s', async (enabling) => {
     let finish!: () => void
@@ -63,7 +73,7 @@ it.each([true, false])('keeps a delayed setting reply from changing another leag
     let pending!: Promise<void>
     await act(async () => { pending = toggle().props.onValueChange(enabling) })
     mocks.context.current = { id: 'member-b' }; mocks.context.currentLeague = { id: 'league-b' }
-    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    await act(async () => { screen.update(React.createElement(Component)) })
     expect(toggle().props.value).toBe(!enabling)
     await act(async () => { finish(); await pending })
     expect(toggle().props.value).toBe(!enabling)
@@ -78,7 +88,7 @@ it.each(['switch', 'unmount'] as const)('does not show a late settings failure a
     await act(async () => { pending = toggle().props.onValueChange(true) })
     if (action === 'switch') {
         mocks.context.current = { id: 'member-b' }; mocks.context.currentLeague = { id: 'league-b' }
-        await act(async () => { screen.update(React.createElement(LineupScreen)) })
+        await act(async () => { screen.update(React.createElement(Component)) })
     } else await act(async () => screen.unmount())
     await act(async () => { fail(new Error('old settings failed')); await pending })
     expect(mocks.showAlert).not.toHaveBeenCalled()
@@ -165,7 +175,7 @@ it('reads the saved preference again after reopening the page', async () => {
 it('disables the panel while offline', async () => {
     await mount()
     mocks.context.online = false
-    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    await act(async () => { screen.update(React.createElement(Component)) })
     expect(toggle().props.disabled).toBe(true)
     for (const label of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
         expect(screen.root.findByProps({ accessibilityLabel: label }).props.disabled).toBe(true)
@@ -183,4 +193,6 @@ it('toggles the preference from the full switch row', async () => {
     expect(row().props.accessibilityState.checked).toBe(true)
     expect(row().props['aria-checked']).toBe(true)
     expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
+})
+
 })

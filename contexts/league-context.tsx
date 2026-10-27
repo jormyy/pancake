@@ -1,3 +1,4 @@
+import { clearScreenViews } from '@/lib/cache/screen-cache'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, type PropsWithChildren } from 'react'
 import { useLeagues, LeagueMembership } from '@/hooks/use-leagues'
@@ -68,9 +69,10 @@ export function LeagueProvider({ children }: PropsWithChildren) {
 
     const setCurrent = useCallback((m: LeagueMembership) => {
         if (!userId || !memberships.some((membership) => membership.id === m.id)) return
+        if (m.id !== current?.id) clearScreenViews()
         setSelection({ userId, membershipId: m.id })
         writePersistentCache(selectedLeagueCacheKey(userId), m.id)
-    }, [memberships, userId])
+    }, [memberships, userId, current?.id])
 
     useEffect(() => {
         setSelection((previous) => previous.userId === userId

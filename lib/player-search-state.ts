@@ -37,8 +37,6 @@ type PlayerSearchFilterState = {
     seasonYear: number | null
 }
 
-export const PLAYER_SEARCH_PAGE_SIZE = 20
-
 export const DEFAULT_PLAYER_SEARCH_PARAMS: PlayerSearchParams = {
     query: '',
     position: 'ALL',

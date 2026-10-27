@@ -13,6 +13,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result boolean;
+BEGIN
+  __request_context := private.request_begin('public.withdraw_auction_nomination_atomic', jsonb_build_array(p_nomination_id, p_member_id, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::boolean; END IF;
+  <<request_write>>
+DECLARE
   v_nom   nominations%ROWTYPE;
   v_draft drafts%ROWTYPE;
 BEGIN
@@ -32,7 +39,7 @@ BEGIN
      AND status = 'open'
    FOR UPDATE;
   IF NOT FOUND THEN
-    RETURN false;
+    __request_result := false; EXIT request_write;
   END IF;
 
   SELECT * INTO v_draft FROM drafts WHERE id = v_nom.draft_id FOR UPDATE;
@@ -40,7 +47,7 @@ BEGIN
     RAISE EXCEPTION 'Draft not found';
   END IF;
   IF v_draft.status <> 'in_progress' THEN
-    RETURN false;
+    __request_result := false; EXIT request_write;
   END IF;
 
   IF v_nom.nominating_member_id <> p_member_id THEN
@@ -55,6 +62,9 @@ BEGIN
 
   DELETE FROM nominations WHERE id = v_nom.id;
 
-  RETURN true;
+  __request_result := true; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

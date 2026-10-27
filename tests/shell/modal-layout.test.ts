@@ -19,7 +19,7 @@ it('renders the base modal routes as pages inside the persistent shell', async (
     const routes = screen.root.findAllByType('Screen' as React.ElementType)
     expect(routes.map(route => route.props.name)).toEqual([
         'create-league', 'join-league', 'commissioner-settings', 'change-password', 'draft-room',
-        'rookie-draft-room', 'lineup', 'propose-trade', 'claim-player', 'bracket', 'team-roster',
+        'rookie-draft-room', 'lineup', 'propose-trade', 'claim-player', 'bracket', 'notification-settings', 'timeline', 'team-roster',
     ])
     expect(routes.every(route => route.props.options.presentation === undefined)).toBe(true)
     expect(routes.find(route => route.props.name === 'draft-room')?.props.options.headerShown).toBe(false)

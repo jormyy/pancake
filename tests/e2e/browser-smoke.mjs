@@ -1,3 +1,4 @@
+import { NAVIGATION_SWEEP_ROUTES } from './navigation-routes.mjs'
 import { browserArtifactPath } from './browser-artifacts.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -40,13 +41,26 @@ const routeWorkflowIds = new Map([
   ['rookie-draft-room', 'rookie-draft-room'],
 ])
 
+export { NAVIGATION_SWEEP_ROUTES } from './navigation-routes.mjs'
+
 export const REQUIRED_FULL_SWEEP_LABELS = [
   'auth-sign-in', 'auth-sign-up',
   'home', 'players', 'roster', 'trades', 'league', 'dynasty', 'profile',
   'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
   'claim-player', 'player-detail', 'propose-trade', 'team-roster',
   'draft-room', 'rookie-draft-room', 'draft-launcher', 'change-password', 'notification-settings', 'not-found',
+  ...NAVIGATION_SWEEP_ROUTES.map(([label]) => label),
 ]
+
+export const timelineSurfaceFailures = ({ text = '', buttons = Object.keys({}) } = {}) => {
+  const failures = []
+  if (!text.includes('Timeline')) failures.push('Timeline heading is missing')
+  for (const label of ['All', 'Claims', 'Trades', 'Lineups', 'Scores']) {
+    if (!buttons.includes(label)) failures.push(`Timeline filter is missing: ${label}`)
+  }
+  if (/Could not load the timeline|timeline response is incomplete|not available/i.test(text)) failures.push('Timeline failed to load')
+  return failures
+}
 
 export const assertFullSweepRoutes = (visited) => {
   const visitedSet = new Set(visited)
@@ -462,6 +476,7 @@ export const ensureSweepDrafts = async (supabase, state, members) => {
     .select('id')
     .eq('league_id', state.leagueId)
     .eq('draft_type', 'auction')
+    .eq('is_mock', false)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -509,6 +524,7 @@ export const ensureSweepDrafts = async (supabase, state, members) => {
     .select('id')
     .eq('league_id', state.leagueId)
     .eq('draft_type', 'snake')
+    .eq('is_mock', false)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -628,6 +644,7 @@ const fetchSweepContext = async (env, state, user) => {
   const playerId = roster.playerId
 
   const routes = [
+    ...NAVIGATION_SWEEP_ROUTES,
     ['create-league', '/create-league'],
     ['join-league', '/join-league'],
     ['commissioner-settings', '/commissioner-settings'],
@@ -716,7 +733,12 @@ export async function runBrowserSmoke({
         if (pwaProofRequired) {
           routeEvidence.online.push(await observeRoute(session, { label, route, phase: 'online' }))
         }
-        await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
+        if (label === 'timeline') {
+        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button')).map(node => (node.textContent || '').trim()) })`)
+        const failures = timelineSurfaceFailures(surface)
+        if (failures.length) throw new Error(failures.join('; '))
+      }
+      await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
         visited.push(label)
       }
     }
@@ -732,6 +754,7 @@ export async function runBrowserSmoke({
 
     const routes = [
       ['home', '/'],
+      ['timeline', '/timeline'],
       ['players', '/players'],
       ['roster', '/roster'],
       ['trades', '/trades'],
@@ -780,6 +803,11 @@ export async function runBrowserSmoke({
         }
       } else {
         await browser(session, ['wait', '1500'])
+      }
+      if (label === 'timeline') {
+        const surface = await browserJson(session, `JSON.stringify({ text: document.body.innerText, buttons: Array.from(document.querySelectorAll('[role=button],button')).map(node => (node.textContent || '').trim()) })`)
+        const failures = timelineSurfaceFailures(surface)
+        if (failures.length) throw new Error(failures.join('; '))
       }
       await captureBrowserScreenshot(browser, session, artifactDir, `${label}.png`)
       routeCatalog.push([label, route])

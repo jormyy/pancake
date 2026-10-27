@@ -1,4 +1,5 @@
 import { json, handleApiRequest, routePath } from '../_shared/apiRuntime.ts'
+import { handleBeaconRoute } from './beacons/index.ts'
 import { handleDraftRoute } from './draft.ts'
 import { handleE2eRoute } from './e2e.ts'
 import { handleGamesRoute } from './games.ts'
@@ -9,6 +10,8 @@ import { handleProfileRoute } from './profile.ts'
 import { handleSyncRoute } from './sync.ts'
 import { handleTradeRoute } from './trades.ts'
 import { handleWaiverRoute } from './waivers.ts'
+import { handleVersionRoute } from './version/index.ts'
+import { handleViewRoute } from './views/index.ts'
 import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMetadata.ts'
 
 export function handleApiRoute(req: Request): Promise<Response> {
@@ -26,6 +29,9 @@ export function handleApiRoute(req: Request): Promise<Response> {
     }
 
     const route =
+      await handleBeaconRoute(req, path) ??
+      await handleVersionRoute(req, path) ??
+      await handleViewRoute(req, path) ??
       await handleE2eRoute(req, path) ??
       await handleGamesRoute(req, path) ??
       await handlePlayersRoute(req, path) ??

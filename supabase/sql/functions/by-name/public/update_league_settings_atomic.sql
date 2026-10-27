@@ -12,6 +12,12 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.update_league_settings_atomic', jsonb_build_array(p_league_id, p_settings), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_league public.leagues%ROWTYPE;
   v_user_id uuid := (SELECT auth.uid());
   v_touches_structural boolean;
@@ -64,6 +70,12 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF p_settings ? 'timezone' AND (jsonb_typeof(p_settings->'timezone')<>'string' OR NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name=p_settings->>'timezone')) THEN
+    RAISE EXCEPTION 'Choose a valid IANA timezone.' USING ERRCODE='22023';
+  END IF;
+  IF p_settings ? 'rookie_draft_order' AND (jsonb_typeof(p_settings->'rookie_draft_order')<>'string' OR p_settings->>'rookie_draft_order' NOT IN ('linear','snake')) THEN
+    RAISE EXCEPTION 'Rookie draft order must be linear or snake.' USING ERRCODE='22023';
+  END IF;
   FOREACH v_key IN ARRAY ARRAY['team_limit','playoff_entrants','taxi_max_seasons'] LOOP
     IF p_settings ? v_key AND (jsonb_typeof(p_settings->v_key)<>'number' OR (p_settings->>v_key)!~'^[0-9]+$') THEN
       RAISE EXCEPTION '% must be a positive whole number.',v_key USING ERRCODE='22023';
@@ -270,7 +282,9 @@ BEGIN
   END IF;
 
   UPDATE public.leagues
-     SET team_limit = CASE WHEN p_settings ? 'team_limit' THEN (p_settings->>'team_limit')::int ELSE team_limit END,
+     SET timezone = CASE WHEN p_settings ? 'timezone' THEN p_settings->>'timezone' ELSE timezone END,
+         rookie_draft_order = CASE WHEN p_settings ? 'rookie_draft_order' THEN p_settings->>'rookie_draft_order' ELSE rookie_draft_order END,
+         team_limit = CASE WHEN p_settings ? 'team_limit' THEN (p_settings->>'team_limit')::int ELSE team_limit END,
          taxi_rule = 'rookies_or_64_games',
          taxi_max_seasons = CASE WHEN p_settings ? 'taxi_max_seasons' THEN (p_settings->>'taxi_max_seasons')::int ELSE taxi_max_seasons END,
          allow_inactive_trades = CASE WHEN p_settings ? 'allow_inactive_trades' THEN (p_settings->>'allow_inactive_trades')::boolean ELSE allow_inactive_trades END,
@@ -349,5 +363,8 @@ BEGIN
        AND season.is_current = true
        AND balance.balance = v_league.faab_starting_budget;
   END IF;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

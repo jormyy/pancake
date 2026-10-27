@@ -15,7 +15,8 @@ AS $$
     UNION
     SELECT game_id FROM private.player_game_memberships WHERE player_id = p_player_id
   )
-  SELECT EXISTS (
+  SELECT EXISTS (SELECT 1 FROM private.lineup_history_receipts r
+    WHERE r.player_id=p_player_id AND r.game_date=p_game_date) OR EXISTS (
     SELECT 1
       FROM players AS p
       JOIN nba_games AS g

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { checkRoundReady, checkAllocation, checkChampion, checkDraftOrder, rookieOrder, checkPlayoffShape,checkRealDraftBoard } from './post-oracle.mjs'
 
 test('independent rookie order, snake reversal and ownership reject corrupt observations', () => {
-  const expectedOrder = rookieOrder(['c', 'a', 'b'], [{ member_id: 'a', week_number: 1, wins: 3, points_for: 9 }, { member_id: 'b', week_number: 1, wins: 1, points_for: 10 }])
+  const expectedOrder = rookieOrder(['c', 'a', 'b'], [{ member_id: 'a', week_number: 1, wins: 3, losses: 1, points_for: 9 }, { member_id: 'b', week_number: 1, wins: 1, losses: 3, points_for: 10 }])
   assert.deepEqual(expectedOrder, ['b', 'a', 'c'])
   const picks = [], assets = []
   for (let round = 1; round <= 2; round++) for (let position = 1; position <= 3; position++) {
@@ -11,7 +11,7 @@ test('independent rookie order, snake reversal and ownership reject corrupt obse
     assets.push({ id, original_owner_id: owner, current_owner_id: 'traded' })
     picks.push({ round, pick_in_round: position, draft_pick_id: id, member_id: 'traded' })
   }
-  const input = { expectedOrder, picks, assets, rounds: 2 }
+  const input = { expectedOrder, picks, assets, rounds: 2, orderType: 'snake' }
   checkDraftOrder(input)
   assert.throws(() => checkDraftOrder({ ...input, expectedOrder: [...expectedOrder].reverse() }), /standings/)
   assert.throws(() => checkDraftOrder({ ...input, picks: [{ ...picks[0], member_id: 'wrong' }, ...picks.slice(1)] }), /ownership/)

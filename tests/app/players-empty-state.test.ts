@@ -13,7 +13,7 @@ vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ members
 vi.mock('@/hooks/use-focus-async-data', () => ({ useFocusAsyncData: () => state.support }))
 vi.mock('@/hooks/use-player-support-realtime', () => ({ usePlayerSupportRealtime: () => {} }))
 vi.mock('@/hooks/use-player-search', () => ({
-    usePlayerSearch: () => ({ results: state.search, search: { query: '', setQuery: vi.fn() }, availabilityFilter: { value: 'free_agents', setValue: vi.fn() }, position: { value: 'ALL' }, teamPicker: { selectedTeams: [] }, playing: { value: 'all' }, health: { value: 'all' }, toggles: {}, season: { value: null }, sort: { mode: 'fpts', dir: 'desc' }, activeFilterCount: 0 }),
+    usePlayerSearch: () => ({ support: state.support.data, refresh: state.refresh, results: { ...state.search, loading: state.search.loading || state.support.loading, refreshing: state.search.refreshing || state.support.refreshing, isSnapshot: state.search.isSnapshot || state.support.isSnapshot, error: state.search.error ?? state.support.error }, search: { query: '', setQuery: vi.fn() }, availabilityFilter: { value: 'free_agents', setValue: vi.fn() }, position: { value: 'ALL' }, teamPicker: { selectedTeams: [] }, playing: { value: 'all' }, health: { value: 'all' }, toggles: {}, season: { value: null }, sort: { mode: 'fpts', dir: 'desc' }, activeFilterCount: 0 }),
     useVisiblePlayerRows: (rows: unknown[]) => ({ rows }), SORT_OPTIONS: [],
 }))
 vi.mock('@/hooks/use-quick-add', () => ({ useQuickAdd: () => ({ dropPickerPlayer: null, irModal: null }) }))

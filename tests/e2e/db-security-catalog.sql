@@ -19,11 +19,13 @@ SELECT jsonb_build_object(
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace JOIN pg_language l ON l.oid = p.prolang
   WHERE (n.nspname = 'public' AND p.proname IN (
     'drop_player_atomic', 'handle_new_auth_user', 'activate_rookie_draft_league_atomic',
+    'dispatch_work', 'work_dashboard', 'renew_work_lease', 'run_work_maintenance',
     'invoke_edge_function', 'invoke_edge_function_at_et_time', 'invoke_dynasty_ranking_views_at_et_time',
     'invoke_season_boundary_if_due', 'invoke_live_poll_if_due', 'renew_live_poll_lease', 'edit_waiver_claim_atomic'
   )) OR (n.nspname = 'private' AND p.proname IN (
     'sync_roster_linked_state', 'clear_future_unlocked_lineups', 'lineup_game_started',
-    'claim_cron_dispatch', 'reconcile_edge_invocations'
+    'claim_cron_dispatch', 'reconcile_edge_invocations', 'work_claim', 'work_enqueue', 'work_finish',
+    'work_execute', 'work_capture_outcome', 'work_enforce_lease', 'enqueue_scheduled_work'
   ))),
   'triggers', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', t.tgname, 'enabled', t.tgenabled, 'definition', pg_get_triggerdef(t.oid),
@@ -35,7 +37,7 @@ SELECT jsonb_build_object(
     'name', policyname, 'permissive', permissive, 'roles', roles, 'command', cmd,
     'using', qual, 'check', with_check
   ) ORDER BY policyname), '[]'::jsonb) FROM pg_policies
-  WHERE schemaname = 'public' AND tablename = 'waiver_wire_log'),
+  WHERE schemaname = 'public' AND tablename IN ('waiver_wire_log','league_events')),
   'tables', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', c.relname, 'rls', c.relrowsecurity, 'forceRls', c.relforcerowsecurity,
     'policies', (SELECT count(*) FROM pg_policy WHERE polrelid = c.oid),
@@ -43,8 +45,8 @@ SELECT jsonb_build_object(
     'authenticatedSelect', has_table_privilege('authenticated', c.oid, 'SELECT'),
     'serviceRoleSelect', has_table_privilege('service_role', c.oid, 'SELECT')
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_class c
-  WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p')
-    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations', 'web_push_subscriptions')),
+  WHERE c.relnamespace IN ('public'::regnamespace,'private'::regnamespace) AND c.relkind IN ('r', 'p')
+    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations', 'web_push_subscriptions', 'league_events', 'work_items', 'work_kinds')),
   'indexes', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', c.relname, 'valid', i.indisvalid, 'ready', i.indisready, 'definition', pg_get_indexdef(c.oid)
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid

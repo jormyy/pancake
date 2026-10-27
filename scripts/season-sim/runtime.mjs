@@ -12,7 +12,9 @@ import { startOrigin } from './origin.mjs'
 export async function startRuntime(at, { resume = false } = {}) {
   const keys = localKeys()
   process.env.SUPABASE_URL = keys.API_URL
-  process.env.SUPABASE_DB_URL = keys.DB_URL
+  const databaseUrl = new URL(keys.DB_URL)
+  databaseUrl.searchParams.set('sslmode', 'disable')
+  process.env.SUPABASE_DB_URL = databaseUrl.href
   const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
   const token = randomBytes(32).toString('hex')
   const clockAudit = JSON.parse(await sql(await readFile(new URL('./clock-audit.sql', import.meta.url), 'utf8')))
@@ -33,7 +35,7 @@ export async function startRuntime(at, { resume = false } = {}) {
   const stopEdge = async () => { if (child && child.exitCode == null && child.signalCode == null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited } }
   const close = async () => { await stopEdge(); origin.flushCoverage(); await new Promise(resolve => origin.close(resolve)); await log.close() }
   const startEdge = async () => {
-    child = spawn('deno', ['run', '--allow-sys=homedir', '--allow-env', '--allow-read', '--allow-write', `--allow-net=127.0.0.1:${config.ports.api},127.0.0.1:${config.ports.replay},127.0.0.1:${config.ports.edge},localhost:${config.ports.api}`, 'scripts/season-sim/edge.mjs'], {
+    child = spawn('deno', ['run', '--allow-sys=homedir', '--allow-env', '--allow-read', '--allow-write', `--allow-net=127.0.0.1:${config.ports.db},127.0.0.1:${config.ports.api},127.0.0.1:${config.ports.replay},127.0.0.1:${config.ports.edge},localhost:${config.ports.api}`, 'scripts/season-sim/edge.mjs'], {
     env: { ...process.env, SUPABASE_SECRET_KEY: keys.SECRET_KEY ?? keys.SERVICE_ROLE_KEY, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: token }, stdio: ['ignore', log.fd, log.fd],
   })
   let ready = false

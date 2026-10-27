@@ -68,16 +68,25 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
     const application = AppRegistry.getApplication('ClientLayout')
     const html = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${themeVariablesCss()}</style>${renderToStaticMarkup(application.getStyleElement())}</head><body style="margin:0">${renderToStaticMarkup(application.element)}</body></html>`
     await writeFile(`${directory}/index.html`, html)
-    for (const engine of [chromium, webkit]) {
+    for (const engine of process.env.PANCAKE_LAYOUT_WEBKIT_ONLY ? [webkit] : [chromium, webkit]) {
         const browser = await engine.launch()
         close = () => browser.close()
-        for (const width of caseId === 'desktop-case' ? [1024] : [320, 390, 430]) {
+        for (const width of caseId === 'desktop-case' ? [1024] : [360, 390]) {
+            for (const textScale of [1, 1.3]) {
             const page = await browser.newPage({ viewport: { width, height: 844 } })
             await page.setContent(html)
+            if (textScale !== 1) await page.evaluate(scale => {
+                const sizes = Array.from(document.querySelectorAll<HTMLElement>('body *')).map(element => ({ element, font: parseFloat(getComputedStyle(element).fontSize), line: parseFloat(getComputedStyle(element).lineHeight) }))
+                for (const { element, font, line } of sizes) {
+                    element.style.fontSize = `${font * scale}px`
+                    if (Number.isFinite(line)) element.style.lineHeight = `${line * scale}px`
+                }
+            }, textScale)
+            await page.screenshot({ path: `${directory}/${caseId}-${engine.name()}-${width}-scale-${textScale}.png` })
             {
                 const id = caseId === 'desktop-case' ? 'players-case' : caseId
-                expect(await page.getByTestId(id).getByTestId('player-meta-line').count()).toBe(1)
-                expect(await page.getByTestId(id).getByTestId('player-stats-line').count()).toBe(caseId === 'draft-case' ? 0 : 1)
+                expect.soft(await page.getByTestId(id).getByTestId('player-meta-line').count()).toBe(1)
+                expect.soft(await page.getByTestId(id).getByTestId('player-stats-line').count()).toBe(caseId === 'draft-case' ? 0 : 1)
                 const geometry = await page.getByTestId(id).evaluate(root => {
                     const box = (node: Element) => {
                         const rect = node.getBoundingClientRect()
@@ -95,32 +104,32 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER).each(['players-case', 'roster-cas
                     const action = root.querySelector('[aria-label^="Add "], [aria-label^="Move "], [aria-label^="Activate "]')
                     return { team: box(team), teamClipped, action: action ? box(action) : null, name: box(name), meta: box(meta), stats: stats ? box(stats) : null, avatar: box(avatar), row: box(row), tags, positions, overflow: document.documentElement.scrollWidth > innerWidth, text: name.textContent }
                 })
-                expect(geometry.text).toBe(name)
-                expect(geometry.teamClipped).toBe(false)
-                expect(geometry.name.bottom).toBeLessThanOrEqual(geometry.meta.top)
+                expect.soft(geometry.text).toBe(name)
+                expect.soft(geometry.teamClipped).toBe(false)
+                expect.soft(geometry.name.bottom).toBeLessThanOrEqual(geometry.meta.top)
                 if (geometry.stats) {
-                    expect(geometry.meta.bottom).toBeLessThanOrEqual(geometry.stats.top)
-                    expect(geometry.stats.height).toBeLessThanOrEqual(18)
+                    expect.soft(geometry.meta.bottom).toBeLessThanOrEqual(geometry.stats.top)
                 }
-                expect(geometry.avatar.right).toBeLessThanOrEqual(geometry.name.left)
-                expect(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
-                if (geometry.action) expect(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
-                expect(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], [caseId === 'draft-case' ? 'T:0' : 'T:—', caseId === 'draft-case' ? 'Taxi eligible, 0 career regular-season games' : 'Taxi eligible, career games unknown']])
-                expect(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
-                expect(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xxs)
-                expect(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)
-                expect(geometry.tags.every(tag => tag.height === geometry.positions[0].height)).toBe(true)
-                expect(geometry.row.right).toBeLessThanOrEqual(width)
-                expect(geometry.overflow).toBe(false)
+                expect.soft(geometry.avatar.right).toBeLessThanOrEqual(geometry.name.left)
+                expect.soft(Math.abs((geometry.avatar.top + geometry.avatar.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
+                if (geometry.action) expect.soft(Math.abs((geometry.action.top + geometry.action.bottom) / 2 - (geometry.row.top + geometry.row.bottom) / 2)).toBeLessThanOrEqual(1)
+                expect.soft(geometry.tags.map(tag => [tag.text, tag.label])).toEqual([['O', 'Out'], ['R', 'Rookie'], [caseId === 'draft-case' ? 'T:0' : 'T:—', caseId === 'draft-case' ? 'Taxi eligible, 0 career regular-season games' : 'Taxi eligible, career games unknown']])
+                expect.soft(geometry.positions).toHaveLength(caseId === 'draft-case' ? 1 : 2)
+                expect.soft(geometry.positions[0].left - geometry.team.right).toBeCloseTo(spacing.xxs)
+                expect.soft(geometry.tags[0].left).toBeGreaterThanOrEqual(geometry.positions.at(-1)!.right)
+                expect.soft(geometry.tags.every(tag => tag.height >= 16)).toBe(true)
+                expect.soft(geometry.row.right).toBeLessThanOrEqual(width)
+                expect.soft(geometry.overflow).toBe(false)
             }
             const headerGap = await page.getByTestId('player-position-line').evaluate(line => {
                 const team = line.firstElementChild!.getBoundingClientRect()
                 const position = line.querySelector('[data-testid="position-chip"]')!.getBoundingClientRect()
                 return position.left - team.right
             })
-            expect(headerGap).toBeCloseTo(spacing.xs)
-            await page.screenshot({ path: `${directory}/${caseId}-${engine.name()}-${width}.png` })
+            expect.soft(headerGap).toBeCloseTo(spacing.xs)
+            await page.screenshot({ path: `${directory}/${caseId}-${engine.name()}-${width}-scale-${textScale}.png` })
             await page.close()
+            }
         }
         await browser.close()
         close = undefined

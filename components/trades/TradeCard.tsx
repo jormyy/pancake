@@ -1,3 +1,6 @@
+import { TimelineEntry } from '@/components/timeline/TimelineEntry'
+import { PendingMutationBadge } from '@/components/PendingMutationBadge'
+import { Badge } from '@/components/ui/Badge'
 import { pickLabel } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
@@ -183,9 +186,7 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
 
 export function StatusChip({ model }: { model: Pick<TradeCardModel, 'status' | 'statusColors'> }) {
     return (
-        <View style={[styles.statusChip, { backgroundColor: model.statusColors.bg }]}>
-            <Text style={[styles.statusText, { color: model.statusColors.text }]}>{model.status}</Text>
-        </View>
+        <Badge size="status" variant="solid" label={model.status} color={model.statusColors.bg} textColor={model.statusColors.text} />
     )
 }
 
@@ -297,6 +298,7 @@ export function TradeCard({
     /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
     onOpen?: () => void
 }) {
+    const router = useRouter()
     const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner })
 
     // The summary is the press target, not the whole card, so the header and
@@ -314,6 +316,7 @@ export function TradeCard({
 
     return (
         <View style={[styles.card, selected && styles.cardSelected]}>
+            <PendingMutationBadge rowId={trade.id} />
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
@@ -333,6 +336,7 @@ export function TradeCard({
                 </View>
             </View>
 
+            <TimelineEntry memberId={myMemberId} entityId={trade.id} filter="trades" onOpen={destination => router.push({ pathname: '/timeline', params: destination })} />
             {onOpen ? (
                 <MotionPressable
                     style={styles.summary}
@@ -387,13 +391,6 @@ const styles = StyleSheet.create({
     },
     analyzeBtnDisabled: { opacity: 0.5 },
     analyzeBtnText: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primaryDark },
-    statusChip: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xxs,
-        borderRadius: radii.full,
-        borderCurve: 'continuous' as const,
-    },
-    statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
     summary: { gap: spacing.md },
     meta: { ...textStyles.meta },
     sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },

@@ -88,6 +88,21 @@ describe('apiPost timeout lifecycle', () => {
 })
 
 describe('apiPost account binding', () => {
+    it('uses one generated ID in the body and headers when a trade response is lost', async () => {
+        vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
+        const send = vi.fn().mockRejectedValueOnce(new TypeError('Lost')).mockResolvedValueOnce(Response.json({ ok: true }))
+        vi.stubGlobal('fetch', send)
+        await apiPost('/trades/propose', {})
+        expect(send).toHaveBeenCalledTimes(2)
+        const first = send.mock.calls[0][1] as RequestInit
+        const second = send.mock.calls[1][1] as RequestInit
+        expect(first.body).toBe(second.body)
+        const id = JSON.parse(first.body as string).requestId
+        expect(id).toMatch(/^[0-9a-f-]{36}$/)
+        expect(new Headers(first.headers).get('x-request-id')).toBe(id)
+        expect(new Headers(second.headers).get('x-request-id')).toBe(id)
+    })
+
     it('rejects a changed session before sending an account-bound request', async () => {
         vi.mocked(supabase.auth.getSession).mockResolvedValue({ data: { session: null }, error: null })
         const send = vi.fn()
@@ -115,7 +130,12 @@ describe('pending API update protection', () => {
         vi.mocked(supabase.auth.getSession).mockReturnValue(new Promise(resolve => { admit = resolve }))
         let finish!: (value: unknown) => void
         const body = new Promise(resolve => { finish = resolve })
-        const send = vi.fn(async () => ({ ok: true, status: 200, json: () => body }))
+        const send = vi.fn(async () => new Response(new ReadableStream({
+            async start(controller) {
+                controller.enqueue(new TextEncoder().encode(JSON.stringify(await body)))
+                controller.close()
+            },
+        }), { headers: { 'content-type': 'application/json' } }))
         vi.stubGlobal('fetch', send)
         const request = apiPost('/league/roster/taxi', {})
         try {

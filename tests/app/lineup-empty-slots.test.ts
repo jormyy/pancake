@@ -1,15 +1,14 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
-import LineupScreen from '@/app/(modals)/lineup'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setLeagueChangesConnected } from '@/lib/league-changes'
+import LineupScreen, { LineupEditor } from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
-    invalidate: vi.fn(),
-    readLineup: vi.fn(), readContext: vi.fn(), hidden: false,
+    readView: vi.fn(), hidden: false, dirty: false, listeners: new Map<() => void, string>(),
     freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
     enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
@@ -22,13 +21,19 @@ vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
     setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), doAutoSet: mocks.autoSet, handleAutoSet: vi.fn(),
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: mocks.startedTeams, liveTeams: new Set<string>(), todaysGames: mocks.games, freshness: mocks.freshness, teamMatchups: new Map() }) }))
-vi.mock('@/lib/lineup', () => ({
-    clampDateToWeek: (date: string) => date,
-    getLineupContext: mocks.readContext,
-    getWeekDays: async () => [{ date: '2026-10-11', playingTeams: [] }, { date: '2026-10-12', playingTeams: [] }],
-    invalidateCachedRoster: mocks.invalidate,
-    getWeeklyLineup: mocks.readLineup, getLineupMoveTargetState: () => null,
+vi.mock('@/lib/cache/screen-cache', () => ({
+    cachedScreenView: () => ({ dirty: mocks.dirty }),
+    subscribeScreenView: (scope: { leagueId: string }, listener: () => void) => { mocks.listeners.set(listener, scope.leagueId); return () => { mocks.listeners.delete(listener) } },
+    readScreenView: async (scope: { leagueId: string; params: { date: string } }) => {
+        const lineup = await mocks.readView(scope)
+        mocks.dirty = false
+        return { context: { seasonId: `season-${scope.leagueId}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' },
+            date: scope.params.date, weekDays: [{ date: '2026-10-11', playingTeams: [] }, { date: '2026-10-12', playingTeams: [] }],
+            ir: [], taxi: [], ...lineup, optimizer: { enabled: mocks.enabled }, games: mocks.games, startedTeams: [...mocks.startedTeams], teamMatchups: {},
+        }
+    },
 }))
+vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: { user: { id: 'user' } } }) }))
@@ -49,6 +54,12 @@ vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
 vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'ScreenErrorFallback' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
+function publishViewChange(leagueId: string, _change: unknown) {
+    mocks.dirty = true
+    for (const [listener, selected] of [...mocks.listeners]) if (selected === leagueId) listener()
+}
+
+describe.each([['screen', LineupScreen], ['inline', () => React.createElement(LineupEditor, { inline: true })]] as const)('%s lineup', (_mode, Component) => {
 let screen: ReactTestRenderer
 beforeEach(() => {
     vi.clearAllMocks(); setLeagueChangesConnected('league-a', false); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
@@ -57,16 +68,15 @@ beforeEach(() => {
     Object.defineProperty(page, 'visibilityState', { get: () => mocks.hidden ? 'hidden' : 'visible' })
     vi.stubGlobal('document', page)
     mocks.freshness = 'fresh'; mocks.games = []; mocks.startedTeams = new Set()
-    mocks.hidden = false
+    mocks.hidden = false; mocks.dirty = false; mocks.listeners.clear()
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
     mocks.context.membershipValidated = false; mocks.context.membershipError = null
     mocks.context.online = true
     mocks.lineup = { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3 }
-    mocks.readContext.mockReset().mockImplementation(async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }))
-    mocks.readLineup.mockReset().mockImplementation(async () => mocks.lineup)
+    mocks.readView.mockReset().mockImplementation(async () => mocks.lineup)
 })
 afterEach(async () => { await act(async () => screen?.unmount()); setLeagueChangesConnected('league-a', false); vi.useRealTimers(); vi.unstubAllGlobals() })
-const mount = async () => { await act(async () => { screen = create(React.createElement(LineupScreen)) }) }
+const mount = async () => { await act(async () => { screen = create(React.createElement(Component)) }) }
 
 const emptyRows = () => screen.root.findAllByType('Text' as React.ElementType)
     .filter((node) => node.props.children === 'Empty bench slot')
@@ -92,45 +102,45 @@ it('uses the new day capacity after switching dates', async () => {
 
 it('keeps a fresh lineup on focus and rechecks stale or failed reads', async () => {
     await mount()
-    const reads = mocks.readLineup.mock.calls.length
+    const reads = mocks.readView.mock.calls.length
     for (let cycle = 0; cycle < 3; cycle++) {
         await act(async () => { window.dispatchEvent(new Event('focus')) })
         mocks.hidden = true; await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
         mocks.hidden = false; await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
     }
-    expect(mocks.readLineup).toHaveBeenCalledTimes(reads)
-    mocks.readLineup.mockRejectedValueOnce(new Error('503'))
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
+    mocks.readView.mockRejectedValueOnce(new Error('503'))
     await act(async () => { await vi.advanceTimersByTimeAsync(300_000); window.dispatchEvent(new Event('focus')) })
-    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 1)
+    expect(mocks.readView).toHaveBeenCalledTimes(reads + 1)
     mocks.lineup.benchSlots = 2
     await act(async () => { window.dispatchEvent(new Event('focus')) })
     expect(emptyRows()).toHaveLength(2)
-    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 2)
+    expect(mocks.readView).toHaveBeenCalledTimes(reads + 2)
 })
 
 it('revalidates fresh lineup capacity after league settings change', async () => {
     await mount()
-    const reads = mocks.readLineup.mock.calls.length
+    const reads = mocks.readView.mock.calls.length
     mocks.context.currentLeague = { id: 'league-a', roster_size: 21 }
     mocks.lineup.benchSlots = 4
-    await act(async () => { screen.update(React.createElement(LineupScreen)) })
-    expect(mocks.readLineup).toHaveBeenCalledTimes(reads + 1)
+    await act(async () => { screen.update(React.createElement(Component)) })
+    expect(mocks.readView).toHaveBeenCalledTimes(reads + 1)
     expect(emptyRows()).toHaveLength(4)
 })
 
 it('catches up missed lineup changes and ignores a disposed owner', async () => {
     await mount()
-    const reconnect = () => notifyLeagueChange('league-a', { topic: 'catchup', scopes: null })
+    const reconnect = () => publishViewChange('league-a', { topic: 'catchup', scopes: null })
     mocks.lineup.benchSlots = 2
     await act(async () => { reconnect(); await vi.advanceTimersByTimeAsync(200) })
     expect(emptyRows()).toHaveLength(2)
-    expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
+    expect(mocks.readView).toHaveBeenLastCalledWith(expect.objectContaining({ screen: 'lineup', leagueId: 'league-a', memberId: 'member-a' }))
     mocks.context.current = { id: 'member-b' }
     mocks.context.currentLeague = { id: 'league-b' }
-    await act(async () => { screen.update(React.createElement(LineupScreen)) })
-    mocks.invalidate.mockClear()
+    await act(async () => { screen.update(React.createElement(Component)) })
+    const previousReads = mocks.readView.mock.calls.length
     await act(async () => { reconnect(); await vi.advanceTimersByTimeAsync(200) })
-    expect(mocks.invalidate).not.toHaveBeenCalled()
+    expect(mocks.readView).toHaveBeenCalledTimes(previousReads)
 })
 
 it('omits a bench section when the league has no bench places', async () => {
@@ -153,82 +163,49 @@ it('removes a player after a compact deletion hint and stops the old league obse
     await mount()
     expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(1)
     mocks.lineup = { starters: [], bench: [], benchSlots: 3 }
-    await act(async () => { notifyLeagueChange('league-a', { topic: 'lineup', scopes: [{ season_id: 'season-league-a', member_id: 'member-a', date: '2026-10-11' }] }); await vi.advanceTimersByTimeAsync(200) })
+    await act(async () => { publishViewChange('league-a', { topic: 'lineup', scopes: [{ season_id: 'season-league-a', member_id: 'member-a', date: '2026-10-11' }] }); await vi.advanceTimersByTimeAsync(200) })
     expect(screen.root.findAll(node => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(0)
-    expect(mocks.invalidate).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a')
+    expect(mocks.readView).toHaveBeenLastCalledWith(expect.objectContaining({ screen: 'lineup', leagueId: 'league-a', memberId: 'member-a' }))
     mocks.context.current = { id: 'member-b' }
     mocks.context.currentLeague = { id: 'league-b' }
-    await act(async () => { screen.update(React.createElement(LineupScreen)) })
-    mocks.invalidate.mockClear()
-    await act(async () => { notifyLeagueChange('league-a', { topic: 'catchup', scopes: null }); await vi.advanceTimersByTimeAsync(200) })
-    expect(mocks.invalidate).not.toHaveBeenCalled()
+    await act(async () => { screen.update(React.createElement(Component)) })
+    const previousReads = mocks.readView.mock.calls.length
+    await act(async () => { publishViewChange('league-a', { topic: 'catchup', scopes: null }); await vi.advanceTimersByTimeAsync(200) })
+    expect(mocks.readView).toHaveBeenCalledTimes(previousReads)
 })
 
 
-it('does not repeat the initial catch-up when a fresh context object arrives', async () => {
-    setLeagueChangesConnected('league-a', true)
+it('does not repeat the read when an equal league context object arrives', async () => {
     await mount()
-    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-    expect(mocks.readLineup).toHaveBeenCalledTimes(1)
-    expect(mocks.readContext).toHaveBeenCalledTimes(1)
+    mocks.context.currentLeague = { ...mocks.context.currentLeague }
+    await act(async () => screen.update(React.createElement(Component)))
+    expect(mocks.readView).toHaveBeenCalledOnce()
 })
 
-it('retries a failed hinted read without waiting for a focus event', async () => {
+it('retries a failed view through the visible retry control', async () => {
     await mount()
-    mocks.readLineup.mockRejectedValueOnce(new Error('Unavailable'))
+    mocks.readView.mockRejectedValueOnce(new Error('Unavailable'))
     await act(async () => {
-        notifyLeagueChange('league-a', { topic: 'lineup', scopes: null })
+        publishViewChange('league-a', { topic: 'lineup', scopes: null })
         await vi.advanceTimersByTimeAsync(200)
     })
     mocks.lineup.benchSlots = 4
-    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Retry selected lineup day' }).props.onPress())
     expect(emptyRows()).toHaveLength(4)
-    expect(mocks.readLineup).toHaveBeenCalledTimes(3)
+    expect(mocks.readView).toHaveBeenCalledTimes(3)
 })
 
 
-it('waits for initial stream readiness before validating the lineup actor', async () => {
+it('loads one complete view without waiting for legacy table readiness', async () => {
     Object.assign(window, { WebSocket: function WebSocket() {} })
     await mount()
-    expect(mocks.readContext).not.toHaveBeenCalled()
-    await act(async () => {
-        await vi.advanceTimersByTimeAsync(100)
-        setLeagueChangesConnected('league-a', true)
-        notifyLeagueChange('league-a', { topic: 'catchup', scopes: null })
-    })
-    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
-    expect(mocks.readContext).toHaveBeenCalledOnce()
-    expect(mocks.readLineup).toHaveBeenCalledOnce()
-})
-
-it('uses the bounded fallback when the initial stream never connects', async () => {
-    Object.assign(window, { WebSocket: function WebSocket() {} })
-    await mount()
-    await act(async () => { await vi.advanceTimersByTimeAsync(299) })
-    expect(mocks.readContext).not.toHaveBeenCalled()
-    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
-    expect(mocks.readContext).toHaveBeenCalledOnce()
-    expect(mocks.readLineup).toHaveBeenCalledOnce()
-})
-
-it('queues a fresh authoritative read when a lineup changes during the initial read', async () => {
-    setLeagueChangesConnected('league-a', true)
-    let release!: (value: typeof mocks.lineup) => void
-    mocks.readLineup.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
-    await mount()
-    await act(async () => { notifyLeagueChange('league-a', { topic: 'lineup', scopes: null }) })
-    const next = { starters: [], bench: [], benchSlots: 5 }
-    mocks.lineup = next
-    await act(async () => { release({ starters: [], bench: [], benchSlots: 3 }) })
-    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
-    expect(mocks.readContext).toHaveBeenCalledTimes(2)
-    expect(mocks.readLineup).toHaveBeenCalledTimes(2)
-    expect(emptyRows()).toHaveLength(5)
+    expect(mocks.readView).toHaveBeenCalledOnce()
+    expect(emptyRows()).toHaveLength(3)
 })
 
 it('releases a held initial read on suspension and ignores its late result', async () => {
     let release!: (value: typeof mocks.lineup) => void
-    mocks.readLineup.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
+    mocks.readView.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
     await mount()
     mocks.hidden = true
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
@@ -238,7 +215,7 @@ it('releases a held initial read on suspension and ignores its late result', asy
     expect(emptyRows()).toHaveLength(6)
     await act(async () => { release({ starters: [], bench: [], benchSlots: 2 }) })
     expect(emptyRows()).toHaveLength(6)
-    expect(mocks.readLineup).toHaveBeenCalledTimes(2)
+    expect(mocks.readView).toHaveBeenCalledTimes(2)
 })
 
 
@@ -249,7 +226,7 @@ it('waits for league identity before deciding that the lineup is empty', async (
     expect(JSON.stringify(screen.toJSON())).not.toContain('No active lineup yet.')
     mocks.context.current = { id: 'member-a' }
     mocks.context.currentLeague = { id: 'league-a' }
-    await act(async () => screen.update(React.createElement(LineupScreen)))
+    await act(async () => screen.update(React.createElement(Component)))
     expect(emptyRows()).toHaveLength(3)
 })
 
@@ -265,18 +242,18 @@ it('shows a settled missing league without calling it an empty lineup', async ()
 
 it('keeps a loaded lineup when membership validation alone changes', async () => {
     await mount()
-    const reads = mocks.readLineup.mock.calls.length
+    const reads = mocks.readView.mock.calls.length
     mocks.context.membershipValidated = true
-    await act(async () => screen.update(React.createElement(LineupScreen)))
-    expect(mocks.readLineup).toHaveBeenCalledTimes(reads)
+    await act(async () => screen.update(React.createElement(Component)))
+    expect(mocks.readView).toHaveBeenCalledTimes(reads)
 })
 
-it('shows the first lineup only after game data is ready', async () => {
-    mocks.freshness = 'refreshing'
+it('shows the first lineup only after the complete server view arrives', async () => {
+    let finish!: (value: typeof mocks.lineup) => void
+    mocks.readView.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
     await mount()
     expect(emptyRows()).toHaveLength(0)
-    mocks.freshness = 'fresh'
-    await act(async () => screen.update(React.createElement(LineupScreen)))
+    await act(async () => finish(mocks.lineup))
     expect(emptyRows()).toHaveLength(3)
 })
 
@@ -299,4 +276,6 @@ it('shows every configured empty starter, IR, and taxi place', async () => {
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty ir slot' })).toHaveLength(2)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty taxi slot' })).toHaveLength(3)
     expect(emptyRows()).toHaveLength(3)
+})
+
 })

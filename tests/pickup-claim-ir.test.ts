@@ -4,6 +4,10 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import ClaimPlayerScreen from '@/app/(modals)/claim-player'
 import { rosterPlayer } from './helpers/fixtures'
 
+vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, subscribeScreenView: () => () => {},
+    readScreenView: async () => ({ context: { seasonId: 'season' }, player: { id: 'target', display_name: 'IR target', injury_status: mocks.injury },
+        roster: await mocks.read(), priority: 1, clearsAt: null, transactionState: null, members: [{ id: 'member', user_id: 'user' }], claims: [], taxiExitIds: [] }),
+}))
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), read: vi.fn(), injury: 'Out' as string | null, epoch: 0, alert: vi.fn() }))

@@ -75,7 +75,8 @@ const styles = StyleSheet.create({
     leftIcon: { marginRight: spacing.md },
     input: {
         flex: 1,
-        fontSize: 16,
+        minHeight: controlSize.field.md,
+        fontSize: controlSize.field.fontSize,
         fontFamily: fontFamily.control,
         color: colors.textPrimary,
         paddingVertical: spacing.lg,

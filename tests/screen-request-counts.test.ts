@@ -1,218 +1,62 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useTradeBlock } from '@/hooks/use-trade-block'
-import { loadPlayerSupport } from '@/lib/player-availability'
-import { canAddToIR } from '@/lib/pickup'
-import { loadPickupState } from '@/lib/roster-add-flow'
-import { getTradeHistoryForScreen, getTradesForScreen } from '@/lib/trades'
-import { invalidateSeasonCache } from '@/lib/shared/season'
-import { getWeekDays, getWeeklyLineup } from '@/lib/lineup'
-import { getCurrentWeekNumber, invalidateWeekNumberCache } from '@/lib/shared/week'
+import { clearScreenViews } from '@/lib/cache/screen-cache'
+import { useScreenView } from '@/hooks/use-screen-view'
 import { useMatchupData } from '@/hooks/use-matchup-data'
-
-// Request budget per screen load: every Supabase table read or RPC the data
-// layer issues for a workflow, counted through a filter-aware fake client.
-// Lowering a number here is an improvement; raising one is a regression that
-// needs a reason in the same change.
-
-const counts = vi.hoisted(() => new Map<string, number>())
-const fixtures = vi.hoisted((): Record<string, Record<string, unknown>[]> => ({}))
-
-vi.mock('@/lib/supabase', async () => ({
-    supabase: (await import('./helpers/fake-supabase')).createFakeSupabase(counts, fixtures),
-}))
-vi.mock('@/lib/alert', () => ({ confirmAction: vi.fn(), showAlert: vi.fn() }))
-vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: () => {} }))
+import { useTradesFeed } from '@/hooks/use-trades-feed'
+import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
+import { useTradeBlock } from '@/hooks/use-trade-block'
+import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
+import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
+import { usePlayerSearch } from '@/hooks/use-player-search'
+import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
+import { useProfileResource } from '@/hooks/use-profile-resource'
+import type { ScreenName } from '@/lib/cache/screen-cache'
+const state = vi.hoisted(() => ({ requests: [] as string[], clears: [] as (() => void)[], userId: 'account' }))
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) } }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: vi.fn() }))
+vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => state.userId, sessionGeneration: () => 0, onSessionCachesCleared: (callback: () => void) => state.clears.push(callback) }))
+vi.mock('@/lib/shared/api', () => ({ API_URL: 'http://127.0.0.1:59621/functions/v1/api', apiPost: vi.fn() }))
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: state.userId }, access_token: 'synthetic' } } }) }, from: () => { throw new Error('A screen issued a stitched table read') }, rpc: () => { throw new Error('A screen issued a stitched RPC') } } }))
+vi.mock('@/hooks/use-browser-read-activity', () => ({ useBrowserReadActivity: () => ({ active: true, revision: 0, isCurrent: () => true }) }))
+vi.mock('@/lib/league-changes', () => ({ listenForLeagueChanges: () => () => {}, deferLeagueRefresh: () => ({ trigger() {}, cancel() {} }) }))
+vi.mock('@/lib/rookieDraft', () => ({ subscribeToRookieDraft: () => ({}), unsubscribeFromRookieDraft: () => Promise.resolve(), processExpiredSnakePick: vi.fn(), makeSnakePick: vi.fn(), commissionerSnakePick: vi.fn(), activateRookieDraftLeague: vi.fn() }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
-vi.mock('@/lib/realtime', () => ({
-    debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
-    disposeTableChangeSubscription: vi.fn(),
-    reportRealtimeCleanup: vi.fn(),
-    subscribeToTableChanges: vi.fn(() => ({})),
-}))
-
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-
-const player = (id: string) => ({
-    id, display_name: `Player ${id}`, nba_team: 'LAL', position: 'PG', eligible_positions: ['PG'],
-    injury_status: null, nba_id: id, nba_draft_number: null, years_exp: 3,
+const context = { leagueId: 'league', memberId: 'member', seasonId: 'season', seasonYear: 2027, today: '2026-10-27', version: '1', weekNumber: 1 }
+const payload = { context, draft: { id: 'draft', status: 'paused', leagueId: 'league', leagueSeasonId: 'season', isCurrentSeason: true }, orders: [], nextPick: null, prospects: [], matchup: null, selectedDate: '2026-10-27', weekDays: [], leagueMatchups: [], myLineup: null, oppLineup: null, liveStats: {}, teamMatchups: {}, startedTeams: [], todaysGames: [], announcements: [], forecast: null, roster: [], picks: [], claims: [], items: [], trades: [], hasMore: false, nextCursor: null, avgMap: {}, avgStatsMap: {}, ownedMap: {}, waiverClearsAt: {}, waiverIds: [], pendingClaimIds: [], players: [], visibleTotals: [], profile: null, preferences: {}, lines: [], availableSeasons: [2027], averages: null, player: { nba_team: null }, transactions: [], rows: [], standings: [], waiverOrder: [], rooms: [] }
+beforeEach(() => {
+    for (const clear of state.clears) clear()
+    clearScreenViews(); state.requests = []
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+        const url = new URL(input)
+        state.requests.push(url.pathname)
+        return new Response(JSON.stringify(url.pathname.endsWith('/version') ? { version: '1', changes: [{ version: '1', topic: 'catchup', scope: {}, created_at: '' }] } : { ok: true, view: payload }))
+    }))
 })
-const iso = '2026-08-27T00:00:00.000Z'
-
-function seedFixtures() {
-    fixtures.league_seasons = [{ id: 'season', season_year: 2098, league_id: 'league', is_current: true }]
-    fixtures.roster_players = [
-        { id: 'rp-1', league_id: 'league', league_season_id: 'season', member_id: 'member', player_id: 'p-1', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft', league_members: { team_name: 'Mine' }, players: player('p-1') },
-        { id: 'rp-2', league_id: 'league', league_season_id: 'season', member_id: 'other', player_id: 'p-2', is_on_ir: false, is_on_taxi: false, acquired_via: 'draft', league_members: { team_name: 'Theirs' }, players: player('p-2') },
-    ]
-    fixtures.waiver_wire_log = [{ id: 'log-1', league_id: 'league', league_season_id: 'season', player_id: 'p-9', clears_at: '2099-01-01T00:00:00.000Z', cleared_at: null }]
-    fixtures['rpc:get_member_transaction_state'] = [{
-        league_season_id: 'season', week_number: 3, weekly_add_limit: 7, weekly_add_count: 2, waiver_mode: 'faab',
-        faab_starting_budget: 100, faab_balance: 60, add_limit_resets_at: null, add_limit_message: null, add_limit_resets_label: null,
-    }]
-    fixtures.trade_block_items = [{
-        id: 'tb-1', league_id: 'league', member_id: 'member', player_id: 'p-1', pick_id: null, note: null, updated_at: iso,
-        league_members: { team_name: 'Mine' }, players: player('p-1'), draft_picks: null,
-    }]
-    fixtures.v_player_avg_fantasy_points = [{ player_id: 'p-1', avg_fantasy_points: 30 }]
-    fixtures.mv_player_season_averages = [{ player_id: 'p-1', avg_points: 20, avg_rebounds: 5, avg_assists: 4, avg_steals: 1, avg_blocks: 1, avg_three_pointers_made: 2, avg_turnovers: 2, avg_minutes_played: 30, games_played: 10 }]
-    fixtures['rpc:get_trade_page_refs'] = [{ trade_id: 't-1', cursor_token: 'c1' }]
-    fixtures.trades = [{
-        id: 't-1', league_id: 'league', status: 'completed', proposed_at: iso, accepted_at: iso, veto_window_expires_at: iso, completed_at: iso,
-        vetoed_at: null, expires_at: null, notes: null, proposer_member_id: 'member', recipient_member_id: 'other', is_multi_team: false,
-        parent_trade_id: null, countered_from_trade_id: null, edited_from_trade_id: null, replaced_by_trade_id: null, version: 1,
-        proposer_faab_amount: 0, recipient_faab_amount: 0, proposer: { team_name: 'Mine' }, recipient: { team_name: 'Theirs' },
-        trade_vetos: [], trade_participants: [],
-        trade_items: [{ side: 'proposer', player_id: 'p-1', pick_id: null, from_member_id: 'member', to_member_id: 'other', faab_amount: 0, players: player('p-1'), draft_picks: null }],
-    }]
-    fixtures.trade_participants = [{ trade_id: 't-1', league_id: 'league', member_id: 'member', proposed_at: iso, trades: { status: 'completed' } }]
-}
-
-async function measure(run: () => Promise<unknown>) {
-    counts.clear()
-    invalidateSeasonCache()
-    await run()
-    const byTarget = Object.fromEntries([...counts.entries()].sort())
-    return { requests: [...counts.values()].reduce((sum, n) => sum + n, 0), byTarget }
-}
-
-beforeEach(seedFixtures)
-
-describe('screen request budgets', () => {
-    it('players tab support load (availability + transaction state)', async () => {
-        fixtures.roster_players[0].is_on_ir = true
-        const result = await measure(async () => {
-            const support = await loadPlayerSupport('member', 'league')
-            expect([...support.ownedMap.keys()]).toEqual(['p-1', 'p-2'])
-            expect(support.ownedMap.get('p-1')).toMatchObject({ memberId: 'member', isOnIR: true })
-        })
-        expect(result).toEqual({
-            requests: 5,
-            byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1, waiver_claims: 1 },
-        })
-    })
-
-    it('trade block tab load through its hook (listings + own roster + one averages fetch for both)', async () => {
-        let latest!: ReturnType<typeof useTradeBlock>
-        const Probe = () => { latest = useTradeBlock('member', 'league'); return null }
-        const result = await measure(async () => {
-            let renderer!: ReactTestRenderer
-            await act(async () => { renderer = create(React.createElement(Probe)) })
-            await act(async () => { await latest.refresh() })
-            await act(async () => {})
-            expect(latest.avgMap.get('p-1')).toBe(30)
-            await act(async () => { renderer.unmount() })
-        })
-        expect(result).toEqual({
-            requests: 5,
-            byTarget: { league_seasons: 1, mv_player_season_averages: 1, roster_players: 1, trade_block_items: 1, v_player_avg_fantasy_points: 1 },
-        })
-    })
-
-    it('home matchup lineups: both sides share one slot-template read', async () => {
-        fixtures.lineup_slot_templates = [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }]
-        fixtures.weekly_lineups = []
-        const result = await measure(() => Promise.all([
-            getWeeklyLineup('member', 'league', 'season', 3, '2099-01-01'),
-            getWeeklyLineup('other', 'league', 'season', 3, '2099-01-01'),
-        ]))
-        expect(result).toEqual({
-            requests: 5,
-            byTarget: { lineup_slot_templates: 1, roster_players: 2, weekly_lineups: 2 },
-        })
-    })
-
-    it('home outside the week fetches only the two visible lineups', async () => {
-        invalidateWeekNumberCache()
-        fixtures.season_weeks = [{ season_year: 2098, week_number: 3, week_start: '2099-01-05', week_end: '2099-01-11' }]
-        fixtures.lineup_slot_templates = [{ league_id: 'league', slot_type: 'PG', slot_count: 1 }]
-        fixtures.weekly_lineups = []
-        fixtures.nba_games = []
-        fixtures.league_members = [
-            { id: 'member', team_name: 'Mine', profiles: { display_name: 'Me' } },
-            { id: 'other', team_name: 'Theirs', profiles: { display_name: 'Them' } },
-        ]
-        fixtures.matchups = [{
-            id: 'matchup', league_id: 'league', league_season_id: 'season', week_number: 3,
-            home_member_id: 'member', away_member_id: 'other', home_points: 0, away_points: 0,
-            winner_member_id: null, is_finalized: false,
-        }]
-        const current = { id: 'member' }
-        const user = { id: 'user' }
-        const league = { id: 'league' }
-        let latest!: ReturnType<typeof useMatchupData>
-        const Probe = () => { latest = useMatchupData(current, user, league); return null }
-        const result = await measure(async () => {
-            let renderer!: ReactTestRenderer
-            await act(async () => { renderer = create(React.createElement(Probe)) })
-            await act(async () => { await latest.refresh() })
-            expect(latest.selectedDate).toBe('2099-01-05')
-            expect(latest.myLineup?.bench[0].playerId).toBe('p-1')
-            expect(latest.oppLineup?.bench[0].playerId).toBe('p-2')
-            await act(async () => { renderer.unmount() })
-        })
-        expect(result).toEqual({
-            requests: 12,
-            byTarget: {
-                league_members: 1, league_seasons: 1, lineup_slot_templates: 1, matchups: 3,
-                nba_games: 1, roster_players: 2, season_weeks: 1, weekly_lineups: 2,
-            },
-        })
-    })
-
-    it('home week metadata: the week strip reuses the season weeks the week lookup read', async () => {
-        invalidateWeekNumberCache()
-        fixtures.season_weeks = [{ season_year: 2098, week_number: 3, week_start: '2099-01-05', week_end: '2099-01-11' }]
-        fixtures.nba_games = []
-        const result = await measure(async () => {
-            const week = await getCurrentWeekNumber(2098)
-            const days = await getWeekDays(week ?? 1, 2098)
-            expect(days[0].date).toBe('2099-01-05')
-        })
-        expect(result).toEqual({
-            requests: 2,
-            byTarget: { nba_games: 1, season_weeks: 1 },
-        })
-    })
-
-    it('trades offers page', async () => {
-        const result = await measure(() => getTradesForScreen('member', 'league'))
-        expect(result).toEqual({
-            requests: 4,
-            byTarget: { mv_player_season_averages: 1, 'rpc:get_trade_page_refs': 1, trades: 1, v_player_avg_fantasy_points: 1 },
-        })
-    })
-
-    it('trade history page', async () => {
-        const result = await measure(() => getTradeHistoryForScreen('member', 'league'))
-        expect(result).toEqual({
-            requests: 4,
-            byTarget: { mv_player_season_averages: 1, trade_participants: 1, trades: 1, v_player_avg_fantasy_points: 1 },
-        })
-    })
-
-    it('player page pickup state, data layer: roster status, then the weekly add state only when pick-up-able', async () => {
-        // The player page loads the weekly add state only once the player turns
-        // out to be pick-up-able, so a rostered player costs no extra request.
-        const rostered = await measure(() => loadPickupState('p-1', 'member', 'league'))
-        expect(rostered).toEqual({
-            requests: 2,
-            byTarget: { league_seasons: 1, roster_players: 1 },
-        })
-        fixtures.roster_players[0].is_on_ir = true
-        fixtures.roster_players[1].is_on_ir = true
-        const freeAgent = await measure(async () => {
-            const pickup = await loadPickupState('p-7', 'member', 'league')
-            expect(pickup.status).toEqual({ status: 'free_agent' })
-            expect(pickup.roster).toEqual([{ is_on_ir: true }])
-            expect(canAddToIR('Out', pickup.roster, 1)).toBe(false)
-            expect(canAddToIR('Out', pickup.roster, 2)).toBe(true)
-        })
-        expect(freeAgent).toEqual({
-            requests: 5,
-            byTarget: { waiver_claims: 1, league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },
-        })
+const cases: [string, string, () => unknown][] = [
+    ['home', 'home', () => useMatchupData({ id: 'member' }, { id: 'account' }, { id: 'league' })],
+    ['players', 'players', () => usePlayerSearch('league', new Map(), new Set(), 'member', { ownerId: 'account' })],
+    ['player', 'player', () => usePlayerScreenData('player', 'league', { ownerKey: JSON.stringify(['account', 'member']) })],
+    ['trades offers', 'trades', () => useTradesFeed('member', 'league')],
+    ['trades history', 'trades', () => useTradeHistoryFeed('member', 'league', true)],
+    ['trade block', 'trade-block', () => useTradeBlock('member', 'league')],
+    ...(['results', 'history', 'settings', 'picks', 'draft', 'auctions'] as const).map(tab => [`league ${tab}`, 'league', () => useLeagueTabResources('league', 'member', tab)] as [string, string, () => unknown]),
+    ['profile', 'profile', () => useProfileResource('account')],
+    ['rookie controller', 'draft-room', () => useRookieDraftRoomController({ draftId: 'draft', leagueId: 'league', memberId: 'member', rosterSize: 20 })],
+    ...(['roster', 'lineup', 'claim-editor', 'draft-room', 'trade-details', 'trade-analysis', 'standings', 'activity', 'picks', 'settings', 'draft-rooms'] satisfies ScreenName[]).map(screen => [screen, screen, () => useScreenView({ accountId: 'account', leagueId: 'league', memberId: 'member', seasonId: 'season', screen })] as [string, string, () => unknown]),
+]
+describe('screen view request budgets', () => {
+    it.each(cases)('%s opens with one view and one shared version check', async (name, screen, hook) => {
+        let renderer!: ReactTestRenderer
+        const Probe = () => { hook(); return null }
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => {})
+        const reads = state.requests.filter(path => path.includes('/views/'))
+        expect(reads, name).toEqual([`/functions/v1/api/views/${screen}`])
+        expect(state.requests.filter(path => path.endsWith('/version'))).toHaveLength(screen === 'profile' ? 0 : 1)
+        expect(state.requests).toHaveLength(screen === 'profile' ? 1 : 2)
+        await act(async () => { renderer.unmount() })
     })
 })

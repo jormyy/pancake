@@ -1,3 +1,5 @@
+import { PendingMutationBadge } from '@/components/PendingMutationBadge'
+import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { isTaxiEligible } from '@pancake/core'
@@ -5,7 +7,7 @@ import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -43,12 +45,7 @@ export function RosterSlotTag({ slotType }: { slotType: string }) {
 
 /** Band at the top of a roster section card: label left, optional detail right. */
 export function RosterSectionBand({ label, detail, tone = 'default' }: { label: string; detail?: ReactNode; tone?: 'default' | 'taxi' | 'starters' }) {
-    return (
-        <View style={[styles.band, tone === 'taxi' && styles.bandTaxi, tone === 'starters' && styles.bandStarters]} role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={label}>
-            <Text style={[styles.bandLabel, tone === 'taxi' && styles.bandLabelTaxi]}>{label}</Text>
-            {detail ? <View style={styles.bandDetail}>{detail}</View> : null}
-        </View>
-    )
+    return <SectionBand label={label} detail={detail} tone={tone} />
 }
 
 function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: number | null }) {
@@ -67,8 +64,10 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     onEditBid,
     onEditTaxi,
     onReorder,
+    onTimeline,
 }: {
     claim: WaiverClaim
+    onTimeline?: () => void
     cancellingId: string | null
     waiverMode?: 'rolling' | 'faab'
     onCancel: (id: string) => void
@@ -103,6 +102,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         // line below, so nothing wraps on a narrow phone.
         <MotionView style={styles.claimRow} preset="rise">
             <View style={styles.claimTop}>
+                <PendingMutationBadge rowId={claim.id} />
                 <PlayerRowContent name={claim.playerName} nbaId={claim.playerNbaId} team={claim.playerTeam} positions={claim.playerPosition ? [claim.playerPosition] : []} injuryStatus={claim.playerInjuryStatus}
                     yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames}
                     stats={<View>
@@ -126,6 +126,9 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     </MotionPressable>
                 ) : null}
             </View>
+            {onTimeline ? <MotionPressable onPress={onTimeline} accessibilityRole="button" accessibilityLabel="What happened?" style={styles.actionButton}>
+                <Text style={styles.actionButtonText}>What happened?</Text>
+            </MotionPressable> : null}
             {editable && taxiEligible && onEditTaxi ? <View style={styles.claimEditRow}>
                 <Text style={styles.meta}>Place on taxi</Text>
                 <Switch value={claim.toTaxi ?? false} onValueChange={value => { if (value !== Boolean(claim.toTaxi)) onEditTaxi(claim, value) }} accessibilityLabel={`Place ${claim.playerName} on taxi`} disabled={disabled} />
@@ -250,6 +253,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 accessibilityLabel={`Open ${player.display_name}`}
             >
                 <RosterSlotTag slotType={slotType} />
+                <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
@@ -298,7 +302,8 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             accessibilityRole="button"
             accessibilityLabel={`Open ${player.display_name}`}
         >
-            <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+            <PendingMutationBadge rowId={player.id} />
+                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
@@ -333,6 +338,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 accessibilityLabel={`Open ${player.display_name}`}
             >
                 <RosterSlotTag slotType="TX" />
+                <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
@@ -355,23 +361,6 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
 })
 
 const styles = StyleSheet.create({
-    band: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.md,
-        minHeight: table.headerHeight,
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.xs,
-        backgroundColor: colors.bgSubtle,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    bandTaxi: { backgroundColor: colors.infoLight },
-    bandStarters: { backgroundColor: colors.primaryLight },
-    bandLabel: { ...textStyles.sectionLabel, flex: 1 },
-    bandLabelTaxi: { color: colors.info },
-    bandDetail: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-
     slotTag: {
         width: ROSTER_SLOT_TAG_WIDTH,
         minHeight: ROSTER_TAG_HEIGHT,
@@ -396,7 +385,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         minHeight: table.rowHeight,
         paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xs,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         gap: spacing.xs,
     },
     rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

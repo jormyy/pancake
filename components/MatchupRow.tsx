@@ -1,23 +1,24 @@
 import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { memo, type ReactNode } from 'react'
-import { View, Text, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet, Platform } from 'react-native'
 import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
-import { formatPoints, playerHeadshotUrl, shortName } from '@/lib/format'
+import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
+import { matchupName } from '@/components/player/matchup-name'
 
-const SLOT_W = 52
-const FPTS_W = 64
-const STAT_COL_W = 34
-const STAT_COL_WIDE_W = 46
-const NAME_MIN_W = 130
+const SLOT_W = componentTokens.matchupRow.slotWidth
+const FPTS_W = componentTokens.matchupRow.pointsWidth
+const STAT_COL_W = componentTokens.matchupRow.statWidth
+const STAT_COL_WIDE_W = componentTokens.matchupRow.wideStatWidth
+const NAME_MIN_W = componentTokens.matchupRow.nameMinWidth
 const STABLE_PLACEHOLDER = '—'
 
 function statColumnsWidth(columns: StatColumn[]): number {
@@ -43,9 +44,9 @@ function matchupLine(team: string | null | undefined, matchup: { opponent: strin
 }
 
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
-    const size = dense || compact ? 24 : 28
+    const size = dense || compact ? componentTokens.matchupRow.compactAvatar : componentTokens.matchupRow.standardAvatar
     return (
-        <View style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + 2) / 2 }]}>
+        <View testID="matchup-player-avatar" style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
                 name={player.displayName}
                 uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
@@ -193,9 +194,6 @@ function PlayerSide({
     statColumns,
     onOpenPlayer,
     onOpenDetails,
-    projection,
-    forecastStale,
-    showProjection,
 }: {
     projection?: MatchupForecast['games'][number]
     forecastStale?: boolean
@@ -218,7 +216,7 @@ function PlayerSide({
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
-    const mirror = (items: ReactNode[]) => (left || compact ? items : [...items].reverse())
+    const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
 
     let block: ReactNode
     if (!player) {
@@ -250,11 +248,12 @@ function PlayerSide({
                         <InjuryBadge key="injury" status={injury} />,
                         <Text
                             key="name"
+                            testID="matchup-player-name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
-                            numberOfLines={compact ? 2 : 1}
-                            ellipsizeMode="tail"
+                            numberOfLines={1}
+                            ellipsizeMode="clip"
                         >
-                            {shortName(player.displayName)}
+                            {matchupName(player.displayName)}
                         </Text>,
                         <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
@@ -275,16 +274,13 @@ function PlayerSide({
                         ])}
                     </View>
                 ) : null}
-                {showProjection && hasGame ? <Text style={styles.sideMeta} numberOfLines={1} accessibilityLabel={projection ? `Projection ${projection.projection == null ? 'unavailable' : projection.projection.toFixed(1) + ' points'}, source ${projection.source ?? 'unavailable'}, updated ${projection.sourceAt ?? 'unknown'}${forecastStale ? ', out of date' : ''}` : 'Projection unavailable'}>
-                    {projection?.projection == null ? 'Proj —' : `Proj ${projection.projection.toFixed(1)}`}
-                </Text> : null}
                 {summary ? <Text style={styles.statSummary} numberOfLines={1}>{summary}</Text> : null}
             </>
         )
     }
 
     const score = (
-        <MotionPressable key="score" style={styles.scoreTarget} onPress={onOpenDetails} disabled={!player || !onOpenDetails}
+        <MotionPressable key="score" style={[styles.scoreTarget, compact && styles.scoreTargetCompact]} onPress={onOpenDetails} disabled={!player || !onOpenDetails}
             accessibilityRole="button" accessibilityLabel={player ? `Score breakdown for ${player.displayName}` : 'Empty score'}>
             <FantasyScore value={player ? fpts ?? 0 : null} isLive={isLive} leading={leading} side={side} compact={compact} dense={dense} />
         </MotionPressable>
@@ -459,8 +455,8 @@ const styles = StyleSheet.create({
     matchupRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: spacing.sm,
-        gap: spacing.md,
+        paddingVertical: componentTokens.matchupRow.paddingVertical,
+        gap: componentTokens.matchupRow.gap,
     },
     matchupRowCompact: {
         paddingVertical: 0,
@@ -481,9 +477,10 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     rowSideCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xxs },
     scoreTarget: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, justifyContent: 'center' },
-    playerBlock: { flex: 1, minWidth: 0, minHeight: 48, justifyContent: 'center', gap: spacing.xxs },
-    playerBlockCompact: { minHeight: controlSize.minTouch },
-    playerBlockDense: { minHeight: 28 },
+    scoreTargetCompact: { alignSelf: 'flex-end', justifyContent: 'flex-end', paddingBottom: spacing.xs },
+    playerBlock: { flex: 1, minWidth: 0, minHeight: componentTokens.matchupRow.minHeight, justifyContent: 'center', gap: spacing.xxs },
+    playerBlockCompact: { minHeight: controlSize.minTouch + spacing.lg },
+    playerBlockDense: { minHeight: controlSize.minTouch },
     fptsNum: {
         fontSize: fontSize.xl,
         fontWeight: fontWeight.extrabold,
@@ -504,11 +501,11 @@ const styles = StyleSheet.create({
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.sm, flex: 1, minWidth: 0 },
+    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.xs, flexShrink: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textMuted },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    nameRowCompact: { width: '100%', minHeight: controlSize.badge.height, gap: spacing.xxs },
+    nameRowCompact: { maxWidth: undefined, minHeight: controlSize.badge.height, gap: spacing.xxs, flexShrink: 0 },
     gameText: { color: colors.textPrimary, fontWeight: fontWeight.semibold },
     statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
     detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, minHeight: textStyles.meta.lineHeight, maxWidth: '100%' },

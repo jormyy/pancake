@@ -10,6 +10,9 @@ import type { RookieDraftState } from '@/lib/rookieDraft'
 const runtime = vi.hoisted(() => ({
     state: 'active', listeners: new Set<(state: string) => void>(), auction: vi.fn(), rookie: vi.fn(),
 }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: { params: { draftId: string } }, options?: { checkVersion: boolean }) => scope.params.draftId === 'auction' ? runtime.auction() : options?.checkVersion === false ? Promise.resolve({ prospects: [] }) : runtime.rookie() }))
+vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({ AppState: {
     get currentState() { return runtime.state },

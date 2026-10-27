@@ -9,6 +9,12 @@ CREATE OR REPLACE FUNCTION public.toggle_taxi_atomic(p_roster_player_id uuid, p_
  SET search_path TO 'public'
 AS $function$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.toggle_taxi_atomic', jsonb_build_array(p_roster_player_id, p_to_taxi, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_rp roster_players%ROWTYPE;
   v_member league_members%ROWTYPE;
   v_league leagues%ROWTYPE;
@@ -110,7 +116,7 @@ BEGIN
   END IF;
 
   IF NOT p_to_taxi AND NOT v_rp.is_on_taxi THEN
-    RETURN;
+    EXIT request_write;
   END IF;
 
   v_roster_size := COALESCE(v_league.roster_size, 20);
@@ -161,5 +167,8 @@ BEGIN
   IF v_rookie_draft_id IS NOT NULL THEN
     PERFORM private.activate_rookie_draft_league_if_ready(v_rookie_draft_id);
   END IF;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $function$;

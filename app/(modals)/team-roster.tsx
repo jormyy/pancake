@@ -1,3 +1,6 @@
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import { rosterViewData, type RosterView } from '@/lib/cache/view-types'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
@@ -12,9 +15,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { isTradingClosed } from '@/lib/league'
 import { leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
-import { getRoster, RosterPlayer } from '@/lib/roster'
+import { RosterPlayer } from '@/lib/roster'
 import { compareRosterBySlot } from '@/lib/roster-slots'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, type RosterAverage, type RosterStatsMaps } from '@/lib/roster-stats'
 import { EmptyState } from '@/components/EmptyState'
 import { ReadOnlyRosterPlayerItem, RosterSectionBand } from '@/components/roster/RosterItems'
 import { Button, ErrorBanner, LoadingState, Page, PageHeader, usePageMetrics } from '@/components/ui'
@@ -75,12 +78,13 @@ export default function TeamRosterScreen() {
         let rosterLoaded = false
 
         void (async () => {
-            const nextRoster = await getRoster(memberId, leagueId)
+            const view = rosterViewData(await readScreenView<RosterView>(screenScope('roster', leagueId, current!.id, { targetMemberId: memberId })))
+            const nextRoster = view.roster
             if (cancelled || !isCurrent(generation)) return
             rosterLoaded = true
             let stats: RosterStatsMaps
             try {
-                stats = await getRosterStatsMaps(nextRoster.map((r) => r.players.id), leagueId)
+                stats = { avgMap: view.avgMap, avgStatsMap: view.avgStatsMap }
             } catch (error) {
                 if (!cancelled && isCurrent(generation)) setResource((previous) => previous?.scope === scope ? previous : {
                     scope, roster: nextRoster, stats: { avgMap: EMPTY_AVG_MAP, avgStatsMap: EMPTY_STATS_MAP },
@@ -104,7 +108,7 @@ export default function TeamRosterScreen() {
         return () => {
             cancelled = true
         }
-    }, [memberId, leagueId, scope, attempt, canRead, capture, isCurrent, epoch])
+    }, [current, memberId, leagueId, scope, attempt, canRead, capture, isCurrent, epoch])
 
     const active = useMemo(
         () => roster.filter((r) => !r.is_on_ir && !r.is_on_taxi).sort(compareRosterBySlot),

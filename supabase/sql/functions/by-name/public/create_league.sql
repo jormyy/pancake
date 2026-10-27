@@ -13,6 +13,13 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result jsonb;
+BEGIN
+  __request_context := private.request_begin('public.create_league', jsonb_build_array(p_name, p_team_name, p_auction_budget), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
+  <<request_write>>
+DECLARE
   v_user_id      uuid := (SELECT auth.uid());
   v_team_name    text := regexp_replace(p_team_name, '^[[:space:]]+|[[:space:]]+$', '', 'g');
   v_slug         text;
@@ -86,7 +93,7 @@ BEGIN
     FROM generate_series(v_season_year + 1, v_season_year + 3) AS year_value
    CROSS JOIN generate_series(1, 3) AS round_value;
 
-  RETURN jsonb_build_object(
+  __request_result := jsonb_build_object(
     'id',              v_league_id,
     'name',            trim(p_name),
     'slug',            v_slug,
@@ -94,6 +101,9 @@ BEGIN
     'commissioner_id', v_user_id,
     'auction_budget',  p_auction_budget,
     'status',          'setup'
-  );
+  ); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

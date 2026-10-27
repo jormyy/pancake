@@ -278,7 +278,7 @@ async function upsertCdnGame(gameId: string, game: CdnGame, seasonYear: number):
 }
 
 function buildCandidateGameIds(seasonYear: number): string[] {
-  const yy = String(seasonYear - 2001).padStart(2, '0')
+  const yy = String(seasonYear - 1).slice(-2).padStart(2, '0')
   const gameIds: string[] = []
   for (let n = 1; n <= 1300; n++) gameIds.push(`002${yy}0${String(n).padStart(4, '0')}`)
   return gameIds

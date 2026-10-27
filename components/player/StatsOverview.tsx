@@ -1,6 +1,7 @@
+import { StatCell } from '@/components/ui/StatCell'
 import type { ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, radii, spacing, textStyles } from '@/constants/tokens'
 import type { PlayerSeasonAverages } from '@/lib/players'
 
 type Props = {
@@ -43,7 +44,7 @@ export function StatsOverview({ averages, seasonYear, avgFantasyPoints = null, c
             <View style={styles.grid}>
                 {cells.map(({ label, value, lead }) => (
                     <View key={label} style={[styles.cell, { flexBasis: basis, maxWidth: basis }]} accessible accessibilityLabel={`${value} ${label === 'FP/G' ? 'fantasy points per game' : label}`}>
-                        <Text style={[styles.cellValue, lead && styles.cellValueLead]} numberOfLines={1}>{value}</Text>
+                        <StatCell variant="summary" value={value} highlight={lead} />
                         <Text style={[styles.cellLabel, lead && styles.cellLabelLead]}>{label}</Text>
                     </View>
                 ))}
@@ -72,8 +73,6 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.sm,
         gap: spacing.xxs,
     },
-    cellValue: { width: '100%', textAlign: 'center', fontSize: fontSize['2lg'], fontWeight: fontWeight.bold, color: colors.textPrimary, fontVariant: ['tabular-nums'] as const },
-    cellValueLead: { color: colors.primaryDark, fontWeight: fontWeight.extrabold },
     cellLabel: { ...textStyles.tableHeader },
     cellLabelLead: { color: colors.primaryDark },
 })

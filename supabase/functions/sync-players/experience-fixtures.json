@@ -1,0 +1,92 @@
+[
+  {
+    "id": "4278039",
+    "name": "Nickeil Alexander-Walker",
+    "seasonYear": 2027,
+    "sourceYears": 8,
+    "debutYear": 2019,
+    "expectedCompleted": 7,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1/roster"
+  },
+  {
+    "id": "4869342",
+    "name": "Dyson Daniels",
+    "seasonYear": 2027,
+    "sourceYears": 5,
+    "debutYear": null,
+    "expectedCompleted": 4,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1/roster"
+  },
+  {
+    "id": "4431941",
+    "name": "RayJ Dennis",
+    "seasonYear": 2027,
+    "sourceYears": 3,
+    "debutYear": null,
+    "expectedCompleted": 2,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1/roster"
+  },
+  {
+    "id": "4397020",
+    "name": "Luguentz Dort",
+    "seasonYear": 2027,
+    "sourceYears": 8,
+    "debutYear": 2019,
+    "expectedCompleted": 7,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/1/roster"
+  },
+  {
+    "id": "4433188",
+    "name": "Devin Carter",
+    "seasonYear": 2027,
+    "sourceYears": 3,
+    "debutYear": null,
+    "expectedCompleted": 2,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/roster"
+  },
+  {
+    "id": "5142621",
+    "name": "Chris Cenac Jr.",
+    "seasonYear": 2027,
+    "sourceYears": 0,
+    "debutYear": null,
+    "expectedCompleted": 0,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/roster"
+  },
+  {
+    "id": "3195",
+    "name": "Mike Conley",
+    "seasonYear": 2027,
+    "sourceYears": 20,
+    "debutYear": 2007,
+    "expectedCompleted": 19,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/2/roster"
+  },
+  {
+    "id": "5113969",
+    "name": "Cameron Carr",
+    "seasonYear": 2027,
+    "sourceYears": 0,
+    "debutYear": null,
+    "expectedCompleted": 0,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/13/roster"
+  },
+  {
+    "id": "3945274",
+    "name": "Luka Doncic",
+    "seasonYear": 2027,
+    "sourceYears": 9,
+    "debutYear": 2018,
+    "expectedCompleted": 8,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/13/roster"
+  },
+  {
+    "id": "4397014",
+    "name": "Quentin Grimes",
+    "seasonYear": 2027,
+    "sourceYears": 6,
+    "debutYear": null,
+    "expectedCompleted": 5,
+    "source": "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/teams/13/roster"
+  }
+]

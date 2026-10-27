@@ -4,8 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import RosterScreen from '@/app/(tabs)/roster'
 import type { RosterPlayer } from '@/lib/roster'
 import { subscribeToTableChanges } from '@/lib/realtime'
-import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
-import { notifyLeagueChange, setLeagueChangesConnected } from '@/lib/league-changes'
+import { setLeagueChangesConnected } from '@/lib/league-changes'
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { confirmAction, showAlert } from '@/lib/alert'
@@ -59,6 +58,9 @@ vi.mock('@/contexts/league-context', () => ({
     }),
 }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => mocks.online }))
+vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ ...mocks.focusData,
+    data: mocks.focusData.data ? { ...mocks.focusData.data, avgMap: {}, avgStatsMap: {} } : undefined,
+}) }))
 vi.mock('@/hooks/use-focus-async-data', () => ({ useFocusAsyncData: () => mocks.focusData }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/roster', () => ({
@@ -174,15 +176,6 @@ describe('roster empty slots', () => {
         expect(screen.root.findByType('RosterPlayerSheet' as React.ElementType).props.actions.some((action: { label: string }) => action.label === 'Move to IR')).toBe(false)
     })
 
-    it('refreshes the owner claims list after a local claim mutation', async () => {
-        vi.useFakeTimers()
-        await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        await act(async () => { notifyMemberClaimsChanged('other-member'); await vi.advanceTimersByTimeAsync(200) })
-        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
-        await act(async () => { notifyMemberClaimsChanged('member-a'); await vi.advanceTimersByTimeAsync(200) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledOnce()
-    })
-
     it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports partial failures for %s', async action => {
         vi.mocked(getLineupContext).mockResolvedValue({ seasonId: 'season', weekNumber: 1, seasonYear: 2026, today: '2026-10-24' })
         vi.mocked(autoSetLineup).mockResolvedValue({ dates: 2, optimized: 1, failed: 1, skipped: 0, results: [] })
@@ -201,10 +194,25 @@ describe('roster empty slots', () => {
                 : 'There are no remaining dates in this selection to optimize.', 'info')
     })
 
+    it('keeps the pending claims jump target at least 44px high', async () => {
+        mocks.focusData.data = { ...rosterData([]), claims: [{ id: 'claim', status: 'pending' }] }
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const header = screen.root.findByType('PageHeader' as React.ElementType)
+        const pill = React.Children.toArray(header.props.actions.props.children)[0] as React.ReactElement<{ count: number }>
+        expect(pill.props.count).toBe(1)
+        let pillScreen!: ReactTestRenderer
+        await act(async () => { pillScreen = create(pill) })
+        const target = pillScreen.root.findByProps({ accessibilityLabel: '1 pending claims, open Waivers' })
+        expect([target.props.style].flat().some((style: { minHeight?: number }) => (style?.minHeight ?? 0) >= 44)).toBe(true)
+        await act(async () => pillScreen.unmount())
+    })
+
     it('names the auto-set options consistently with Home', async () => {
         mocks.focusData.data = rosterData([{ id: 'roster', is_on_ir: false, is_on_taxi: false, players: { id: 'player', display_name: 'Player', position: 'PG', eligible_positions: ['PG'], years_exp: 1 } } as RosterPlayer])
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        const button = screen.root.findByType('PageHeader' as React.ElementType).props.actions
+        const actions = screen.root.findByType('PageHeader' as React.ElementType).props.actions
+        const button = React.Children.toArray(actions.props.children).find(child => React.isValidElement<{ accessibilityLabel?: string }>(child)
+            && child.props.accessibilityLabel === 'Open auto-set lineup options') as React.ReactElement<{ accessibilityLabel: string; title: string; onPress: () => void }>
         expect(button.props.accessibilityLabel).toBe('Open auto-set lineup options')
         expect(button.props.title).toBe('Auto-set')
         await act(async () => button.props.onPress())
@@ -374,48 +382,6 @@ describe('roster empty slots', () => {
         act(() => { screen = create(React.createElement(RosterScreen)) })
         expect(emptySlotCounts(screen)).toEqual({})
         expect(screen.root.findAllByType('RosterSectionBand' as React.ElementType).filter((node) => ['Starters', 'Bench', 'Injured reserve', 'Taxi squad'].includes(node.props.label))).toHaveLength(0)
-    })
-    it('refreshes an old owner from compact roster hints without repeating initial or unrelated reads', async () => {
-        vi.useFakeTimers()
-        mocks.focusData.refresh.mockResolvedValue(true)
-        setLeagueChangesConnected('league-a', true)
-        act(() => { screen = create(React.createElement(RosterScreen)) })
-        expect(subscribeToTableChanges).not.toHaveBeenCalled()
-        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
-        act(() => {
-            notifyLeagueChange('other-league', { topic: 'roster', scopes: null })
-            notifyLeagueChange('league-a', { topic: 'stat', scopes: null })
-            notifyLeagueChange('league-a', { topic: 'roster', scopes: [{ season_id: 'season', member_id: 'other-member' }] })
-        })
-        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-        expect(mocks.focusData.refresh).not.toHaveBeenCalled()
-        act(() => {
-            notifyLeagueChange('league-a', { topic: 'roster', scopes: [
-                { season_id: 'season', member_id: 'other-member' }, { season_id: 'season', member_id: 'member-a' },
-            ] })
-            notifyLeagueChange('league-a', { topic: 'inventory', scopes: null })
-        })
-        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(1)
-        act(() => { notifyLeagueChange('league-a', { topic: 'catchup', scopes: null }) })
-        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
-    })
-
-    it('retries a failed hint read and cancels queued work after leaving the roster', async () => {
-        vi.useFakeTimers()
-        mocks.focusData.refresh.mockResolvedValueOnce(false).mockResolvedValue(true)
-        act(() => { screen = create(React.createElement(RosterScreen)) })
-        act(() => { notifyLeagueChange('league-a', { topic: 'roster', scopes: null }) })
-        await act(async () => { await vi.advanceTimersByTimeAsync(200) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(1)
-        await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
-        act(() => { notifyLeagueChange('league-a', { topic: 'inventory', scopes: null }) })
-        act(() => { screen.update(React.createElement(React.Fragment)) })
-        await act(async () => { await vi.advanceTimersByTimeAsync(300) })
-        expect(mocks.focusData.refresh).toHaveBeenCalledTimes(2)
     })
 
 })

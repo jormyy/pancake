@@ -13,8 +13,9 @@ export async function lifecycle(date = shiftDay(season.start,7)) {
   const report = { provenance: 'SYNTHETIC', date, completed: [], passed: false }
   const runtime = await startRuntime(`${date}T14:00:00Z`)
   try {
-    await dispatch("SELECT public.invoke_edge_function_at_et_time('sync-schedule',6,5)", { optional: true })
-    await dispatch("SELECT public.invoke_edge_function_at_et_time('sync-players',6,0)", { optional: true })
+    await dispatch('SELECT public.dispatch_work()', { optional: true })
+    await setClock({ at: `${date}T14:05:00Z`, rate: 0 })
+    await dispatch('SELECT public.dispatch_work()', { optional: true })
     const c = await createLeagueActions(runtime.keys, date, 4)
     const [a, b, d, e] = c.users
     report.leagueId = c.leagueId
@@ -50,10 +51,10 @@ export async function lifecycle(date = shiftDay(season.start,7)) {
     await c.api(b, `/waivers/claims/${claims[1].id}/cancel`, { memberId: b.memberId })
     const winner = await sql(`SELECT member_id FROM waiver_claims WHERE ${scope} AND player_id='${original[0].player_id}' AND status='pending' ORDER BY priority_at_submission LIMIT 1`)
     await atDay(1)
-    await dispatch("SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)")
+    await dispatch('SELECT public.dispatch_work()')
     assert.equal(await owner(original[0].player_id), '', '48-hour waiver clearance must hold')
     await atDay(2)
-    await dispatch("SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)")
+    await dispatch('SELECT public.dispatch_work()')
     assert.equal(await owner(original[0].player_id), winner)
     await record('rolling waiver priority; duplicate refusal; edit/reorder/cancel; 48-hour clearance')
     const winningUser = c.users.find(user => user.memberId === winner)
@@ -66,7 +67,7 @@ export async function lifecycle(date = shiftDay(season.start,7)) {
     const hidden = await c.rest(a, `waiver_claims?select=id,bid_amount&league_id=eq.${c.leagueId}&member_id=eq.${e.memberId}&status=eq.pending`)
     assert.deepEqual(hidden, [], 'Pending FAAB bids must remain private')
     await atDay(4)
-    await dispatch("SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)")
+    await dispatch('SELECT public.dispatch_work()')
     assert.equal(await owner(won.player_id), e.memberId)
     assert.equal(Number(await sql(`SELECT balance FROM faab_balances WHERE member_id='${e.memberId}' AND league_season_id='${c.leagueSeasonId}'`)), faabBefore - 9)
     await record('FAAB blind bids; highest bid wins; exact debit')
@@ -84,7 +85,7 @@ export async function lifecycle(date = shiftDay(season.start,7)) {
     const multi = await c.api(b, '/trades/propose-multi', { requestId: randomUUID(), leagueId: c.leagueId, leagueSeasonId: c.leagueSeasonId, memberId: b.memberId, participantMemberIds: [d.memberId, e.memberId], items: assets.map((row, index) => ({ fromMemberId: participants[index].memberId, toMemberId: participants[(index + 1) % 3].memberId, playerId: row.player_id })) })
     for (const user of participants.slice(1)) await c.api(user, `/trades/${multi.tradeId}/accept`, { memberId: user.memberId })
     await atDay(5)
-    await dispatch('SELECT public.invoke_process_trades_if_due()')
+    await dispatch('SELECT public.dispatch_work()')
     assert.equal(await owner(ir.player_id), b.memberId)
     assert.equal(await sql(`SELECT is_on_ir FROM roster_players WHERE ${scope} AND player_id='${ir.player_id}'`), 't')
     assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${pick}'`), a.memberId)

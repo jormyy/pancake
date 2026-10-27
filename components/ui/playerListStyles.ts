@@ -1,6 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
-import { playerRowGeometry } from '@/components/PlayerSearchItem'
+import { colors, componentTokens, controlSize, fontFamily, fontSize, fontWeight, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
 
 // Shared chrome for the Players screen: stat-table header, search input, and
 // sort control.
@@ -34,16 +33,11 @@ export const playerListStyles = StyleSheet.create({
     },
     // Each width mirrors PlayerSearchItem's row geometry so columns line up.
     tableHeader: {
-        minHeight: table.headerHeight,
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingLeft: spacing.sm,
         borderTopWidth: 1,
-        borderBottomWidth: 1,
         borderColor: colors.borderLight,
-        backgroundColor: colors.bgSubtle,
     },
-    tableHeaderAddSpacer: { width: playerRowGeometry.addColWidth },
+    tableHeaderAddSpacer: { width: componentTokens.playerRow.actionWidth },
     tableHeaderCardRow: {
         flex: 1,
         flexDirection: 'row',
@@ -52,17 +46,17 @@ export const playerListStyles = StyleSheet.create({
         paddingRight: spacing.lg,
         gap: spacing.md,
     },
-    tableHeaderHeadshotSpacer: { width: playerRowGeometry.headshot },
+    tableHeaderHeadshotSpacer: { width: componentTokens.playerRow.standard.avatarSize },
     tableHeaderPlayer: { ...textStyles.tableHeader, flex: 1 },
     tableHeaderStatsGroup: {
-        width: playerRowGeometry.statCount * table.statColWidth,
+        width: componentTokens.playerRow.statCount * table.statColWidth,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
     },
     tableHeaderStatBtn: {
         width: table.statColWidth,
-        minHeight: table.headerHeight,
+        minHeight: controlSize.minTouch,
         alignItems: 'flex-end',
         justifyContent: 'center',
     },
@@ -72,7 +66,7 @@ export const playerListStyles = StyleSheet.create({
     },
     searchInput: {
         flex: 1,
-        height: 44,
+        minHeight: controlSize.field.md,
         minWidth: 0,
         backgroundColor: colors.bgCard,
         borderWidth: 1,
@@ -80,7 +74,7 @@ export const playerListStyles = StyleSheet.create({
         borderRadius: radii.lg,
         borderCurve: 'continuous' as const,
         paddingHorizontal: spacing.lg,
-        fontSize: fontSize.lg,
+        fontSize: controlSize.field.fontSize,
         fontFamily: fontFamily.control,
         color: colors.textPrimary,
     },

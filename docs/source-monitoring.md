@@ -151,26 +151,122 @@ Mixed percentages weight available provider percentages by game count because Fa
 The optimizer fingerprint includes resolved projection fields and freshness, but excludes the fetch timestamp.
 Equal refreshes do not change that fingerprint unless another returned field changes.
 
-## Dispatch and invocation records
+## Scheduled work
 
-Daily jobs check due work every fifteen minutes.
-Ranking jobs check hourly and catch up within their ISO week.
-A successful dispatch claim suppresses duplicate work.
-Failed claims can retry after five minutes, with three attempts per period.
+One cron entry calls `public.dispatch_work()` each minute.
+The replay calls the same SQL entry at every recorded minute.
+It preserves worker timers and disables the former empty-gate compression.
 
-Each invocation records its request ID and worker outcome.
-The five-minute reconciler joins these records with transport results.
+`private.work_items` stores the kind, key, due time, attempts, lease, last error, and payload.
+A kind and key identify one period or input revision.
+One unfinished item per kind and payload prevents overlapping retries.
+Pre-tipoff items share one active item per tipoff.
+A dead item cannot prevent later items from running.
+
+The dispatcher claims up to 64 items with row locks that skip busy rows.
+It also claims work created by another item during that tick.
+SQL maintenance runs in the dispatcher.
+Business jobs use their existing Edge handlers.
+The maintenance handler runs response vacuum outside a database transaction.
+It uses the project's `SUPABASE_DB_URL` and adds no package dependency.
+Inventory hints drain at the minute and thirty seconds later.
+The second drain uses the same maintenance handler and worker timer as the replay.
+
+Each claim grants a ninety-second lease.
+Workers renew every thirty seconds through the shared heartbeat helper.
+Nested workers inherit its cancellation signal and database write fence.
+Expired or replaced workers cannot write application tables or report completion.
+An expired lease counts as a failed attempt.
+Retries wait sixty seconds, then 120 seconds.
+The delay formula doubles with a fifteen-minute cap.
+The third failure moves the item to the dead letter state.
+Later periods remain eligible.
+Domain claims still protect individual games, tipoffs, and provider checkpoints.
+They do not schedule another top-level attempt.
+
+`public.work_dashboard()` returns due, running, failed, and dead counts for every kind.
+Only the service role can read it or run the dispatcher.
+An expired running item counts as failed until the next dispatch recovers it.
+Successful work remains for seven days.
+Dead items remain available for inspection.
+
+### Replaced jobs
+
+The table preserves the installed cron cadence as an enqueue condition.
+Daily and weekly keys also preserve late-tick catch-up and repeat suppression.
+ET means Eastern Time; PT means Pacific Time.
+UTC windows retain their original calendar boundaries.
+
+| Former job | Queue kind | Enqueue condition |
+| --- | --- | --- |
+| `notification-dispatch-minute` | `process-trades` | Every minute; expired pending trades, due accepted trades, or eligible notification deliveries or receipts. The notification scan still runs first. |
+| `nba-close-expired-nominations` | `close-expired-nominations` | Every minute; active draft deadlines before the next minute, or opening-night snake completion work. |
+| `nba-dispatch-stats-sync-jobs` | `stats-sync` | Every minute; pending ranges, eligible failed ranges, stale claims, or malformed ranges needing settlement. The horizon remains one minute. |
+| `nba-lineup-optimizer` | `pre-tipoff` | Every minute; enabled current teams with an available scheduled tipoff within two minutes. Existing windows remain eligible until one minute after tipoff. Changed input fingerprints create a new revision after completion. |
+| `nba-live-poll` | `live-poll`, `sync-scores` | Every even minute; no live poll lease, then eligible ingestion work. Otherwise, uncertified or unfinished closed weeks need scores, with the existing thirty-minute score throttle. |
+| `season-boundary` | `season-boundary`, `setup-season-rollover` | Every fifteen minutes after 09:00 ET. Active, playoff, offseason, or drafting leagues get one boundary item per day. Setup rollover retains each eligible gate tick. |
+| `nba-sync-players` | `sync-players`, `player-injuries` | Every fifteen minutes. Full players refresh once after 06:00 ET. Injuries refresh every fifteen minutes from 11:00 through the last valid tipoff, otherwise hourly from 08:00 through 02:00 ET. |
+| `nba-sync-schedule` | `sync-schedule` | Minutes 05, 20, 35, and 50; once per day after 06:05 ET. |
+| `nba-process-waivers` | `process-waivers` | Every fifteen minutes; once per day after 03:00 ET, including both DST changes. Existing waiver eligibility and hold rules stay in the worker. |
+| `nba-sync-projections` | `pt:sleeper-week`, `pt:sleeper-day`, `pt:fantasypros` | Every fifteen minutes. Sleeper weekly follows a configured Pacific calendar week. Sleeper daily uses 08:00, 12:00, and 15:00 PT before first regular-season tipoff. FantasyPros uses 08:00 and 15:00 PT. |
+| `nba-sync-rankings` | `sync-rankings` | Hourly; Monday after 07:00 ET or later in the ISO week. Each of `POINT_3`, `ROOKIE`, and `POINT_5` gets its own weekly key. |
+| `nba-sync-draft-order-june` | `sync-draft-order` | 13:00 UTC on June 20–30. |
+| `nba-sync-draft-order-july` | `sync-draft-order` | 13:00 UTC on July 1–15. |
+| `daily-stat-corrections` | `daily-stat-corrections` | Every fifteen minutes after 06:20 ET; a final regular-season game exists in the preceding seven dates. The range job remains unique. |
+| `matchup-forecasts` | `matchup-forecasts` | Every minute; current, nonvoided forecast periods enter their existing discovery and expiry queue. Due dirty rows need an available three-minute claim. |
+| `refresh-views` | `refresh-views` | Every minute; discover seasons, expire cached trade values, and enqueue due dirty rows without a current three-minute view claim. |
+| `edge-invocation-reconcile` | `edge-invocation-reconcile` | Every five minutes. |
+| `cleanup-trade-estimates` | `cleanup-trade-estimates` | Daily at 08:35 UTC. |
+| `mock-room-expiry` | `mock-room-expiry` | Daily at 09:30 UTC. |
+| `player-stats-hints` | `player-stats-hints` | Every minute. |
+| `league-inventory-hint-drain` | `league-inventory-hint-drain` | Every minute, with separate immediate and thirty-second drain items. |
+| `pg-net-response-vacuum` | `pg-net-response-vacuum` | Minute 17 of every hour. |
+| `retention-prune` | `retention-prune` | Daily after 10:00 UTC, with one key per UTC date. |
+
+The old `invoke_*_if_due` functions leave the function catalog.
+The former daily and ranking dispatch wrappers also leave it.
+The old dispatch claim helpers and state table are removed.
+The unused general lineup gate becomes `private.enqueue_lineup_optimizer` for explicit callers.
+Its original today-through-seven-days predicate remains available.
+
+### Verification
+
+Run these recipes against an isolated stack with no active cron runner.
+Keep its installed dispatcher entry present but inactive.
+
+| Recipe | Evidence |
+| --- | --- |
+| `tests/db/work-queue-gates.sql` | Original nomination and stats claim cases, including the one-minute horizon. |
+| `tests/db/work-queue-trades.sql` | Original trade and notification gates, delivery leases, and dead-letter exclusions. |
+| `tests/db/work-queue-forecasts.sql` | Forecast discovery, expiry, publication fencing, and member access. |
+| `tests/db/work-queue-schedules.sql` | Daily and weekly catch-up, ET and UTC windows, DST, injury cadence, maintenance, and half-minute drains. |
+| `tests/db/work-queue-projections.sql` | Pacific projection windows and independence from dead weekly work. |
+| `tests/db/work-queue-live-poll.sql` | Original ingestion eligibility, backoff, lease ownership, and stale-write cases. |
+| `tests/db/work-queue-weekly-scoring.sql` | Closed-week scoring, certificates, playoffs, and the thirty-minute throttle. |
+| `tests/db/work-queue-pre-tipoff.sql` | Original tipoff, injury, postponement, input revision, and stale-worker cases through the queue. Test retries make their due times current. |
+| `tests/db/work-queue-lifecycle.sql` | Claims, retry delays, dead letters, lease recovery, write fences, completion correlation, and event deduplication. |
+| `tests/db/league-events-outcomes.sql` | Claim, trade, lineup, and score outcomes; membership and failed-bid privacy. |
+
+## League event log
+
+`public.league_events` stores league, nullable member, kind, summary, detail, and creation time.
+A completed item records `work.succeeded`; exhausted work records `work.dead`.
+Global work has a null league and remains visible only to the service role.
+League outcomes record `claim.awarded`, `claim.failed`, `trade.executed`, `trade.vetoed`, `lineup.auto_set`, and `scores.finalized`.
+Outcome events commit with their underlying changes.
+Repeated terminal updates and duplicate worker completions do not add another event.
+League members can read their league's events.
+Only the claim owner can read a failed claim event.
+Clients cannot insert, update, or delete events.
+
+## Invocation records
+
+Each invocation retains its request ID and worker outcome.
+Queue attempts also retain the work item and lease token on their invocation.
 A finished worker result determines success or failure.
-A transport timeout alone does not override a successful worker.
-Correlated work fails after ten minutes without a start or finish.
-Legacy uncorrelated requests retain their two-hour response window.
-Normal overdue detection takes ten to fifteen minutes, excluding scheduler delays.
-
-Idle gates protect nominations, stats dispatch, live polling, lineups, and trades.
-The trade gate checks expirations, accepted trades, and queued notification delivery.
-Idle ticks create no Edge invocation rows.
-Cron still records SQL executions when cluster logging is enabled.
-Missing Edge credentials surface when work becomes due.
+Transport timeouts do not override a finished worker result.
+The reconciler retains the existing diagnostic response windows.
+It no longer schedules retries through the retired dispatch state.
 
 Stats range workers process at most one provider game per invocation.
 Empty-date scans checkpoint after each 31-date batch.
@@ -191,45 +287,129 @@ Response-table maintenance uses ordinary vacuum to reclaim expired response spac
 It preserves live responses and requires no table rewrite.
 Review table size, dead tuples, and reconciliation time before changing its frequency.
 
-## Weekly cleanup
+## Retention
 
-Cron job `retention-prune` calls `prune_unbounded_history` every Sunday at 10:00 UTC.
-It covers all job and function names, including deleted cron jobs.
+The dispatcher enqueues one `retention-prune` work item each day after 10:00 UTC.
+Daily keys catch up a late tick and prevent duplicate runs.
+The work item calls `private.run_retention()` and preserves receipt and beacon cleanup.
+The runner stops starting batches after five seconds and skips locked rows.
+An advisory lock prevents overlapping retention runs.
+A failed table records a short error; other tables can proceed.
 
-| Records | Success retention | Failure retention | Protected records |
-| --- | --- | --- | --- |
-| `sync_runs` | Seven days after finish | Thirty days after finish | Newest finished success and failure per function; unfinished runs |
-| `edge_invocations` | Seven days after reconciliation | Thirty days after reconciliation | Newest terminal success and failure per function; running or unreconciled invocations |
-| `cron.job_run_details` | Seven days after end or start | Thirty days after end or start | Nonterminal statuses; no newest-outcome exception |
+`public.retention_dashboard()` requires backend access.
+It lists every table, partition, and stored view in the application, Auth, Storage, cron, and network schemas.
+Each row shows table bytes, total bytes, estimated rows, its rule, and its last check and prune.
+A new table without a saved rule appears as an unassigned retention decision.
+Each table has one cumulative prune summary; the job creates no growing run-history table.
 
-A reconciled failed worker is terminal even when its finish time is absent.
-Cron logs do not preserve the newest success or failure after expiry.
-League history, NBA stats, games, and news are never deleted by this cleanup.
+| Records | Retention and preserved summary | Maximum deletion per call |
+| --- | --- | --- |
+| `sync_runs` | Finished success: seven days; failure: thirty days. Keep newest success and failure per function. | 20,000 |
+| `edge_invocations` | Reconciled success: seven days; failure: thirty days. Keep newest terminal outcome per function. | 20,000 |
+| `cron.job_run_details` | Success: seven days; failure: thirty days. Active executions stay. Orphan executions expire after thirty days. | 20,000 |
+| `net._http_response` | Six hours. Unreconciled invocation responses stay. | 20,000 |
+| `notification_outbox` | Sixty days after delivery, suppression, or dead letter. Pending work stays. | 20,000 |
+| `sleeper_projection_rows` | Current Pacific week and future dates. | 10,000 |
+| `projection_sync_runs` | Current Pacific scoring period and future periods. Delete expired children before runs. | 200 runs |
+| `fantasypros_projection_rows` | Same period as the parent run. Current rows stay. | 10,000 |
+| `sync_jobs` | Completed jobs: thirty days. Failed and pending resume checkpoints stay. | 5,000 |
+| `lineup_tipoff_members` | Thirty days after a terminal dispatch. | 5,000 |
+| `lineup_tipoff_dispatches` | Thirty days after finish. Delete only after member receipts expire. | 5,000 |
+| `matchup_forecasts` | Seven days after validity and matchup end. | 5,000 |
+| `private.matchup_forecast_queue` | Seven days after matchup end, or when voided. Active claims stay. | 5,000 |
+| `trade_estimate_quotes` | Unlinked quotes: seven days after expiry. Frozen trade evidence stays. | 5,000 |
+| `league_change_hints` | One live revision per league and topic. Delete orphan rows. | 5,000 |
+| `auth.refresh_tokens` | Expired or ninety-day inactive sessions. Revoked tokens: seven days. | 20,000 |
+| `auth.sessions` | Expired sessions: seven days. Inactive sessions: ninety days. Delete children first. | 500 |
+| `private.request_receipts` | Seven days after creation. Preserve the existing replay-result expiry contract. | 20,000 |
+| `public.perf_beacons` | Thirty days after receipt. | 20,000 |
+| `private.work_items` | Successful items: seven days. Pending, running, failed, and dead items stay. | 20,000 |
+| `private.trade_offer_requests` | Keep idempotency receipts with trade history. Operational cleanup never deletes them. | No expiry |
+| Retention rules and summaries | One row per table. Keep cumulative deleted counts and the latest error. | Fixed by schema size |
+| Provider history policy | One coverage rule per provider. | Fixed by provider count |
+| Search caches, live leases, and source state | Replace rows by their existing entity keys. | Fixed by entity count |
+| League history, NBA games, statistics, and news | Retain source records and product history with their owning entities. | No expiry |
+| Auth and Storage support tables | Their services own lifecycle cleanup, except the session and token rules above. | Service owned |
+| Browser caches | At most 64 ordinary entries, with smaller per-prefix limits. Ordinary entries expire after one day; membership entries after thirty days. | Client owned |
+| Browser auth, preferences, and editor drafts | Replace fixed keys. Session drafts clear on close, send, sign-out, or account change. | Client owned |
+| Avatar files | Upsert one file per supported format per user. Each file is at most 5 MB. | Three current format paths per user |
+| Vercel and Edge logs | External provider retention. The application stores no second log copy. | External |
+| Replay receipts | Verified summaries remain in replay artifacts after raw database logs expire. | Replay artifact lifecycle |
 
-Projection cleanup uses the current Pacific Monday as its cutoff.
-Sleeper game dates before that cutoff expire.
-Projection runs and their FantasyPros rows expire when `projection_period_end` precedes the cutoff.
-Current and future periods remain.
-An index selects expired periods without scanning source rows.
-The transaction suppresses projection deletion hints and restores the prior cleanup flag before returning.
-Visible new projections still emit resource hints.
-
-### Cleanup bounds
-
-| Operation | Limit per call |
-| --- | --- |
-| Sync and invocation logs | Batches of 500 unlocked rows; 20,000 rows per table and outcome |
-| Cron logs | Scan 200,000 records in primary-key pages of 1,000 |
-| Sleeper projections | 10,000 unlocked rows |
-| Projection runs | Up to 200 run locks |
-| FantasyPros child rows | Batches of 500; 10,000 rows during weekly cleanup or 100,000 during successful-run compaction |
-
-Health indexes locate the newest outcome per function.
-Cron cleanup uses its existing primary index because managed Supabase owns that table.
-Run deletion waits until child rows are gone, so cascades cannot bypass the row budget.
-Locked rows wait for a later call. Large backlogs can need additional calls.
-Results count actual deletions per table.
+Abandoned sync and invocation logs become terminal after thirty days.
+Each run closes at most 5,000 abandoned rows per table.
+The ordinary failure window then applies.
+Projection deletion suppresses resource hints and restores the prior cleanup setting.
+Run deletion waits for child deletion, so cascades cannot bypass the row budget.
 Deletes free reusable space; they do not immediately shrink relation files.
+
+The inherited projection growth estimate is about 5 MB per day.
+Daily pruning removes the weekly scheduling delay, but this run does not measure hosted disk savings.
+Use dashboard sizes and backlog errors before changing batch limits.
+Auth and Storage metadata sizes exclude the stored file bytes.
+Storage files require deletion through the Storage API; SQL metadata deletion can orphan blobs.
+Deleted-user avatar files still need a Storage lifecycle worker.
+
+The combined schema includes work items, request receipts, league events, and performance beacons.
+Queue leases, retries, outcome events, and view refresh remain in the single dispatcher.
+Remaining event-history retention rules still need a lifetime or summary decision.
+Durable product history, failed resume checkpoints, and saved replay files still need a separate lifetime or summary decision.
+These exceptions prevent a claim that every stored byte has bounded lifetime.
+
+## Runs forever
+
+Historical backfill reads completed seasons from the published calendar.
+New completed seasons join its plan without a source-code edit.
+Provider coverage dates and career baseline seasons come from `private.provider_history_policy`.
+The CDN game identifier uses the previous season's final two digits.
+Playoff generation and season transitions use saved league settings instead of the redundant week-twenty fallback.
+
+`tests/db/retention-daily.sql` fills expiring stores and checks exact retained rows, batch limits, receipt survival, and cumulative summaries.
+A disabled projection pruner makes its projection-budget assertion fail.
+`tests/db/retention-queue.sql` checks daily catch-up, receipt and beacon expiry, completed work cleanup, and completion events through the dispatcher.
+`tests/db/retention-timeout.sql` forces a slow worker and proves that cancellation stops the run before another batch.
+`tests/db/forever-assumptions.sql` checks changed provider coverage and automatic inclusion of the next completed season.
+`tests/db/forever-two-seasons.sql` walks all 730 days across two fixture years using the SQL calendar and boundary functions.
+It publishes different season lengths, completes rookie drafts, certifies fixture scores, advances playoffs, and rolls over twice.
+The private database run covers 358 offseason days; each boundary call stays below one second.
+These fixtures prove SQL boundary behavior; they do not run every Edge provider job.
+The replay catalog contains only the dispatcher; its daily retention work replaces the separate retention cron entry.
+
+| Changed reader | Removed assumption |
+| --- | --- |
+| `supabase/functions/backfill/index.ts` | Fixed CDN and Basketball Reference season lists |
+| `supabase/functions/_shared/cdnBackfill.ts` | Game identifier subtraction from a fixed base year |
+| `private.player_career_appearances` | Fixed provider coverage date |
+| `private.player_career_fallback` | Fixed provider coverage season, date, and baseline season |
+| `public.complete_player_career_base_atomic` | Fixed minimum career coverage season |
+| `public.generate_playoff_bracket_atomic` | Week-twenty fallback |
+| `public.apply_season_boundary_after_grace` | Week-twenty fallback |
+
+Run these four recipes against the isolated database:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/retention-daily.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/retention-timeout.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/forever-assumptions.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/forever-two-seasons.sql
+```
+
+The private database passes 58 retention checks, the timeout control, nine provider-policy checks, and sixteen boundary checks.
+Existing retention, career, career-queue, playoff-window, and playoff-boundary recipes also pass.
+Both loopback CDN continuation recipes preserve prior rows after a failed continuation and successful retry.
+Function source, function catalog, generated database types, shared Edge output, and changed Edge entrypoints pass their checks.
+The type generator and focused replay tests pass; the full application suite does not run.
+
+The runtime audit finds no active season-year assignment literal in these source trees.
+Comments, a leap-year date anchor, timestamp bin origins, Unicode escapes, and byte limits still contain year-shaped numbers.
+Migration seed values record provider history policy; historical migrations remain unchanged.
+
+The audit still finds draft-publication month gates, thirty-team checks, eighty-game schedule checks, and fixed schedule-publication months.
+Roster completeness checks also retain player-count bounds.
+Several providers still use literal default endpoint paths.
+Removing these guards requires authoritative publication and provider-shape state; accepting incomplete lists can erase valid data.
+The dispatcher supplies persisted retries. The two-season recipe still needs a queue-based acceptance walk.
+A full provider replay and the every-job offseason timing proof remain unverified.
 
 ## Player sources and participation
 
@@ -310,7 +490,7 @@ The team-filtered Players list then excludes that row.
 
 Injuries refresh every 15 minutes from 11:00 ET through the last tip-off on game days.
 Outside that window, they refresh hourly from 08:00 through 02:00 ET, including days without games.
-The existing claim, retry, dispatch, and empty-body contract stay unchanged.
+The queue supplies retries and dispatch. The injuries handler still receives an empty body.
 Run `supabase/sql/player-data-audit.sql` to inspect missing source fields and pending absence holds.
 
 Historical CDN and Basketball Reference imports persist final team scores before marking player statistics complete.
@@ -320,3 +500,237 @@ Final NBA snapshots retain the provider publication time.
 Verified corrections set a newer revision.
 The database rejects unversioned writes or skips older snapshots.
 Scores and stat rows commit together for each accepted revision.
+
+## Queue integration reference
+
+The queue recipes replace the retired per-job dispatch recipes as scheduling checks.
+The table above maps each original job to its queue predicate.
+The original recipe files remain the behavioral oracles for those checks.
+
+Use Node 22 for the replay tests.
+Use the private stack for SQL, Deno, generated types, and catalog checks.
+
+```sh
+node --test scripts/season-sim/*.test.mjs
+npm run lint:all
+npm run typecheck
+npm run typecheck:tests
+npm run check:db-function-sources
+npm run check:db-function-catalog
+npm run check:database-types
+for recipe in tests/db/work-queue-*.sql tests/db/league-events-*.sql; do
+  psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f "$recipe" || exit
+done
+```
+
+The focused SQL run passes ten recipes.
+It includes 218 named checks, plus the pre-tipoff and weekly scoring assertions.
+The worker checks pass nine Deno tests and three nested checks.
+The replay checks pass 304 Node tests.
+Focused application and release checks pass 724 Vitest tests; one unrelated case remains skipped.
+Lint, both type checks, fresh migrations, function sources, function catalog, and generated database types pass.
+
+Three negative checks disable the write fence, claim event trigger, or daily enqueue rule inside rolled-back transactions.
+Each damaged version fails its covering recipe.
+A real worker also verifies that an expired lease returns HTTP 409 and blocks its next write.
+That check detects the former repeated serialization-error retry behavior.
+
+The replay catalog contains one minute entry, replacing 23 schedules after view refresh joins the queue.
+This measures schedule consolidation, not worker throughput.
+Full-season replay, hosted services, and browser behavior remain outside this verification.
+
+After integration, regenerate shared files against the combined private stack.
+Run the type, catalog, source, and release checks again.
+The queue implementation and its isolated recipes need no further changes.
+
+### Changed files
+
+This inventory includes removed source files.
+Shared release attestations come from the private migrated database.
+
+```text
+docs/source-monitoring.md
+scripts/season-sim/cron-jobs.json
+scripts/season-sim/cron.mjs
+scripts/season-sim/cron.test.mjs
+scripts/season-sim/edge.mjs
+scripts/season-sim/lifecycle.mjs
+scripts/season-sim/maintenance.mjs
+scripts/season-sim/maintenance.test.mjs
+scripts/season-sim/migration-cron.test.mjs
+scripts/season-sim/official-compression.mjs
+scripts/season-sim/official-outcomes.test.mjs
+scripts/season-sim/official-replay.mjs
+scripts/season-sim/official-report.test.mjs
+scripts/season-sim/official-runtime.test.mjs
+scripts/season-sim/replay.mjs
+scripts/season-sim/runtime.mjs
+supabase/config.toml
+supabase/functions/_shared/syncRuns.ts
+supabase/functions/_shared/workContext.ts
+supabase/functions/dispatcher/context.test.ts
+supabase/functions/dispatcher/index.ts
+supabase/functions/dispatcher/postgres.test.ts
+supabase/functions/dispatcher/postgres.ts
+supabase/functions/dispatcher/worker.db.test.ts
+supabase/migrations/20261104000100_work_queue.sql
+supabase/sql/function-catalog.json
+supabase/sql/functions/by-name/private/claim_cron_dispatch.sql
+supabase/sql/functions/by-name/private/enqueue_close_expired_nominations.sql
+supabase/sql/functions/by-name/private/enqueue_daily.sql
+supabase/sql/functions/by-name/private/enqueue_lineup_optimizer.sql
+supabase/sql/functions/by-name/private/enqueue_live_poll.sql
+supabase/sql/functions/by-name/private/enqueue_matchup_forecasts.sql
+supabase/sql/functions/by-name/private/enqueue_player_injuries.sql
+supabase/sql/functions/by-name/private/enqueue_pre_tipoff_optimizer.sql
+supabase/sql/functions/by-name/private/enqueue_process_trades.sql
+supabase/sql/functions/by-name/private/enqueue_projection_sync.sql
+supabase/sql/functions/by-name/private/enqueue_rankings.sql
+supabase/sql/functions/by-name/private/enqueue_scheduled_work.sql
+supabase/sql/functions/by-name/private/enqueue_season_boundary.sql
+supabase/sql/functions/by-name/private/enqueue_stats_sync_dispatch.sql
+supabase/sql/functions/by-name/private/invoke_claimed_edge_function.sql
+supabase/sql/functions/by-name/private/reconcile_edge_invocations.sql
+supabase/sql/functions/by-name/private/work_capture_outcome.sql
+supabase/sql/functions/by-name/private/work_claim.sql
+supabase/sql/functions/by-name/private/work_enforce_lease.sql
+supabase/sql/functions/by-name/private/work_enqueue.sql
+supabase/sql/functions/by-name/private/work_execute.sql
+supabase/sql/functions/by-name/private/work_finish.sql
+supabase/sql/functions/by-name/public/auto_set_lineup_atomic.sql
+supabase/sql/functions/by-name/public/dispatch_work.sql
+supabase/sql/functions/by-name/public/finish_edge_invocation.sql
+supabase/sql/functions/by-name/public/invoke_close_expired_nominations_if_due.sql
+supabase/sql/functions/by-name/public/invoke_dynasty_ranking_views_at_et_time.sql
+supabase/sql/functions/by-name/public/invoke_edge_function.sql
+supabase/sql/functions/by-name/public/invoke_edge_function_at_et_time.sql
+supabase/sql/functions/by-name/public/invoke_lineup_optimizer_if_due.sql
+supabase/sql/functions/by-name/public/invoke_live_poll_if_due.sql
+supabase/sql/functions/by-name/public/invoke_matchup_forecasts_if_due.sql
+supabase/sql/functions/by-name/public/invoke_player_injuries_if_due.sql
+supabase/sql/functions/by-name/public/invoke_pre_tipoff_optimizer_if_due.sql
+supabase/sql/functions/by-name/public/invoke_process_trades_if_due.sql
+supabase/sql/functions/by-name/public/invoke_projection_sync_if_due.sql
+supabase/sql/functions/by-name/public/invoke_season_boundary_if_due.sql
+supabase/sql/functions/by-name/public/invoke_stats_sync_dispatch_if_due.sql
+supabase/sql/functions/by-name/public/queue_daily_stat_corrections.sql
+supabase/sql/functions/by-name/public/renew_work_lease.sql
+supabase/sql/functions/by-name/public/run_work_maintenance.sql
+supabase/sql/functions/by-name/public/start_edge_invocation.sql
+supabase/sql/functions/by-name/public/work_dashboard.sql
+tests/db-security-catalog-contract.test.ts
+tests/db/league-events-outcomes.sql
+tests/db/work-queue-forecasts.sql
+tests/db/work-queue-gates.sql
+tests/db/work-queue-lifecycle.sql
+tests/db/work-queue-live-poll.sql
+tests/db/work-queue-pre-tipoff.sql
+tests/db/work-queue-projections.sql
+tests/db/work-queue-schedules.sql
+tests/db/work-queue-trades.sql
+tests/db/work-queue-weekly-scoring.sql
+tests/e2e/db-security-catalog-attestations.json
+tests/e2e/db-security-catalog.sql
+tests/e2e/release-history-attestations.json
+types/database.ts
+```
+
+## Integration conflict resolution
+
+Automatic lineup writes keep the request guard and the event insert in the same transaction.
+Repeated requests return their stored result and add no second event.
+Nested worker contexts keep the queue lease, request ID, and verified actor.
+Provider requests receive none of those headers.
+The view refresh worker enters the same queue and adds no cron entry.
+Both worker configurations remain present.
+
+The four generated files come from a fresh private database with all 571 migrations.
+Their generators preserve the imported views, league versions, request receipts, and queue schema.
+
+### Focused verification
+
+| Check | Result |
+| --- | --- |
+| `npm run typecheck` and `npm run typecheck:tests` | Pass |
+| `npm run check:db-function-sources`, `npm run check:db-function-catalog`, and `npm run check:database-types` | Pass |
+| `node --test scripts/season-sim/cron.test.mjs scripts/season-sim/migration-cron.test.mjs` | 13 pass |
+| Focused Vitest files below | 632 pass |
+| Worker context, heartbeat, view worker, API error, and real worker Deno checks | 21 pass; four nested checks pass |
+| SQL recipes below | Eight pass; version coverage includes 126 committed write cases |
+| Missing request guard negative control | Fails the duplicate-event check; transaction rolls back |
+| Conflict marker sweep and targeted lint | Pass |
+
+The focused Vitest files are:
+
+```text
+tests/db-function-source-parity.test.ts
+tests/edge-function-inventory.test.ts
+tests/e2e-database-type-generator.test.ts
+tests/db-security-catalog-contract.test.ts
+tests/e2e-attestation-head.test.ts
+tests/production-migration-preflight.test.ts
+tests/release-history-attestations.test.ts
+tests/soak-shards.test.ts
+```
+
+The SQL recipes are:
+
+```text
+tests/db/work-queue-views.sql
+tests/db/league-events-idempotency.sql
+tests/db/work-queue-pre-tipoff.sql
+tests/db/league-events-outcomes.sql
+tests/db/work-queue-lifecycle.sql
+tests/db/refresh-screen-cache.sql
+tests/db/idempotency-lineup.sql
+tests/db/league-version-writes.sql
+```
+
+The Deno checks cover:
+
+```text
+supabase/functions/_shared/workContext.test.ts
+supabase/functions/_shared/leaseHeartbeat.test.ts
+supabase/functions/dispatcher/context.test.ts
+supabase/functions/dispatcher/worker.db.test.ts
+supabase/functions/refresh-views/work.test.ts
+supabase/functions/_shared/apiRuntime.errors.test.ts
+```
+
+### Files resolved or changed for integration
+
+```text
+scripts/season-sim/cron.mjs
+supabase/config.toml
+supabase/functions/_shared/workContext.ts
+supabase/sql/function-catalog.json
+supabase/sql/functions/by-name/public/auto_set_lineup_atomic.sql
+tests/e2e/db-security-catalog-attestations.json
+tests/e2e/release-history-attestations.json
+types/database.ts
+supabase/migrations/20261104000100_work_queue.sql
+supabase/sql/functions/by-name/private/enqueue_scheduled_work.sql
+supabase/sql/functions/by-name/private/enqueue_screen_views.sql
+supabase/functions/dispatcher/context.test.ts
+tests/db/work-queue-views.sql
+tests/db/league-events-idempotency.sql
+docs/source-monitoring.md
+```
+
+The orchestrator stages these resolutions and completes the merge.
+No staging or merge completion occurs during this resolution.
+
+Daily retention integration preserves the single dispatcher and the view refresh gate.
+It passes 120 checks across retention, daily scheduling, and view queue recipes.
+The cron and migration catalog tests pass thirteen cases.
+Both typechecks and fresh database source, catalog, and type checks pass.
+The regenerated shared files include all merged lanes.
+
+The retention binding also needs these shared files:
+
+| File | Reason |
+| --- | --- |
+| `supabase/sql/functions/by-name/private/enqueue_scheduled_work.sql` | Daily retention with late-tick catch-up; keep view refresh and all other enqueue rules. |
+| `supabase/sql/functions/by-name/private/work_execute.sql` | Run the bounded retention worker through the existing queue kind. |
+| `tests/db/work-queue-schedules.sql` | Replace the former Sunday-only expectation with daily retention. |
+| `supabase/migrations/20261105000100_perf_beacons.sql` | Skip the removed legacy cron entry during fresh combined migration. The daily worker keeps thirty-day beacon cleanup. |

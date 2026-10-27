@@ -29,7 +29,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                     size={avatarSize}
                 />
                 <View style={styles.txInfo}>
-                    <Text style={styles.txPlayer} numberOfLines={1}>{item.title ?? item.playerName}</Text>
+                    <Text style={styles.txPlayer}>{item.title ?? item.playerName}</Text>
                     <Text style={styles.txTeam} numberOfLines={item.transactionType === 'commissioner_announcement' ? undefined : 2}>
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}

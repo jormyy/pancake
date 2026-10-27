@@ -1,533 +1,134 @@
-import React from 'react'
-import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePlayerSearch, useWeeklyAvailability } from '@/hooks/use-player-search'
-import type { WeekDay } from '@/lib/lineup'
-
-const mocks = vi.hoisted(() => ({
-    addEventListener: vi.fn(),
-    appStateListener: undefined as ((state: string) => void) | undefined,
-    getCurrentWeekNumber: vi.fn(async () => 1),
-    getWeekDays: vi.fn<() => Promise<WeekDay[]>>(async () => []),
-    searchPlayers: vi.fn(),
-    debounced: undefined as string | undefined,
-}))
-
-vi.mock('@shopify/flash-list', () => ({}))
-vi.mock('@/hooks/use-live-stats', () => ({ readCachedLiveTeams: () => null }))
-vi.mock('react-native', () => ({
-    AppState: {
-        currentState: 'active',
-        addEventListener: mocks.addEventListener,
-    },
-}))
-vi.mock('@/hooks/use-debounced-value', () => ({ useDebouncedValue: (value: unknown) => mocks.debounced ?? value }))
-vi.mock('@/lib/players', () => ({ searchPlayers: mocks.searchPlayers }))
-vi.mock('@/lib/lineup', () => ({
-    getWeekDays: mocks.getWeekDays,
-}))
-vi.mock('@/lib/shared/week', () => ({ getCurrentWeekNumber: mocks.getCurrentWeekNumber }))
-vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: vi.fn(() => 2027) }))
-vi.mock('@/lib/shared/dates', () => ({ todayET: vi.fn(() => '2026-10-20') }))
-vi.mock('@/lib/persistent-cache', () => ({
-    readPersistentCache: vi.fn(() => null),
-    writePersistentCache: vi.fn(),
-}))
+import { boundary, bumpView, held } from '../helpers/screen-view-boundary'
+import { searchHarness, searchPayload } from '../helpers/search-view-fixture'
+import { act } from 'react-test-renderer'
+import { beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-
-const player = (id: string) => ({ id, display_name: id })
-const deferred = <Value,>() => {
-    let resolve!: (value: Value) => void
-    const promise = new Promise<Value>((done) => { resolve = done })
-    return { promise, resolve }
-}
-
-beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.debounced = undefined
-    mocks.appStateListener = undefined
-    mocks.addEventListener.mockImplementation((_event, listener) => {
-        mocks.appStateListener = listener
-        return { remove: vi.fn() }
-    })
-    mocks.getWeekDays.mockResolvedValue([])
-    mocks.getCurrentWeekNumber.mockResolvedValue(1)
-    vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-        callback(0)
-        return 1
-    })
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+const h = searchHarness()
+beforeEach(() => { boundary.read.mockResolvedValue(searchPayload()) })
+it('paints a dirty cached page while revalidating it', async () => {
+    await h.render(); await h.unmount()
+    const next = held<ReturnType<typeof searchPayload>>()
+    boundary.read.mockReturnValueOnce(next.promise)
+    bumpView()
+    await h.render()
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['player'])
+    await act(async () => next.resolve(searchPayload(['fresh'])))
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['fresh'])
 })
-
-afterEach(() => {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
+it('rejects an older overlapping result after a member switch', async () => {
+    const old = held<ReturnType<typeof searchPayload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(searchPayload(['new']))
+    await h.render(); await h.render({ member: 'new' })
+    await act(async () => old.resolve(searchPayload(['old'])))
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['new'])
 })
-
-describe('player search memory cache', () => {
-    it('paints a stale cached page and revalidates it in the background', async () => {
-        const owned = new Map()
-        const waivers = new Set<string>()
-        let resolveRevalidation!: (rows: ReturnType<typeof player>[]) => void
-        const revalidation = new Promise<ReturnType<typeof player>[]>((resolve) => {
-            resolveRevalidation = resolve
-        })
-        mocks.searchPlayers
-            .mockResolvedValueOnce([player('all-old')])
-            .mockResolvedValueOnce([player('guards')])
-            .mockReturnValueOnce(revalidation)
-        let latest!: ReturnType<typeof usePlayerSearch>
-        const Probe = () => {
-            latest = usePlayerSearch('league', owned, waivers, 'member')
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        expect(latest.results.players.map((row) => row.id)).toEqual(['all-old'])
-
-        await act(async () => { latest.position.setValue('PG'); await Promise.resolve() })
-        expect(latest.results.players.map((row) => row.id)).toEqual(['guards'])
-        vi.mocked(Date.now).mockReturnValue(1_031_000)
-
-        await act(async () => { latest.position.setValue('ALL') })
-        expect(latest.results.players.map((row) => row.id)).toEqual(['all-old'])
-        await act(async () => { resolveRevalidation([player('all-new')]); await revalidation })
-        expect(latest.results.players.map((row) => row.id)).toEqual(['all-new'])
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-    })
+it('retains same-query rows and rejects hidden or former-account results', async () => {
+    await h.render(); const prior = h.latest.results.players
+    boundary.hidden = true
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    await act(async () => bumpView())
+    expect(boundary.read).toHaveBeenCalledOnce()
+    expect(h.latest.results.players).toBe(prior)
+    boundary.owner = 'other'; h.frames.length = 0; await h.render({ owner: 'other' })
+    expect(h.frames.every(frame => frame.results.players.length === 0)).toBe(true)
 })
-
-describe('weekly availability refresh ordering', () => {
-    it('does not let an older overlapping refresh overwrite the latest snapshot', async () => {
-        const first = deferred<WeekDay[]>()
-        const second = deferred<WeekDay[]>()
-        mocks.getWeekDays.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
-        const currentDays: WeekDay[] = [{ date: '2026-10-20', dayLabel: 'Tue', dateNum: 20, hasGames: true, isToday: true, playingTeams: ['LAL'] }]
-        let latest!: ReturnType<typeof useWeeklyAvailability>
-        const Probe = () => {
-            latest = useWeeklyAvailability(true)
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => {
-            mocks.appStateListener?.('background')
-            mocks.appStateListener?.('active')
-            await Promise.resolve()
-        })
-        expect(mocks.getWeekDays).toHaveBeenCalledTimes(2)
-
-        await act(async () => { second.resolve(currentDays); await second.promise })
-        expect(latest.weekDays).toEqual(currentDays)
-        await act(async () => { first.resolve([]); await first.promise })
-        expect(latest.weekDays).toEqual(currentDays)
-        await act(async () => { renderer.unmount() })
-    })
+it('revalidates after the ET day changes and retains selected filters', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-27T12:00:00Z'))
+    await h.render(); await act(async () => { h.latest.position.setValue('PG') })
+    vi.setSystemTime(new Date('2026-10-28T12:00:00Z')); await h.render()
+    expect(h.latest.position.value).toBe('PG')
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.date).toBe('2026-10-28')
 })
-
-describe('search response authority', () => {
-    it.each(['support-first', 'search-first'])('keeps a failed refresh through equivalent support rerenders: %s', async (order) => {
-        let owned = new Map()
-        const waivers = new Set<string>()
-        mocks.searchPlayers.mockReset().mockResolvedValueOnce([player('revision11')])
-        let latest!: ReturnType<typeof usePlayerSearch>
-        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        let reject!: (e: Error) => void
-        const failed = new Promise<ReturnType<typeof player>[]>((_resolve, no) => { reject = no })
-        mocks.searchPlayers.mockReturnValueOnce(failed)
-        await act(async () => { latest.results.retry() })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        if (order === 'support-first') await act(async () => { owned = new Map(); renderer.update(React.createElement(Probe)) })
-        await act(async () => { reject(new Error('search503')); await failed.catch(() => {}) })
-        await act(async () => { owned = new Map(); renderer.update(React.createElement(Probe)) })
-        expect(latest.results.error?.message).toBe('search503')
-        expect(latest.results.isSnapshot).toBe(true)
-        expect(latest.results.players.map(p => p.id)).toEqual(['revision11'])
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        mocks.searchPlayers.mockResolvedValueOnce([player('revision12')])
-        await act(async () => { latest.results.retry() })
-        expect(latest.results.error).toBeNull()
-        expect(latest.results.isSnapshot).toBe(false)
-        expect(latest.results.players.map(p => p.id)).toEqual(['revision12'])
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-    })
+it('waits for current support before certifying search results', async () => {
+    await h.render(); const next = held<ReturnType<typeof searchPayload>>()
+    boundary.read.mockReturnValueOnce(next.promise)
+    await act(async () => bumpView('league', 'inventory'))
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['player'])
+    expect(h.latest.results.refreshing).toBe(true)
+    await act(async () => next.resolve(searchPayload(['free-now'])))
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['free-now'])
+    expect(h.latest.support?.memberId).toBe('member')
 })
-
-describe('search lifecycle ownership', () => {
-    it('retains the same-query scroll position and fences hidden, old-query and old-account results', async () => {
-        const owned = new Map()
-        const waivers = new Set<string>()
-        let focused = true
-        let ownerId = 'first'
-        let online = true
-        mocks.searchPlayers.mockReset().mockResolvedValue([player('initial')])
-        let latest!: ReturnType<typeof usePlayerSearch>
-        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member', { focused, online, ownerId }); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        const scroll = vi.fn()
-        latest.results.listRef.current = { scrollToOffset: scroll } as unknown as NonNullable<typeof latest.results.listRef.current>
-        const late = deferred<ReturnType<typeof player>[]>()
-        mocks.searchPlayers.mockReturnValueOnce(late.promise)
-        await act(async () => { latest.results.retry() })
-        expect(scroll).not.toHaveBeenCalled()
-        await act(async () => { focused = false; renderer.update(React.createElement(Probe)) })
-        await act(async () => { late.resolve([player('hidden-old')]); await late.promise })
-        expect(latest.results.players.map(p => p.id)).toEqual(['initial'])
-        expect(latest.results.isSnapshot).toBe(true)
-        const before = mocks.searchPlayers.mock.calls.length
-        await act(async () => { online = false; renderer.update(React.createElement(Probe)); latest.results.retry() })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before)
-        await act(async () => { online = true; focused = true; renderer.update(React.createElement(Probe)) })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before + 1)
-        const oldIdentity = deferred<ReturnType<typeof player>[]>()
-        mocks.searchPlayers.mockReturnValueOnce(oldIdentity.promise)
-        await act(async () => { latest.search.setQuery('old') })
-        const next = deferred<ReturnType<typeof player>[]>()
-        mocks.searchPlayers.mockReturnValueOnce(next.promise)
-        await act(async () => { ownerId = 'second'; renderer.update(React.createElement(Probe)) })
-        expect(latest.results.players).toEqual([])
-        await act(async () => { oldIdentity.resolve([player('first-private')]); await oldIdentity.promise })
-        expect(latest.results.players).toEqual([])
-        await act(async () => { next.resolve([player('second-current')]); await next.promise })
-        expect(latest.results.players.map(p => p.id)).toEqual(['second-current'])
-        const unmounted = deferred<ReturnType<typeof player>[]>()
-        mocks.searchPlayers.mockReturnValueOnce(unmounted.promise)
-        await act(async () => { latest.results.retry(); renderer.unmount() })
-        await act(async () => { unmounted.resolve([player('unmounted')]); await unmounted.promise })
-    })
+it.each(['auto', 'explicit'])('leaves the %s season quiet without a new version', async mode => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await h.render()
+    if (mode === 'explicit') await act(async () => { h.latest.season.setValue(2026) })
+    const reads = boundary.read.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(120_000) })
+    expect(boundary.read).toHaveBeenCalledTimes(reads)
 })
-
-it('revalidates the same search when the ET day changes and keeps the selected filters', async () => {
-    const { todayET } = await import('@/lib/shared/dates')
-    const owned = new Map()
-    const waivers = new Set<string>()
-    mocks.searchPlayers.mockResolvedValue([player('current')])
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = ({ tick }: { tick: number }) => {
-        latest = usePlayerSearch('league', owned, waivers, 'member')
-        return React.createElement('div', { 'data-tick': tick })
-    }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe, { tick: 0 })) })
-        await act(async () => { latest.position.setValue('G') })
-        const before = mocks.searchPlayers.mock.calls.length
-        vi.mocked(todayET).mockReturnValue('2026-10-21')
-        await act(async () => { renderer.update(React.createElement(Probe, { tick: 1 })) })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before + 1)
-        expect(latest.position.value).toBe('G')
-    } finally { await act(async () => { renderer.unmount() }); vi.mocked(todayET).mockReturnValue('2026-10-20') }
+it('replaces the first page when the selected season changes during pagination', async () => {
+    boundary.read.mockResolvedValueOnce(searchPayload(['first'], true))
+    await h.render(); const old = held<ReturnType<typeof searchPayload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(searchPayload(['season']))
+    let request!: Promise<void>
+    await act(async () => { request = h.latest.results.loadMore() })
+    await act(async () => { h.latest.season.setValue(2026) })
+    await act(async () => { old.resolve(searchPayload(['old-page'])); await request })
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['season'])
 })
-
-it('waits for current availability without discarding the prior search rows or filters', async () => {
-    const owned = new Map()
-    const waivers = new Set<string>()
-    mocks.searchPlayers.mockResolvedValue([player('current')])
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = ({ admitted }: { admitted: boolean }) => { latest = usePlayerSearch('league', owned, waivers, 'member', { admitted }); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe, { admitted: false })) })
-        expect(mocks.searchPlayers).not.toHaveBeenCalled()
-        await act(async () => { renderer.update(React.createElement(Probe, { admitted: true })) })
-        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        await act(async () => { latest.position.setValue('G') })
-        const before = mocks.searchPlayers.mock.calls.length
-        await act(async () => { renderer.update(React.createElement(Probe, { admitted: false })) })
-        expect(latest.results.players.map(row => row.id)).toEqual(['current'])
-        expect(latest.results.isSnapshot).toBe(true)
-        await act(async () => { renderer.update(React.createElement(Probe, { admitted: true })) })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(before)
-        expect(latest.position.value).toBe('G')
-    } finally { await act(async () => { renderer.unmount() }) }
+it('loads rookies one page at a time through the server filter', async () => {
+    await h.render(); boundary.read.mockResolvedValueOnce(searchPayload(['rookie'], true)).mockResolvedValueOnce(searchPayload(['last']))
+    await act(async () => { h.latest.toggles.setRookiesOnly(true) })
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['rookie'])
+    await act(async () => { await h.latest.results.loadMore() })
+    expect(boundary.read.mock.calls.at(-1)?.[0].params).toMatchObject({ rookiesOnly: true, offset: 1 })
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['rookie', 'last'])
 })
-
-it('joins a covered source refresh and follows a changed source without certifying the held old result', async () => {
-    const { setLeagueChangesConnected, notifyLeagueChange } = await import('@/lib/league-changes')
-    setLeagueChangesConnected('league', true)
-    notifyLeagueChange('league', { topic: 'catchup', scopes: null })
-    const first = deferred<ReturnType<typeof player>[]>()
-    mocks.searchPlayers.mockReturnValueOnce(first.promise).mockResolvedValue([player('new')])
-    const owned = new Map(), waivers = new Set<string>()
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => { latest.results.refreshIfChanged() })
-        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        notifyLeagueChange('league', { topic: 'resources', scopes: null })
-        await act(async () => { first.resolve([player('old')]) })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        expect(latest.results.players.map(row => row.id)).toEqual(['new'])
-        expect(latest.results.isSnapshot).toBe(false)
-        await act(async () => { latest.results.refreshIfChanged(); latest.results.refreshIfChanged() })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-    } finally { await act(async () => { renderer.unmount() }); setLeagueChangesConnected('league', false) }
+it('marks an unread empty search pending until its view arrives', async () => {
+    const next = held<ReturnType<typeof searchPayload>>()
+    boundary.read.mockReturnValueOnce(next.promise)
+    await h.render()
+    expect(h.latest.results.loading).toBe(true)
+    expect(h.latest.results.isSnapshot).toBe(true)
+    await act(async () => next.resolve(searchPayload([])))
+    expect(h.latest.results.loading).toBe(false)
+    expect(h.latest.results.isSnapshot).toBe(false)
 })
-
-
-describe('automatic player average season', () => {
-    it('does not poll when Auto already returns the current season', async () => {
-        vi.useFakeTimers()
-        const owned = new Map()
-        const waivers = new Set<string>()
-        mocks.searchPlayers.mockReset().mockResolvedValue([{ ...player('current'), stats_season_year: 2027 }])
-        const Probe = () => { usePlayerSearch('league', owned, waivers, 'member'); return null }
-        let renderer!: ReactTestRenderer
-        try {
-            await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-            expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-            await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
-            expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        } finally { await act(async () => { renderer.unmount() }) }
-    })
-
-    it('stops polling when Auto switches from the fallback to the current season', async () => {
-        vi.useFakeTimers()
-        const owned = new Map()
-        const waivers = new Set<string>()
-        let latest!: ReturnType<typeof usePlayerSearch>
-        mocks.searchPlayers.mockReset()
-            .mockResolvedValueOnce([{ ...player('prior'), stats_season_year: 2026 }])
-            .mockResolvedValue([{ ...player('current'), stats_season_year: 2027 }])
-        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-        let renderer!: ReactTestRenderer
-        try {
-            await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-            expect(latest.results.players[0].stats_season_year).toBe(2026)
-            await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-            expect(latest.results.players[0].stats_season_year).toBe(2027)
-            expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-            await act(async () => { await vi.advanceTimersByTimeAsync(180_000) })
-            expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        } finally { await act(async () => { renderer.unmount() }) }
-    })
-
-    it('refreshes an active automatic search after play begins and keeps explicit seasons fixed', async () => {
-        vi.useFakeTimers()
-        const owned = new Map()
-        const waivers = new Set<string>()
-        let latest!: ReturnType<typeof usePlayerSearch>
-        mocks.searchPlayers.mockReset().mockResolvedValueOnce([{ ...player('prior'), stats_season_year: 2026 }])
-            .mockResolvedValue([{ ...player('current'), stats_season_year: 2027 }])
-        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        expect(latest.results.players[0].stats_season_year).toBe(2026)
-        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(latest.results.players[0].stats_season_year).toBe(2027)
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        await act(async () => { latest.season.setValue(2026); await Promise.resolve() })
-        const calls = mocks.searchPlayers.mock.calls.length
-        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(calls)
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('replaces the first page when the chosen season changes during pagination', async () => {
-        const owned = new Map()
-        const waivers = new Set<string>()
-        let latest!: ReturnType<typeof usePlayerSearch>
-        mocks.searchPlayers.mockReset()
-            .mockResolvedValueOnce(Array.from({ length: 20 }, (_, i) => ({ ...player(`prior-${i}`), stats_season_year: 2026 })))
-            .mockResolvedValueOnce([{ ...player('next-page-current'), stats_season_year: 2027 }])
-            .mockResolvedValueOnce([{ ...player('current-first'), stats_season_year: 2027 }])
-        const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)); await Promise.resolve() })
-        await act(async () => { await latest.results.loadMore(); await Promise.resolve() })
-        expect(latest.results.players.map(row => row.id)).toEqual(['current-first'])
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-    })
+it('does not certify an old empty result while typed text waits for debounce', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    boundary.read.mockResolvedValue(searchPayload([])); await h.render()
+    await act(async () => { h.latest.search.setQuery('new name') })
+    expect(h.latest.results.isSnapshot).toBe(true)
+    expect(boundary.read).toHaveBeenCalledOnce()
+    await act(async () => { await vi.advanceTimersByTimeAsync(250) })
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.query).toBe('new name')
 })
-
-it('keeps scrolled fallback rows and the next offset when the minute probe finds the same season', async () => {
-    vi.useFakeTimers()
-    const owned = new Map(), waivers = new Set<string>()
-    const page = (offset: number) => Array.from({ length: 20 }, (_, i) => ({ ...player(`prior-${offset + i}`), stats_season_year: 2026 }))
-    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => Promise.resolve(page(args[6] as number)))
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => { await latest.results.loadMore() })
-        const rows = latest.results.players
-        expect(rows).toHaveLength(40)
-        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(latest.results.players).toBe(rows)
-        expect(mocks.searchPlayers.mock.calls.at(-1)?.[6]).toBe(0)
-        await act(async () => { await latest.results.loadMore() })
-        expect(mocks.searchPlayers.mock.calls.at(-1)?.[6]).toBe(40)
-    } finally { await act(async () => renderer.unmount()) }
+it('exposes a failed next page, keeps existing rows, and retries the current search', async () => {
+    boundary.read.mockResolvedValueOnce(searchPayload(['first'], true)).mockRejectedValueOnce(new Error('page unavailable')).mockResolvedValue(searchPayload(['retried']))
+    await h.render(); await act(async () => { await h.latest.results.loadMore() })
+    expect(h.latest.results.error?.message).toBe('page unavailable')
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['first'])
+    await act(async () => { h.latest.results.retry() })
+    expect(h.latest.results.error).toBeNull()
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['retried'])
 })
-
-it('loads rookies one page at a time', async () => {
-    const owned = new Map(), waivers = new Set<string>()
-    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => Promise.resolve(Array.from({ length: 20 }, (_, i) => player(`${args[6]}-${i}`))))
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', owned, waivers, 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        mocks.searchPlayers.mockClear()
-        await act(async () => latest.toggles.setRookiesOnly(true))
-        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        expect(latest.results.players).toHaveLength(20)
-        await act(async () => { await latest.results.loadMore() })
-        expect(latest.results.players).toHaveLength(40)
-    } finally { await act(async () => renderer.unmount()) }
+it('sends availability and playing filters to the server on every page', async () => {
+    await h.render(); boundary.read.mockResolvedValue(searchPayload(['free'], true))
+    await act(async () => { h.latest.playing.setValue('today'); h.latest.availabilityFilter.setValue('free_agents') })
+    await act(async () => { await h.latest.results.loadMore() })
+    expect(boundary.read.mock.calls.at(-1)?.[0].params).toMatchObject({ playing: 'today', availability: 'free_agents', offset: 1 })
 })
-
-it('marks an empty search pending while availability admission is held', async () => {
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member', { admitted: false }); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(latest.results.players).toEqual([])
-        expect(latest.results.loading).toBe(true)
-    } finally { await act(async () => renderer.unmount()) }
+it('surfaces a required schedule failure and retries the complete filtered view', async () => {
+    await h.render(); boundary.read.mockRejectedValueOnce(new Error('schedule unavailable'))
+    await act(async () => { h.latest.playing.setValue('today') })
+    expect(h.latest.results.error?.message).toBe('schedule unavailable')
+    expect(h.latest.results.isSnapshot).toBe(true)
+    await act(async () => { h.latest.results.retry() })
+    expect(h.latest.results.error).toBeNull()
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.playing).toBe('today')
 })
-
-it('does not certify an old empty result while a typed query waits for debounce', async () => {
-    mocks.searchPlayers.mockReset().mockResolvedValue([])
-    mocks.debounced = ''
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(latest.results.isSnapshot).toBe(false)
-        await act(async () => latest.search.setQuery('Available Player'))
-        expect(latest.results.loading).toBe(true)
-        expect(latest.results.isSnapshot).toBe(true)
-    } finally { await act(async () => renderer.unmount()) }
+it('finds a newly freed player after an ownership version', async () => {
+    boundary.read.mockResolvedValueOnce(searchPayload([])).mockResolvedValue(searchPayload(['free-now']))
+    await h.render(); await act(async () => bumpView('league', 'roster'))
+    expect(h.latest.results.players.map(row => row.id)).toEqual(['free-now'])
 })
-
-it('marks a cached empty page pending on the first render when switching back to it', async () => {
-    mocks.searchPlayers.mockReset().mockResolvedValueOnce([]).mockResolvedValueOnce([player('guard')]).mockReturnValue(new Promise(() => {}))
-    const frames: { loading: boolean; snapshot: boolean; count: number }[] = []
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => {
-        latest = usePlayerSearch('league', new Map(), new Set(), 'member')
-        frames.push({ loading: latest.results.loading, snapshot: latest.results.isSnapshot, count: latest.results.players.length })
-        return null
-    }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => latest.position.setValue('PG'))
-        frames.length = 0
-        await act(async () => latest.position.setValue('ALL'))
-        const pendingFrames = frames.filter(frame => frame.snapshot && frame.count === 0)
-        expect(pendingFrames.length).toBeGreaterThan(0)
-        expect(pendingFrames.every(frame => frame.loading)).toBe(true)
-    } finally { await act(async () => renderer.unmount()) }
-})
-
-it('exposes a failed next page and lets Retry fetch the current search again', async () => {
-    mocks.searchPlayers.mockReset().mockResolvedValueOnce(Array.from({ length: 20 }, (_, index) => player(`free-${index}`)))
-        .mockRejectedValueOnce(new Error('next page unavailable')).mockResolvedValueOnce([player('retried')])
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => latest.results.loadMore())
-        expect(latest.results.error?.message).toBe('next page unavailable')
-        expect(latest.results.players).toHaveLength(20)
-        await act(async () => latest.results.retry())
-        expect(latest.results.error).toBeNull()
-        expect(latest.results.players[0].id).toBe('retried')
-    } finally { await act(async () => renderer.unmount()) }
-})
-
-it('asks the server to exclude occupied players before taking each page', async () => {
-    const occupied = Array.from({ length: 20 }, (_, index) => player(`owned-${index}`))
-    const available = Array.from({ length: 21 }, (_, index) => player(`free-${index}`))
-    const owned = new Map(occupied.map(row => [row.id, { memberId: 'other', teamName: 'Other' }]))
-    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => {
-        const excluded = new Set((args[8] as { excludePlayerIds: string[] }).excludePlayerIds)
-        const offset = args[6] as number
-        return Promise.resolve([...occupied, ...available].filter(row => !excluded.has(row.id)).slice(offset, offset + 20))
-    })
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', owned, new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(latest.results.players).toHaveLength(20)
-        expect(latest.results.players.every(row => row.id.startsWith('free-'))).toBe(true)
-        await act(async () => latest.results.loadMore())
-        expect(latest.results.players).toHaveLength(21)
-        await act(async () => latest.results.loadMore())
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        expect(mocks.searchPlayers.mock.calls.map(args => args[6])).toEqual([0, 20])
-    } finally { await act(async () => renderer.unmount()) }
-})
-
-it('does not query an empty playing-team scope while the required schedule is pending or failed', async () => {
-    const schedule = deferred<WeekDay[]>()
-    mocks.getWeekDays.mockReturnValue(schedule.promise)
-    mocks.searchPlayers.mockReset().mockResolvedValue([])
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => latest.playing.setValue('today'))
-        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        expect(latest.results.loading).toBe(true)
-        schedule.resolve([{ date: '2026-10-20', dayLabel: 'Tue', dateNum: 20, hasGames: true, isToday: true, playingTeams: ['BOS'] }])
-        await act(async () => { await schedule.promise })
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        expect(mocks.searchPlayers.mock.calls.at(-1)?.[4]).toEqual(['BOS'])
-    } finally { await act(async () => renderer.unmount()) }
-})
-
-it('surfaces a required schedule failure and retries it before searching', async () => {
-    mocks.getWeekDays.mockRejectedValueOnce(new Error('schedule unavailable'))
-    mocks.searchPlayers.mockReset().mockResolvedValue([])
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        await act(async () => latest.playing.setValue('today'))
-        expect(latest.results.error?.message).toBe('schedule unavailable')
-        expect(mocks.searchPlayers).toHaveBeenCalledOnce()
-        mocks.getWeekDays.mockResolvedValue([{ date: '2026-10-20', dayLabel: 'Tue', dateNum: 20, hasGames: true, isToday: true, playingTeams: ['BOS'] }])
-        await act(async () => latest.results.retry())
-        expect(mocks.getWeekDays).toHaveBeenCalledTimes(2)
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-        expect(latest.results.error).toBeNull()
-    } finally { await act(async () => renderer.unmount()) }
-})
-
-it('finds a newly freed player after ownership changes instead of keeping the cached empty page', async () => {
-    let owned = new Map([['free-now', { memberId: 'other', teamName: 'Other' }]])
-    mocks.searchPlayers.mockReset().mockImplementation((...args: unknown[]) => Promise.resolve(
-        (args[8] as { excludePlayerIds: string[] }).excludePlayerIds.includes('free-now') ? [] : [player('free-now')],
-    ))
-    let latest!: ReturnType<typeof usePlayerSearch>
-    const Probe = () => { latest = usePlayerSearch('league', owned, new Set(), 'member'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(latest.results.players).toEqual([])
-        await act(async () => { owned = new Map(); renderer.update(React.createElement(Probe)) })
-        expect(latest.results.players.map(row => row.id)).toEqual(['free-now'])
-        expect(mocks.searchPlayers).toHaveBeenCalledTimes(2)
-    } finally { await act(async () => renderer.unmount()) }
+it.each(['position', 'health', 'teams', 'sort'])('retains the %s filter through a reconnect', async filter => {
+    await h.render()
+    await act(async () => { if (filter === 'position') h.latest.position.setValue('C'); if (filter === 'health') h.latest.health.setValue('healthy'); if (filter === 'teams') h.latest.teamPicker.setSelectedTeams(['BOS']); if (filter === 'sort') h.latest.sort.setDir('asc') })
+    const params = boundary.read.mock.calls.at(-1)?.[0].params
+    boundary.online = false; await h.render(); boundary.online = true; await h.render()
+    await act(async () => { window.dispatchEvent(new Event('online')); bumpView() })
+    expect(boundary.read.mock.calls.at(-1)?.[0].params).toEqual(params)
 })

@@ -1,3 +1,4 @@
+import { ListHeader } from '@/components/ui/ListHeader'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, StyleSheet } from 'react-native'
@@ -94,7 +95,6 @@ function PicksBankRow({
         >
             <Text
                 style={[styles.picksBankRound, compact && styles.picksBankRoundCompact, mine && tableStyles.textMe]}
-                numberOfLines={1}
             >
                 {compact ? `${draftYear(pick.seasonYear)} R${pick.round}` : `R${pick.round}`}
             </Text>
@@ -112,11 +112,11 @@ function PicksBankRow({
 
 function PicksBankColumns({ padX, compact }: { padX: number; compact: boolean }) {
     return (
-        <View style={[styles.picksBankHeader, { paddingHorizontal: padX }]}>
+        <ListHeader style={{ paddingHorizontal: padX }}>
             <Text style={[textStyles.tableHeader, styles.picksBankHeaderRound, compact && styles.picksBankRoundCompact]} numberOfLines={1} accessibilityLabel="Draft round">{compact ? 'Pick' : 'Round'}</Text>
             <Text style={[textStyles.tableHeader, styles.picksBankHeaderFrom]} accessibilityLabel="Original team">From</Text>
             <Text style={[textStyles.tableHeader, styles.picksBankHeaderOwner]} accessibilityLabel="Current owner">Owner</Text>
-        </View>
+        </ListHeader>
     )
 }
 
@@ -440,13 +440,6 @@ export function PicksBankList({
 
 const styles = StyleSheet.create({
     column: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
-    picksBankHeader: {
-        minHeight: table.headerHeight,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
     picksBankHeaderRound: { width: 56 },
     picksBankHeaderFrom: { flex: 1, marginLeft: spacing.lg },
     // Owner takes only the width its name needs (at most 45%); From gets the rest.

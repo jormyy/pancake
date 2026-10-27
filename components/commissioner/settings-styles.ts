@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
 
 export const styles = StyleSheet.create({
     // Screens add the page's side padding from usePageMetrics().
@@ -81,7 +81,7 @@ export const styles = StyleSheet.create({
     // 16px keeps iOS Safari from zooming the page when a field is focused.
     scoreInput: {
         width: 72,
-        minHeight: 40,
+        minHeight: controlSize.field.md,
         textAlign: 'right',
         fontSize: fontSize.lg,
         fontWeight: fontWeight.semibold,

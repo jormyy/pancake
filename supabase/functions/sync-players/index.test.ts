@@ -39,7 +39,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       const team = url.pathname.match(/^\/teams\/(\d+)\/roster$/)?.[1]
       if (team) return Response.json({ athletes: Array.from({ length: 12 }, (_, index) => ({
         id: `${team}-${index}`, firstName: `Team${team}`, lastName: `Player${index}`,
-        experience: { years: 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
+        experience: { years: 1 }, dateOfBirth: '1998-09-02T07:00Z', position: { abbreviation: 'PG' }, status: { type: 'active' },
       })) })
       if (url.pathname === '/injuries') return Response.json(injuries, { status: injuryStatus })
       if (url.pathname === '/news') { elapsed = earlierWorkMs; return Response.json({ articles: [] }) }
@@ -86,6 +86,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
 Deno.test('sync-players with the old injuries mode runs every full-sync step', async () => {
   const result = await sync({ mode: 'injuries' })
   assert.equal(result.response.status, 200)
+  assert.ok(result.imports.every(row => row.metadata.birthdate === '1998-09-02'))
   assert.equal(result.imports.length, 360)
   assert.equal(result.result.updated, 360)
   assert.equal(result.result.careerUnverified, 1)

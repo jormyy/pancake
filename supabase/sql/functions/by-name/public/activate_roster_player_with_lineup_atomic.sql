@@ -20,6 +20,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.activate_roster_player_with_lineup_atomic', jsonb_build_array(p_activate_roster_player_id, p_activate_source, p_free_roster_player_id, p_free_action, p_member_id, p_league_id, p_league_season_id, p_game_date, p_week_number, p_slot_type), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_user_id uuid := auth.uid();
   v_activate_player_id uuid;
 BEGIN
@@ -103,5 +109,8 @@ BEGIN
       p_week_number
     );
   END IF;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

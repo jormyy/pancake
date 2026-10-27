@@ -3,16 +3,28 @@ import { strict as assert } from 'node:assert'
 Deno.test('request-scoped deadlines and lease headers', async t => {
 const database = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async req => {
   await new Promise(resolve => setTimeout(resolve, 10))
-  return Response.json({ holder: req.headers.get('x-pancake-live-holder') })
+  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor') })
 })
 const external = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, req => {
   if (new URL(req.url).pathname === '/body') return new Response(new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{')) } }))
-  return Response.json({ holder: req.headers.get('x-pancake-live-holder') })
+  return Response.json({ holder: req.headers.get('x-pancake-live-holder'), requestId: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor') })
 })
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${database.addr.port}`)
 const { withWorkContext, withoutWorkContext, workFetch } = await import('./workContext.ts')
 
 try {
+await t.step('concurrent mutations keep their verified actors and do not send identity upstream', async () => {
+  const { setRequestActor } = await import('./workContext.ts')
+  const actions = [1, 2].map(() => ({ requestId: crypto.randomUUID(), actor: crypto.randomUUID() }))
+  const results = await Promise.all(actions.map(action => withWorkContext({ signal: AbortSignal.timeout(5000), requestId: action.requestId }, async () => {
+    setRequestActor(action.actor)
+    const db = await (await workFetch(`http://127.0.0.1:${database.addr.port}/rest/v1/rpc/reorder_waiver_claim_atomic`)).json()
+    const upstream = await (await workFetch(`http://127.0.0.1:${external.addr.port}`, { headers: { 'x-request-id': action.requestId, 'x-request-actor': action.actor } })).json()
+    return { requestId: db.requestId, actor: db.actor, upstream }
+  })))
+  assert.deepEqual(results, actions.map(action => ({ ...action, upstream: { holder: null, requestId: null, actor: null } })))
+})
+
 await t.step('concurrent work contexts keep their lease identity and do not send it upstream', async () => {
   const holders = [crypto.randomUUID(), crypto.randomUUID()]
   const results = await Promise.all(holders.map(holder => withWorkContext({ signal: AbortSignal.timeout(5000), livePollHolder: holder }, async () => {

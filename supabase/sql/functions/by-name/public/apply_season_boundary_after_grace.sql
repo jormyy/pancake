@@ -29,7 +29,7 @@ BEGIN
     RAISE EXCEPTION 'Invalid automatic season boundary request.' USING ERRCODE = '22023';
   END IF;
   PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
-  SELECT COALESCE(season.playoff_start_week, league.playoff_start_week, 20), season.season_year INTO v_start, v_year
+  SELECT COALESCE(season.playoff_start_week, league.playoff_start_week), season.season_year INTO v_start, v_year
     FROM public.league_seasons season JOIN public.leagues league ON league.id = season.league_id
     WHERE season.id = p_league_season_id AND season.league_id = p_league_id AND season.is_current
     FOR UPDATE OF season;

@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { seasonWeekRows } from './harness/season-calendar.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 export const EXPECTED_DEFAULT_LINEUP_SLOTS = {
   PG: 1, SG: 1, SF: 1, PF: 1, C: 1, G: 1, F: 1, UTIL: 3, BE: 10, IR: 2,
 }
@@ -153,7 +155,7 @@ export const createDisposableLeagueFromSeedUsers = async ({
 
 export const signInSupabaseClient = async (env, email, password, label) => {
   if (!env.anonKey) throw new Error(`${label}: requires a Supabase publishable key`)
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`${label}: sign-in failed for ${email}: ${error.message}`)
   return client

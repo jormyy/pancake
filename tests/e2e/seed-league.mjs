@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import { resolvedEnv, requireEnv } from './env.mjs'
 import { createScenarioResourceOwner } from './scenario-resource-owner.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const REPORT_PATH = path.join(ROOT, 'tests/e2e-seed-report.md')
 const STATE_PATH = path.join(ROOT, 'tests/e2e-state.json')
@@ -190,8 +192,8 @@ const createConfirmedUser = async (admin, user) => {
   return data.user
 }
 
-const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+export const signInClient = async (env, email, password) => {
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client

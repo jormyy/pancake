@@ -1,6 +1,7 @@
+import { boundary } from '../helpers/screen-view-boundary'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Trade } from '@/lib/trades'
 
 // Round-3 #25 / round-4 #2 and #6: add/remove and load-more failures are not
@@ -28,6 +29,12 @@ vi.mock('@/lib/trades', () => ({
 vi.mock('@/lib/roster', () => ({ getRoster: mocks.getRoster }))
 vi.mock('@/lib/roster-stats', () => ({ EMPTY_AVG_MAP: new Map(), EMPTY_STATS_MAP: new Map(), getRosterStatsMaps: vi.fn(async () => ({ avgMap: new Map(), avgStatsMap: new Map() })) }))
 vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writePersistentCache: vi.fn() }))
+
+beforeEach(() => {
+    boundary.read.mockImplementation(async scope => scope.screen === 'trade-block'
+        ? { roster: [], picks: [], claims: [], items: [], avgMap: {}, avgStatsMap: {}, slotPlan: { slots: [], assignments: {} } }
+        : await mocks.getTradesForScreen())
+})
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const flush = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve() }) }

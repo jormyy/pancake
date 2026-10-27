@@ -1,19 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StackRouter } from '@react-navigation/native'
-import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native'
+import { ComponentProps, type PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native'
 import { createPortal } from 'react-dom'
 import { Link, Navigator, useGlobalSearchParams, usePathname, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
-import { useAuth } from '@/hooks/use-auth'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
-import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
-import { getProfile, suspendProfileRead } from '@/lib/auth'
-import { listenForProfileUpdates } from '@/lib/profile-updates'
 import { useBootShellHandoff } from '@/hooks/use-boot-shell-handoff'
-import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
-import { Avatar } from '@/components/Avatar'
-import { brand, breakpoints, colors, controlSize, layout, spacing, themeVariablesCss } from '@/constants/tokens'
+import { brand, breakpoints, colors, controlSize, spacing, themeVariablesCss } from '@/constants/tokens'
 import { hasShellBackHeader, SHELL_SECTION_CHILDREN } from '@/constants/navigation'
 import { Sheet } from '@/components/ui/Sheet'
 import { styles } from './webTabShellStyles'
@@ -34,7 +28,7 @@ const MOBILE_NAV: { label: string; href: RouteHref; icon: IconName }[] = [
 ]
 
 const MOBILE_LABELS: Record<RouteHref, string> = {
-    '/': 'Matchup',
+    '/': 'Home',
     '/players': 'Players',
     '/roster': 'Roster',
     '/trades': 'Trades',
@@ -49,6 +43,7 @@ const SECTION_TITLES: { label: string; href: RouteHref }[] = [
 
 // Pages opened on top of a section name themselves in the browser tab.
 const PAGE_TITLES: { prefix: string; label: string }[] = [
+    { prefix: '/timeline', label: 'Season timeline' },
     { prefix: '/lineup', label: 'Lineup' },
     { prefix: '/claim-player', label: 'Waiver Claim' },
     { prefix: '/propose-trade', label: 'Propose Trade' },
@@ -93,6 +88,7 @@ function tradesNavLabel(label: string, pendingCount: number) {
 
 // Screens opened on top of a section keep that section lit in the navigation.
 function isRouteActive(pathname: string, href: RouteHref) {
+    if (href === '/league' && ['/profile', '/notification-settings', '/change-password', '/create-league', '/join-league', '/draft', '/rookie-draft-room', '/bracket', '/commissioner-settings', '/timeline'].some(route => pathname === route || pathname.startsWith(`${route}/`))) return true
     if ((SHELL_SECTION_CHILDREN[href] ?? []).some((prefix) => pathname.startsWith(prefix))) return true
     if (href === '/') return pathname === '/' || pathname === '' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index'
     return pathname.startsWith(href)
@@ -245,7 +241,7 @@ function LeagueSwitcher({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
                 aria-expanded={open}
             >
                 <View style={styles.flex1}>
-                    <Text style={nameStyle} numberOfLines={light ? 1 : 2} ellipsizeMode="tail">{currentLeagueName}</Text>
+                    <Text style={nameStyle}>{currentLeagueName}</Text>
                     {light ? null : (
                         <Text style={metaStyle} numberOfLines={1} ellipsizeMode="clip">{currentTeamName}</Text>
                     )}
@@ -377,49 +373,9 @@ function SidebarNavButton({
     return href ? <Link href={href} dismissTo asChild>{button}</Link> : button
 }
 
-// Pages opened from Profile keep it marked as the current place.
-const PROFILE_ROUTES = ['/notification-settings', '/profile', '/change-password', '/create-league', '/join-league']
-function isProfileRoute(pathname: string) {
-    return PROFILE_ROUTES.some((route) => pathname.startsWith(route))
-}
-
 function WebSidebar() {
     const pathname = usePathname()
-    const profileActive = isProfileRoute(pathname)
-    const router = useRouter()
-    const { current, currentLeague, isCommissioner } = useLeagueContext()
-    const { user } = useAuth()
-    const { openDraftRoom, draftLoading } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
     const pendingTradeCount = usePendingTradeCount()
-    const [avatar, setAvatar] = useState<{ owner: string; uri: string | null } | null>(null)
-    const avatarUrl = avatar?.owner === user?.id ? avatar?.uri ?? null : null
-
-    // Keyed on the id: sign-in and token refreshes replace the user object
-    // several times, and each replacement re-read the same profile.
-    const userId = user?.id
-    const profileActivity = useBrowserReadActivity()
-    useEffect(() => {
-        if (!userId) return
-        if (!profileActivity.active) suspendProfileRead(userId)
-        let cancelled = false
-        let updated = false
-        const stop = listenForProfileUpdates(userId, update => {
-            if (update.avatar_url === undefined) return
-            updated = true
-            setAvatar({ owner: userId, uri: update.avatar_url })
-        })
-        if (profileActivity.active) getProfile(userId, { force: profileActivity.revision > 0 })
-            .then((profile) => {
-                if (!cancelled && !updated) setAvatar({ owner: userId, uri: profile.avatar_url ?? null })
-            })
-            .catch((error) => {
-                if (!cancelled) console.error('Could not load sidebar profile', error)
-            })
-        return () => {
-            cancelled = true
-            stop()
-        }
-    }, [userId, profileActivity.active, profileActivity.revision])
 
     return (
         <View style={styles.sidebar} role="navigation" aria-label="Primary">
@@ -437,12 +393,12 @@ function WebSidebar() {
                         return (
                             <SidebarNavButton
                                 key={item.href}
-                                label={item.label}
+                                label={item.href === '/' ? 'Home' : item.label}
                                 icon={item.icon}
                                 active={isRouteActive(pathname, item.href)}
                                 href={item.href as ComponentProps<typeof Link>['href']}
                                 badge={isTrades ? pendingTradeCount : undefined}
-                                accessibilityLabel={isTrades ? tradesNavLabel(item.label, pendingTradeCount) : undefined}
+                                accessibilityLabel={isTrades ? tradesNavLabel(item.label, pendingTradeCount) : item.label}
                             />
                         )
                     })}
@@ -457,64 +413,20 @@ function WebSidebar() {
                     />
                 </View>
 
-                <View style={styles.navDivider} aria-hidden />
-                <View style={styles.navGroup}>
-                    <SidebarNavButton
-                        label="Draft Room"
-                        icon="flash-on"
-                        onPress={openDraftRoom}
-                        loading={draftLoading}
-                        active={pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room')}
-                    />
-                    <SidebarNavButton label="Playoffs" icon="account-tree" onPress={() => router.push('/(modals)/bracket')} active={pathname.startsWith('/bracket')} />
-                    <View style={styles.commissionerSlot}>
-                        {isCommissioner ? (
-                            <SidebarNavButton
-                                label="Commissioner"
-                                icon="admin-panel-settings"
-                                onPress={() => router.push('/(modals)/commissioner-settings')}
-                                active={pathname.startsWith('/commissioner-settings')}
-                            />
-                        ) : null}
-                    </View>
-                </View>
             </ScrollView>
-
-            <View style={styles.sidebarFooter}>
-                <Pressable
-                    onPress={() => router.dismissTo('/profile')}
-                    style={({ hovered, pressed }: PressableState) => [
-                        styles.userChip,
-                        hovered && !profileActive && styles.userChipHover,
-                        profileActive && styles.userChipActive,
-                        pressed && styles.pressed,
-                    ]}
-                    accessibilityRole="button"
-                    accessibilityLabel="Profile & settings"
-                    accessibilityState={{ selected: profileActive }}
-                    {...(profileActive ? ARIA_CURRENT_PAGE : null)}
-                >
-                    <Avatar
-                        name={current?.team_name ?? user?.email ?? 'P'}
-                        size={layout.shell.crestSize}
-                        uri={avatarUrl}
-                        color={profileActive ? colors.primaryHover : colors.primary}
-                        textColor={colors.textWhite}
-                    />
-                    <View style={styles.flex1}>
-                        <Text style={[styles.userName, profileActive && styles.userTextActive]} numberOfLines={1}>{current?.team_name ?? 'Profile'}</Text>
-                        <Text style={[styles.userMeta, profileActive && styles.userTextActive]} numberOfLines={1}>Profile & settings</Text>
-                    </View>
-                    <MaterialIcons name="settings" size={controlSize.icon.sm} color={profileActive ? brand.on : brand.onSubtle} />
-                </Pressable>
-            </View>
         </View>
     )
 }
 
 function MobileTopBar({ onMenuPress }: { onMenuPress: () => void }) {
+    useEffect(() => () => {
+        if (typeof document !== 'undefined') document.documentElement.style.removeProperty('--pancake-mobile-topbar-height')
+    }, [])
+    const measure = (event: LayoutChangeEvent) => {
+        if (typeof document !== 'undefined') document.documentElement.style.setProperty('--pancake-mobile-topbar-height', `${event.nativeEvent.layout.height}px`)
+    }
     return (
-        <View style={styles.mobileTopbar} testID="mobile-topbar">
+        <View style={styles.mobileTopbar} onLayout={measure} testID="mobile-topbar">
             <BrandMark compact />
             <View style={styles.mobileLeagueWrap}>
                 <LeagueSwitcher tone="light" />
@@ -569,28 +481,8 @@ function MobileBottomNav() {
 
 function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const router = useRouter()
-    const pathname = usePathname()
-    const { currentLeague, isCommissioner } = useLeagueContext()
-    const { openDraftRoom, draftLoading, draft, draftChecked, draftError } = useDraftRoomLauncher(currentLeague?.id, { notifyOnError: true })
-    const showDraftRoom = !draftChecked || Boolean(draft) || Boolean(draftError)
-    // League sub-tabs are reachable from the League tab's own pill bar — the
-    // sheet only carries destinations the bottom bar doesn't already cover.
-    const menuItems = useMemo(
-        () => [
-            ...(showDraftRoom ? [{
-                key: 'draft-room', label: 'Draft Room', icon: 'flash-on' as IconName, onPress: openDraftRoom, loading: draftLoading,
-                active: pathname.startsWith('/draft') || pathname.startsWith('/rookie-draft-room'),
-            }] : []),
-            ...(isCommissioner
-                ? [{
-                    key: 'commissioner', label: 'Commissioner', icon: 'admin-panel-settings' as IconName,
-                    onPress: () => router.push('/(modals)/commissioner-settings'), active: pathname.startsWith('/commissioner-settings'),
-                }]
-                : []),
-            { key: 'profile', label: 'Profile & settings', icon: 'settings' as IconName, onPress: () => router.dismissTo('/profile'), active: isProfileRoute(pathname) },
-        ],
-        [draftLoading, isCommissioner, openDraftRoom, pathname, router, showDraftRoom],
-    )
+    const menuItems = [{ key: 'league', label: 'League', icon: 'emoji-events' as IconName,
+        onPress: () => router.dismissTo('/league'), active: false, loading: false }]
 
     return (
         <Sheet visible={visible} accessibilityLabel="Menu" onClose={onClose}>
@@ -622,7 +514,7 @@ export function WebAppShell({ children, chrome = true }: PropsWithChildren<{ chr
     const compact = width < breakpoints.compact
     const pathname = usePathname()
     const params = useGlobalSearchParams<{ tradeId?: string | string[] }>()
-    const backHeader = hasShellBackHeader(pathname, params)
+    const backHeader = hasShellBackHeader(pathname, params) || pathname === '/timeline'
     usePancakeWebTheme()
     useDocumentTitle()
     // Swap the static boot shell for this one before the first paint.

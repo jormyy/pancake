@@ -61,19 +61,9 @@ export async function updateNotificationPreferences(
     preferences: NotificationPreferences,
 ): Promise<void> {
     return withPwaMutation('updateNotificationPreferences', async () => {
-        const { error } = await supabase
-            .from('notification_preferences')
-            .upsert({
-                user_id: userId,
-                trade_enabled: preferences.tradeEnabled,
-                waiver_enabled: preferences.waiverEnabled,
-                draft_enabled: preferences.draftEnabled,
-                activity_enabled: preferences.activityEnabled,
-                master_enabled: preferences.masterEnabled ?? true,
-                category_settings: preferences.categories ?? {},
-                event_settings: preferences.events ?? {},
-                updated_at: new Date().toISOString(),
-            })
+        const { error } = await supabase.rpc('save_client_settings_atomic', {
+            p_kind: 'notifications', p_settings: { userId, ...preferences },
+        })
         if (error) throw error
     })
 }

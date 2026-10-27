@@ -1,3 +1,5 @@
+import { useLocalSearchParams, useRouter } from 'expo-router'
+import { LeagueHome } from '@/components/navigation/LeagueHome'
 import { ScreenStatusOverlay, ScreenStatusProvider } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { View, Text, StyleSheet } from 'react-native'
@@ -20,6 +22,7 @@ const LEAGUE_TAB_LABELS = Object.fromEntries(
 
 function LeagueScreen() {
     const screen = useLeagueScreenState()
+    const router = useRouter()
     const activePanelId = `league-panel-${screen.tab}`
     const activeTabId = `league-tab-${screen.tab}`
     const activeTabLabel = LEAGUE_TAB_LABELS[screen.tab]
@@ -151,6 +154,7 @@ function LeagueScreen() {
     // leads with its sections.
     return (
         <Page title="League">
+            <PageHeader title="League" onBack={() => router.dismissTo('/league')} backLabel="Back to League" compact />
             <PageHeader
                 tabs={(
                     <SegmentedControl
@@ -204,5 +208,6 @@ const styles = StyleSheet.create({
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 export default function LeagueScreenWithStatus() {
-    return <ScreenStatusProvider><LeagueScreen /></ScreenStatusProvider>
+    const { tab } = useLocalSearchParams<{ tab?: string }>()
+    return tab ? <ScreenStatusProvider><LeagueScreen /></ScreenStatusProvider> : <LeagueHome />
 }

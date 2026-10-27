@@ -3,6 +3,13 @@ CREATE OR REPLACE FUNCTION public.submit_trade_offer_atomic(
 )
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result uuid;
+BEGIN
+  __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
+  <<request_write>>
+DECLARE
   v_member_league uuid;
   v_multi boolean;
   v_league uuid;
@@ -92,7 +99,7 @@ BEGIN
   IF v_receipt.member_id IS DISTINCT FROM p_member_id OR v_receipt.request_payload IS DISTINCT FROM v_envelope THEN
     RAISE EXCEPTION 'This request key already belongs to different trade terms.' USING ERRCODE='22023';
   END IF;
-  IF v_receipt.completed THEN RETURN v_receipt.result_trade_id; END IF;
+  IF v_receipt.completed THEN __request_result := v_receipt.result_trade_id; EXIT request_write; END IF;
   IF v_inserted=0 THEN
     RAISE EXCEPTION 'This trade request has no completed receipt.' USING ERRCODE='55000';
   END IF;
@@ -128,6 +135,9 @@ BEGIN
   END IF;
   UPDATE private.trade_offer_requests SET completed=true,result_trade_id=v_result
     WHERE user_id=p_user_id AND request_id=p_request_id;
-  RETURN v_result;
+  __request_result := v_result; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

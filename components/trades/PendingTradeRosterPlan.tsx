@@ -1,6 +1,8 @@
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
 import { useEffect, useState } from 'react'
-import { getRoster, type RosterPlayer } from '@/lib/roster'
-import { getTradeRosterPreview, type Trade, type TradeRosterPlan, type TradeRosterPreview } from '@/lib/trades'
+import { type RosterPlayer } from '@/lib/roster'
+import { type Trade, type TradeRosterPlan, type TradeRosterPreview } from '@/lib/trades'
 import { TradeRosterPreviewList } from './TradeRosterPreviewList'
 import { useLeagueContext } from '@/contexts/league-context'
 import { Text } from 'react-native'
@@ -22,7 +24,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onChange, disabled }: 
         let cancelled = false
         setPreview([])
         setError(null)
-        Promise.all([getRoster(memberId, leagueId), getTradeRosterPreview(trade.id)]).then(([rows, teams]) => {
+        readScreenView<{ roster: RosterPlayer[]; rosterPreview: TradeRosterPreview[] }>(screenScope('trade-details', leagueId, memberId, { tradeId: trade.id })).then(({ roster: rows, rosterPreview: teams }) => {
             if (!cancelled) { setRoster(rows); setPreview(teams) }
         }).catch(() => { if (!cancelled) setError('Could not load drop choices. Reopen the trade to retry.') })
         return () => { cancelled = true }

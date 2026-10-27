@@ -373,35 +373,6 @@ export type RosterSlotPlan = {
     assignments: Record<string, string>
 }
 
-/**
- * League slot templates plus one date's slot assignments, keyed by player id.
- * Lets the roster label rows by lineup role without rebuilding the lineup.
- */
-export async function getRosterSlotPlan(
-    memberId: string,
-    leagueId: string,
-    seasonId: string | null,
-    gameDate: string,
-): Promise<RosterSlotPlan> {
-    const [templates, assignmentsResult] = await Promise.all([
-        ttlCached(templateCache, leagueId, TEMPLATE_CACHE_TTL_MS, false, () => fetchSlotTemplates(leagueId)),
-        seasonId
-            ? supabase
-                .from('weekly_lineups')
-                .select('player_id, slot_type')
-                .eq('member_id', memberId)
-                .eq('league_id', leagueId)
-                .eq('league_season_id', seasonId)
-                .eq('game_date', gameDate)
-            : Promise.resolve({ data: [] as { player_id: string; slot_type: string }[], error: null }),
-    ])
-    if (assignmentsResult.error) throw assignmentsResult.error
-    return {
-        slots: templates.map((t) => ({ slotType: t.slot_type, slotCount: t.slot_count })),
-        assignments: Object.fromEntries((assignmentsResult.data ?? []).map((a) => [a.player_id, a.slot_type])),
-    }
-}
-
 export type LineupSlotMove = {
     playerId: string
     slotType: string

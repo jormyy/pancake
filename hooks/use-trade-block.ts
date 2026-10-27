@@ -1,245 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-    addTradeBlockItem,
-    getTradeBlockItems,
-    removeTradeBlockItem,
-    withTradeBlockStats,
-    type TradeBlockItem,
-    type TradePickItem,
-} from '@/lib/trades'
-import { getRoster, type RosterPlayer } from '@/lib/roster'
-import { getErrorMessage } from '@/lib/shared/errors'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { EMPTY_AVG_MAP, EMPTY_STATS_MAP, getRosterStatsMaps, type RosterAverage } from '@/lib/roster-stats'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { useScreenView } from '@/hooks/use-screen-view'
+import { screenScope } from '@/lib/cache/screen-scope'
+import { rosterViewData, type TradeBlockView } from '@/lib/cache/view-types'
+import { addTradeBlockItem, removeTradeBlockItem, withTradeBlockStats, type TradeBlockItem, type TradePickItem } from '@/lib/trades'
+import type { RosterPlayer } from '@/lib/roster'
 import { isTradeableRosterPlayer } from '@/lib/trade-assets'
-
-type TradeBlockCache = {
-    items: TradeBlockItem[]
-    roster: RosterPlayer[]
-    avgEntries: [string, number][]
-    avgStatsEntries: [string, RosterAverage][]
-}
-
-const TRADE_BLOCK_CACHE_PREFIX = 'pancake:trade-block:v3:'
-const tradeBlockCacheKey = (memberId: string, leagueId: string) =>
-    `${TRADE_BLOCK_CACHE_PREFIX}${leagueId}:${memberId}`
+import { sessionOwner } from '@/lib/session-cache-registry'
+import { EMPTY_AVG_MAP, EMPTY_STATS_MAP } from '@/lib/roster-stats'
 
 export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean; allowInactive?: boolean } = {}) {
-    const visible = options.visible ?? true
-    const allowInactive = options.allowInactive ?? false
-    const canMutateRef = useRef(canMutate)
-    canMutateRef.current = canMutate
-    const resourceKey = memberId && leagueId ? tradeBlockCacheKey(memberId, leagueId) : null
-    const cached = useMemo(
-        () => memberId && leagueId
-            ? readPersistentCache<TradeBlockCache>(tradeBlockCacheKey(memberId, leagueId))
-            : null,
-        [memberId, leagueId],
-    )
-    const cachedAvgMap = useMemo(() => cached ? new Map(cached.avgEntries) : EMPTY_AVG_MAP, [cached])
-    const cachedAvgStatsMap = useMemo(() => cached ? new Map(cached.avgStatsEntries) : EMPTY_STATS_MAP, [cached])
-    const [items, setItems] = useState<TradeBlockItem[]>(cached?.items ?? [])
-    const [roster, setRoster] = useState<RosterPlayer[]>(cached?.roster ?? [])
-    const [avgMap, setAvgMap] = useState(cachedAvgMap)
-    const [avgStatsMap, setAvgStatsMap] = useState(cachedAvgStatsMap)
-    const [settledKey, setSettledKey] = useState(cached ? resourceKey : null)
-    const latestAverages = useRef({ avgMap, avgStatsMap })
-    latestAverages.current = { avgMap, avgStatsMap }
-    const [loading, setLoading] = useState(!cached)
-    const [error, setError] = useState<string | null>(null)
-    // A failed add/remove is reported separately from a failed load so the
-    // screen does not hide the (valid) list behind a "failed to load" banner.
-    const [actionError, setActionError] = useState<string | null>(null)
-    const [busyId, setBusyId] = useState<string | null>(null)
-    const loadSequence = useRef(0)
-    const statsLoadSequence = useRef(0)
-    const mutationGeneration = useRef(0)
-    const mutationQueue = useRef<Promise<void>>(Promise.resolve())
-    const [dataKey, setDataKey] = useState<string | null>(resourceKey)
-    const [validatedKey, setValidatedKey] = useState<string | null>(null)
-
-    const refresh = useCallback(async () => {
-        const requestId = ++loadSequence.current
-        setValidatedKey(null)
-        if (!memberId || !leagueId) {
-            setItems([])
-            setRoster([])
-            setAvgMap(EMPTY_AVG_MAP)
-            setAvgStatsMap(EMPTY_STATS_MAP)
-            setError(null)
-            setActionError(null)
-            setLoading(false)
-            setDataKey(null)
-            return false
-        }
-        setLoading(true)
-        setError(null)
-        // A refresh is the banner's own recovery action, so a stale add/remove
-        // failure must not outlive it.
-        setActionError(null)
-        try {
-            const [nextItems, memberRoster] = await Promise.all([
-                getTradeBlockItems(leagueId),
-                getRoster(memberId, leagueId),
-            ])
-            if (loadSequence.current !== requestId) return false
-            const nextRoster = memberRoster.filter((player) => isTradeableRosterPlayer(player, allowInactive))
-            setItems(nextItems)
-            setRoster(nextRoster)
-            setDataKey(resourceKey)
-            setValidatedKey(resourceKey)
-            return true
-        } catch (cause) {
-            if (loadSequence.current !== requestId) return false
-            console.error(cause)
-            setError(getErrorMessage(cause) ?? 'Unknown error')
-            return false
-        } finally {
-            if (loadSequence.current === requestId) setLoading(false)
-        }
-    }, [leagueId, memberId, resourceKey, allowInactive])
-
-    useEffect(() => {
-        loadSequence.current += 1
-        statsLoadSequence.current += 1
-        mutationGeneration.current += 1
-        mutationQueue.current = Promise.resolve()
-        setItems(cached?.items ?? [])
-        setRoster(cached?.roster ?? [])
-        setAvgMap(cachedAvgMap)
-        setAvgStatsMap(cachedAvgStatsMap)
-        setError(null)
-        setActionError(null)
-        setBusyId(null)
-        setLoading(!cached)
-        setDataKey(resourceKey)
-        setSettledKey(cached ? resourceKey : null)
-        setValidatedKey(null)
-    }, [cached, cachedAvgMap, cachedAvgStatsMap, resourceKey])
-
-    // One averages fetch covers the league's listed players and the member's
-    // own roster; the listings and roster render before it lands, and the cache
-    // is written once the averages are known (or known to be missing).
-    useEffect(() => {
-        const requestId = ++statsLoadSequence.current
-        if (!visible || loading || validatedKey !== resourceKey || !memberId || !leagueId || dataKey !== resourceKey) return
-        const playerIds = [...new Set([
-            ...items.flatMap((item) => item.asset.kind === 'player' ? [item.asset.playerId] : []),
-            ...roster.map((player) => player.players.id),
-        ])]
-        const persist = (avg: Map<string, number>, stats: Map<string, RosterAverage>) => writePersistentCache(tradeBlockCacheKey(memberId, leagueId), {
-            items, roster, avgEntries: Array.from(avg.entries()), avgStatsEntries: Array.from(stats.entries()),
+    const owner = sessionOwner()
+    const view = useScreenView<TradeBlockView>(owner && memberId && leagueId ? screenScope('trade-block', leagueId, memberId, {}, owner) : null, options.visible !== false)
+    const refreshView = view.refresh
+    const data = useMemo(() => view.data ? rosterViewData(view.data) : undefined, [view.data])
+    const avgMap = data?.avgMap ?? EMPTY_AVG_MAP
+    const avgStatsMap = data?.avgStatsMap ?? EMPTY_STATS_MAP
+    const items = useMemo(() => withTradeBlockStats(view.data?.items ?? [], avgMap, avgStatsMap), [view.data, avgMap, avgStatsMap])
+    const [action, setAction] = useState<{ owner: string | null | undefined; busyId: string | null; error: string | null }>({ owner, busyId: null, error: null })
+    const latest = useRef({ owner, memberId, leagueId, canMutate })
+    latest.current = { owner, memberId, leagueId, canMutate }
+    const queue = useRef(Promise.resolve())
+    const refresh = useCallback(() => { setAction(previous => ({ ...previous, error: null })); return refreshView(true) }, [refreshView])
+    const mutate = useCallback((id: string, operation: () => Promise<unknown>) => {
+        const captured = latest.current
+        const current = () => latest.current.owner === captured.owner && latest.current.memberId === captured.memberId && latest.current.leagueId === captured.leagueId
+        const task = queue.current.then(async () => {
+            if (!current() || !latest.current.canMutate) return false
+            setAction({ owner: captured.owner, busyId: id, error: null })
+            try { await operation(); if (!current()) return false; await refresh(); return true }
+            catch (cause) { if (current()) setAction({ owner: captured.owner, busyId: null, error: cause instanceof Error ? cause.message : 'Could not update trade block.' }); return false }
+            finally { if (current()) setAction(previous => ({ ...previous, busyId: null })) }
         })
-        if (playerIds.length === 0) {
-            persist(EMPTY_AVG_MAP, EMPTY_STATS_MAP)
-            setSettledKey(resourceKey)
-            return
-        }
-
-        const loadStats = async () => {
-            try {
-                const stats = await getRosterStatsMaps(playerIds, leagueId)
-                if (statsLoadSequence.current !== requestId) return
-                setAvgMap(stats.avgMap)
-                setAvgStatsMap(stats.avgStatsMap)
-                persist(stats.avgMap, stats.avgStatsMap)
-            } catch (statsError) {
-                if (statsLoadSequence.current !== requestId) return
-                console.warn('Could not load optional trade-block player averages.', statsError)
-                persist(latestAverages.current.avgMap, latestAverages.current.avgStatsMap)
-            } finally {
-                if (statsLoadSequence.current === requestId) setSettledKey(resourceKey)
-            }
-        }
-        void loadStats()
-
-        return () => {
-            if (statsLoadSequence.current === requestId) statsLoadSequence.current += 1
-        }
-    }, [dataKey, items, leagueId, loading, memberId, resourceKey, roster, validatedKey, visible])
-
-    useEffect(() => () => {
-        loadSequence.current += 1
-        statsLoadSequence.current += 1
-        mutationGeneration.current += 1
-        mutationQueue.current = Promise.resolve()
-    }, [])
-
-    const mutate = useCallback(async (id: string, operation: () => Promise<unknown>) => {
-        if (!canMutateRef.current) return
-        const generation = mutationGeneration.current
-        const task = mutationQueue.current.then(async () => {
-            if (mutationGeneration.current !== generation || !canMutateRef.current) return false
-            setBusyId(id)
-            try {
-                await operation()
-                if (mutationGeneration.current === generation) {
-                    setActionError(null)
-                    await refresh()
-                }
-                return mutationGeneration.current === generation
-            } catch (cause) {
-                if (mutationGeneration.current === generation) {
-                    setActionError(getErrorMessage(cause) ?? 'Could not update trade block.')
-                }
-                return false
-            } finally {
-                if (mutationGeneration.current === generation) setBusyId(null)
-            }
-        })
-        mutationQueue.current = task.then(() => {}, () => {})
+        queue.current = task.then(() => {})
         return task
     }, [refresh])
-
-    const addPlayer = useCallback((player: RosterPlayer) => {
-        if (!memberId || !leagueId) return Promise.resolve()
-        return mutate(player.players.id, () => addTradeBlockItem({
-            memberId,
-            leagueId,
-            playerId: player.players.id,
-        })).then(() => {})
-    }, [memberId, leagueId, mutate])
-
-    const addPick = useCallback((pick: TradePickItem) => {
-        if (!memberId || !leagueId) return Promise.resolve()
-        return mutate(pick.pickId, () => addTradeBlockItem({ memberId, leagueId, pickId: pick.pickId })).then(() => {})
-    }, [memberId, leagueId, mutate])
-
-    const removeItem = useCallback((item: TradeBlockItem) => {
-        if (!memberId) return Promise.resolve()
-        return mutate(item.id, () => removeTradeBlockItem(item.id, memberId)).then(() => {})
-    }, [memberId, mutate])
-
-    const setNote = useCallback((item: TradeBlockItem, note: string) => {
-        if (!memberId || !leagueId || item.memberId !== memberId) return Promise.resolve(false)
-        return mutate(item.id, () => addTradeBlockItem({
-            memberId, leagueId, note,
-            playerId: item.asset.kind === 'player' ? item.asset.playerId : null,
-            pickId: item.asset.kind === 'pick' ? item.asset.pickId : null,
-        }))
-    }, [leagueId, memberId, mutate])
-
-    const ownsResource = dataKey === resourceKey
-    const itemsWithStats = useMemo(() => withTradeBlockStats(
-        ownsResource ? items : cached?.items ?? [],
-        ownsResource ? avgMap : cachedAvgMap,
-        ownsResource ? avgStatsMap : cachedAvgStatsMap,
-    ), [ownsResource, items, cached, avgMap, avgStatsMap, cachedAvgMap, cachedAvgStatsMap])
-    return {
-        items: itemsWithStats,
-        hasData: Boolean(resourceKey && (settledKey === resourceKey || cached)),
-        displayReady: Boolean(ownsResource && error || resourceKey && (settledKey === resourceKey || cached)),
-        roster: (ownsResource ? roster : cached?.roster ?? []).filter((player) => isTradeableRosterPlayer(player, allowInactive)),
-        avgMap: ownsResource ? avgMap : cachedAvgMap,
-        avgStatsMap: ownsResource ? avgStatsMap : cachedAvgStatsMap,
-        loading: ownsResource ? loading : !cached,
-        error: ownsResource ? error : null,
-        actionError: ownsResource ? actionError : null,
-        busyId: ownsResource ? busyId : null,
-        refresh,
-        addPlayer,
-        addPick,
-        removeItem,
-        setNote,
-    }
+    const addPlayer = useCallback((player: RosterPlayer) => mutate(player.players.id, () => addTradeBlockItem({ memberId, leagueId, playerId: player.players.id })).then(() => {}), [memberId, leagueId, mutate])
+    const addPick = useCallback((pick: TradePickItem) => mutate(pick.pickId, () => addTradeBlockItem({ memberId, leagueId, pickId: pick.pickId })).then(() => {}), [memberId, leagueId, mutate])
+    const removeItem = useCallback((item: TradeBlockItem) => mutate(item.id, () => removeTradeBlockItem(item.id, memberId)).then(() => {}), [memberId, mutate])
+    const setNote = useCallback((item: TradeBlockItem, note: string) => item.memberId === memberId ? mutate(item.id, () => addTradeBlockItem({ memberId, leagueId, note, playerId: item.asset.kind === 'player' ? item.asset.playerId : null, pickId: item.asset.kind === 'pick' ? item.asset.pickId : null })) : Promise.resolve(false), [memberId, leagueId, mutate])
+    return { items, picks: view.data?.picks ?? [], hasData: view.loaded, displayReady: view.loaded || Boolean(view.error), roster: (data?.roster ?? []).filter(player => isTradeableRosterPlayer(player, options.allowInactive ?? false)), avgMap, avgStatsMap, loading: view.loading || view.refreshing, error: view.error?.message ?? null, actionError: action.owner === owner ? action.error : null, busyId: action.owner === owner ? action.busyId : null, refresh, addPlayer, addPick, removeItem, setNote }
 }

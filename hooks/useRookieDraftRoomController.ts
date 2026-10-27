@@ -1,20 +1,11 @@
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import { subscribeLeagueVersion } from '@/lib/league-version'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
-import {
-    activateRookieDraftLeague,
-    commissionerSnakePick,
-    getRookieDraftPollRevision,
-    getRookieDraftState,
-    getRookiePlayers,
-    makeSnakePick,
-    processExpiredSnakePick,
-    subscribeToRookieDraft,
-    unsubscribeFromRookieDraft,
-    type RookieDraftState,
-    type RookieProspect,
-} from '@/lib/rookieDraft'
+import { activateRookieDraftLeague, commissionerSnakePick, makeSnakePick, processExpiredSnakePick, subscribeToRookieDraft, unsubscribeFromRookieDraft, type RookieDraftState, type RookieProspect } from '@/lib/rookieDraft'
 import { dropPlayer, getRoster, type RosterPlayer } from '@/lib/roster'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { reportRealtimeCleanup } from '@/lib/realtime'
@@ -176,7 +167,7 @@ export function useRookieDraftRoomController({
         setTrimmingId(null)
     }, [ownerIdentity])
 
-    const load = useCallback(async (deferInitialPaint = false) => {
+    const load = useCallback(async (deferInitialPaint = false, checkVersion = true) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
         const readEpoch = capture()
         const requestedDraftId = draftId
@@ -186,7 +177,8 @@ export function useRookieDraftRoomController({
         }
         const seq = ++loadSeqRef.current
         try {
-            const data = await getRookieDraftState(requestedDraftId)
+            const payload = leagueId && memberId ? await readScreenView<RookieDraftState>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId }), { checkVersion }) : null
+            const data = payload?.draft ? payload : null
             if (!activityIsCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             const previous = roomSnapshotRef.current
             const picked = new Set(data?.picks.flatMap(pick => pick.player ? [pick.player.id] : []) ?? [])
@@ -207,7 +199,7 @@ export function useRookieDraftRoomController({
         } finally {
             if (!deferInitialPaint && activityIsCurrent(readEpoch) && seq === loadSeqRef.current && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setLoading(false)
         }
-    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey, leagueId, memberId])
 
     const loadProspects = useCallback(async (q?: string) => {
         if (!canRefresh() || activeReadOwnerRef.current !== readOwnerKey) return false
@@ -222,7 +214,8 @@ export function useRookieDraftRoomController({
         }
         setProspectsLoading(true)
         try {
-            const data = await getRookiePlayers(requestedDraftId, requestedQuery)
+            const room = leagueId && memberId ? await readScreenView<{ prospects?: RookieProspect[] }>(screenScope('draft-room', leagueId, memberId, { draftId: requestedDraftId, ...(requestedQuery?.trim() ? { query: requestedQuery.trim() } : {}) }), { checkVersion: false }) : null
+            const data = room?.prospects ?? []
             if (!activityIsCurrent(readEpoch) || prospectsSeqRef.current !== requestId || activeDraftIdRef.current !== requestedDraftId || activeReadOwnerRef.current !== readOwnerKey) return false
             prospectsDirtyRef.current = false
             lastSearchQueryRef.current = requestedQuery?.trim() ?? ''
@@ -240,12 +233,13 @@ export function useRookieDraftRoomController({
         } finally {
             if (activityIsCurrent(readEpoch) && prospectsSeqRef.current === requestId && activeDraftIdRef.current === requestedDraftId && activeReadOwnerRef.current === readOwnerKey) setProspectsLoading(false)
         }
-    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey])
+    }, [draftId, readOwnerKey, capture, canRefresh, activityIsCurrent, cacheKey, leagueId, memberId])
 
     const reloadRoom = useMemo(() => {
         let disposed = false
         let pending = false
         let poolPending = false
+        let versionKnown = false
         let inFlight: Promise<boolean> | null = null
         let inFlightEpoch = -1
         let timer: ReturnType<typeof setTimeout> | null = null
@@ -275,13 +269,13 @@ export function useRookieDraftRoomController({
                         inFlightEpoch = readEpoch
                         const refreshPool = poolPending || prospectsDirtyRef.current
                         poolPending = false
-                        const poolRead = refreshPool && isCurrent() && canRefresh()
-                            ? loadProspects(queryRef.current.trim() || undefined) : null
                         const deferInitialPaint = roomSnapshotRef.current === null
-                        const stateLoaded = await load(deferInitialPaint)
-                        const poolLoaded = poolRead ? await poolRead
-                            : prospectsDirtyRef.current && isCurrent() && canRefresh()
-                                ? await loadProspects(queryRef.current.trim() || undefined) : true
+                        const checkVersion = !versionKnown
+                        versionKnown = false
+                        const stateLoaded = await load(deferInitialPaint, checkVersion)
+                        const poolRead = refreshPool && isCurrent() && canRefresh()
+                        const poolLoaded = poolRead || prospectsDirtyRef.current && isCurrent() && canRefresh()
+                            ? await loadProspects(queryRef.current.trim() || undefined) : true
                         loaded = stateLoaded && poolLoaded && activityIsCurrent(readEpoch)
                         if (deferInitialPaint && activityIsCurrent(readEpoch) && !pending) {
                             setState(roomSnapshotRef.current)
@@ -308,7 +302,9 @@ export function useRookieDraftRoomController({
         }
         return {
             run, trigger,
+            versionChanged: () => { versionKnown = true; trigger() },
             suspend: () => {
+                versionKnown = false
                 pending = true
                 invalidate()
                 if (timer) clearTimeout(timer)
@@ -331,43 +327,22 @@ export function useRookieDraftRoomController({
         reloadRoom.activate()
         if (!draftId) return reloadRoom.cancel
         let active = true
-        let eventRevision = 0
+
         const requestedDraftId = draftId
         const isCurrent = () => active && activeDraftIdRef.current === requestedDraftId
             && activeReadOwnerRef.current === readOwnerKey
         const channel = subscribeToRookieDraft(requestedDraftId, () => {
             if (!isCurrent()) return
-            eventRevision += 1
             pollRevisionRef.current = null
             reloadRoom.trigger()
         }, async () => {
             if (!isCurrent()) return false
-            eventRevision += 1
             pollRevisionRef.current = null
             blockActions()
             return reloadRoom.run(true, true)
         })
         channelRef.current = channel
-        let polling = false
-        const pollRevision = async () => {
-            if (!isCurrent() || !canRefresh() || polling) return
-            polling = true
-            const readEpoch = capture()
-            const events = eventRevision
-            try {
-                const revision = await getRookieDraftPollRevision(requestedDraftId)
-                if (!isCurrent() || !canRefresh() || !activityIsCurrent(readEpoch) || events !== eventRevision) return
-                const previous = pollRevisionRef.current
-                if (revision === previous && !prospectsDirtyRef.current) return
-                const loaded = await reloadRoom.run()
-                if (loaded && isCurrent() && canRefresh() && activityIsCurrent(readEpoch) && events === eventRevision) pollRevisionRef.current = revision
-            } catch (error) {
-                if (isCurrent()) console.error(error)
-            } finally {
-                polling = false
-            }
-        }
-        const poll = setInterval(() => { void pollRevision() }, 15_000)
+        const stopVersion = leagueId ? subscribeLeagueVersion(leagueId, snapshot => { if (snapshot.changes.some(change => change.topic === 'draft' || change.topic === 'catchup' || Array.isArray(change.scope.topics) && change.scope.topics.includes('draft'))) reloadRoom.versionChanged() }) : undefined
         return () => {
             active = false
             reloadRoom.cancel()
@@ -375,9 +350,9 @@ export function useRookieDraftRoomController({
                 reportRealtimeCleanup('rookie draft', unsubscribeFromRookieDraft(channel))
                 channelRef.current = null
             }
-            clearInterval(poll)
+            stopVersion?.()
         }
-    }, [canRefresh, draftId, readOwnerKey, reloadRoom, capture, activityIsCurrent, blockActions])
+    }, [canRefresh, draftId, readOwnerKey, reloadRoom, capture, activityIsCurrent, blockActions, leagueId])
 
     useEffect(() => {
         pollRevisionRef.current = null

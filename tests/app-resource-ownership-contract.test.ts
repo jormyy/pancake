@@ -5,6 +5,10 @@ import ClaimPlayerScreen from '@/app/(modals)/claim-player'
 import BracketScreen from '@/app/(modals)/bracket'
 import { setSessionOwner } from '@/lib/session-cache-registry'
 
+vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, subscribeScreenView: () => () => {},
+    readScreenView: async () => ({ context: { seasonId: 'season' }, player: await state.player(), roster: await state.roster(), priority: 1, clearsAt: null,
+        transactionState: { weeklyAddCount: 0, weeklyAddLimit: 7, waiverMode: 'faab', faabBalance: 100 }, members: await state.members(), claims: [], taxiExitIds: [] }),
+}))
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
 const state = vi.hoisted(() => ({

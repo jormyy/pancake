@@ -13,6 +13,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.cancel_waiver_claim_atomic', jsonb_build_array(p_claim_id, p_member_id, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_status waiver_claim_status;
   v_rows int;
   v_process_date date;
@@ -52,5 +58,8 @@ BEGIN
     RAISE EXCEPTION 'Claim is no longer pending.'
       USING ERRCODE = 'P0001';
   END IF;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

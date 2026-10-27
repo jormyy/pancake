@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
 import { readFile } from 'node:fs/promises'
@@ -15,7 +16,7 @@ const checked = async (operation) => {
 export async function prepareSweepFixtures({ env, statePath, resourceOwner, ports = resolveSweepPorts({}, env) }) {
   requireSweepStack(env, ports)
   const state = JSON.parse(await readFile(statePath, 'utf8'))
-  const admin = createClient(env.E2E_SUPABASE_URL, env.E2E_PANCAKE_SUPABASE_SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false } })
+  const admin = createClient(env.E2E_SUPABASE_URL, env.E2E_PANCAKE_SUPABASE_SECRET_KEY, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: (input, init) => { const headers = new Headers(init?.headers); headers.set('x-request-id', randomUUID()); headers.set('x-request-actor', state.users[0].id); return fetch(input, { ...init, headers }) } } })
   const members = await checked(admin.from('league_members').select('id,user_id,team_name').eq('league_id', state.leagueId))
   members.sort((a, b) => state.users.findIndex((user) => user.id === a.user_id) - state.users.findIndex((user) => user.id === b.user_id))
   const me = members.find((member) => member.user_id === state.users[0].id)
@@ -40,7 +41,13 @@ export async function prepareSweepFixtures({ env, statePath, resourceOwner, port
     return !player || lineups.some((row) => row.member_id === member.id && row.player_id === player.id) ? [] : [{ league_id: state.leagueId, league_season_id: season.id, member_id: member.id, player_id: player.id, week_number: currentWeek, game_date: today, slot_type: position }]
   }))
   if (lineupRows.length) await checked(admin.from('weekly_lineups').insert(lineupRows))
-  const { auctionDraft, rookieDraft } = await ensureSweepDrafts(admin, state, members)
+  const { auctionDraft: startupDraft, rookieDraft } = await ensureSweepDrafts(admin, state, members)
+  await checked(admin.from('drafts').update({ status: 'completed', completed_at: new Date().toISOString() }).eq('league_id', state.leagueId).eq('draft_type', 'auction').eq('is_mock', false))
+  await checked(admin.from('leagues').update({ status: 'active' }).eq('id', state.leagueId))
+  const existingRoom = await checked(admin.from('drafts').select('id').eq('league_id', state.leagueId).eq('is_mock', true).eq('draft_type', 'auction').limit(1))
+  const auctionDraft = existingRoom[0] ?? await checked(admin.rpc('create_mock_draft_room_atomic', { p_league_id: state.leagueId, p_member_id: me.id, p_user_id: me.user_id, p_room_name: 'Layout sweep auction', p_draft_type: 'auction', p_rounds: 2 }))
+  assert.ok(startupDraft.id && auctionDraft.id, 'Auction fixtures require a completed startup and a mock room')
+  await checked(admin.from('drafts').update({ status: 'in_progress', started_at: new Date().toISOString() }).eq('id', auctionDraft.id))
   const matchups = await checked(admin.from('matchups').select('id').eq('league_id', state.leagueId).eq('week_number', currentWeek).eq('home_member_id', me.id))
   if (!matchups.length) await checked(admin.from('matchups').insert({ league_id: state.leagueId, league_season_id: season.id, week_number: currentWeek, home_member_id: me.id, away_member_id: other.id, home_points: 123, away_points: 117 }))
   else await checked(admin.from('matchups').update({ home_points: 123, away_points: 117 }).eq('id', matchups[0].id))
@@ -51,7 +58,10 @@ export async function prepareSweepFixtures({ env, statePath, resourceOwner, port
   const activity = await checked(admin.from('league_activity').select('id').eq('league_id', state.leagueId).limit(1))
   if (!activity.length) await checked(admin.from('league_activity').insert({ league_id: state.leagueId, league_season_id: season.id, actor_member_id: me.id, event_type: 'commissioner_note', title: 'Season preparation is complete', body: 'Managers review their rosters before opening week.' }))
   const pending = await checked(admin.from('trades').select('id').eq('league_id', state.leagueId).eq('status', 'pending').limit(1))
+  await checked(admin.from('leagues').update({ status: 'active' }).eq('id', state.leagueId))
+  await checked(admin.from('drafts').update({ status: 'completed' }).eq('id', auctionDraft.id))
   if (!pending.length) await checked(admin.rpc('propose_trade_atomic', { p_league_id: state.leagueId, p_league_season_id: season.id, p_proposer_member_id: me.id, p_recipient_member_id: other.id, p_offer_player_ids: [players[0].id], p_request_player_ids: [players[10].id], p_offer_pick_ids: [], p_request_pick_ids: [] }))
+  await checked(admin.from('drafts').update({ status: 'in_progress' }).eq('id', auctionDraft.id))
   const mock = await checked(admin.from('drafts').select('id').eq('league_id', state.leagueId).eq('is_mock', true).limit(1))
   if (!mock.length) await checked(admin.rpc('create_mock_draft_room_atomic', { p_league_id: state.leagueId, p_member_id: me.id, p_user_id: me.user_id, p_room_name: 'Layout sweep practice', p_draft_type: 'snake', p_rounds: 2 }))
   const auth = createClient(env.E2E_SUPABASE_URL, env.E2E_SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } })

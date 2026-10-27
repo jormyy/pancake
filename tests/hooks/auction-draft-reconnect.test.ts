@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
     channels: [] as { on: ReturnType<typeof vi.fn>; subscribe: ReturnType<typeof vi.fn> }[],
     remove: vi.fn(async () => undefined),
 }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: () => mocks.getDraftState() }))
+vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: 'league' } }) }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },

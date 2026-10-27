@@ -3,10 +3,8 @@ import { dispatch } from './dispatch.mjs'
 import { sql } from './local-stack.mjs'
 import { nextWaiverRun } from './waiver-scenarios.mjs'
 
-export async function maintenanceTick(invoke = dispatch, execute = sql) {
-  await execute('SELECT private.reconcile_edge_invocations()')
-  await invoke("SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)", { optional: true })
-  const outcomes = await invoke('SELECT public.invoke_season_boundary_if_due()', { optional: true, allowFailure: true })
+export async function maintenanceTick(invoke = dispatch, _execute = sql) {
+  const outcomes = await invoke('SELECT public.dispatch_work()', { optional: true, allowFailure: true })
   for (const result of outcomes) {
     if (result.status_code === 200 && result.worker_status === 'success') continue
     const content = JSON.parse(result.content ?? 'null')

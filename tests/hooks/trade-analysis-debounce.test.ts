@@ -1,3 +1,4 @@
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -7,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     requestTradeEstimate: vi.fn(),
 }))
 
-vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.requestTradeEstimate }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: unknown) => mocks.requestTradeEstimate(scope).then((quote: unknown) => ({ quote })) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
 vi.mock('@/lib/league-changes', () => ({ deferLeagueRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }), listenForLeagueChanges: () => () => {} }))
@@ -37,6 +38,7 @@ const baseInput = {
 }
 
 beforeEach(() => {
+    setSessionOwner('account')
     vi.useFakeTimers()
     vi.resetAllMocks()
     mocks.requestTradeEstimate.mockResolvedValue({ id: 'quote', seasonYear: 2042, expiresAt: new Date(Date.now()+600000).toISOString(), analysis: { assets: [row] } })
@@ -61,7 +63,7 @@ it('coalesces rapid player changes into one forecast request after 300 ms', asyn
     expect(latest.analysis).toBeNull()
     expect(latest.loading).toBe(true)
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
-    expect(mocks.requestTradeEstimate).toHaveBeenCalledExactlyOnceWith('member-a', [expect.objectContaining({ playerId: 'player-2' })])
+    expect(mocks.requestTradeEstimate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trade-analysis', memberId: 'member-a', params: expect.objectContaining({ items: [expect.objectContaining({ playerId: 'player-2' })] }) }))
     await act(async () => { renderer.unmount() })
 })
 

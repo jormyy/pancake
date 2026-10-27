@@ -1,4 +1,5 @@
 /// <reference path="../../types/react-dom.d.ts" />
+import '../setup-expo'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -32,6 +33,8 @@ vi.mock('@expo-google-fonts/outfit', () => ({ useFonts: () => [], Outfit_500Medi
 vi.mock('expo-font', () => ({ useFonts: () => [], FontDisplay: { SWAP: 'swap' } }))
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }))
 vi.mock('expo-router', () => ({
+    usePathname: () => mocks.route, useGlobalSearchParams: () => ({}),
+    useNavigationContainerRef: () => ({ addListener: () => () => {} }),
     useRouter: () => ({ replace: mocks.replace }),
     useSegments: () => mocks.route === '/sign-in' ? ['(auth)'] : ['(tabs)'],
     Link: 'link',

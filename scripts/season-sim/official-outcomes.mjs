@@ -140,3 +140,8 @@ function inventoryPass(fidelity) {
   const ordered = value => JSON.stringify(Object.entries(value ?? {}).sort(([a], [b]) => a.localeCompare(b)))
   return expected.size === 0 && ordered(counts) === ordered(fidelity.counts) && ordered(counts) === ordered(fidelity.coverage?.invoked)
 }
+
+export function rookiePickOrder(order, round, format = 'linear') {
+  if (!['linear', 'snake'].includes(format) || !Number.isInteger(round) || round < 1) throw new Error('Invalid rookie draft order')
+  return format === 'snake' && round % 2 === 0 ? [...order].reverse() : [...order]
+}

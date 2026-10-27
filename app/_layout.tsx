@@ -1,3 +1,4 @@
+import { OfflineMutationNotice } from '@/components/OfflineMutationNotice'
 import './player/[id]'
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native'
 import { useFonts } from 'expo-font'
@@ -14,6 +15,7 @@ import { useWebPushNotifications } from '@/hooks/use-web-push-notifications'
 import { FeedbackProvider } from '@/components/ui'
 import { WebAppShell } from '@/components/navigation/WebTabShell'
 import { LeagueAccessNotice } from '@/components/LeagueAccessNotice'
+import { PerfBeacon } from '@/hooks/use-perf-beacon'
 import { AuthHydrationFrame } from '@/components/auth/AuthHydrationFrame'
 
 export { RouteErrorBoundary as ErrorBoundary } from '@/components/navigation/RouteErrorBoundary'
@@ -81,6 +83,7 @@ function RootContent() {
     const stack = (
         <View style={{ flex: 1 }}>
             <LeagueAccessNotice />
+            <OfflineMutationNotice />
             <Stack>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -96,6 +99,7 @@ function RootContent() {
 
     return (
         <LeagueProvider>
+            <PerfBeacon />
             <WebAppShell chrome={webChrome}>
                 <AuthHydrationFrame route={inAuthGroup ? segments[segments.length - 1] : null}>
                     {stack}

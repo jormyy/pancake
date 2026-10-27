@@ -14,6 +14,12 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.auto_set_lineup_atomic', jsonb_build_array(p_member_id, p_league_id, p_league_season_id, p_game_date, p_assignments), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
 BEGIN
   PERFORM 1 FROM public.league_members
   WHERE id = p_member_id AND league_id = p_league_id AND user_id = auth.uid()
@@ -45,5 +51,11 @@ BEGIN
     p_game_date,
     p_assignments
   );
+  INSERT INTO public.league_events(league_id,member_id,kind,summary,detail)
+  VALUES(p_league_id,p_member_id,'lineup.auto_set','Lineup auto-set',
+    jsonb_build_object('league_season_id',p_league_season_id,'game_date',p_game_date,'assignments',p_assignments));
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

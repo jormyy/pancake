@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, radii, spacing, textStyles } from '@/constants/tokens'
 import {
     eventEnabled,
     setNotificationCategory,
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     content: { gap: spacing.md },
     card: { backgroundColor: colors.bgCard, borderColor: colors.borderLight, borderWidth: 1, borderRadius: radii.lg, overflow: 'hidden' },
     header: { flexDirection: 'row', alignItems: 'center', minHeight: 48 },
-    heading: { flex: 1, minWidth: 0, paddingLeft: spacing.lg, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    heading: { minHeight: controlSize.minTouch, flex: 1, minWidth: 0, paddingLeft: spacing.lg, paddingVertical: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     categorySwitch: { minWidth: 64, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
     event: { minHeight: 46, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, borderTopWidth: 1, borderTopColor: colors.separator },
     label: { flex: 1, minWidth: 0 },

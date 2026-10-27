@@ -103,7 +103,7 @@ BEGIN
         rounds.round,
         ordered.member_id,
         CASE
-          WHEN rounds.round % 2 = 0 THEN v_participant_count - ordered.position + 1
+          WHEN v_draft.rookie_draft_order = 'snake' AND rounds.round % 2 = 0 THEN v_participant_count - ordered.position + 1
           ELSE ordered.position
         END AS pick_in_round
       FROM generate_series(1, COALESCE(v_draft.rounds, 3)) AS rounds(round)

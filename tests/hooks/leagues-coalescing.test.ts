@@ -14,6 +14,8 @@ const boundary = vi.hoisted(() => ({
     subscriptions: [] as Subscription[], fetch: vi.fn(), matchup: vi.fn(),
     nextDelay: 50, failNext: false,
 }))
+vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({}) }))
+vi.mock('@/lib/cache/screen-cache', () => ({ clearScreenViews: () => {} }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: boundary.owner ? boundary.users[boundary.owner] : null }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => boundary.online }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true, useFocusEffect: (callback: () => void) => useEffect(callback, [callback]) }))

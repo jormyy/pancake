@@ -1,21 +1,25 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { etDate } from './common.mjs'
 import { expectedWinner } from './score-oracle.mjs'
+import { rookiePickOrder } from './official-outcomes.mjs'
 
-export function rookieOrder(members, standings) {
+export function rookieOrder(members, standings, seed = null) {
   return members.map(memberId => {
     const latest = standings.filter(row => row.member_id === memberId).sort((a, b) => b.week_number - a.week_number)[0]
-    return { memberId, hasStandings: latest ? 1 : 0, wins: Number(latest?.wins ?? 0), points: Number(latest?.points_for ?? 0) }
-  }).sort((a, b) => b.hasStandings - a.hasStandings || a.wins - b.wins || a.points - b.points || a.memberId.localeCompare(b.memberId)).map(row => row.memberId)
+    const games = Math.max(Number(latest?.wins ?? 0) + Number(latest?.losses ?? 0) + Number(latest?.ties ?? 0), 1)
+    const tie = seed ? createHash('md5').update(seed + memberId).digest('hex') : memberId
+    return { memberId, hasStandings: latest ? 1 : 0, rate: (Number(latest?.wins ?? 0) + 0.5 * Number(latest?.ties ?? 0)) / games, points: Number(latest?.points_for ?? 0) / games, tie }
+  }).sort((a, b) => b.hasStandings - a.hasStandings || a.rate - b.rate || a.points - b.points || a.tie.localeCompare(b.tie) || a.memberId.localeCompare(b.memberId)).map(row => row.memberId)
 }
 
-export function checkDraftOrder({ picks, assets, expectedOrder, rounds }) {
-  assert.equal(picks.length, expectedOrder.length * rounds, 'Complete rookie snake slots')
+export function checkDraftOrder({ picks, assets, expectedOrder, rounds, orderType = 'linear' }) {
+  assert.equal(picks.length, expectedOrder.length * rounds, 'Complete rookie draft slots')
   for (const pick of picks) {
-    const original = expectedOrder[pick.round % 2 ? pick.pick_in_round - 1 : expectedOrder.length - pick.pick_in_round]
+    const original = rookiePickOrder(expectedOrder, pick.round, orderType)[pick.pick_in_round - 1]
     const asset = assets.find(row => row.id === pick.draft_pick_id)
     assert.ok(asset, 'Rookie slot references an allocated pick')
-    assert.equal(asset.original_owner_id, original, 'Rookie snake order follows independent previous-season standings')
+    assert.equal(asset.original_owner_id, original, 'Rookie draft order follows independent previous-season standings')
     assert.equal(pick.member_id, asset.current_owner_id, 'Rookie drafter follows traded pick ownership')
   }
 }

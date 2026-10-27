@@ -74,7 +74,7 @@ export const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     leagueSwitch: {
-        height: layout.shell.leagueHeight,
+        minHeight: layout.shell.leagueHeight,
         flexShrink: 0,
         width: '100%',
         flexDirection: 'row',
@@ -111,7 +111,6 @@ export const styles = StyleSheet.create({
         marginBottom: 0,
     },
     leagueSwitchLight: {
-        height: controlSize.minTouch,
         minHeight: controlSize.minTouch,
         paddingVertical: spacing.xs,
         paddingHorizontal: spacing.md,
@@ -297,7 +296,7 @@ export const styles = StyleSheet.create({
     // the safe-area insets or standalone-PWA launches put the top bar under the
     // notch and the bottom tabs under the home indicator.
     contentCompact: {
-        paddingTop: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
+        paddingTop: `var(--pancake-mobile-topbar-height, calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px)))`,
         paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
     } as unknown as WebOnlyViewStyle,
 
@@ -311,8 +310,9 @@ export const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 50,
-        height: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        minHeight: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
+        paddingTop: `calc(${spacing.xs}px + env(safe-area-inset-top, 0px))`,
+        paddingBottom: spacing.xs,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,

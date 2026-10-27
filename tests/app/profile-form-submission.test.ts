@@ -43,7 +43,7 @@ vi.mock('@/lib/auth', () => ({ updateProfile: mocks.updateProfile, signOut: vi.f
 vi.mock('@/lib/league', () => ({ updateTeamName: mocks.updateTeamName }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/notification-preferences', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/notification-preferences')>(), updateNotificationPreferences: mocks.updatePreferences }))
-vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, sessionOwner: () => 'user' }))
+vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => 1, sessionOwner: () => 'user', onSessionCachesCleared: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ showAlert: mocks.alert, showSuccess: mocks.success, confirmAction: vi.fn() }))
 vi.mock('@/components/ui/useGoBack', () => ({ useGoBack: () => vi.fn() }))
 vi.mock('@/components/ui', () => ({

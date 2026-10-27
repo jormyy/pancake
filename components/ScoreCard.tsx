@@ -1,7 +1,8 @@
+import { Badge } from '@/components/ui/Badge'
 import type { ReactNode } from 'react'
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
-import { alpha, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, componentTokens, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
 export function ScoreCard({ matchup, compact = false, children }: { matchup: Matchup; compact?: boolean; children?: ReactNode }) {
@@ -45,15 +46,15 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
                 >
                     {weekLabel.toUpperCase()}
                 </Text>
-                <View style={[styles.statusBadge, compact && styles.statusBadgeCompact, { backgroundColor: alpha(statusTint, 0.1), borderColor: alpha(statusTint, 0.31) }]}>
-                    <Text style={[styles.statusText, compact && styles.statusTextCompact, { color: statusText }]}>{statusLabel}</Text>
-                </View>
+                <Badge size="outlined" variant="solid" label={statusLabel} color={alpha(statusTint, 0.1)} textColor={statusText}
+                    style={[compact && componentTokens.badge.outlinedCompact, { borderColor: alpha(statusTint, 0.31) }]}
+                    textStyle={[{ letterSpacing: componentTokens.badge.scoreLetterSpacing }, compact && componentTokens.badge.countLabel]}
+                />
             </View>
 
             <View style={[styles.scores, compact && styles.scoresCompact]}>
                 <View style={styles.side}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact]}>{matchup.myTeamName}</Text>
-                    <Text style={[styles.record, compact && styles.compactMeta]}>{matchup.myWins}–{matchup.myLosses}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.myPoints)}
                     </Text>
@@ -61,7 +62,6 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
 
                 <View style={[styles.side, styles.sideRight]}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
-                    <Text style={[styles.record, compact && styles.compactMeta, styles.textRight]}>{matchup.opponentWins}–{matchup.opponentLosses}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.opponentPoints)}
                     </Text>
@@ -117,26 +117,6 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
         letterSpacing: textStyles.sectionLabel.letterSpacing,
     },
-    statusBadge: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xs,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-        borderWidth: borderWidth.thin,
-    },
-    statusBadgeCompact: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xxs,
-    },
-    statusText: {
-        fontSize: fontSize.xs,
-        fontWeight: fontWeight.bold,
-        letterSpacing: textStyles.tableHeader.letterSpacing,
-    },
-    statusTextCompact: {
-        fontSize: fontSize['2xs'],
-    },
-
     scores: {
         flexDirection: 'row',
         alignItems: 'stretch',

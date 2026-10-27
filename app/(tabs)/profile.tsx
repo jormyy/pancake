@@ -241,10 +241,10 @@ export default function ProfileScreen() {
                         </View>
                     </Pressable>
                     <View style={styles.identityText}>
-                        <Text style={[textStyles.pageTitle, { minHeight: textStyles.pageTitle.lineHeight }]} numberOfLines={1}>
+                        <Text style={[textStyles.pageTitle, { minHeight: textStyles.pageTitle.lineHeight }]}>
                             {profile?.display_name ?? ''}
                         </Text>
-                        <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{profile?.username ? `@${profile.username}` : ''}</Text>
+                        <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]}>{profile?.username ? `@${profile.username}` : ''}</Text>
                     </View>
                 </View>
 

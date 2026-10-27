@@ -1,42 +1,15 @@
-import React from 'react'
-import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { expect, it, vi } from 'vitest'
-import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { setLeagueChangesConnected } from '@/lib/league-changes'
+import { boundary, held } from '../helpers/screen-view-boundary'
+import { playerHarness, playerPayload } from '../helpers/player-view-fixture'
+import { act } from 'react-test-renderer'
+import { expect, it } from 'vitest'
 
-const state = vi.hoisted(() => ({ focused: true, rpc: vi.fn() }))
-vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
-vi.mock('@/lib/players', () => ({ getPlayerSeasonAverages: () => new Promise(() => {}), getPlayerAverageFantasyPoints: async () => null,
-    getPlayer: async () => ({ id: 'player', nba_team: 'LAL' }), getAvailableSeasons: async () => [2026],
-    getPlayerTransactionHistory: async () => [],
-}))
-vi.mock('@/components/player/season-data', () => ({ getPlayerSeasonLines: async () => [], getPlayerScoringSettings: async () => ({}), summarizePlayerSeason: () => ({ games: [], averages: null, fantasyPointsMap: null, avgFantasyPoints: 0, includesLive: false }) }))
-vi.mock('@/lib/shared/season', () => ({ currentSeasonYear: () => 2026 }))
-vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-18' }))
-vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => undefined, writePersistentCache: vi.fn() }))
-vi.mock('@/lib/supabase', () => ({ supabase: {
-    rpc: state.rpc,
-    from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }) }),
-} }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-
-it('reads the current projection after route suspension before the old shared read settles', async () => {
-    setLeagueChangesConnected('league', true)
-    let release!: (value: unknown) => void
-    state.rpc.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
-        .mockResolvedValue({ data: [{ player_id: 'player', projection_fantasy_points: 42 }], error: null })
-    let latest!: ReturnType<typeof usePlayerScreenData>
-    const Probe = () => { latest = usePlayerScreenData('player', 'league'); return null }
-    let renderer!: ReactTestRenderer
-    try {
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        state.focused = false
-        await act(async () => { renderer.update(React.createElement(Probe)) })
-        state.focused = true
-        await act(async () => { renderer.update(React.createElement(Probe)) })
-        expect(state.rpc).toHaveBeenCalledTimes(2)
-        expect(latest.nextProjection?.projection_fantasy_points).toBe(42)
-        await act(async () => { release({ data: [{ player_id: 'player', projection_fantasy_points: 5 }], error: null }) })
-        expect(latest.nextProjection?.projection_fantasy_points).toBe(42)
-    } finally { await act(async () => { renderer.unmount() }); setLeagueChangesConnected('league', false) }
+const h = playerHarness()
+it('reads the current projection after suspension before the old view settles', async () => {
+    const old = held<ReturnType<typeof playerPayload>>()
+    boundary.read.mockReturnValueOnce(old.promise).mockResolvedValue(playerPayload('player', 1, 42))
+    await h.render(); boundary.focused = false; await h.render(); boundary.focused = true; await h.render()
+    expect(h.latest.nextProjection?.projection_fantasy_points).toBe(42)
+    await act(async () => old.resolve(playerPayload('player', 1, 5)))
+    expect(h.latest.nextProjection?.projection_fantasy_points).toBe(42)
 })

@@ -12,6 +12,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result jsonb;
+BEGIN
+  __request_context := private.request_begin('public.veto_trade_atomic', jsonb_build_array(p_trade_id, p_member_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
+  <<request_write>>
+DECLARE
   v_trade trades%ROWTYPE;
   v_member league_members%ROWTYPE;
   v_league leagues%ROWTYPE;
@@ -151,7 +158,7 @@ BEGIN
     END IF;
   END IF;
 
-  RETURN jsonb_build_object(
+  __request_result := jsonb_build_object(
     'vetoed', v_vetoed,
     'vetoCount', COALESCE(v_member_veto_count, 0),
     'threshold', v_threshold,
@@ -165,6 +172,9 @@ BEGIN
       ),
       jsonb_build_array(v_trade.proposer_member_id, v_trade.recipient_member_id)
     )
-  );
+  ); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

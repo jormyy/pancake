@@ -1,3 +1,4 @@
+import { assertMutationOnline } from '@/lib/shared/pwa-mutation'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeasonId } from '@/lib/shared/season'
@@ -102,9 +103,7 @@ export async function submitWaiverClaim(
     dropPlayerId?: string,
     options: { bidAmount?: number; claimOrder?: number | null; toIr?: boolean; toTaxi?: boolean } = {},
 ): Promise<void> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        throw new Error('Connect to the internet to submit a waiver claim.')
-    }
+    assertMutationOnline()
     const generation = sessionGeneration()
     await apiPost('/waivers/claims', {
         memberId,
@@ -263,38 +262,6 @@ export async function getWaiverPriorityOrder(leagueId: string, canRead?: () => b
             priority: row.priority,
         }
     })
-}
-
-export async function getMyWaiverPriority(
-    memberId: string,
-    leagueId: string,
-): Promise<number | null> {
-    const seasonId = await getCurrentSeasonId(leagueId)
-    if (!seasonId) return null
-
-    const { data, error } = await supabase
-        .from('waiver_priorities')
-        .select('priority')
-        .eq('member_id', memberId)
-        .eq('league_season_id', seasonId)
-        .maybeSingle()
-    if (error) throw error
-    return data?.priority ?? null
-}
-
-/** When this player's current waiver period ends, or null if they aren't on waivers. */
-export async function getWaiverClearsAt(leagueId: string, playerId: string): Promise<string | null> {
-    const { data, error } = await supabase
-        .from('waiver_wire_log')
-        .select('clears_at')
-        .eq('league_id', leagueId)
-        .eq('player_id', playerId)
-        .is('cleared_at', null)
-        .gt('clears_at', new Date().toISOString())
-        .order('clears_at', { ascending: false })
-        .limit(1)
-    if (error) throw error
-    return (data?.[0] as { clears_at: string } | undefined)?.clears_at ?? null
 }
 
 const waiverTimeZone = 'America/New_York'
