@@ -213,11 +213,15 @@ function buildEspnRecords(
 }
 
 function yearsExperience(athlete: EspnAthlete, seasonYear: number): number | null {
-  const years = athlete.experience?.years
-  if (typeof years === 'number' && Number.isInteger(years) && years >= 0) return years
+  const years = completedSeasons(athlete.experience?.years)
+  if (years !== null) return years
   const firstYear = athlete.debutYear ?? athlete.draft?.year
   return typeof firstYear === 'number' && Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= seasonYear
     ? Math.max(0, seasonYear - 1 - firstYear) : null
+}
+
+function completedSeasons(seasonNumber: number | undefined): number | null {
+  return typeof seasonNumber === 'number' && Number.isInteger(seasonNumber) && seasonNumber >= 0 ? Math.max(0, seasonNumber - 1) : null
 }
 
 export type EspnInjuryIdentity = { provider_id: string; display_name: string; nba_team: string; years_exp: number | null; position: string | null }
@@ -256,7 +260,7 @@ export async function fetchEspnInjuries(): Promise<{ statuses: Map<string, strin
       const code = mapEspnTeam(athlete.team?.abbreviation ?? team.team?.abbreviation ?? teamIds[team.id ?? ''])
       const name = athlete.displayName ?? [athlete.firstName, athlete.lastName].filter(Boolean).join(' ')
       if (id && code && name) identities.push({ provider_id: id, display_name: name, nba_team: code,
-        years_exp: typeof athlete.experience?.years === 'number' ? athlete.experience.years : null,
+        years_exp: completedSeasons(athlete.experience?.years),
         position: mapEspnPosition(athlete.position?.abbreviation) })
     }
   }
