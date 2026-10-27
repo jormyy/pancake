@@ -54,7 +54,7 @@ export async function officialReplay(options, scenario) {
   report.freshDatabase = before.leagues === 0 && before.rosters === 0
   if (!options.resume) assert.ok(report.freshDatabase, 'Official replay requires an empty application database')
   let runtime, context, probe, previous = options.resume?.previous ?? {}, checked = options.resume?.checked ?? []
-  const skippedWeeks = () => context.seasonYear === profile.firstYear ? context.skippedWeeks ?? profile.settings.skipped_weeks : profile.settings.skipped_weeks
+  const skippedWeeks = () => context.skippedWeeks ?? profile.settings.skipped_weeks
   const sample = async (_at, jobs) => {
     if (!context || !jobs.some(job => job.jobname === 'nba-live-poll')) return
     const date = etDate(new Date(runtime.now()).toISOString())
@@ -71,6 +71,8 @@ export async function officialReplay(options, scenario) {
     if (options.resume) {
       assert.equal(options.resume.profileSha256, scenario.sha256, 'Checkpoint configuration must match')
       context = { ...options.resume.context, ...actionClient(runtime.keys) }
+      const resumedSeason = await sqlJson(`SELECT row_to_json(s) FROM league_seasons s WHERE id='${context.leagueSeasonId}'`, 'Resumed current season')
+      context.skippedWeeks = resumedSeason.skipped_weeks ?? []
     } else {
       await runtime.move(`${start}T14:00:00Z`)
       context = await createLeagueActions(runtime.keys, start, profile.teamCount, { scenario: profile, move: runtime.move, skipPastWeeks: options['late-season'] === true })
@@ -102,7 +104,7 @@ export async function officialReplay(options, scenario) {
           await probe.close()
           probe = null
         }
-        context = { ...context, leagueSeasonId: current.id, seasonYear: current.season_year, firstDate: input.seasons.find(row => row.year === current.season_year)?.start ?? date }
+        context = { ...context, leagueSeasonId: current.id, seasonYear: current.season_year, firstDate: input.seasons.find(row => row.year === current.season_year)?.start ?? date, skippedWeeks: current.skipped_weeks ?? [] }
         await verifyOfficialRollover(context, previousContext, report, runtime.now())
         previous = {}; checked = []
       }
@@ -143,7 +145,7 @@ export async function officialReplay(options, scenario) {
         if (date === waiverStart) await beginOfficialWaivers(context, runtime.now(), report)
       }
       await runtime.move(`${shiftDay(date, 1)}T09:59:00Z`)
-      if (date === input.bounds.secondStart) await checkPublishedCalendar()
+      if (date === input.bounds.secondStart || (report.boundedResume && date === start && date > input.bounds.secondStart)) await checkPublishedCalendar()
       await verifyOfficialWaivers(context, report.waivers, runtime.now())
       if (input.games.some(game => game.date === date)) day.finals = await assertFinals(date)
       if (week && !skippedWeeks().includes(week.week_number)) {
