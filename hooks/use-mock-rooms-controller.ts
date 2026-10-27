@@ -124,6 +124,7 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
             setRoomName('')
             setRoomScheduledAt(defaultRoomDateInput())
             await options.refreshRooms()
+            return ownsAction(action)
         } catch (error) {
             if (ownsAction(action)) {
                 showAlert('Could not create room', error instanceof Error ? error.message : undefined)

@@ -358,6 +358,12 @@
       "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_week_number integer, p_moves jsonb",
       "bodySha256": "b8b404ab1d23b5509c5166f85aefbfb1012a45784b81f99f1a8b3baef4c8adc9",
       "version": "20261018000012"
+    },
+    {
+      "version": "20261029000700",
+      "name": "auto_set_lineup_atomic_unchecked",
+      "identityArguments": "p_member_id uuid, p_league_id uuid, p_league_season_id uuid, p_game_date date, p_assignments jsonb",
+      "bodySha256": "074a4fb723fa208121a04170dd4591e0f55acd9ba08cf133d28c30be84dafaa5"
     }
   ],
   "approvedMigrations": [
@@ -1949,6 +1955,62 @@
       "statementCount": 9,
       "statementsSha256": "06640df83e6a5e6b88829d530b72398e64a76667571057d6c30975efa32fc6fe",
       "sha256": "3f01462681702344db6327f9e8b62edd2dec396322d6ee27c8b88866123d4691"
+    },
+    {
+      "name": "continuous_faab",
+      "version": "20261029000100",
+      "statementCount": 10,
+      "statementsSha256": "7ac5f7154cc2eda5c91c2737477d19a78888f35673f4c93430dcfd8cb77e8e2d",
+      "sha256": "189aeb8d871e41af65d9ba29bbafdefe90e13be2f37e2b2ff3733f23e25724eb"
+    },
+    {
+      "name": "inactive_trade_block",
+      "version": "20261029000200",
+      "statementCount": 2,
+      "statementsSha256": "71e7e4094e582d4a0c2d83d364a3e8cccb04ecc16fd6a26aff2ba3eab65a132c",
+      "sha256": "ca23f96e655fc23f44734792f3dcba86145ca0b767313f76686fae7d75f91a71"
+    },
+    {
+      "name": "trade_plan_moves_and_capacity",
+      "version": "20261029000300",
+      "statementCount": 29,
+      "statementsSha256": "cebdbb7e770e3144a32f8f34f16a1e965762d3b973163bc10931e62976354b14",
+      "sha256": "59816d8b025cc85aff551880708f1eccce7a1fc7e6d56dba38c29f88e9629f8f"
+    },
+    {
+      "name": "trade_estimate_snapshots",
+      "version": "20261029000400",
+      "statementCount": 21,
+      "statementsSha256": "2ad6590f97b303b28e327f1f083cf0cca51a9ef1a8ed7ed68db2b2d2821c9651",
+      "sha256": "c708231ad3e1fe6d62ef1fce3fa0d45d43e6ee58a2d2e08a129beb5a64915749"
+    },
+    {
+      "name": "matchup_forecasts",
+      "version": "20261029000500",
+      "statementCount": 33,
+      "statementsSha256": "b6b31a91e1f93fd3bdec6adff2817d1264b59f4eb7b0622f9d84877fcc8caec5",
+      "sha256": "da07d3ae6deb20f1991c5dbb81796924a6f41da56211d34096fcd713a5508f42"
+    },
+    {
+      "name": "historical_trade_revaluation",
+      "version": "20261029000600",
+      "statementCount": 7,
+      "statementsSha256": "98ee5ab76afc78f8ae981358abec9fc3971f2c31370fc7877607c71e3dd0dd15",
+      "sha256": "88b57eb7b7be631ccb479d3cdb884dd8a104dd0a3be2b9bf89c3889aadda6b20"
+    },
+    {
+      "name": "pre_tipoff_live_lock_compatibility",
+      "version": "20261029000700",
+      "statementCount": 6,
+      "statementsSha256": "cdfbe3ca1ebb6dfde953c22c59036d1aa9e79b72b7f849789ad2a979f0a3d4be",
+      "sha256": "e3ca7da15e3e558a6a7b82eac1f84dd039821ddcb74781ad47098e2f5d07872b"
+    },
+    {
+      "name": "matchup_forecast_lock_order",
+      "version": "20261029000800",
+      "statementCount": 1,
+      "statementsSha256": "a43b096761d27ade4d829d190f9f4e74c5c03990cbc7696dbd99eebd5feb9320",
+      "sha256": "91ca011a796b587cb573538bfa57cc487a44bbaa59a15698e0400ab41b38587c"
     }
   ]
 }

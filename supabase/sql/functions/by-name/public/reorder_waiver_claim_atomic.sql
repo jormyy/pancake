@@ -62,6 +62,10 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
+  IF (v_claim.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+    RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
+  END IF;
+
   SELECT waiver_mode INTO v_waiver_mode FROM leagues WHERE id = v_claim.league_id;
 
   -- Older submissions can share an order. Preserve the processor's tie order,
@@ -72,6 +76,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
+       AND process_date = v_claim.process_date
        AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
   )
   UPDATE waiver_claims AS claim SET claim_order = ordered.position
@@ -86,6 +91,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
+       AND process_date = v_claim.process_date
        AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order < v_claim.claim_order
      ORDER BY claim_order DESC, submitted_at DESC
@@ -98,6 +104,7 @@ BEGIN
      WHERE member_id = p_member_id
        AND league_season_id = v_claim.league_season_id
        AND status = 'pending'
+       AND process_date = v_claim.process_date
        AND (v_waiver_mode = 'rolling' OR bid_amount = v_claim.bid_amount)
        AND claim_order > v_claim.claim_order
      ORDER BY claim_order ASC, submitted_at ASC

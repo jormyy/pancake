@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import {
     StyleSheet,
     KeyboardAvoidingView,
@@ -25,6 +26,7 @@ export default function ChangePasswordScreen() {
     const [error, setError] = useState<{ field: 'current' | 'new' | 'confirm'; message: string } | null>(null)
     const [saving, setSaving] = useState(false)
     const submittingRef = useRef(false)
+    useUnsentFormUpdate(Boolean(currentPassword || newPassword || confirmPassword), 'password form')
     const { padX } = usePageMetrics()
 
     async function handleSave() {
@@ -52,6 +54,9 @@ export default function ChangePasswordScreen() {
         setError(null)
         try {
             await changePassword(current, next)
+            setCurrentPassword('')
+            setNewPassword('')
+            setConfirmPassword('')
             showSuccess('Password Changed', 'Your password has been updated.')
             back()
         } catch (e) {

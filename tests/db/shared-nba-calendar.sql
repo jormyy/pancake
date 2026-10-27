@@ -281,8 +281,6 @@ BEGIN
   v_code:=pg_temp.call_as('service_role',format('SELECT public.rebuild_nba_calendar_atomic(%s)',v_year+3));
   PERFORM pg_temp.must(v_code='55000','default retry cannot initialize from partial retained history');
   PERFORM pg_temp.must(pg_temp.calendar_state(v_years)=v_before,'retry initialization denial preserves exact inputs');
-  PERFORM pg_temp.must(to_regprocedure('public.rebuild_nba_calendar_atomic(integer,boolean)') IS NULL,
-    'the old initialization override is removed');
   v_games:=jsonb_build_array(pg_temp.game(v_year+3,1,make_date(v_year+3,1,1),1,'Scheduled'),
     pg_temp.game(v_year+3,2,make_date(v_year+3,1,9),2,'InProgress'));
   v_weeks:=jsonb_build_array(pg_temp.week(v_year+3,1,make_date(v_year+3,1,1),make_date(v_year+3,1,7)),

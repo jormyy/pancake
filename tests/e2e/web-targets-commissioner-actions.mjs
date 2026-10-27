@@ -1,7 +1,7 @@
 import { ensureWebActionCalendar } from './web-targets-action-calendar.mjs'
 import assert from 'node:assert/strict'
 import { setupTradeGameplayFixture } from './trade-fixture.mjs'
-import { setupBrowserPlayoffLeague } from './browser-playoff-gameplay.mjs'
+import { setupScoredPlayoffFixture } from './scored-playoff-fixture.mjs'
 
 export async function auditWebCommissionerActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect }) {
   const field = (label) => page.getByText(label, { exact: true }).locator('..').locator('input')
@@ -14,6 +14,26 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await ensureWebActionCalendar(fixture)
     await signIn(fixture)
     return { leagueId: fixture.league.id, ...await action(fixture) }
+  })
+  await run('manager-settings-authorization', async (fixture) => {
+    const before = await db(fixture.admin.from('leagues').select('name,auction_budget,scoring_settings').eq('id', fixture.league.id).single())
+    await signIn(fixture, 1)
+    await open('/commissioner-settings')
+    await page.getByText('Only league commissioners can manage these settings.', { exact: true }).waitFor()
+    assert.equal(await button('Save league settings').count(), 0)
+    const rejection = await page.evaluate(async ({ url, key, leagueId }) => {
+      const session = JSON.parse(localStorage.getItem(`sb-${new URL(url).hostname.split('.')[0]}-auth-token`))
+      const response = await fetch(`${url}/rest/v1/rpc/update_league_configuration_atomic`, {
+        method: 'POST', headers: { apikey: key, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ p_league_id: leagueId, p_settings: { auction_budget: 999 }, p_slots: null }),
+      })
+      return { status: response.status, body: await response.json() }
+    }, { url: env.supabaseUrl, key: env.anonKey, leagueId: fixture.league.id })
+    assert.ok(rejection.status >= 400)
+    assert.match(rejection.body.message, /commissioner|permission|authorized/i)
+    const after = await db(fixture.admin.from('leagues').select('name,auction_budget,scoring_settings').eq('id', fixture.league.id).single())
+    assert.deepEqual(after, before)
+    return { managerControlsHidden: true, forgedStatus: rejection.status, forgedMessage: rejection.body.message, settingsUnchanged: true }
   })
   await run('commissioner-save-and-overrides', async (fixture) => {
     await db(fixture.admin.from('leagues').update({ status: 'setup' }).eq('id', fixture.league.id))
@@ -39,7 +59,7 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await open('/commissioner-settings')
     await wait(async () => await button('Save league settings').isEnabled())
     await press(page.getByText('FAAB', { exact: true }))
-    await press(page.getByText('Off', { exact: true }))
+    await press(page.getByText('Veto Mode', { exact: true }).locator('..').getByText('Off', { exact: true }))
     await press(button('Save league settings'))
     await page.waitForURL((url) => url.pathname === '/league')
     const modes = await db(fixture.admin.from('leagues').select('waiver_mode,trade_veto_mode').eq('id', fixture.league.id).single())
@@ -64,17 +84,21 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     await wait(async () => (await rows()).length === original.size && (await rows()).every((row) => !original.has(row.id)))
     const errors = []
     for (const [label, endpoint] of [['Process Waiver Claims', '/waivers/process'], ['Sync Player Stats', '/sync/stats'], ['Sync Scores Now', '/sync/scores'], ['Sync Dynasty Rankings', '/sync/rankings'], ['Sync Projections', '/sync/projections'], ['Sync NBA Game Schedule', '/sync/schedule']]) {
-      const response = page.waitForResponse((response) => response.url().endsWith(endpoint) && response.request().method() === 'POST')
-      await press(page.getByRole('button', { name: label, exact: true }))
-      const receipt = await response
-      assert.ok([403, 503].includes(receipt.status()), `${label}: local admin allowlist must gate this action`)
-      await page.getByText(/Admin access (?:not configured|required)|Internal server error/).last().waitFor()
-      await press(button('Dismiss').last())
-      await wait(async () => await page.getByRole('button', { name: label, exact: true }).isEnabled())
-      errors.push({ label, status: receipt.status(), recovered: true })
+      assert.equal(await page.getByRole('button', { name: label, exact: true }).count(), 0, 'Global maintenance controls are not commissioner actions')
+      const receipt = await page.evaluate(async ({ url, supabaseUrl, key, leagueId }) => {
+        const session = JSON.parse(localStorage.getItem(`sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`))
+        const response = await fetch(url, { method: 'POST',
+          headers: { apikey: key, authorization: `Bearer ${session.access_token}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ leagueId }),
+        })
+        return { status: response.status, body: await response.json() }
+      }, { url: `${env.apiBaseUrl}${endpoint}`, supabaseUrl: env.supabaseUrl, key: env.anonKey, leagueId: fixture.league.id })
+      assert.ok([403, 503].includes(receipt.status), `${label}: local admin allowlist must gate this action`)
+      assert.match(receipt.body.error ?? receipt.body.message ?? '', /Admin access (?:not configured|required)|Internal server error/i)
+      errors.push({ label, status: receipt.status, controlsAbsent: true, forgedRequestRejected: true })
     }
     return { scheduleRows: (await rows()).length, regenerated: true, adminGate: errors,
-      limitation: 'Global sync happy paths need a local admin allowlist and controlled provider responses. These checks prove denied-state recovery.' }
+      limitation: 'Global sync happy paths need a local admin allowlist and controlled provider responses. These checks prove hidden controls and denied forged requests.' }
   }, true)
   await run('commissioner-utility-success-feedback', async () => {
     await open('/commissioner-settings')
@@ -104,37 +128,51 @@ export async function auditWebCommissionerActions({ check, env, season, page, pr
     return { operations, limitation: 'Success responses are simulated. The real local API denies these global operations without an admin allowlist. External provider jobs and global sync writes are not exercised here.' }
   })
   await check('commissioner-playoffs-rollover-archive', async () => {
-    const fixture = await setupBrowserPlayoffLeague(env, season)
-    await ensureWebActionCalendar(fixture)
+    const fixture = await setupScoredPlayoffFixture(env, season)
+    const scoring = [await fixture.scoreThrough(17)]
     await signIn(fixture)
     await open('/commissioner-settings')
-    const rounds = (type) => db(fixture.admin.from('matchups').select('id,home_member_id,away_member_id,is_finalized').eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id).eq('matchup_type', type))
-    const finalize = async (type) => {
-      for (const row of await rounds(type)) await db(fixture.admin.from('matchups').update({ home_points: 150, away_points: 100,
-        winner_member_id: row.home_member_id, is_finalized: true, finalized_at: new Date().toISOString() }).eq('id', row.id))
-    }
+    const rounds = round => db(fixture.admin.from('matchups').select('id,home_member_id,away_member_id,is_finalized,home_points,away_points,winner_member_id')
+      .eq('league_season_id', fixture.currentSeason.id).eq('playoff_round', round))
     await press(page.getByRole('button', { name: /^Generate Playoff Bracket/ }))
-    await wait(async () => (await rounds('playoff_quarterfinal')).length === 2)
+    await wait(async () => (await rounds(1)).length === 2)
     await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await page.getByText(/Quarterfinals are not yet finalized/).last().waitFor()
+    await page.getByText(/not yet finalized|not finalized|not complete/i).last().waitFor()
     await press(button('Dismiss').last())
-    await finalize('playoff_quarterfinal')
+    assert.equal((await rounds(2)).length, 0)
+    scoring.push(await fixture.scoreThrough(19))
     await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await wait(async () => (await rounds('playoff_semifinal')).length === 2)
-    await finalize('playoff_semifinal')
-    await press(page.getByRole('button', { name: /^Advance Playoff Round/ }))
-    await wait(async () => (await rounds('playoff_final')).length === 1)
-    await finalize('playoff_final')
+    await wait(async () => (await rounds(2)).length === 1)
+    scoring.push(await fixture.scoreThrough(21))
+    const final = await rounds(2)
+    assert.equal(final[0].is_finalized, true)
+    const champion = fixture.members.find(member => member.id === final[0].winner_member_id)
+    assert.ok(champion)
+    await open('/bracket')
+    await page.getByText('Champion', { exact: true }).locator('..').getByText(champion.team_name, { exact: true }).waitFor()
+    const championship = page.getByText('Weeks 20–21', { exact: true }).locator('../..')
+    await championship.getByText(final[0].home_points.toFixed(1), { exact: true }).waitFor()
+    await championship.getByText(final[0].away_points.toFixed(1), { exact: true }).waitFor()
+    await championship.getByText('Final', { exact: true }).waitFor()
+    await press(button('Back to league standings'))
+    await open('/commissioner-settings')
     await press(page.getByRole('button', { name: /^Advance to Next Season/ }))
     await press(button('Advance'))
     const current = () => db(fixture.admin.from('league_seasons').select('id,season_year').eq('league_id', fixture.league.id).eq('is_current', true).single())
     await wait(async () => (await current()).id !== fixture.currentSeason.id)
-    assert.equal((await current()).season_year, fixture.currentSeason.season_year + 1)
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+    const calendarYear = Number(today.slice(0, 4)) + (Number(today.slice(5, 7)) >= 10 ? 1 : 0)
+    assert.equal((await current()).season_year, Math.max(fixture.currentSeason.season_year + 1, calendarYear))
     await press(page.getByRole('button', { name: /^Archive League\./ }))
     await press(button('Archive League'))
     await wait(async () => Boolean((await db(fixture.admin.from('leagues').select('deleted_at').eq('id', fixture.league.id).single())).deleted_at))
     await wait(async () => new URL(page.url()).pathname === '/league')
-    assert.equal((await db(fixture.admin.from('matchups').select('id').eq('league_id', fixture.league.id).eq('matchup_type', 'playoff_final'))).length, 1)
-    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, rolledOver: true, archivedWithHistory: true }
+    assert.deepEqual(await rounds(2), final)
+    await button('Create a League').waitFor()
+    await button('Join with Invite Code').waitFor()
+    while (await button('Dismiss').count()) await press(button('Dismiss').last())
+    return { leagueId: fixture.league.id, generated: true, prematureAdvanceBlocked: true, advanced: true, championVisible: champion.team_name,
+      finalPointsVisible: [final[0].home_points, final[0].away_points], rolledOver: true, archivedWithHistory: true, emptyLeagueActionsVisible: true,
+      scoring, fixture: 'Ten fictional teams, one scoring player each, four playoff teams, two weeks per round. Synthetic historical stats pass through the real scoring worker; no expected winner is written.' }
   })
 }

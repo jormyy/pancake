@@ -4,305 +4,124 @@
 
 Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261028000200`.
-Apply `20261028000100_recheck_final_stats.sql`, then `20261028000200_fence_final_stat_revisions.sql`.
-It allows overdue final-game checks without another active game.
-It also queues one seven-day correction window per Eastern date, starting after 06:20.
-The existing fenced worker processes that window one game at a time.
-The migration preserves game statistics, player identities, accounts, and league settings.
-Deploy `sync-players` for the placeholder filter.
-Deploy `sync-stats`, `sync-scores`, `live-poll`, `backfill`, and `season-boundary` before recording verified source revisions.
-Final snapshots carry their publication time so an older feed cannot overwrite a newer verified result.
-The current frontend and older Edge artifacts remain compatible with the added scheduler function.
+Apply every migration below in order, through repository head `20261029000800`.
+Keep published migrations unchanged.
 
-Verify the migration on the private stack with `npm run test:db:stats-corrections`.
-The regression fails before the migration when a stale final game is the only pending work.
-It checks the retry window, daily idempotence, completed jobs, DST, and client execution grants.
-If the background correction job must be stopped, unschedule `daily-stat-corrections`.
-Keep the schema upgrade and do not revert corrected game data.
+| Migration | Change |
+| --- | --- |
+| `20261029000100_continuous_faab.sql` | Requires scheduled FAAB claims for every available player and freezes claim changes at the cutoff. |
+| `20261029000200_inactive_trade_block.sql` | Applies inactive-trade settings to IR and taxi listings and preserves allowed listings during roster moves. |
+| `20261029000300_trade_plan_moves_and_capacity.sql` | Adds retained-player moves, resulting-roster checks, shared reservations, and combined capacity checks to trade plans. |
+| `20261029000400_trade_estimate_snapshots.sql` | Saves immutable trade quotes and attaches matching estimates during offer submission. |
+| `20261029000500_matchup_forecasts.sql` | Adds cached matchup forecasts, private work claims, change triggers, member reads, and minute dispatch. |
+| `20261029000600_historical_trade_revaluation.sql` | Revalues saved trades after ownership changes while preserving their original quotes. |
+| `20261029000700_pre_tipoff_live_lock_compatibility.sql` | Uses compatible parent locks for lineup optimization and live statistics ingestion. |
+| `20261029000800_matchup_forecast_lock_order.sql` | Locks forecast parents before the queue to prevent conflicts with scoring. |
+
+Freeze the reviewed source and record the current frontend and Edge artifacts before release.
+Refresh migration-range and database security attestations for this exact candidate.
+[Migration history](../docs/production-migration-history.md#candidate-migrations) defines the baseline and approval boundaries.
+
+Deploy these changed Edge functions after the database upgrade and before the frontend merge:
+
+- `api`: Continuous claims, trade plans, saved estimates, and historical revaluation.
+- `matchup-forecast`: Background forecast calculation and publication.
+- `sync-sleeper-projections`: Selects the scoring week containing today and skips calendar gaps.
+- `season-boundary`: Builds the new season's matchups in the same run that activates the league after the rookie draft.
+
+The source diff also includes `_shared`.
+That directory contains bundled helpers and tests, rather than a deployable function.
+Deploy its changed trade and forecast helpers with the functions above.
+Confirm the function list from the reviewed candidate:
+
+```sh
+git diff --name-only origin/main...HEAD -- supabase/functions | cut -d/ -f3 | sort -u
+```
+
+Run lightweight source checks on the Mac:
+
+```sh
+npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts
+npm run lint:all
+npm run check:edge-shared
+npm run check:core-cjs
+npm run check:db-function-sources
+```
+
+The compatibility check detects missing release steps and changes that break deployed consumers.
+Its negative controls remove the release section, production baseline, and newest migration.
+The release checks reject incomplete evidence, missing measurements, and unsafe browser fixtures.
+Lint and generated-source checks detect code errors and drift between runtime copies.
+
+Run database, Edge, and browser recipes on an isolated mini stack.
+Use the [local setup](../docs/verification.md#local-stack) and the stack's own local connection values.
+Apply the ordered upgrade from `20261028000200` before exercising both deployed and candidate consumers.
+
+```sh
+npm run test:db:continuous-faab
+npm run test:db:continuous-faab-schedule
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
+npm run test:db:trade-plan-moves-capacity
+npm run test:db:trade-plan-concurrency
+npm run test:db:trade-waiver-concurrency
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-estimate-snapshots.sql
+npm run test:db:trade-historical-revaluation
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/matchup-forecast-cache.sql
+node supabase/tests/db/matchup-forecast-concurrency.mjs
+npm run test:db:pre-tipoff-live-concurrency
+npm run check:database-types
+npm run check:db-function-catalog
+npm run check:edge-functions
+npm run e2e:web-targets
+```
+
+Set `PANCAKE_TEST_DB_PORT` to the private stack's database port for the forecast concurrency recipe.
+FAAB checks cover ownership, cutoff, priority, balances, retries, and daylight saving boundaries.
+Trade checks cover inactive assets, atomic plans, competing reservations, immutable quotes, and historical reads.
+Forecast checks cover membership, stale revisions, claims, expiry, retries, and concurrent publication.
+The lineup check forces ingestion and optimization to overlap and checks scores and unchanged assignments.
+Catalog, type, and Edge checks detect schema or runtime contract drift.
+Browser checks exercise supported clients against the seeded release build.
+Use the [late-start replay](../docs/season-simulator.md#fresh-replay-launch) for remaining historical windows.
+Its acceptance excludes earlier unmeasured windows.
+The [release gates](../docs/verification.md#release-gates) define complete artifact and deployment evidence.
+
+After the database upgrade, check the recorded frontend and Edge against that schema.
+Deploy Edge and check its callers before merging the frontend.
+A merge to main also starts frontend deployment.
+
+If a phase fails, stop promotion and restore the recorded frontend and Edge artifacts.
+Keep the migrated database, saved trade quotes, roster history, and corrected statistics.
+Scheduled FAAB remains authoritative; old instant-add calls still fail safely.
+An older client cannot restore immediate pickups.
+If forecast dispatch must stop, unschedule `matchup-forecasts` and retain its queue and cache.
+Repair forward through a reviewed migration and repeat compatibility checks before resuming.
+Do not reverse migrations or rewrite settled ownership and scores to recover an artifact.
 
 ## Previous release order
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261026001000`.
-That baseline includes every migration through `20261026001000_remove_e2e_fixture_players.sql`.
-Keep every published migration unchanged.
-Apply these follow-up migrations after that baseline, in version order:
+The previous release adds `20261028000100_recheck_final_stats.sql`, then `20261028000200_fence_final_stat_revisions.sql`.
+It allows overdue final-game checks without another active game.
+It queues one seven-day correction window per Eastern date, starting after 06:20.
+The fenced worker processes that window one game at a time.
+Final snapshots carry publication times so older feeds cannot replace newer verified results.
 
-- `20261027000100_three_future_draft_classes.sql`
-- `20261027000101_remove_unreferenced_distant_picks.sql`
-- `20261027000200_player_identity_matching.sql`
-- `20261027000201_player_career_counter.sql`
-- `20261027000202_player_source_coverage.sql`
-- `20261027000203_preserve_explicit_career_writes.sql`
+That rollout deploys `sync-players` for placeholder filtering.
+It also deploys `sync-stats`, `sync-scores`, `live-poll`, `backfill`, and `season-boundary` for revision-aware writes.
+These functions belong to the previous rollout; the current changed-function list appears above.
 
-The counter migration replaces its earlier unpublished rehearsal version.
-Rebuild the rehearsal from the production baseline before applying this revised file.
+`npm run test:db:stats-corrections` checks overdue finals, retry windows, daily idempotence, completed jobs, DST, and client grants.
+`npm run test:db:final-stat-revisions` checks revision ordering and atomic score and statistics writes.
+If correction dispatch must stop, unschedule `daily-stat-corrections` and retain the schema and corrected data.
 
-The first migration limits new pick assets to three future draft classes and corrects pick years in trade-expiry messages.
-It also rejects trades containing retained picks beyond that window.
-The second removes unused, unreferenced picks beyond the third future class.
-It discovers every foreign key to `draft_picks` and preserves referenced picks, activity references, used picks, and rookie draft assignments.
-For OFFICIAL LEAGUE at season 2027, the expected cleanup removes 42 picks from seasons 2031 and 2032.
-The remaining future classes are seasons 2028–2030, displayed as draft years 2027–2029.
+## Rule references
 
-The March backfill reads one capped player page and matches names exactly before inserting missing players.
-Its lookup ignores team aliases and misses hyphen/space variants.
-The June importer removes `sleeper_id` from name-matched updates, leaving those rows unlinked.
-Its name key removes hyphens but preserves spaces, so `Jones-Garcia` and `Jones Garcia` differ.
-The old automatic merge only handles a shared NBA or Sleeper ID.
-These paths leave separate source rows without a shared ID to trigger a merge.
-Historical deployment logs are unavailable here, so they cannot identify which missed read created every individual duplicate.
-
-The player migrations link new sources by a unique normalized name and NBA team.
-Names use letters only; team aliases include `SA` → `SAS`.
-Ambiguous names retain the review path, and conflicting source IDs never merge.
-The supplied production pattern merges seven rows into six NBA-backed survivors:
-
-| Survivor | Merged source rows | Team |
-| --- | --- | --- |
-| David Jones Garcia | Sleeper David Jones-Garcia; legacy sportsdata David Jones-Garcia | SAS, including legacy SA |
-| Joan Beringer | Sleeper Joan Beringer | MIN |
-| Nic Claxton | Sleeper Nic Claxton | CHI |
-| Taelon Peter | Sleeper Taelon Peter | IND |
-| Trevon Scott | Sleeper Trevon Scott | BKN |
-| Will Richard | Sleeper Will Richard | GSW |
-
-The NBA row survives; every compatible provider ID and dependent reference moves through `merge_players`.
-The migration skips any group with conflicting provider IDs.
-Below 65, career totals use a fixed base plus regular-season appearances after the base season.
-An appearance has positive minutes or any positive counting statistic, regardless of its DNP flag.
-The base normally comes from ESPN per-season GP through the previous season.
-Later seasons come from our boxes; ESPN's current-season lag does not remove the latest appearance.
-
-| Existing state | Migration result | Next lookup |
-| --- | --- | --- |
-| Non-null count below 65 | Preserve the count exactly; leave base unset | One ESPN completed-season fetch |
-| Non-null count at least 65 | Preserve the count exactly; leave base unset | None |
-| NULL count; rookie with no earlier appearance | Base 0 through the previous season | None |
-| NULL count; every completed NBA season covered | Provisional base 0 through 2020 | One successful ESPN fetch only while below 65 |
-| NULL count; at least 65 covered appearances | Base 0 through 2020; total is a safe lower bound | None |
-| Other NULL count | Remain unknown | ESPN first; retry failures after at least seven days |
-
-Covered completed seasons must equal `years_exp`.
-A current-season appearance adds one to the number of observed seasons, not to completed experience.
-Any appearance before coverage prevents the complete-coverage fallback.
-A late first stored season never proves a late NBA debut.
-ESPN, rookie, and threshold bases are never fetched again.
-Coverage bases below 65 need one successful ESPN lookup because historical boxes have gaps.
-No player with at least 65 stored games enters the lookup queue, regardless of base source.
-The database claim checks that limit again before any external request.
-Existing counts remain stored; exact totals above 65 do not affect taxi eligibility.
-Transactional recounts continue, but cannot lower a count once it reaches 65.
-Explicit count writes, including NULL, remain valid for the deployed Edge and fixture setup.
-The final migration limits the career guard to base changes and preserves timestamp-only updates.
-It changes no stored counts when applied.
-The lookup replaces coverage with the completed-season ESPN base and recounts later local appearances.
-Unavailable ESPN data leaves coverage unchanged and permits another attempt after at least seven days.
-Any base lookup that would lower the stored total is rejected, preserving the count for a later attempt.
-The worker limits each run to 300 players, 16 concurrent jobs, and a 90-second start budget.
-External work for one player has an eight-second deadline.
-Earlier import work also reduces the remaining lookup budget.
-The worker starts no new lookup after 110 seconds of the complete daily sync.
-Players on an NBA team run first, then those closest to 65 stored games.
-Unknown counts follow known counts within each group; the oldest attempts break ties.
-Deferred work remains due for the next daily run.
-Run `supabase/sql/player-data-audit.sql` against approved candidate data to inspect base sources, queue counts, and season coverage.
-The NBA-team queue equals unknown unbased players plus unbased counts below 65 plus coverage counts below 65.
-The aggregate of 541 known ESPN counts does not show how many are below 65.
-
-The existing Edge and frontend remain compatible throughout the database phase and after rollback.
-Stored years and existing RPC arguments, results, and permissions stay compatible.
-The player table gains nullable base, cutoff, source, and lookup-time fields.
-Regenerate the final release and database security attestations after all follow-up migrations are integrated.
-Do not reuse the previous release's approved migration range.
-The reserved `20261027000000` legacy-push cleanup is separate from this pick release.
-
-1. Freeze the reviewed commit and record the deployed frontend and Edge artifacts.
-2. Run the focused database recipes and the generated-source, catalog, type, and Edge checks on an isolated stack.
-3. Verify the approved migration plan against the deployed baseline, then apply it through the release workflow.
-4. Check the deployed frontend and Edge against the migrated database before replacing either artifact.
-5. Deploy Edge, verify compatibility, then deploy the frontend.
-6. If deployment fails, restore the old frontend and Edge while keeping the compatible migrated database.
-
-The focused pick recipes are:
-
-```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-window-cleanup.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/pick-draft-year.sql
-PANCAKE_PICK_WINDOW_DB_TESTS=1 npx vitest run tests/e2e/pick-window-harness.test.ts
-```
-
-The harness recipe also requires the isolated stack's `E2E_SUPABASE_URL`, `E2E_PANCAKE_SUPABASE_SECRET_KEY`, and `E2E_SUPABASE_PUBLISHABLE_KEY`.
-
-## Connected players and current rosters
-
-The source-coverage migration keeps existing import and injury RPC contracts working during rollback.
-It adds service-only source-link and full-roster-cycle functions plus private roster evidence tables.
-Current ESPN and NBA rosters drive membership; Sleeper supplies IDs and missing metadata.
-The injury feed can link an ESPN player-card ID before applying its status.
-Sleeper projections link IDs before the same run writes projections.
-Existing non-null source IDs, experience, and positions remain intact.
-Ambiguous names, team mismatches, and conflicting IDs stay unresolved for review.
-
-The reported 45 missing ESPN IDs, 91 missing Sleeper IDs, 19 missing NBA IDs,
-30 missing experience values, and one missing position can fill when their source records match uniquely.
-The eight players missing both ESPN and NBA IDs can link independently from either roster.
-These counts can overlap; they do not establish that all 692 team labels remain current.
-A player absent from both complete rosters for a full daily cycle loses the stale team label.
-Partial rosters, one-source omissions, recent box evidence, and stale refreshes keep the existing hold protections.
-An incomplete NBA roster records `rosterRefreshSkipped` without failing an otherwise successful sync.
-Provider fetch or identity-write failures still fail the sync and report their cause.
-Unassigned-player history remains available through the existing list behavior.
-The audit lists unresolved current players and pending absence holds after each complete cycle.
-
-Injury dispatch also runs hourly outside the existing game-day quarter-hour window, from 08:00 through 02:00 ET.
-Deploy the database first, then the updated Edge functions; the old Edge remains compatible with the additive schema.
-
-## Player data verification
-
-Use the private stack described in `docs/verification.md`.
-These recipes need no new package commands:
-
-```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-identity.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-merges.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base-regressions.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-base.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-legacy-writes.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-coverage-upgrade.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-career-queue.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-appearances.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-regular-season.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-connectivity.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-source-box.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-roster-cycle.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-injury-hours.sql
-npm run test:db:player-data
-```
-
-The fixtures reproduce Mario Hezonja, Skal Labissiere, and Guerschon Yabusele returning after gaps.
-Returning veterans and existing counts of at least 65 remain unchanged without an ESPN request.
-The fixtures also model incomplete Cam Christie boxes, ESPN's one-game lag at 64 games, and incorrect DNP flags.
-Fetched totals use completed ESPN seasons plus all later local appearances.
-A coverage fixture moves from 64 stored games to 69 after its ESPN lookup.
-The recipes also prove weekly retry, nondecreasing upgrades, and no repeat lookup after success.
-They verify that 65-plus players never queue, including a player reaching 65 while waiting for another attempt.
-A valid career total also checks season-history completeness, with one game of tolerance for source lag.
-The migration test starts before the counter migration and proves that seven known counts never decrease.
-It also checks rookie, complete-coverage, threshold, and unknown fallbacks.
-Run that separate transition recipe before the final full reset:
-
-```sh
-supabase db reset --local --version 20261027000200
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-data-migration.sql
-supabase db reset --local
-```
-
-The transition recipe rolls back its fixtures and migration.
-The existing regular-season filter recognizes NBA `002` games and excludes other NBA `00` types.
-Preseason, playoffs, play-in, and Cup finals contribute zero.
-Zero-minute appearances with a positive counting statistic contribute one.
-Legacy Basketball Reference imports keep the existing schedule filter.
-
-## Acquisition contract
-
-Existing positional RPC calls remain valid because new arguments have defaults.
-The server removes ambiguous older overloads.
-
-| RPC | Added arguments |
-| --- | --- |
-| `add_free_agent_atomic` | `p_to_ir boolean DEFAULT false`, then `p_to_taxi boolean DEFAULT false` |
-| `create_waiver_claim_atomic` | `p_to_ir boolean DEFAULT false`, then `p_to_taxi boolean DEFAULT false` |
-| `edit_waiver_claim_atomic` | `p_to_ir boolean DEFAULT NULL`, then `p_to_taxi boolean DEFAULT NULL` |
-
-Waiver API bodies accept `toIr` and `toTaxi`.
-Omitted create values mean false; omitted edit values preserve the stored destination.
-`waiver_claims.to_ir` and `waiver_claims.to_taxi` are non-null and default to false.
-An add cannot request both destinations.
-Straight-to-IR and straight-to-taxi adds remain available without a league opt-in.
-Both permit eligible acquisitions after tipoff because these players do not score.
-They still consume a weekly add.
-IR requires an Out or IR designation, an open slot, and an allowed season state.
-Taxi requires eligibility, an open unreserved slot, remaining tenure, and no prior exit from that team's taxi.
-
-Every league uses `years_exp = 0` or fewer than 65 career NBA regular-season games.
-A non-rookie needs a known count to enter taxi.
-An unknown count never makes an existing taxi player illegal.
-The retained `leagues.taxi_rule` column supports rollback reads; settings ignore submitted rule values.
-The phone computes Rookie and Taxi display tags from stored server values.
-The server decides whether an acquisition is legal.
-
-At award time, the worker checks the destination again.
-An unavailable IR or taxi destination falls back to active space and any applicable planned drop.
-A claim fails with a clear reason when neither destination fits.
-The worker processes older due runs before newer claims within each league.
-Activity and winning-claim notifications name the taxi destination.
-
-| Code | Meaning |
-| --- | --- |
-| `PA001` | Weekly add limit reached |
-| `PA002` | Player remains on waivers |
-| `PA003` | Active roster capacity exceeded |
-| `PA005` | An existing IR player is ineligible |
-| `PA006` | Requested player cannot enter IR |
-| `PA007` | IR capacity exhausted |
-| `PA009` | An existing taxi player is ineligible |
-
-The shared roster guard reports named IR and taxi problems and one team-level active overflow problem.
-It blocks adds, new claims, claim edits that add, sent offers, and acceptance by the illegal team.
-Pending claims fail while that roster remains illegal.
-The acquisition guard leaves lineup moves, activations, drops, and cancellations available.
-Existing lineup capacity, reservation, and game-lock checks still apply.
-[Roster lifecycle](../docs/roster-lifecycle.md) owns the complete rule contract.
-
-## Trades and activity
-
-Trading opens in offseason, drafting, active, and playoffs.
-Setup and the startup auction close trading.
-Commissioner deadlines and roster rules still apply.
-The public activity feed omits pending offers, counters, edits, expirations, and trade-block changes.
-Completed trades remain visible with their participants.
-Private offer state remains in the Trades screen.
-
-At the opening-night cutoff, completed rookie drafts do not wait for every team to trim its roster.
-The server places the newest eligible drafted rookies into available taxi slots first.
-The league activates even when some teams still exceed their active limit.
-Those teams must fix their rosters before restricted acquisitions or trades.
-
-## Data and compatibility
-
-`search_players` appends `career_regular_season_games integer` without changing earlier result columns.
-`get_visible_player_totals` supplies bounded visible-player statistics.
-`player_game_stats.is_home` preserves the stored game side.
-Live player changes use the existing `score` topic with null scopes and details.
-The minute throttle keeps pending changes for its next flush.
-No new `player_stats` topic or scoped `activity` inventory detail ships in this release.
-
-Incremental season totals preserve per-game scoring and existing average read shapes.
-DNP lines and non-regular-season games do not contribute to regular-season averages.
-The projection reader skips started or finished games without changing its result columns.
-Retired search-cache refresh routines remain callable and return without rebuilding data.
-Reconciliation skips unchanged writes, and the live gate returns while a current lease exists.
-
-`sync-player-injuries` refreshes injuries each quarter hour on game days, from 11:00 ET through the last scheduled tipoff.
-It receives `{}` and records its own `sync_runs` outcome.
-`sync-players` keeps its daily full refresh; it has no injury-only mode.
-Player imports preserve stored injuries when metadata omits `injury_status`; explicit null clears them.
-[Source monitoring](../docs/source-monitoring.md) owns provider schedules and recovery.
-
-The cleanup migrations remove unused tiebreak storage and server routines after replacing their callers.
-They retain objects used by the deployed Edge and frontend through the rollback window.
-The fixture cleanup removes only the E2E player identities defined by its migration.
-Review that migration's predicate with the approved plan before deployment.
-
-## Verification
-
-Run the ordered upgrade and compatibility checks against the reviewed migration range.
-Use [verification](../docs/verification.md) for setup and [migration history](../docs/production-migration-history.md) for attestation rules.
-Regenerate final attestations only after all migration changes are integrated.
-Previous run counts do not certify this candidate.
+[Roster lifecycle](../docs/roster-lifecycle.md) defines claims, taxi eligibility, reservations, trade plans, and season transitions.
+[Trade estimates](../docs/trade-estimates.md) defines frozen quotes and separate historical revaluation.
+[Matchup forecasts](../docs/matchup-forecasts.md) defines inputs, stale results, publication, and concurrency.
+[Source monitoring](../docs/source-monitoring.md) defines providers, projection windows, corrections, and retention.
+[Verification](../docs/verification.md) lists current recipes and release prerequisites.
 
 ## Next release
 
@@ -336,8 +155,7 @@ The database phase also keeps receipt tickets and their current leases.
 
 First ship an Edge release that removes Expo delivery, receipt polling, and legacy storage access.
 Settle pending tickets and close its rollback window.
-Then add this follow-up migration:
-`20261027000000_remove_legacy_expo_after_edge.sql`.
+Then assign a new migration version after the repository head for the SQL below.
 This SQL stays outside `supabase/migrations` until that release.
 It requeues pending tickets, replaces the queue routines, and then removes the legacy objects.
 Remove their canonical sources and catalog entries, then regenerate types for that release.

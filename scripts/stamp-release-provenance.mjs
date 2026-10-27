@@ -5,6 +5,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { digestReleaseBundle, FRONTEND_DEPLOYMENT_INPUTS } from '../tests/e2e/release-provenance.mjs'
 import { createReleaseArtifactManifest } from '../tests/e2e/release-artifact.mjs'
+import { prepareReleaseCompatibility } from './retain-release-assets.mjs'
 
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 
@@ -134,7 +135,10 @@ const setServiceWorkerPrecache = async (root) => {
   // Use the export's full sign-in dependency graph, with the same required-byte checks.
   const html = (await Promise.all(['index.html', 'sign-in.html'].map((file) =>
     readFile(path.join(root, 'dist', file), 'utf8')))).join('\n')
-  const assets = await assetUrls(root)
+  const retained = await readFile(path.join(root, 'dist', 'release-compatibility.json'), 'utf8')
+    .then(value => new Set(JSON.parse(value).files.map(file => `/${file.path}`)))
+    .catch(error => { if (error.code === 'ENOENT') return new Set(); throw error })
+  const assets = (await assetUrls(root)).filter(url => !retained.has(url))
   const urls = bootAssets(html, { fonts: await referencedFonts(root, assets) })
   const delivery = await publicDelivery(root)
   if (urls.some((url) => !delivery.hashes[url] || (url !== '/' && !delivery.assets.includes(url)))) {
@@ -227,12 +231,14 @@ const setDocumentVersion = async (root, version) => {
 
 export const stampReleaseProvenance = async ({
   root = process.cwd(),
+  previousRelease = process.env.PANCAKE_PREVIOUS_RELEASE_ROOT,
   commitSha = process.env.E2E_EXPECTED_RELEASE_SHA || process.env.PANCAKE_RELEASE_SHA ||
     process.env.E2E_RELEASE_SHA || process.env.GITHUB_SHA || repositoryCommit(root),
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
   // Before the digest, so the precached set is covered by the cache version.
   await contentAddressPublicFiles(root)
+  await prepareReleaseCompatibility(root, previousRelease)
   await setDocumentVersion(root, 'pancake-build')
   await setServiceWorkerPrecache(root)
   await setServiceWorkerVersion(root, 'pancake-build')

@@ -29,6 +29,7 @@ const PREFIX_LIMITS = [
     ['pancake:player-screen:', 12],
     ['pancake:player-support:', 4],
     ['pancake:home-matchup:', 4],
+    ['pancake:matchup-forecast:', 4],
     ['pancake:lineup-screen:', 4],
     ['pancake:roster-screen:', 4],
     ['pancake:trade-picks:', 4],

@@ -1,7 +1,10 @@
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
+import { previewTradeRosters } from '@/lib/trade-roster-preview'
+import { TradeRosterPreviewList } from '@/components/trades/TradeRosterPreviewList'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -64,6 +67,8 @@ function PageFrame({ style, children }: { style: StyleProp<ViewStyle>; children:
 const BUILDER_WIDTH = 900
 
 export default function ProposeTradeScreen() {
+    const recoveryReady = useRef(false)
+    useEffect(() => holdPwaUpdate('trade editor', () => recoveryReady.current), [])
     const { user } = useAuth()
     const { current, currentLeague, online } = useLeagueContext()
     const { usableWidth } = usePageMetrics()
@@ -95,6 +100,16 @@ export default function ProposeTradeScreen() {
     const [senderTab, setSenderTab] = useState<string | undefined>(undefined)
     const ownerIdentity = user?.id && myMemberId && leagueId ? `${user.id}:${leagueId}:${myMemberId}` : null
     const { canRead, capture, isCurrent, canAct, markReady, blockActions, epoch, ready } = useModalActivity(ownerIdentity)
+    const [draftSeason, setDraftSeason] = useState<{ owner: string; id: string } | null>(null)
+    const draftSeasonId = draftSeason?.owner === ownerIdentity ? draftSeason.id : null
+    useEffect(() => {
+        let disposed = false
+        recoveryReady.current = false
+        if (ownerIdentity && leagueId) void getCurrentSeasonId(leagueId).then(id => {
+            if (!disposed && id) setDraftSeason({ owner: ownerIdentity, id })
+        }).catch(() => {})
+        return () => { disposed = true }
+    }, [ownerIdentity, leagueId])
     const formOwnerRef = useRef(ownerIdentity)
     const writeEpoch = useRef(0)
     const tradePrefillKey = useRef<string | null>(null)
@@ -219,6 +234,7 @@ export default function ProposeTradeScreen() {
 
     // A page reload (an app update reloads the page) brings back the trade this tab had not sent.
     useEffect(() => {
+        if (!draftSeasonId) return
         if (draftOwnerRef.current !== null) {
             const sameOwner = draftOwnerRef.current === ownerIdentity
             if (!sameOwner) {
@@ -230,7 +246,7 @@ export default function ProposeTradeScreen() {
         }
         if (!ownerIdentity) return
         draftOwnerRef.current = ownerIdentity
-        const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId)
+        const draft = readTradeComposerDraft(ownerIdentity, mode, sourceTradeId, draftSeasonId)
         if (draft) {
             restoredDraftRef.current = true
             setMultiTeamMode(draft.multiTeamMode)
@@ -243,7 +259,7 @@ export default function ProposeTradeScreen() {
             routePrefillKeyRef.current = `${draft.selectedRecipientId}:${params.requestPlayerId ?? ''}:${params.requestPickId ?? ''}`
         }
         setDraftReady(true)
-    }, [mode, ownerIdentity, params.requestPickId, params.requestPlayerId, prefillFromItems, sourceTradeId])
+    }, [mode, ownerIdentity, params.requestPickId, params.requestPlayerId, prefillFromItems, sourceTradeId, draftSeasonId])
 
     // Closing the editor ends the draft. A reload skips this cleanup, which is what keeps the draft.
     useEffect(() => clearTradeComposerDraft, [])
@@ -325,6 +341,7 @@ export default function ProposeTradeScreen() {
             taxiPlayerIds: rosterPlanDraft.taxiPlayerIds.filter(id => incoming.has(id)),
             irPlayerIds: rosterPlanDraft.irPlayerIds.filter(id => incoming.has(id)),
             dropPlayerIds: rosterPlanDraft.dropPlayerIds.filter(id => ownPlayers.has(id) && !offered.has(id)),
+            rosterMoves: rosterPlanDraft.rosterMoves?.filter(move => ownPlayers.has(move.playerId) && !offered.has(move.playerId)),
         }
     }, [items, myMemberId, composer.participantRosters, rosterPlanDraft])
     // Leaving drops a built trade, so ask first once anything is selected.
@@ -365,7 +382,7 @@ export default function ProposeTradeScreen() {
             ? `This trade has ${participantIds.length} teams. Remove ${participantIds.length - MAX_TRADE_PARTICIPANTS} to meet the ${MAX_TRADE_PARTICIPANTS}-team limit.`
             : 'Trade team limit reached. Remove a team before selecting another.'
         : null
-    const intent = JSON.stringify({ ownerIdentity, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
+    const intent = JSON.stringify({ ownerIdentity, seasonId: draftSeasonId, mode, sourceTradeId, multiTeamMode, selectedRecipientId,
         participantIds, items, notes, expirationDays, rosterPlan })
     const retainedAttempt = retainedAttemptRef.current?.ownerIdentity === ownerIdentity &&
         retainedAttemptRef.current.intent === intent ? retainedAttemptRef.current : null
@@ -374,13 +391,17 @@ export default function ProposeTradeScreen() {
     }, [intent])
     // Once Send starts, or a sent request's outcome is unknown, the server owns the trade: a restored
     // copy would send again under a new request key.
-    const draftToKeep = draftReady && draftOwnerRef.current === ownerIdentity && !submitting && !retainedAttempt &&
-        (items.length > 0 || notes !== '') ? intent : null
+    const draftToKeep = draftReady && draftOwnerRef.current === ownerIdentity && !submitting && !retainedAttempt ? intent : null
     useEffect(() => {
+        recoveryReady.current = false
         if (!draftReady) return
-        if (draftToKeep) saveTradeComposerDraft(draftToKeep)
-        else clearTradeComposerDraft()
-    }, [draftReady, draftToKeep])
+        if (!draftSeasonId || submitting || retainedAttempt) { clearTradeComposerDraft(); return }
+        if (draftToKeep) recoveryReady.current = saveTradeComposerDraft(draftToKeep)
+        else {
+            clearTradeComposerDraft()
+            recoveryReady.current = true
+        }
+    }, [draftReady, draftToKeep, draftSeasonId, submitting, retainedAttempt])
     const canSubmitNew = !tradingClosed && composer.selectedAssetsAvailable && withinItemLimit &&
         !notesError && !expirationError && (
         multiTeamMode
@@ -430,7 +451,8 @@ export default function ProposeTradeScreen() {
                         counterTradeId,
                         myMemberId,
                         leagueId,
-                        rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined,
+                        rosterPlan,
+                        estimateId: tradeAnalysis.quote?.id,
                         participantMemberIds: [...participantIds],
                         items: items.map((item) => ({ ...item })),
                         notes,
@@ -451,7 +473,7 @@ export default function ProposeTradeScreen() {
                         myMemberId,
                         leagueId,
                         selectedRecipientId,
-                        payload: { ...payload, rosterPlan: currentLeague?.allow_inactive_trades ? rosterPlan : undefined, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
+                        payload: { ...payload, estimateId: tradeAnalysis.quote?.id, rosterPlan, offerPlayerIds: [...payload.offerPlayerIds], requestPlayerIds: [...payload.requestPlayerIds],
                             offerPickIds: [...payload.offerPickIds], requestPickIds: [...payload.requestPickIds] },
                     }
                     send = () => submitTradeComposer(input,
@@ -486,8 +508,8 @@ export default function ProposeTradeScreen() {
         }
     }, [
         rosterLegality, capture, isCurrent, canAct, blockActions, user?.id,
+        tradeAnalysis.quote?.id,
         rosterPlan,
-        currentLeague?.allow_inactive_trades,
         back,
         canSubmit,
         counterTradeId,
@@ -556,7 +578,7 @@ export default function ProposeTradeScreen() {
     const editorReady = Boolean(membersError || (draftReady && !loading && prefillReady && recipientReady &&
         (participantIds.length < 2 || composer.assetsLoaded || composer.rosterError)))
     const verdict = (
-        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
     const reviewReady = !tradeAnalysis.loading
@@ -568,7 +590,7 @@ export default function ProposeTradeScreen() {
         <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {verdict}
-                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
+                {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
             </ScrollView>
         </DeferredContent>
     </PageFrame>
@@ -603,7 +625,12 @@ export default function ProposeTradeScreen() {
                     <View style={styles.reviewColumn}>
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                        {currentLeague?.allow_inactive_trades ? <TradeRosterPlanEditor
+                        {currentLeague ? <TradeRosterPreviewList teams={previewTradeRosters(
+                            participantIds.map(memberId => ({ memberId, teamName: composer.participantName(memberId) })),
+                            composer.participantRosters, items, { [myMemberId]: rosterPlan },
+                            { active: currentLeague.roster_size, ir: currentLeague.ir_slots, taxi: currentLeague.taxi_slots ?? 0 },
+                        )} /> : null}
+                        {currentLeague ? <TradeRosterPlanEditor
                             incoming={items.flatMap((item) => {
                                 if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
                                 const rosterPlayer = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)
@@ -613,9 +640,9 @@ export default function ProposeTradeScreen() {
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
                             value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
                             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
-                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} participantName={composer.participantName}
+                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />
-                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={composer.retry} /> : null}
+                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
                     </View>
                     </DeferredContent>
                 </ScrollView>

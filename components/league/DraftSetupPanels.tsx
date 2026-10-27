@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { View, Text } from 'react-native'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { Button, usePageMetrics } from '@/components/ui'
@@ -62,6 +63,9 @@ export function DraftPanel({
     const canStartAuction = ready && !activeDraft && currentLeagueStatus === 'setup' && isCommissioner
     const canStartRookie = ready && !activeDraft && currentLeagueStatus === 'offseason' && isCommissioner
     const canStart = canStartAuction || canStartRookie
+    useUnsentFormUpdate(canStart && (draftTimerSeconds !== 60 || (canStartAuction
+        ? nominationMode !== 'user_nominated'
+        : rookieRounds !== 3 || rookieTimerExpiryBehavior !== 'auto_pick')), 'draft launch options')
     const startLabel = canStartAuction
         ? `Start auction draft, ${draftTimerSeconds} second timer, ${NOMINATION_ORDER_MODE_LABELS[nominationMode]} nomination order`
         : `Start rookie draft, ${rookieRounds} rounds, ${draftTimerSeconds} second timer, ${ROOKIE_TIMER_EXPIRY_BEHAVIOR_LABELS[rookieTimerExpiryBehavior]} timeout behavior`

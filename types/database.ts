@@ -1765,6 +1765,69 @@ export type Database = {
         }
         Relationships: []
       }
+      matchup_forecasts: {
+        Row: {
+          calculated_at: string
+          forecast: Json
+          input_revision: number
+          league_id: string
+          matchup_id: string
+          valid_until: string
+        }
+        Insert: {
+          calculated_at?: string
+          forecast: Json
+          input_revision: number
+          league_id: string
+          matchup_id: string
+          valid_until: string
+        }
+        Update: {
+          calculated_at?: string
+          forecast?: Json
+          input_revision?: number
+          league_id?: string
+          matchup_id?: string
+          valid_until?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_matchup_id_fkey"
+            columns: ["matchup_id"]
+            isOneToOne: true
+            referencedRelation: "matchups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matchup_forecasts_matchup_id_fkey"
+            columns: ["matchup_id"]
+            isOneToOne: true
+            referencedRelation: "v_matchup_detail"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       matchups: {
         Row: {
           away_max_possible_points: number | null
@@ -3283,6 +3346,120 @@ export type Database = {
           },
         ]
       }
+      trade_estimate_quotes: {
+        Row: {
+          analysis: Json
+          created_at: string
+          expires_at: string
+          id: string
+          input_version: string
+          inputs: Json
+          league_id: string
+          league_season_id: string
+          member_id: string
+          model_version: string
+          terms: Json
+        }
+        Insert: {
+          analysis: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_version: string
+          inputs: Json
+          league_id: string
+          league_season_id: string
+          member_id: string
+          model_version: string
+          terms: Json
+        }
+        Update: {
+          analysis?: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_version?: string
+          inputs?: Json
+          league_id?: string
+          league_season_id?: string
+          member_id?: string
+          model_version?: string
+          terms?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_league_season_id_fkey"
+            columns: ["league_season_id"]
+            isOneToOne: false
+            referencedRelation: "league_seasons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_quotes_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "league_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_estimates: {
+        Row: {
+          quote_id: string | null
+          recorded_at: string
+          trade_id: string
+          unavailable_reason: string | null
+        }
+        Insert: {
+          quote_id?: string | null
+          recorded_at?: string
+          trade_id: string
+          unavailable_reason?: string | null
+        }
+        Update: {
+          quote_id?: string | null
+          recorded_at?: string
+          trade_id?: string
+          unavailable_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_estimates_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "trade_estimate_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimates_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: true
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_items: {
         Row: {
           created_at: string
@@ -3408,6 +3585,7 @@ export type Database = {
           league_id: string
           member_id: string
           proposed_at: string
+          roster_moves: Json
           sort_order: number
           trade_id: string
         }
@@ -3419,6 +3597,7 @@ export type Database = {
           league_id: string
           member_id: string
           proposed_at: string
+          roster_moves?: Json
           sort_order?: number
           trade_id: string
         }
@@ -3430,6 +3609,7 @@ export type Database = {
           league_id?: string
           member_id?: string
           proposed_at?: string
+          roster_moves?: Json
           sort_order?: number
           trade_id?: string
         }
@@ -4316,6 +4496,7 @@ export type Database = {
           p_drop_player_ids: string[]
           p_ir_player_ids: string[]
           p_member_id: string
+          p_roster_moves?: Json
           p_taxi_player_ids: string[]
           p_trade_id: string
           p_user_id: string
@@ -4479,6 +4660,14 @@ export type Database = {
         Args: { p_tipoff_at: string; p_token: string }
         Returns: string
       }
+      claim_matchup_forecasts: {
+        Args: { p_limit?: number }
+        Returns: {
+          claim_token: string
+          matchup_id: string
+          revision: number
+        }[]
+      }
       claim_notification_outbox_atomic: {
         Args: { p_lease_seconds?: number; p_limit?: number }
         Returns: {
@@ -4516,6 +4705,7 @@ export type Database = {
           total_items: number
         }[]
       }
+      cleanup_trade_estimate_quotes: { Args: never; Returns: number }
       clear_push_token_for_user_atomic: {
         Args: { p_token: string; p_user_id: string }
         Returns: boolean
@@ -4565,6 +4755,16 @@ export type Database = {
       complete_accepted_trade_atomic: {
         Args: { p_trade_id: string }
         Returns: undefined
+      }
+      complete_matchup_forecast: {
+        Args: {
+          p_claim_token: string
+          p_forecast: Json
+          p_matchup_id: string
+          p_revision: number
+          p_valid_until: string
+        }
+        Returns: boolean
       }
       complete_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_id: string }
@@ -4801,6 +5001,10 @@ export type Database = {
         Returns: undefined
       }
       expire_waiver_wire_logs: { Args: never; Returns: number }
+      fail_matchup_forecast: {
+        Args: { p_claim_token: string; p_error: string; p_matchup_id: string }
+        Returns: boolean
+      }
       fail_notification_outbox_atomic: {
         Args: { p_claim_token: string; p_error: string; p_id: string }
         Returns: boolean
@@ -4979,6 +5183,11 @@ export type Database = {
           week_number: number
         }[]
       }
+      get_matchup_forecast: { Args: { p_matchup_id: string }; Returns: Json }
+      get_matchup_forecast_context: {
+        Args: { p_matchup_id: string }
+        Returns: Json
+      }
       get_member_transaction_state: {
         Args: { p_league_id: string; p_member_id: string }
         Returns: {
@@ -5041,6 +5250,10 @@ export type Database = {
           week_number: number
         }[]
       }
+      get_trade_estimate_inputs: {
+        Args: { p_items: Json; p_member_id: string; p_user_id: string }
+        Returns: Json
+      }
       get_trade_page_refs: {
         Args: {
           p_cursor?: string
@@ -5052,6 +5265,14 @@ export type Database = {
           cursor_token: string
           trade_id: string
         }[]
+      }
+      get_trade_revaluation_inputs: {
+        Args: { p_member_id: string; p_trade_id: string; p_user_id: string }
+        Returns: Json
+      }
+      get_trade_roster_preview: {
+        Args: { p_trade_id: string; p_user_id: string }
+        Returns: Json
       }
       get_visible_player_totals: {
         Args: {
@@ -5091,6 +5312,7 @@ export type Database = {
       }
       invoke_lineup_optimizer_if_due: { Args: never; Returns: undefined }
       invoke_live_poll_if_due: { Args: never; Returns: undefined }
+      invoke_matchup_forecasts_if_due: { Args: never; Returns: undefined }
       invoke_player_injuries_if_due: {
         Args: { p_now?: string }
         Returns: undefined
@@ -5487,6 +5709,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_trade_estimate_quote: {
+        Args: {
+          p_analysis: Json
+          p_inputs: Json
+          p_member_id: string
+          p_model_version: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       search_players: {
         Args: {
           p_exclude_player_ids?: string[]
@@ -5585,6 +5817,7 @@ export type Database = {
           p_drop_player_ids: string[]
           p_ir_player_ids: string[]
           p_member_id: string
+          p_roster_moves?: Json
           p_taxi_player_ids: string[]
           p_trade_id: string
           p_user_id: string

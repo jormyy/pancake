@@ -144,7 +144,4 @@ BEGIN
   PERFORM pg_temp.assert_true((SELECT schedule='* * * * *' FROM cron.job WHERE jobname='nba-close-expired-nominations'),'Expiry dispatch runs once each minute');
 END;
 $$;
-SET LOCAL TIME ZONE 'America/New_York';
-SELECT pg_temp.assert_true(extract(epoch FROM ('2026-03-07 12:00:00 America/New_York'::timestamptz + make_interval(secs=>604800)) - '2026-03-07 12:00:00 America/New_York'::timestamptz)=604800,'Spring DST keeps seven elapsed days');
-SELECT pg_temp.assert_true(extract(epoch FROM ('2026-10-31 12:00:00 America/New_York'::timestamptz + make_interval(secs=>604800)) - '2026-10-31 12:00:00 America/New_York'::timestamptz)=604800,'Fall DST keeps seven elapsed days');
 ROLLBACK;

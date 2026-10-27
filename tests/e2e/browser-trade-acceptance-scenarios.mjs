@@ -37,60 +37,22 @@ import {
 import { createClient } from '@supabase/supabase-js'
 import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
 
-const exerciseLazyOverflowActions = async (fixture, env) => {
+const exercisePlannedDropReservations = async (fixture, env) => {
   const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
-  const { error: signInError } = await client.auth.signInWithPassword({
-    email: fixture.users[1].email,
-    password: fixture.password,
-  })
-  if (signInError) throw new Error(`overflow recipient sign in: ${signInError.message}`)
-
-  const { error: lineupError } = await client.rpc('set_player_slot_moves_atomic', {
-    p_member_id: fixture.recipient.id,
-    p_league_id: fixture.league.id,
-    p_league_season_id: fixture.currentSeason.id,
-    p_game_date: new Date().toISOString().slice(0, 10),
-    p_week_number: 1,
-    p_moves: [],
-  })
-  if (!lineupError || !/over the active player limit/i.test(lineupError.message)) {
-    throw new Error(`overflow lineup mutation was not cap-blocked: ${lineupError?.message ?? 'succeeded'}`)
-  }
-
+  const { error: signInError } = await client.auth.signInWithPassword({ email: fixture.users[1].email, password: fixture.password })
+  if (signInError) throw new Error(`plan recipient sign in: ${signInError.message}`)
+  const { error: dropError } = await client.rpc('drop_player_atomic', { p_roster_player_id: fixture.dropCandidateRosterId })
+  if (!dropError || !/reserved/i.test(dropError.message)) throw new Error(`planned drop was not reserved: ${dropError?.message ?? 'succeeded'}`)
   const { error: addError } = await client.rpc('add_free_agent_atomic', {
-    p_member_id: fixture.recipient.id,
-    p_league_id: fixture.league.id,
-    p_player_id: fixture.freeAgentPlayer.id,
+    p_member_id: fixture.recipient.id, p_league_id: fixture.league.id, p_player_id: fixture.freeAgentPlayer.id,
   })
-  if (addError?.code !== 'PA003') {
-    throw new Error(`overflow free-agent add was not cap-blocked: ${addError?.message ?? 'succeeded'}`)
-  }
-
-  const { error: dropError } = await client.rpc('drop_player_atomic', {
-    p_roster_player_id: fixture.dropCandidateRosterId,
-  })
-  if (dropError) throw new Error(`overflow corrective drop failed: ${dropError.message}`)
-
-  const [{ count: activeCount, error: rosterError }, { count: waiverCount, error: waiverError }] = await Promise.all([
-    fixture.admin.from('roster_players').select('id', { count: 'exact', head: true })
-      .eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
-      .eq('member_id', fixture.recipient.id).eq('is_on_ir', false).eq('is_on_taxi', false),
-    fixture.admin.from('waiver_wire_log').select('id', { count: 'exact', head: true })
-      .eq('league_id', fixture.league.id).eq('league_season_id', fixture.currentSeason.id)
-      .eq('player_id', fixture.recipientPlayer.id).eq('dropped_by_member_id', fixture.recipient.id),
+  if (addError?.code !== 'PA002') throw new Error(`instant pickup was not rejected: ${addError?.message ?? 'succeeded'}`)
+  const [roster, wire] = await Promise.all([
+    fixture.admin.from('roster_players').select('id', { count: 'exact', head: true }).eq('id', fixture.dropCandidateRosterId),
+    fixture.admin.from('waiver_wire_log').select('id', { count: 'exact', head: true }).eq('league_id', fixture.league.id).eq('player_id', fixture.recipientPlayer.id),
   ])
-  if (rosterError) throw new Error(`overflow corrected roster verify: ${rosterError.message}`)
-  if (waiverError) throw new Error(`overflow corrective waiver verify: ${waiverError.message}`)
-  if (activeCount !== fixture.rosterSize) throw new Error(`overflow corrected active count=${activeCount}; expected ${fixture.rosterSize}`)
-  if (waiverCount !== 1) throw new Error(`overflow corrective waiver rows=${waiverCount}; expected 1`)
-
-  return {
-    lineupBlocked: true,
-    freeAgentBlocked: true,
-    correctiveDropAllowed: true,
-    activeCount,
-    waiverCount,
-  }
+  if (roster.error || wire.error || roster.count !== 1 || wire.count !== 0) throw new Error('The planned player left before settlement')
+  return { plannedDropReserved: true, instantPickupRejected: true, noEarlyDrop: true }
 }
 
 export async function runBrowserTradeAcceptScenario({
@@ -474,6 +436,10 @@ export async function runBrowserTradeOverflowAcceptScenario({
     sessionList,
   ]
   let debug = {}
+  const pressControl = async (selector) => {
+    await browser(session, ['scrollintoview', selector])
+    await browser(session, ['click', selector])
+  }
 
   try {
     await signInBrowser(session, env, fixture.users[1], fixture.password)
@@ -493,16 +459,43 @@ export async function runBrowserTradeOverflowAcceptScenario({
     )
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-before.png')], { timeout: 60_000 })
 
-    const acceptClick = await clickTestId(session, `trade-accept-${fixture.trade.id}`, 'overflow trade accept button')
+    await pressControl(`[data-testid="trade-accept-${fixture.trade.id}"]`)
+    await assertPageText(session, ['Complete the roster plan'], 'incomplete plan rejection')
+    const { data: pending, error: pendingError } = await fixture.admin.from('trades').select('status').eq('id', fixture.trade.id).single()
+    if (pendingError || pending.status !== 'pending') throw new Error('Incomplete plan changed the trade status')
+    await pressControl(`[data-testid="trade-details-${fixture.trade.id}"]`)
+    await assertPageText(session, ['RESULTING ROSTERS', 'Choose drops'], 'resulting roster preview')
+    await pressControl('[aria-label="Choose drops at trade completion"]')
+    await pressControl(`[aria-label=${JSON.stringify(`Drop ${fixture.recipientPlayer.display_name} at completion`)}]`)
+    const planDeadline = Date.now() + 10000
+    let saved = false
+    while (Date.now() < planDeadline && !saved) {
+      const { data, error } = await fixture.admin.from('trade_participants').select('drop_player_ids').eq('trade_id', fixture.trade.id).eq('member_id', fixture.recipient.id).single()
+      if (error) throw error
+      saved = data.drop_player_ids.includes(fixture.recipientPlayer.id)
+      if (!saved) await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!saved) throw new Error('The selected roster plan did not save')
+    await browser(session, ['screenshot', path.join(artifactDir, 'planned-drop-before-accept.png')], { timeout: 60_000 })
+    await pressControl(`[aria-label=${JSON.stringify(`Accept trade with ${fixture.proposer.team_name}`)}]`)
+    await assertPageText(session, ['Confirm these drops at settlement', fixture.recipientPlayer.display_name], 'explicit planned-drop confirmation')
     await confirmTradeAcceptance({ session })
+    const acceptedDeadline = Date.now() + 10000
+    let underReview = false
+    while (Date.now() < acceptedDeadline && !underReview) {
+      const { data, error } = await fixture.admin.from('trades').select('status').eq('id', fixture.trade.id).single()
+      if (error) throw error
+      underReview = data.status === 'accepted'
+      if (!underReview) await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    if (!underReview) throw new Error('Planned trade did not enter review')
+    const reservations = await exercisePlannedDropReservations(fixture, env)
     await expireAndCompleteAcceptedTrade(fixture)
     const accepted = await waitForOverflowTradeAccepted(fixture)
-    debug = { ...debug, acceptClick, accepted }
+    debug = { ...debug, reservations, accepted }
     if (accepted.failures.length > 0) {
       throw new Error(`overflow trade accept did not complete: ${accepted.failures.join('; ')}`)
     }
-    const lazyActions = await exerciseLazyOverflowActions(fixture, env)
-    debug = { ...debug, lazyActions }
     await browser(session, ['wait', '1000'])
     await browser(session, ['screenshot', path.join(artifactDir, 'overflow-accept-after.png')], { timeout: 60_000 })
 
@@ -525,13 +518,13 @@ export async function runBrowserTradeOverflowAcceptScenario({
         proposerMemberId: fixture.proposer.id,
         recipientMemberId: fixture.recipient.id,
         incomingPlayerId: fixture.proposerPlayer.id,
-        correctiveDropPlayerId: fixture.recipientPlayer.id,
-        correctiveDropRosterPlayerId: fixture.dropCandidateRosterId,
+        plannedDropPlayerId: fixture.recipientPlayer.id,
+        plannedDropRosterPlayerId: fixture.dropCandidateRosterId,
         recipientPickId: fixture.recipientFuturePick.id,
         rosterSize: fixture.rosterSize,
       },
       accepted,
-      lazyActions,
+      reservations,
       notes,
       failures,
     }
@@ -563,8 +556,8 @@ export async function runBrowserTradeOverflowAcceptScenario({
         proposerMemberId: fixture.proposer.id,
         recipientMemberId: fixture.recipient.id,
         incomingPlayerId: fixture.proposerPlayer.id,
-        correctiveDropPlayerId: fixture.recipientPlayer.id,
-        correctiveDropRosterPlayerId: fixture.dropCandidateRosterId,
+        plannedDropPlayerId: fixture.recipientPlayer.id,
+        plannedDropRosterPlayerId: fixture.dropCandidateRosterId,
         recipientPickId: fixture.recipientFuturePick.id,
         rosterSize: fixture.rosterSize,
       },
@@ -574,5 +567,7 @@ export async function runBrowserTradeOverflowAcceptScenario({
     }
     await writeFile(OVERFLOW_ACCEPT_REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`).catch(() => {})
     throw error
+  } finally {
+    await browser(session, ['close']).catch(() => {})
   }
 }

@@ -9,15 +9,18 @@ vi.mock('@/lib/games', () => ({ getGameDay: async () => ({ games: [], startedTea
 
 const mocks = vi.hoisted(() => ({
     acceptTrade: vi.fn(),
+    getTradeRosterPreview: vi.fn(),
     setTradeRosterPlan: vi.fn(),
     confirmAction: vi.fn(),
     rejectTrade: vi.fn(),
     vetoTrade: vi.fn(),
     withdrawTrade: vi.fn(),
+    showAlert: vi.fn(),
 }))
 
 vi.mock('@/lib/trades', () => ({
     acceptTrade: mocks.acceptTrade,
+    getTradeRosterPreview: mocks.getTradeRosterPreview,
     setTradeRosterPlan: mocks.setTradeRosterPlan,
     rejectTrade: mocks.rejectTrade,
     vetoTrade: mocks.vetoTrade,
@@ -26,7 +29,7 @@ vi.mock('@/lib/trades', () => ({
 vi.mock('@/lib/alert', () => ({
     confirmAction: mocks.confirmAction,
     getErrorMessage: (error: unknown) => String(error),
-    showAlert: vi.fn(),
+    showAlert: mocks.showAlert,
 }))
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -34,6 +37,7 @@ vi.mock('@/lib/alert', () => ({
 beforeEach(() => {
     vi.clearAllMocks()
     gameBoundary.teams.clear()
+    mocks.getTradeRosterPreview.mockResolvedValue([{ memberId: 'member-a', teamName: 'A', roster: [], drops: [], moves: [], limits: { active: 20, ir: 2, taxi: 3 }, error: null, plan: { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] } }])
     mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
 })
 
@@ -96,12 +100,12 @@ describe('useTradeActions', () => {
         expect(onAction).not.toHaveBeenCalled()
         mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
         await act(async () => { await latest.accept(trade('pending')) })
-        expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('pending', 'member-a')
+        expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('pending', 'member-a', { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
         expect(onAction).toHaveBeenCalledTimes(1)
         await act(async () => { renderer.unmount() })
     })
 
-    it('accepts without a client-side roster-cap or drop workflow', async () => {
+    it('accepts the server-validated roster plan', async () => {
         mocks.acceptTrade.mockResolvedValue(undefined)
         let latest!: ReturnType<typeof useTradeActions>
         const onAction = vi.fn()
@@ -113,7 +117,7 @@ describe('useTradeActions', () => {
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => { await latest.accept(trade('trade-a')) })
 
-        expect(mocks.acceptTrade).toHaveBeenCalledWith('trade-a', 'member-a')
+        expect(mocks.acceptTrade).toHaveBeenCalledWith('trade-a', 'member-a', { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
         expect(onAction).toHaveBeenCalledOnce()
         expect(latest.busyTradeId).toBeNull()
         await act(async () => { renderer.unmount() })
@@ -289,9 +293,10 @@ it.each([
     expect(message).toContain('2026 Round 1 pick')
     expect(message).toContain('$5 FAAB')
     expect(message.includes('This trade completes immediately.')).toBe(immediate)
-    expect(message).not.toContain('\n')
+    expect(message).toContain('Resulting rosters:')
+    expect(message).toContain('Regular 0/20')
     await act(async () => { await confirm() })
-    expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('offer', 'member-a')
+    expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('offer', 'member-a', { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
     expect(onAction).toHaveBeenCalledOnce()
     await act(async () => renderer.unmount())
 })
@@ -358,4 +363,34 @@ it('keeps acceptance timing conditional when a player game has started', async (
     expect(mocks.confirmAction.mock.calls[0][1]).toContain('when everyone accepts')
     expect(mocks.confirmAction.mock.calls[0][1]).not.toContain('immediately')
     await act(async () => renderer.unmount())
+})
+
+it('blocks acceptance when another participant has an invalid resulting roster', async () => {
+    mocks.getTradeRosterPreview.mockResolvedValue([{ memberId: 'other', teamName: 'Other', error: 'Regular roster is full.' }])
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction: vi.fn() }); return null }
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => latest.accept(trade('overflow')))
+    expect(mocks.confirmAction).not.toHaveBeenCalled()
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    expect(mocks.showAlert).toHaveBeenCalledWith('Complete the roster plan', 'Other: Regular roster is full.')
+    await act(async () => screen.unmount())
+})
+
+it('confirms named drops and submits the exact reviewed plan', async () => {
+    const plan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop-player'], rosterMoves: [{ playerId: 'retained', destination: 'ir' }] }
+    mocks.getTradeRosterPreview.mockResolvedValue([{ memberId: 'member-a', teamName: 'A', roster: [], drops: [{ playerId: 'drop-player', name: 'Drop Player' }], moves: plan.rosterMoves, limits: { active: 20, ir: 2, taxi: 3 }, error: null, plan }])
+    let confirm!: () => Promise<void>
+    mocks.confirmAction.mockImplementation((_title, _message, action) => { confirm = action })
+    let latest!: ReturnType<typeof useTradeActions>
+    const Probe = () => { latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction: vi.fn() }); return null }
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(Probe)) })
+    await act(async () => latest.accept(trade('planned')))
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('Confirm these drops at settlement: Drop Player.')
+    expect(mocks.acceptTrade).not.toHaveBeenCalled()
+    await act(async () => confirm())
+    expect(mocks.acceptTrade).toHaveBeenCalledWith('planned', 'member-a', plan)
+    await act(async () => screen.unmount())
 })

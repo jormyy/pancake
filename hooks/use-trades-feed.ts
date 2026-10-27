@@ -145,7 +145,7 @@ export function useTradesFeed(memberId: string, leagueId: string, online = true,
                     toIR: plan.irPlayerIds.includes(item.playerId),
                 } : item),
                 participants: trade.participants.map((participant) => participant.memberId === memberId ? {
-                    ...participant, dropPlayerIds: plan.dropPlayerIds,
+                    ...participant, dropPlayerIds: plan.dropPlayerIds, rosterMoves: plan.rosterMoves ?? [],
                 } : participant),
             })
             writePersistentCache(tradesCacheKey(memberId, leagueId), next)

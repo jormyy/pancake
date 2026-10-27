@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { useEffect, useRef, useState } from 'react'
 import { LINEUP_SLOT_TYPES } from '@pancake/core'
@@ -96,6 +97,7 @@ export function useCommissionerSettingsResource({
     const [savingOwnerKey, setSavingOwnerKey] = useState<string | null>(null)
     activeOwnerKey.current = ownerKey
     const ownsDraft = hydratedOwnerKey.current === ownerKey
+    useUnsentFormUpdate(Boolean(ownerKey && ownsDraft && JSON.stringify(draft) !== JSON.stringify(baseline)), 'league settings form')
 
     useEffect(() => {
         activeOwnerKey.current = ownerKey

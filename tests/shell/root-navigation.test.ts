@@ -62,7 +62,7 @@ it('suppresses the player header before the lazy route mounts', async () => {
 it.each([['root', RootExports], ['modals', ModalExports]])('offers a reload for a failed lazy route under %s', async (_name, layout) => {
     const reload = vi.fn()
     const retry = vi.fn(async () => {})
-    vi.stubGlobal('window', { location: { reload } })
+    vi.stubGlobal('window', Object.assign(new EventTarget(), { location: { reload } }))
     const Boundary = (layout as { ErrorBoundary?: React.ComponentType<{ error: Error; retry: () => Promise<void> }> }).ErrorBoundary
     expect(Boundary).toEqual(expect.any(Function))
     await act(async () => { screen = create(React.createElement(Boundary!, { error: new Error('Loading module failed'), retry })) })

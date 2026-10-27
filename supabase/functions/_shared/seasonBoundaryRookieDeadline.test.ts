@@ -32,12 +32,17 @@ Deno.test('opening night completes a paused rookie draft before activating its l
       assert.equal(completed, true)
       return Response.json(true)
     }
+    if (table === 'matchups') return new Response(null, { status: 200, headers: { 'content-range': '*/0' } })
+    if (table === 'replace_regular_season_matchups_atomic') {
+      calls.push(table)
+      return Response.json({ inserted: 5, skipped: false })
+    }
     throw new Error(`Unexpected request ${url}`)
   }
   try {
     assert.deepEqual(await runSeasonBoundary(new Date('2026-10-20T13:00:00Z')),
-      [{ leagueId: 'league', actions: ['rookie-draft-auto-completed', 'rookie-league-activated'] }])
-    assert.deepEqual(calls, ['process_expired_snake_picks_atomic', 'activate_rookie_draft_league_atomic'])
+      [{ leagueId: 'league', actions: ['rookie-draft-auto-completed', 'rookie-league-activated', 'matchups-generated'] }])
+    assert.deepEqual(calls, ['process_expired_snake_picks_atomic', 'activate_rookie_draft_league_atomic', 'replace_regular_season_matchups_atomic'])
   } finally { globalThis.fetch = nativeFetch }
 })
 
@@ -58,11 +63,13 @@ Deno.test('opening night activates a stopped rookie draft without making its rem
       return Response.json(status?.includes('cancelled') ? [{ id: 'draft', status: 'cancelled' }] : [])
     }
     if (table === 'activate_rookie_draft_league_atomic') { activated = true; return Response.json(true) }
+    if (table === 'matchups') return new Response(null, { status: 200, headers: { 'content-range': '*/0' } })
+    if (table === 'replace_regular_season_matchups_atomic') return Response.json({ inserted: 5, skipped: false })
     throw new Error(`Unexpected request ${url}`)
   }
   try {
     assert.deepEqual(await runSeasonBoundary(new Date('2026-10-20T13:00:00Z')),
-      [{ leagueId: 'league', actions: ['rookie-league-activated'] }])
+      [{ leagueId: 'league', actions: ['rookie-league-activated', 'matchups-generated'] }])
     assert.equal(activated, true)
   } finally { globalThis.fetch = nativeFetch }
 })

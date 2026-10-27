@@ -133,7 +133,6 @@ function TradesScreen() {
     const decisionsDisabled = !online || tradesSnapshot || Boolean(tradesError)
     const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
     const tradeActions = useTradeActions({
-        beforeAccept: () => rosterLegality.check(),
         onRosterError: rosterLegality.report,
         memberId: myMemberId,
         leagueId,
@@ -159,7 +158,7 @@ function TradesScreen() {
         addPick: handleListPick,
         removeItem: handleRemoveBlockItem,
         setNote: handleSaveBlockNote,
-    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && tab === 'block' })
+    } = useTradeBlock(myMemberId, leagueId, online, { visible: focused && online && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])
@@ -294,7 +293,7 @@ function TradesScreen() {
                 <Button
                     title={usableWidth < layout.railWidth + controlSize.minTouch ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
-                    size="sm"
+                    size="inline"
                     style={{ minWidth: controlSize.minTouch }}
                     onPress={onPropose}
                     disabled={disabled}

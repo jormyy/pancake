@@ -156,7 +156,6 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM private.assert_legal_roster(v_trade.league_id,v_trade.league_season_id,p_accepting_member_id);
 
   IF NOT v_league.allow_inactive_trades THEN
     SELECT count(*) INTO v_taxi_incoming FROM trade_items
@@ -199,7 +198,7 @@ BEGIN
     p_trade_id,
     v_trade.league_id,
     v_trade.league_season_id,
-    CASE WHEN v_all_accepted THEN NULL ELSE p_accepting_member_id END
+    NULL
   );
 
   IF EXISTS (

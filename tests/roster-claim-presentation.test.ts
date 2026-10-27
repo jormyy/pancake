@@ -3,12 +3,12 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RosterClaimItem } from '@/components/roster/RosterItems'
-import { claimProcessTimeLabel, type WaiverClaim } from '@/lib/waivers'
+import { type WaiverClaim } from '@/lib/waivers'
 
 const claim: WaiverClaim = {
     id: 'claim', playerId: 'player', playerName: 'Player A', playerNbaId: null,
     dropPlayerId: null, dropPlayerName: null, dropPlayerNbaId: null, status: 'pending',
-    submittedAt: '2026-10-08T00:00:00Z', processDate: '2026-10-10', priorityAtSubmission: 3,
+    submittedAt: '2026-10-08T00:00:00Z', processDate: '2026-10-11', priorityAtSubmission: 3,
     bidAmount: 10, claimOrder: 1, failureReason: null, clearsAt: '2026-10-10T12:00:00Z',
 }
 let renderer: ReactTestRenderer | undefined
@@ -20,7 +20,7 @@ it('shows the scheduled run without repeated priority or order and preserves cla
     const onCancel = vi.fn(), onReorder = vi.fn(), onEditBid = vi.fn()
     await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim, cancellingId: null, waiverMode: 'faab', onCancel, onReorder, onEditBid })) })
     const text = JSON.stringify(renderer!.toJSON())
-    expect(text).toContain(`Processes ${claimProcessTimeLabel(claim.clearsAt ?? null)}`)
+    expect(text).toContain('Processes Sun, Oct 11 · 3 AM ET')
     expect(text).toContain('Bid $10')
     expect(text).not.toContain('Order ')
     expect(text).not.toContain('Waiver priority')
@@ -37,4 +37,28 @@ it.each([['succeeded', 'Succeeded'], ['failed_roster', 'Failed: roster full'], [
     await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim: { ...claim, status }, cancellingId: null, onCancel: vi.fn(), onReorder: vi.fn(), onEditBid: vi.fn() })) })
     expect(JSON.stringify(renderer!.toJSON())).toContain(expected)
     expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Cancel claim for Player A' })).toHaveLength(0)
+})
+
+it('keeps exact unfinished bid text after failure and releases a successful unchanged bid', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T12:00:00Z'))
+    const { isPwaUpdateHeld } = await import('@/lib/pwa-update-guard')
+    const onEditBid = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(true)
+    try {
+        await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim, cancellingId: null, waiverMode: 'faab', onCancel: vi.fn(), onReorder: vi.fn(), onEditBid })) })
+        expect(isPwaUpdateHeld()).toBe(false)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.onChangeText('0010'))
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Save bid for Player A' }).props.onPress())
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.value).toBe('0010')
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Save bid for Player A' }).props.onPress())
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Bid for Player A' }).props.value).toBe('10')
+        expect(isPwaUpdateHeld()).toBe(false)
+    } finally {
+        await act(async () => renderer?.unmount())
+        renderer = undefined
+        vi.unstubAllGlobals()
+    }
 })

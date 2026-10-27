@@ -427,7 +427,7 @@ BEGIN
   SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r
     WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) INTO v_before FROM trades t WHERE id=v_trade;
   PERFORM pg_temp.taxi_fails(format('SELECT public.complete_accepted_trade_atomic(%L)',v_trade),
-    'PT001','Taxi acquisition failed: The career games count is not known yet','changed trade taxi eligibility yields terminal queue signal');
+    'PT001','The career games count is not known yet','changed trade taxi eligibility yields terminal queue signal');
   PERFORM pg_temp.taxi_check(v_before=(SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id)
     FROM roster_players r WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) FROM trades t WHERE id=v_trade),
     'failed late taxi trade rolls back every roster and lifecycle write');

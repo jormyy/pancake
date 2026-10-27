@@ -34,6 +34,7 @@ BEGIN
           VALUES(f.league_id,old_season,f.member_ids[1],player,'taxi_designate');
         reason:='tenure limit';
       END IF;
+      UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
       SELECT * INTO result FROM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
       IF capacity='blocked' THEN
         PERFORM pg_temp.check_rules(result.status='failed_roster' AND result.failure_reason ILIKE '%'||reason||'%' AND result.failure_reason ILIKE '%active roster is full%',mode||' unavailable taxi fails with its reason when active roster is full');

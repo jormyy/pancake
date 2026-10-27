@@ -109,7 +109,7 @@ export const setupTradeOverflowAcceptGameplayFixture = async (env, season) => {
   )
   const { error: leagueError } = await fixture.admin
     .from('leagues')
-    .update({ roster_size: 1 })
+    .update({ roster_size: 1, trade_veto_mode: 'member_vote', trade_veto_window_hours: 24 })
     .eq('id', fixture.league.id)
   if (leagueError) throw new Error(`overflow league roster_size update: ${leagueError.message}`)
 

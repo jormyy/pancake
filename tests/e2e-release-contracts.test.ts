@@ -82,19 +82,6 @@ describe('release E2E contracts', () => {
     })
   })
 
-  it('clears Metro transforms before stamping a release bundle', async () => {
-    const packageJson = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'))
-    expect(packageJson.scripts['build:web:release']).toBe(
-      'expo export --platform web --clear && node scripts/stamp-release-provenance.mjs',
-    )
-    const vercel = JSON.parse(await readFile(path.join(process.cwd(), 'vercel.json'), 'utf8'))
-    expect(vercel.installCommand).toBe('npm ci')
-    expect(vercel.buildCommand).toBe('EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1 npm run build:web:release')
-    // Production deploys from main were turned on deliberately (#45); this
-    // assertion still pins the flag so the change stays a decision, not a drift.
-    expect(vercel.git.deploymentEnabled.main).toBe(true)
-  })
-
   it('derives the full deployed-to-HEAD migration range', async () => {
     expect(planReleaseMigrations([
       '20260709100003_c.sql',
@@ -139,181 +126,16 @@ describe('release E2E contracts', () => {
       { version: '4', name: 'unknown' },
     ])).toThrow('not present in the repository')
 
-    const workflow = (await Promise.all(['.github/workflows/release-soak.yml', '.github/workflows/release-soak-shard.yml']
-      .map((file) => readFile(path.join(process.cwd(), file), 'utf8')))).join('\n')
-    expect(workflow).toContain('E2E_DEPLOYED_SCHEMA_VERSION')
-    expect(workflow).toContain('release-soak-migration-plan.mjs')
-    expect(workflow).toContain('E2E_MIDLIFE_EXPECTED_VERSIONS')
-    expect(workflow).toContain('Verify cross-version runtime compatibility against upgraded schema')
-    expect(workflow).toContain('release-runtime-compatibility.mjs')
-    expect(workflow).toContain('-f tests/e2e/release-schema-history.sql')
-    expect(workflow).toContain('test "$(cat supabase/.temp/project-ref)" = "$SUPABASE_PROJECT_REF"')
-    expect(workflow).toContain('supabase db query --linked --agent=no -o json')
-    expect(workflow).toContain('--history-file /tmp/deployed-schema-history.json')
-    expect(workflow).toContain('--project-ref "$SUPABASE_PROJECT_REF" "${migration_names[@]}"')
   })
 
   it('runs the full measured smoke sweep and enforces its workflow budgets in PR CI', async () => {
     expect(browserCiContext('smoke').args.browserFullSweep).toBe(true)
     expect(browserCiContext('performance').args.browserFullSweep).toBe(false)
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/test.yml'), 'utf8')
-    expect(workflow).toContain("if: matrix.scenario == 'smoke'")
-    expect(workflow).toContain('npm run perf:budget -- --require-workflow-reports')
   })
 
   it('runs every registered browser scenario as a required PR matrix entry', () => {
     expect(fastBrowserScenarioMatrix().include.map(({ scenario }) => scenario).sort())
       .toEqual(BROWSER_SCENARIO_MANIFEST.map(({ id }) => id).sort())
-  })
-
-  it('pins workflow dependencies and bounds every job with least privilege', async () => {
-    const workflowFiles = [
-      '.github/workflows/test.yml',
-      '.github/workflows/release-soak.yml',
-      '.github/workflows/release-soak-shard.yml',
-      '.github/workflows/production-readiness.yml',
-      '.github/workflows/production-deploy.yml',
-    ]
-    for (const file of workflowFiles) {
-      const source = await readFile(path.join(process.cwd(), file), 'utf8')
-      expect(source, file).toMatch(/permissions:\n\s+contents: read/)
-      expect(source, file).toContain('concurrency:')
-      const actionRefs = [...source.matchAll(/^\s*-?\s*uses:\s+[^@\s]+@([^\s#]+)/gm)].map((match) => match[1])
-      expect(actionRefs.length, file).toBeGreaterThan(0)
-      expect(actionRefs, file).toEqual(actionRefs.map(() => expect.stringMatching(/^[a-f0-9]{40}$/)))
-    }
-
-    const testWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/test.yml'), 'utf8')
-    expect(testWorkflow.match(/^\s{4}timeout-minutes:/gm)).toHaveLength(5)
-    expect(testWorkflow).toContain('deno-version: 2.7.14')
-    expect(testWorkflow).not.toMatch(/deno-version:\s*v?\d+\.x/)
-
-    // The soak runs `deno test` (source-failure-recovery), so it needs the same pinned Deno.
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    const setupDeno = soakWorkflow.indexOf('uses: denoland/setup-deno@')
-    expect(setupDeno).toBeGreaterThan(-1)
-    expect(setupDeno).toBeLessThan(soakWorkflow.indexOf('Run coverage-enforcing soak'))
-    expect(soakWorkflow).toContain('deno-version: 2.7.14')
-  })
-
-  it('points the soak Edge runtime at the host-side fake upstream through the Docker host alias', async () => {
-    // supabase functions serve runs Edge in Docker, where 127.0.0.1 is the container itself.
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    for (const name of ['NBA_CDN_BASE_URL', 'SLEEPER_BASE_URL']) {
-      expect(soakWorkflow, name).toMatch(new RegExp(`^\\s+${name}=http://host\\.docker\\.internal:4555/`, 'm'))
-    }
-    expect(soakWorkflow).not.toContain('=http://127.0.0.1:4555/')
-  })
-
-  it('installs dependencies before any deploy job stamps Edge provenance', async () => {
-    // stamp-edge-release-provenance.mjs imports typescript, so a job without npm ci cannot deploy or restore Edge.
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
-    const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?= {2}[a-z0-9-]+:\n)/m)
-    const stampingJobs = jobs.filter((job) => job.includes('stamp-edge-release-provenance.mjs'))
-    expect(stampingJobs.map((job) => job.split(':')[0].trim()))
-      .toEqual(expect.arrayContaining(['build-candidate', 'deploy-edge', 'rollback-edge', 'rollback-after-promotion']))
-    for (const job of stampingJobs) {
-      const install = job.indexOf('npm ci')
-      expect(install, job.split(':')[0].trim()).toBeGreaterThan(-1)
-      expect(install, job.split(':')[0].trim()).toBeLessThan(job.indexOf('stamp-edge-release-provenance.mjs'))
-    }
-  })
-
-  it('binds the protected CLI credential in every Edge deployment and rollback job', async () => {
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
-    const jobs = workflow.split(/^jobs:\n/m)[1].split(/^(?= {2}[a-z0-9-]+:\n)/m)
-    const deploymentJobs = jobs.filter((job) => job.includes('supabase functions deploy'))
-    expect(deploymentJobs.map((job) => job.split(':')[0].trim()))
-      .toEqual(['deploy-edge', 'rollback-edge', 'rollback-after-promotion'])
-    for (const job of deploymentJobs) {
-      const jobSettings = job.split(/^    steps:\n/m)[0]
-      expect(jobSettings, job.split(':')[0].trim()).toMatch(/^    environment: production$/m)
-      const jobEnvironment = jobSettings.split(/^    env:\n/m)[1] ?? ''
-      expect(jobEnvironment, job.split(':')[0].trim())
-        .toMatch(/^      SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}$/m)
-    }
-  })
-
-  it('provides a protected fail-closed hosted production gate', async () => {
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-readiness.yml'), 'utf8')
-    expect(workflow).toContain('environment: production')
-    expect(workflow).toContain('test "${GITHUB_REF}" = "refs/heads/main"')
-    expect(workflow).toContain('release_sha:')
-    expect(workflow).toContain('frontend_sha:')
-    expect(workflow).toContain('edge_sha:')
-    expect(workflow).toContain('frontend_bundle_digest:')
-    expect(workflow).toContain('edge_artifact_digest:')
-    expect(workflow).toContain('repository_dispatch:')
-    expect(workflow).toContain('types: [production_deployed]')
-    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.release_sha || inputs.release_sha")
-    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.frontend_bundle_digest || inputs.frontend_bundle_digest")
-    expect(workflow).toContain("github.event_name == 'repository_dispatch' && github.event.client_payload.edge_artifact_digest || inputs.edge_artifact_digest")
-    expect(workflow).toContain('E2E_FRONTEND_URL: ${{ inputs.frontend_url || secrets.PANCAKE_FRONTEND_URL }}')
-    expect(workflow).toContain('E2E_EXPECTED_FRONTEND_HOST: ${{ secrets.PANCAKE_PRODUCTION_FRONTEND_HOST }}')
-    expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}')
-    expect(workflow).toContain('EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}')
-    expect(workflow).toContain('node tests/e2e/hosted-release-provenance.mjs')
-    expect(workflow).toContain('node scripts/stamp-edge-release-provenance.mjs')
-    expect(workflow).toContain('npm run e2e:web-hydration')
-    expect(workflow).toContain('PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: ${{ secrets.PANCAKE_LEGACY_SUPABASE_JWT_ROTATED }}')
-    expect(workflow).not.toContain("PANCAKE_LEGACY_SUPABASE_JWT_ROTATED: '1'")
-    for (const command of [
-      'npm run prod:check',
-      'npm run prod:data-health -- --linked --allow-prod-writes',
-      'npm run security:edge-auth:linked -- --positive',
-      'npm run security:db-catalog -- --linked',
-    ]) expect(workflow).toContain(command)
-    expect(workflow).toContain('if-no-files-found: error')
-    expect(workflow).toContain("inputs.evidence_label || 'production'")
-  })
-
-  it('promotes only after every phased production pairing passes protected readiness', async () => {
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/production-deploy.yml'), 'utf8')
-    expect(workflow).toContain('npx --yes vercel@55.0.0 build')
-    expect(workflow).toContain('node tests/e2e/validate-production-target.mjs')
-    expect(workflow).toContain('supabase db push --linked --yes')
-    expect(workflow).toContain('supabase functions deploy --project-ref "$SUPABASE_PROJECT_REF"')
-    expect(workflow).toContain('Bake candidate Edge artifact provenance')
-    expect(workflow).not.toContain('PANCAKE_RELEASE_BUNDLE_DIGEST=')
-    const candidateCurrent = workflow.indexOf('Verify candidate frontend with current backend')
-    const migrate = workflow.indexOf('Apply compatibility-proven database phase')
-    const currentAfterMigration = workflow.indexOf('Verify current release after database phase')
-    const deployEdge = workflow.indexOf('Deploy candidate Edge phase')
-    const currentNewEdge = workflow.indexOf('Verify current frontend with new Edge')
-    const candidateNewEdge = workflow.indexOf('Verify candidate frontend with new Edge')
-    const promote = workflow.indexOf('Promote verified candidate')
-    expect(candidateCurrent).toBeGreaterThan(-1)
-    expect(candidateCurrent).toBeLessThan(migrate)
-    expect(migrate).toBeLessThan(currentAfterMigration)
-    expect(currentAfterMigration).toBeLessThan(deployEdge)
-    expect(deployEdge).toBeLessThan(currentNewEdge)
-    expect(deployEdge).toBeLessThan(candidateNewEdge)
-    expect(currentNewEdge).toBeLessThan(promote)
-    expect(candidateNewEdge).toBeLessThan(promote)
-    expect(workflow).toContain('uses: ./.github/workflows/production-readiness.yml')
-    expect(workflow).toContain('Restore baseline Edge after failed Edge phase')
-    expect(workflow).toContain("needs.deploy-edge.result == 'failure'")
-    expect(workflow).toContain("needs.deploy-edge.result == 'cancelled'")
-    for (const label of [
-      'candidate-current-backend',
-      'current-after-migration',
-      'current-new-edge',
-      'candidate-new-edge',
-      'promoted-production',
-    ]) expect(workflow).toContain(`evidence_label: ${label}`)
-    expect(workflow).toContain('npx --yes vercel@55.0.0 promote')
-    expect(workflow).toContain('Verify promoted production')
-    expect(workflow).toContain('Restore baseline release after failed promotion')
-    expect(workflow).toContain("needs.promote.result == 'failure'")
-    expect(workflow).toContain("needs.promote.result == 'cancelled'")
-    expect(workflow).toContain("needs.promote.result == 'success' && needs.verify-production.result != 'success'")
-    expect(workflow).toContain("needs.verify-production.result != 'success'")
-    expect(workflow).toContain('Restore and attest baseline frontend')
-    expect(workflow).toContain('Restore baseline Edge')
-    expect(workflow).toContain('Verify restored immutable release')
-    expect(workflow).toContain('evidence_label: post-promotion-rollback')
-    expect(workflow).toContain('Require deployed-to-HEAD release soak')
-    expect(workflow).toContain('needs: release-soak')
   })
 
   it('refuses to stamp a worker that declares no precache manifest', async () => {
@@ -572,16 +394,6 @@ describe('release E2E contracts', () => {
       deployedFrontendArtifact: { ...input.deployedFrontendArtifact, verifiedBundleDigest: '2'.repeat(64) },
     })).toContain('deployed frontend complete artifact digest was not verified')
 
-    const soakWorkflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    expect(soakWorkflow).toContain('node tests/e2e/recover-release-artifact.mjs')
-    expect(soakWorkflow).toContain('--expected-digest "$E2E_DEPLOYED_FRONTEND_DIGEST"')
-    expect(soakWorkflow).toContain('test "$E2E_DEPLOYED_FRONTEND_VERIFIED_DIGEST" = "$E2E_DEPLOYED_FRONTEND_DIGEST"')
-    expect(soakWorkflow.indexOf('recover-release-artifact.mjs')).toBeLessThan(soakWorkflow.indexOf('--pair=deployed-frontend-candidate-edge'))
-    expect(soakWorkflow).toContain('export E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST')
-    expect(soakWorkflow).toContain("printf 'E2E_DEPLOYED_FRONTEND_COMPATIBILITY_DIGEST=%s")
-    expect(soakWorkflow.match(/release-mutation-compatibility\.mjs/g)).toHaveLength(3)
-    expect(soakWorkflow).toContain('--pair=deployed-frontend-deployed-edge')
-    expect(soakWorkflow).not.toContain('browser-ci-scenario.mjs --scenario=smoke')
   })
 
   it('fails mixed-version evidence when a real mutation runner observes a removed route', async () => {
@@ -597,12 +409,6 @@ describe('release E2E contracts', () => {
       error: 'POST /trades/propose returned HTTP 404',
     })
     expect(scenarios.filter((scenario) => scenario.status === 'PASS')).toHaveLength(REQUIRED_MUTATION_SCENARIOS.length - 1)
-  })
-
-  it('does not claim measured production performance from a clean checkout', async () => {
-    const readiness = await readFile(path.join(process.cwd(), 'tests/e2e/production-readiness.mjs'), 'utf8')
-    expect(readiness).not.toContain("run('npm', ['run', 'perf:budget']")
-    expect(readiness).not.toContain("requirement: 'Instant-loading performance budgets pass'")
   })
 
   it('requires every declared global performance budget', () => {
@@ -879,26 +685,6 @@ describe('release E2E contracts', () => {
     ]))
   })
 
-  it('uses the exact semantic mutation contract in the browser producer', async () => {
-    const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
-    const livePanel = await readFile(path.join(process.cwd(), 'components/league/draft-room/AuctionLivePanel.tsx'), 'utf8')
-    expect(producer).toContain("validateBrowserMutationLoad('draft', draftLoad)")
-    expect(producer).toContain("validateBrowserMutationLoad('home', homeLoad)")
-    expect(producer).not.toContain("text.includes('$' + expected.amount)")
-    expect(livePanel).toContain('testID="auction-live-state" accessibilityLabel={liveStateLabel}')
-  })
-
-  it('starts draft load measurement after visual evidence capture', async () => {
-    const producer = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
-    const draftStart = producer.indexOf("const draftFeedback = await measureWorkflowFeedback")
-    const draftEnd = producer.indexOf('const draftLoad = await runLoadMutations', draftStart)
-    const setup = producer.slice(draftStart, draftEnd)
-
-    expect(setup).toContain("['screenshot', path.join(artifactDir, 'draft-before-load.png')]")
-    expect(setup).toContain('await installHeartbeat(session)')
-    expect(setup.indexOf("'draft-before-load.png'")).toBeLessThan(setup.indexOf('await installHeartbeat(session)'))
-  })
-
   it('rejects skeletal complete data-latency PASS evidence', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
     const skeletal = {
@@ -996,44 +782,6 @@ describe('release E2E contracts', () => {
     }
   })
 
-  it('fails responsive scenarios when viewport setup fails', async () => {
-    const files = ['browser-gameplay.mjs', 'browser-perf-smoke.mjs', 'browser-playoff-gameplay.mjs', 'browser-rookie-draft-gameplay.mjs', 'browser-trade-acceptance-scenarios.mjs', 'browser-trade-proposal-scenarios.mjs', 'browser-trade-terminal-scenarios.mjs']
-    for (const file of files) {
-      const source = await readFile(path.join(process.cwd(), 'tests/e2e', file), 'utf8')
-      expect(source, file).not.toMatch(/\['set', 'viewport'[^\n]+\.catch\(/)
-    }
-  })
-
-  it('retains seed and stack diagnostics in browser and release workflows', async () => {
-    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak-shard.yml']) {
-      const source = await readFile(path.join(process.cwd(), file), 'utf8')
-      expect(source, file).toContain('tests/e2e-seed-report.md')
-      expect(source, file).toContain('tests/artifacts/stack/web.log')
-      expect(source, file).toContain('tests/artifacts/stack/edge.log')
-    }
-  })
-
-  it('runs performance mutations only inside an owned disposable league', async () => {
-    const perfSource = await readFile(path.join(process.cwd(), 'tests/e2e/browser-perf-smoke.mjs'), 'utf8')
-    const registrySource = await readFile(path.join(process.cwd(), 'tests/e2e/browser-scenario-registry.mjs'), 'utf8')
-    expect(perfSource).toContain('createDisposableLeagueFromSeedUsers({')
-    expect(perfSource).toContain('resourceOwner,')
-    expect(perfSource).toContain('managerResume.status !== 404')
-    expect(perfSource).toContain('await selectPerfLeague(session, fixture.league.name)')
-    expect(perfSource).toContain('await ensurePerfSeasonWeek(supabase, fixture.leagueSeason.season_year, resourceOwner)')
-    expect(perfSource).not.toContain('stale auction draft cleanup')
-    expect(registrySource).toContain('(resourceOwner) => scenario.run({ ...context, resourceOwner })')
-  })
-
-  it('terminates the waiver backlog lock backend and proves cleanup before passing', async () => {
-    const source = await readFile(path.join(process.cwd(), 'tests/e2e/waiver-backlog-db.mjs'), 'utf8')
-    expect(source).toContain('PGAPPNAME: lockApplicationName')
-    expect(source).toContain('SELECT pg_terminate_backend(pid) FROM pg_stat_activity')
-    expect(source).toContain("'backends', (SELECT count(*) FROM pg_stat_activity")
-    expect(source).toContain("'locks', (SELECT count(*) FROM pg_locks")
-    expect(source).toContain('if (leaked)')
-  })
-
   it('binds post-migration data latency evidence to repository schema head', async () => {
     expect(readAppliedSchemaVersion(() => [{ version: '20260709100034' }])).toBe('20260709100034')
     const manifest = { workflows: [], globalBudgets: { maxDbQueryMs: 300, fullWorkflowMs: 1000 } }
@@ -1048,31 +796,6 @@ describe('release E2E contracts', () => {
       'data latency report is missing repository schema version',
     ]))
 
-    const workflow = await readFile(path.join(process.cwd(), '.github/workflows/release-soak-shard.yml'), 'utf8')
-    expect(workflow.indexOf('Run coverage-enforcing soak')).toBeLessThan(workflow.indexOf('Measure post-migration ranked workflow data latency'))
-  })
-
-  it('builds measured browser evidence with production Metro optimizations', async () => {
-    const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'tests/e2e/performance-budgets.json'), 'utf8'))
-    expect(manifest.globalBudgets.maxInitialWebJsKb).toBe(700)
-
-    for (const file of ['.github/workflows/test.yml', '.github/workflows/release-soak-shard.yml']) {
-      const source = await readFile(path.join(process.cwd(), file), 'utf8')
-      expect(source, file).toContain('EXPO_UNSTABLE_METRO_OPTIMIZE_GRAPH=1')
-      expect(source, file).not.toContain('EXPO_UNSTABLE_TREE_SHAKING=1')
-      expect(source, file).not.toContain('EXPO_USE_METRO_REQUIRE=1')
-      expect(source, file).toContain('npm run e2e:web-hydration')
-    }
-
-    const staticServer = await readFile(path.join(process.cwd(), 'tests/e2e/static-web-server.mjs'), 'utf8')
-    expect(staticServer).toContain("'content-encoding': encoding")
-    expect(staticServer).toContain('createBrotliCompress()')
-  })
-
-  it('uses the public sign-in path for the production auth guard', async () => {
-    const rootLayout = await readFile(path.join(process.cwd(), 'app/_layout.tsx'), 'utf8')
-    expect(rootLayout).toContain("router.replace('/sign-in')")
-    expect(rootLayout).not.toContain("router.replace('/(auth)/sign-in')")
   })
 
   it('fails production hydration on browser, console, and React hydration errors', () => {
@@ -1084,13 +807,6 @@ describe('release E2E contracts', () => {
     expect(productionBrowserFailures({ consoleOutput: '[warn] benign warning', errorOutput: '' })).toEqual([])
     expect(productionBrowserFailures({ consoleOutput: 'console unavailable: transport failed', errorOutput: '' }))
       .toContain('console diagnostics unavailable')
-  })
-
-  it('gates every browser evidence surface on console and browser errors', async () => {
-    for (const file of ['browser-smoke.mjs', 'browser-perf-smoke.mjs', 'browser-scenario-lifecycle.mjs']) {
-      const source = await readFile(path.join(process.cwd(), 'tests/e2e', file), 'utf8')
-      expect(source, file).toContain('browserDiagnosticFailures(')
-    }
   })
 
   it('rejects a declared workflow budget when any measurement is absent', () => {

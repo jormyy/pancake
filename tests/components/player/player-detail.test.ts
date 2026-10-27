@@ -213,6 +213,18 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByType('select')).toHaveLength(1)
     })
 
+    it('shows missing projection points without turning them into zero', async () => {
+        const projection = { next_game_date: '2026-10-24', next_game_time: '2026-10-24T23:00:00Z',
+            next_game_opponent: 'vs BOS', projection_fantasy_points: null, projection_source_label: 'Season Avg',
+            projection_fetched_at: '2026-10-23T12:00:00Z', projection_is_fresh: false } as LeagueProjectionRow
+        await render(React.createElement(NextProjectionCard, { projection }))
+        expect(text()).toContain('Projection unavailable')
+        expect(text()).not.toContain('0.0 FP')
+        expect(text()).toContain('Season Avg')
+        expect(text()).toContain('Out of date')
+        expect(text()).toContain('Updated')
+    })
+
     it('shows the next opponent, date and projection without expanding details', async () => {
         const projection = {
             next_game_date: '2026-10-24', projection_date: '2026-10-23', next_game_opponent: 'vs BOS',
@@ -220,19 +232,25 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj$/)
-        expect(screen.root.findByType(type('Text')).props.numberOfLines).toBe(1)
+        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj/)
+        expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBeUndefined()
+        expect(text()).toContain('FantasyPros')
         expect(text()).toContain('42.8')
         expect(text()).toContain('FP')
     })
 })
 
-it('keeps fantasy points before counting stats and preserves older-game pagination', async () => {
+it.each([false, true])('keeps minutes and game paging with compact=%s', async compact => {
     const onLoadMore = vi.fn()
     await render(React.createElement(GameLogTable, {
-        games: [game(), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
+        compact, games: [game({ minutes: 34.5 }), game({ gameId: 'zero', minutes: 0 }), game({ gameId: 'missing', minutes: null }), game({ gameId: 'dnp', gameDate: '2026-10-20', didNotPlay: true })],
         fantasyPointsMap: new Map([['latest', 45.2], ['dnp', 99]]), hasMore: true, loadingMore: false, onLoadMore,
     }))
+    expect(text()).toContain('MIN')
+    expect(text()).toContain('34.5')
+    expect(screen.root.findByProps({ testID: 'game-minutes-missing' }).props.children).toBe('—')
+    expect(screen.root.findByProps({ testID: 'game-minutes-zero' }).props.children).toBe('0.0')
+    expect(text()).toContain('0.0')
     expect(text().indexOf('FP')).toBeLessThan(text().indexOf('MIN'))
     expect(text()).toContain('45.2')
     expect(text()).toContain('DNP')

@@ -1,3 +1,4 @@
+import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '@/lib/lineup'
@@ -36,12 +37,6 @@ function emptySlotLabel(slotType: string): string {
     return 'No starter'
 }
 
-function compactLineupName(name: string): string {
-    const parts = name.trim().split(/\s+/).filter(part => part && !/^(?:jr\.?|sr\.?|ii|iii|iv|\d+)$/i.test(part))
-    const last = parts.at(-1) ?? name
-    return last.split('-')[0]
-}
-
 function matchupLine(team: string | null | undefined, matchup: { opponent: string; isHome: boolean } | undefined): string {
     if (!team || !matchup) return ''
     return matchup.isHome ? `${matchup.opponent} @ ${team}` : `${team} @ ${matchup.opponent}`
@@ -50,7 +45,7 @@ function matchupLine(team: string | null | undefined, matchup: { opponent: strin
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
     const size = dense || compact ? 24 : 28
     return (
-        <View style={[styles.lineupAvatarFrame, { width: size + 2, height: size + 2, borderRadius: (size + 2) / 2 }]}>
+        <View style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + 2) / 2 }]}>
             <Avatar
                 name={player.displayName}
                 uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
@@ -198,7 +193,13 @@ function PlayerSide({
     statColumns,
     onOpenPlayer,
     onOpenDetails,
+    projection,
+    forecastStale,
+    showProjection,
 }: {
+    projection?: MatchupForecast['games'][number]
+    forecastStale?: boolean
+    showProjection?: boolean
     side: 'left' | 'right'
     player: LineupPlayer | null
     slotType: string
@@ -217,7 +218,7 @@ function PlayerSide({
 }) {
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
-    const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
+    const mirror = (items: ReactNode[]) => (left || compact ? items : [...items].reverse())
 
     let block: ReactNode
     if (!player) {
@@ -250,12 +251,12 @@ function PlayerSide({
                         <Text
                             key="name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
-                            numberOfLines={1}
+                            numberOfLines={compact ? 2 : 1}
                             ellipsizeMode="tail"
                         >
-                            {compact ? compactLineupName(player.displayName) : shortName(player.displayName)}
+                            {shortName(player.displayName)}
                         </Text>,
-                        compact ? null : <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
+                        <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
                 </View>
                 {(!dense || compact) && (detail || !compact) ? (
@@ -274,6 +275,9 @@ function PlayerSide({
                         ])}
                     </View>
                 ) : null}
+                {showProjection && hasGame ? <Text style={styles.sideMeta} numberOfLines={1} accessibilityLabel={projection ? `Projection ${projection.projection == null ? 'unavailable' : projection.projection.toFixed(1) + ' points'}, source ${projection.source ?? 'unavailable'}, updated ${projection.sourceAt ?? 'unknown'}${forecastStale ? ', out of date' : ''}` : 'Projection unavailable'}>
+                    {projection?.projection == null ? 'Proj —' : `Proj ${projection.projection.toFixed(1)}`}
+                </Text> : null}
                 {summary ? <Text style={styles.statSummary} numberOfLines={1}>{summary}</Text> : null}
             </>
         )
@@ -297,6 +301,10 @@ function PlayerSide({
 }
 
 type MatchupRowProps = {
+    myProjection?: MatchupForecast['games'][number]
+    oppProjection?: MatchupForecast['games'][number]
+    forecastStale?: boolean
+    showProjections?: boolean
     myPlayer: LineupPlayer | null
     oppPlayer: LineupPlayer | null
     slotType: string
@@ -321,6 +329,7 @@ type MatchupRowProps = {
 }
 
 function MatchupRowImpl({
+    myProjection, oppProjection, forecastStale, showProjections = false,
     myPlayer,
     oppPlayer,
     slotType,
@@ -373,6 +382,9 @@ function MatchupRowImpl({
             <View style={[styles.rowSideLeft, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="left"
+                    projection={myProjection}
+                    forecastStale={forecastStale}
+                    showProjection={showProjections && !reserveSlot}
                     player={myPlayer}
                     slotType={slotType}
                     placeholderOnly={isExtraOppRow}
@@ -417,6 +429,9 @@ function MatchupRowImpl({
             <View style={[styles.rowSideRight, compact && styles.rowSideCompact]}>
                 <PlayerSide
                     side="right"
+                    projection={oppProjection}
+                    forecastStale={forecastStale}
+                    showProjection={showProjections && !reserveSlot}
                     player={oppPlayer}
                     slotType={slotType}
                     placeholderOnly={false}
@@ -489,11 +504,11 @@ const styles = StyleSheet.create({
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.sm, flexShrink: 1 },
+    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.sm, flex: 1, minWidth: 0 },
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textMuted },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    nameRowCompact: { minHeight: controlSize.badge.height, gap: spacing.xxs },
+    nameRowCompact: { width: '100%', minHeight: controlSize.badge.height, gap: spacing.xxs },
     gameText: { color: colors.textPrimary, fontWeight: fontWeight.semibold },
     statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
     detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, minHeight: textStyles.meta.lineHeight, maxWidth: '100%' },

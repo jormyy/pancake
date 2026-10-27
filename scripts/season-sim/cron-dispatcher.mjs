@@ -30,7 +30,7 @@ export function cronDispatcher(onOutcome, { enqueueWork=dispatch, query=sqlJson,
     try{for (;;) {
       let pendingRows = []
       if (pending.size) {
-        const results = await query(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT i.id,i.function_name,i.worker_status,i.error_message,n.status_code,n.timed_out,n.error_msg,n.content,(queued.id IS NOT NULL) AS queue_pending FROM public.edge_invocations i LEFT JOIN net._http_response n ON n.id=i.request_id LEFT JOIN net.http_request_queue queued ON queued.id=i.request_id WHERE i.id IN (${[...pending.keys()].join(',')})) r`, 'Pending production dispatches')
+        const results = await query(`SELECT coalesce(json_agg(r),'[]') FROM (SELECT i.id,i.invocation_key,i.function_name,i.worker_status,i.error_message,s.status AS sync_status,s.error AS sync_error,s.rows_affected,n.status_code,n.timed_out,n.error_msg,n.content,(queued.id IS NOT NULL) AS queue_pending FROM public.edge_invocations i LEFT JOIN public.sync_runs s ON s.id=i.sync_run_id LEFT JOIN net._http_response n ON n.id=i.request_id LEFT JOIN net.http_request_queue queued ON queued.id=i.request_id WHERE i.id IN (${[...pending.keys()].join(',')})) r`, 'Pending production dispatches')
         pendingRows = results
         probe.watch(results)
         void probe.check()

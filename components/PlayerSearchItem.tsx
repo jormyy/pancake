@@ -95,7 +95,7 @@ function PlayerSearchItemImpl({
     const summary = showStats ? <View style={styles.statsGrid}>
         {stats.map(stat => <StatCell key={stat.label} value={stat.label === 'FP' || stat.label === 'MIN' ? stat.value ?? 0 : stat.value} highlight={stat.highlight} integer={stat.integer} />)}
     </View> : <View style={styles.playerMetaRow}>
-        <Text style={styles.playerMeta} numberOfLines={1}>
+        <Text style={styles.playerMeta}>
             <Text style={[styles.playerMetaScore, item.playing_now && styles.liveLabel]}>
                 {formatPoints(stats[0]?.value ?? 0)} {item.playing_now ? 'LIVE' : 'FP'}
             </Text>
@@ -115,7 +115,7 @@ function PlayerSearchItemImpl({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
-                <PlayerRowContent name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
+                <PlayerRowContent compact={!showStats} name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
                     yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
 
             </Pressable>
@@ -126,12 +126,12 @@ function PlayerSearchItemImpl({
                         onPress={() => onAdd(item)}
                         disabled={isAdding || addDisabled}
                         accessibilityRole="button"
-                        accessibilityLabel={`${isWaiver ? 'Claim' : 'Add'} ${item.display_name}`}
+                        accessibilityLabel={`${claimPending ? 'View claim for' : 'Claim'} ${item.display_name}`}
                         {...blockedActionProps(blockedReason, isAdding || addDisabled)}
                     >
                         <View style={[styles.addBtn, isWaiver && styles.addBtnWaiver, blockedReason ? styles.addBtnBlocked : null]}>
                             <MaterialIcons
-                                name={claimPending || isAdding || isWaiver ? 'schedule' : 'add'}
+                                name="schedule"
                                 size={controlSize.icon.md}
                                 color={blockedReason ? colors.textPlaceholder : isWaiver ? uiColors.waiverText : colors.primaryDark}
                             />
@@ -247,8 +247,8 @@ const styles = StyleSheet.create({
         paddingLeft: spacing.sm,
         gap: spacing.md,
     },
-    playerCardNarrow: { paddingRight: spacing.xs },
-    playerCardDense: { paddingVertical: spacing.sm, paddingRight: spacing.xs, gap: spacing.md },
+    playerCardNarrow: { paddingRight: spacing.xs, paddingVertical: spacing.xs },
+    playerCardDense: { paddingVertical: spacing.xs, paddingRight: spacing.xs, gap: spacing.md },
     playerMetaScore: { fontWeight: fontWeight.bold, color: colors.primaryDark },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minWidth: 0 },
     playerMeta: { ...textStyles.meta, flex: 1, minWidth: 0, fontVariant: ['tabular-nums'] },

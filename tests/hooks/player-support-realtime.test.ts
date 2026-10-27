@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { notifyMemberClaimsChanged } from '@/lib/claim-updates'
 import { notifyLeagueChange } from '@/lib/league-changes'
 import { PanelActivityContext } from '@/contexts/panel-activity'
 import { submitWaiverClaim, cancelWaiverClaim, editWaiverClaim, reorderWaiverClaim } from '@/lib/waivers'
@@ -225,12 +226,12 @@ it.each(['INSERT', 'UPDATE', 'DELETE'])('refreshes claims after an own roster %s
 })
 
 
-it('watches private own claims and refreshes cancellations with primary-key-only old rows', async () => {
+it('refreshes private own claims through the shared stream without adding a duplicate watch', async () => {
     await act(async () => { renderer = create(React.createElement(Probe)) })
     const watch = boundary.subscription!.watches.find(row => row.table === 'waiver_claims')
-    expect(watch?.filter).toBe('member_id=eq.member')
+    expect(watch).toBeUndefined()
     await act(async () => {
-        watch!.onChange({ eventType: 'UPDATE', new: { id: 'claim', member_id: 'member', status: 'cancelled' }, old: { id: 'claim' } })
+        notifyMemberClaimsChanged('member')
         await vi.advanceTimersByTimeAsync(200)
     })
     expect(boundary.support).toHaveBeenCalledExactlyOnceWith(['claims', 'transactions'])

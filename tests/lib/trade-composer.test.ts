@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
     buildTradeComposerPayload,
     buildTwoTeamTradeComposerPayload,
@@ -9,7 +9,7 @@ import {
     submitTradeComposer,
     validateTradeNotes,
 } from '@/lib/trade-composer'
-import type { MultiTeamTradeProposalPayload, Trade } from '@/lib/trades'
+import type { Trade } from '@/lib/trades'
 import { endOfETDayUTC } from '@/lib/shared/dates'
 import { MAX_TRADE_EXPIRATION_DAYS, MAX_TRADE_FAAB_AMOUNT, MAX_TRADE_NOTES_BYTES } from '@pancake/core'
 
@@ -82,13 +82,13 @@ describe('source trade roster plan', () => {
             ]),
         })
         const plan = prefillTradeRosterPlan(source, memberId)
-        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`] })
+        expect(plan).toEqual({ taxiPlayerIds: [`taxi-${memberId}`], irPlayerIds: [`ir-${memberId}`], dropPlayerIds: [`drop-${memberId}`], rosterMoves: [] })
         plan.dropPlayerIds.push('new-drop')
         expect(source.participants.find(participant => participant.memberId === memberId)?.dropPlayerIds).toEqual([`drop-${memberId}`])
     })
 
     it('starts with no drops when the source has no saved participant plan', () => {
-        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] })
+        expect(prefillTradeRosterPlan(trade(), 'proposer')).toEqual({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
     })
 })
 
@@ -462,17 +462,6 @@ describe('submitTradeComposer', () => {
 })
 
 describe('submitMultiTeamTradeComposer', () => {
-    it('uses the canonical multi-team payload contract for every mutation', () => {
-        type Deps = Parameters<typeof submitMultiTeamTradeComposer>[1]
-
-        expectTypeOf<Parameters<Deps['proposeMultiTeamTrade']>[3]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-        expectTypeOf<Parameters<Deps['counterMultiTeamTrade']>[2]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-        expectTypeOf<Parameters<Deps['editMultiTeamTrade']>[2]>()
-            .toEqualTypeOf<MultiTeamTradeProposalPayload>()
-    })
-
     it('accepts the maximum multi-team expiration', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date(NOW_MS))

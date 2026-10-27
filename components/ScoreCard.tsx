@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react'
 import { Platform, View, Text, StyleSheet } from 'react-native'
 import { Matchup } from '@/lib/scoring'
 import { alpha, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
-export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; compact?: boolean }) {
+export function ScoreCard({ matchup, compact = false, children }: { matchup: Matchup; compact?: boolean; children?: ReactNode }) {
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
     const iWinning = myPts > oppPts
@@ -66,6 +67,7 @@ export function ScoreCard({ matchup, compact = false }: { matchup: Matchup; comp
                     </Text>
                 </View>
             </View>
+            {children}
         </View>
     )
 }

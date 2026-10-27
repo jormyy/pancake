@@ -406,8 +406,8 @@ export const verifyOverflowTradeAccepted = async (fixture) => {
       .eq('league_season_id', fixture.currentSeason.id)
       .eq('member_id', fixture.recipient.id)
       .eq('player_id', fixture.recipientPlayer.id)
-      .eq('transaction_type', 'fa_drop')
-      .is('related_trade_id', null),
+      .eq('transaction_type', 'drop')
+      .eq('related_trade_id', fixture.trade.id),
     fixture.admin
       .from('waiver_wire_log')
       .select('id, league_id, league_season_id, player_id, dropped_by_member_id, clears_at')
@@ -441,24 +441,24 @@ export const verifyOverflowTradeAccepted = async (fixture) => {
   if (rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via !== 'trade') {
     failures.push(`incoming player acquired_via=${rosterByPlayer.get(fixture.proposerPlayer.id)?.acquired_via ?? '<missing>'}; expected trade`)
   }
-  if (rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id !== fixture.recipient.id) {
-    failures.push(`existing player owner=${rosterByPlayer.get(fixture.recipientPlayer.id)?.member_id ?? '<missing>'}; expected recipient ${fixture.recipient.id}`)
+  if (rosterByPlayer.has(fixture.recipientPlayer.id)) {
+    failures.push('Planned drop remains on the roster after settlement')
   }
-  if (recipientActiveRoster.length !== fixture.rosterSize + 1) {
-    failures.push(`recipient active roster count=${recipientActiveRoster.length}; expected lazy overflow ${fixture.rosterSize + 1}`)
+  if (recipientActiveRoster.length !== fixture.rosterSize) {
+    failures.push(`recipient active roster count=${recipientActiveRoster.length}; expected legal roster ${fixture.rosterSize}`)
   }
   if (picksResult.data.current_owner_id !== fixture.proposer.id) {
     failures.push(`recipient future pick owner=${picksResult.data.current_owner_id}; expected proposer ${fixture.proposer.id}`)
   }
   if (picksResult.data.is_used) failures.push('accepted overflow trade unexpectedly marked the pick used')
-  if (tradeTransactions.length !== 2) {
-    failures.push(`trade roster_transactions count=${tradeTransactions.length}; expected 2 player trade rows`)
+  if (tradeTransactions.length !== 3) {
+    failures.push(`trade roster_transactions count=${tradeTransactions.length}; expected 2 player trade rows and 1 planned drop`)
   }
-  if (dropTransactions.length !== 0) {
-    failures.push(`fa_drop transaction count=${dropTransactions.length}; expected no automatic trade drop`)
+  if (dropTransactions.length !== 1) {
+    failures.push(`planned drop transaction count=${dropTransactions.length}; expected 1 planned trade drop`)
   }
-  if (waiverLogs.length !== 0) {
-    failures.push(`waiver_wire_log rows=${waiverLogs.length}; expected no automatic waiver row`)
+  if (waiverLogs.length !== 1) {
+    failures.push(`waiver_wire_log rows=${waiverLogs.length}; expected 1 planned-drop waiver row`)
   }
 
   return {

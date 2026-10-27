@@ -15,7 +15,7 @@ vi.mock('@/lib/scoring', () => ({ computeLiveFantasyPoints: () => 0 }))
 let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
-it.each([['Gary Trent Jr.', 'Trent', '1629018'], ['Jaren Jackson III', 'Jackson', 'IOS67'], ['Derrick White 23', 'White', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
+it.each([['Gary Trent Jr.', 'G. Trent Jr.', '1629018'], ['Jaren Jackson III', 'J. Jackson III', 'IOS67'], ['Shai Gilgeous-Alexander', 'S. Gilgeous-Alexander', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
     await act(async () => {
         screen = create(React.createElement(MatchupRow, {
             myPlayer: { rosterPlayerId: 'roster', playerId: 'player', displayName, position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId },
@@ -23,7 +23,9 @@ it.each([['Gary Trent Jr.', 'Trent', '1629018'], ['Jaren Jackson III', 'Jackson'
             playingTeams: new Set<string>(), liveStats: new Map(), liveTeams: new Set<string>(), scoringSettings: {}, teamMatchups: new Map(), compact: true,
         }))
     })
-    expect(screen.root.findAllByType('Avatar' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByType('Avatar' as React.ElementType)).toHaveLength(1)
+    expect(screen.root.findByType('Avatar' as React.ElementType).props.size).toBe(24)
+    expect(screen.root.findByType('Avatar' as React.ElementType).props.uri).toBe(nbaId === '1629018' ? 'http://127.0.0.1:57121/functions/v1/api/players/headshot/1629018' : undefined)
     expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === expected)).toBe(true)
 })
 
@@ -62,6 +64,17 @@ it('keeps injuries beside names and games visible without no-game team text', as
     for (const badge of screen.root.findAllByType('InjuryBadge' as React.ElementType)) {
         expect(badge.parent!.findAllByType('Text' as React.ElementType).some(node => ['Mine', 'Theirs'].includes(node.props.children))).toBe(true)
     }
-    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set(), teamMatchups: new Map() })))
+    await act(async () => screen.update(React.createElement(MatchupRow, { ...props, playingTeams: new Set<string>(), teamMatchups: new Map<string, { opponent: string; isHome: boolean }>() })))
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
+})
+
+it('keeps projected points separate from earned points and labels the source', async () => {
+    const props = rowProps()
+    await act(async () => { screen = create(React.createElement(MatchupRow, {
+        ...props, showProjections: true, forecastStale: true,
+        myProjection: { gameId: 'g', playerId: 'Mine', memberId: 'm', date: '2026-10-25', projection: 23.4, source: 'Sleeper', sourceAt: '2026-10-25T12:00:00Z', remainingFraction: 1 },
+    })) })
+    const labels = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
+    expect(labels).toContain('Projection 23.4 points, source Sleeper, updated 2026-10-25T12:00:00Z, out of date')
+    expect(labels).toContain('Projection unavailable')
 })

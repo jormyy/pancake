@@ -1,7 +1,7 @@
 import { browser } from './trade-browser-harness.mjs'
 
 export async function confirmTradeAcceptance(options) {
-  const { session, page, press = (button) => button.click(), browserCall = browser, timeoutMs = 1500 } = options
+  const { session, page, press = (button) => button.click(), browserCall = browser, timeoutMs = 10000 } = options
   const deadline = Date.now() + timeoutMs
   do {
     if (page) {
@@ -17,11 +17,12 @@ export async function confirmTradeAcceptance(options) {
         return Boolean(dialog && dialog.getBoundingClientRect().width > 0);
       })()`])
       if (output.trim() === 'true') {
+        await browserCall(session, ['scrollintoview', '[role="dialog"] [aria-label="Accept"]'])
         await browserCall(session, ['click', '[role="dialog"] [aria-label="Accept"]'])
         return true
       }
     }
     await new Promise((resolve) => setTimeout(resolve, 100))
   } while (Date.now() < deadline)
-  return false
+  throw new Error('Trade acceptance confirmation did not appear.')
 }

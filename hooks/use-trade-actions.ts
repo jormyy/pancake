@@ -2,7 +2,7 @@ import { pickLabel } from '@/lib/picks'
 import { getGameDay } from '@/lib/games'
 import { todayET } from '@/lib/shared/dates'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { acceptTrade, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
+import { acceptTrade, getTradeRosterPreview, setTradeRosterPlan, setTradeTaxiDestinations, rejectTrade, vetoTrade, withdrawTrade, type Trade, type TradeRosterPlan } from '@/lib/trades'
 import { confirmAction, showAlert } from '@/lib/alert'
 import type { TradeVetoMode } from '@/types/app'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -91,6 +91,29 @@ export function useTradeActions({
             return
         }
         if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
+        let plannedDrops: string[] = []
+        let confirmedPlan: TradeRosterPlan | undefined
+        let rosterSummary = ''
+        try {
+            const teams = await getTradeRosterPreview(trade.id)
+            if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity) return
+            const invalid = teams.find((team) => team.error)
+            if (invalid) {
+                showAlert('Complete the roster plan', `${invalid.teamName}: ${invalid.error}`)
+                return
+            }
+            rosterSummary = teams.map(team => `${team.teamName}: ${(['active', 'ir', 'taxi'] as const).map(location => {
+                const rows = team.roster.filter(player => player.location === location)
+                return `${location === 'active' ? 'Regular' : location.toUpperCase()} ${rows.length}/${team.limits[location]} (${rows.map(player => player.name).join(', ') || 'none'})`
+            }).join('; ')}`).join('\n')
+            const ownPlan = teams.find((team) => team.memberId === memberId)
+            if (!ownPlan?.plan) throw new Error('The roster plan did not load. Reopen the trade and try again.')
+            plannedDrops = ownPlan.drops.map((player) => player.name) ?? []
+            confirmedPlan = ownPlan?.plan
+        } catch (error) {
+            if (enabledRef.current && mountedRef.current && identityRef.current === identity) showAlert('Could not check roster plans', getErrorMessage(error))
+            return
+        }
         const assets = (direction: 'fromMemberId' | 'toMemberId') => trade.routedItems
             .filter(item => item[direction] === memberId)
             .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? `${pickLabel(item.seasonYear, item.round)} pick` : `$${item.amount} FAAB`)
@@ -106,8 +129,8 @@ export function useTradeActions({
         if (!enabledRef.current || !mountedRef.current || identityRef.current !== identity || mutationInFlight.current) return
         const message = `You give: ${assets('fromMemberId')}. You receive: ${assets('toMemberId')}.`
             + (gamesClear ? ' This trade completes immediately.' : ' This trade completes when everyone accepts and player games and review allow it.')
-        return confirmAction('Accept trade?', message,
-            () => runTerminalAction(trade.id, acceptTrade, 'Could not accept trade.'), 'Accept', false)
+        return confirmAction('Accept trade?', message + (rosterSummary ? `\nResulting rosters:\n${rosterSummary}` : '') + (plannedDrops.length ? ` Confirm these drops at settlement: ${plannedDrops.join(', ')}.` : ''),
+            () => runTerminalAction(trade.id, (tradeId, ownMemberId) => acceptTrade(tradeId, ownMemberId, confirmedPlan), 'Could not accept trade.'), 'Accept', false)
     }, [beforeAccept, identity, leagueId, memberId, runTerminalAction, tradeVetoMode, tradeVetoWindowHours])
 
     const setTaxiDestination = useCallback((trade: Trade, playerId: string, toTaxi: boolean) => {

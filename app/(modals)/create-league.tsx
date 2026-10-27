@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import {
     View,
     Text,
@@ -18,6 +19,11 @@ import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { shareInviteMessage } from '@/lib/invite-share'
+import { clearEditorDraft, readEditorDraft, saveEditorDraft } from '@/lib/editor-draft'
+import { sessionGeneration } from '@/lib/session-cache-registry'
+
+const confirmationKind = 'created-league'
+const isInviteCode = (value: unknown): value is string => typeof value === 'string' && value.length > 0
 
 export default function CreateLeagueScreen() {
     const { user } = useAuth()
@@ -28,7 +34,26 @@ export default function CreateLeagueScreen() {
     const [auctionBudget, setAuctionBudget] = useState('200')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [inviteCode, setInviteCode] = useState<string | null>(null)
+    const [confirmation, setConfirmation] = useState<{ owner: string; generation: number; code: string | null; recoverable: boolean } | null>(null)
+    const owner = user?.id
+    const currentConfirmation = confirmation?.owner === owner && confirmation?.generation === sessionGeneration() ? confirmation : null
+    const restoredCode = owner ? readEditorDraft(confirmationKind, owner, isInviteCode) : null
+    const inviteCode = currentConfirmation?.code ?? restoredCode
+    const recoverable = currentConfirmation?.recoverable ?? Boolean(restoredCode)
+    useUnsentFormUpdate(inviteCode ? !recoverable : Boolean(leagueName || teamName || auctionBudget !== '200'), 'create league form')
+    const activeRef = useRef(true)
+    useEffect(() => {
+        activeRef.current = true
+        return () => {
+            activeRef.current = false
+            if (owner) clearEditorDraft(confirmationKind, owner)
+        }
+    }, [owner])
+
+    function dismiss() {
+        if (owner) clearEditorDraft(confirmationKind, owner)
+        goBack()
+    }
     const sharingRef = useRef(false)
     const { width, height } = useWindowDimensions()
     const [webViewport, setWebViewport] = useState({ width, height })
@@ -45,6 +70,8 @@ export default function CreateLeagueScreen() {
     const { padX } = usePageMetrics()
 
     async function handleCreate() {
+        if (loading || inviteCode || !owner) return
+        const generation = sessionGeneration()
         if (!leagueName.trim() || !teamName.trim()) {
             setError('League name and team name are required.')
             return
@@ -57,9 +84,11 @@ export default function CreateLeagueScreen() {
         setLoading(true)
         setError(null)
         try {
-            const league = await createLeague(user!.id, leagueName.trim(), teamName.trim(), budget)
+            const league = await createLeague(owner, leagueName.trim(), teamName.trim(), budget)
+            if (!activeRef.current || generation !== sessionGeneration()) return
+            const saved = saveEditorDraft(confirmationKind, owner, league.invite_code)
+            setConfirmation({ owner, generation, code: league.invite_code, recoverable: saved })
             await refresh()
-            setInviteCode(league.invite_code)
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {
@@ -82,7 +111,7 @@ export default function CreateLeagueScreen() {
         return (
             <>
                 <Stack.Screen options={{ title: 'Create League', presentation: 'modal', headerShown: false }} />
-                <ModalScreen title="League created" onBack={() => goBack()}>
+                <ModalScreen title="League created" onBack={dismiss}>
                     <View style={[styles.successContainer, isCompactLandscape && styles.compactSuccessContainer]}>
                         <View style={[styles.successCopy, isCompactLandscape && styles.compactSuccessCopy]}>
                             <Text style={styles.successSub}>Share this code with your managers.</Text>
@@ -92,7 +121,7 @@ export default function CreateLeagueScreen() {
                         </View>
                         <View style={[styles.successActions, isCompactLandscape && styles.compactSuccessActions]}>
                             <Button title="Share Invite Code" icon="ios-share" onPress={handleShare} fullWidth accessibilityLabel="Share invite code" />
-                            <Button title="Done" variant="secondary" onPress={() => goBack()} fullWidth accessibilityLabel="Done" />
+                            <Button title="Done" variant="secondary" onPress={dismiss} fullWidth accessibilityLabel="Done" />
                         </View>
                     </View>
                 </ModalScreen>
@@ -139,7 +168,7 @@ export default function CreateLeagueScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Create League', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Create League" onBack={() => goBack()} actions={createButton}>
+            <ModalScreen title="Create League" onBack={dismiss} actions={createButton}>
                 <KeyboardAvoidingView
                     style={styles.flex1}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}

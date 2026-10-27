@@ -239,7 +239,7 @@ describe('propose trade async ownership', () => {
         await act(async () => { renderer.update(React.createElement(ProposeTradeScreen)) })
         mocks.getCurrentSeasonId.mockResolvedValue('season-b')
         await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
-        expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(2)
+        expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(3)
         expect(mocks.invalidateSeasonCache).toHaveBeenCalledWith('league-a')
         expect(send.mock.calls[1][0].requestId).not.toBe(rejectedKey)
         expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
@@ -324,7 +324,7 @@ describe('propose trade async ownership', () => {
             expect(renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.disabled).toBe(false)
             await act(async () => { await renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress() })
             expect(mocks.submitTradeComposer.mock.calls[1][0]).toEqual(first)
-            expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(1)
+            expect(mocks.getCurrentSeasonId).toHaveBeenCalledTimes(2)
             expect(mocks.showSuccess).toHaveBeenCalledTimes(1)
         } finally {
             if (renderer) await act(async () => { renderer.unmount() })
@@ -834,7 +834,7 @@ it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s m
     let renderer!: ReactTestRenderer
     try {
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
-        const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'] }
+        const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'], rosterMoves: [] }
         await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
         expect(renderer.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(expected)
         await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())

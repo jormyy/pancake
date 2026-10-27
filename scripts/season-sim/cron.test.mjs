@@ -77,3 +77,23 @@ test('the replay omits retired jobs and polls projections every fifteen minutes'
 test('the notification outbox uses the real per-minute production gate',()=>{
   assert.ok(cronCommands(Date.parse('2025-06-28T13:02:00Z')).some(row=>row.jobname==='notification-dispatch-minute'&&row.command.includes('invoke_process_trades_if_due')))
 })
+test('an installed catalog controls dispatch without importing legacy jobs', async () => {
+  const catalog = [{ jobname: 'candidate-job', schedule: '*/2 * * * *', command: 'SELECT candidate_job()' }]
+  const from = Date.parse('2025-01-01T00:00:00Z'), statements = []
+  assert.deepEqual(cronCommands(from + 120000, catalog), catalog)
+  assert.deepEqual(cronCommands(from + 60000, catalog), [])
+  const counts = await advanceCron({ from, to: from + 240000, catalog, move: async () => {}, invoke: async statement => statements.push(statement) })
+  assert.deepEqual(counts, { 'candidate-job': 2 })
+  assert.equal(statements.filter(statement => statement.includes('candidate_job')).length, 2)
+  assert.ok(statements.every(statement => !statement.includes('nba-live-poll')))
+})
+
+test('installed subminute jobs run between minute jobs and worker wakes', async () => {
+  const catalog = [{ jobname: 'drain', schedule: '30 seconds', command: 'SELECT drain()' }, { jobname: 'minute', schedule: '* * * * *', command: 'SELECT tick()' }]
+  const from = Date.parse('2025-01-01T00:00:00Z')
+  for (const settle of [null, async () => ({ nextAt: null })]) {
+    const counts = await advanceCron({ from, to: from + 120000, catalog, settle, move: async () => {}, invoke: async () => {} })
+    assert.deepEqual(counts, { drain: 4, minute: 2 })
+  }
+  assert.throws(() => cronMatches('0 seconds', from), /Unsupported cron interval/)
+})

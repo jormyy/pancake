@@ -35,7 +35,7 @@ SELECT current_setting('season_sim.dispatch_ids')`))
   try{for (const id of ids) {
     let result
     for (let attempt = 0; attempt < 150; attempt++) {
-      result = JSON.parse(await sql(`SELECT row_to_json(r) FROM (SELECT i.id,i.function_name,i.worker_status,i.error_message,n.status_code,n.timed_out,n.error_msg,n.content FROM public.edge_invocations i LEFT JOIN net._http_response n ON n.id=i.request_id WHERE i.id=${Number(id)}) r`))
+      result = JSON.parse(await sql(`SELECT row_to_json(r) FROM (SELECT i.id,i.invocation_key,i.function_name,i.worker_status,i.error_message,s.status AS sync_status,s.error AS sync_error,s.rows_affected,n.status_code,n.timed_out,n.error_msg,n.content FROM public.edge_invocations i LEFT JOIN public.sync_runs s ON s.id=i.sync_run_id LEFT JOIN net._http_response n ON n.id=i.request_id WHERE i.id=${Number(id)}) r`))
       probe.watch([result])
       if (result.status_code != null || result.error_msg != null) break
       await delay(400)

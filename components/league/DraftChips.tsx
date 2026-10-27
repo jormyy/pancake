@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { View, Text, TextInput, Pressable, StyleSheet, Platform } from 'react-native'
 import {
     NOMINATION_ORDER_MODES,
@@ -223,6 +224,7 @@ export function DraftTimerControl({
     const [customText, setCustomText] = useState('')
     const [error, setError] = useState<string | null>(null)
     const customSelected = !presets.includes(selectedValue)
+    useUnsentFormUpdate(customText !== (customSelected ? String(selectedValue / unit) : '') || unit !== initialUnit, 'draft timer input')
 
     useEffect(() => {
         setCustomText(customSelected ? String(selectedValue / unitRef.current) : '')

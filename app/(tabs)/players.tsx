@@ -1,3 +1,5 @@
+import { useScrollRestoration } from '@/lib/scroll-restoration'
+import { WaiversSection } from '@/components/waivers/WaiversSection'
 import { ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { useIsFocused } from '@react-navigation/native'
 import {
@@ -245,6 +247,7 @@ function PlayerSearchSection() {
     const transactionState = playerSupportForLeague?.transactionState ?? null
 
     const search = usePlayerSearch(leagueId, ownedMap, waiverIds, current?.id, { enabled: searchEnabled && playerSupportReady, admitted: !supportSnapshot && !playerSupportFetchLoading && !playerSupportRefreshing, online, focused, ownerId: user?.id, initialLiveStats: true, scoringSettings: currentLeague?.scoring_settings })
+    const scrollRestoration = useScrollRestoration(JSON.stringify(['players', user?.id, current?.id, leagueId, search.search.query, search.season.value, search.sort.mode, search.sort.dir, search.availabilityFilter.value, search.position.value, search.teamPicker.selectedTeams, search.playing.value, search.health.value, search.toggles]), search.results.listRef)
     const liveRows = useVisiblePlayerRows(search.results.players, leagueId, search.season.value,
         currentLeague?.scoring_settings, {
             enabled: focused && online && membershipValidated && !filtersOpen,
@@ -295,7 +298,7 @@ function PlayerSearchSection() {
     const { handleAdd: quickAddHandleAdd, handleClaim: quickAddHandleClaim } = quickAdd
     const handleAddPlayer = useCallback((player: PlayerRow) => {
         if (!online || availabilityUpdating) return
-        if (playerSupportForLeague?.pendingClaimIds.has(player.id)) push('/roster?claims=1')
+        if (playerSupportForLeague?.pendingClaimIds.has(player.id)) push('/players?section=waivers')
         else if (waiverIds.has(player.id)) void quickAddHandleClaim(player)
         else void quickAddHandleAdd(player)
     }, [online, availabilityUpdating, waiverIds, playerSupportForLeague?.pendingClaimIds, push, quickAddHandleClaim, quickAddHandleAdd])
@@ -500,7 +503,8 @@ function PlayerSearchSection() {
 
             <View style={localStyles.results} aria-busy={listIsInitialLoading || search.results.loadingMore} accessibilityState={{ busy: listIsInitialLoading || search.results.loadingMore }}>
             <FlashList
-                    onScroll={statusScroll.onScroll}
+                    {...scrollRestoration}
+                    onScroll={event => { statusScroll.onScroll?.(event); scrollRestoration.onScroll(event) }}
                     scrollEventThrottle={16}
                     ref={search.results.listRef}
                     data={liveRows.rows}
@@ -583,8 +587,8 @@ function PlayerSearchSection() {
     )
 }
 
-type PlayersSection = 'players' | 'rankings' | 'news'
-const SECTIONS: PlayersSection[] = ['players', 'rankings', 'news']
+type PlayersSection = 'players' | 'waivers' | 'rankings' | 'news'
+const SECTIONS: PlayersSection[] = ['players', 'waivers', 'rankings', 'news']
 
 function initialSection(value: string | string[] | undefined): PlayersSection {
     return SECTIONS.find((section) => section === value) ?? 'players'
@@ -612,7 +616,7 @@ function PlayersScreen() {
 
     const [lastDynasty, setLastDynasty] = useState<'rankings' | 'news'>('rankings')
     const openSection = useCallback((next: PlayersSection) => {
-        if (next !== 'players') setLastDynasty(next)
+        if (next === 'rankings' || next === 'news') setLastDynasty(next)
         setSection(next)
         setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
     }, [])
@@ -630,6 +634,7 @@ function PlayersScreen() {
                         onChange={openSection}
                         options={[
                             { label: 'Players', value: 'players', accessibilityLabel: 'Show player search' },
+                            { label: 'Waivers', value: 'waivers' },
                             { label: 'Rankings', value: 'rankings' },
                             { label: 'News', value: 'news' },
                         ]}
@@ -646,9 +651,10 @@ function PlayersScreen() {
                         <PlayerSearchSection />
                     </RetainedPanel>
                 ) : null}
+                {opened.has('waivers') ? <RetainedPanel active={focused && section === 'waivers'}><WaiversSection active={focused && section === 'waivers'} onFindPlayer={() => openSection('players')} /></RetainedPanel> : null}
                 {/* Rankings and News share one instance, so each loads its data once. */}
                 {opened.has('rankings') || opened.has('news') ? (
-                    <RetainedPanel active={focused && section !== 'players'}>
+                    <RetainedPanel active={focused && (section === 'rankings' || section === 'news')}>
                         <DynastyHub section={section === 'news' || (section === 'players' && lastDynasty === 'news') ? 'news' : 'rankings'} />
                     </RetainedPanel>
                 ) : null}

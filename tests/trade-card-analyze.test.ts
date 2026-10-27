@@ -17,7 +17,7 @@ vi.mock('@/lib/trade-perspective', () => ({
 }))
 
 const completed = trade()
-const ANALYZE = 'Analyze trade from Team A'
+const ANALYZE = 'Revalue trade from Team A with current inputs'
 let renderer: ReactTestRenderer | null = null
 
 afterEach(async () => {

@@ -112,7 +112,7 @@ async function fixture(control) {
   const f={control,cancelClaims:control==='inactive-trades-positive',league:randomUUID(),season:randomUUID(),users:Array.from({length:3},()=>randomUUID()),
     members:Array.from({length:3},()=>randomUUID()),players:Array.from({length:3},()=>randomUUID()),
     rosters:Array.from({length:3},()=>randomUUID()),claims:[],claim:null,trade:null,wire:null,mayClean:false,
-    processDate:'1900-01-03'}
+    processDate:'1900-01-04'}
   f.scopes=[`league:${f.league}`,`season:${f.season}`,...f.players.map((id)=>`player:${id}`)]
   fixtures.push(f)
   assert.equal(await root.query(`SELECT
@@ -159,7 +159,6 @@ async function fixture(control) {
   f.wire=await root.query(`SELECT id FROM public.waiver_wire_log
     WHERE league_id=${quote(f.league)} AND player_id=${quote(f.players[2])} AND cleared_at IS NULL;`)
   assert.match(f.wire,/^[0-9a-f-]{36}$/)
-  // Explicit own fixture clock metadata. The actual claim RPC derives its process date from this log.
   await root.query(`UPDATE public.waiver_wire_log SET placed_on_waivers_at='1900-01-01 12:00:00+00',
     clears_at='1900-01-03 12:00:00+00' WHERE id=${quote(f.wire)};`)
   f.claim=await root.query(`BEGIN; SET LOCAL ROLE service_role;
@@ -170,6 +169,7 @@ async function fixture(control) {
     SELECT public.create_waiver_claim_atomic(${quote(f.league)},${quote(f.members[2])},${quote(f.players[2])},
       NULL::uuid,${quote(f.users[2])},0,1); COMMIT;`)
   assert.match(f.lower,/^[0-9a-f-]{36}$/); f.claims.push(f.lower)
+  await root.query(`UPDATE public.waiver_claims SET process_date=${quote(f.processDate)}::date WHERE id IN (${list(f.claims)});`)
   const expires=new Date(Date.now()+86400000).toISOString()
   f.trade=await root.query(`BEGIN; SET LOCAL ROLE service_role;
     SELECT public.propose_trade_atomic(${quote(f.league)},${quote(f.season)},
@@ -200,11 +200,12 @@ const stateSql=(f)=>`SELECT jsonb_build_object(
 // Require ALL globally eligible claims at this date to be the two owned pending claims.
 // This is stronger than checking only the head: the processor can try-lock and skip busy leagues.
 const eligibleSql=(f)=>`SELECT c.id FROM public.waiver_claims c
-  JOIN public.waiver_wire_log w ON w.league_id=c.league_id AND w.league_season_id=c.league_season_id
-    AND w.player_id=c.player_id AND w.cleared_at IS NULL AND w.clears_at<=now()
   JOIN public.leagues l ON l.id=c.league_id AND l.status IN ('active','playoffs','offseason')
   JOIN public.league_seasons s ON s.id=c.league_season_id AND s.is_current=true
-  WHERE c.status='pending' AND c.process_date<=${quote(f.processDate)}::date`
+  WHERE c.status='pending' AND c.process_date<=${quote(f.processDate)}::date
+    AND ((c.process_date+time '03:00') AT TIME ZONE 'America/New_York')<=now()
+    AND NOT EXISTS (SELECT 1 FROM public.waiver_wire_log w WHERE w.league_id=c.league_id AND w.league_season_id=c.league_season_id
+      AND w.player_id=c.player_id AND w.cleared_at IS NULL AND w.clears_at>((c.process_date+time '03:00') AT TIME ZONE 'America/New_York'))`
 async function prepareWaiver(w,f,claimIds=[f.claim,f.lower]) {
   const found=parse(await w.query(`BEGIN ISOLATION LEVEL REPEATABLE READ;
     DO $own$ BEGIN

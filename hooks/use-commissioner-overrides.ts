@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { useEffect, useRef, useState } from 'react'
 import { adjustFaabBalance, overrideWeeklyAddCount } from '@/lib/league'
 import { showAlert, showSuccess } from '@/lib/alert'
@@ -77,6 +78,7 @@ export function useCommissionerOverrides(
     }
 
     const ownsFields = fieldsOwnerKey === ownerKey
+    useUnsentFormUpdate(Boolean(ownerKey && ownsFields && (faab || adds)), 'commissioner override form')
 
     return {
         overrideAdds: ownsFields ? adds : '',

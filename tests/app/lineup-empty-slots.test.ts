@@ -6,7 +6,7 @@ import LineupScreen from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
 
 const mocks = vi.hoisted(() => ({
-    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
+    context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     invalidate: vi.fn(),
     readLineup: vi.fn(), readContext: vi.fn(), hidden: false,
@@ -289,4 +289,14 @@ it('keeps final-game players locked after their live label ends', async () => {
     const row = screen.root.findByProps({ accessibilityLabel: 'PG Locked Player' })
     expect(row.props.disabled).toBe(true)
     expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'LOCK')).toBe(true)
+})
+
+
+it('shows every configured empty starter, IR, and taxi place', async () => {
+    mocks.context.currentLeague = { id: 'league-a', ir_slots: 2, taxi_slots: 3 }
+    await mount()
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty PG slot' })).toHaveLength(1)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty ir slot' })).toHaveLength(2)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Empty taxi slot' })).toHaveLength(3)
+    expect(emptyRows()).toHaveLength(3)
 })

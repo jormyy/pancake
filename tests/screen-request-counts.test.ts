@@ -211,8 +211,8 @@ describe('screen request budgets', () => {
             expect(canAddToIR('Out', pickup.roster, 2)).toBe(true)
         })
         expect(freeAgent).toEqual({
-            requests: 4,
-            byTarget: { league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },
+            requests: 5,
+            byTarget: { waiver_claims: 1, league_seasons: 1, roster_players: 1, 'rpc:get_member_transaction_state': 1, waiver_wire_log: 1 },
         })
     })
 })

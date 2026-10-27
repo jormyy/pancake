@@ -58,6 +58,21 @@ BEGIN
   UPDATE public.snake_draft_picks SET skipped_at=now(),skip_reason='No eligible players' WHERE draft_id=draft;
   UPDATE public.leagues SET roster_size=1 WHERE id=league;
   SELECT id INTO moving FROM public.roster_players WHERE player_id=second_player AND league_season_id=season;
+  BEGIN
+    PERFORM set_config('request.jwt.claim.sub',manager::text,true);
+    PERFORM public.drop_player_atomic(moving);
+    IF (SELECT status FROM leagues WHERE id=league)<>'active' THEN RAISE EXCEPTION 'Direct drop does not activate a ready rookie league'; END IF;
+    RAISE EXCEPTION 'Restore direct-drop fixture' USING ERRCODE='ZX001';
+  EXCEPTION WHEN SQLSTATE 'ZX001' THEN NULL;
+  END;
+  BEGIN
+    UPDATE drafts SET status='in_progress' WHERE id=draft;
+    PERFORM set_config('request.jwt.claim.sub',manager::text,true);
+    PERFORM public.drop_player_atomic(moving);
+    IF (SELECT status FROM leagues WHERE id=league)<>'drafting' THEN RAISE EXCEPTION 'Direct drop activates an unfinished rookie draft'; END IF;
+    RAISE EXCEPTION 'Restore unfinished-draft fixture' USING ERRCODE='ZX001';
+  EXCEPTION WHEN SQLSTATE 'ZX001' THEN NULL;
+  END;
   PERFORM public.toggle_ir_atomic(moving,true,manager);
   IF (SELECT status FROM public.leagues WHERE id=league) <> 'active' THEN
     RAISE EXCEPTION 'The final manager IR move does not activate the league';

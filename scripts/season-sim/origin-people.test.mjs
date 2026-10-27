@@ -5,6 +5,16 @@ import * as originPeople from './origin-people.mjs'
 
 const people = [{ id: 'espn', nbaId: 1, firstName: 'Real', lastName: 'Rookie', fromYear: 2025, observations: [{ date: '2025-10-21', team: 'DAL', position: 'SF' }, { date: '2026-02-06', team: 'LAL', position: 'SF' }] }]
 
+test('strict metadata time excludes later same-day observations and future opening boxes', () => {
+  const veteran = { ...people[0], fromYear: 2010, observations: [{ date: '2024-10-18', time: '2024-10-18T23:00:00Z', team: 'BOS', position: 'C' }, { date: '2024-10-22', time: '2024-10-22T23:00:00Z', team: 'DAL', position: 'PF' }] }
+  const openings = new Map([[2024, { date: '2024-10-22', teams: new Map([['BOS', { date: '2024-10-23', time: '2024-10-23T23:00:00Z', people: new Set() }]]) }]])
+  const morning = Date.parse('2024-10-22T14:00:00Z')
+  assert.equal(rosterForDate([veteran], '2024-10-22', openings, morning)[0].team, 'BOS')
+  assert.equal(rosterForDate([veteran], '2024-10-22', openings, Date.parse('2024-10-22T23:00:00Z'))[0].team, 'DAL')
+  assert.deepEqual(rosterForDate(people, '2025-10-21', new Map(), morning), [])
+  assert.throws(() => rosterForDate([veteran], '2024-10-22', openings, NaN), /finite/)
+})
+
 test('historical roster does not expose a future player before first observation', () => {
   assert.deepEqual(rosterForDate(people, '2024-10-22'), [])
   assert.equal(rosterForDate(people, '2025-10-21')[0].team, 'DAL')
@@ -77,7 +87,7 @@ test('opening rosters come from each team first real box of the season',()=>{
   const built=originPeople.openingRosters(games,game=>boxes[game.id])
   assert.deepEqual([...built.keys()],[2024,2025])
   assert.equal(built.get(2024).date,'2024-10-22')
-  assert.deepEqual({...built.get(2024).teams.get('MIN'),people:[...built.get(2024).teams.get('MIN').people]},{gameId:'0022400062',date:'2024-10-22',people:[1630162]})
+  assert.deepEqual({...built.get(2024).teams.get('MIN'),people:[...built.get(2024).teams.get('MIN').people]},{gameId:'0022400062',date:'2024-10-22',time:'2024-10-23T02:00:00Z',people:[1630162]})
   assert.equal(built.get(2024).teams.get('SAC').gameId,'0022400078')
   assert.equal(built.get(2025).teams.get('MIN').people,null)
   const returning={...batesDiop,observations:[{date:'2025-10-10',team:'MIN',position:'F',rosterOnly:true}]}
@@ -232,4 +242,15 @@ test('a nickname links by surname and jersey number only when they name one play
   const noJersey=slices.was.athletes.map(athlete=>({...athlete,jersey:athlete.id==='5160992'?null:athlete.jersey}))
   assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey})),{...was,4845374:1642267},'No ESPN jersey, no nickname link')
   assert.deepEqual(links(observe(slices.was,new Map(),{athletes:noJersey.map(athlete=>({...athlete,jersey:athlete.jersey??''})),players:slices.was.players.map(player=>({...player,jerseyNum:player.personId===1642259?'':player.jerseyNum}))})),{...was,4845374:1642267},'Two blank jerseys are no number')
+})
+
+test('broad later positions retain earlier same-family precision without inventing eligibility', () => {
+  const player = { ...people[0], observations: [{ date: '2025-10-20', team: 'DAL', position: 'PG' }, { date: '2025-10-21', team: 'DAL', position: 'PF' }, { date: '2025-10-22', team: 'DAL', position: 'F' }] }
+  assert.equal(rosterForDate([player], '2025-10-22')[0].position.abbreviation, 'PF')
+  player.observations.push({ date: '2025-10-23', team: 'DAL', position: 'SF' })
+  assert.equal(rosterForDate([player], '2025-10-23')[0].position.abbreviation, 'SF')
+  player.observations.push({ date: '2025-10-24', team: 'DAL', position: 'G' })
+  assert.equal(rosterForDate([player], '2025-10-24')[0].position.abbreviation, 'G')
+  player.observations.push({ date: '2025-10-25', team: 'DAL', position: 'C' })
+  assert.equal(rosterForDate([player], '2025-10-25')[0].position.abbreviation, 'C')
 })

@@ -439,3 +439,6 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 
 [functions.sync-sleeper-projections]
 verify_jwt = false
+
+[functions.matchup-forecast]
+verify_jwt = false

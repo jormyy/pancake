@@ -31,6 +31,7 @@ SELECT set_config('app.edge_internal_token','synthetic-post-gate-token',true);
 DO $$
 DECLARE
   usr uuid:=gen_random_uuid(); league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid();
+  league_state public.league_status;
   initial_count bigint; first_count bigint; repeated_count bigint; next_count bigint;
 BEGIN
   IF current_setting('post.test_api_port') !~ '^[0-9]+$' OR current_setting('post.test_db_port') !~ '^[0-9]+$'
@@ -44,26 +45,30 @@ BEGIN
   VALUES(usr,'authenticated','authenticated',usr||'@example.test','x',now(),'{}','{}',now(),now());
   INSERT INTO leagues(id,name,slug,commissioner_id,status) VALUES(league,'Synthetic drafting cron gate',league::text,usr,'drafting');
   INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(season,league,8840,true);
-  SELECT count(*) INTO initial_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
-  PERFORM invoke_season_boundary_if_due('2026-11-01 08:59:59 America/New_York');
-  IF (SELECT count(*) FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text)<>initial_count THEN
-    RAISE EXCEPTION 'A drafting league dispatches before 09:00 ET';
-  END IF;
-  PERFORM invoke_season_boundary_if_due('2026-11-01 09:00:00 America/New_York');
-  SELECT count(*)-initial_count INTO first_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
-  IF first_count<>1 THEN RAISE EXCEPTION 'Drafting-only fleet must dispatch at 09:00 ET, got %',first_count; END IF;
-  PERFORM invoke_season_boundary_if_due('2026-11-01 09:00:01 America/New_York');
-  PERFORM invoke_season_boundary_if_due('2026-11-01 23:59:59 America/New_York');
-  PERFORM invoke_season_boundary_if_due('2026-11-02 00:00:00 America/New_York');
-  SELECT count(*)-initial_count INTO repeated_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
-  IF repeated_count<>1 THEN RAISE EXCEPTION 'Repeated ET-day calls must keep one dispatch, got %',repeated_count; END IF;
-  PERFORM invoke_season_boundary_if_due('2026-11-02 09:00:00 America/New_York');
-  SELECT count(*)-initial_count INTO next_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
-  IF next_count<>2 THEN RAISE EXCEPTION 'The next ET day must dispatch once, got %',next_count; END IF;
-  IF (SELECT attempts<>1 OR period_key<>'2026-11-02' FROM cron_dispatch_state WHERE job_key='season-boundary') THEN
-    RAISE EXCEPTION 'A successful daily dispatch must not accumulate retries';
-  END IF;
-  RAISE NOTICE 'PASS SYNTHETIC drafting-only real dispatch counts: before=0 first=% repeats=% next-day=%',first_count,repeated_count,next_count;
+  FOREACH league_state IN ARRAY ARRAY['drafting','offseason']::public.league_status[] LOOP
+    UPDATE leagues SET status=league_state WHERE id=league;
+    DELETE FROM cron_dispatch_state WHERE job_key='season-boundary';
+    SELECT count(*) INTO initial_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
+    PERFORM invoke_season_boundary_if_due('2026-11-01 08:59:59 America/New_York');
+    IF (SELECT count(*) FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text)<>initial_count THEN
+      RAISE EXCEPTION 'A drafting league dispatches before 09:00 ET';
+    END IF;
+    PERFORM invoke_season_boundary_if_due('2026-11-01 09:00:00 America/New_York');
+    SELECT count(*)-initial_count INTO first_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
+    IF first_count<>1 THEN RAISE EXCEPTION 'Drafting-only fleet must dispatch at 09:00 ET, got %',first_count; END IF;
+    PERFORM invoke_season_boundary_if_due('2026-11-01 09:00:01 America/New_York');
+    PERFORM invoke_season_boundary_if_due('2026-11-01 23:59:59 America/New_York');
+    PERFORM invoke_season_boundary_if_due('2026-11-02 00:00:00 America/New_York');
+    SELECT count(*)-initial_count INTO repeated_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
+    IF repeated_count<>1 THEN RAISE EXCEPTION 'Repeated ET-day calls must keep one dispatch, got %',repeated_count; END IF;
+    PERFORM invoke_season_boundary_if_due('2026-11-02 09:00:00 America/New_York');
+    SELECT count(*)-initial_count INTO next_count FROM edge_invocations WHERE function_name='season-boundary' AND xmin::text=pg_current_xact_id()::text;
+    IF next_count<>2 THEN RAISE EXCEPTION 'The next ET day must dispatch once, got %',next_count; END IF;
+    IF (SELECT attempts<>1 OR period_key<>'2026-11-02' FROM cron_dispatch_state WHERE job_key='season-boundary') THEN
+      RAISE EXCEPTION 'A successful daily dispatch must not accumulate retries';
+    END IF;
+  END LOOP;
+  RAISE NOTICE 'PASS SYNTHETIC drafting and offseason real dispatch counts: before=0 first=% repeats=% next-day=%',first_count,repeated_count,next_count;
 END;
 $$;
 ROLLBACK;

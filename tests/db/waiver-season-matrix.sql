@@ -69,8 +69,31 @@ BEGIN
   WHERE league_id=f.l AND league_season_id=f.s AND player_id=p AND cleared_at IS NULL;
   RETURN public.create_waiver_claim_atomic(f.l,f.m[team],p,drop_id,f.u[team],bid,pref);
 END $$;
+CREATE FUNCTION pg_temp.make_due() RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE waiver_claims c SET process_date=LEAST(c.process_date,(now() AT TIME ZONE 'America/New_York')::date-1)
+    WHERE c.status='pending' AND c.process_date<'infinity'::date
+      AND NOT EXISTS(SELECT 1 FROM waiver_wire_log held WHERE held.league_id=c.league_id
+        AND held.player_id=c.player_id AND held.cleared_at IS NULL AND held.clears_at>now());
+  UPDATE waiver_wire_log held SET clears_at=LEAST(held.clears_at,
+    (SELECT min(c.process_date)+time '03:00' FROM waiver_claims c WHERE c.league_id=held.league_id
+      AND c.player_id=held.player_id AND c.status='pending') AT TIME ZONE 'America/New_York')
+    WHERE held.cleared_at IS NULL AND held.clears_at<=now();
+END;
+$$;
+CREATE FUNCTION pg_temp.award_claim(f pg_temp.fixture,p uuid) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE claim uuid; outcome record;
+BEGIN
+  claim:=pg_temp.claim(f,1,p);
+  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
+  UPDATE waiver_wire_log SET clears_at=now()-interval '3 days' WHERE league_id=f.l AND player_id=p AND cleared_at IS NULL;
+  SELECT * INTO outcome FROM process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
+  PERFORM pg_temp.check_that(outcome.claim_id=claim AND outcome.status='succeeded','scheduled fixture claim awards its player');
+END;
+$$;
 CREATE FUNCTION pg_temp.drain() RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
+  PERFORM pg_temp.make_due();
   PERFORM * FROM public.process_due_waiver_claims_atomic((now() AT TIME ZONE 'America/New_York')::date,100);
 END $$;
 INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
@@ -128,6 +151,7 @@ BEGIN
   PERFORM pg_temp.check_that((SELECT claim_order=1 FROM waiver_claims WHERE id=d),'reorder up');
   PERFORM public.reorder_waiver_claim_atomic(d,f.m[1],f.u[1],'down');
   PERFORM pg_temp.check_that((SELECT claim_order=2 FROM waiver_claims WHERE id=d),'reorder down');
+  PERFORM pg_temp.make_due();
   SELECT claim_id INTO first_id FROM process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date) LIMIT 1;
   PERFORM pg_temp.check_that(first_id=c,'rolling preference wins first across players');
   PERFORM pg_temp.drain();
@@ -142,7 +166,9 @@ BEGIN
   PERFORM pg_temp.check_that((SELECT balance=100 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'rolling never debits');
   f:=pg_temp.setup('rolling'); p:=pg_temp.player(); q:=pg_temp.player();
   c:=pg_temp.claim(f,1,p); d:=pg_temp.claim(f,2,q);
+  PERFORM pg_temp.make_due();
   UPDATE waiver_claims SET process_date=process_date-1 WHERE id=d;
+  PERFORM pg_temp.make_due();
   SELECT claim_id INTO first_id FROM process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date) LIMIT 1;
   PERFORM pg_temp.check_that(first_id=d,'earlier process date precedes priority');
   PERFORM pg_temp.drain();
@@ -158,31 +184,30 @@ DECLARE f pg_temp.fixture; p uuid; q uuid; c uuid; d uuid; used int;
 BEGIN
   f:=pg_temp.setup('faab',2); p:=pg_temp.player(); q:=pg_temp.player();
   c:=pg_temp.claim(f,1,p,5); d:=pg_temp.claim(f,1,q,4);
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM pg_temp.award_claim(f,pg_temp.player());
   PERFORM pg_temp.drain();
-  PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=c),'one FA and one waiver share limit');
+  PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=c),'successive scheduled awards share one limit');
   PERFORM pg_temp.check_that((SELECT status='failed_roster' AND failure_reason LIKE 'Weekly add limit reached (2/2 adds used this week). Adds reset % ET.' FROM waiver_claims WHERE id=d),'processing rechecks limit and reports reset');
   PERFORM pg_temp.check_that((SELECT add_count=2 FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s AND week_number=1),'successes count once and failure does not count');
   PERFORM pg_temp.check_that((SELECT balance=95 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'limit failure keeps money');
-  PERFORM pg_temp.expect_error(format('SELECT add_free_agent_atomic(%L,%L,%L)',f.m[1],f.l,pg_temp.player()),'PA001','Weekly add limit reached (2/2');
   PERFORM pg_temp.expect_error(format('SELECT create_waiver_claim_atomic(%L,%L,%L,NULL,%L,0)',f.l,f.m[1],pg_temp.player(),f.u[1]),'PA001','Weekly add limit reached (2/2');
   PERFORM pg_temp.check_that(public.commissioner_override_weekly_add_count_atomic(f.l,f.m[1],1)=1,'override absolute count');
   PERFORM pg_temp.check_that(public.commissioner_override_weekly_add_count_atomic(f.l,f.m[1],0)=0,'override zero');
   PERFORM pg_temp.expect_error(format('SELECT commissioner_override_weekly_add_count_atomic(%L,%L,-1)',f.l,f.m[1]),'22023','non-negative');
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM pg_temp.award_claim(f,pg_temp.player());
   PERFORM pg_temp.check_that((SELECT add_count=1 FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s AND week_number=1),'override takes effect');
   PERFORM pg_temp.check_that(private.weekly_add_limit_reached(NULL,2)=false AND private.weekly_add_limit_reached(2,2)
     AND private.weekly_add_limit_reached(3,2) AND NOT private.weekly_add_limit_reached(100,NULL),'limit null and boundary truth table');
   f:=pg_temp.setup('rolling');
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM pg_temp.award_claim(f,pg_temp.player());
   PERFORM pg_temp.check_that((SELECT count(*)=0 FROM weekly_add_counts WHERE league_season_id=f.s),'unlimited does not create counts');
-  RAISE NOTICE 'PASS shared FA/waiver limits, failure preservation, override, null limits';
+  RAISE NOTICE 'PASS scheduled award limits, failure preservation, override, null limits';
 END $$;
 DO $$
 DECLARE f pg_temp.fixture; p uuid; q uuid; drop_id uuid; c uuid; d uuid;
 BEGIN
   f:=pg_temp.setup('faab',3,1); drop_id:=pg_temp.player(); p:=pg_temp.player(); q:=pg_temp.player();
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,drop_id);
+  PERFORM pg_temp.award_claim(f,drop_id);
   c:=pg_temp.claim(f,1,p,5,1,drop_id); d:=pg_temp.claim(f,1,q,4,2,drop_id);
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='succeeded' AND drop_player_id=drop_id FROM waiver_claims WHERE id=c),'winning claim preserves drop history');
@@ -198,7 +223,7 @@ BEGIN
   f:=pg_temp.setup('faab',3); injured:=pg_temp.player(); p:=pg_temp.player();
   UPDATE leagues SET ir_slots=1 WHERE id=f.l;
   UPDATE players SET injury_status='Out' WHERE id=injured;
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,injured);
+  PERFORM pg_temp.award_claim(f,injured);
   SELECT id INTO rid FROM roster_players WHERE member_id=f.m[1] AND player_id=injured;
   PERFORM public.toggle_ir_atomic(rid,true,f.u[1]);
   c:=pg_temp.claim(f,1,p,10);
@@ -231,9 +256,8 @@ BEGIN
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='succeeded' FROM waiver_claims WHERE id=c),'first eligible week processes a waiver');
   PERFORM pg_temp.check_that((SELECT count(*)=1 AND min(week_number)=2 AND min(add_count)=1 FROM weekly_add_counts WHERE member_id=f.m[2] AND league_season_id=f.s),'first eligible waiver consumes only week 2');
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,pg_temp.player());
+  PERFORM pg_temp.award_claim(f,pg_temp.player());
   PERFORM pg_temp.check_that((SELECT array_agg(add_count ORDER BY week_number)=ARRAY[1,1] FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s),'first eligible week has a fresh limit');
-  PERFORM pg_temp.expect_error(format('SELECT add_free_agent_atomic(%L,%L,%L)',f.m[1],f.l,pg_temp.player()),'PA001','1/1 adds used');
   RAISE NOTICE 'PASS skipped week 1 and first eligible week 2: calendar reset, counts, FAAB';
 END $$;
 DO $$
@@ -243,14 +267,14 @@ BEGIN
   PERFORM public.update_league_settings_atomic(f.l,'{"faab_starting_budget":37}');
   PERFORM public.commissioner_adjust_faab_balance_atomic(f.l,f.m[1],7);
   p:=pg_temp.player();
-  PERFORM public.add_free_agent_atomic(f.m[1],f.l,p);
+  PERFORM pg_temp.award_claim(f,p);
   SELECT id INTO rid FROM roster_players WHERE league_season_id=f.s AND player_id=p;
   PERFORM public.drop_player_atomic(rid);
   PERFORM pg_temp.check_that((SELECT clears_at>=placed_on_waivers_at+interval '48 hours'
     AND (clears_at AT TIME ZONE 'America/New_York')::time=time '03:00'
     AND ((clears_at AT TIME ZONE 'America/New_York')-interval '1 day') AT TIME ZONE 'America/New_York'
       < placed_on_waivers_at+interval '48 hours'
-    FROM waiver_wire_log WHERE league_season_id=f.s AND player_id=p),'drop clears at the first 03:00 ET after 48 hours');
+    FROM waiver_wire_log WHERE league_season_id=f.s AND player_id=p AND cleared_at IS NULL),'drop clears at the first 03:00 ET after 48 hours');
   c:=public.create_waiver_claim_atomic(f.l,f.m[2],p,NULL,f.u[2],1);
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='pending' FROM waiver_claims WHERE id=c),'future clear does not process early');

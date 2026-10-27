@@ -10,7 +10,6 @@ export {
   backendUrl,
   postJson,
   signInForAccessToken,
-  todayET,
 } from './soak-network.mjs'
 
 export const findAvailablePlayer = async (supabase, leagueId, leagueSeasonId) => {

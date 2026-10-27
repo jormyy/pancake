@@ -1,6 +1,7 @@
 import { pickLabel } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
+import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useRouter } from 'expo-router'
 import { TRADE_STATUS_COLORS, colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { Trade, TradeItem, type TradeRosterPlan, needsMemberAcceptance } from '@/lib/trades'
@@ -321,12 +322,12 @@ export function TradeCard({
                         onPress={onAnalyze}
                         disabled={acting}
                         accessibilityRole="button"
-                        accessibilityLabel={`Analyze trade from ${trade.proposerTeamName}`}
+                        accessibilityLabel={`Revalue trade from ${trade.proposerTeamName} with current inputs`}
                         accessibilityState={{ disabled: acting }}
                         testID={`trade-analyze-${trade.id}`}
                         id={`trade-analyze-${trade.id}`}
                     >
-                        <Text style={styles.analyzeBtnText}>Analyze</Text>
+                        <Text style={styles.analyzeBtnText}>Revalue</Text>
                     </MotionPressable>
                     {trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
                 </View>
@@ -345,6 +346,8 @@ export function TradeCard({
                     {summary}
                 </MotionPressable>
             ) : <View style={styles.summary}>{summary}</View>}
+
+            <SavedTradeEstimate trade={trade} />
 
             <TradeActionButtons
                 trade={trade}

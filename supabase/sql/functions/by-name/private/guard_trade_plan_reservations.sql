@@ -7,7 +7,7 @@ BEGIN
     v_ids := ARRAY[NEW.player_id];
     v_member := NEW.from_member_id;
   ELSE
-    v_ids := NEW.drop_player_ids;
+    v_ids := NEW.drop_player_ids || ARRAY(SELECT (move->>'playerId')::uuid FROM jsonb_array_elements(NEW.roster_moves) move);
     v_member := NEW.member_id;
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_member::text));
@@ -16,8 +16,8 @@ BEGIN
     IF EXISTS (SELECT 1 FROM trade_participants participant JOIN trades trade ON trade.id=participant.trade_id
       WHERE trade.league_id=v_trade.league_id AND trade.league_season_id=v_trade.league_season_id
         AND trade.status IN ('pending','accepted') AND trade.id<>NEW.trade_id
-        AND v_player=ANY(participant.drop_player_ids)) THEN
-      RAISE EXCEPTION 'Player is reserved as a planned drop in another trade.' USING ERRCODE='PT001';
+        AND (v_player=ANY(participant.drop_player_ids) OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',v_player::text)))) THEN
+      RAISE EXCEPTION 'Player is reserved by another trade roster plan.' USING ERRCODE='PT001';
     END IF;
     IF TG_TABLE_NAME='trade_participants' THEN
       IF EXISTS (SELECT 1 FROM trade_items item JOIN trades trade ON trade.id=item.trade_id
@@ -25,7 +25,7 @@ BEGIN
           AND trade.status IN ('pending','accepted') AND trade.id<>NEW.trade_id AND item.player_id=v_player)
         OR EXISTS (SELECT 1 FROM waiver_claims WHERE league_season_id=v_trade.league_season_id
           AND status='pending' AND (drop_player_id=v_player OR player_id=v_player)) THEN
-        RAISE EXCEPTION 'Planned drop is reserved by another trade or active waiver claim.' USING ERRCODE='PT001';
+        RAISE EXCEPTION 'Planned drop or move is reserved by another trade or active waiver claim.' USING ERRCODE='PT001';
       END IF;
     END IF;
   END LOOP;

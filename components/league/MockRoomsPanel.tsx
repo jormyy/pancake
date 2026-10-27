@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { getMockDraftRoomStatus } from '@/lib/mockDraftRooms'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet, TextInput } from 'react-native'
@@ -314,7 +315,7 @@ export function MockRoomsPanel({
     roomSubmitting: boolean
     draftLoading: boolean
     rooms: MockDraftRoom[]
-    onCreateRoom: () => void
+    onCreateRoom: () => Promise<boolean | undefined>
     onOpenRoom: (draftId: string, draftType: string) => void
     onJoinRoom: (room: MockDraftRoom) => void
     onLeaveRoom: (room: MockDraftRoom) => void
@@ -325,6 +326,9 @@ export function MockRoomsPanel({
     const { padX } = usePageMetrics()
     const compactComposer = viewportHeight < 500
     const [creating, setCreating] = useState(false)
+    const [initialInput, setInitialInput] = useState('')
+    const input = JSON.stringify([roomName, roomDraftType, roomScheduledAt, nominationMode, draftTimerSeconds, rookieRounds, rookieTimerExpiryBehavior])
+    useUnsentFormUpdate(creating && input !== initialInput, 'mock room form')
     const [now, setNow] = useState(Date.now)
     const renderTime = Math.max(now, Date.now())
     const currentRooms = rooms.map((room) => ({ ...room, roomStatus: getMockDraftRoomStatus(room, renderTime) }))
@@ -342,7 +346,7 @@ export function MockRoomsPanel({
     const createButton = (
         <Pressable
             style={panelStyles.draftButton}
-            onPress={onCreateRoom}
+            onPress={async () => { if (await onCreateRoom()) setCreating(false) }}
             disabled={roomSubmitting}
             role="button"
             aria-label="Create mock draft room"
@@ -405,7 +409,7 @@ export function MockRoomsPanel({
                     variant="outline"
                     size="sm"
                     disabled={roomSubmitting}
-                    onPress={() => setCreating(!creating)}
+                    onPress={() => { setInitialInput(input); setCreating(!creating) }}
                 />
             </View>
             {creating ? <View style={[panelStyles.panelCard, compactComposer && panelStyles.panelCardCompact]}>

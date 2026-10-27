@@ -171,3 +171,67 @@ A non-rookie needs a known career count to enter taxi.
 An unknown count never makes an existing taxi player illegal.
 The refusal must name the illegal players and use the matching roster error code.
 IR and active roster problems can take precedence when those problems also exist.
+
+## Official historical profile
+
+Set `SEASON_SIM_PROFILE` to an absolute JSON file produced by `officialProfile`.
+Keep the file outside the checkout. Pin the two configuration snapshot hashes and an explicit action seed.
+Set `SEASON_SIM_YEAR=2025` and `SEASON_SIM_MODE=two-season`.
+The usual fresh launcher then selects the official driver. Without the profile, existing modes stay available.
+
+The profile creates ten managers and two hundred authenticated auction awards.
+It preserves twenty regular roster places, two IR places, three taxi places, and the saved scoring rules.
+Missing double-double and triple-double rules normalize to zero, overriding new-league defaults.
+Historical broad positions do not imply finer eligibility. The auction records missing preferred starters.
+
+The driver derives periods from the retained schedule under the current calendar rule.
+It saves the pre-playoff checkpoint on February 10, 2025, and continues through November 3, 2025.
+Daily eligibility snapshots precede tipoff. Historical maximum checks use those retained snapshots.
+Installed cron entries and Edge entry points supply the production dispatch catalog, including subminute jobs.
+
+`official-replay.json` contains detailed receipts. `official-summary.json` and `final-run.json` distinguish bounded completion from full acceptance.
+Missing gates prevent full acceptance. Browser, load, and app-update checks require separate receipts.
+Forecast weeks 10, 13, and 16 form the calibration holdout. Week 17 and playoffs form the final holdout.
+Forecast receipts retain source inputs, independent prior-game scoring, actual outcomes, and constant/prior-mean baselines.
+Missing probabilities count as cold coverage, never as successful predictions.
+
+Start the official replay late without a saved checkpoint:
+
+```sh
+node scripts/season-sim/fresh-run.mjs --source-sha "$SEASON_SIM_SOURCE_SHA" --start 2025-02-10
+```
+
+Keep the official profile and two-season environment settings above.
+The start date can fall within a week.
+It must fall between October 22, 2024, and April 13, 2025, inclusive.
+Do not combine `--start` with either bounded launcher check flag.
+The replay keeps profile skips and skips every week that ends before the start.
+It runs through November 3, 2025, including playoffs, rollover, the rookie draft, and the next opening week.
+It omits the pre-playoff snapshot when the start falls on or after February 10.
+Earlier windows read `not measured: late start` in the summary.
+Every remaining check must pass, including scoring, waivers, deadline trades, final forecasts, and Realtime delivery.
+Final forecasts cover week 17 and the playoff rounds across weeks 18–21.
+`lateStart.passed` records this acceptance; `fullAcceptance` stays false.
+The launcher writes `evidence/late-season-check.json` after acceptance.
+Acceptance requires completed dates, zero invariant failures, no runtime or cleanup failures, and no remaining measurable gaps.
+Earlier windows stay unmeasured, and browser, load, and app-update evidence remain separate.
+
+Check the late-start rules without starting the replay:
+
+```sh
+node --test scripts/season-sim/launcher-check.test.mjs scripts/season-sim/official-replay.test.mjs scripts/season-sim/official-report.test.mjs
+```
+
+These checks cover date bounds, midweek starts, skipped windows, remaining forecast rounds, and rejection of missing acceptance evidence.
+
+`state/official-cursor.json` retains private manager sessions and completed evidence for recovery.
+A snapshot restore must preserve its profile hash, fixture hashes, and database state.
+After an infrastructure interruption, resume at the saved current clock without rewinding retained database results.
+Keep interrupted-run receipts distinct from uninterrupted fresh-run evidence.
+### Official replay clock compression
+
+The official driver uses PBP-derived live checkpoints and the installed cron catalog. It keeps pre-tipoff, first-live, period, final, and unchanged-final retry checkpoints. Every worker retains its real internal timer boundaries. Other live polling intervals are omitted explicitly; the corpus does not contain archived 30-second provider responses.
+
+Empty hint, draft, and statistics queues can skip their idle gates. The driver reads those queues after each executed boundary. It retains notification time boundaries, pending transaction work, and pre-tipoff optimizer windows. Changed inspected SQL sources stop the compressed run. Unknown cron commands keep their installed cadence. Forecast expiry and daily statistics correction jobs keep their real cadence.
+
+The report stores the selected source hashes, game checkpoints, queue proof count, executed job counts, and omitted gate counts. Set `SEASON_SIM_STRICT_TICKS=1` to retain every installed cron tick. A short compressed diagnostic does not certify the full date range, transaction lifecycle, or performance budget.

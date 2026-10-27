@@ -1,3 +1,6 @@
+import { useScrollRestoration } from '@/lib/scroll-restoration'
+import { useMatchupForecast, type MatchupForecast } from '@/hooks/use-matchup-forecast'
+import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { HomeAnnouncementOnEntry } from '@/components/HomeAnnouncementBanner'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
@@ -72,6 +75,10 @@ export default function HomeScreen() {
         loadMyLineup, loadLineups, refreshSilently, matchupRef,
         error, refresh, emptyConfirmed,
     } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const forecastState = useMatchupForecast(user?.id, league?.id, matchup, membershipValidated && !membershipError)
+    const playerForecasts = useMemo(() => new Map((forecastState.forecast?.games ?? [])
+        .filter(game => game.date === selectedDate)
+        .map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
     const { refresh: refreshAnnouncements, refreshing: announcementsRefreshing } = announcements
     const [announcementRevision, setAnnouncementRevision] = useState(0)
     const homeActivity = useBrowserReadActivity()
@@ -237,10 +244,17 @@ export default function HomeScreen() {
             {matchup ? (
                 <View style={[styles.playSurface, twoPane && styles.playSurfaceTwoPane, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }, twoPane && styles.mainColumnTwoPane]}>
-                    <ScoreCard matchup={matchup} compact={compact} />
+                    <ScoreCard matchup={matchup} compact={compact}>
+                        <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
+                    </ScoreCard>
 
                     {myLineup && oppLineup ? (
                         <MatchupLineupView
+                            scrollKey={JSON.stringify([user.id, league?.id, matchup.myMemberId, matchup.opponentMemberId, selectedDate])}
+                            playerForecasts={playerForecasts}
+                            forecastStale={forecastState.stale}
+                            myMemberId={matchup.myMemberId}
+                            opponentMemberId={matchup.opponentMemberId}
                             myLineup={myLineup}
                             oppLineup={oppLineup}
                             selected={selected}
@@ -438,6 +452,8 @@ function AroundLeagueCard({ item, style }: { item: LeagueWeekMatchup; style?: St
 }
 
 function MatchupLineupView({
+    scrollKey,
+    playerForecasts, forecastStale, myMemberId, opponentMemberId,
     myLineup,
     oppLineup,
     selected,
@@ -461,6 +477,11 @@ function MatchupLineupView({
     autoSetControl,
     footer,
 }: {
+    scrollKey: string
+    playerForecasts: Map<string, MatchupForecast['games'][number]>
+    forecastStale: boolean
+    myMemberId: string
+    opponentMemberId: string
     myLineup: Required<LineupMoveData>
     oppLineup: Required<LineupMoveData>
     selected: LineupSelection | null
@@ -485,6 +506,8 @@ function MatchupLineupView({
     autoSetControl?: ReactNode
     footer?: ReactNode
 }) {
+    const listRef = useRef<ScrollView>(null)
+    const scrollRestoration = useScrollRestoration(scrollKey, listRef)
     const pullRefresh = usePullToRefresh(onRefresh, refreshing)
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
     const maxBench = Math.max(myLineup.bench.length, oppLineup.bench.length, capacity.bench)
@@ -570,6 +593,8 @@ function MatchupLineupView({
 
             <ScrollView
                 {...pullRefresh}
+                {...scrollRestoration}
+                ref={listRef}
                 style={styles.lineupRows}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryDark} />}
                 contentContainerStyle={styles.lineupRowsContent}
@@ -600,6 +625,10 @@ function MatchupLineupView({
                                     <MatchupRow
                                         key={row.key}
                                         myPlayer={row.myPlayer}
+                                        myProjection={row.myPlayer ? playerForecasts.get(`${myMemberId}:${row.myPlayer.playerId}`) : undefined}
+                                        oppProjection={row.oppPlayer ? playerForecasts.get(`${opponentMemberId}:${row.oppPlayer.playerId}`) : undefined}
+                                        forecastStale={forecastStale}
+                                        showProjections
                                         oppPlayer={row.oppPlayer}
                                         slotType={row.slotType}
                                         selKind={row.selKind}

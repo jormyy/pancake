@@ -31,7 +31,7 @@ describe('trade roster plan', () => {
         expect(renderer!.root.findAllByProps({ children: 'Drops happen at completion. They will stay on waivers until the first 3 AM ET run after 48 hours.' })).toHaveLength(1)
         const drop = renderer!.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' })
         await act(async () => drop.props.onPress())
-        expect(onChange).toHaveBeenCalledWith({ ...emptyPlan, dropPlayerIds: ['player-a'] })
+        expect(onChange).toHaveBeenCalledWith({ ...emptyPlan, dropPlayerIds: ['player-a'], rosterMoves: undefined })
     })
 
     it('keeps existing drops visible and preserves them when changing placement', async () => {
@@ -57,13 +57,13 @@ describe('trade roster plan', () => {
         expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('hides placements when the league has no matching slots', async () => {
+    it('disables placements and explains missing slots', async () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming: [{ ...incoming[0], yearsExp: 0, nbaDraftNumber: 1 }],
             roster: [], value: emptyPlan, onChange: vi.fn(), allowIR: false, allowTaxi: false,
         })) })
-        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
-        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: taxi' })).toHaveLength(0)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
     })
 
     it('does not save an unchanged placement', async () => {
@@ -87,11 +87,13 @@ describe('trade roster plan', () => {
         expect(onChange).toHaveBeenLastCalledWith(emptyPlan)
     })
 
-    it('shows a fixed active destination without a one-option picker', async () => {
+    it('shows why an ineligible player cannot use inactive slots', async () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming: [{ ...incoming[0], injuryStatus: null }], roster: [], value: emptyPlan, onChange: vi.fn(),
         })) })
-        expect(renderer!.root.findAllByProps({ accessibilityRole: 'radio' })).toHaveLength(0)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.disabled).toBe(false)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
         expect(renderer!.root.findAllByProps({ children: 'Active' })).toHaveLength(1)
     })
 

@@ -113,9 +113,11 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await check('league-switch-form', async () => {
           const name = `Web pair ${target.id} ${Date.now()}`
           const select = async (name) => {
+            await open('/')
             await press(button('Switch league'))
             await press(button(`Switch to ${name}`))
             await wait(async () => (await button('Switch league').textContent()).includes(name))
+            await open('/profile')
           }
           try {
             await open('/create-league')
@@ -132,6 +134,8 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
             await press(button('Edit'))
             await page.getByRole('textbox', { name: 'Team name', exact: true }).fill('Unsaved first league name')
             await select(name)
+            await wait(async () => await button('Edit').isEnabled())
+            await press(button('Edit'))
             assert.equal(new URL(page.url()).pathname, '/profile')
             const shown = await page.getByRole('textbox', { name: 'Team name', exact: true }).inputValue()
             await press(button('Save'))
@@ -145,29 +149,102 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
           }
         })
         await check('waiver-edit-reorder-cancel', async () => {
-          await db(fixture.admin.from('leagues').update({ waiver_mode: 'faab', faab_starting_budget: 100 }).eq('id', fixture.league.id))
+          await db(fixture.admin.from('leagues').update({ waiver_mode: 'faab', faab_starting_budget: 100, roster_size: 1 }).eq('id', fixture.league.id))
           const balances = await db(fixture.admin.from('faab_balances').select('id').eq('member_id', fixture.proposer.id).eq('league_season_id', fixture.currentSeason.id))
           if (balances.length) await db(fixture.admin.from('faab_balances').update({ balance: 100 }).eq('id', balances[0].id))
           else await db(fixture.admin.from('faab_balances').insert({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id, member_id: fixture.proposer.id, balance: 100 }))
           const players = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 2, fixture.registerCreatedPlayer, { createOnly: true })
           await db(fixture.admin.from('waiver_wire_log').insert(players.map((player) => ({ league_id: fixture.league.id, league_season_id: fixture.currentSeason.id, player_id: player.id, clears_at: new Date(Date.now() + 172800000).toISOString() }))))
-          const claims = () => db(fixture.admin.from('waiver_claims').select('id,player_id,status,bid_amount,claim_order').eq('league_id', fixture.league.id).eq('member_id', fixture.proposer.id).order('claim_order').order('submitted_at').order('id'))
+          const claims = () => db(fixture.admin.from('waiver_claims').select('id,player_id,status,bid_amount,claim_order,drop_player_id,process_date').eq('league_id', fixture.league.id).eq('member_id', fixture.proposer.id).order('claim_order').order('submitted_at').order('id'))
+          const roster = () => db(fixture.admin.from('roster_players').select('id,player_id').eq('league_id', fixture.league.id).eq('member_id', fixture.proposer.id).order('id'))
+          const beforeRoster = await roster()
+          const balance = async () => (await db(fixture.admin.from('faab_balances').select('balance').eq('member_id', fixture.proposer.id).eq('league_season_id', fixture.currentSeason.id).single())).balance
           for (const [index, player] of players.entries()) {
             await open(`/claim-player?playerId=${player.id}`)
             await page.getByRole('textbox', { name: 'FAAB bid amount', exact: true }).fill(String(index + 2))
+            assert.equal(await button('Submit waiver claim').isDisabled(), true)
+            await press(button(`Select ${fixture.proposerPlayer.display_name} to drop`))
             await press(button('Submit waiver claim'))
             await wait(async () => (await claims()).filter((row) => row.status === 'pending').length === index + 1)
           }
-          await open('/roster?claims=1')
-          await page.getByRole('textbox', { name: `Bid for ${players[0].display_name}`, exact: true }).fill('9')
-          await press(button(`Save bid for ${players[0].display_name}`))
+          assert.deepEqual(await roster(), beforeRoster, 'Submitting a claim cannot transfer or drop a player')
+          assert.equal(await balance(), 100)
+          const submitted = await claims()
+          assert.ok(submitted.every(row => row.drop_player_id === fixture.proposerPlayer.id && row.process_date))
+          await open('/players')
+          await press(page.getByRole('tab', { name: 'Waivers', exact: true }))
+          await page.getByText('Pending claims (2)', { exact: true }).waitFor()
+          await page.getByText('Available FAAB $100', { exact: false }).waitFor()
+          await press(button(`Edit claim and drop for ${players[0].display_name}`))
+          await page.getByRole('textbox', { name: 'FAAB bid amount', exact: true }).fill('101')
+          await press(button('Save waiver claim'))
+          await page.getByText('Your bid cannot exceed your available FAAB balance.', { exact: true }).waitFor()
+          assert.deepEqual(await claims(), submitted, 'Rejected edits must preserve the saved claims')
+          await press(button('Dismiss').last())
+          await page.getByRole('textbox', { name: 'FAAB bid amount', exact: true }).fill('9')
+          await press(button('Save waiver claim'))
           await wait(async () => (await claims()).find((row) => row.player_id === players[0].id)?.bid_amount === 9)
+          await open('/players?section=waivers')
           await page.getByRole('textbox', { name: `Bid for ${players[1].display_name}`, exact: true }).fill('9')
           await press(button(`Save bid for ${players[1].display_name}`))
           await wait(async () => (await claims()).find((row) => row.player_id === players[1].id)?.bid_amount === 9)
           await press(button(`Move ${players[1].display_name} claim up`))
           await wait(async () => (await claims()).filter((row) => row.status === 'pending')[0]?.player_id === players[1].id)
           for (const player of players) { await press(button(`Cancel claim for ${player.display_name}`)); await wait(async () => (await claims()).find((row) => row.player_id === player.id)?.status === 'cancelled') }
+          await page.getByText('Pending claims (0)', { exact: true }).waitFor()
+          assert.deepEqual(await roster(), beforeRoster, 'Edits and cancellations cannot transfer or drop a player')
+          assert.equal(await balance(), 100, 'Cancelled claims cannot spend FAAB')
+          return { entry: 'Players → Waivers', submitted: submitted.length, editedThroughClaimForm: true, invalidBidRejected: true, inlineBidSaved: true, equalBidsReordered: true, cancelled: 2, rosterUnchanged: true, balance: 100 }
+        })
+        await check('roster-claim-cancellation-pending', async () => {
+          const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
+          await signIn(fixture)
+          const players = await findAvailablePlayers(fixture.admin, fixture.league.id, fixture.currentSeason.id, 2, fixture.registerCreatedPlayer, { createOnly: true })
+          const claims = () => db(fixture.admin.from('waiver_claims').select('id,player_id,status').eq('league_id', fixture.league.id).eq('member_id', fixture.proposer.id))
+          for (const [index, player] of players.entries()) {
+            await open(`/claim-player?playerId=${player.id}`)
+            await press(button('Submit waiver claim'))
+            await wait(async () => (await claims()).filter(row => row.status === 'pending').length === index + 1)
+          }
+          const first = (await claims()).find(row => row.player_id === players[0].id)
+          assert.ok(first)
+          await open('/roster?claims=1')
+          const secondCancel = button(`Cancel claim for ${players[1].display_name}`)
+          await secondCancel.waitFor()
+          const pattern = `**/functions/v1/api/waivers/claims/${first.id}/cancel`
+          let release = () => {}
+          const gate = new Promise(resolve => { release = () => resolve(null) })
+          let requests = 0
+          let committed = false
+          let complete = () => {}
+          const completion = new Promise(resolve => { complete = () => resolve(null) })
+          await page.route(pattern, async route => {
+            if (route.request().method() !== 'POST') return route.continue()
+            requests += 1
+            try {
+              const response = await route.fetch()
+              assert.equal(response.status(), 200)
+              committed = true
+              await gate
+              await route.fulfill({ response })
+            } finally { complete() }
+          })
+          try {
+            await press(button(`Cancel claim for ${players[0].display_name}`))
+            await wait(async () => committed)
+            assert.equal((await claims()).find(row => row.id === first.id)?.status, 'cancelled')
+            assert.equal(await secondCancel.isDisabled(), true, 'Every claim cancel control must show the pending cancellation guard')
+            release()
+            await wait(async () => await secondCancel.isEnabled())
+            await press(secondCancel)
+            await wait(async () => (await claims()).find(row => row.player_id === players[1].id)?.status === 'cancelled')
+            assert.equal(requests, 1)
+            return { firstCommittedWhileResponsePending: true, otherCancelDisabled: true, secondCancelSucceeded: true, firstRequests: requests }
+          } finally {
+            release()
+            if (requests) await completion
+            await page.unroute(pattern)
+          }
         })
         await auditWebDraftActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect })
         await auditWebCommissionerActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect })
@@ -175,7 +252,7 @@ export async function runWebActionTargets({ artifactDir, season = 0 }) {
         await auditWebPanelActions({ check, env, season, target, page, press, button, open, signIn, db, wait, inspect })
         await auditWebInviteActions({ check, env, season, page, press, button, open, signIn, db, wait })
         await auditWebMockActions({ check, env, season, page, press, button, open, signIn, db, wait, inspect })
-        await auditWebAuthActions({ check, env, season, page, press, button, open, db, wait })
+        await auditWebAuthActions({ check, env, season, page, press, button, open, signIn, db, wait })
         await auditWebNotificationActions({ check, env, season, target, page, press, button, open, signIn, db, wait })
       } finally {
         await context.close()

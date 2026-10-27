@@ -14,15 +14,16 @@ describe('trade acceptance confirmation', () => {
     expect(browserCall.mock.calls.filter(([, args]) => args[0] === 'click')).toHaveLength(1)
   })
 
-  it('continues on deployed frontends without a dialog', async () => {
+  it('fails when the required confirmation does not appear', async () => {
     vi.useFakeTimers()
     const startedAt = Date.now()
     const browserCall = vi.fn().mockResolvedValue('false')
     const result = confirmTradeAcceptance({ session: 'owned', browserCall })
+    const rejected = expect(result).rejects.toThrow('Trade acceptance confirmation did not appear.')
     await vi.runAllTimersAsync()
-    expect(await result).toBe(false)
+    await rejected
     expect(browserCall.mock.calls.every(([, args]) => args[0] === 'eval')).toBe(true)
-    expect(Date.now() - startedAt).toBe(1500)
+    expect(Date.now() - startedAt).toBe(10000)
   })
 
   it('propagates browser failures', async () => {

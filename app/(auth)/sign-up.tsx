@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { useRef, useState } from 'react'
 import { getErrorMessage } from '@/lib/shared/errors'
 import { signUp } from '@/lib/auth'
@@ -13,6 +14,7 @@ export default function SignUpScreen() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const submittingRef = useRef(false)
+    useUnsentFormUpdate(Boolean(email || password || username || displayName), 'sign-up form')
 
     async function handleSignUp() {
         if (submittingRef.current) return
@@ -33,6 +35,10 @@ export default function SignUpScreen() {
         setError(null)
         try {
             await signUp(email.trim(), password, username.trim(), displayName.trim())
+            setEmail('')
+            setPassword('')
+            setUsername('')
+            setDisplayName('')
         } catch (e) {
             setError(getErrorMessage(e) ?? 'Something went wrong.')
         } finally {

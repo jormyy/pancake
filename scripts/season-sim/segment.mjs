@@ -10,11 +10,13 @@ export async function runSegment(name, options = {}) {
   const proof = { name, sourceSnapshot: path.join(snapshotRoot(), name), startedAt: new Date().toISOString(), passed: false }
   try {
     const snapshot = await restoreSnapshot(name)
+    if (snapshot.cursor.evidence?.kind === 'official' && !snapshot.cursor.evidence.snapshots.some(row => row.name === name)) {
+      snapshot.cursor.evidence.snapshots.push({ name, createdAt: snapshot.createdAt, dumpSha256: snapshot.dumpSha256, quiescence: snapshot.quiescence })
+    }
     let interruptions = []
     try { interruptions = (await readFile(path.join(miniRoot, 'evidence/continuation-events.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.snapshotSha256 === snapshot.dumpSha256) } catch (error) { if (error.code !== 'ENOENT') throw error }
-    await replay({ interruptions, ...snapshot.cursor.options, ...(options.days ? { days: Number(options.days) } : {}), resume: snapshot.cursor, segment: name, afterRestoreSql: options['after-restore-sql'], restoredDefinitions: snapshot.restore.definitionsAfter })
-    const result = JSON.parse(await readFile(path.join(miniRoot, 'evidence/replay-checkpoint.json'), 'utf8'))
-    proof.passed = result.complete === true && !result.failure
+    const result = await replay({ interruptions, ...snapshot.cursor.options, ...(options.days ? { days: Number(options.days) } : {}), resume: snapshot.cursor, segment: name, afterRestoreSql: options['after-restore-sql'], restoredDefinitions: snapshot.restore.definitionsAfter })
+    proof.passed = result.complete === true && !result.failure && !result.error && !result.cleanupError
     proof.assertions = result.days
     proof.source = result.source ?? null
     proof.snapshotDumpSha256 = snapshot.dumpSha256

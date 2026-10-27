@@ -764,22 +764,6 @@ describe('ensureRosterFixture', () => {
     })
 })
 
-describe('browser smoke roster readiness contract', () => {
-    it('ensures the roster fixture in tab-only mode, not just the full sweep', async () => {
-        const { readFile } = await import('node:fs/promises')
-        const source = await readFile('tests/e2e/browser-smoke.mjs', 'utf8')
-        expect(source).toMatch(/} else \{\s*\/\/ Tab smoke[\s\S]*ensureTabSmokeRosterReadiness\(env, state, user\)/)
-        expect(source).not.toMatch(/order\('display_name'/)
-    })
-
-    it('cleans harness players through the FK-ordered helper', async () => {
-        const { readFile } = await import('node:fs/promises')
-        const source = await readFile('tests/e2e/perpetual-season.mjs', 'utf8')
-        expect(source).toContain("deletePlayersWithReferences(supabase, { sportsdataIdLike: 'perpetual-%'")
-        expect(source).not.toMatch(/from\('players'\)\s*\.delete\(\)/)
-    })
-})
-
 describe('harness cleanup table list', () => {
     it('lists only tables the migration set still has', async () => {
         const { readdir, readFile } = await import('node:fs/promises')

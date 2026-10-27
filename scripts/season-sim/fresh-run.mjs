@@ -8,11 +8,14 @@ import { config, fixtureDirectory, miniRoot, season, sha256, writeJson } from '.
 import { sourceEvidence } from './source-manifest.mjs'
 import { clearOwnBackup, localKeys, setupStack, sql } from './local-stack.mjs'
 import { replay } from './replay.mjs'
-import { launcherCheck } from './launcher-check.mjs'
+import { launcherCheck, launcherStart, lateSeasonCheck } from './launcher-check.mjs'
 
-const { values } = parseArgs({ options: { 'source-sha': { type: 'string' }, 'check-first-date': { type: 'boolean' }, 'check-through': { type: 'string' } } })
+const { values } = parseArgs({ options: { 'source-sha': { type: 'string' }, 'check-first-date': { type: 'boolean' }, 'check-through': { type: 'string' }, start: { type: 'string' } } })
 const check = launcherCheck(values)
+const lateStart = launcherStart(values)
 const real = process.env.SEASON_SIM_MODE === 'two-season'
+const official = Boolean(process.env.SEASON_SIM_PROFILE)
+if (lateStart) assert.ok(official && real, '--start requires the official two-season profile')
 if (real) { assert.equal(season.year,2025); assert.ok(!path.resolve(fixtureDirectory).startsWith(path.resolve(miniRoot,'../../shared/sim') + '/'),'The new leg cannot read or write the running replay input folder') }
 assert.match(values['source-sha'] ?? '', /^[a-f0-9]{40}$/, 'A committed integration SHA is required')
 assert.equal(await realpath(process.cwd()), path.join(miniRoot, 'repo'))
@@ -25,19 +28,28 @@ const evidence = path.join(miniRoot, 'evidence')
 try { await rename(evidence, path.join(miniRoot, `evidence-before-${runId}`)) } catch (error) { if (error.code !== 'ENOENT') throw error }
 await mkdir(evidence)
 process.env.SEASON_SIM_SNAPSHOT_ROOT = path.join(config.snapshots, runId)
-await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: check?.scope ?? (real ? 'Fresh real two-season replay' : 'Fresh full replay'), inputDirectory: fixtureDirectory, check })
+await writeJson(path.join(evidence, 'launch.json'), { source, runId, pid: process.pid, command: process.argv, startedAt: new Date().toISOString(), snapshots: process.env.SEASON_SIM_SNAPSHOT_ROOT, mode: lateStart ? `Late-season official replay from ${lateStart.start}` : check?.scope ?? (real ? 'Fresh real two-season replay' : 'Fresh full replay'), inputDirectory: fixtureDirectory, check })
 let exit = 1, ready = false
 try {
-  if (real) execFileSync(process.execPath, ['scripts/season-sim/plan-audit.mjs'], { env: process.env, stdio: 'inherit' })
+  if (real && !official) execFileSync(process.execPath, ['scripts/season-sim/plan-audit.mjs'], { env: process.env, stdio: 'inherit' })
   execFileSync(config.cli, ['stop', '--project-id', config.project, '--no-backup'], { stdio: ['ignore', 'ignore', 'inherit'] })
   const backupRemoved = await clearOwnBackup()
   await writeJson(path.join(evidence, 'fresh-reset.json'), { project: config.project, backupRemoved })
   await setupStack()
   ready = true
-  await replay(check ? { days: check.days } : {})
+  await replay(lateStart ?? (check ? { days: check.days } : {}))
   execFileSync(process.execPath, ['scripts/season-sim/report.mjs'], { env: process.env, stdio: 'inherit' })
   const result = JSON.parse(await readFile(path.join(evidence, 'final-run.json'), 'utf8'))
-  if (check) {
+  if (lateStart) {
+    await writeJson(path.join(evidence, 'late-season-check.json'), lateSeasonCheck(result))
+  } else if (check && official) {
+    assert.equal(result.fullAcceptance, false)
+    assert.equal(result.complete, true)
+    assert.equal(result.completedDates, check.days)
+    assert.equal(result.freshDatabase, true)
+    assert.ok(result.verifiedGames > 0)
+    await writeJson(path.join(evidence, 'official-launcher-check.json'), { passed: true, scope: 'Official profile bounded diagnostic; full historical acceptance remains untested', dates: check.dates, games: result.verifiedGames })
+  } else if (check) {
     assert.equal(result.fullAcceptance, false)
     assert.equal(result.complete, true)
     assert.equal(result.completedDates, check.days)

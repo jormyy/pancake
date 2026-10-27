@@ -17,7 +17,7 @@ INSERT INTO public.players (id, sportsdata_id, first_name, last_name, position, 
   ('00000000-0000-0000-0000-000000071402', 'claim-proj-waived-a', 'Waived', 'A', 'SG', ARRAY['SG'], 'Active', 'SIM'),
   ('00000000-0000-0000-0000-000000071403', 'claim-proj-waived-b', 'Waived', 'B', 'SF', ARRAY['SF'], 'Active', 'SIM');
 INSERT INTO public.roster_players (id, league_id, league_season_id, member_id, player_id, acquired_via, acquisition_cost)
-VALUES ('00000000-0000-0000-0000-000000071501', '00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071201', '00000000-0000-0000-0000-000000071401', 'free_agent', 0);
+VALUES ('00000000-0000-0000-0000-000000071501', '00000000-0000-0000-0000-000000071101', '00000000-0000-0000-0000-000000071301', '00000000-0000-0000-0000-000000071201', '00000000-0000-0000-0000-000000071401', 'draft', 0);
 INSERT INTO public.waiver_wire_log (league_id, league_season_id, player_id, dropped_by_member_id, placed_on_waivers_at, clears_at) VALUES
   -- The insert trigger sets clears_at from league waiver rules.
   -- so the hold is placed one hour ago to keep the claim window open at create time.
@@ -45,7 +45,7 @@ BEGIN
 END $$;
 
 -- Processing once the holds clear and the process date arrives.
-UPDATE public.waiver_wire_log SET clears_at = now() - interval '1 minute' WHERE league_id = '00000000-0000-0000-0000-000000071101';
+UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days' WHERE league_id = '00000000-0000-0000-0000-000000071101';
 UPDATE public.waiver_claims SET process_date = current_date - 1 WHERE league_id = '00000000-0000-0000-0000-000000071101';
 CREATE TEMP TABLE projection_results AS
 SELECT * FROM public.process_due_waiver_claims_atomic(current_date, 100);

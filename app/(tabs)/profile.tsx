@@ -1,3 +1,4 @@
+import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import {
     View,
     Text,
@@ -63,6 +64,7 @@ export default function ProfileScreen() {
     }, [preferenceUserId])
     const { profile, profileLoaded, profileError, retryProfile, setProfile } =
         useProfileResource(preferenceUserId)
+    useUnsentFormUpdate(editing && (displayName !== (profile?.display_name ?? '') || teamName !== (current?.team_name ?? '')), 'profile form')
     useEffect(() => {
         setEditing(false)
         setDisplayName('')

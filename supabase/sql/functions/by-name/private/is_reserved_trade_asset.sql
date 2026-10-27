@@ -33,5 +33,6 @@ AS $$
     WHERE trade.status IN ('pending','accepted') AND trade.league_id=p_league_id
       AND (p_league_season_id IS NULL OR trade.league_season_id=p_league_season_id)
       AND (p_exclude_trade_id IS NULL OR trade.id<>p_exclude_trade_id)
-      AND participant.member_id=p_member_id AND p_player_id=ANY(participant.drop_player_ids))
+      AND participant.member_id=p_member_id AND (p_player_id=ANY(participant.drop_player_ids)
+        OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',p_player_id::text))))
 $$;

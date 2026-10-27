@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // it. Load it into a stand-in ServiceWorkerGlobalScope and drive its events.
 
 type Listener = (event: WorkerEvent) => void
-type WorkerEvent = { request?: Request; waitUntil: (p: Promise<unknown>) => void; respondWith: (r: unknown) => void }
+type WorkerEvent = { request?: Request; data?: { type: string }; waitUntil: (p: Promise<unknown>) => void; respondWith: (r: unknown) => void }
 
 class FakeCache {
     entries = new Map<string, Response>()
@@ -58,8 +58,8 @@ type Harness = {
 }
 
 async function loadWorker(
-    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed, storage }:
-    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[]; storage?: FakeCaches } = {},
+    { fetchImpl, version = 'pancake-test-1', precache = ['/', '/_expo/static/js/web/app.js'], hashes = {}, allowed, storage, clients = [], claimFailure = false }:
+    { fetchImpl?: (input: Request | string) => Promise<Response>; version?: string; precache?: string[]; hashes?: Record<string, string>; allowed?: string[]; storage?: FakeCaches; clients?: { url: string; postMessage: (message: unknown, ports: MessagePort[]) => void }[]; claimFailure?: boolean } = {},
 ): Promise<Harness> {
     let source = await readFile(path.join(process.cwd(), 'public/sw.js'), 'utf8')
     source = source
@@ -86,7 +86,7 @@ async function loadWorker(
     const self = {
         addEventListener: (type: string, listener: Listener) => listeners.set(type, listener),
         skipWaiting: async () => { harness.skipWaitingCalls += 1 },
-        clients: { claim: async () => { harness.claimCalls += 1 } },
+        clients: { matchAll: async () => clients, claim: async () => { harness.claimCalls += 1; if (claimFailure) throw new Error('Claim failed') } },
         location: { origin: 'https://app.test' },
     }
 
@@ -876,4 +876,64 @@ describe('service worker', () => {
         expect((await worker.respond(scoped(url))).status).toBe(502)
     })
 
+})
+
+it('waits to activate while another tab holds an editor', async () => {
+    const worker = await loadWorker({ clients: [{ url: 'https://app.test/claim-player', postMessage: (_message, ports) => { ports[0].postMessage({ held: true, confirmationRecoveryVersion: 1 }); ports[0].close() } }] })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+})
+
+it('keeps an older page with a real hold waiting until it closes', async () => {
+    const clients = [{ url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: true }); ports[0].close() } }]
+    const worker = await loadWorker({ clients })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+    clients.splice(0)
+    const pending: Promise<unknown>[] = []
+    worker.listeners.get('message')!({ data: { type: 'PANCAKE_ACTIVATE_WHEN_SAFE' }, waitUntil: promise => pending.push(promise), respondWith: () => {} })
+    await Promise.all(pending)
+    expect(worker.skipWaitingCalls).toBe(1)
+})
+
+it('allows a recoverable create confirmation to update', async () => {
+    const worker = await loadWorker({ clients: [{ url: 'https://app.test/create-league', postMessage: (_message, ports) => { ports[0].postMessage({ held: false, confirmationRecoveryVersion: 1 }); ports[0].close() } }] })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(1)
+})
+
+it('keeps a recoverable tab waiting for a held older same-origin tab', async () => {
+    const clients = [
+        { url: 'https://app.test/', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: true }); ports[0].close() } },
+        { url: 'https://app.test/profile', postMessage: (_message: unknown, ports: MessagePort[]) => { ports[0].postMessage({ held: false, confirmationRecoveryVersion: 1 }); ports[0].close() } },
+        { url: 'https://other.test/', postMessage: vi.fn() },
+    ]
+    const worker = await loadWorker({ clients })
+    await worker.install()
+    expect(worker.skipWaitingCalls).toBe(0)
+    clients.splice(0, 1)
+    const pending: Promise<unknown>[] = []
+    worker.listeners.get('message')!({ data: { type: 'PANCAKE_ACTIVATE_WHEN_SAFE' }, waitUntil: promise => pending.push(promise), respondWith: () => {} })
+    await Promise.all(pending)
+    expect(worker.skipWaitingCalls).toBe(1)
+    expect(clients[1].postMessage).not.toHaveBeenCalled()
+})
+
+it('keeps verified installation usable when claiming clients fails', async () => {
+    const storage = new FakeCaches()
+    await storage.open('pancake-previous-public-v1-shell')
+    const worker = await loadWorker({ storage, claimFailure: true })
+    await worker.install()
+    await expect(worker.activate()).resolves.toBeUndefined()
+    expect(await storage.keys()).toContain('pancake-previous-public-v1-shell')
+})
+
+it('does not reject activation when obsolete cache cleanup fails', async () => {
+    const storage = new FakeCaches()
+    await storage.open('pancake-previous-public-v1-shell')
+    const worker = await loadWorker({ storage })
+    await worker.install()
+    vi.spyOn(storage, 'delete').mockRejectedValue(new Error('Storage busy'))
+    await expect(worker.activate()).resolves.toBeUndefined()
+    expect(worker.claimCalls).toBe(1)
 })

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
     savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
 }))
-vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v } }))
+vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
 vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
@@ -20,7 +20,7 @@ vi.mock('@/lib/lineup', () => ({
     clampDateToWeek: (date: string) => date,
     getLineupContext: async (league: string) => ({ seasonId: `season-${league}`, weekNumber: 1, seasonYear: 2027, today: '2026-10-11' }),
     getWeekDays: async () => [{ date: '2026-10-11', playingTeams: [] }],
-    getWeeklyLineup: async () => ({ starters: [], bench: [] }), getLineupMoveTargetState: () => null,
+    getWeeklyLineup: async () => ({ starters: [{ slotType: 'PG', player: null }], bench: [{ playerId: 'player', displayName: 'Bench Player', eligiblePositions: ['PG'] }], benchSlots: 2 }), invalidateCachedRoster: vi.fn(), getLineupMoveTargetState: () => null,
 }))
 vi.mock('@/lib/lineup/optimizerSettings', () => ({ getLineupOptimizerEnabled: async () => mocks.enabled, setLineupOptimizerEnabled: mocks.setEnabled }))
 vi.mock('@/lib/lineup/snapshot', () => ({ readLineupSnapshot: () => null, saveLineupSnapshot: vi.fn(), discardLineupSnapshot: vi.fn(), updateLineupOptimizerSnapshot: mocks.savePreference }))
@@ -47,8 +47,9 @@ let screen: ReactTestRenderer
 const toggle = () => screen.root.findByType('Switch' as React.ElementType)
 beforeEach(() => {
     vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-11T12:00:00Z'))
-    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
-    vi.stubGlobal('document', { visibilityState: 'visible', addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    vi.stubGlobal('window', new EventTarget())
+    vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }))
+    mocks.context.online = true
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
 })
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers(); vi.unstubAllGlobals() })
@@ -122,6 +123,64 @@ it('keeps the saved preference when the current write fails', async () => {
 it('auto-sets today while the lineup screen displays a different day', async () => {
     await mount()
     await act(async () => { await screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12') })
-    screen.root.findByType('AutoSetModal' as React.ElementType).props.onToday()
+    screen.root.findByProps({ accessibilityLabel: 'Auto-set today' }).props.onPress()
     expect(mocks.autoSet).toHaveBeenCalledWith('2026-10-11')
+})
+
+
+it.each([
+    ['Auto-set today', ['2026-10-11']],
+    ['Auto-set this week', [null]],
+    ['Auto-set rest of season', [null, true]],
+] as const)('runs %s without changing the daily preference', async (label, args) => {
+    mocks.enabled = true
+    await mount()
+    await act(async () => { screen.root.findByProps({ accessibilityLabel: label }).props.onPress() })
+    expect(mocks.autoSet).toHaveBeenCalledWith(...args)
+    expect(toggle().props.value).toBe(true)
+    expect(mocks.setEnabled).not.toHaveBeenCalled()
+})
+
+it('shows one panel with direct actions and an accessible preference', async () => {
+    await mount()
+    const content = JSON.stringify(screen.toJSON())
+    expect(content).toContain('Auto lineup')
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Auto lineup' || node.props.children === 'Set now')).toBe(false)
+    expect(content).toContain('Keep updated automatically')
+    expect(screen.root.findByProps({ accessibilityRole: 'switch' }).props.accessibilityLabel).toBe('Keep lineup updated automatically')
+    expect(screen.root.findAllByType('AutoSetModal' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })).toHaveLength(0)
+    expect(screen.root.findByType('PageHeader' as React.ElementType).props.compact).toBe(true)
+})
+
+it('reads the saved preference again after reopening the page', async () => {
+    mocks.setEnabled.mockImplementation(async (_member: string, _league: string, _season: string, enabled: boolean) => { mocks.enabled = enabled })
+    await mount()
+    await act(async () => { await toggle().props.onValueChange(true) })
+    await act(async () => { screen.unmount() })
+    await mount()
+    expect(toggle().props.value).toBe(true)
+})
+
+it('disables the panel while offline', async () => {
+    await mount()
+    mocks.context.online = false
+    await act(async () => { screen.update(React.createElement(LineupScreen)) })
+    expect(toggle().props.disabled).toBe(true)
+    for (const label of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
+        expect(screen.root.findByProps({ accessibilityLabel: label }).props.disabled).toBe(true)
+    }
+})
+
+
+it('toggles the preference from the full switch row', async () => {
+    mocks.setEnabled.mockResolvedValue(undefined)
+    await mount()
+    const row = () => screen.root.findByProps({ accessibilityRole: 'switch' })
+    expect(row().props.accessibilityState.checked).toBe(false)
+    expect(row().props['aria-checked']).toBe(false)
+    await act(async () => { await row().props.onPress() })
+    expect(row().props.accessibilityState.checked).toBe(true)
+    expect(row().props['aria-checked']).toBe(true)
+    expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
 })

@@ -6,6 +6,9 @@ import { saveHomeGameDisplay } from '@/lib/home-surface'
 import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
 
+vi.mock('@/hooks/use-matchup-forecast', () => ({ useMatchupForecast: () => ({ forecast: null, loading: false }) }))
+vi.mock('@/components/MatchupForecastSummary', () => ({ MatchupForecastSummary: 'MatchupForecastSummary' }))
+
 const mocks = vi.hoisted(() => ({
     push: vi.fn(),
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
@@ -23,6 +26,7 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', RefreshControl: 'RefreshControl',
     StyleSheet: { create: (value: unknown) => value }, useWindowDimensions: () => ({ width: 390, height: 844 }),
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({
     memberships: [{ id: 'member' }], current: { id: 'member' }, currentLeague: mocks.league, membershipValidated: false,
@@ -181,7 +185,7 @@ it('replaces old rows with one error and leaves the day selector active', async 
     expect(mocks.loadLineups).toHaveBeenCalledWith({ id: 'matchup' }, '2026-10-11')
 })
 
-it('keeps a warm matchup visible while announcements load and defers a late banner until remount', async () => {
+it('keeps a warm matchup visible and reveals the initial announcement when its read finishes', async () => {
     mocks.announcementsLoaded = false
     await mount()
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
@@ -190,9 +194,6 @@ it('keeps a warm matchup visible while announcements load and defers a late bann
     mocks.announcementsLoaded = true
     await act(async () => screen.update(React.createElement(HomeScreen)))
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
-    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
-    await act(async () => screen.unmount())
-    await mount()
     const banner = screen.root.findByProps({ testID: 'home-announcement' })
     expect(banner.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')).toContain('Set your lineup today.')
     await act(async () => banner.findByProps({ accessibilityLabel: 'Dismiss announcement' }).props.onPress())

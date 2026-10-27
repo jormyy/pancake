@@ -1,4 +1,5 @@
 import type { ErrorBoundaryProps } from 'expo-router'
+import { requestPwaReload } from '@/lib/pwa-update-guard'
 import { EmptyState } from '@/components/EmptyState'
 
 export function RouteErrorBoundary({ retry }: ErrorBoundaryProps) {
@@ -7,7 +8,7 @@ export function RouteErrorBoundary({ retry }: ErrorBoundaryProps) {
         description="Reload to get the latest version and try again."
         actionLabel="Reload"
         onAction={() => {
-            if (typeof window !== 'undefined' && window.location?.reload) window.location.reload()
+            if (typeof window !== 'undefined') requestPwaReload()
             else void retry()
         }}
     />

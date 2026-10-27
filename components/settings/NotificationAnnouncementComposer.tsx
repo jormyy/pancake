@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
 import { useLeagueContext } from '@/contexts/league-context'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useAuth } from '@/hooks/use-auth'
 import { publishLeagueAnnouncement } from '@/lib/notification-preferences'
+import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 
 export function NotificationAnnouncementComposer() {
@@ -13,10 +14,12 @@ export function NotificationAnnouncementComposer() {
     const latest = useRef(key)
     latest.current = key
     const [state, setState] = useState({ key, body: '', requestId: crypto.randomUUID(), busy: false, status: '' })
-    if (!key || !currentLeague) return null
     const owned = state.key === key
     const body = owned ? state.body : ''
     const busy = owned && state.busy
+    const hasInput = body.length > 0
+    useEffect(() => key && hasInput ? holdPwaUpdate('announcement editor') : undefined, [key, hasInput])
+    if (!key || !currentLeague) return null
     function change(text: string) {
         setState({ key, body: text, requestId: crypto.randomUUID(), busy: false, status: '' })
     }

@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DYNASTY_STRATEGY_WEIGHTS = exports.DYNASTY_STRATEGIES = void 0;
+exports.DYNASTY_STRATEGY_WEIGHTS = exports.DYNASTY_STRATEGIES = exports.DYNASTY_TRADE_MODEL_VERSION = void 0;
 exports.valueDynastyAsset = valueDynastyAsset;
 exports.valueDynastyAssets = valueDynastyAssets;
 exports.analyzeDynastyTrade = analyzeDynastyTrade;
 const formula_1 = require("../scoring/formula");
+exports.DYNASTY_TRADE_MODEL_VERSION = 'dynasty-accounting-v2';
 exports.DYNASTY_STRATEGIES = ['overall', 'contend', 'rebuild'];
 exports.DYNASTY_STRATEGY_WEIGHTS = {
     overall: { production: 0.35, projection: 0.25, market: 0.25, age: 0.15 },
@@ -26,7 +27,7 @@ const EMPTY_COMPONENTS = {
 };
 const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
-const round = (value) => Math.round(value);
+const round = (value) => Math.sign(value) * Math.round(Math.abs(value));
 const roundOne = (value) => Math.round(value * 10) / 10;
 function normalizedAge(age) {
     if (!finite(age))
@@ -92,12 +93,17 @@ function valuePlayer(context, asset) {
         !finite(asset.age) ? 'age' : null,
     ].filter((value) => value != null);
     const confidence = clamp(1 - missingInputs.length * 0.13 - (asset.sources?.some((source) => !source.fetchedAt) ? 0.05 : 0), 0.35, 1);
+    const spread = 0.12 + missingInputs.length * 0.08 + (asset.isRookie ? 0.08 : 0);
+    const ranges = Object.fromEntries(exports.DYNASTY_STRATEGIES.map(strategy => [strategy, {
+            low: round(Math.max(0, values[strategy] * (1 - spread))),
+            high: round(Math.min(1000, values[strategy] * (1 + spread))),
+        }]));
     return {
         assetId: asset.id,
         kind: asset.kind,
         label: asset.label,
         values,
-        ranges: {},
+        ranges,
         components: {
             production: round(production * 1000),
             projection: round(projection * 1000),
@@ -118,6 +124,8 @@ function valuePlayer(context, asset) {
             'Current production and projection use the active league scoring settings.',
             'Health changes value by no more than 12%.',
             'Rank movement changes value by no more than 4%.',
+            'Player ranges are heuristic sensitivity bands, not statistical confidence intervals.',
+            ...(asset.isRookie ? ['Rookie value ranges include extra development uncertainty.'] : []),
         ],
     };
 }
@@ -178,7 +186,7 @@ function valuePick(context, asset) {
 }
 function valueFaab(asset) {
     const budget = finite(asset.budget) && asset.budget > 0 ? asset.budget : 100;
-    const amount = clamp(finite(asset.amount) ? asset.amount : 0, 0, budget);
+    const amount = Math.max(0, finite(asset.amount) ? asset.amount : 0);
     const quality = clamp(finite(asset.freeAgentQuality) ? asset.freeAgentQuality : 0.5, 0, 1);
     const overall = round((amount / budget) * (45 + quality * 105));
     const values = {
@@ -244,6 +252,16 @@ function uniqueSources(results) {
     return [...map.values()];
 }
 function analyzeDynastyTrade(context, strategy, routes) {
+    const seen = new Set();
+    for (const route of routes) {
+        if (!route.fromMemberId || !route.toMemberId || route.fromMemberId === route.toMemberId) {
+            throw new Error('Each asset must move between two different teams.');
+        }
+        const identity = `${route.asset.kind}:${route.asset.id}`;
+        if (!route.asset.id || seen.has(identity))
+            throw new Error('Each trade asset must appear exactly once.');
+        seen.add(identity);
+    }
     const results = routes.map((route) => valueDynastyAsset(context, route.asset));
     const memberIds = [...new Set(routes.flatMap((route) => [route.fromMemberId, route.toMemberId]))].sort();
     const replacementValue = clamp(context.replacementValue ?? 180, 0, 500);
@@ -254,13 +272,13 @@ function analyzeDynastyTrade(context, strategy, routes) {
         const receivedValues = receivedIndexes.map((index) => results[index].values[strategy]);
         const sentPenalty = packagePenalty(sentValues);
         const receivedPenalty = packagePenalty(receivedValues);
-        const valuesSent = Math.max(0, sentValues.reduce((total, value) => total + Math.max(0, value), 0) - sentPenalty);
-        const valuesReceived = Math.max(0, receivedValues.reduce((total, value) => total + Math.max(0, value), 0) - receivedPenalty);
+        const valuesSent = sentValues.reduce((total, value) => total + Math.max(0, value), 0);
+        const valuesReceived = receivedValues.reduce((total, value) => total + Math.max(0, value), 0);
         const sentPlayers = sentIndexes.filter((index) => routes[index].asset.kind === 'player').length;
         const receivedPlayers = receivedIndexes.filter((index) => routes[index].asset.kind === 'player').length;
         const slotDelta = sentPlayers - receivedPlayers;
         const rosterSlotEffect = round(slotDelta * replacementValue * 0.18);
-        const replacementEffect = slotDelta > 0 ? round(slotDelta * replacementValue * 0.08) : 0;
+        const replacementEffect = round(slotDelta * replacementValue * 0.08);
         const shortTermPoints = roundOne(receivedIndexes.reduce((total, index) => total + results[index].components.shortTermPoints, 0) -
             sentIndexes.reduce((total, index) => total + results[index].components.shortTermPoints, 0));
         const longTermValue = round(receivedIndexes.reduce((total, index) => total + results[index].components.longTermValue, 0) -
@@ -274,7 +292,7 @@ function analyzeDynastyTrade(context, strategy, routes) {
             packageEffect: sentPenalty - receivedPenalty,
             replacementEffect,
             rosterSlotEffect,
-            impact: round(valuesReceived - valuesSent + rosterSlotEffect + replacementEffect),
+            impact: round(valuesReceived - valuesSent + sentPenalty - receivedPenalty + rosterSlotEffect + replacementEffect),
         };
     });
     const confidence = results.length === 0

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     showSuccess: vi.fn(),
 }))
 
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('@/lib/league', () => ({
     adjustFaabBalance: mocks.adjustFaabBalance,
     deleteLeague: vi.fn(),

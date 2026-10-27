@@ -22,7 +22,7 @@ VALUES
   ('00000000-0000-0000-0000-000000060401', 'edit-gates-claimed', 'Claimed', 'Player', 'SG', ARRAY['SG'], 'Active', 'SIM'),
   ('00000000-0000-0000-0000-000000060402', 'edit-gates-rostered', 'Rostered', 'Player', 'PG', ARRAY['PG'], 'Active', 'SIM');
 INSERT INTO public.roster_players (league_id, league_season_id, member_id, player_id, acquired_via, acquisition_cost)
-VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060402', 'free_agent', 0);
+VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060402', 'waiver', 0);
 -- create_waiver_claim_atomic refuses without a waiver priority row for the member.
 INSERT INTO public.waiver_priorities (league_id, league_season_id, member_id, priority)
 VALUES ('00000000-0000-0000-0000-000000060101', '00000000-0000-0000-0000-000000060301', '00000000-0000-0000-0000-000000060201', 1);
@@ -55,19 +55,15 @@ UPDATE public.waiver_wire_log SET clears_at = now() - interval '1 minute'
  WHERE player_id = '00000000-0000-0000-0000-000000060401';
 SELECT public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', '00000000-0000-0000-0000-000000060402', 0, 3);
 
--- Processing the entry closes the edit window.
 UPDATE public.waiver_wire_log SET cleared_at = now()
  WHERE player_id = '00000000-0000-0000-0000-000000060401';
+SELECT public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', '00000000-0000-0000-0000-000000060402', 0, 3);
 DO $$
 BEGIN
-  PERFORM public.edit_waiver_claim_atomic(current_setting('test.claim_id')::uuid, '00000000-0000-0000-0000-000000060201', '00000000-0000-0000-0000-000000060001', NULL, 0, 4);
-  RAISE EXCEPTION 'expected processed-entry edit to be refused';
-EXCEPTION WHEN SQLSTATE 'P0001' THEN
-  IF SQLERRM NOT LIKE 'This player is no longer on waivers%' THEN RAISE; END IF;
-  RAISE NOTICE 'ok: processed entry refused';
+  IF (SELECT claim_order FROM public.waiver_claims WHERE id=current_setting('test.claim_id')::uuid) <> 3 THEN
+    RAISE EXCEPTION 'A cleared hold must not block an available-player claim edit';
+  END IF;
 END $$;
-UPDATE public.waiver_wire_log SET cleared_at = NULL
- WHERE player_id = '00000000-0000-0000-0000-000000060401';
 
 -- 4. A league that is no longer in an eligible state refuses edits.
 UPDATE public.leagues SET status = 'setup' WHERE id = '00000000-0000-0000-0000-000000060101';

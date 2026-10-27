@@ -73,12 +73,12 @@ VALUES
   ('00000000-0000-0000-0000-000000098401', 'retention-old', now() - interval '120 days', 'success'),
   ('00000000-0000-0000-0000-000000098402', 'retention-new', now() - interval '1 day', 'success');
 
-INSERT INTO public.projection_sync_runs (id, source, projection_type, source_url, started_at, status)
+INSERT INTO public.projection_sync_runs (id, source, projection_type, source_url, started_at, status, projection_date)
 VALUES
   ('00000000-0000-0000-0000-000000098501', 'fantasypros', 'daily',
-   'https://www.fantasypros.com/nba/projections/daily-overall.php', now() - interval '60 days', 'success'),
+   'https://www.fantasypros.com/nba/projections/daily-overall.php', now() - interval '60 days', 'success', current_date - 50),
   ('00000000-0000-0000-0000-000000098502', 'fantasypros', 'daily',
-   'https://www.fantasypros.com/nba/projections/daily-overall.php', now() - interval '1 day', 'success');
+   'https://www.fantasypros.com/nba/projections/daily-overall.php', now() - interval '1 day', 'success', current_date + 7);
 
 INSERT INTO public.fantasypros_projection_rows (
   run_id, projection_type, source_url, source_row_number, fetched_at,
@@ -190,7 +190,7 @@ SELECT public.prune_unbounded_history() AS prune_result \gset
 SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.weekly_lineups WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season lineups survive');
 SELECT pg_temp.check_history((SELECT count(*)=12 FROM public.standings WHERE league_id='00000000-0000-0000-0000-000000098101'),'all intermediate and final standings survive');
 SELECT pg_temp.check_history((SELECT count(*)=4 FROM public.roster_transactions WHERE league_id='00000000-0000-0000-0000-000000098101'),'all season transactions survive');
-SELECT pg_temp.check_history((SELECT count(*)=1 FROM public.projection_sync_runs WHERE id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'only recent undated projection run survives');
+SELECT pg_temp.check_history((SELECT count(*)=1 FROM public.projection_sync_runs WHERE id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'only the current projection period survives');
 SELECT pg_temp.check_history((SELECT count(*)=1 FROM public.fantasypros_projection_rows WHERE run_id IN('00000000-0000-0000-0000-000000098501','00000000-0000-0000-0000-000000098502')),'old projection rows expire');
 SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.sync_runs WHERE function_name LIKE 'retention-%'),'unclassified operations survive');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.sync_runs WHERE id=md5('history-ops-old')::uuid),'old completed high frequency run pruned');
@@ -234,6 +234,5 @@ $$;
 SET LOCAL ROLE service_role;
 SELECT public.prune_unbounded_history();
 RESET ROLE;
-SELECT pg_temp.check_history(true,'service role executes cleanup');
 SELECT count(*) AS passed FROM history_checks;
 ROLLBACK;

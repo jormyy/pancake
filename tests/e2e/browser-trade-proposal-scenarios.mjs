@@ -120,9 +120,11 @@ export async function runBrowserTradeScenario({
     await browser(counterSession, ['wait', '3500'])
     await assertPageText(counterSession, [
       'Counter Trade',
-      fixture.proposerPlayer.display_name,
       fixture.recipientPlayer.display_name,
     ], 'two-team counter composer prefilled')
+    await clickTestId(counterSession, `trade-sender-${fixture.proposer.id}`, 'two-team counter proposer sender tab')
+    await assertPageText(counterSession, [fixture.proposerPlayer.display_name], 'two-team counter proposer asset prefilled')
+    await clickTestId(counterSession, `trade-sender-${fixture.recipient.id}`, 'two-team counter recipient sender tab')
     const counterAssetClick = await clickTestId(counterSession, `trade-${fixture.recipient.id}-pick-${fixture.recipientFuturePick.id}`, 'two-team counter add recipient future pick')
     const counterSubmitClick = await clickTestId(counterSession, 'trade-submit', 'two-team counter submit')
     const counterConfirmClick = await clickTestId(counterSession, 'trade-confirm-submit', 'two-team counter confirm')

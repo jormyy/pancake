@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { resolvedTradeEnv, describeEndpoint } from './env.mjs'
@@ -17,6 +18,8 @@ import {
   tradeSessionName,
 } from './trade-browser-harness.mjs'
 import { setupMultiTeamTradeGameplayFixture } from './trade-fixture.mjs'
+import { confirmTradeAcceptance } from './confirm-trade-acceptance.mjs'
+import { expireAndCompleteAcceptedTrade } from './browser-trade-verification.mjs'
 
 const reviewAndConfirmMultiTeamTrade = async (session, label) => {
   const reviewClick = await clickTestId(session, 'trade-submit', `${label} review`)
@@ -252,6 +255,7 @@ export async function runBrowserMultiTeamTradeScenario({
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? tradeSessionName('mt', fixture.runId)
   const counterSession = `${session}-counter`
+  const thirdSession = `${session}-third`
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-trade-multi-team')
   await mkdir(artifactDir, { recursive: true })
 
@@ -432,6 +436,66 @@ export async function runBrowserMultiTeamTradeScenario({
       throw new Error(`multi-team trade counter replacement failed: ${counterReplacement.failures.join('; ')}`)
     }
 
+    if (!counterReplacement.replacement) throw new Error('multi-team counter replacement was not created')
+    const finalTrade = counterReplacement.replacement
+    const readSettlementState = async () => {
+      const results = await Promise.all([
+        fixture.admin.from('trades').select('status,completed_at').eq('id', finalTrade.id).single(),
+        fixture.admin.from('trade_participants').select('member_id,accepted_at').eq('trade_id', finalTrade.id),
+        fixture.admin.from('roster_players').select('player_id,member_id').eq('league_id', fixture.league.id)
+          .eq('league_season_id', fixture.currentSeason.id).in('player_id', [...counteredRoutes.keys()]),
+        fixture.admin.from('trade_estimates').select('quote_id,unavailable_reason,trade_estimate_quotes(*)')
+          .eq('trade_id', finalTrade.id).single(),
+      ])
+      for (const result of results) if (result.error) throw new Error(result.error.message)
+      return { trade: results[0].data, participants: results[1].data, rosters: results[2].data, estimate: results[3].data }
+    }
+    const initialState = await readSettlementState()
+    assert.ok(initialState.estimate.quote_id, 'Counteroffer must retain its displayed estimate')
+    const waitForSettlementState = async (status, acceptedCount) => {
+      const deadline = Date.now() + 15000
+      let state
+      do {
+        state = await readSettlementState()
+        if (state.trade.status === status && state.participants.filter(p => p.accepted_at).length === acceptedCount) break
+        await new Promise(resolve => setTimeout(resolve, 200))
+      } while (Date.now() < deadline)
+      assert.equal(state.trade.status, status)
+      assert.equal(state.participants.filter(p => p.accepted_at).length, acceptedCount)
+      assert.equal(state.rosters.length, counteredRoutes.size, 'Each routed player has exactly one owner')
+      for (const [playerId, route] of counteredRoutes) {
+        assert.equal(state.rosters.find(row => row.player_id === playerId)?.member_id,
+          status === 'completed' ? route.to : route.from, 'Ownership changes only after the review period')
+      }
+      assert.deepEqual(state.estimate, initialState.estimate, 'Acceptance and settlement preserve the original estimate')
+      return state
+    }
+    await waitForSettlementState('pending', 1)
+    await openOffersTab(session, env)
+    await clickTestId(session, `trade-accept-${finalTrade.id}`, 'first counteroffer recipient accepts')
+    await confirmTradeAcceptance({ session })
+    const partiallyAccepted = await waitForSettlementState('pending', 2)
+    await assertPageText(session, ['2/3 teams accepted'], 'partial multi-team acceptance')
+    await signInBrowser(thirdSession, env, fixture.users[2], fixture.password)
+    await openOffersTab(thirdSession, env)
+    await clickTestId(thirdSession, `trade-accept-${finalTrade.id}`, 'final participant accepts')
+    await confirmTradeAcceptance({ session: thirdSession })
+    const underReview = await waitForSettlementState('accepted', 3)
+    await browser(thirdSession, ['click', 'text=History'])
+    await assertPageText(thirdSession, ['3/3 teams accepted', 'Veto window closes'], 'all participants accepted under review')
+    await browser(thirdSession, ['screenshot', path.join(artifactDir, 'multi-team-under-review.png')], { timeout: 60000 })
+    await expireAndCompleteAcceptedTrade({ ...fixture, trade: finalTrade })
+    const completed = await waitForSettlementState('completed', 3)
+    assert.ok(completed.trade.completed_at)
+    const settlement = { partiallyAccepted, underReview, completed,
+      clockControl: 'Only this trade review deadline is advanced; settlement uses complete_accepted_trade_atomic.' }
+    for (const participantSession of [session, counterSession, thirdSession]) {
+      await openOffersTab(participantSession, env)
+      await browser(participantSession, ['click', 'text=History'])
+      await assertPageText(participantSession, ['Completed', '3/3 teams accepted'], 'completed history visible to every participant')
+    }
+    await browser(thirdSession, ['screenshot', path.join(artifactDir, 'multi-team-after-settlement.png')], { timeout: 60000 })
+
     const consoleOutput = await browser(session, ['console']).catch((error) => `console unavailable: ${error.message}`)
     const errorOutput = await browser(session, ['errors']).catch((error) => `errors unavailable: ${error.message}`)
     const counterConsoleOutput = await browser(counterSession, ['console']).catch((error) => `counter console unavailable: ${error.message}`)
@@ -440,8 +504,11 @@ export async function runBrowserMultiTeamTradeScenario({
     await writeFile(path.join(artifactDir, 'errors.txt'), `${errorOutput}\n`)
     await writeFile(path.join(artifactDir, 'counter-console.txt'), `${counterConsoleOutput}\n`)
     await writeFile(path.join(artifactDir, 'counter-errors.txt'), `${counterErrorOutput}\n`)
+    const thirdErrorOutput = await browser(thirdSession, ['errors'])
+    await writeFile(path.join(artifactDir, 'third-errors.txt'), `${thirdErrorOutput}\n`)
 
     const failures = [...tradeProposal.failures]
+    if (normalizeBrowserErrors(thirdErrorOutput)) failures.push('third participant browser errors present')
     if (normalizeBrowserErrors(errorOutput)) failures.push(`browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'errors.txt'))}`)
     if (normalizeBrowserErrors(counterErrorOutput)) failures.push(`counter browser errors present; see ${path.relative(ROOT, path.join(artifactDir, 'counter-errors.txt'))}`)
     const report = {
@@ -468,6 +535,7 @@ export async function runBrowserMultiTeamTradeScenario({
       counterRouteClick,
       counterSubmitClick,
       counterReplacement,
+      settlement,
       notes,
       failures,
     }

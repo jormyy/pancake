@@ -132,7 +132,7 @@ export type GameLogEntry = {
     opponent: string
     isHome: boolean
     didNotPlay: boolean
-    minutes: number
+    minutes: number | null
     points: number
     rebounds: number
     assists: number

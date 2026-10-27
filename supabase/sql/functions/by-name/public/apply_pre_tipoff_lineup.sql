@@ -38,7 +38,7 @@ BEGIN
   PERFORM public.assert_current_league_season_for_lineup(p_league_id, p_league_season_id);
   PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
   PERFORM pg_advisory_xact_lock(hashtext(p_member_id::text), hashtext(v_dispatch.game_date::text));
-  PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR UPDATE;
+  PERFORM 1 FROM public.leagues WHERE id = p_league_id FOR NO KEY UPDATE;
   PERFORM 1 FROM public.players WHERE id IN (
     SELECT (a->>'player_id')::uuid FROM jsonb_array_elements(p_assignments) a
   ) ORDER BY id FOR SHARE;

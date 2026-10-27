@@ -13,7 +13,6 @@ import {
   backendUrl,
   findAvailablePlayer,
   findAvailablePlayers,
-  todayET,
 } from './soak-backend-support.mjs'
 import {
   createRookieDraftFixture,
@@ -43,9 +42,9 @@ export const assertWaiverProcessingScenario = async ({ supabase, env, state, sea
     label,
   )
   const now = new Date()
-  const placedOnWaiversAt = new Date(now.getTime() - 49 * 60 * 60 * 1000).toISOString()
-  const clearsAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
-  const processDate = todayET()
+  const placedOnWaiversAt = new Date(now.getTime() - 97 * 60 * 60 * 1000).toISOString()
+  const clearsAt = new Date(now.getTime() - 49 * 60 * 60 * 1000).toISOString()
+  const processDate = new Date(now.getTime() - 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
   const failures = []
   const priorityRows = fixture.members.map((member, index) => ({
@@ -453,7 +452,7 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
   const now = new Date()
   // The processor only picks up claims whose waiver hold has cleared
   // (waiver_wire_log.clears_at <= now), so seed an already-cleared hold.
-  const clearsAt = new Date(now.getTime() - 60 * 1000).toISOString()
+  const clearsAt = new Date(now.getTime() - 49 * 60 * 60 * 1000).toISOString()
   const { data: waiverLog, error: logError } = await supabase
     .from('waiver_wire_log')
     .insert({
@@ -483,7 +482,7 @@ const assertWaiverPushNotification = async ({ supabase, env, state, leagueId, se
       player_id: player.id,
       drop_player_id: null,
       priority_at_submission: 3,
-      process_date: todayET(),
+      process_date: new Date(now.getTime() - 24 * 60 * 60 * 1000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' }),
     })
     .select('id')
     .single()

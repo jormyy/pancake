@@ -119,10 +119,12 @@ BEGIN
     PERFORM public.set_trade_roster_plan_atomic(v_result,p_member_id,p_user_id,
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'taxiPlayerIds'))::uuid[],
       ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'irPlayerIds'))::uuid[],
-      ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'dropPlayerIds'))::uuid[]);
+      ARRAY(SELECT jsonb_array_elements_text(p_payload->'rosterPlan'->'dropPlayerIds'))::uuid[],
+      COALESCE(p_payload->'rosterPlan'->'rosterMoves','[]'::jsonb));
   END IF;
   IF v_result IS NOT NULL THEN
     PERFORM private.validate_trade_rosters(v_result, p_member_id);
+    PERFORM private.attach_trade_estimate(v_result,p_member_id,(p_payload->>'estimateId')::uuid);
   END IF;
   UPDATE private.trade_offer_requests SET completed=true,result_trade_id=v_result
     WHERE user_id=p_user_id AND request_id=p_request_id;

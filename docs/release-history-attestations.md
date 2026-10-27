@@ -7,6 +7,15 @@ The test helper reads this file and includes every repository migration.
 The command preserves the audited production baseline and historical aliases.
 It also preserves the recorded pre-migration security catalog.
 
+| Record | Version | Migration count |
+| --- | --- | --- |
+| Audit baseline | `20261005000003` | 329 |
+| Recorded production phase | `20261020000007` | 431 |
+| Approved candidate | `20261029000800` | 564 |
+
+The approved range contains 235 migrations after the audit baseline.
+The recorded production phase has 133 pending migrations.
+
 ```sh
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres \
   node scripts/regenerate-release-history-attestations.mjs

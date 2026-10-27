@@ -45,6 +45,7 @@ vi.mock('@shopify/flash-list', async () => {
         }),
     }
 })
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push, setParams: vi.fn() }), useLocalSearchParams: () => ({}) }))
 vi.mock('expo-haptics', () => ({ impactAsync: vi.fn(), ImpactFeedbackStyle: { Medium: 'Medium' } }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), confirmAction: vi.fn() }))
@@ -198,6 +199,16 @@ describe('roster empty slots', () => {
         expect(showAlert).toHaveBeenCalledExactlyOnceWith(action === 'onRestOfSeason' ? 'Season is over' : 'No remaining dates',
             action === 'onRestOfSeason' ? 'There are no remaining dates this season to optimize.'
                 : 'There are no remaining dates in this selection to optimize.', 'info')
+    })
+
+    it('names the auto-set options consistently with Home', async () => {
+        mocks.focusData.data = rosterData([{ id: 'roster', is_on_ir: false, is_on_taxi: false, players: { id: 'player', display_name: 'Player', position: 'PG', eligible_positions: ['PG'], years_exp: 1 } } as RosterPlayer])
+        await act(async () => { screen = create(React.createElement(RosterScreen)) })
+        const button = screen.root.findByType('PageHeader' as React.ElementType).props.actions
+        expect(button.props.accessibilityLabel).toBe('Open auto-set lineup options')
+        expect(button.props.title).toBe('Auto-set')
+        await act(async () => button.props.onPress())
+        expect(screen.root.findByType('AutoSetModal' as React.ElementType).props.visible).toBe(true)
     })
 
     it('keeps every active, IR and taxi slot visible when the roster is completely empty', () => {

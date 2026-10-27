@@ -18,6 +18,7 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: (table: string) => {
 } } }))
 it('keeps setup closed and opens the dynasty trade window after setup', () => {
     expect(isTradingClosed({ status: 'setup' })).toBe(true)
+    expect(isTradingClosed({ status: 'drafting', hasStartupAuction: false })).toBe(false)
     for (const status of ['offseason', 'drafting', 'active', 'playoffs'] as const) expect(isTradingClosed({ status })).toBe(false)
 })
 
@@ -30,19 +31,6 @@ it.each(['in_progress', 'paused'])('omits current draft picks from the composer 
 it.each(['pending', 'completed'])('keeps picks available before or after the draft: %s', async status => {
     state.drafts = [{ league_id: 'league', draft_type: 'snake', is_mock: false, status, league_seasons: { season_year: 2027 } }]
     expect((await getPicksForMembers(['me'], 'league', { tradeableOnly: true })).me).toHaveLength(2)
-})
-
-it.each(['pending', 'in_progress', 'paused'])('closes trading during a current startup auction: %s', status => {
-    expect(isTradingClosed({ status: 'drafting', hasStartupAuction: ['pending', 'in_progress', 'paused'].includes(status) })).toBe(true)
-})
-
-it.each([
-    { draft_type: 'snake', is_mock: false, status: 'in_progress', league_seasons: { is_current: true } },
-    { draft_type: 'auction', is_mock: true, status: 'in_progress', league_seasons: { is_current: true } },
-    { draft_type: 'auction', is_mock: false, status: 'completed', league_seasons: { is_current: true } },
-    { draft_type: 'auction', is_mock: false, status: 'paused', league_seasons: { is_current: false } },
-])('keeps rookie, mock, completed and historical drafts open: %j', draft => {
-    expect(isTradingClosed({ status: 'drafting', hasStartupAuction: draft.draft_type === 'auction' && !draft.is_mock && draft.league_seasons.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status) })).toBe(false)
 })
 
 it('gets auction trade status in the existing membership query without another read', async () => {

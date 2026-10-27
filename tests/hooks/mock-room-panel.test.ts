@@ -23,7 +23,7 @@ const props = (rooms: MockDraftRoom[]) => ({
     nominationMode: 'user_nominated' as const, onNominationModeChange: noop, draftTimerSeconds: 30,
     onDraftTimerSecondsChange: noop, rookieRounds: 3 as const, onRookieRoundsChange: noop,
     rookieTimerExpiryBehavior: 'auto_pick' as const, onRookieTimerExpiryBehaviorChange: noop,
-    onCreateRoom: noop, onOpenRoom: noop, onJoinRoom: noop, onLeaveRoom: noop, onStartRoom: noop, onDeleteRoom: noop,
+    onCreateRoom: async () => undefined, onOpenRoom: noop, onJoinRoom: noop, onLeaveRoom: noop, onStartRoom: noop, onDeleteRoom: noop,
 })
 let renderer: ReactTestRenderer | undefined
 const starts = () => renderer!.root.findAllByType('Pressable' as React.ElementType)
@@ -71,4 +71,29 @@ it('catches a start time that passes between rendering and scheduling the timeou
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(starts().map(node => node.props.accessibilityLabel)).toEqual(['Start Due'])
     expect(vi.getTimerCount()).toBe(0)
+})
+
+
+it('retains failed creation input and releases the completed composer', async () => {
+    vi.stubGlobal('window', new EventTarget())
+    const { isPwaUpdateHeld } = await import('@/lib/pwa-update-guard')
+    const onCreateRoom = vi.fn().mockResolvedValueOnce(undefined).mockResolvedValueOnce(true)
+    const initial = { ...props([]), onCreateRoom }
+    try {
+        await act(async () => { renderer = create(React.createElement(MockRoomsPanel, initial)) })
+        await act(async () => renderer!.root.findByProps({ title: 'New mock room' }).props.onPress())
+        expect(isPwaUpdateHeld()).toBe(false)
+        await act(async () => renderer!.update(React.createElement(MockRoomsPanel, { ...initial, roomName: '  exact room  ' })))
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Create mock draft room' }).props.onPress())
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Mock room name' }).props.value).toBe('  exact room  ')
+        expect(isPwaUpdateHeld()).toBe(true)
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Create mock draft room' }).props.onPress())
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Mock room name' })).toHaveLength(0)
+        expect(isPwaUpdateHeld()).toBe(false)
+    } finally {
+        await act(async () => renderer?.unmount())
+        renderer = undefined
+        vi.unstubAllGlobals()
+    }
 })

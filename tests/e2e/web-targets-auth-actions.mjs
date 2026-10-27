@@ -1,9 +1,55 @@
-import { navigateWebTarget } from './web-targets-browser.mjs'
+import { navigateWebTarget, waitForWebAuthForm } from './web-targets-browser.mjs'
 import assert from 'node:assert/strict'
 import { createClient } from '@supabase/supabase-js'
 import { setupTradeGameplayFixture, createFixtureResourceOwner } from './trade-fixture.mjs'
 
-export async function auditWebAuthActions({ check, env, season, page, press, button, open, db, wait }) {
+export async function auditWebAuthActions({ check, env, season, page, press, button, open, signIn, db, wait }) {
+  await check('session-refresh-switch-and-reopen', async () => {
+    const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
+    await signIn(fixture)
+    const key = `sb-${new URL(env.supabaseUrl).hostname.split('.')[0]}-auth-token`
+    const prior = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key)
+    assert.equal(prior.user.id, fixture.users[0].id)
+    await page.addInitScript(() => {
+      const expiredAt = Number(sessionStorage.getItem('functional-refresh-clock'))
+      if (!expiredAt) return
+      const now = Date.now
+      const fetch = window.fetch.bind(window)
+      Date.now = () => expiredAt
+      window.fetch = (input, init) => {
+        const url = String(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+        if (url.includes('/auth/v1/token') && url.includes('grant_type=refresh_token')) {
+          Date.now = now
+          sessionStorage.removeItem('functional-refresh-clock')
+          window.fetch = fetch
+        }
+        return fetch(input, init)
+      }
+    })
+    await page.evaluate(at => sessionStorage.setItem('functional-refresh-clock', String(at)), prior.expires_at * 1000 + 1000)
+    const refresh = page.waitForResponse(response => response.url().includes('grant_type=refresh_token') && response.request().method() === 'POST')
+    await page.reload()
+    assert.equal((await refresh).status(), 200)
+    await page.getByRole('navigation', { name: 'Primary', exact: true }).waitFor()
+    const renewed = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key)
+    assert.equal(renewed.user.id, fixture.users[0].id)
+    assert.notEqual(renewed.refresh_token, prior.refresh_token)
+    await open('/profile')
+    await press(button('Sign out'))
+    await press(page.getByRole('dialog').getByRole('button', { name: 'Sign out', exact: true }))
+    await page.getByPlaceholder('you@example.com').waitFor()
+    assert.equal(await page.evaluate(key => localStorage.getItem(key), key), null)
+    await signIn(fixture, 1)
+    await open('/profile')
+    await page.getByText(fixture.recipient.team_name, { exact: true }).first().waitFor()
+    assert.equal((await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key)).user.id, fixture.users[1].id)
+    await page.goto('about:blank')
+    await navigateWebTarget(page, new URL('/profile', env.frontendUrl).href)
+    await page.getByText(fixture.recipient.team_name, { exact: true }).first().waitFor()
+    assert.equal((await page.evaluate(key => JSON.parse(localStorage.getItem(key)), key)).user.id, fixture.users[1].id)
+    return { refreshedThroughAuthServer: true, refreshTokenRotated: true, signedOut: true, switchedAccount: true, reopenedWithSecondAccount: true,
+      simulation: 'The client clock marks a valid saved token expired. The clock resets before the real refresh request. Server expiry timing is not simulated or claimed.' }
+  })
   await check('signup-password-signout', async () => {
     const fixture = await setupTradeGameplayFixture(env, season, { isolatedPlayers: true, includeFuturePicks: false })
     const resources = createFixtureResourceOwner(fixture.admin)
@@ -13,7 +59,7 @@ export async function auditWebAuthActions({ check, env, season, page, press, but
     const nextPassword = 'LocalWebChanged456!'
     await page.evaluate(() => localStorage.clear())
     await navigateWebTarget(page, new URL('/sign-up', env.frontendUrl).href)
-    await page.waitForFunction(() => performance.getEntriesByName('pancake-app-mounted').length > 0)
+    await waitForWebAuthForm(page, 'Maple Manager')
     await page.getByPlaceholder('Maple Manager').fill('Web Action Manager')
     await page.getByPlaceholder('hoopsgod').fill(username)
     await page.getByPlaceholder('you@example.com').fill(email)

@@ -310,7 +310,7 @@ export function claimRunAt(clearsAt: string | null, now: Date = new Date()): Dat
         return waiverHour.format(early) === '03' ? early : new Date(date + 8 * 60 * 60 * 1000)
     }
     const run = runOnDay(day)
-    return run.getTime() >= threshold.getTime() ? run : runOnDay(day + 24 * 60 * 60 * 1000)
+    return run.getTime() > now.getTime() && run.getTime() >= threshold.getTime() ? run : runOnDay(day + 24 * 60 * 60 * 1000)
 }
 
 export function claimProcessDateLabel(clearsAt: string | null, now: Date = new Date()): string {
@@ -323,4 +323,15 @@ export function claimProcessWeekdayLabel(clearsAt: string | null, now: Date = ne
 
 export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new Date()): string {
     return `${claimProcessWeekdayLabel(clearsAt, now)} 3 AM ET`
+}
+
+export function scheduledClaimLabel(processDate: string): string {
+    const date = new Date(`${processDate}T12:00:00Z`)
+    return `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: waiverTimeZone })} · 3 AM ET`
+}
+
+export function scheduledClaimRunAt(processDate: string): Date {
+    const day = Date.parse(`${processDate}T00:00:00Z`)
+    const early = new Date(day + 7 * 60 * 60 * 1000)
+    return waiverHour.format(early) === '03' ? early : new Date(day + 8 * 60 * 60 * 1000)
 }

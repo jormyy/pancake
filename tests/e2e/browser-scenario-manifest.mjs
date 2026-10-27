@@ -40,7 +40,7 @@ const evidenceByScenarioId = {
   'trade-terminal': 'Rejects and withdraws pending trades through real controls without moving assets.',
   'trade-future-pick': 'Proposes a future-pick trade through the real composer without moving ownership early.',
   'trade-future-pick-accept': 'Accepts a future-pick trade through Offers and verifies pick ownership settlement.',
-  'trade-overflow-accept': 'Accepts over the roster cap without an eager drop, verifies lineup/add locks, then proves a corrective drop is allowed.',
+  'trade-overflow-accept': 'Rejects an incomplete roster plan, confirms a planned drop, protects it before settlement, and verifies a legal completed roster.',
   'trade-post-deadline': 'Attempts a proposal after the deadline and verifies rejection without persisted trade rows.',
   'trade-veto': 'Uses the real veto action and verifies threshold state without moving assets.',
   'trade-multi-team': 'Proposes, edits, and counters routed multi-team assets through responsive browser controls.',

@@ -37,7 +37,7 @@ it.each(['edit', 'counter'])('forwards the reviewed counterparty for %s', async 
 })
 
 it('returns the saved roster plan for a local trade update', async () => {
-    const rosterPlan = { taxiPlayerIds: [playerId], irPlayerIds: [], dropPlayerIds: [] }
+    const rosterPlan = { taxiPlayerIds: [playerId], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] }
     const response = await send('roster-plan', { memberId, ...rosterPlan })
     expect(await response.json()).toEqual({ ok: true, rosterPlan })
     expect(mocks.rpc).toHaveBeenCalledWith('set_trade_roster_plan_atomic', expect.objectContaining({ p_taxi_player_ids: [playerId] }))

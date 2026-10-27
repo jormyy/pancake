@@ -1,7 +1,7 @@
 BEGIN;
 \ir db/rules-support.sql
 DO $$
-DECLARE f record; active_player uuid := gen_random_uuid(); taxi_player uuid := gen_random_uuid(); ordinary_player uuid := gen_random_uuid();
+DECLARE f record; active_player uuid := gen_random_uuid(); taxi_player uuid := gen_random_uuid(); ordinary_player uuid := gen_random_uuid(); claim uuid;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(1, public.current_season_year_et());
   UPDATE leagues SET roster_size = 1, taxi_slots = 1 WHERE id = f.league_id;
@@ -12,18 +12,24 @@ BEGIN
   INSERT INTO roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
   VALUES (f.league_id, f.season_id, f.member_ids[1], active_player, 'draft');
   PERFORM set_config('request.jwt.claim.sub', f.user_ids[1]::text, true);
-  PERFORM public.add_free_agent_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
-    p_player_id => taxi_player, p_to_ir => false, p_to_taxi => true);
+  claim := public.create_waiver_claim_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
+    p_player_id => taxi_player, p_user_id => f.user_ids[1], p_to_ir => false, p_to_taxi => true);
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id = taxi_player),
+    'taxi claim waits for its scheduled award');
+  UPDATE waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE id = claim;
+  PERFORM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM roster_players WHERE member_id = f.member_ids[1]
-    AND player_id = taxi_player AND is_on_taxi AND NOT is_on_ir), 'client named arguments add straight to taxi with a full active roster');
+    AND player_id = taxi_player AND is_on_taxi AND NOT is_on_ir), 'client named arguments award taxi with a full active roster');
   UPDATE leagues SET roster_size = 2 WHERE id = f.league_id;
-  PERFORM public.add_free_agent_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
-    p_player_id => ordinary_player, p_to_ir => false, p_to_taxi => false);
+  claim := public.create_waiver_claim_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
+    p_player_id => ordinary_player, p_user_id => f.user_ids[1], p_to_ir => false, p_to_taxi => false);
+  UPDATE waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE id = claim;
+  PERFORM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM roster_players WHERE member_id = f.member_ids[1]
     AND player_id = ordinary_player AND NOT is_on_taxi AND NOT is_on_ir), 'client named false arguments keep active placement');
   BEGIN
-    PERFORM public.add_free_agent_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
-      p_player_id => ordinary_player, p_to_ir => true, p_to_taxi => true);
+    PERFORM public.create_waiver_claim_atomic(p_member_id => f.member_ids[1], p_league_id => f.league_id,
+      p_player_id => ordinary_player, p_user_id => f.user_ids[1], p_to_ir => true, p_to_taxi => true);
     RAISE EXCEPTION 'Expected mutually exclusive destinations';
   EXCEPTION WHEN SQLSTATE 'P0001' THEN
     PERFORM pg_temp.check_rules(SQLERRM = 'Choose IR or taxi, not both.', 'client cannot request both destinations');

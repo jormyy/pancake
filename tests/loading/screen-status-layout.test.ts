@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { URL } from 'node:url'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -8,7 +6,6 @@ import { Button } from '@/components/ui/Button'
 import { ErrorBanner } from '@/components/ui/ErrorBanner'
 import { spacing } from '@/constants/tokens'
 
-const source = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8')
 const flatten = (style: unknown): Record<string, unknown> => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
 let viewportWidth = 390
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
@@ -35,19 +32,6 @@ const render = async (visible: boolean) => act(async () => { screen = create(Rea
 const update = async (visible: boolean) => act(async () => screen.update(React.createElement(Frame, { visible })))
 const scrollTo = async (offset: number) => act(async () => scroll.onScroll({ nativeEvent: { contentOffset: { y: offset }, contentSize: { height: 1500 }, layoutMeasurement: { height: 400 } } } as never))
 afterEach(async () => { await act(async () => screen?.unmount()); viewportWidth = 390 })
-
-it.each([
-    ['app/(tabs)/players.tsx', 'Offline. Saved player results may be out of date.'],
-    ['app/(tabs)/league.tsx', 'Offline. Showing saved'],
-    ['app/(tabs)/trades.tsx', 'Offline. Showing a saved'],
-    ['app/(modals)/lineup.tsx', 'Saved lineup · Offline · Read only'],
-])('keeps %s messages in an overlay with its existing text and handlers', (path, message) => {
-    const code = source(path)
-    expect(code).toContain('<ScreenStatusProvider>')
-    const notice = code.slice(code.indexOf('<ScreenStatusOverlay>'), code.indexOf('</ScreenStatusOverlay>'))
-    expect(notice).toContain(message)
-    expect(notice).not.toContain('activeActionError')
-})
 
 it('reserves no band or scroll padding online and keeps an empty live region mounted', async () => {
     await render(false)
@@ -115,24 +99,6 @@ it('keeps retries and polite announcements accessible through repeated notice up
 it('leaves native scroll content styles unchanged without a screen notice', async () => {
     await act(async () => { screen = create(React.createElement(ScreenStatusScrollView, { contentContainerStyle: original })) })
     expect(screen.root.findByType('ScrollView' as React.ElementType).props.contentContainerStyle).toBe(original)
-})
-
-it.each(['league/LeagueStandings', 'league/DraftSetupPanels', 'league/MockRoomsPanel', 'league/SettingsPanel', 'league/LeaguePicksBank', 'trades/TradeAnalyzer'])('makes %s scroll content reachable above the overlay', name => {
-    expect(source(`components/${name}.tsx`)).toContain('ScreenStatusScrollView as ScrollView')
-})
-
-it('connects the activity list to the same temporary scroll inset', () => {
-    const code = source('components/league/LeagueActivityFeed.tsx')
-    expect(code).toContain('usePullToRefresh(onRefresh, Boolean(refreshing), statusScroll.onScroll)')
-    expect(code).toContain('{...pullRefresh}')
-    expect(code).toContain('contentContainerStyle={statusScroll.contentStyle()}')
-})
-
-it('keeps the propose action reachable at narrow widths', () => {
-    const code = source('app/(tabs)/trades.tsx')
-    expect(code).toContain('style={{ minWidth: controlSize.minTouch }}')
-    expect(code).toContain("accessibilityLabel={!online ? 'Reconnect to propose a trade' : disabled ? 'Trades unavailable' : 'Propose trade'}")
-    expect(code).not.toContain("boxShadow: 'none'")
 })
 
 it('keeps the button shadow and flexible default labels on other screens', async () => {

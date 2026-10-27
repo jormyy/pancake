@@ -6,7 +6,7 @@ vi.mock('./e2e/trade-fixture.mjs', () => ({
     setupTradeGameplayFixture: async () => ({ admin: {} }),
     createFixtureResourceOwner: () => ({ registerUser: vi.fn() }),
 }))
-vi.mock('./e2e/web-targets-browser.mjs', () => ({ navigateWebTarget: async (page: { goto: (url: string) => Promise<void> }, url: string) => page.goto(url) }))
+vi.mock('./e2e/web-targets-browser.mjs', () => ({ waitForWebAuthForm: async (page: { waitForFunction: () => Promise<void> }) => page.waitForFunction(), navigateWebTarget: async (page: { goto: (url: string) => Promise<void> }, url: string) => page.goto(url) }))
 
 describe('signup action hydration', () => {
     it('fills the hydrated form before Return and keeps the one-request assertion', async () => {
@@ -32,9 +32,9 @@ describe('signup action hydration', () => {
             getByRole: () => ({ waitFor: async () => { throw stop } }),
         })
         await expect(auditWebAuthActions({
-            check: async (_name: string, run: () => Promise<void>) => run(),
+            check: async (name: string, run: () => Promise<void>) => name === 'signup-password-signout' ? run() : undefined,
             env: { frontendUrl: 'http://127.0.0.1:8082' }, season: 0, page,
-            press: vi.fn(), button: vi.fn(), open: vi.fn(), db: vi.fn(), wait: vi.fn(),
+            signIn: vi.fn(), press: vi.fn(), button: vi.fn(), open: vi.fn(), db: vi.fn(), wait: vi.fn(),
         })).rejects.toBe(stop)
         expect(fills).toHaveLength(4)
         expect(fills.every((field) => field.hydrated)).toBe(true)

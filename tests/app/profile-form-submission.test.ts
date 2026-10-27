@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     profile: { display_name: 'Manager', username: 'manager', avatar_url: null },
     preferences: { tradeEnabled: true, waiverEnabled: true, draftEnabled: true, activityEnabled: true },
 }))
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Platform: { get OS() { return mocks.platform } }, View: 'View', Text: 'Text',
     TextInput: (props: Record<string, unknown>) => {
@@ -185,12 +186,14 @@ it('does not leave the next account photo control busy after an old upload', asy
     mocks.uploadAvatar.mockReturnValueOnce(new Promise<string>((resolve) => { finish = resolve }))
     let pending!: Promise<void>
     await act(async () => { pending = photo().props.onPress() })
+    expect(photo().props.accessibilityState.busy).toBe(true)
     mocks.userId = 'next-user'
     await act(async () => { screen.update(React.createElement(ProfileScreen)) })
     const busy = photo().props.disabled
     await act(async () => { finish('http://127.0.0.1/old-avatar.png'); await pending })
     expect(busy).toBe(false)
     expect(photo().props.disabled).toBe(false)
+    expect(photo().props.accessibilityState.busy).toBe(false)
     await act(async () => photo().props.onPress())
     expect(mocks.uploadAvatar).toHaveBeenLastCalledWith('next-user', expect.any(Object))
 })

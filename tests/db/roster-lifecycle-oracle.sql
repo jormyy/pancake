@@ -158,14 +158,6 @@ CREATE FUNCTION pg_temp.current_season(p_league uuid) RETURNS uuid LANGUAGE sql 
   SELECT id FROM public.league_seasons WHERE league_id = p_league AND is_current LIMIT 1
 $$;
 
--- Mirrors private.prevent_uncleared_waiver_free_agent_add (checked by I10): a player
--- whose waiver entry is not cleared yet must be claimed, not added.
-CREATE FUNCTION pg_temp.on_waivers(p_league uuid, p_season uuid, p_player uuid) RETURNS boolean LANGUAGE sql STABLE AS $$
-  SELECT EXISTS (SELECT 1 FROM public.waiver_wire_log log
-                  WHERE log.league_id = p_league AND log.league_season_id = p_season AND log.player_id = p_player
-                    AND log.cleared_at IS NULL)
-$$;
-
 -- Mirrors the reservation rule without calling private.is_reserved_trade_asset:
 -- the guards (I6) only catch a reservation that is too narrow, so a too-broad
 -- production predicate would go unnoticed if the expectation reused it. The
@@ -439,34 +431,6 @@ BEGIN
       v_expect_failure := true;
       v_sql := format('SELECT public.drop_player_atomic(%L)', v_roster);
       v_detail := 'another user''s row';
-    ELSIF v_roll < 0.41 THEN
-      v_op := 'add_free_agent';
-      -- Mostly true free agents; a player still on waivers must be rejected.
-      SELECT id INTO v_player FROM public.players AS p
-       WHERE NOT EXISTS (SELECT 1 FROM public.roster_players r WHERE r.league_season_id = v_season AND r.player_id = p.id)
-         AND (NOT pg_temp.on_waivers(v_league, v_season, p.id) OR random() < 0.2)
-       ORDER BY random() LIMIT 1;
-      IF v_player IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season) OR pg_temp.on_waivers(v_league, v_season, v_player);
-      v_sql := format('SELECT public.add_free_agent_atomic(%L, %L, %L)', v_member, v_league, v_player);
-      v_detail := 'player ' || left(v_player::text, 8);
-    ELSIF v_roll < 0.46 THEN
-      v_op := 'drop_and_add';
-      -- Mostly droppable rows and true free agents; a reserved drop or a
-      -- player still on waivers must be rejected.
-      SELECT id INTO v_roster FROM public.roster_players r
-       WHERE r.member_id = v_member AND r.league_season_id = v_season AND (NOT pg_temp.reserved_row(r.id) OR random() < 0.2)
-       ORDER BY random() LIMIT 1;
-      SELECT id INTO v_player FROM public.players AS p
-       WHERE NOT EXISTS (SELECT 1 FROM public.roster_players r WHERE r.league_season_id = v_season AND r.player_id = p.id)
-         AND (NOT pg_temp.on_waivers(v_league, v_season, p.id) OR random() < 0.2)
-       ORDER BY random() LIMIT 1;
-      IF v_roster IS NULL OR v_player IS NULL THEN CONTINUE; END IF;
-      v_expect_failure := pg_temp.add_limit_reached(v_member, v_league, v_season)
-        OR pg_temp.on_waivers(v_league, v_season, v_player) OR pg_temp.reserved_row(v_roster);
-      v_sql := format('SELECT public.drop_and_add_free_agent_atomic(%L, %L, %L, %L)', v_roster, v_member, v_league, v_player);
-      v_detail := 'drop ' || left(v_roster::text, 8) || ' add ' || left(v_player::text, 8);
-      INSERT INTO oracle_dropped VALUES (v_roster);
     ELSIF v_roll < 0.52 THEN
       v_op := 'toggle_ir';
       -- Mostly rows the IR rule allows (already on IR, or Out/IR designated);
@@ -594,7 +558,8 @@ BEGIN
       v_op := 'process_waivers';
       PERFORM pg_temp.act_as(NULL);
       v_actor := 'service';
-      UPDATE public.waiver_wire_log SET clears_at = now() - interval '1 minute' WHERE cleared_at IS NULL AND clears_at > now();
+      UPDATE public.waiver_wire_log SET clears_at = now() - interval '3 days' WHERE cleared_at IS NULL;
+      UPDATE public.waiver_claims SET process_date = (now() AT TIME ZONE 'America/New_York')::date - 1 WHERE status = 'pending';
       v_sql := 'SELECT count(*) FROM public.process_due_waiver_claims_atomic(CURRENT_DATE + 3, 20)';
       v_detail := 'clock advanced past every waiver window';
     ELSIF v_roll < 0.88 THEN

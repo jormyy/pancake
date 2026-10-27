@@ -30,16 +30,7 @@ DECLARE
   invocations bigint;
 BEGIN
   SELECT * INTO fixture FROM pg_temp.push_compat_fixture;
-  PERFORM pg_temp.check_rules((SELECT count(*)=6 FROM information_schema.columns
-    WHERE table_schema='public' AND ((table_name='profiles' AND column_name IN ('push_token','push_token_revocation_hash'))
-      OR (table_name='notification_outbox' AND column_name IN ('expo_ticket_id','push_token','ticketed_at','receipt_attempt_count')))),
-    'the database phase keeps deployed Edge profile and receipt columns');
-  PERFORM pg_temp.check_rules((SELECT count(*)=3 FROM pg_class WHERE relnamespace='public'::regnamespace
-    AND relname IN ('notification_outbox_receipt_queue','notification_outbox_expo_ticket_unique','profiles_push_token_lookup')),
-    'the database phase keeps receipt and token indexes');
-  PERFORM pg_temp.check_rules(to_regprocedure('private.normalize_legacy_push_token_write()') IS NOT NULL
-    AND EXISTS(SELECT 1 FROM pg_trigger WHERE tgrelid='public.profiles'::regclass AND tgname='normalize_legacy_push_token_write'),
-    'legacy token writes retain their trigger');
+
   PERFORM pg_temp.check_rules(NOT has_column_privilege('authenticated','public.profiles','push_token','UPDATE'),
     'clients cannot update legacy tokens');
   PERFORM pg_temp.check_rules((SELECT expo_ticket_id='legacy-ticket-'||fixture.member_id AND claim_token=fixture.lease

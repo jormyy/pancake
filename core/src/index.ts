@@ -60,6 +60,7 @@ export {
 // Dynasty decision tools
 export {
     analyzeDynastyTrade,
+    DYNASTY_TRADE_MODEL_VERSION,
     DYNASTY_STRATEGIES,
     DYNASTY_STRATEGY_WEIGHTS,
     valueDynastyAsset,
@@ -110,3 +111,5 @@ export type {
 
 export { chooseBestAssignments } from './lineup/assignments'
 export type { AssignablePlayer } from './lineup/assignments'
+export { estimateMatchup, sampleScoringVariation, MATCHUP_FORECAST_VERSION } from './forecast/matchup'
+export type { ForecastGame, ForecastTeam, MatchupEstimate } from './forecast/matchup'

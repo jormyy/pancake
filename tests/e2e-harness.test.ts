@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -135,8 +134,6 @@ describe('e2e backend scenario registry', () => {
     const results = Object.fromEntries(BACKEND_SCENARIO_MANIFEST.map(({ resultKey }) => [resultKey, { ok: true }]))
     expect(backendEvidenceIds(results)).toEqual(BACKEND_SCENARIO_MANIFEST.map(({ evidenceId }) => evidenceId))
 
-    const releaseScript = JSON.parse(readFileSync('package.json', 'utf8')).scripts['e2e:soak:release']
-    for (const scenario of BACKEND_SCENARIO_MANIFEST) expect(releaseScript).not.toContain(`${scenario.envFlag}=`)
   })
 
   it('runs enabled scenarios through shared context and collects failures', async () => {

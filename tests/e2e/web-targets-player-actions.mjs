@@ -40,10 +40,15 @@ export async function auditWebPlayerActions({ check, env, season, target, page, 
     const log = page.getByRole('heading', { name: 'Recent games', exact: true }).locator('..')
     const rows = () => log.getByText('NYK @ BOS', { exact: true }).count()
     await wait(async () => await rows() === 15)
-    await press(button('Load more games'))
-    await wait(async () => await rows() === 30)
-    await press(button('Load more games'))
-    await wait(async () => await rows() === 31)
+    const moreGames = async count => {
+      if (target.mobile) {
+        assert.equal(await button('Load more games').count(), 0, 'Compact game logs must page on scroll')
+        await page.getByTestId('game-log-end').scrollIntoViewIfNeeded()
+      } else await press(button('Load more games'))
+      await wait(async () => await rows() === count)
+    }
+    await moreGames(30)
+    await moreGames(31)
     assert.equal(await button('Load more games').count(), 0)
     const historyToggle = button('League history')
     assert.equal(await historyToggle.getAttribute('aria-expanded'), 'false')

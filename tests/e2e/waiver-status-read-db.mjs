@@ -88,11 +88,13 @@ GRANT EXECUTE ON FUNCTION pg_temp.capture_waiver(date) TO service_role;
 DO $g$ BEGIN EXECUTE format('GRANT USAGE ON SCHEMA %I TO authenticated,service_role',
  (SELECT nspname FROM pg_namespace WHERE oid=pg_my_temp_schema())); END $g$;`
 const eligible=f=>`SELECT DISTINCT c.id FROM public.waiver_claims c
- JOIN public.waiver_wire_log w ON w.league_id=c.league_id AND w.league_season_id=c.league_season_id
- AND w.player_id=c.player_id AND w.cleared_at IS NULL AND w.clears_at<=now()
  JOIN public.leagues l ON l.id=c.league_id AND l.status IN ('active','playoffs','offseason')
  JOIN public.league_seasons s ON s.id=c.league_season_id AND s.is_current=true
- WHERE c.status='pending' AND c.process_date<=${quote(f.processDate)}::date`
+ WHERE c.status='pending' AND c.process_date<=${quote(f.processDate)}::date
+ AND ((c.process_date + time '03:00') AT TIME ZONE 'America/New_York')<=now()
+ AND NOT EXISTS (SELECT 1 FROM public.waiver_wire_log w WHERE w.league_id=c.league_id
+ AND w.league_season_id=c.league_season_id AND w.player_id=c.player_id AND w.cleared_at IS NULL
+ AND w.clears_at>((c.process_date + time '03:00') AT TIME ZONE 'America/New_York'))`
 const queue=f=>`SELECT COALESCE(jsonb_agg(id ORDER BY id),'[]') FROM (${eligible(f)}) e;`
 const guard=f=>`DO $guard$ DECLARE got uuid[]; BEGIN
  SELECT array_agg(id ORDER BY id) INTO got FROM (${eligible(f)}) e;
@@ -109,7 +111,7 @@ const state=f=>`SELECT jsonb_build_object(
 async function fixture(control) {
  const f={control,league:randomUUID(),season:randomUUID(),users:Array.from({length:3},()=>randomUUID()),
  members:Array.from({length:3},()=>randomUUID()),players:Array.from({length:2},()=>randomUUID()),
- rosters:Array.from({length:2},()=>randomUUID()),claims:[],processDate:'1900-01-03',mayClean:false}
+ rosters:Array.from({length:2},()=>randomUUID()),claims:[],processDate:'1900-01-04',mayClean:false}
  f.scopes=[`league:${f.league}`,`season:${f.season}`,...f.players.map(x=>`player:${x}`)]; fixtures.push(f)
  assert.equal(await root.query(`SELECT
  (SELECT count(*) FROM auth.users WHERE id IN (${list(f.users)}))+
@@ -149,6 +151,7 @@ async function fixture(control) {
    SELECT public.create_waiver_claim_atomic(${quote(f.league)},${quote(f.members[i])},${quote(f.players[i])},
    NULL::uuid,${quote(f.users[i])},1,1); COMMIT;`)
   assert.match(claim,/^[0-9a-f-]{36}$/);f.claims.push(claim)
+  await root.query(`UPDATE public.waiver_claims SET process_date=${quote(f.processDate)}::date WHERE id=${quote(claim)};`)
  }
  f.week=Number(await root.query(`SELECT week_number FROM private.current_add_week(${quote(f.league)},${quote(f.season)});`))
  await root.query(`DELETE FROM public.weekly_add_counts WHERE league_id=${quote(f.league)};`)

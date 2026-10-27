@@ -40,7 +40,7 @@ try {
       SELECT set_trade_roster_plan_atomic('${id}','${members[0]}','${users[0]}','{}','{}',ARRAY['${player}'::uuid]);
       SELECT pg_sleep(0.2); COMMIT;`)))
     assert.equal(results.filter((result) => result.code === 0).length, 1, JSON.stringify(results))
-    assert.match(results.find((result) => result.code !== 0).error, /planned drop in another trade/)
+    assert.match(results.find((result) => result.code !== 0).error, /reserved.*another trade/)
     const stored = await query(`SELECT count(*) FROM trade_participants WHERE trade_id IN('${trades.join("','")}') AND '${player}'::uuid=ANY(drop_player_ids);`)
     assert.equal(stored.output.trim(), '1')
     console.log('PASS: two concurrent plan reservations produce exactly one winner; one stored reservation')

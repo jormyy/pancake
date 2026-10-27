@@ -187,12 +187,16 @@ async function fixture(control) {
       AND player_id=${quote(p.player)} AND cleared_at IS NULL;`)
     assert.match(p.wire,/^[0-9a-f-]{36}$/)
     p.date=index===0?'1900-01-03':'1900-01-04'
-    await root.query(`UPDATE public.waiver_wire_log SET placed_on_waivers_at='1900-01-01 12:00:00+00',
-      clears_at=${quote(p.date+' 12:00:00+00')} WHERE id=${quote(p.wire)};`)
+    await root.query(`UPDATE public.waiver_wire_log SET placed_on_waivers_at=(${quote(p.date)}::date-2+time '02:00') AT TIME ZONE 'America/New_York',
+      clears_at=(${quote(p.date)}::date+time '02:00') AT TIME ZONE 'America/New_York' WHERE id=${quote(p.wire)};`)
     p.claim=await root.query(`BEGIN; SET LOCAL ROLE service_role;
       SELECT public.create_waiver_claim_atomic(${quote(p.league)},${quote(p.members[2])},${quote(p.player)},
         NULL::uuid,${quote(p.users[2])},0,1); COMMIT;`)
     assert.match(p.claim,/^[0-9a-f-]{36}$/); f.claims.push(p.claim)
+    assert.equal(await root.query(`SELECT process_date >= (now() AT TIME ZONE 'America/New_York')::date AND status='pending'
+      FROM public.waiver_claims WHERE id=${quote(p.claim)};`),'t')
+    await root.query(`UPDATE public.waiver_claims SET process_date=${quote(p.date)}::date WHERE id=${quote(p.claim)};`)
+    print('owned-historical-queue-fixture',{claim:p.claim,processDate:p.date,scope:'Synthetic past-due state after a real claim submission; schedule timing is checked separately'})
     assert.equal(await root.query(`SELECT process_date=${quote(p.date)}::date AND status='pending'
       FROM public.waiver_claims WHERE id=${quote(p.claim)};`),'t')
     const expires=new Date(Date.now()+86400000).toISOString()

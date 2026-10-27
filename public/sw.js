@@ -146,6 +146,28 @@ async function carryPublicAssets(assets) {
   }
 }
 
+async function activateWhenSafe() {
+  const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+  const holds = await Promise.all(windows.filter(client => new URL(client.url).origin === self.location.origin).map(client =>
+    new Promise(resolve => {
+      const channel = new MessageChannel()
+      let settled = false
+      const finish = held => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        channel.port1.close()
+        resolve(held)
+      }
+      const timer = setTimeout(() => finish(true), 750)
+      channel.port1.onmessage = event => finish(event.data?.held !== false)
+      try { client.postMessage({ type: 'PANCAKE_UPDATE_STATE' }, [channel.port2]) }
+      catch { finish(true) }
+    })
+  ))
+  if (!holds.some(Boolean)) void self.skipWaiting()
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     // A release is usable only when every required URL belongs to its build.
@@ -183,7 +205,7 @@ self.addEventListener('install', (event) => {
         })(),
         deadline,
       ])
-      await self.skipWaiting()
+      await activateWhenSafe()
     } finally {
       clearTimeout(timer)
       controller.abort()
@@ -193,14 +215,17 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    const keys = await caches.keys()
-    await Promise.all(keys.filter((key) => key.startsWith('pancake-') &&
-      key !== SHELL_CACHE && key !== ASSET_CACHE).map((key) => caches.delete(key)))
-    await self.clients.claim()
+    try { await self.clients.claim() } catch { return }
+    try {
+      const keys = await caches.keys()
+      await Promise.allSettled(keys.filter((key) => key.startsWith('pancake-') &&
+        key !== SHELL_CACHE && key !== ASSET_CACHE).map((key) => caches.delete(key)))
+    } catch {}
   })())
 })
 
 self.addEventListener('message', (event) => {
+  if (event.data?.type === 'PANCAKE_ACTIVATE_WHEN_SAFE') { event.waitUntil(activateWhenSafe()); return }
   if (event.data?.type !== 'PANCAKE_WORKER_VERSION') return
   // controllerchange can precede activation. Keep the current page visible
   // until the replacement worker can serve the reload without waiting.
@@ -210,7 +235,7 @@ self.addEventListener('message', (event) => {
     const replyWhenActive = () => {
       if (worker.state !== 'activated' && worker.state !== 'redundant') return
       worker.removeEventListener('statechange', replyWhenActive)
-      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION })
+      if (worker.state === 'activated') event.ports?.[0]?.postMessage({ version: VERSION, draftRecoveryVersion: 1 })
       resolve()
     }
     worker.addEventListener('statechange', replyWhenActive)

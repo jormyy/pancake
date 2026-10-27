@@ -1,12 +1,14 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { isPwaUpdateHeld } from '@/lib/pwa-update-guard'
 import SignInScreen from '@/app/(auth)/sign-in'
 import SignUpScreen from '@/app/(auth)/sign-up'
 import ChangePasswordScreen from '@/app/(modals)/change-password'
 
 const mocks = vi.hoisted(() => ({ signIn: vi.fn(), signUp: vi.fn(), changePassword: vi.fn(), back: vi.fn(), success: vi.fn() }))
 
+vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles },
     View: 'View', Text: 'Text', ScrollView: 'ScrollView', KeyboardAvoidingView: 'KeyboardAvoidingView',
@@ -37,8 +39,8 @@ const forms = [
 describe('auth form submission', () => {
     let screen: ReactTestRenderer | null = null
 
-    beforeEach(() => { vi.resetAllMocks() })
-    afterEach(async () => { await act(async () => screen?.unmount()); screen = null })
+    beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal('window', new EventTarget()) })
+    afterEach(async () => { await act(async () => screen?.unmount()); screen = null; vi.unstubAllGlobals() })
 
     const fill = async (label: string, value: string) => {
         await act(async () => screen!.root.findAllByType('Input' as never).find((node) => node.props.label === label)!.props.onChangeText(value))
@@ -54,11 +56,14 @@ describe('auth form submission', () => {
         let first!: Promise<void>
         await act(async () => { first = submit(); void button().props.onPress() })
         expect(button().props.loading).toBe(true)
+        expect(isPwaUpdateHeld()).toBe(true)
         await act(async () => { void submit() })
         const requestCount = request.mock.calls.length
         await act(async () => { finish(); await first })
         expect(requestCount).toBe(1)
         expect(button().props.loading).toBe(false)
+        expect(screen!.root.findAllByType('Input' as never).every(node => node.props.value === '')).toBe(true)
+        expect(isPwaUpdateHeld()).toBe(false)
         if (request === mocks.changePassword) {
             expect(mocks.success).toHaveBeenCalledOnce()
             expect(mocks.back).toHaveBeenCalledOnce()

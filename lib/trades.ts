@@ -1,13 +1,34 @@
+import type { Json } from '@/types/database'
+import { getCurrentSeasonId } from '@/lib/shared/season'
 import { supabase } from '@/lib/supabase'
 import { apiPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
 import { isTradeHistoryForMember } from '@/lib/trade-perspective'
+import type { TradeEstimateSummary } from '@/lib/trade-estimates'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 
-export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[] }
+type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' }
+export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[]; rosterMoves?: TradeRosterMove[] }
+export type TradeRosterPreview = {
+    memberId: string
+    teamName: string
+    roster: { playerId: string; name: string; location: 'active' | 'ir' | 'taxi' }[]
+    drops: { playerId: string; name: string }[]
+    moves: TradeRosterMove[]
+    plan?: TradeRosterPlan
+    unavailableMoves?: Record<string, string>
+    unavailableDestinations?: Record<string, Partial<Record<'ir' | 'taxi', string>>>
+    limits: { active: number; ir: number; taxi: number }
+    error: string | null
+}
+
+export async function getTradeRosterPreview(tradeId: string): Promise<TradeRosterPreview[]> {
+    const result = await apiPost<{ teams: TradeRosterPreview[] }>(`/trades/${tradeId}/roster-preview`, {})
+    return result.teams
+}
 
 type TradePlayerItem = {
     kind: 'player'
@@ -56,10 +77,13 @@ type TradeParticipant = {
     sortOrder: number
     isInitiator: boolean
     dropPlayerIds?: string[]
+    rosterMoves?: TradeRosterMove[]
     acceptedAt: string | null
 }
 
 export type Trade = {
+    estimate?: TradeEstimateSummary | null
+    estimateUnavailable?: string | null
     completionFailureReason?: string | null
     id: string
     status: TradeStatus
@@ -139,7 +163,7 @@ type TradePlayerQueryRow = {
     years_exp: number | null
     nba_draft_number: number | null
     career_regular_season_games: number | null
-    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean }[]
+    roster_players?: { league_season_id: string; member_id: string; is_on_taxi: boolean; is_on_ir?: boolean }[]
 } | null
 type TradeItemQueryRow = {
     to_ir: boolean
@@ -157,8 +181,16 @@ type TradeItemQueryRow = {
         original_owner: TeamNameRow
     } | null
 }
+function parseTradeRosterMoves(value: Json | undefined): TradeRosterMove[] {
+    if (!Array.isArray(value)) return []
+    return value.flatMap((move) => move && typeof move === 'object' && !Array.isArray(move)
+        && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir')
+        ? [{ playerId: move.playerId, destination: move.destination }] : [])
+}
+
 type TradeParticipantQueryRow = {
     drop_player_ids: string[]
+    roster_moves?: Json
     member_id: string
     sort_order: number
     is_initiator: boolean
@@ -166,6 +198,9 @@ type TradeParticipantQueryRow = {
     league_members: TeamNameRow
 }
 type TradeQueryRow = {
+    trade_estimates: { unavailable_reason: string | null; quote: {
+        id: string; model_version: string; input_version: string; created_at: string; teams: TradeEstimateSummary['teams']
+    } | null } | null
     completion_failure_reason: string | null
     id: string
     league_id: string
@@ -196,6 +231,7 @@ type TradeQueryRow = {
 }
 
 type TradeProposalOptions = {
+    estimateId?: string
     rosterPlan?: TradeRosterPlan
     requestId?: string
     notes?: string | null
@@ -226,7 +262,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan' | 'estimateId'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -238,6 +274,7 @@ function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
 }
 
 export type TradeBlockItem = {
+    rosterLocation?: 'active' | 'ir' | 'taxi'
     id: string
     memberId: string
     teamName: string
@@ -311,6 +348,7 @@ export async function proposeTrade(
     options: Omit<TradeProposalOptions, 'notes'> = {},
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
+        ...(options.estimateId ? { estimateId: options.estimateId } : {}),
         ...(options.rosterPlan ? { rosterPlan: options.rosterPlan } : {}),
         requestId: options.requestId,
         memberId,
@@ -337,6 +375,7 @@ export async function proposeMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -357,6 +396,7 @@ export async function counterMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/counter-multi`, {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -375,6 +415,7 @@ export async function editMultiTeamTrade(
     payload: MultiTeamTradeProposalPayload,
 ): Promise<string> {
     const result = await apiPost<{ tradeId: string }>(`/trades/${tradeId}/edit-multi`, {
+        ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
         requestId: payload.requestId,
         memberId,
@@ -431,8 +472,9 @@ export async function setTradeTaxiDestinations(tradeId: string, memberId: string
 export async function acceptTrade(
     tradeId: string,
     memberId: string,
+    rosterPlan?: TradeRosterPlan,
 ): Promise<void> {
-    await apiPost(`/trades/${tradeId}/accept`, { memberId })
+    await apiPost(`/trades/${tradeId}/accept`, { memberId, ...(rosterPlan ? { rosterPlan } : {}) })
 }
 
 export async function rejectTrade(tradeId: string, memberId: string): Promise<void> {
@@ -470,6 +512,7 @@ const TRADE_SELECT = `
             version,
             proposer_faab_amount,
             recipient_faab_amount,
+            trade_estimates ( unavailable_reason, quote:trade_estimate_quotes ( id, model_version, input_version, created_at, teams:analysis->teams ) ),
             proposer:league_members!trades_proposer_member_id_fkey ( team_name ),
             recipient:league_members!trades_recipient_member_id_fkey ( team_name ),
             trade_vetos ( member_id ),
@@ -477,7 +520,7 @@ const TRADE_SELECT = `
                 member_id,
                 sort_order,
                 is_initiator,
-                accepted_at, drop_player_ids,
+                accepted_at, drop_player_ids, roster_moves,
                 league_members ( team_name )
             ),
             trade_items (
@@ -556,10 +599,19 @@ function mapTradeRow(row: TradeQueryRow, memberId: string): Trade {
             isInitiator: participant.is_initiator ?? false,
             acceptedAt: participant.accepted_at ?? null,
             dropPlayerIds: participant.drop_player_ids ?? [],
+            rosterMoves: parseTradeRosterMoves(participant.roster_moves),
         }))
         .sort((a, b) => a.sortOrder - b.sortOrder || a.teamName.localeCompare(b.teamName))
 
     return {
+        estimate: row.trade_estimates?.quote ? {
+            quoteId: row.trade_estimates.quote.id,
+            modelVersion: row.trade_estimates.quote.model_version,
+            inputVersion: row.trade_estimates.quote.input_version,
+            createdAt: row.trade_estimates.quote.created_at,
+            teams: row.trade_estimates.quote.teams,
+        } : null,
+        estimateUnavailable: row.trade_estimates?.unavailable_reason ?? null,
         id: row.id,
         status: row.status,
         completionFailureReason: row.completion_failure_reason,
@@ -776,6 +828,8 @@ type TradeBlockQueryRow = {
 }
 
 export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockItem[]> {
+    const seasonId = await getCurrentSeasonId(leagueId)
+    if (!seasonId) return []
     const { data, error } = await supabase
         .from('trade_block_items')
         .select(`
@@ -786,7 +840,7 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             note,
             updated_at,
             league_members ( team_name ),
-            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games ),
+            players ( display_name, position, eligible_positions, nba_team, nba_id, injury_status, years_exp, nba_draft_number, career_regular_season_games, roster_players ( league_season_id, member_id, is_on_ir, is_on_taxi ) ),
             draft_picks (
                 season_year,
                 round,
@@ -794,13 +848,16 @@ export async function getTradeBlockItems(leagueId: string): Promise<TradeBlockIt
             )
         `)
         .eq('league_id', leagueId)
+        .eq('players.roster_players.league_season_id', seasonId)
         .order('updated_at', { ascending: false })
 
     if (error) throw error
 
     const items = ((data ?? []) as TradeBlockQueryRow[]).flatMap<TradeBlockItem>((row) => {
         if (row.player_id && row.players) {
+            const roster = row.players.roster_players?.find(item => item.league_season_id === seasonId && item.member_id === row.member_id)
             return [{
+                rosterLocation: roster ? roster.is_on_taxi ? 'taxi' : roster.is_on_ir ? 'ir' : 'active' : undefined,
                 id: row.id,
                 memberId: row.member_id,
                 teamName: row.league_members?.team_name ?? 'Unknown',

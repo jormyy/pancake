@@ -72,7 +72,7 @@ try {
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     SELECT ${quote(league)},s.id,p.id,now()-interval '49 hours' FROM league_seasons s
     CROSS JOIN players p WHERE s.league_id=${quote(league)} AND s.is_current AND p.id IN(${players.map(quote).join(',')});
-    UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE league_id=${quote(league)};
+    UPDATE waiver_wire_log SET clears_at=now()-interval '2 days' WHERE league_id=${quote(league)};
     COMMIT;`)
   await rpc(clients[0], 'update_league_settings_atomic', { p_league_id: league, p_settings: { skipped_weeks: [1] } })
   assert.equal(sql(`SELECT skipped_weeks::text FROM league_seasons WHERE league_id=${quote(league)} AND is_current`), '{1}')
@@ -95,6 +95,8 @@ try {
     assert.equal(response.status, 200, JSON.stringify(result))
     return result
   }
+  sql(`UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1
+    WHERE league_id=${quote(league)} AND status='pending';`)
   await processClaims()
   const ownClaimStates = () => sql(`SELECT json_agg(json_build_array(id,status,failure_reason,processed_at) ORDER BY id)
     FROM waiver_claims WHERE league_id=${quote(league)}`)
@@ -116,7 +118,12 @@ try {
     week_end=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE season_year=${seasonYear} AND week_number=1;
     INSERT INTO season_weeks(season_year,week_number,week_start,week_end) VALUES(${seasonYear},2,
       (now() AT TIME ZONE 'America/New_York')::date,(now() AT TIME ZONE 'America/New_York')::date+6);`)
-  await rpc(clients[0], 'add_free_agent_atomic', { p_member_id: members[0], p_league_id: league, p_player_id: players[2] })
+  await route(0, '/waivers/claims', body(0, players[2], 0))
+  assert.equal(sql(`SELECT count(*) FROM roster_players WHERE member_id=${quote(members[0])}`), '2')
+  sql(`UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1
+    WHERE league_id=${quote(league)} AND status='pending';`)
+  await processClaims()
+  assert.equal(sql(`SELECT count(*) FROM roster_players WHERE member_id=${quote(members[0])}`), '3')
   assert.deepEqual(JSON.parse(sql(`SELECT json_agg(add_count ORDER BY week_number) FROM weekly_add_counts WHERE member_id=${quote(members[0])}`)), [2, 1])
   console.log('PASS SYNTHETIC: authenticated HTTP submission/edit/cancel, skipped settings, real worker, tied/zero bids, winner-only debit, add limits, retry')
 } finally {

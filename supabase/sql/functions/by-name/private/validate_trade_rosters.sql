@@ -4,9 +4,10 @@ DECLARE v_trade trades%ROWTYPE; v_league leagues%ROWTYPE; v_team record; v_count
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
   SELECT * INTO v_league FROM leagues WHERE id = v_trade.league_id FOR UPDATE;
-  IF NOT v_league.allow_inactive_trades THEN RETURN; END IF;
   PERFORM 1 FROM players player
-    WHERE player.id IN (SELECT player_id FROM trade_items WHERE trade_id=p_trade_id)
+    WHERE player.id IN (SELECT player_id FROM trade_items WHERE trade_id=p_trade_id
+      UNION SELECT roster.player_id FROM roster_players roster JOIN trade_participants participant ON participant.member_id=roster.member_id
+        WHERE participant.trade_id=p_trade_id AND roster.league_season_id=v_trade.league_season_id)
     ORDER BY player.id FOR SHARE;
   IF EXISTS (SELECT 1 FROM trade_items item WHERE item.trade_id=p_trade_id AND item.player_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM roster_players WHERE league_season_id=v_trade.league_season_id
@@ -57,17 +58,26 @@ BEGIN
     END IF;
     SELECT count(*) AS total, count(*) FILTER (WHERE NOT on_ir AND NOT on_taxi) AS active,
       count(*) FILTER (WHERE on_ir) AS ir, count(*) FILTER (WHERE on_taxi) AS taxi INTO v_count
-    FROM (
-      SELECT roster.is_on_ir AS on_ir, roster.is_on_taxi AS on_taxi FROM roster_players roster
-      WHERE roster.league_season_id = v_trade.league_season_id AND roster.member_id = v_team.member_id
-        AND NOT roster.player_id = ANY(v_team.drop_player_ids)
-        AND NOT EXISTS (SELECT 1 FROM trade_items item WHERE item.trade_id = p_trade_id
-          AND item.from_member_id = v_team.member_id AND item.player_id = roster.player_id)
-      UNION ALL
-      SELECT item.to_ir, item.to_taxi OR roster.is_on_taxi FROM trade_items item
-      JOIN roster_players roster ON roster.league_season_id = v_trade.league_season_id AND roster.player_id = item.player_id
-      WHERE item.trade_id = p_trade_id AND item.to_member_id = v_team.member_id
-    ) resulting;
+    FROM private.trade_resulting_roster(p_trade_id,v_team.member_id);
+    IF EXISTS (SELECT 1 FROM jsonb_array_elements(v_team.roster_moves) move
+      WHERE NOT EXISTS (SELECT 1 FROM roster_players roster WHERE roster.league_season_id=v_trade.league_season_id
+        AND roster.member_id=v_team.member_id AND roster.player_id=(move->>'playerId')::uuid)
+        OR EXISTS (SELECT 1 FROM trade_items WHERE trade_id=p_trade_id AND player_id=(move->>'playerId')::uuid)
+        OR private.is_reserved_trade_asset(v_trade.league_id,v_trade.league_season_id,v_team.member_id,(move->>'playerId')::uuid,NULL,p_trade_id)
+        OR EXISTS (SELECT 1 FROM waiver_claims WHERE league_season_id=v_trade.league_season_id AND status='pending' AND drop_player_id=(move->>'playerId')::uuid)) THEN
+      RAISE EXCEPTION 'A planned roster move is missing, reserved, or included in the offer.' USING ERRCODE='PT001';
+    END IF;
+    IF EXISTS (SELECT 1 FROM private.trade_resulting_roster(p_trade_id,v_team.member_id) result JOIN players player ON player.id=result.player_id
+      WHERE result.on_ir AND NOT private.is_ir_designation(player.injury_status)) THEN
+      RAISE EXCEPTION '% must activate or drop a player who is no longer eligible for IR.',v_team.team_name USING ERRCODE='PT001';
+    END IF;
+    IF EXISTS (SELECT 1 FROM private.trade_resulting_roster(p_trade_id,v_team.member_id) result
+      JOIN league_seasons season ON season.id=v_trade.league_season_id
+      WHERE result.on_taxi AND (NOT private.taxi_player_eligible(v_trade.league_id,result.player_id)
+        OR (v_league.taxi_max_seasons IS NOT NULL AND season.season_year-private.taxi_start_year(v_trade.league_id,result.player_id,season.season_year)>=v_league.taxi_max_seasons)
+        OR EXISTS (SELECT 1 FROM league_member_taxi_exits WHERE league_id=v_trade.league_id AND member_id=v_team.member_id AND player_id=result.player_id))) THEN
+      RAISE EXCEPTION '% must activate or drop an ineligible taxi player.',v_team.team_name USING ERRCODE='PT001';
+    END IF;
     IF v_count.total > v_league.roster_size + v_league.ir_slots + v_league.taxi_slots THEN
       RAISE EXCEPTION '% must change its trade plan to meet the total roster limit.', v_team.team_name USING ERRCODE = 'PT001';
     END IF;

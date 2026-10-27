@@ -4,8 +4,18 @@ import { miniRoot, laneDirectory, writeJson } from './common.mjs'
 import { countersBelongToRun, summarizeRun, executionNotes } from './report-summary.mjs'
 import { sourceEvidence } from './source-manifest.mjs'
 import { verifyTimelineHistory } from './history-checks.mjs'
+import { summarizeOfficial } from './official-report.mjs'
 
 const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
+if (process.env.SEASON_SIM_PROFILE) {
+  const replay = JSON.parse(await readFile(path.join(evidence, 'official-replay.json'), 'utf8'))
+  const currentSource = await sourceEvidence()
+  replay.sourceMismatch ||= replay.source?.harness?.sha256 !== currentSource.harness.sha256
+  const summary = summarizeOfficial(replay)
+  await writeJson(path.join(evidence, 'final-run.json'), summary)
+  await writeFile(path.join(evidence, 'final-run.md'), `# Official historical replay\n\nCompleted dates: ${summary.completedDates}. Full replay acceptance: ${summary.fullAcceptance}.\n\nOutstanding gates: ${summary.gaps.join(', ') || 'none'}.\n\n${summary.scope}.\n`)
+  console.log(JSON.stringify(summary))
+} else {
 const lines = async file => (await readFile(path.join(evidence, file), 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error })).trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 const replay = JSON.parse(await readFile(path.join(evidence, 'replay-checkpoint.json'), 'utf8'))
 const reportSource = await sourceEvidence()
@@ -64,3 +74,5 @@ ${executionNotes(replay)}\nDatabase statement counters reset at run start. Table
 await writeFile(path.join(evidence, 'replay-provenance.md'), `# Replay delivery coverage\n\nWindow: ${replay.startedAt} to ${replay.finishedAt}.\n${counterScope}.\n\nOrigin counter totals:\n${Object.entries(classes).map(([name, count]) => `- ${name}: ${count} upstream deliveries`).join('\n')}\n- SYNTHETIC authenticated action requests: ${actions.length}\n\nDataset evidence measured in this run: ${JSON.stringify(measured.datasetEvidence)}.\nDefect evidence measured in this run: ${JSON.stringify(measured.defectEvidence)}.\n\nKnown input limits are pinned from scripts/season-sim/known-discrepancies.json and scripts/season-sim/known-identities.json, not re-measured by report generation.\n`)
 console.log(JSON.stringify(measured))
 for (const [area, result] of Object.entries(measured.areas)) console.log(`${area}: ${result}`)
+
+}

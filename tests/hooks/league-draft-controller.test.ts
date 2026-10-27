@@ -223,3 +223,47 @@ it('shows unpublished opening night before confirmation', async () => {
         expect(mocks.startRookieDraft).not.toHaveBeenCalled()
     } finally { await act(async () => { renderer.unmount() }) }
 })
+
+it('replaces submitted auction setup with the saved draft before opening its room', async () => {
+    mocks.getJoinableDraft.mockResolvedValue(null)
+    mocks.startDraft.mockResolvedValue(draft('saved-auction'))
+    let confirm!: () => Promise<void>
+    mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => latest.setDraftTimerSeconds(30))
+        await act(async () => latest.handleStartDraft())
+        await act(async () => confirm())
+        expect(mocks.startDraft).toHaveBeenCalledWith('league', 'user_nominated', { isMock: false, timerSeconds: 30 })
+        expect(latest.activeDraft?.id).toBe('saved-auction')
+        expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/draft-room', params: { draftId: 'saved-auction' } })
+    } finally { await act(async () => renderer?.unmount()) }
+})
+
+it('retains failed rookie options and clears them only after a completed start', async () => {
+    mocks.getJoinableDraft.mockResolvedValue(null)
+    mocks.startRookieDraft.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ draft: { id: 'saved-rookie', draftType: 'snake' } })
+    let confirm!: () => Promise<void>
+    mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
+    let latest!: ReturnType<typeof useLeagueDraftController>
+    const Probe = () => { latest = useLeagueDraftController('league'); return null }
+    let renderer!: ReactTestRenderer
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { latest.setDraftTimerSeconds(300); latest.setRookieRounds(2); latest.setRookieTimerExpiryBehavior('skip_pick') })
+        await act(async () => latest.handleStartRookieDraft())
+        await act(async () => confirm())
+        expect(latest.draftTimerSeconds).toBe(300)
+        expect(latest.rookieRounds).toBe(2)
+        expect(latest.rookieTimerExpiryBehavior).toBe('skip_pick')
+        await act(async () => latest.handleStartRookieDraft())
+        await act(async () => confirm())
+        expect(mocks.startRookieDraft).toHaveBeenLastCalledWith('league', { isMock: false, timerSeconds: 300, rounds: 2, timerExpiryBehavior: 'skip_pick' })
+        expect(latest.draftTimerSeconds).toBe(60)
+        expect(latest.rookieRounds).toBe(3)
+        expect(latest.rookieTimerExpiryBehavior).toBe('auto_pick')
+    } finally { await act(async () => renderer?.unmount()) }
+})

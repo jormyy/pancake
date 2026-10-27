@@ -1,7 +1,7 @@
 # Interface design
 
 Pancake uses shared tokens for type, spacing, controls and player identity.
-Phone rows use 32px headshots, 13px names and 12px metadata.
+Phone Players and Block rows use 28px headshots, 13px names and 12px metadata. Other shared player rows retain 32px headshots. Compact rows reduce gaps and padding; metadata and long names wrap when needed.
 Inputs keep 16px text. Buttons and interactive filters keep at least 44px touch targets.
 The shell and roster section boundaries keep their existing layout.
 
@@ -29,7 +29,7 @@ Article links, player details and feed filters retain their behavior.
 ## Matchup
 
 Phone Matchup rows use 44px touch targets and shared row text sizes.
-Names and injury badges share one line on both sides. Phone rows omit headshots to keep those labels readable.
+Phone names use the first initial and full surname, with suffixes retained. A 24px face sits on the right of each label, with initials as its fallback. Long names can wrap to two lines. The profile target retains the full accessible name and injury badge.
 Day-to-day badges use the same red as Out. DTD, GTD and day-to-day spellings share that treatment.
 
 The player identity opens the player profile. Only the points target opens the scoring breakdown.
@@ -81,8 +81,44 @@ The manifest launch background matches the icon background; browser chrome retai
 
 ## Recent games
 
+Every game row includes MIN beside fantasy points. Minutes use one decimal place, including zero; DNP rows retain their DNP label. Missing game minutes display an em dash; they remain distinct from a played zero-minute line. Narrow screens scroll the table horizontally so headers and minute values stay readable.
+
 On iPhone web layouts, scrolling near the game table’s end reveals the next 15 games. The observer uses the actual vertical scroll container. It does not wait for transaction history below the table. Existing rows retain their keys and scroll position.
 
 The game-log read supplies the season’s available regular-season games. Averages can load independently. Paging reveals cached rows and makes no extra network request. Repeated near-end events reveal one page per render. Duplicate NBA game identities appear once. Changing the player or season resets the visible page.
 
 A failed season read shows Retry. Existing rows remain visible during recovery. Empty seasons show “No games available.” Completed logs show “All games shown.” Desktop, native and browsers without IntersectionObserver retain the manual paging control.
+
+
+## Lineup
+
+The lineup title uses the compact header variant: 16px text and a 49px row at standard text size.
+Other title headers keep their existing size. Back controls retain 44px touch targets and safe-area spacing.
+Two compact control rows sit directly below the title, without a card title or divider.
+The first row has Today, This week, and Rest of season buttons with single-line 13px labels.
+Rest of season gets extra width to keep its full label visible at larger text sizes.
+Rest of season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
+Home and Roster show Auto-set with the accessible label Open auto-set lineup options.
+Their sheets use Today, This week, Rest of season, and Edit lineup manually.
+The second row places Keep updated automatically on the left and the switch on the right.
+The whole row acts as one switch with the accessible name Keep lineup updated automatically.
+The visual switch does not create a second accessible control.
+Both rows keep 44px touch targets.
+Keep updated automatically controls the saved daily preference. One-time actions leave this switch unchanged.
+Action labels stay on one line at 360px and 390px, including text scale 1.3.
+The horizontal day row sits directly below the automatic switch and above Starters.
+Its shared compact spacing leaves a 2px gap above and below the date targets.
+The controls and first section add no extra vertical padding.
+Other section labels keep their existing spacing.
+Every empty starter, bench, IR, and taxi place remains individually visible.
+Players and slots retain the manual move flow. Offline and read-only states disable lineup changes.
+
+
+## Trades
+
+Asset values wrap fully. Each range appears on its own line at phone widths.
+Review trade states how many players an over-limit team must drop to accept.
+The count comes from the displayed regular, IR, and taxi roster counts.
+Saved estimate and sources opens the original quote and its frozen inputs.
+Revalue with current inputs opens a separate calculation for the saved trade.
+Revaluation leaves the original quote unchanged, including after settlement.

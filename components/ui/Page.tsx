@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { breakpoints, colors, controlSize, layout, motion, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, layout, motion, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
 
 type PageWidth = 'content' | 'form' | 'full'
 
@@ -88,6 +88,7 @@ export function PageHeader({
     onBack,
     backLabel,
     titleIsPageHeading = false,
+    compact = false,
 }: {
     title?: string
     meta?: string
@@ -98,18 +99,19 @@ export function PageHeader({
     backLabel?: string
     /** Make the visible title the page's h1 (screens not wrapped in Page). */
     titleIsPageHeading?: boolean
+    compact?: boolean
 }) {
     const { padX } = usePageMetrics()
     const headingProps = titleIsPageHeading
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
-        <View style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, { paddingHorizontal: padX }]}>
+        <View style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, compact && styles.headerCompact, { paddingHorizontal: padX }]}>
             {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={backLabel} /></View> : null}
             <View style={styles.headerMain}>
                 {tabs ?? (title ? (
                     <>
-                        <Text style={textStyles.pageTitle} numberOfLines={1} {...headingProps}>{title}</Text>
+                        <Text style={[textStyles.pageTitle, compact && styles.titleCompact]} numberOfLines={1} {...headingProps}>{title}</Text>
                         {meta || reserveMeta ? <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]} numberOfLines={1}>{meta ?? ''}</Text> : null}
                     </>
                 ) : null)}
@@ -133,6 +135,8 @@ const styles = StyleSheet.create({
     // Tabs sit on the bottom border; titles and back controls center in the row.
     headerTabs: { alignItems: 'center', minHeight: controlSize.minTouch + 1 },
     headerCentered: { alignItems: 'center', minHeight: layout.pageHeaderHeight, paddingVertical: spacing.xs },
+    headerCompact: { minHeight: controlSize.minTouch + 1, paddingVertical: spacing.xxs },
+    titleCompact: { fontSize: fontSize.lg, lineHeight: fontSize['2xl'] },
     headerBack: { alignSelf: 'center' },
     headerMain: { flex: 1, minWidth: 0 },
     back: {

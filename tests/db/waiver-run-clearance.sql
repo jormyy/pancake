@@ -25,8 +25,9 @@ BEGIN
     PERFORM pg_temp.check_rules(clearance = scenario.expected_at, 'clearance uses the first eligible ET run: ' || scenario.label);
     IF scenario.label = 'claim run' THEN
       claim := public.create_waiver_claim_atomic(f.league_id, f.member_ids[1], player, NULL, f.user_ids[1]);
-      PERFORM pg_temp.check_rules((SELECT process_date = '1900-01-04'::date FROM public.waiver_claims WHERE id = claim),
-        'claims use the scheduled clearance run date');
+      PERFORM pg_temp.check_rules((SELECT (process_date + time '03:00') AT TIME ZONE 'America/New_York' > now() FROM public.waiver_claims WHERE id = claim),
+        'new claims use a future run even after an old hold');
+      UPDATE public.waiver_claims SET process_date='1900-01-04' WHERE id=claim;
       PERFORM public.process_due_waiver_claims_atomic(p_process_date := '1900-01-04', p_limit := 100);
       PERFORM pg_temp.check_rules((SELECT status = 'succeeded' FROM public.waiver_claims WHERE id = claim),
         'the claim succeeds during its scheduled clearance run');

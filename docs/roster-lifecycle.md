@@ -9,7 +9,7 @@ Every other roster-linked record falls into one of three classes.
 
 | Record | Class | Rule when the player leaves the roster or becomes inactive |
 | --- | --- | --- |
-| `trade_block_items` (player) | live state | Removed when ownership ends or the player enters IR/taxi. Only active roster players can be listed. |
+| `trade_block_items` (player) | live state | Removed when ownership ends. IR/taxi listings require the inactive-trade setting and survive roster-location changes. |
 | `trade_block_items` (pick) | live state | Removed when the pick changes owner or is used in a draft. |
 | `weekly_lineups` (future, unlocked dates) | live state | Cleared for that member and player. Rows for started or finished games stay for scoring. |
 | `waiver_claims` pending `drop_player_id` | live state | Legacy claims lose the stale drop reference. Opted-in trade-plan leagues cancel the claim with a reason. Pending drop reservations restrict IR/taxi moves. |
@@ -35,31 +35,43 @@ The [backend inventory](supabase-backend-route-inventory.md) maps public action 
 
 ## IR activation and swaps
 
-Direct free-agent adds and waiver claims can place eligible players straight into IR.
-Straight-to-IR and straight-to-taxi adds are always available without a league opt-in.
+Scheduled waiver claims can place eligible players straight into IR.
+Straight-to-IR and straight-to-taxi claim destinations need no extra league opt-in.
 An activation can swap an IR player with an eligible active player when both groups are full.
 The server checks the final roster and applies both moves in one transaction.
 A failed move leaves both players in their original places.
 Game locks and trade or waiver reservations still apply.
 
-## Waiver window
+## Continuous waivers
 
-A dropped player becomes eligible to clear 48 hours after the drop.
-The daily worker processes claims at 03:00 Eastern Time.
-Until processing, the player stays on waivers.
-`prevent_uncleared_waiver_free_agent_add` rejects free-agent adds for any uncleared entry with SQLSTATE `PA002`.
-The add RPC checks the wire before roster capacity.
-The trigger backs up other inserts.
-`create_waiver_claim_atomic` accepts claims on uncleared entries, including entries past their clearance time.
-League-wide reads hide expired uncleared entries, so clients can initially show a free agent.
-Every pickup entry point uses `PA002` to offer the claim flow.
-`npm run test:db:waiver-window` checks add rejection, claims before processing, rejection after processing, and worker pickup.
+Every available player requires a scheduled claim. No ordinary pickup changes ownership immediately.
+The worker awards claims at 03:00 America/New_York, including daylight saving changes.
+A claim submitted at the cutoff waits until the next daily run.
+Dropped players also complete their 48-hour hold before an eligible scheduled run.
+The server rejects instant-add RPCs and direct free-agent inserts with SQLSTATE `PA002`.
+Claims do not require a waiver-wire entry when the player is unowned.
+
+The highest valid FAAB bid wins. Equal bids use rolling team priority, then that team's claim order.
+Successful winners move behind other teams. Zero-dollar bids remain valid.
+Only a successful award spends FAAB or consumes an add. Its conditional drop occurs in the same transaction.
+Accepted-trade FAAB reservations reduce the available balance.
+Creation, editing, reordering, and cancellation preserve private bids.
+The scheduled cutoff freezes edits, reordering, and cancellation while a worker is delayed.
+Retries and overlapping workers cannot award the same player twice.
+
+Players exposes Players, Waivers, Rankings, and News in that order.
+Waivers loads when opened and shows available FAAB, the next run, priority, pending claims, and recent results.
+Player rows and profiles open the shared claim form. Pending claims link back to Waivers.
+The shared form also edits bids, destinations, and conditional drops.
+
+`test:db:continuous-faab` checks pending ownership, awards, balances, priority, retries, and stale-client rejection.
+`test:db:continuous-faab-schedule` checks cutoff and daylight saving boundaries.
 
 ## Weekly add limits
 
-`weekly_add_limit` caps free-agent adds and successful waiver claims per add week.
-`private.assert_weekly_add_available` checks capacity during free-agent adds, claim submission, and successful waiver processing.
-`drop_and_add_free_agent_atomic` reaches that guard through `add_free_agent_atomic`.
+`weekly_add_limit` caps successful waiver claims per add week.
+`private.assert_weekly_add_available` checks capacity during claim submission and successful waiver processing.
+Legacy instant-add calls fail without dropping or acquiring a player.
 
 Add weeks follow `season_weeks` in Eastern Time, as defined by `private.add_week_timezone`.
 Counts reset at midnight after the scheduled week ends.
@@ -81,7 +93,11 @@ npm run test:db:roster-oracle
 npm run test:db:weekly-add-limit
 npm run test:db:waiver-window
 npm run test:db:dynasty-rules
+npm run test:db:continuous-faab
+npm run test:db:continuous-faab-schedule
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql
 npm run test:db:trade-roster-plans
+npm run test:db:trade-plan-moves-capacity
 npm run test:db:trade-plan-concurrency
 npm run test:db:general-brackets
 ```
@@ -192,13 +208,14 @@ A taxi exit still prevents a return to that team's taxi.
 Players must stay eligible while on taxi.
 New game counts or experience can make a taxi roster illegal.
 
-Eligible players can enter taxi through drafts, trades, free-agent adds, or waiver claims.
-Straight-to-taxi adds check eligibility, slots, tenure, and prior exits.
+Eligible players can enter taxi through drafts, trades, or scheduled waiver claims.
+Straight-to-taxi claims check eligibility, slots, tenure, and prior exits.
 Accepted trades hold their incoming taxi slots until settlement.
 Adds cannot use those slots, and claims fall back to active space or their planned drop.
 An add cannot request both IR and taxi.
-IR stays the automatic destination for eligible Out free agents.
-Straight-to-taxi adds remain allowed after the player's game starts.
+IR remains the default claim destination for eligible Out players when a slot is open.
+A manager can submit a straight-to-taxi claim after the player's game starts.
+The scheduled worker still decides ownership and placement.
 A `to_taxi` claim checks taxi placement again when the worker processes it.
 If taxi placement fails, the claim uses active roster space or its planned drop.
 If neither fits, the claim fails with a clear reason.
@@ -219,22 +236,28 @@ The acquisition guard does not block lineup edits, activations, or drops.
 Existing lineup capacity, reservation, and game-lock checks still apply.
 The Roster banner offers actions that make the team legal.
 
+## Inactive trade assets
+
+The league's inactive-trade setting controls IR and taxi assets in offers and on the trade block.
+Without that setting, IR and taxi players cannot enter new listings.
+With it enabled, owned inactive players can remain listed during roster-location changes.
+Losing ownership still removes a listing and expires dependent offers.
+The setting never bypasses resulting-roster limits or settlement checks.
+
 ## Trade plans
 
-Legacy trades can complete above the active roster limit.
-That owner can drop players and keep scoring existing lineups.
-The legal roster gate blocks new offers and acceptance until the active count fits.
-During the rookie draft, an over-limit team must use taxi, IR, or a drop before sending or accepting a trade.
-Free-agent adds and starting-lineup edits require the active count to return within the limit.
-
-`allow_inactive_trades` enables IR and taxi assets and strict trade plans.
-Each manager chooses incoming IR/taxi destinations and planned drops while the offer is pending.
+All trades require legal resulting rosters before acceptance and settlement.
+The inactive-trade setting controls which owned assets can be sent. It does not disable roster limits.
+Each manager chooses incoming IR/taxi destinations, retained-player moves, and planned drops while the offer is pending.
+Retained players can move to regular space or eligible IR. They cannot enter taxi through a roster move.
 The proposer can include the plan in the existing idempotent submission payload.
 Counterparties can save choices before acceptance or submit choices with acceptance.
+The review and acceptance views show each team's resulting roster and capacity.
+Every accepting manager confirms named drops. Acceptance submits the exact plan shown in that confirmation.
 Every participant must accept before settlement.
 League review settings select immediate processing, commissioner review, or member voting.
 Acceptance stores and checks the plan. It changes no roster.
-Settlement checks every participant again, then applies all drops and transfers in one transaction.
+Settlement checks every participant again, then applies all drops, moves, transfers, and FAAB changes in one transaction.
 A failed transaction restores assets, drops, placements, waiver entries, and tenure.
 Vetoes, rejection, withdrawal, and expiry apply no roster changes.
 Taxi assets retain taxi placement and tenure. IR assets enter the active roster unless the receiver chooses eligible IR placement.
@@ -246,11 +269,17 @@ Trades do not place incoming players into lineup slots. Existing lineup validati
 Capacity uses the full plan, including outgoing players and chosen drops, for all participants.
 Drops happen only at settlement. They use the existing release function and enter 48-hour waivers.
 
-Pending planned drops block other pending trade assets, other planned drops, and active waiver drops.
+Pending planned drops and moves block conflicting trade assets, plans, waiver drops, and roster moves.
 The reverse checks apply to plan creation. Shared team locks and sorted player locks serialize reservations.
-Accepted assets and drops remain reserved through settlement or a terminal outcome.
+Accepted assets, planned drops, and moves remain reserved through settlement or a terminal outcome.
+Combined accepted plans reserve required regular, IR, and taxi capacity.
+New awards and acceptances cannot consume that capacity. Unrelated legal roster actions remain available.
+Deferred roster checks protect direct writes and permit atomic swaps. Awards also check capacity before spending FAAB.
+Vetoes and terminal outcomes release these reservations without an extra balance or capacity ledger.
+`test:db:trade-plan-moves-capacity` covers retained moves, recovery, authorization, combined capacity, failed awards, and release.
+`test:db:trade-plan-concurrency` and `test:db:trade-waiver-concurrency` verify competing transactions.
 Ownership cleanup expires dependent offers with their existing visible failure reason and notification outbox.
-For opted-in leagues, a pending claim whose drop leaves the roster becomes cancelled with an explicit reason.
+When a claim uses trade-plan reservations, losing its planned drop cancels the claim with an explicit reason.
 
 ## Flexible playoff rounds
 

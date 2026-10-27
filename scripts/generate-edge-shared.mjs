@@ -92,6 +92,26 @@ function dropImportDeclaration(source, label, specifier) {
   return rewritten.startsWith('\n') ? rewritten.slice(1) : rewritten
 }
 
+function pruneEdgeExports(source, label, privateNames, removedNames = []) {
+  const sourceFile = sourceFileFor(source, label)
+  const replacements = []
+  sourceFile.forEachChild(node => {
+    const name = ts.isVariableStatement(node)
+      ? node.declarationList.declarations[0]?.name.getText(sourceFile)
+      : ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node)
+        ? node.name?.getText(sourceFile)
+        : undefined
+    if (removedNames.includes(name)) {
+      replacements.push({ start: node.getFullStart(), end: node.getEnd(), text: '' })
+    } else if (privateNames.includes(name)) {
+      const modifier = (ts.canHaveModifiers(node) ? ts.getModifiers(node) : undefined)?.find(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+      if (!modifier) throw new Error(`Cannot generate ${label}: ${name} is not exported`)
+      replacements.push({ start: modifier.getStart(sourceFile), end: modifier.getEnd() + 1, text: '' })
+    }
+  })
+  return applyReplacements(source, replacements)
+}
+
 async function writeGenerated(rel, contents) {
   const filePath = path.join(ROOT, rel)
   const current = await read(rel).catch(() => null)
@@ -164,7 +184,26 @@ async function lineupAssignments() {
   return `${HEADER}${source}`
 }
 
+async function dynastyEngine() {
+  const source = rewriteImportDeclarations(await read('core/src/dynasty/decisionEngine.ts'), 'dynastyEngine', {
+    '../scoring/formula': './scoringCore.ts',
+    '../scoring/types': './scoringCore.ts',
+  })
+  return `${HEADER}${pruneEdgeExports(source, 'dynastyEngine', [
+    'DYNASTY_STRATEGIES', 'DYNASTY_STRATEGY_WEIGHTS', 'DynastySource', 'DynastyPickAsset',
+    'DynastyFaabAsset', 'DynastyRosterSlotAsset', 'DynastyValueRange', 'DynastyAssetComponents',
+    'DynastyTradeTeamResult',
+  ], ['valueDynastyAssets'])}`
+}
+
+async function matchupForecast() {
+  const source = await read('core/src/forecast/matchup.ts')
+  return `${HEADER}${pruneEdgeExports(source, 'matchupForecast', ['MATCHUP_FORECAST_VERSION', 'ForecastTeam'])}`
+}
+
 const outputs = [
+  ['supabase/functions/_shared/dynastyEngine.ts', await dynastyEngine()],
+  ['supabase/functions/_shared/matchupForecast.ts', await matchupForecast()],
   ['supabase/functions/_shared/lineupAssignments.ts', await lineupAssignments()],
   ['supabase/functions/_shared/lineupSlots.ts', `${HEADER}${await read('core/src/positions/lineupSlots.ts')}`],
   ['supabase/functions/_shared/date.ts', `${HEADER}${await read('core/src/dates/index.ts')}`],

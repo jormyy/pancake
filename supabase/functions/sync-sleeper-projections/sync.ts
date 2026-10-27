@@ -5,6 +5,23 @@ import { linkPlayerSources } from '../_shared/sourceLinks.ts'
 import { matchSleeperProjections, type SleeperPlayer } from './match.ts'
 
 export type SleeperSyncContext = { seasonYear: number; weekNumber: number; sleeperWeek: number; weekStart: string; weekEnd: string }
+export type ProjectionWeekRow = { week_number: number; week_start: string; week_end: string }
+
+const mondayOf = (value: string) => {
+  const day = new Date(`${value}T12:00:00Z`)
+  day.setUTCDate(day.getUTCDate() - (day.getUTCDay() + 6) % 7)
+  return day.toISOString().slice(0, 10)
+}
+
+export function resolveProjectionWeek(weeks: ProjectionWeekRow[], date: string): Omit<SleeperSyncContext, 'seasonYear'> | null {
+  const ordered = [...weeks].sort((a, b) => a.week_start.localeCompare(b.week_start))
+  const week = ordered.find((item) => item.week_start <= date && date <= item.week_end)
+  if (!week) return null
+  const weekStart = mondayOf(date)
+  const weekEnd = new Date(Date.parse(`${weekStart}T12:00:00Z`) + 6 * 86400000).toISOString().slice(0, 10)
+  const sleeperWeek = Math.round((Date.parse(weekStart) - Date.parse(mondayOf(ordered[0].week_start))) / (7 * 86400000)) + 1
+  return { weekNumber: week.week_number, sleeperWeek, weekStart, weekEnd }
+}
 
 export async function syncSleeperProjections(client: SupabaseClient<Database>, context: SleeperSyncContext, fetcher: (url: string, init?: RequestInit) => Promise<Response>) {
   const url = `https://api.sleeper.app/projections/nba/${context.seasonYear - 1}/${context.sleeperWeek}?season_type=regular`
