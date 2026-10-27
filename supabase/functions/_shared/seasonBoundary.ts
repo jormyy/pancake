@@ -227,6 +227,20 @@ async function runRookieDraftBackstop(
   return actions
 }
 
+async function activateDraftingLeague(
+  leagueId: string,
+  leagueSeasonId: string,
+  playoffStartWeek: number,
+  referenceDate: Date,
+): Promise<string[]> {
+  const actions = [
+    ...await runRookieDraftBackstop(leagueId, leagueSeasonId, referenceDate, false),
+    ...await activateCompletedRookieDraft(leagueId, leagueSeasonId),
+  ]
+  if (!actions.includes('rookie-league-activated')) return actions
+  return [...actions, ...await ensureSeasonMatchups(leagueId, leagueSeasonId, playoffStartWeek)]
+}
+
 async function activateCompletedRookieDraft(leagueId: string, leagueSeasonId: string): Promise<string[]> {
   const { data: drafts, error } = await supabase.from('drafts')
     .select('id')
@@ -443,8 +457,7 @@ export async function runSeasonBoundary(
     return [async () => {
       try {
         const actions = status === 'drafting'
-          ? [...await runRookieDraftBackstop(season.league_id, season.id, referenceDate, false),
-            ...await activateCompletedRookieDraft(season.league_id, season.id)]
+          ? await activateDraftingLeague(season.league_id, season.id, playoffStartWeek, referenceDate)
           : status === 'offseason'
           // A commissioner who advanced the season manually leaves the new
           // season without matchups (advanceSeason never generated them).

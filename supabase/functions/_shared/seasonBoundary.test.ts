@@ -36,7 +36,7 @@ Deno.test('the boundary activates a completed current rookie draft before the NB
   reset()
   const reports = await runSeasonBoundary(new Date('2026-07-01T00:00:00Z'))
   assert.equal(status, 'active')
-  assert.deepEqual(reports, [{ leagueId: 'league', actions: ['rookie-league-activated'] }])
+  assert.deepEqual(reports, [{ leagueId: 'league', actions: ['rookie-league-activated', 'calendar-pending'] }])
   assert.deepEqual(calls, [{ name: 'activate_rookie_draft_league_atomic', body: { p_draft_id: 'completed-rookie' } }])
 })
 
