@@ -1,3 +1,4 @@
+import { ListHeader } from '@/components/ui/ListHeader'
 import { StyleSheet, Text, View } from 'react-native'
 import { Sheet } from '@/components/ui/Sheet'
 import { Avatar } from '@/components/Avatar'
@@ -92,13 +93,13 @@ export function ScoreBreakdownSheet({
                     <Text style={styles.weight}>{`${row.weight > 0 ? '+' : ''}${row.weight} each`}</Text>
                 </View>)}
             </View> : <View style={styles.table} role="table" aria-label="Points by stat">
-                <View style={[styles.tableRow, styles.tableHeader]} role="row">
+                <ListHeader style={styles.tableHeader} role="row">
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">Stat</Text>
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">FP</Text>
                     <Text style={[styles.headCell, styles.labelCell]} role="columnheader">Category</Text>
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">FP</Text>
                     <Text style={[styles.headCell, styles.numCell]} role="columnheader">Stat</Text>
-                </View>
+                </ListHeader>
                 {myRows.map((row) => {
                     const theirRow = rowFor(theirRows, row.key)
                     return (
@@ -143,7 +144,7 @@ const styles = StyleSheet.create({
         borderBottomWidth: borderWidth.thin,
         borderBottomColor: colors.separator,
     },
-    tableHeader: { minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
+    tableHeader: { paddingHorizontal: spacing.md },
     ruleRow: {
         flexDirection: 'row',
         alignItems: 'center',

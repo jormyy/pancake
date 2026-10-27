@@ -14,6 +14,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result int;
+BEGIN
+  __request_context := private.request_begin('public.reorder_waiver_claim_atomic', jsonb_build_array(p_claim_id, p_member_id, p_user_id, p_direction), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::int; END IF;
+  <<request_write>>
+DECLARE
   v_claim waiver_claims%ROWTYPE;
   v_other waiver_claims%ROWTYPE;
   v_waiver_mode text;
@@ -121,9 +128,12 @@ BEGIN
        SET claim_order = v_claim.claim_order
      WHERE id = v_other.id;
 
-    RETURN v_other.claim_order;
+    __request_result := v_other.claim_order; EXIT request_write;
   END IF;
 
-  RETURN v_claim.claim_order;
+  __request_result := v_claim.claim_order; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

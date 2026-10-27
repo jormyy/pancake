@@ -10,6 +10,7 @@
       "source": "app/(auth)/sign-in.tsx",
       "path": "/sign-in",
       "functionIds": ["auth-account"],
+      "navigation": {"entryFromHome": "Signed-out launch", "tapsFromHome": 0, "firstView": "Sign-in form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.auth"] },
         "freshness": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
@@ -19,11 +20,64 @@
       }
     },
     {
+      "id": "team-timeline",
+      "routeLabel": "timeline",
+      "source": "app/(modals)/timeline.tsx",
+      "path": "/timeline",
+      "functionIds": [
+        "league-dashboard"
+      ],
+      "contracts": {
+        "cache": {
+          "mode": "not-applicable",
+          "reason": "Private entries stay in memory for the current team."
+        },
+        "freshness": {
+          "mode": "required",
+          "dataClassIds": [
+            "team-timeline"
+          ],
+          "proofIds": [
+            "browser.smoke"
+          ]
+        },
+        "realtime": {
+          "mode": "not-applicable",
+          "reason": "The timeline refreshes on open and pull to refresh."
+        },
+        "autoUpdate": {
+          "mode": "required",
+          "dataClassIds": [
+            "team-timeline"
+          ],
+          "proofIds": [
+            "browser.surface_reconnect"
+          ]
+        },
+        "pwa": {
+          "mode": "required",
+          "dataClassIds": [
+            "app-shell"
+          ],
+          "proofIds": [
+            "browser.surface_offline"
+          ]
+        }
+      },
+      "navigation": {
+        "entryFromHome": "Home > Timeline or League > Season timeline",
+        "tapsFromHome": 1,
+        "firstView": "Team events, claim decisions, trades, lineups and scores",
+        "verification": "Loaded screen and retry tests; private browser verification remains required"
+      }
+    },
+    {
       "id": "auth-sign-up",
       "routeLabel": "auth-sign-up",
       "source": "app/(auth)/sign-up.tsx",
       "path": "/sign-up",
       "functionIds": ["auth-account"],
+      "navigation": {"entryFromHome": "Signed-out launch > Create account", "tapsFromHome": 1, "firstView": "Account form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_online"] },
         "freshness": { "mode": "not-applicable", "reason": "The empty form has no server read." },
@@ -38,6 +92,7 @@
       "source": "app/(modals)/bracket.tsx",
       "path": "/bracket",
       "functionIds": ["playoff-workflow", "league-dashboard"],
+      "navigation": {"entryFromHome": "League > Playoffs", "tapsFromHome": 2, "firstView": "Bracket, scores and eligible commissioner actions", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "playoff-bracket"], "proofIds": ["browser.surface_online", "browser.playoffs"] },
         "freshness": { "mode": "required", "dataClassIds": ["playoff-bracket"], "proofIds": ["browser.playoffs"] },
@@ -52,6 +107,7 @@
       "source": "app/(modals)/change-password.tsx",
       "path": "/change-password",
       "functionIds": ["auth-account"],
+      "navigation": {"entryFromHome": "League > Change password", "tapsFromHome": 2, "firstView": "Password form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.auth"] },
         "freshness": { "mode": "required", "dataClassIds": ["auth-session"], "proofIds": ["browser.auth"] },
@@ -66,6 +122,7 @@
       "source": "app/(modals)/notification-settings.tsx",
       "path": "/notification-settings",
       "functionIds": ["notification-settings"],
+      "navigation": {"entryFromHome": "League > Notifications", "tapsFromHome": 2, "firstView": "Notification preferences and device push controls", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session", "profile-data"], "proofIds": ["browser.surface_online", "browser.notification_settings"] },
         "freshness": { "mode": "required", "dataClassIds": ["profile-data"], "proofIds": ["browser.notification_settings"] },
@@ -80,6 +137,7 @@
       "source": "app/(modals)/claim-player.tsx",
       "path": "/claim-player?playerId=:id",
       "functionIds": ["waiver-roster", "player-discovery"],
+      "navigation": {"entryFromHome": "Home > Find a player to claim > Claim", "tapsFromHome": 2, "firstView": "Claim, bid, drop and destination form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-detail", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.waiver"] },
         "freshness": { "mode": "required", "dataClassIds": ["roster", "waivers"], "proofIds": ["browser.waiver", "backend.waiver_processing"] },
@@ -94,6 +152,7 @@
       "source": "app/(modals)/commissioner-settings.tsx",
       "path": "/commissioner-settings",
       "functionIds": ["commissioner-controls"],
+      "navigation": {"entryFromHome": "League > Commissioner", "tapsFromHome": 2, "firstView": "League rules, scoring, lifecycle and member controls", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "league-memberships"], "proofIds": ["browser.surface_online", "backend.settings"] },
         "freshness": { "mode": "required", "dataClassIds": ["league-memberships", "league-tabs"], "proofIds": ["backend.settings"] },
@@ -108,6 +167,7 @@
       "source": "app/(modals)/create-league.tsx",
       "path": "/create-league",
       "functionIds": ["league-lifecycle"],
+      "navigation": {"entryFromHome": "League > Create a League", "tapsFromHome": 2, "firstView": "League form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.league_lifecycle"] },
         "freshness": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle", "backend.league_lifecycle"] },
@@ -122,6 +182,7 @@
       "source": "app/(modals)/draft-room.tsx",
       "path": "/draft-room?draftId=:id",
       "functionIds": ["auction-draft", "realtime-convergence"],
+      "navigation": {"entryFromHome": "League > Draft setup and mock rooms > Open room", "tapsFromHome": 3, "firstView": "Nomination deadline, bids, budgets and draft controls", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auction-room"], "proofIds": ["browser.surface_online", "browser.auction"] },
         "freshness": { "mode": "required", "dataClassIds": ["auction-room"], "proofIds": ["browser.auction", "backend.auction"] },
@@ -136,6 +197,7 @@
       "source": "app/(modals)/join-league.tsx",
       "path": "/join-league",
       "functionIds": ["league-lifecycle"],
+      "navigation": {"entryFromHome": "League > Join with Invite Code", "tapsFromHome": 2, "firstView": "Invite-code form", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session"], "proofIds": ["browser.surface_online", "browser.league_lifecycle"] },
         "freshness": { "mode": "required", "dataClassIds": ["league-memberships"], "proofIds": ["browser.league_lifecycle", "backend.league_lifecycle"] },
@@ -150,6 +212,7 @@
       "source": "app/(modals)/lineup.tsx",
       "path": "/lineup",
       "functionIds": ["manual-lineup", "automatic-lineup", "realtime-convergence"],
+      "navigation": {"entryFromHome": "League > Lineup; the same editor is inline on Home", "tapsFromHome": 2, "firstView": "Direct Today, This week and Rest of season actions; automatic switch and locked slots", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup", "live-stats"], "proofIds": ["browser.surface_online", "browser.lineup"] },
         "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.lineup", "browser.lineup_locked"] },
@@ -164,6 +227,7 @@
       "source": "app/(modals)/propose-trade.tsx",
       "path": "/propose-trade",
       "functionIds": ["trade-workflows"],
+      "navigation": {"entryFromHome": "Trades > Propose", "tapsFromHome": 2, "firstView": "Trade participants, assets, picks and FAAB", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster", "draft-picks", "trades"], "proofIds": ["browser.surface_online", "browser.trade_proposal"] },
         "freshness": { "mode": "required", "dataClassIds": ["roster", "draft-picks", "trades"], "proofIds": ["browser.trade_proposal", "backend.trade_accept"] },
@@ -178,6 +242,7 @@
       "source": "app/(modals)/rookie-draft-room.tsx",
       "path": "/rookie-draft-room?draftId=:id",
       "functionIds": ["rookie-draft", "realtime-convergence"],
+      "navigation": {"entryFromHome": "League > Draft Room", "tapsFromHome": 2, "firstView": "Pick clock, order, prospects and commissioner controls", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "rookie-room"], "proofIds": ["browser.surface_online", "browser.rookie_draft"] },
         "freshness": { "mode": "required", "dataClassIds": ["rookie-room"], "proofIds": ["browser.rookie_draft", "backend.rookie_draft"] },
@@ -192,6 +257,7 @@
       "source": "app/(modals)/team-roster.tsx",
       "path": "/team-roster?memberId=:id",
       "functionIds": ["player-discovery", "trade-workflows", "league-dashboard"],
+      "navigation": {"entryFromHome": "League > Standings > Team", "tapsFromHome": 3, "firstView": "Selected team roster and player links", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["roster"], "proofIds": ["browser.smoke", "browser.surface_reconnect"] },
@@ -206,6 +272,7 @@
       "source": "app/(tabs)/draft.tsx",
       "path": "/draft",
       "functionIds": ["draft-launch"],
+      "navigation": {"entryFromHome": "League > Draft Room", "tapsFromHome": 2, "firstView": "Active auction or rookie room, or a visible empty-state action", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "active-draft"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["active-draft"], "proofIds": ["browser.smoke", "browser.auction"] },
@@ -220,6 +287,7 @@
       "source": "app/(tabs)/dynasty.tsx",
       "path": "/dynasty",
       "functionIds": ["dynasty-decisions", "player-discovery"],
+      "navigation": {"entryFromHome": "Players > Rankings", "tapsFromHome": 2, "firstView": "Rankings and decision tools; the old Dynasty route redirects here", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "dynasty-data"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["dynasty-data"], "proofIds": ["dynasty.decision_tools", "browser.surface_reconnect"] },
@@ -234,6 +302,7 @@
       "source": "app/(tabs)/index.tsx",
       "path": "/",
       "functionIds": ["matchup-live", "manual-lineup", "automatic-lineup", "realtime-convergence"],
+      "navigation": {"entryFromHome": "Home", "tapsFromHome": 0, "firstView": "Live points and win odds, inline lineup, pending claims, next run, available FAAB", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup", "live-stats"], "proofIds": ["browser.surface_online", "browser.performance"] },
         "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.performance", "browser.surface_reconnect"] },
@@ -248,6 +317,7 @@
       "source": "app/(tabs)/league.tsx",
       "path": "/league",
       "functionIds": ["league-dashboard", "commissioner-controls", "auction-draft", "rookie-draft", "playoff-workflow", "realtime-convergence"],
+      "navigation": {"entryFromHome": "League > Standings / Activity / Picks / Draft / Settings", "tapsFromHome": 2, "firstView": "Selected league section; the League entry itself shows all section links", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "league-tabs", "active-draft"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["league-tabs", "active-draft"], "proofIds": ["browser.smoke", "backend.settings"] },
@@ -262,6 +332,7 @@
       "source": "app/(tabs)/players.tsx",
       "path": "/players",
       "functionIds": ["player-discovery", "waiver-roster"],
+      "navigation": {"entryFromHome": "Players", "tapsFromHome": 1, "firstView": "Player search; Waivers, Rankings and News sections", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-search", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["player-search", "roster", "waivers"], "proofIds": ["browser.smoke", "browser.waiver"] },
@@ -276,6 +347,7 @@
       "source": "app/(tabs)/profile.tsx",
       "path": "/profile",
       "functionIds": ["auth-account", "profile-settings", "league-lifecycle"],
+      "navigation": {"entryFromHome": "League > Profile & settings", "tapsFromHome": 2, "firstView": "Profile, team name, preferences and account actions", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "auth-session", "profile-data", "league-memberships"], "proofIds": ["browser.surface_online", "browser.auth"] },
         "freshness": { "mode": "required", "dataClassIds": ["profile-data", "league-memberships"], "proofIds": ["browser.auth"] },
@@ -290,6 +362,7 @@
       "source": "app/(tabs)/roster.tsx",
       "path": "/roster",
       "functionIds": ["waiver-roster", "automatic-lineup", "realtime-convergence"],
+      "navigation": {"entryFromHome": "Roster", "tapsFromHome": 1, "firstView": "Roster places, reserves, picks and claims", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "roster", "waivers", "draft-picks"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["roster", "waivers", "draft-picks"], "proofIds": ["browser.waiver_drop", "backend.waiver_processing"] },
@@ -304,6 +377,7 @@
       "source": "app/(tabs)/trades.tsx",
       "path": "/trades",
       "functionIds": ["trade-workflows", "realtime-convergence"],
+      "navigation": {"entryFromHome": "Trades", "tapsFromHome": 1, "firstView": "Open offers; History and Block sections", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "trades", "draft-picks", "roster"], "proofIds": ["browser.surface_online", "browser.trade_proposal"] },
         "freshness": { "mode": "required", "dataClassIds": ["trades", "draft-picks", "roster"], "proofIds": ["browser.trade_accept", "backend.trade_accept"] },
@@ -318,6 +392,7 @@
       "source": "app/+not-found.tsx",
       "path": "/surface-contract-not-found",
       "functionIds": ["not-found-recovery"],
+      "navigation": {"entryFromHome": "Unknown address", "tapsFromHome": 0, "firstView": "Missing-page message and Home action", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell"], "proofIds": ["browser.surface_online"] },
         "freshness": { "mode": "not-applicable", "reason": "The route contains no server data." },
@@ -332,6 +407,7 @@
       "source": "app/player/[id].tsx",
       "path": "/player/:id",
       "functionIds": ["player-discovery", "waiver-roster"],
+      "navigation": {"entryFromHome": "Players > Player", "tapsFromHome": 2, "firstView": "Player totals, game log, projections, news, history and roster actions", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "player-detail", "roster", "waivers"], "proofIds": ["browser.surface_online", "browser.smoke"] },
         "freshness": { "mode": "required", "dataClassIds": ["player-detail", "roster", "waivers"], "proofIds": ["browser.smoke", "browser.waiver"] },
@@ -340,6 +416,7 @@
         "pwa": { "mode": "required", "dataClassIds": ["app-shell", "player-detail"], "proofIds": ["browser.surface_offline", "pwa.cache_update"] }
       }
     }
+
   ],
   "backgrounds": [
     {
@@ -404,6 +481,7 @@
     }
   ],
   "dataClasses": [
+    { "id": "team-timeline", "owner": "Team timeline screen", "cacheKey": "session, league, and member in memory", "warmSource": "current screen state", "coldSource": "view_team_timeline RPC", "ttl": "mounted screen lifetime", "invalidation": "team change, session change, refresh, or reconnect", "realtimeEvent": "none", "reconnect": "active route reloads the first page", "crossTab": "each screen loads its own authorized view", "autoUpdate": "returning online reloads the current team", "sizeBound": "30 entries per page", "failureFallback": "retain the current team rows and show retry", "writePolicy": "clients cannot write timeline events" },
     { "id": "app-shell", "owner": "public/sw.js and app/+html.tsx", "cacheKey": "release-stamped pancake-<digest>-shell and assets", "warmSource": "Cache Storage shell and hashed assets", "coldSource": "release static server", "ttl": "until the next release cache version", "invalidation": "service-worker activation deletes older Pancake caches", "realtimeEvent": "none; API and websocket requests bypass the worker", "reconnect": "documents refresh from network and fall back to the cached root shell", "crossTab": "the active worker controls all same-origin tabs", "autoUpdate": "skipWaiting and clients.claim; one safe reload after hiding or pagehide", "sizeBound": "one shell plus requested hashed assets; old versions are deleted", "failureFallback": "cached root shell with route-owned stale or error state", "writePolicy": "never queue gameplay writes offline" },
     { "id": "auth-session", "owner": "AuthProvider and Supabase Auth", "cacheKey": "one Supabase session per browser origin or native secure store", "warmSource": "persisted session", "coldSource": "Supabase Auth", "ttl": "token expiry and server refresh policy", "invalidation": "sign-out, invalid refresh, or account change", "realtimeEvent": "Supabase auth state event", "reconnect": "foreground session check keeps a valid offline session visible", "crossTab": "Supabase auth storage events converge tabs", "autoUpdate": "auth state replaces the provider session", "sizeBound": "one session envelope", "failureFallback": "do not erase a valid session on a transient offline read", "writePolicy": "credentials and account writes require the server" },
     { "id": "league-memberships", "owner": "LeagueProvider", "cacheKey": "authenticated user in provider memory", "warmSource": "mounted provider state", "coldSource": "league membership query", "ttl": "session lifetime with explicit refresh", "invalidation": "create, join, team-name update, league switch, or sign-out", "realtimeEvent": "none", "reconnect": "next focus or explicit refresh reads server truth", "crossTab": "full reload or session refresh", "autoUpdate": "provider refresh replaces memberships atomically", "sizeBound": "all memberships for one user", "failureFallback": "keep the prior owner-scoped list or show a retry state", "writePolicy": "league changes use authorized RPCs" },
@@ -435,7 +513,7 @@
     { "id": "player-discovery", "targetIds": ["players", "player-detail", "claim-player", "team-roster", "dynasty-hub"], "happyPathEvidenceIds": ["browser.smoke", "browser.surface_online"], "failurePaths": [{ "id": "offline-or-query-failure-keeps-safe-view", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "warm-reopen-and-reconnect-refresh", "evidenceIds": ["browser.surface_reconnect"] }] },
     { "id": "waiver-roster", "targetIds": ["claim-player", "players", "player-detail", "roster"], "happyPathEvidenceIds": ["browser.waiver", "browser.waiver_drop", "backend.waiver_processing"], "failurePaths": [{ "id": "ir-or-full-roster-claim-rejected", "evidenceIds": ["browser.waiver_ir_block", "backend.waiver_processing"] }], "recoveryPaths": [{ "id": "drop-claim-process-and-refresh", "evidenceIds": ["browser.waiver_drop", "backend.waiver_processing"] }] },
     { "id": "trade-workflows", "targetIds": ["propose-trade", "team-roster", "trades"], "happyPathEvidenceIds": ["browser.trade_proposal", "browser.trade_accept", "browser.trade_multi_team", "backend.trade_accept"], "failurePaths": [{ "id": "deadline-overflow-permission-or-veto-rejected", "evidenceIds": ["browser.trade_post_deadline", "browser.trade_overflow_accept", "backend.trade_veto"] }], "recoveryPaths": [{ "id": "edit-counter-terminal-and-future-pick-settle", "evidenceIds": ["browser.trade_terminal", "browser.trade_future_pick_accept", "browser.trade_multi_team"] }] },
-    { "id": "league-dashboard", "targetIds": ["league-dashboard", "playoff-bracket", "team-roster"], "happyPathEvidenceIds": ["browser.smoke", "backend.tiebreakers"], "failurePaths": [{ "id": "tab-read-failure-keeps-retry", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "tab-reconnect-and-realtime-refresh", "evidenceIds": ["browser.surface_reconnect", "realtime.delivery"] }] },
+    { "id": "league-dashboard", "targetIds": ["league-dashboard", "playoff-bracket", "team-roster", "team-timeline"], "happyPathEvidenceIds": ["browser.smoke", "backend.tiebreakers"], "failurePaths": [{ "id": "tab-read-failure-keeps-retry", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "tab-reconnect-and-realtime-refresh", "evidenceIds": ["browser.surface_reconnect", "realtime.delivery"] }] },
     { "id": "commissioner-controls", "targetIds": ["commissioner-settings", "league-dashboard"], "happyPathEvidenceIds": ["backend.settings"], "failurePaths": [{ "id": "manager-write-rejected", "evidenceIds": ["backend.settings"] }], "recoveryPaths": [{ "id": "authorized-settings-propagate", "evidenceIds": ["backend.settings"] }] },
     { "id": "auction-draft", "targetIds": ["auction-room", "league-dashboard"], "happyPathEvidenceIds": ["browser.auction", "backend.auction", "realtime.delivery"], "failurePaths": [{ "id": "invalid-or-stale-bid-rejected", "evidenceIds": ["backend.auction"] }], "recoveryPaths": [{ "id": "realtime-or-poll-restores-room", "evidenceIds": ["realtime.delivery", "browser.performance"] }] },
     { "id": "rookie-draft", "targetIds": ["rookie-draft-room", "league-dashboard"], "happyPathEvidenceIds": ["browser.rookie_draft", "backend.rookie_draft"], "failurePaths": [{ "id": "wrong-owner-or-rostered-player-rejected", "evidenceIds": ["backend.rookie_draft"] }], "recoveryPaths": [{ "id": "timer-auto-pick-and-roster-correction", "evidenceIds": ["browser.rookie_draft", "backend.rookie_draft"] }] },
@@ -447,5 +525,276 @@
     { "id": "source-sync-recovery", "targetIds": ["background-source-sync"], "happyPathEvidenceIds": ["environment.fake_upstream", "source.failure_recovery"], "failurePaths": [{ "id": "bad-empty-truncated-or-http-failure-refused", "evidenceIds": ["source.failure_recovery"] }], "recoveryPaths": [{ "id": "next-valid-source-run-self-heals", "evidenceIds": ["source.failure_recovery", "environment.fake_upstream"] }] },
     { "id": "season-automation", "targetIds": ["background-season-jobs"], "happyPathEvidenceIds": ["backend.season_reset", "backend.offseason_activity", "invariants.boundary"], "failurePaths": [{ "id": "locked-stale-or-invalid-job-cannot-corrupt-state", "evidenceIds": ["invariants.boundary", "backend.season_reset"] }], "recoveryPaths": [{ "id": "idempotent-rerun-continues-season", "evidenceIds": ["backend.season_reset", "backend.offseason_activity"] }] },
     { "id": "realtime-convergence", "targetIds": ["matchup-home", "lineup-editor", "auction-room", "rookie-draft-room", "league-dashboard", "roster", "trades", "background-realtime-reconnect"], "happyPathEvidenceIds": ["realtime.delivery", "browser.lineup"], "failurePaths": [{ "id": "socket-or-network-gap-does-not-authorize-stale-write", "evidenceIds": ["browser.surface_offline", "browser.lineup_locked"] }], "recoveryPaths": [{ "id": "cross-tab-reconnect-or-poll-converges", "evidenceIds": ["browser.surface_reconnect", "realtime.delivery", "browser.lineup"] }] }
-  ]
+  ],
+  "navigationActions": [
+    {
+      "feature": "Live matchup",
+      "entryFromHome": "Home",
+      "tapsFromHome": 0,
+      "firstView": "Live scores, win odds and remaining games",
+      "daily": true
+    },
+    {
+      "feature": "Manual lineup swap",
+      "entryFromHome": "Home > Player > Destination",
+      "tapsFromHome": 2,
+      "firstView": "Legal targets; started players stay locked",
+      "daily": true
+    },
+    {
+      "feature": "Auto-set today / this week / rest of season",
+      "entryFromHome": "Home > Period action",
+      "tapsFromHome": 1,
+      "firstView": "Shared lineup action and its saved result",
+      "daily": true
+    },
+    {
+      "feature": "Automatic lineup preference",
+      "entryFromHome": "Home > Keep updated automatically",
+      "tapsFromHome": 1,
+      "firstView": "Saved team preference; manual lineups stay unchanged",
+      "daily": true
+    },
+    {
+      "feature": "Pending claims / next run / FAAB",
+      "entryFromHome": "Home",
+      "tapsFromHome": 0,
+      "firstView": "Pending count, scheduled run and available balance",
+      "daily": true
+    },
+    {
+      "feature": "Claim form",
+      "entryFromHome": "Home > Find a player to claim > Claim",
+      "tapsFromHome": 2,
+      "firstView": "Bid, drop and destination controls",
+      "daily": true
+    },
+    {
+      "feature": "Submit claim",
+      "entryFromHome": "Home > Find a player to claim > Claim > Submit",
+      "tapsFromHome": 3,
+      "firstView": "Server confirmation or actionable error",
+      "daily": true
+    },
+    {
+      "feature": "Edit pending claim",
+      "entryFromHome": "Home > Edit claim",
+      "tapsFromHome": 1,
+      "firstView": "Saved bid, drop and destination",
+      "daily": true
+    },
+    {
+      "feature": "Cancel or reorder claims",
+      "entryFromHome": "Home > Manage claims > Cancel or reorder",
+      "tapsFromHome": 2,
+      "firstView": "Current claim order and cancellation control",
+      "daily": true
+    },
+    {
+      "feature": "Rankings / News",
+      "entryFromHome": "Players > Rankings or News",
+      "tapsFromHome": 2,
+      "firstView": "Ranking views, news filters and player links",
+      "daily": false
+    },
+    {
+      "feature": "Player details and history",
+      "entryFromHome": "Players > Player > Detail section",
+      "tapsFromHome": 3,
+      "firstView": "Stats, projection, game log, news and transactions",
+      "daily": false
+    },
+    {
+      "feature": "IR / taxi / drop",
+      "entryFromHome": "Roster > Player > Action",
+      "tapsFromHome": 3,
+      "firstView": "Roster action with current server checks",
+      "daily": true
+    },
+    {
+      "feature": "Trade proposal",
+      "entryFromHome": "Trades > Propose",
+      "tapsFromHome": 2,
+      "firstView": "Multi-team composer with players, picks and FAAB",
+      "daily": false
+    },
+    {
+      "feature": "Trade edit / counter / accept / reject / withdraw / veto",
+      "entryFromHome": "Trades > Offer > Action",
+      "tapsFromHome": 3,
+      "firstView": "Current offer and legal action",
+      "daily": false
+    },
+    {
+      "feature": "Trade roster plan / taxi destinations",
+      "entryFromHome": "Trades > Offer > Roster plan",
+      "tapsFromHome": 3,
+      "firstView": "Required outgoing drops and reserve destinations",
+      "daily": false
+    },
+    {
+      "feature": "Trade history / block",
+      "entryFromHome": "Trades > History or Block",
+      "tapsFromHome": 2,
+      "firstView": "Past offers or league listings",
+      "daily": false
+    },
+    {
+      "feature": "Trade analysis",
+      "entryFromHome": "Trades > Offer > Analyze",
+      "tapsFromHome": 3,
+      "firstView": "Trade impact and projections",
+      "daily": false
+    },
+    {
+      "feature": "Trade block add / remove / note",
+      "entryFromHome": "Trades > Block > Asset",
+      "tapsFromHome": 3,
+      "firstView": "Owned asset listing control",
+      "daily": false
+    },
+    {
+      "feature": "League standings / record",
+      "entryFromHome": "League > Standings",
+      "tapsFromHome": 2,
+      "firstView": "Team records and standings",
+      "daily": false
+    },
+    {
+      "feature": "League activity / announcements",
+      "entryFromHome": "League > Activity",
+      "tapsFromHome": 2,
+      "firstView": "League events and announcement history",
+      "daily": false
+    },
+    {
+      "feature": "Picks / draft board",
+      "entryFromHome": "League > Picks and draft board",
+      "tapsFromHome": 2,
+      "firstView": "Current and future pick ownership",
+      "daily": false
+    },
+    {
+      "feature": "League rules / invite / waiver order",
+      "entryFromHome": "League > League settings",
+      "tapsFromHome": 2,
+      "firstView": "League rules, invite action and waiver priority",
+      "daily": false
+    },
+    {
+      "feature": "Playoffs / generate / advance",
+      "entryFromHome": "League > Playoffs > Action",
+      "tapsFromHome": 3,
+      "firstView": "Bracket and eligible round action",
+      "daily": false
+    },
+    {
+      "feature": "Draft start / rookie warning / reseed",
+      "entryFromHome": "League > Draft setup and mock rooms > Action",
+      "tapsFromHome": 3,
+      "firstView": "Setup and timer controls with opening-night warning",
+      "daily": false
+    },
+    {
+      "feature": "Mock room create / join / leave / start / delete",
+      "entryFromHome": "League > Draft setup and mock rooms > Room action",
+      "tapsFromHome": 3,
+      "firstView": "Room list and eligible owner actions",
+      "daily": false
+    },
+    {
+      "feature": "Auction nominate / bid / withdraw",
+      "entryFromHome": "League > Draft Room > Action",
+      "tapsFromHome": 3,
+      "firstView": "Live deadline, current bid and available budget",
+      "daily": false
+    },
+    {
+      "feature": "Rookie pick / auto-pick / commissioner pick",
+      "entryFromHome": "League > Draft Room > Action",
+      "tapsFromHome": 3,
+      "firstView": "Pick clock, eligible prospects and pick controls",
+      "daily": false
+    },
+    {
+      "feature": "Draft stop / reset / pause / resume",
+      "entryFromHome": "League > Draft Room > Controls > Action",
+      "tapsFromHome": 4,
+      "firstView": "Eligible commissioner controls",
+      "daily": false
+    },
+    {
+      "feature": "League configuration / scoring / member control",
+      "entryFromHome": "League > Commissioner",
+      "tapsFromHome": 2,
+      "firstView": "Rules, scoring and authorized member actions",
+      "daily": false
+    },
+    {
+      "feature": "Season advance / schedule / waiver processing / playoff fit",
+      "entryFromHome": "League > Commissioner > Action",
+      "tapsFromHome": 3,
+      "firstView": "Lifecycle action and its server checks",
+      "daily": false
+    },
+    {
+      "feature": "Publish announcement",
+      "entryFromHome": "League > Commissioner > Announcement",
+      "tapsFromHome": 3,
+      "firstView": "Announcement form",
+      "daily": false
+    },
+    {
+      "feature": "Profile / team / avatar",
+      "entryFromHome": "League > Profile & settings > Edit",
+      "tapsFromHome": 3,
+      "firstView": "Editable profile and team name",
+      "daily": false
+    },
+    {
+      "feature": "Notification preferences / push controls",
+      "entryFromHome": "League > Notifications",
+      "tapsFromHome": 2,
+      "firstView": "Preference switches and device controls",
+      "daily": false
+    },
+    {
+      "feature": "Password / league create / league join",
+      "entryFromHome": "League > Account action",
+      "tapsFromHome": 2,
+      "firstView": "Selected account form",
+      "daily": false
+    },
+    {
+      "feature": "Sign out",
+      "entryFromHome": "League > Profile & settings > Sign out > Confirm",
+      "tapsFromHome": 4,
+      "firstView": "Sign-out confirmation",
+      "daily": false
+    },
+    {
+      "feature": "Season timeline",
+      "entryFromHome": "League > Season timeline",
+      "tapsFromHome": 2,
+      "firstView": "Timeline screen or explicit load error with retry",
+      "daily": false
+    }
+  ],
+  "navigationProof": {
+    "status": "passed-local-webkit",
+    "engine": "WebKit",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "accounts": [
+      "commissioner",
+      "manager"
+    ],
+    "screenChecks": 66,
+    "entryChecks": 35,
+    "measuredTargets": 31,
+    "evidence": "program2/evidence/navigation/round3/screenshots/report.json",
+    "timeline": "Guarded fallback captured. Named and default exports and route retry pass unit checks. Screen implementation is absent."
+  }
 }

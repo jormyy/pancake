@@ -22,12 +22,12 @@ const render = async (value: MatchupForecast | null, stale = false, pending = fa
 })
 it('shows shared final points and odds next to each team', async () => {
     await render(forecast())
-    expect(text()).toContain('42.5 FP projected')
+    expect(text()).toContain('43 proj')
     expect(text()).toContain('73% win')
-    expect(text()).toContain('35.2 FP projected')
+    expect(text()).toContain('35 proj')
     expect(text()).toContain('27% win')
-    expect(text()).toContain('Updated')
-    expect(text()).toContain('Saved lineups')
+    expect(text()).not.toContain('Updated')
+    expect(text()).not.toContain('Saved lineups')
 })
 it('never invents odds or points when inputs are missing', async () => {
     const value = forecast()
@@ -35,20 +35,42 @@ it('never invents odds or points when inputs are missing', async () => {
     value.teams = value.teams.map(team => ({ ...team, projectedFinal: null, winProbability: null, coveredGames: 0 }))
     value.missingInputs = ['Projection unavailable: secret-player-id']
     await render(value)
-    expect(text()).toContain('Projection unavailable')
-    expect(text()).toContain('Win odds unavailable')
-    expect(text()).toContain('Limited forecast')
+    expect(text()).toContain('— proj')
+    expect(text()).toContain('— win')
+    expect(text()).not.toContain('Limited forecast')
     expect(text()).not.toContain('50%')
     expect(text()).not.toContain('0.0 FP')
     expect(text()).not.toContain('secret-player-id')
 })
-it('labels retained estimates stale during refresh', async () => {
+it('keeps retained estimates compact during refresh', async () => {
     await render(forecast(), true, true)
-    expect(text()).toContain('42.5 FP projected')
-    expect(text()).toContain('Forecast out of date')
+    expect(text()).toContain('43 proj')
+    expect(text()).not.toContain('Forecast out of date')
 })
 it('shows a missing cache without fabricated values', async () => {
     await render(null)
-    expect(text()).toContain('Forecast unavailable')
+    expect(text()).toContain('— proj')
+    expect(text()).toContain('— win')
     expect(text()).not.toContain('% win')
+})
+
+it('withholds both odds when either final projection is missing', async () => {
+    const value = forecast()
+    value.teams[1].projectedFinal = null
+    await render(value)
+    expect(text()).not.toContain('% win')
+    expect(text()).toContain('— win')
+})
+it('uses current scores plus remaining projections for both teams', async () => {
+    const { estimateMatchup } = await import('@pancake/core')
+    const value = forecast()
+    const scores = [{ memberId: 'mine', currentPoints: 322 }, { memberId: 'other', currentPoints: 309 }]
+    const games = [{ gameId: 'a', playerId: 'a', memberId: 'mine', expectedPoints: 1394, variance: 10000, completed: false, eligible: true },
+        { gameId: 'b', playerId: 'b', memberId: 'other', expectedPoints: 1460, variance: 10000, completed: false, eligible: true }]
+    const estimate = estimateMatchup(scores, games)
+    await render({ ...value, ...estimate })
+    expect(text()).toContain('1716 proj')
+    expect(text()).toContain('1769 proj')
+    expect(text()).toContain(`${Math.round(estimate.teams[0].winProbability! * 100)}% win`)
+    expect(estimate.teams[0].winProbability).toBeLessThan(0.5)
 })

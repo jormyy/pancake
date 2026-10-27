@@ -6,9 +6,7 @@ test('daily maintenance expires waivers before the season boundary through produ
   const calls = []
   await maintenanceTick(async statement => { calls.push(statement); return [] }, async statement => { calls.push(statement); return '' })
   assert.deepEqual(calls, [
-    'SELECT private.reconcile_edge_invocations()',
-    "SELECT public.invoke_edge_function_at_et_time('process-waivers',3,0)",
-    'SELECT public.invoke_season_boundary_if_due()',
+    'SELECT public.dispatch_work()',
   ])
 })
 
@@ -29,7 +27,7 @@ test('a retained failed boundary recovers on the second quarter-hour tick withou
 
 test('a blocked boundary is never accepted merely because its HTTP response is 200', async () => {
   const failed = { status_code: 200, worker_status: 'failed', content: JSON.stringify({ leagues: [{ error: 'Resolve pending waiver claims and waiver holds before advancing season.' }] }) }
-  assert.equal((await maintenanceTick(async statement => statement.includes('season_boundary') ? [failed] : [], async () => '')).length, 1)
+  assert.equal((await maintenanceTick(async statement => statement.includes('dispatch_work') ? [failed] : [], async () => '')).length, 1)
   await assert.rejects(waitForRollover({ start: 0, deadline: 30 * 60000, oldSeason: 'old', move: async () => {}, tick: async () => [failed], current: async () => 'old' }), /did not roll over.*2 ticks/)
   await assert.rejects(maintenanceTick(async () => [{ ...failed, content: '{"leagues":[{"error":"unrelated backend failure"}]}' }], async () => ''), /unexpected maintenance failure/)
 })

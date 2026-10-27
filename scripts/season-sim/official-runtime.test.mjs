@@ -50,7 +50,7 @@ for (const scenario of ['retained-receipts', 'missing-new-row', 'corrupt-prior-r
           const row = { id, invocation_key: 'worker-' + id, function_name: 'sync-schedule', worker_status: 'success', sync_status: 'success', status_code: 200, content: '{}' }
           state.rows.push(row)
           state.pending.push(row)
-          report.triggerFidelity.counts['nba-sync-schedule'] = (report.triggerFidelity.counts['nba-sync-schedule'] ?? 0) + 1
+          report.triggerFidelity.counts['work-dispatcher'] = (report.triggerFidelity.counts['work-dispatcher'] ?? 0) + 1
         }
         add(10)
         await runtime.verifyFidelity()

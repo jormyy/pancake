@@ -15,7 +15,7 @@ vi.mock('@/lib/scoring', () => ({ computeLiveFantasyPoints: () => 0 }))
 let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
-it.each([['Gary Trent Jr.', 'G. Trent Jr.', '1629018'], ['Jaren Jackson III', 'J. Jackson III', 'IOS67'], ['Shai Gilgeous-Alexander', 'S. Gilgeous-Alexander', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
+it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Jackson', 'IOS67'], ['Shai Gilgeous-Alexander', 'Gilgeous-A', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
     await act(async () => {
         screen = create(React.createElement(MatchupRow, {
             myPlayer: { rosterPlayerId: 'roster', playerId: 'player', displayName, position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId },
@@ -68,13 +68,14 @@ it('keeps injuries beside names and games visible without no-game team text', as
     expect(texts().join(' ')).not.toMatch(/TOR|OKC|OFF|No game/)
 })
 
-it('keeps projected points separate from earned points and labels the source', async () => {
+it('keeps earned points and game lines without per-player projection text', async () => {
     const props = rowProps()
     await act(async () => { screen = create(React.createElement(MatchupRow, {
         ...props, showProjections: true, forecastStale: true,
         myProjection: { gameId: 'g', playerId: 'Mine', memberId: 'm', date: '2026-10-25', projection: 23.4, source: 'Sleeper', sourceAt: '2026-10-25T12:00:00Z', remainingFraction: 1 },
     })) })
-    const labels = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.accessibilityLabel).filter(Boolean)
-    expect(labels).toContain('Projection 23.4 points, source Sleeper, updated 2026-10-25T12:00:00Z, out of date')
-    expect(labels).toContain('Projection unavailable')
+    const texts = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(texts.filter(value => value === 'TOR @ OKC')).toHaveLength(2)
+    expect(texts).toContain('0.0')
+    expect(texts.join(' ')).not.toMatch(/Proj|23\.4|Sleeper/)
 })

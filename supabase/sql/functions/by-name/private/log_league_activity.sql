@@ -50,6 +50,17 @@ BEGIN
   )
   RETURNING id INTO v_id;
 
+  IF p_related_trade_id IS NOT NULL AND p_event_type IN ('trade_offered','trade_countered','trade_edited') THEN
+    INSERT INTO public.league_events(league_id,kind,summary,detail)
+    SELECT trade.league_id,
+      CASE p_event_type WHEN 'trade_countered' THEN 'trade.countered' WHEN 'trade_edited' THEN 'trade.edited' ELSE 'trade.sent' END,
+      p_title,
+      to_jsonb(trade) || jsonb_build_object('reason', p_body, 'member_ids',
+        (SELECT jsonb_agg(member_id ORDER BY sort_order, member_id) FROM public.trade_participants WHERE trade_id=trade.id))
+    FROM public.trades trade WHERE trade.id=p_related_trade_id
+      AND (p_event_type<>'trade_offered' OR (trade.countered_from_trade_id IS NULL AND trade.edited_from_trade_id IS NULL));
+  END IF;
+
   RETURN v_id;
 END;
 $$;

@@ -14,6 +14,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.activate_roster_player_with_overflow_atomic', jsonb_build_array(p_activate_roster_player_id, p_activate_source, p_free_roster_player_id, p_free_action), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_user_id uuid := auth.uid();
 BEGIN
   IF v_user_id IS NULL THEN
@@ -50,5 +56,8 @@ BEGIN
       RAISE EXCEPTION 'Invalid activation source: %', p_activate_source
         USING ERRCODE = '22023';
   END CASE;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

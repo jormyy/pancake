@@ -16,7 +16,6 @@ DECLARE
   _internal_token text;
   _request_id bigint;
   _invocation_key uuid := gen_random_uuid();
-  _claim public.cron_dispatch_state%ROWTYPE;
 BEGIN
   _base_url := NULLIF(rtrim(current_setting('app.supabase_url', true), '/'), '');
   _internal_token := NULLIF(current_setting('app.edge_internal_token', true), '');
@@ -58,17 +57,21 @@ BEGIN
     jsonb_build_object(
       'x-internal-function-token', _internal_token,
       'Content-Type', 'application/json',
-      'x-pancake-invocation-id', _invocation_key::text
+      'x-pancake-invocation-id', _invocation_key::text,
+      'x-pancake-work-id', NULLIF(current_setting('pancake.work_id',true),'')
     ),
     30000
   ) INTO _request_id;
 
-  SELECT * INTO _claim FROM public.cron_dispatch_state
-   WHERE job_key = NULLIF(current_setting('pancake.cron_job_key', true), '');
+  UPDATE private.work_items SET invocation_key=_invocation_key
+  WHERE id=NULLIF(current_setting('pancake.work_id',true),'')::bigint AND status='running';
+
   INSERT INTO public.edge_invocations (
-    function_name, request_id, invocation_key, dispatch_job_key, dispatch_period_key, dispatch_claimed_at
+    function_name, request_id, invocation_key, work_item_id, work_lease_token
   ) VALUES (
-    function_name, _request_id, _invocation_key, _claim.job_key, _claim.period_key, _claim.dispatched_at
+    function_name, _request_id, _invocation_key,
+    NULLIF(current_setting('pancake.work_id',true),'')::bigint,
+    (SELECT lease_token FROM private.work_items WHERE id=NULLIF(current_setting('pancake.work_id',true),'')::bigint)
   );
 END;
 $$;

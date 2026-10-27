@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { ReactNode, useEffect, useId } from 'react'
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { breakpoints, colors, controlSize, elevation, layout, radii, scrim, spacing, textStyles } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, componentTokens, elevation, radii, scrim, spacing } from '@/constants/tokens'
 import { trapDialogTabFocus, type DialogKeyboardEvent } from './dialogFocus'
 import { scheduleWebFocusRecovery } from './webFocus'
 
@@ -67,7 +67,7 @@ export function Sheet({
                 >
                     {bottomSheet ? <View style={styles.grabber} aria-hidden /> : null}
                     {title || !bottomSheet ? <View style={styles.header}>
-                        <Text nativeID={titleId} style={[textStyles.rowTitle, styles.title]} numberOfLines={1}>{title}</Text>
+                        <Text nativeID={titleId} style={[componentTokens.sheet.title, styles.title]}>{title}</Text>
                         <Pressable
                             onPress={onClose}
                             style={styles.close}
@@ -100,20 +100,20 @@ const styles = StyleSheet.create({
     },
     panelBottom: {
         width: '100%',
-        maxHeight: '88%',
-        borderTopLeftRadius: radii['3xl'],
-        borderTopRightRadius: radii['3xl'],
+        maxHeight: componentTokens.sheet.phoneMaxHeight,
+        borderTopLeftRadius: componentTokens.sheet.phoneRadius,
+        borderTopRightRadius: componentTokens.sheet.phoneRadius,
     },
     panelCenter: {
         width: '100%',
-        maxWidth: layout.sheet.maxWidth,
-        maxHeight: '86%',
-        borderRadius: radii['2xl'],
+        maxWidth: componentTokens.sheet.maxWidth,
+        maxHeight: componentTokens.sheet.desktopMaxHeight,
+        borderRadius: componentTokens.sheet.desktopRadius,
     },
     grabber: {
         alignSelf: 'center',
-        width: layout.sheet.grabberWidth,
-        height: layout.sheet.grabberHeight,
+        width: componentTokens.sheet.grabberWidth,
+        height: componentTokens.sheet.grabberHeight,
         borderRadius: radii.full,
         backgroundColor: colors.border,
         marginTop: spacing.sm,
@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
         gap: spacing.md,
         paddingLeft: spacing.xl,
         paddingRight: spacing.sm,
-        minHeight: layout.sheet.headerHeight,
+        minHeight: componentTokens.sheet.headerHeight,
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
     },
     title: { flex: 1 },
     close: { width: controlSize.minTouch, height: controlSize.minTouch, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
     body: { flexGrow: 0 },
-    bodyContent: { padding: spacing.xl },
+    bodyContent: { padding: componentTokens.sheet.contentPadding },
 })

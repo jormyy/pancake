@@ -1,4 +1,4 @@
-import { clearPersistentCaches } from '@/lib/persistent-cache'
+import { clearPersistentCaches, writePersistentCache } from '@/lib/persistent-cache'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,12 @@ const mocks = vi.hoisted(() => ({
     getRoster: vi.fn(),
     getStats: vi.fn(),
 }))
+vi.mock('@/lib/session-cache-registry', async original => ({ ...await original<typeof import('@/lib/session-cache-registry')>(), sessionOwner: () => 'account' }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { leagueId: string; params: { targetMemberId: string } }) => {
+    const roster = await mocks.getRoster(scope.params.targetMemberId, scope.leagueId)
+    const stats = await mocks.getStats()
+    return { roster, avgMap: Object.fromEntries(stats.avgMap), avgStatsMap: Object.fromEntries(stats.avgStatsMap) }
+} }))
 vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
     View: 'View', Text: 'Text', ScrollView: 'ScrollView',
@@ -77,6 +83,7 @@ describe('team roster read recovery', () => {
     })
 
     it('retains roster identities when averages fail and offers retry', async () => {
+        writePersistentCache('pancake:team-roster:v1:own-member:league-a:other-member', { roster, averages: [], stats: [] })
         mocks.getStats.mockRejectedValueOnce(new Error('averages read failed'))
         await mount()
         expect(screen.root.findAll((node) => node.props.item?.id === 'roster-one')).toHaveLength(1)
@@ -95,6 +102,7 @@ describe('team roster read recovery', () => {
     })
 
     it('keeps known players when the averages retry cannot refresh the roster', async () => {
+        writePersistentCache('pancake:team-roster:v1:own-member:league-a:other-member', { roster, averages: [], stats: [] })
         mocks.getStats.mockRejectedValueOnce(new Error('averages read failed'))
         await mount()
         mocks.getRoster.mockRejectedValueOnce(new Error('roster retry failed'))

@@ -14,6 +14,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result jsonb;
+BEGIN
+  __request_context := private.request_begin('public.auto_pick_snake_pick_atomic', jsonb_build_array(p_draft_id, p_member_id, p_reason, p_to_taxi));
+  IF (__request_context->>'replay')::boolean THEN RETURN __request_context->'result'; END IF;
+  <<request_write>>
+DECLARE
   v_draft drafts%ROWTYPE;
   v_player_id uuid;
   v_result jsonb;
@@ -96,6 +103,9 @@ BEGIN
     )
   );
 
-  RETURN v_result || jsonb_build_object('player_id', v_player_id);
+  __request_result := v_result || jsonb_build_object('player_id', v_player_id); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

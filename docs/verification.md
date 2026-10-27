@@ -54,6 +54,8 @@ The [simulator](../scripts/season-sim/README.md) and [profiler](../scripts/bench
 | Layout | `npm run e2e:layout-stability -- --help` | [Layout setup](../tests/e2e/layout-stability-README.md) |
 | Budgets | `npm run perf:budget` | Saved measurement reports for report enforcement |
 | Autonomous seasons | `npm run e2e:perpetual` | Local stack; see [browser guide](../tests/e2e/README.md) |
+| Release runner contracts | `npx vitest run tests/release-script.test.ts` | No network; source and command fixtures |
+| Release rehearsal | `npm run release -- --dry-run --candidate <full-sha>` | Private 594xx mini stack, clean candidate, replay and full-check receipts; see [runner guide](../scripts/release/README.md) |
 | Release soak | `npm run e2e:soak:release` | Release workflow setup and migration baseline |
 
 Run focused tests while iterating. Reserve full suites and heavy replay for the release checks.
@@ -230,3 +232,16 @@ League edits must remain blocked while foreign-key checks can proceed.
 The recipe also checks invisible uncommitted changes, stable retries, stale snapshots, and rollback after either writer fails.
 It removes its synthetic fixture and barrier trigger on exit.
 The pre-fix control fails with a PostgreSQL deadlock; the fixed functions must pass without retrying the conflicting transactions.
+
+## Scheduler test tools
+
+Current-schema tools use `private.enqueue_*`, work-item leases, and `dispatch_work`.
+The season replay keeps every dispatcher minute and delayed worker wakeup.
+It no longer skips separate scheduler ticks when source queues appear empty.
+Those separate ticks no longer exist in the current schema.
+
+The pre-tipoff benchmark remains a historical migration comparison.
+Its driver loads the reviewed 20260814 and 20261014 scheduler fixtures.
+Its report tool reads saved counters from those runs.
+Their old function names do not describe current-schema dependencies.
+The compatibility check verifies this boundary and continues checking current capacity profiling.

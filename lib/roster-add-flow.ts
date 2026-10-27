@@ -1,22 +1,15 @@
+import { cachedScreenView, readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { PlayerView } from '@/lib/cache/view-types'
+import { currentSeasonYear } from '@/lib/shared/season'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { getRosterProblems, type RosterProblem } from '@/lib/roster-problems'
-import {
-    activateRosterPlayerWithOverflow,
-    addFreeAgent,
-    getPlayerRosterContext,
-    getRoster,
-    toggleIR,
-    toggleTaxi,
-    getTaxiExitPlayerIds,
-    type PlayerRosterStatus,
-    type RosterOccupancy,
-    type RosterPlayer,
-} from '@/lib/roster'
+import { activateRosterPlayerWithOverflow, addFreeAgent, getRoster, toggleIR, toggleTaxi, getTaxiExitPlayerIds, type PlayerRosterStatus, type RosterOccupancy, type RosterPlayer } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { RULE_CODES, errorCode } from '@/lib/shared/errors'
-import { getCurrentSeasonId } from '@/lib/shared/season'
-import { getPendingWaiverPlayerIdsForSeason } from '@/lib/waivers'
-import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
+
+
+import type { MemberTransactionState } from '@/lib/league'
 
 export async function loadRosterAddGate(
     memberId: string,
@@ -30,16 +23,6 @@ export async function loadRosterAddGate(
     return { roster, taxiExitIds, problems, ineligible: problems.flatMap(problem => problem.player ? [problem.player] : []) }
 }
 
-/** The member's weekly add state, or null when it cannot load: a pickup still goes to the server, which explains any block. */
-export async function loadAddLimitState(memberId: string, leagueId: string): Promise<MemberTransactionState | null> {
-    try {
-        return await getMemberTransactionState(memberId, leagueId)
-    } catch (error) {
-        console.warn('Could not load the weekly add state.', error)
-        return null
-    }
-}
-
 /** Roster status first; the weekly add state only once the player turns out to be pick-up-able. */
 export async function loadPickupState(
     playerId: string,
@@ -49,18 +32,18 @@ export async function loadPickupState(
     pickupHint = false,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
-    const knownPickupState = pickupHint ? loadAddLimitState(memberId, leagueId) : null
-    const { status, roster } = await getPlayerRosterContext(playerId, memberId, leagueId, canRead)
+    const scope = screenScope('player', leagueId, memberId, { playerId, seasonYear: currentSeasonYear() })
+    const view = cachedScreenView<PlayerView>(scope)?.value ?? await readScreenView<PlayerView>(scope)
     assertReadActive(canRead)
-    const pickupPossible = status.status === 'free_agent' || status.status === 'on_waivers'
-    const [transactionState, pendingIds] = await Promise.all([
-        pickupPossible ? knownPickupState ?? loadAddLimitState(memberId, leagueId) : Promise.resolve(null),
-        pickupPossible ? getCurrentSeasonId(leagueId).then((seasonId) => {
-            assertReadActive(canRead)
-            return seasonId ? getPendingWaiverPlayerIdsForSeason(memberId, seasonId) : new Set<string>()
-        }) : Promise.resolve(new Set<string>()),
-    ])
-    return { status, transactionState, claimPending: pendingIds.has(playerId), roster }
+    const own = view.roster.roster.find(row => row.players.id === playerId)
+    const claimPending = view.roster.claims.some(claim => claim.playerId === playerId && claim.status === 'pending')
+    const ownership = (view as PlayerView & { ownership?: { memberId: string; teamName: string; isOnTaxi: boolean } | null; clearsAt?: string | null }).ownership
+    const clearsAt = (view as PlayerView & { clearsAt?: string | null }).clearsAt
+    const status: PlayerRosterStatus = own ? { status: 'mine', rosterPlayerId: own.id, isOnTaxi: own.is_on_taxi }
+        : ownership ? { status: 'taken', ownerTeamName: ownership.teamName, isOnTaxi: ownership.isOnTaxi }
+        : clearsAt ? { status: 'on_waivers', logId: '', clearsAt } : { status: 'free_agent' }
+    return { status, transactionState: view.roster.transactionState, claimPending, roster: view.roster.roster }
+
 }
 
 export async function addFreeAgentOrRequestDrop(

@@ -1,190 +1,79 @@
-import React, { useLayoutEffect } from 'react'
+import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
-import { clearPersistentCaches, readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
+import { clearScreenViews, saveScreenView, type ScreenScope } from '@/lib/cache/screen-cache'
 import { setSessionOwner } from '@/lib/session-cache-registry'
-import * as sessionRegistry from '@/lib/session-cache-registry'
-import { subscribeToTableChanges } from '@/lib/realtime'
 
-const { getPendingIncomingTradeCount, league } = vi.hoisted(() => ({
-    getPendingIncomingTradeCount: vi.fn(),
-    league: { value: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } } },
-}))
-
-vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
-vi.mock('expo-router', () => ({ usePathname: () => '/' }))
-vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => league.value }))
-vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: sessionRegistry.sessionOwner() ?? 'user-a' } }) }))
-vi.mock('@/lib/trades', () => ({ getPendingIncomingTradeCount }))
-vi.mock('@/lib/realtime', () => ({
-    reportRealtimeCleanup: vi.fn(),
-    subscribeToTableChanges: vi.fn(() => ({})),
-    unsubscribeFromTableChanges: vi.fn(),
-}))
-
+const state = vi.hoisted(() => ({ owner: 'account', league: 'league', reads: vi.fn() }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: { id: state.league } }) }))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: state.owner ? { id: state.owner } : null }) }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: state.reads, rpc: state.reads } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+let screen: ReactTestRenderer | undefined
+let count = -1
+const frames: number[] = []
+const Probe = () => { count = usePendingTradeCount(); frames.push(count); return null }
+const scope = (changes: Partial<ScreenScope> = {}): ScreenScope => ({ accountId: 'account', leagueId: 'league', memberId: 'member', screen: 'home', ...changes })
+const save = (value: number, changes: Partial<ScreenScope> = {}) => saveScreenView(scope(changes), { context: { pendingIncomingCount: value } }, '1')
+const mount = async () => { await act(async () => { screen = create(React.createElement(Probe)) }) }
+beforeEach(() => { state.owner = 'account'; state.league = 'league'; setSessionOwner('account'); clearScreenViews(); frames.length = 0; vi.clearAllMocks() })
+afterEach(async () => { await act(async () => screen?.unmount()); screen = undefined })
 
-const COUNTS: Record<string, number> = { 'league-a': 3, 'league-b': 5 }
-
-beforeEach(() => {
-    setSessionOwner('user-a')
-    clearPersistentCaches()
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    league.value = { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } }
-    getPendingIncomingTradeCount.mockImplementation(async (_member: string, leagueId: string) => COUNTS[leagueId])
+it('shows a saved server count in the first frame without a separate count read', async () => {
+    save(3)
+    await mount()
+    expect(frames[0]).toBe(3)
+    expect(state.reads).not.toHaveBeenCalled()
 })
 
-afterEach(() => {
-    vi.useRealTimers()
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
+it('updates mounted badges when a refreshed view publishes the next count', async () => {
+    save(3)
+    await mount()
+    await act(async () => save(7))
+    expect(count).toBe(7)
 })
 
-describe('usePendingTradeCount', () => {
-    it('refreshes a stale count on focus and retries without clearing its last count', async () => {
-        const browser = new EventTarget()
-        vi.stubGlobal('window', browser)
-        let count = -1
-        const Probe = () => { count = usePendingTradeCount(); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        getPendingIncomingTradeCount.mockRejectedValueOnce(new Error('503')).mockResolvedValue(8)
-        await act(async () => { await vi.advanceTimersByTimeAsync(300_000); browser.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(250) })
-        expect(count).toBe(3)
-        await act(async () => { browser.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(250) })
-        expect(count).toBe(8)
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('reuses a fresh count on focus, defers hidden changes and forces online recovery', async () => {
-        const browser = new EventTarget(), page = new EventTarget(), network = { onLine: true }
-        let hidden = false
-        Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
-        vi.stubGlobal('window', browser); vi.stubGlobal('document', page); vi.stubGlobal('navigator', network)
-        let count = -1
-        const Probe = () => { count = usePendingTradeCount(); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        for (let cycle = 0; cycle < 3; cycle++) {
-            await act(async () => { browser.dispatchEvent(new Event('focus')) })
-            hidden = true; await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
-            hidden = false; await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
-        }
-        await act(async () => { await vi.advanceTimersByTimeAsync(250) })
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(1)
-        hidden = true
-        getPendingIncomingTradeCount.mockResolvedValue(6)
-        const subscription = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1]
-        if (subscription.mode !== 'fallback') throw new Error('Badge must use its fallback refresh')
-        await act(async () => { subscription.onChange(); await vi.advanceTimersByTimeAsync(5_000) })
-        expect(count).toBe(3)
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(1)
-        hidden = false
-        await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
-        expect(count).toBe(6)
-        network.onLine = false
-        getPendingIncomingTradeCount.mockResolvedValue(7)
-        await act(async () => { subscription.onChange(); await vi.advanceTimersByTimeAsync(5_000) })
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(2)
-        network.onLine = true
-        await act(async () => { browser.dispatchEvent(new Event('online')); await vi.advanceTimersByTimeAsync(250) })
-        expect(count).toBe(7)
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('reconciles a missed offer after rejoin', async () => {
-        let count = -1
-        const Probe = () => { count = usePendingTradeCount(); return null }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe)) })
-        expect(count).toBe(3)
-        getPendingIncomingTradeCount.mockResolvedValue(7)
-        const reconnect = vi.mocked(subscribeToTableChanges).mock.calls.at(-1)![1].onReconnect!
-        await act(async () => { await reconnect() })
-        expect(count).toBe(7)
-        expect(getPendingIncomingTradeCount).toHaveBeenCalledTimes(2)
-        await act(async () => { renderer.unmount() })
-    })
-
-    it('shows only the current league count and retries a failed read', async () => {
-        let latest = -1
-        const Probe = ({ leagueId }: { leagueId: string }) => {
-            league.value = { current: { id: `member-${leagueId}` }, currentLeague: { id: leagueId } }
-            latest = usePendingTradeCount()
-            return null
-        }
-        let renderer!: ReactTestRenderer
-        await act(async () => { renderer = create(React.createElement(Probe, { leagueId: 'league-a' })) })
-        expect(latest).toBe(3)
-
-        // The first read for the next league fails, like a dropped request.
-        getPendingIncomingTradeCount.mockRejectedValueOnce(new Error('network'))
-        await act(async () => { renderer.update(React.createElement(Probe, { leagueId: 'league-b' })) })
-        expect(latest).toBe(0)
-
-        await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
-        expect(latest).toBe(5)
-        await act(async () => { renderer.unmount() })
-    })
+it('uses the current league immediately when the selected league changes', async () => {
+    save(3)
+    save(5, { leagueId: 'other' })
+    await mount()
+    state.league = 'other'
+    frames.length = 0
+    await act(async () => screen!.update(React.createElement(Probe)))
+    expect(frames).toEqual([5])
 })
 
-it('renders a saved badge in its first frame while the count request is held', async () => {
-    writePersistentCache('pancake:pending-trade-count:v1:user-a:league-a:member-a', 2)
-    let release!: (count: number) => void
-    getPendingIncomingTradeCount.mockReturnValueOnce(new Promise<number>(resolve => { release = resolve }))
-    const frames: number[] = []
-    const Probe = () => { frames.push(usePendingTradeCount()); return null }
-    let renderer!: ReactTestRenderer
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    expect(frames[0]).toBe(2)
-    expect(frames.every(count => count === 2)).toBe(true)
-    await act(async () => { release(2) })
-    expect(frames.every(count => count === 2)).toBe(true)
-    expect(readPersistentCache('pancake:pending-trade-count:v1:user-a:league-a:member-a')).toBe(2)
-    await act(async () => { renderer.unmount() })
+it('never displays another account count after an account switch', async () => {
+    save(9)
+    await mount()
+    state.owner = 'next'
+    await act(async () => { setSessionOwner('next'); screen!.update(React.createElement(Probe)) })
+    expect(count).toBe(0)
+    await act(async () => save(4, { accountId: 'next' }))
+    expect(count).toBe(4)
 })
 
-it('saves a settled badge for a remount and rejects an older session response', async () => {
-    let count = -1
-    const Probe = () => { count = usePendingTradeCount(); return null }
-    let renderer!: ReactTestRenderer
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    expect(count).toBe(3)
-    await act(async () => { renderer.unmount() })
-    let release!: (count: number) => void
-    getPendingIncomingTradeCount.mockReturnValueOnce(new Promise<number>(resolve => { release = resolve }))
-    await act(async () => { renderer = create(React.createElement(Probe)) })
-    expect(count).toBe(3)
-    clearPersistentCaches()
-    setSessionOwner(null)
-    setSessionOwner('user-b')
-    await act(async () => { release(9) })
-    expect(readPersistentCache('pancake:pending-trade-count:v1:user-a:league-a:member-a')).toBeNull()
-    await act(async () => { renderer.update(React.createElement(Probe)) })
-    expect(count).not.toBe(9)
-    await act(async () => { renderer.unmount() })
+it('clears a displayed count when the session caches clear', async () => {
+    save(9)
+    await mount()
+    await act(async () => clearScreenViews())
+    expect(count).toBe(0)
 })
 
-it('reads the authenticated owner cache before the parent publishes the cache session', async () => {
-    writePersistentCache('pancake:pending-trade-count:v1:user-a:league-a:member-a', 2)
-    const owner = vi.spyOn(sessionRegistry, 'sessionOwner').mockReturnValue(undefined)
-    let release!: (count: number) => void
-    getPendingIncomingTradeCount.mockReturnValueOnce(new Promise<number>(resolve => { release = resolve }))
-    const frames: number[] = []
-    const Probe = () => { frames.push(usePendingTradeCount()); return null }
-    const Parent = () => {
-        useLayoutEffect(() => { owner.mockRestore() }, [])
-        return React.createElement(Probe)
-    }
-    let renderer!: ReactTestRenderer
-    await act(async () => { renderer = create(React.createElement(Parent)) })
-    expect(frames[0]).toBe(2)
-    await act(async () => { release(2) })
-    expect(frames.every(count => count === 2)).toBe(true)
-    await act(async () => { renderer.unmount() })
+it('keeps the saved count through unrelated view publications and a remount', async () => {
+    save(6)
+    await mount()
+    await act(async () => save(20, { leagueId: 'other' }))
+    expect(count).toBe(6)
+    await act(async () => screen!.unmount())
+    await mount()
+    expect(count).toBe(6)
+})
+
+it('shows zero when signed out even if another owner has cached views', async () => {
+    save(8)
+    state.owner = ''
+    await mount()
+    expect(count).toBe(0)
 })

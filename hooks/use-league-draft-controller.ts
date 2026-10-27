@@ -29,7 +29,7 @@ const readActiveDraftCache = (leagueId: string) =>
 const writeActiveDraftCache = (leagueId: string, draft: Draft | null) =>
     writePersistentCache<ActiveDraftCacheEntry>(`${ACTIVE_DRAFT_CACHE_PREFIX}${leagueId}`, { draft })
 
-export function useLeagueDraftController(leagueId: string | undefined, options: { memberId?: string; authorized?: boolean } = {}) {
+export function useLeagueDraftController(leagueId: string | undefined, options: { memberId?: string; authorized?: boolean; view?: { draft: Draft | null; loaded: boolean; error: string | null } } = {}) {
     const { push } = useRouter()
     const activity = useBrowserReadActivity()
     const focused = useRef(false)
@@ -153,9 +153,9 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
 
     useFocusEffect(useCallback(() => {
         focused.current = true
-        if (leagueId && activeResource.current === resourceKey) void fetchActiveDraft(leagueId)
+        if (!options.view && leagueId && activeResource.current === resourceKey) void fetchActiveDraft(leagueId)
         return () => { focused.current = false; suspend() }
-    }, [fetchActiveDraft, leagueId, resourceKey, suspend]))
+    }, [fetchActiveDraft, leagueId, resourceKey, suspend, options.view]))
 
     useEffect(() => {
         if (!admissionRef.current()) suspend()
@@ -304,10 +304,10 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
 
     const ownsState = draftOwnerKey === resourceKey
     return {
-        activeDraft: ownsState ? activeDraft : null,
-        activeDraftError: ownsState ? activeDraftError : null,
+        activeDraft: options.view ? options.view.draft : ownsState ? activeDraft : null,
+        activeDraftError: options.view ? options.view.error : ownsState ? activeDraftError : null,
         activeDraftLoading: ownsState ? activeDraftLoading : Boolean(leagueId),
-        activeDraftLoaded: ownsState && activeDraftLoaded,
+        activeDraftLoaded: options.view ? options.view.loaded : ownsState && activeDraftLoaded,
         draftLoading: draftLoadingOwner === leagueId,
         draftTimerSeconds,
         fetchActiveDraft,

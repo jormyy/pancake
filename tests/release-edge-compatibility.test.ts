@@ -380,6 +380,42 @@ function droppedObjectCalls(migration: string, consumers: { file: string; source
     ])
 }
 
+function retainedCronCommands(deployed: string, upgrade: string) {
+    const jobs = new Map<string, string>()
+    for (const match of `${deployed}\n${upgrade}`.matchAll(/\bcron\.(?:schedule\s*\([\s\S]*?\);|unschedule\s*\([^;]+;)/gi)) {
+        if (/^cron\.schedule/i.test(match[0])) {
+            const name = match[0].match(/^cron\.schedule\s*\(\s*'([^']+)'/i)?.[1]
+            if (name) jobs.set(name, match[0])
+            continue
+        }
+        const names = match[0].match(/jobname\s+IN\s*\(([^)]+)\)/i)?.[1]
+            ?? match[0].match(/jobname\s*=\s*('(?:''|[^'])*')/i)?.[1]
+            ?? match[0].match(/^cron\.unschedule\(\s*('(?:''|[^'])*')/i)?.[1]
+        for (const name of names?.matchAll(/'((?:''|[^'])*)'/g) ?? []) jobs.delete(name[1])
+    }
+    return [...jobs.values()].join('\n')
+}
+
+it('checks retained cron calls and permits jobs removed by the same upgrade', () => {
+    const cron = "SELECT cron.schedule('old', '* * * * *', 'SELECT public.retired_call()');"
+    const drop = 'DROP FUNCTION public.retired_call();'
+    expect(droppedObjectCalls(drop, [{ file: 'cron', source: retainedCronCommands(cron, '') }])).toEqual(['cron: function retired_call'])
+    const upgrade = "SELECT cron.unschedule(jobid) FROM cron.job WHERE jobname IN ('old');"
+    expect(droppedObjectCalls(drop, [{ file: 'cron', source: retainedCronCommands(cron, upgrade) }])).toEqual([])
+    expect(droppedObjectCalls(drop, [{ file: 'cron', source: retainedCronCommands(cron, upgrade.replace("'old'", "'other'")) }])).toEqual(['cron: function retired_call'])
+    expect(droppedObjectCalls(drop, [{ file: 'cron', source: retainedCronCommands(`${cron}\n${upgrade}`, '') }])).toEqual([])
+    expect(droppedObjectCalls(drop, [{ file: 'cron', source: retainedCronCommands(cron, `${upgrade}\n${cron}`) }])).toEqual(['cron: function retired_call'])
+})
+
+it('keeps historical benchmark callers tied to their historical migration fixtures', () => {
+    const source = readFileSync('scripts/bench/pre-tipoff.ts', 'utf8')
+    expect(source).toContain("side === 'old' ? '20260814000003_gate_lineup_optimizer_cron.sql' : '20261014000001_pre_tipoff_lineups.sql'")
+    expect(readFileSync('scripts/bench/README.md', 'utf8')).toContain('-f supabase/migrations/20261014000001_pre_tipoff_lineups.sql')
+    const report = readFileSync('scripts/bench/report-metrics.ts', 'utf8')
+    expect(report).toContain('Deno.readTextFile')
+    expect(report).not.toMatch(/\.unsafe\(|\.rpc\(|execFile|spawn|Deno\.Command/)
+})
+
 it.skipIf(!available)('keeps objects used by deployed consumers and release tooling through the server migration', () => {
     const paths = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/functions', 'app', 'components', 'contexts', 'hooks', 'lib').split('\n')
         .filter(file => /\.tsx?$/.test(file) && !file.endsWith('.test.ts'))
@@ -387,12 +423,12 @@ it.skipIf(!available)('keeps objects used by deployed consumers and release tool
         source: git('show', ...paths.filter(file => group === 'client' ? !file.startsWith('supabase/') : file.startsWith(group)).map(file => `origin/main:${file}`)),
     }))
     const migrations = git('ls-tree', '-r', '--name-only', 'origin/main', '--', 'supabase/migrations').split('\n').filter(file => file.endsWith('.sql'))
-    const cron = [...git('show', ...migrations.map(file => `origin/main:${file}`)).matchAll(/\bcron\.schedule\s*\([\s\S]*?\);/gi)].map(match => match[0]).join('\n')
+    const cron = retainedCronCommands(git('show', ...migrations.map(file => `origin/main:${file}`)), releaseMigrations().join('\n'))
     consumers.push({ file: 'cron', source: cron })
     for (const root of ['tests/e2e', 'scripts', '.github/workflows']) {
         for (const entry of readdirSync(root, { recursive: true })) {
             const file = `${root}/${entry}`
-            if (/\.(?:[cm]?[jt]sx?|ya?ml|sh)$/.test(file)) consumers.push({ file, source: readFileSync(file, 'utf8'), quotedNames: true })
+            if (/\.(?:[cm]?[jt]sx?|ya?ml|sh)$/.test(file) && !/\.test\.[cm]?[jt]sx?$/.test(file) && !['scripts/bench/pre-tipoff.ts', 'scripts/bench/report-metrics.ts'].includes(file)) consumers.push({ file, source: readFileSync(file, 'utf8'), quotedNames: true })
         }
     }
     expect(releaseMigrations().flatMap(migration => droppedObjectCalls(migration, consumers))).toEqual([])
@@ -410,10 +446,10 @@ it('detects removed functions and tables used by each deployed consumer', () => 
 it('keeps queued notification replacements equal to their current sources without Expo storage', () => {
     const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
     const queued = latestFunctionDefinitionsInSource([...notes.slice(notes.indexOf('## Next release')).matchAll(/```sql\n([\s\S]*?)```/g)].map(match => match[1]).join('\n'))
-    for (const name of ['claim_notification_outbox_atomic', 'invoke_process_trades_if_due']) {
-        const source = readFileSync(`supabase/sql/functions/by-name/public/${name}.sql`, 'utf8')
-        const expected = latestFunctionDefinitionsInSource(withoutExpoQueue(source)).get(`public.${name}`)
-        expect(queued.get(`public.${name}`), name).toBe(expected)
+    for (const name of ['public.claim_notification_outbox_atomic', 'private.enqueue_process_trades']) {
+        const source = readFileSync(`supabase/sql/functions/by-name/${name.replace('.', '/')}.sql`, 'utf8')
+        const expected = latestFunctionDefinitionsInSource(withoutExpoQueue(source)).get(name)
+        expect(queued.get(name), name).toBe(expected)
     }
 })
 

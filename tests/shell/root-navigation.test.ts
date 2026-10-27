@@ -1,3 +1,4 @@
+import '../setup-expo'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -13,15 +14,18 @@ vi.mock('@/constants/fonts', () => ({ criticalFonts: {} }))
 vi.mock('@expo-google-fonts/outfit', () => ({ Outfit_500Medium: 500, Outfit_600SemiBold: 600, Outfit_700Bold: 700 }))
 vi.mock('expo-font', () => ({ useFonts: () => [], FontDisplay: { SWAP: 'swap' } }))
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }))
-vi.mock('@/hooks/use-auth', () => ({ AuthProvider: ({ children }: React.PropsWithChildren) => children, useAuth: () => ({ session: navigation.authenticated ? {} : null, loading: false }) }))
-vi.mock('@/contexts/league-context', () => ({ LeagueProvider: ({ children }: React.PropsWithChildren) => children }))
+vi.mock('@/hooks/use-auth', () => ({ AuthProvider: ({ children }: React.PropsWithChildren) => children, useAuth: () => ({ session: navigation.authenticated ? { user: { id: 'user' } } : null, loading: false }) }))
+vi.mock('@/contexts/league-context', () => ({ LeagueProvider: ({ children }: React.PropsWithChildren) => children, useLeagueContext: () => ({ current: null }) }))
 vi.mock('@/hooks/use-web-push-notifications', () => ({ useWebPushNotifications: () => {} }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/ui', () => ({ FeedbackProvider: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('@/components/auth/AuthHydrationFrame', () => ({ AuthHydrationFrame: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('@/components/LeagueAccessNotice', () => ({ LeagueAccessNotice: () => null }))
 vi.mock('@/components/navigation/WebTabShell', () => ({ WebAppShell: ({ children }: React.PropsWithChildren) => children }))
 vi.mock('expo-router', () => ({
+    usePathname: () => '/sign-in', useGlobalSearchParams: () => ({}),
+    useNavigationContainerRef: () => ({ addListener: () => () => {} }),
     useRouter: () => ({ replace: navigation.replace }), useSegments: () => ['(auth)', 'sign-in'],
     Stack: Object.assign(({ children }: React.PropsWithChildren) => {
         const [ready, setReady] = React.useState(false)

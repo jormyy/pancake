@@ -154,7 +154,7 @@ BEGIN
     v_index := v_index + 1;
     v_metadata := coalesce(v_record->'metadata', '{}'::jsonb);
     v_allowed := CASE WHEN p_source IN ('espn', 'sleeper')
-      THEN ARRAY['nba_team', 'position', 'eligible_positions', 'status', 'injury_status', 'years_exp']
+      THEN ARRAY['nba_team', 'position', 'eligible_positions', 'status', 'injury_status', 'years_exp', 'birthdate']
       WHEN p_source='nba_cdn' THEN ARRAY['position','years_exp'] ELSE ARRAY[]::text[] END;
     IF jsonb_typeof(v_metadata) <> 'object' THEN
       RAISE EXCEPTION 'Player metadata must be an object.' USING ERRCODE = '22023';
@@ -353,6 +353,7 @@ BEGIN
             nba_team = v_metadata->>'nba_team', status = v_metadata->>'status',
             injury_status = CASE WHEN v_metadata ? 'injury_status' THEN v_metadata->>'injury_status' ELSE injury_status END,
             years_exp = coalesce((v_metadata->>'years_exp')::int,years_exp),
+            birthdate = coalesce((v_metadata->>'birthdate')::date,birthdate),
             position = CASE WHEN p_source='espn' THEN coalesce(v_row.position,(v_metadata->>'position')::nba_position)
               ELSE coalesce((v_metadata->>'position')::nba_position,v_row.position) END,
             eligible_positions = CASE WHEN (p_source='espn' AND cardinality(v_row.eligible_positions) > 0) OR jsonb_typeof(v_metadata->'eligible_positions') IS DISTINCT FROM 'array'

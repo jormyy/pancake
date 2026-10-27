@@ -6,12 +6,24 @@ SET search_path = ''
 SET lock_timeout = '250ms'
 AS $$
 DECLARE
+  v_requests bigint:=0;
   v_outbox bigint:=0;
   v_sync_runs bigint:=0; v_edge_invocations bigint:=0; v_cron_runs bigint:=0;
   v_sleeper_rows bigint:=0; v_projection_counts jsonb; v_ids uuid[]; v_count integer; v_total integer; v_cursor bigint:=0; v_scan_count integer; v_scan_ids bigint[];
   v_before date:=date_trunc('week',timezone('America/Los_Angeles',now()))::date;
   v_previous text:=COALESCE(current_setting('pancake.projection_cleanup',true),'');
 BEGIN
+  v_total:=0;
+  LOOP
+    WITH victims AS (
+      SELECT request_id FROM private.request_receipts
+      WHERE created_at < now() - interval '7 days'
+      ORDER BY created_at, request_id LIMIT 500 FOR UPDATE SKIP LOCKED
+    ) DELETE FROM private.request_receipts r USING victims v WHERE r.request_id=v.request_id;
+    GET DIAGNOSTICS v_count=ROW_COUNT;
+    v_requests:=v_requests+v_count; v_total:=v_total+v_count;
+    EXIT WHEN v_count<500 OR v_total>=20000;
+  END LOOP;
   v_total:=0;
   LOOP
     WITH victims AS (
@@ -108,7 +120,7 @@ BEGIN
   v_projection_counts:=private.delete_projection_runs(v_ids);
   PERFORM set_config('pancake.projection_cleanup',v_previous,true);
   RETURN jsonb_build_object(
-    'notification_outbox',v_outbox,'sync_runs',v_sync_runs,'edge_invocations',v_edge_invocations,'cron_job_run_details',v_cron_runs,
+    'request_receipts',v_requests,'notification_outbox',v_outbox,'sync_runs',v_sync_runs,'edge_invocations',v_edge_invocations,'cron_job_run_details',v_cron_runs,
     'projection_sync_runs',(v_projection_counts->>'projection_sync_runs')::integer,
     'fantasypros_projection_rows',(v_projection_counts->>'fantasypros_projection_rows')::integer,
     'sleeper_projection_rows',v_sleeper_rows,

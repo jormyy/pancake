@@ -31,6 +31,7 @@ const goodRosterFor = (teamId: string) => ({
     fullName: `Team${teamId} Player ${index}`,
     position: { abbreviation: 'G' },
     status: { type: 'active' },
+    dateOfBirth: '1995-05-06T07:00Z',
     experience: { years: 3 },
   })),
 })
@@ -239,6 +240,18 @@ Deno.test('team-code mapping covers the divergent abbreviations', () => {
   for (const [espn, nba] of expectations) {
     if (mapEspnTeam(espn) !== nba) throw new Error(`mapEspnTeam(${espn}) !== ${nba}`)
   }
+})
+
+Deno.test('the player source preserves a calendar birthdate', async () => {
+  mode = 'good'
+  const { records } = await fetchEspnPlayerListing()
+  assert.equal((records[0] as unknown as { birthdate: string }).birthdate, '1995-05-06')
+})
+
+Deno.test('ESPN current-season experience becomes completed seasons', async () => {
+  mode = 'good'
+  const { records } = await fetchEspnPlayerListing()
+  assert.equal(records[0].years_exp, 2)
 })
 
 Deno.test({

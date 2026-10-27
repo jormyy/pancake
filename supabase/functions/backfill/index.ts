@@ -16,9 +16,7 @@ import {
 } from '../_shared/backfillJobs.ts'
 import { requireInternalFunctionAuth } from '../_shared/auth.ts'
 import { internalServerError } from '../_shared/responses.ts'
-
-const CDN_START_YEARS = [24, 23, 22, 21, 20, 19] as const
-const BBREF_SEASON_YEARS = Array.from({ length: 16 }, (_, i) => 2004 + i)
+import { supabase } from '../_shared/supabase.ts'
 
 type BackfillBody = {
   action?: 'start' | 'continue' | 'retry' | 'start-all'
@@ -46,25 +44,16 @@ Deno.serve(async (req) => {
 
     if (action === 'start-all') {
       const queued = []
-      for (const startYY of CDN_START_YEARS) {
-        const sy = 2000 + startYY + 1
-        const jid = await createBackfillJob('cdn-enum', sy)
+      const { data: plan, error } = await supabase.rpc('get_backfill_season_plan')
+      if (error) throw error
+      for (const { source, season_year: seasonYear } of plan ?? []) {
+        const jid = await createBackfillJob(source, seasonYear)
         try {
-          await invokeBackfill({ action: 'continue', source: 'cdn-enum', seasonYear: sy, jobId: jid, offset: 0 })
-          queued.push({ source: 'cdn-enum', seasonYear: sy, jobId: jid, status: 'queued' })
+          await invokeBackfill({ action: 'continue', source, seasonYear, jobId: jid, offset: 0 })
+          queued.push({ source, seasonYear, jobId: jid, status: 'queued' })
         } catch (e) {
           await failBackfillJob(jid, e)
-          queued.push({ source: 'cdn-enum', seasonYear: sy, jobId: jid, status: 'failed' })
-        }
-      }
-      for (const sy of BBREF_SEASON_YEARS) {
-        const jid = await createBackfillJob('bbref', sy)
-        try {
-          await invokeBackfill({ action: 'continue', source: 'bbref', seasonYear: sy, jobId: jid, offset: 0 })
-          queued.push({ source: 'bbref', seasonYear: sy, jobId: jid, status: 'queued' })
-        } catch (e) {
-          await failBackfillJob(jid, e)
-          queued.push({ source: 'bbref', seasonYear: sy, jobId: jid, status: 'failed' })
+          queued.push({ source, seasonYear, jobId: jid, status: 'failed' })
         }
       }
       return Response.json({ ok: queued.every((item) => item.status === 'queued'), queued })

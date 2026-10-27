@@ -11,7 +11,6 @@ AS $$
 DECLARE
   v_reconciled integer := 0;
   v_row record;
-  v_claim record;
   v_error text;
   v_run uuid;
 BEGIN
@@ -71,32 +70,6 @@ BEGIN
     v_reconciled := v_reconciled + 1;
   END LOOP;
 
-  FOR v_claim IN
-    SELECT * FROM public.cron_dispatch_state WHERE attempts < 3 FOR UPDATE SKIP LOCKED
-  LOOP
-    IF EXISTS (
-      SELECT 1 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
-       AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
-    ) AND NOT EXISTS (
-      SELECT 1 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
-       AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
-       AND reconciled_at IS NULL
-    ) THEN
-      IF EXISTS (
-        SELECT 1 FROM public.edge_invocations WHERE dispatch_job_key = v_claim.job_key
-         AND dispatch_period_key = v_claim.period_key AND dispatch_claimed_at = v_claim.dispatched_at
-         AND NOT (function_name='sync-player-injuries' AND status_code IS NOT DISTINCT FROM 404 AND worker_status IS NULL)
-         AND (worker_status = 'failed' OR (worker_status IS NULL
-           AND (status_code IS NULL OR status_code NOT BETWEEN 200 AND 299)))
-      ) THEN
-        UPDATE public.cron_dispatch_state SET retry_after = clock_timestamp() + interval '5 minutes'
-         WHERE job_key = v_claim.job_key AND retry_after IS NULL;
-      ELSE
-        UPDATE public.cron_dispatch_state SET retry_after = NULL
-         WHERE job_key = v_claim.job_key AND retry_after IS NOT NULL;
-      END IF;
-    END IF;
-  END LOOP;
   RETURN v_reconciled;
 END;
 $$;

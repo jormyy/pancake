@@ -42,8 +42,8 @@ export async function runOfficialRookieDraft(c, input, report, move, now) {
   const picks = await sqlJson(`SELECT json_agg(p ORDER BY overall_pick) FROM snake_draft_picks p WHERE draft_id='${draftId}'`, 'Official rookie picks')
   const assets = await c.rest(c.users[0], `draft_picks?select=*&league_id=eq.${c.leagueId}&season_year=eq.${c.seasonYear}`)
   const standings = await c.rest(c.users[0], `standings?select=*&league_season_id=eq.${report.champion.seasonId}`)
-  const expectedOrder = rookieOrder(c.users.map(user => user.memberId), standings)
-  checkDraftOrder({ picks, assets, expectedOrder, rounds: 3 })
+  const expectedOrder = rookieOrder(c.users.map(user => user.memberId), standings, draft.order_seed)
+  checkDraftOrder({ picks, assets, expectedOrder, rounds: 3, orderType: draft.rookie_draft_order ?? 'linear' })
   const result = { draftId, picks: picks.length, expectedOrder }
   await playRookieTurns(c, draftId, move, result)
   const used = await c.rest(c.users[0], `draft_picks?select=*&league_id=eq.${c.leagueId}&season_year=eq.${c.seasonYear}&is_used=eq.true`)

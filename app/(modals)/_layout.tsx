@@ -25,6 +25,8 @@ export default function ModalsLayout() {
             <Stack.Screen name="propose-trade" options={{ headerShown: false }} />
             <Stack.Screen name="claim-player" options={{ title: 'Waiver Claim', headerShown: false }} />
             <Stack.Screen name="bracket" options={{ title: 'Playoff Bracket' }} />
+            <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
+            <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
             <Stack.Screen name="team-roster" options={{ headerShown: false }} />
         </Stack>
     )

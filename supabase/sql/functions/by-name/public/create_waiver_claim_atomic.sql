@@ -19,6 +19,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result uuid;
+BEGIN
+  __request_context := private.request_begin('public.create_waiver_claim_atomic', jsonb_build_array(p_league_id, p_member_id, p_player_id, p_drop_player_id, p_user_id, p_bid_amount, p_claim_order, p_to_ir, p_to_taxi), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
+  <<request_write>>
+DECLARE
   v_league leagues%ROWTYPE;
   v_season_id uuid;
   v_priority int;
@@ -206,6 +213,9 @@ BEGIN
   )
   RETURNING id INTO v_claim_id;
 
-  RETURN v_claim_id;
+  __request_result := v_claim_id; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

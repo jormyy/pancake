@@ -1,29 +1,33 @@
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import { useLeagueContext } from '@/contexts/league-context'
 import { useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { MotionPressable } from '@/components/Motion'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { getSavedTradeEstimate, type TradeEstimateQuote } from '@/lib/trade-estimates'
+import { type TradeEstimateQuote } from '@/lib/trade-estimates'
 import type { Trade } from '@/lib/trades'
 import { colors, controlSize, fontSize, fontWeight, spacing } from '@/constants/tokens'
 
 export function SavedTradeEstimate({ trade }: { trade: Trade }) {
+    const { current, currentLeague } = useLeagueContext()
     const [open, setOpen] = useState(false)
     const [quote, setQuote] = useState<TradeEstimateQuote | null>(null)
     const [error, setError] = useState<string | null>(null)
     const [retry, setRetry] = useState(0)
     const quoteId = trade.estimate?.quoteId
     useEffect(() => {
-        if (!open || !quoteId) return
+        if (!open || !quoteId || !current || !currentLeague) return
         let active = true
         setQuote(null)
         setError(null)
-        void getSavedTradeEstimate(quoteId).then(value => {
-            if (active) setQuote(value)
+        void readScreenView<{ savedQuote: TradeEstimateQuote | null }>(screenScope('trade-details', currentLeague.id, current.id, { tradeId: trade.id })).then(value => {
+            if (active) setQuote(value.savedQuote)
         }).catch(cause => {
             if (active) setError(cause instanceof Error ? cause.message : 'Could not load this saved estimate.')
         })
         return () => { active = false }
-    }, [open, quoteId, retry])
+    }, [open, quoteId, retry, current, currentLeague, trade.id])
     const name = (memberId: string) => trade.participants.find(member => member.memberId === memberId)?.teamName ??
         (memberId === trade.proposerMemberId ? trade.proposerTeamName : trade.recipientTeamName)
     if (!trade.estimate) return <Text style={styles.detail}>{trade.estimateUnavailable ?? 'No estimate was saved with this trade.'}</Text>

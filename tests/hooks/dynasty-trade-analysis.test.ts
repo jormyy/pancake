@@ -1,12 +1,13 @@
+import { setSessionOwner } from '@/lib/session-cache-registry'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useDynastyTradeAnalysis } from '@/hooks/use-dynasty-trade-analysis'
 import type { TradeEstimateQuote } from '@/lib/trade-estimates'
 
-const mocks = vi.hoisted(() => ({ request: vi.fn(), revalue: vi.fn(), change: null as null | ((value: { topic: string }) => void),
+const mocks = vi.hoisted(() => ({ request: vi.fn(), revalue: vi.fn(), view: vi.fn(), change: null as null | ((value: { topic: string }) => void),
     delay: false, pendingRefresh: null as null | (() => void) }))
-vi.mock('@/lib/trade-estimates', () => ({ requestTradeEstimate: mocks.request, requestTradeRevaluation: mocks.revalue }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: { params: { tradeId?: string } }, options: unknown) => { mocks.view(scope, options); return scope.params.tradeId ? mocks.revalue(scope).then((analysis: TradeEstimateQuote) => ({ analysis })) : mocks.request(scope).then((quote: TradeEstimateQuote) => ({ quote })) } }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
@@ -46,6 +47,7 @@ function deferred<T>() {
     return { promise, resolve }
 }
 beforeEach(() => {
+    setSessionOwner('account')
     vi.useFakeTimers()
     vi.resetAllMocks()
     mocks.delay = false
@@ -67,13 +69,13 @@ it('hides the previous quote immediately when exact terms change or a new reques
     await render({ ...base, items: [{ ...base.items[0], kind: 'faab', faabAmount: 20 }] })
     expect(observations.every(result => result.quote === null)).toBe(true)
     expect(latest.error).toBe('estimate unavailable')
-    expect(mocks.request).toHaveBeenLastCalledWith('member-a', [expect.objectContaining({ faabAmount: 20 })])
+    expect(mocks.request).toHaveBeenLastCalledWith(expect.objectContaining({ screen: 'trade-analysis', accountId: 'account', memberId: 'member-a', leagueId: 'league-a', params: expect.objectContaining({ items: [expect.objectContaining({ faabAmount: 20 })] }) }))
     await act(async () => { latest.retry() })
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     expect(latest.error).toBeNull()
     expect(latest.quote?.id).toBe('quote-a')
     expect(mocks.request).toHaveBeenCalledTimes(3)
-    expect(mocks.request).toHaveBeenLastCalledWith('member-a', [expect.objectContaining({ faabAmount: 20 })])
+    expect(mocks.request).toHaveBeenLastCalledWith(expect.objectContaining({ screen: 'trade-analysis', accountId: 'account', memberId: 'member-a', leagueId: 'league-a', params: expect.objectContaining({ items: [expect.objectContaining({ faabAmount: 20 })] }) }))
 })
 
 it('preserves explicit missing-data analysis instead of replacing it with zero-valued local assets', async () => {
@@ -114,8 +116,9 @@ it('refreshes source changes and expiry without changing selected terms', async 
     expect(latest.quote?.id).toBe('refreshed')
     await act(async () => { await vi.advanceTimersByTimeAsync(600000) })
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
-    expect(mocks.request.mock.calls.every(call => JSON.stringify(call[1]) === JSON.stringify(base.items))).toBe(true)
+    expect(mocks.request.mock.calls.every(call => JSON.stringify(call[0].params.items) === JSON.stringify(base.items))).toBe(true)
     expect(mocks.request.mock.calls.length).toBeGreaterThanOrEqual(3)
+    expect(mocks.view).toHaveBeenLastCalledWith(expect.anything(), { force: true })
 })
 
 it('rejects a prior input response during the source refresh delay', async () => {
@@ -135,7 +138,7 @@ it('revalues saved terms without exposing a quote that can submit an offer', asy
     const current = { ...quote(), tradeId: 'completed-trade' }
     mocks.revalue.mockResolvedValue(current)
     await render({ ...base, tradeId: 'completed-trade' })
-    expect(mocks.revalue).toHaveBeenCalledExactlyOnceWith('member-a', 'completed-trade')
+    expect(mocks.revalue).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trade-analysis', params: expect.objectContaining({ tradeId: 'completed-trade' }) }))
     expect(mocks.request).not.toHaveBeenCalled()
     expect(latest.analysis).toEqual(current.analysis)
     expect(latest.calculatedAt).toBe(current.createdAt)

@@ -1,21 +1,12 @@
+import { useLeagueContext } from '@/contexts/league-context'
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import { subscribeLeagueVersion } from '@/lib/league-version'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useDraftActivity } from '@/components/league/draft-room/useDraftActivity'
-import {
-    closeExpiredNominations,
-    getDraftPollRevision,
-    getDraftState,
-    nominatePlayer,
-    placeBid,
-    searchPlayers,
-    subscribeToDraft,
-    unsubscribeFromDraft,
-    withdrawNomination,
-    type DraftSearchPlayer,
-    type DraftState,
-    type NominationOrderMode,
-} from '@/lib/draft'
+import { closeExpiredNominations, nominatePlayer, placeBid, subscribeToDraft, unsubscribeFromDraft, withdrawNomination, type DraftSearchPlayer, type DraftState, type NominationOrderMode } from '@/lib/draft'
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -36,6 +27,8 @@ export function useAuctionDraftRoomController({
     draftId?: string
     memberId?: string
 }) {
+    const { currentLeague } = useLeagueContext()
+    const viewLeagueId = currentLeague?.id
     const activity = useDraftActivity(draftId && memberId ? `${draftId}:${memberId}` : null)
     const { identity, epoch, capture, canRead, isCurrent, canAct, markReady, blockActions } = activity
     const cacheKey = `pancake:auction-room:v1:${sessionOwner()}:${memberId}:${draftId}`
@@ -53,7 +46,7 @@ export function useAuctionDraftRoomController({
     // the value is validated and clamped only on submit (handleBid).
     const [bidText, setBidText] = useState(() => String((initialCache?.state?.openNomination?.currentBidAmount ?? 0) + 1))
     const [bidToTaxi, setBidToTaxi] = useState(false)
-    useEffect(() => { setBidToTaxi(false) }, [draftId, memberId])
+    useEffect(() => { setBidToTaxi(false) }, [viewLeagueId, memberId, draftId, memberId])
     const [bidding, setBidding] = useState(false)
     const bidRequestRef = useRef<object | null>(null)
     const [withdrawing, setWithdrawing] = useState(false)
@@ -148,9 +141,8 @@ export function useAuctionDraftRoomController({
         setLoading(true)
         const task = (async () => {
             try {
-                const s = incremental && canAct()
-                    ? await getDraftState(requestedDraftId, snapshotRef.current)
-                    : await getDraftState(requestedDraftId)
+                const payload = viewLeagueId && memberId ? await readScreenView<DraftState>(screenScope('draft-room', viewLeagueId, memberId, { draftId: requestedDraftId })) : null
+                const s = payload?.draft ? payload : null
                 // Ignore a stale, out-of-order result once a newer load has started.
                 if (!isCurrent(readEpoch) || seq !== loadSeqRef.current || activeDraftIdRef.current !== requestedDraftId) return false
                 writePersistentCache(cacheKey, { state: s })
@@ -206,7 +198,7 @@ export function useAuctionDraftRoomController({
         inFlightRef.current = request
         try { return await task }
         finally { if (inFlightRef.current === request) inFlightRef.current = null }
-    }, [draftId, identity, capture, canRead, isCurrent, canAct, markReady, cacheKey])
+    }, [draftId, identity, capture, canRead, isCurrent, markReady, cacheKey, viewLeagueId, memberId])
 
     useEffect(() => {
         searchSeqRef.current += 1
@@ -273,35 +265,12 @@ export function useAuctionDraftRoomController({
         }
     }, [draftId, load, subscriptionEpoch, canRead, blockActions])
 
-    // Realtime is primary. The fallback probes only current mutable rows and
-    // reloads history/ages when their revision actually changes.
     useEffect(() => {
-        if (!draftId) return
-        let active = true
-        let inFlight = false
-        const pollRevision = async () => {
-            if (!active || !canRead() || inFlight) return
-            if (pendingRefreshRef.current) { await load(); return }
-            inFlight = true
-            const readEpoch = capture()
-            try {
-                const revision = await getDraftPollRevision(draftId)
-                if (!active || !isCurrent(readEpoch) || activeDraftIdRef.current !== draftId) return
-                if (pollRevisionRef.current === revision) return
-                const loaded = await load()
-                if (loaded && active && isCurrent(readEpoch)) pollRevisionRef.current = revision
-            } catch (error) {
-                if (active && isCurrent(readEpoch)) console.error('Could not poll the live draft revision.', error)
-            } finally {
-                inFlight = false
-            }
-        }
-        const poll = setInterval(() => { void pollRevision() }, realtimeStatus === 'SUBSCRIBED' ? 60_000 : 5_000)
-        return () => {
-            active = false
-            clearInterval(poll)
-        }
-    }, [draftId, load, realtimeStatus, canRead, capture, isCurrent])
+        if (!viewLeagueId) return
+        return subscribeLeagueVersion(viewLeagueId, snapshot => {
+            if (snapshot.changes.some(change => change.topic === 'draft' || change.topic === 'catchup' || Array.isArray(change.scope.topics) && change.scope.topics.includes('draft'))) void load()
+        })
+    }, [viewLeagueId, load])
 
     // Countdown tick
     useEffect(() => {
@@ -359,13 +328,14 @@ export function useAuctionDraftRoomController({
         const requestId = ++searchSeqRef.current
         const requestedQuery = searchQuery
         const requestedDraftId = draftId
-        const requestedMode = nominationModeRef.current
+
         const timeout = setTimeout(async () => {
             if (!isCurrent(readEpoch) || !canAct()) return
             setSearchLoading(true)
             setSearchError(null)
             try {
-                const results = await searchPlayers(requestedQuery, requestedDraftId, requestedMode)
+                const room = viewLeagueId && memberId ? await readScreenView<{ searchResults: DraftSearchPlayer[] }>(screenScope('draft-room', viewLeagueId, memberId, { draftId: requestedDraftId, ...(requestedQuery.trim() ? { query: requestedQuery.trim() } : {}) })) : null
+                const results = room?.searchResults ?? []
                 if (!isCurrent(readEpoch) || searchSeqRef.current !== requestId) return
                 setSearchResults(results)
             } catch (e) {
@@ -377,7 +347,7 @@ export function useAuctionDraftRoomController({
             }
         }, 300)
         return () => clearTimeout(timeout)
-    }, [searchQuery, draftId, nominating, activity.ready, epoch, canAct, capture, isCurrent])
+    }, [searchQuery, draftId, nominating, activity.ready, epoch, canAct, capture, isCurrent, viewLeagueId, memberId])
 
     async function handleBid() {
         if (!canAct() || bidRequestRef.current) return

@@ -19,7 +19,7 @@ try {
 }
 
 const injury = (displayName: string, status = 'Out') => ({ status, athlete: { displayName } })
-const player = (id: string, display_name: string, injury_status: string | null = null) => ({ id, display_name, injury_status, espn_id: id, nba_team: 'BOS' })
+const player = (id: string, display_name: string, injury_status: string | null = null) => ({ id, display_name, injury_status, espn_id: id, nba_team: 'BOS', injury_reason: 'unknown', injury_expected_return: 'unknown' })
 
 async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token') {
   const originalFetch = globalThis.fetch
@@ -71,7 +71,7 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
 Deno.test('an afternoon scratch updates the stored injury before the next lineup dispatch', async () => {
   const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] })
   assert.equal(result.response.status, 200)
-  assert.deepEqual(result.writes, [{ id: 'eq.scratch', body: { injury_status: 'Out' } }])
+  assert.deepEqual(result.writes, [{ id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } }])
   assert.equal(result.result.updated, 1)
   assert.equal(result.runs[0].function_name, 'sync-player-injuries')
   assert.equal(result.runs.at(-1)?.rows_affected, 1)
@@ -93,7 +93,7 @@ Deno.test('an injury player-card link connects the missing ESPN identity before 
   }] }] }, [scratch])
   assert.equal(result.response.status, 200)
   assert.equal(scratch.espn_id, '12345')
-  assert.deepEqual(result.writes, [{ id: 'eq.unlinked', body: { injury_status: 'Out' } }])
+  assert.deepEqual(result.writes, [{ id: 'eq.unlinked', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } }])
   assert.ok(result.requests.indexOf('/rest/v1/rpc/link_player_sources_atomic') < result.requests.indexOf('/rest/v1/players'))
 })
 
@@ -111,7 +111,7 @@ Deno.test('a healthy feed clears a recovered player and joins names with the ful
   ])
   assert.equal(result.response.status, 200)
   assert.deepEqual(result.writes, [
-    { id: 'eq.scratch', body: { injury_status: 'Out' } }, { id: 'eq.recovered', body: { injury_status: null } },
+    { id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } }, { id: 'eq.recovered', body: { injury_status: null, injury_reason: 'unknown', injury_expected_return: 'unknown' } },
   ])
 })
 
@@ -137,7 +137,7 @@ Deno.test('an unlisted player keeps Out and does not make a current player name 
     player('current', 'Same Name'), { ...player('unlisted', 'Same Name Jr.', 'Out'), nba_team: null },
   ])
   assert.equal(result.response.status, 200)
-  assert.deepEqual(result.writes, [{ id: 'eq.current', body: { injury_status: 'Out' } }])
+  assert.deepEqual(result.writes, [{ id: 'eq.current', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } }])
 })
 
 Deno.test('an unlisted player absent from the injury feed keeps Out', async () => {
@@ -162,3 +162,8 @@ for (const [token, status] of [[null, 401], ['wrong-token', 403]] as const) {
     assert.deepEqual(result.requests, [])
   })
 }
+
+Deno.test('injury details update even when the status stays Out', async () => {
+  const result = await refresh({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Afternoon Scratch' }, details: { type: 'Ankle', detail: 'Sprain', returnDate: '2026-11-02' } }] }] }, [player('scratch', 'Afternoon Scratch', 'Out')])
+  assert.deepEqual(result.writes, [{ id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'Ankle: Sprain', injury_expected_return: '2026-11-02' } }])
+})

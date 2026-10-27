@@ -1,3 +1,4 @@
+import { NAVIGATION_SWEEP_ROUTES } from './navigation-routes.mjs'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -194,6 +195,7 @@ export const runWebTargets = ({ season = 0 } = {}) => runWithScenarioResourceOwn
   const auction = auctionDraft.id
   const rookie = rookieDraft.id
   const routes = [
+    ...NAVIGATION_SWEEP_ROUTES,
     ['home', '/'], ['roster', '/roster'], ['players', '/players'], ['trades', '/trades'],
     ['league', '/league'], ['dynasty', '/dynasty'], ['rankings', '/players?section=rankings'],
     ['news', '/players?section=news'], ['profile', '/profile'], ['create-league', '/create-league'],

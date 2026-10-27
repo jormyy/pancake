@@ -13,6 +13,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.remove_trade_block_item_atomic', jsonb_build_array(p_item_id, p_member_id, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_item trade_block_items%ROWTYPE;
   v_season_id uuid;
 BEGIN
@@ -23,7 +29,7 @@ BEGIN
    FOR UPDATE;
 
   IF NOT FOUND THEN
-    RETURN;
+    EXIT request_write;
   END IF;
 
   IF v_item.member_id <> p_member_id THEN
@@ -65,5 +71,8 @@ BEGIN
     NULL,
     jsonb_build_object('pick_id', v_item.pick_id)
   );
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

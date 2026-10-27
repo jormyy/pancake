@@ -18,6 +18,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+BEGIN
+  __request_context := private.request_begin('public.edit_waiver_claim_atomic', jsonb_build_array(p_claim_id, p_member_id, p_user_id, p_drop_player_id, p_bid_amount, p_claim_order, p_to_ir, p_to_taxi), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
+  <<request_write>>
+DECLARE
   v_claim waiver_claims%ROWTYPE;
   v_league leagues%ROWTYPE;
   v_bid_amount int := COALESCE(p_bid_amount, 0);
@@ -172,5 +178,8 @@ BEGIN
          claim_order = COALESCE(p_claim_order, claim_order),
          submitted_at = now()
    WHERE id = p_claim_id;
+END request_write;
+  PERFORM private.request_finish(__request_context, 'null'::jsonb);
+  RETURN;
 END;
 $$;

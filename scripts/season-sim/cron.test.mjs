@@ -16,10 +16,10 @@ test('rookie expiry waits for its production minute without expiring the followi
 
 test('production gates and annual UTC draft window match the migration catalog', () => {
   assert.ok(verifyCronCatalog(productionJobs))
-  assert.throws(() => verifyCronCatalog(productionJobs.map(job => job.jobname === 'nba-live-poll' ? { ...job, schedule: '* * * * *' } : job)), /cadence/)
+  assert.throws(() => verifyCronCatalog(productionJobs.map(job => job.jobname === 'work-dispatcher' ? { ...job, schedule: '*/2 * * * *' } : job)), /cadence/)
   assert.ok(cronMatches('0 13 20-30 6 *', '2026-06-26T13:00:00Z'))
   assert.ok(!cronMatches('0 13 20-30 6 *', '2026-06-19T13:00:00Z'))
-  assert.ok(cronCommands('2026-04-13T00:02:00Z').some(job => job.jobname === 'nba-live-poll'))
+  assert.ok(cronCommands('2026-04-13T00:02:00Z').some(job => job.jobname === 'work-dispatcher'))
   assert.ok(!productionJobs.some(job => /invoke_edge_function\('sync-(stats|scores)'/.test(job.command)))
 })
 test('clock jumps execute every intervening minute with no missing gate ticks', async () => {
@@ -29,9 +29,9 @@ test('clock jumps execute every intervening minute with no missing gate ticks', 
     move: async at => { moves.push(at) }, invoke: async statement => { statements.push(statement) }, sample: async at => { samples.push(at) },
   })
   assert.equal(samples.length, 6)
-  assert.equal(counts['nba-live-poll'], 3)
-  assert.equal(counts['season-boundary'], 1)
-  assert.equal(counts['notification-dispatch-minute'], 6)
+  assert.equal(counts['work-dispatcher'], 6)
+  assert.equal(counts['season-boundary'], undefined)
+  assert.equal(counts['notification-dispatch-minute'], undefined)
   assert.equal(counts['nba-process-trades'], undefined)
   assert.equal(statements.length, 6)
   assert.equal(moves.at(-1), from + 6 * 60000)
@@ -45,8 +45,8 @@ test('discrete cron preserves minute gates while waking internal ticks between t
     move: async at => { moves.push(at) }, invoke: async () => {},
     settle: async at => ({ nextAt: wakes.find(wake => wake > at) ?? null }),
   })
-  assert.equal(counts['nba-live-poll'], 2)
-  assert.equal(counts['nba-close-expired-nominations'], 3)
+  assert.equal(counts['work-dispatcher'], 3)
+  assert.equal(counts['nba-close-expired-nominations'], undefined)
   assert.ok(wakes.every(wake => moves.includes(wake)))
   assert.equal(moves.at(-1), to)
   await assert.rejects(advanceCron({ from, to, move: async () => {}, invoke: async () => {}, settle: async () => ({ nextAt: from }) }), /timer must settle/)
@@ -55,7 +55,7 @@ test('discrete cron preserves minute gates while waking internal ticks between t
 test('reusing a stack preserves its captured cron catalog and detects changed migration jobs', () => {
   assert.deepEqual(mergeCronCatalog([], productionJobs), [...productionJobs].sort((a, b) => a.jobname.localeCompare(b.jobname)))
   assert.throws(() => mergeCronCatalog([]), /Missing production cron/)
-  assert.throws(() => mergeCronCatalog([{ ...productionJobs.find(row=>row.jobname==='nba-live-poll'), schedule: '* * * * *' }], productionJobs), /Changed production cadence/)
+  assert.throws(() => mergeCronCatalog([{ ...productionJobs.find(row=>row.jobname==='work-dispatcher'), schedule: '*/2 * * * *' }], productionJobs), /Changed production cadence/)
 })
 
 test('cadence profiles retain each real production minute and internal wake', async () => {
@@ -69,13 +69,13 @@ test('cadence profiles retain each real production minute and internal wake', as
   assert.ok(rows.every(row => row.wallSeconds >= 0))
 })
 
-test('the replay omits retired jobs and polls projections every fifteen minutes',()=>{
+test('the replay runs only the production work dispatcher',()=>{
   assert.ok(!productionJobs.some(row=>['refresh-player-search-caches','nba-process-trades'].includes(row.jobname)))
-  assert.ok(cronCommands(Date.parse('2024-10-22T12:45:00Z')).some(row=>row.jobname==='nba-sync-projections'))
+  assert.ok(cronCommands(Date.parse('2024-10-22T12:45:00Z')).some(row=>row.jobname==='work-dispatcher'))
 })
 
-test('the notification outbox uses the real per-minute production gate',()=>{
-  assert.ok(cronCommands(Date.parse('2025-06-28T13:02:00Z')).some(row=>row.jobname==='notification-dispatch-minute'&&row.command.includes('invoke_process_trades_if_due')))
+test('the replay uses the real per-minute work dispatcher',()=>{
+  assert.ok(cronCommands(Date.parse('2025-06-28T13:02:00Z')).some(row=>row.jobname==='work-dispatcher'&&row.command.includes('dispatch_work')))
 })
 test('an installed catalog controls dispatch without importing legacy jobs', async () => {
   const catalog = [{ jobname: 'candidate-job', schedule: '*/2 * * * *', command: 'SELECT candidate_job()' }]

@@ -146,9 +146,12 @@ Frontend rollback retains these database changes.
 [Source monitoring](source-monitoring.md) owns projection and retention behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
 
-The approved candidate now ends at `20261029000800`, with 564 migrations.
+The approved release 2 candidate ends at `20261111000100`, with 589 migrations.
 The audit baseline stays at `20261005000003`, with 329 migrations.
-The recorded production phase stays at `20261020000007`, with 431 migrations.
+Release 1 reaches production on 2026-10-27 at `20261029000800`, with 564 migrations.
+Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
+The pre-migration catalog now records that release.
+The earlier 431-row catalog remains historical evidence.
 
 | Migration | Change |
 | --- | --- |
@@ -165,3 +168,41 @@ Local checks on 2026-10-26 compare a fresh installation with an ordered upgrade 
 Both paths have equal migration names, statement counts, stored-SQL fingerprints, helper definitions, and security catalogs.
 An intermediate state at `20261011000010` matches its expected mix of helper definitions.
 The upgrade from that state also matches the fresh installation through `20261029000800`.
+
+## Release 2 candidate
+
+Release 2 adds 25 migrations after the deployed release 1 head.
+The audited range contains 260 migrations after the fixed 329-row baseline.
+
+| Migration | Change |
+| --- | --- |
+| `20261101000100` | Adds stored screen results and their refresh queue. |
+| `20261101000200` | Adds member-scoped screen reads and refresh functions. |
+| `20261102000100` | Adds league versions and one change event per committed league write. |
+| `20261103000100` | Stores request receipts to make write retries safe. |
+| `20261103000200` | Expires request receipts during history cleanup. |
+| `20261103000300` | Saves client settings through request receipts. |
+| `20261104000100` | Replaces separate job schedules with a leased work queue and dispatcher. |
+| `20261105000100` | Stores sampled screen timing beacons and private summaries. |
+| `20261106000100` | Stores private team timeline events. |
+| `20261106000200` | Records claims, trades, lineups and score events. |
+| `20261106000300` | Records lineup slot setting changes. |
+| `20261107000100` | Preserves locked historical lineups. |
+| `20261107000101` | Restores retained lineup history. |
+| `20261107000102` | Protects closed lineup dates. |
+| `20261107000200` | Adds linear rookie draft order. |
+| `20261107000201` | Keeps rookie mock draft order consistent. |
+| `20261107000300` | Stores league time zones. |
+| `20261107000400` | Adds player birthdates to screen views. |
+| `20261107000500` | Adds player injury details. |
+| `20261107000501` | Includes injury details in player search. |
+| `20261107000600` | Adds player mentions to league activity. |
+| `20261109000100` | Runs daily bounded retention and records cleanup results. |
+| `20261109000900` | Derives provider history windows from policy and preserves career eligibility. |
+| `20261110000100` | Adds complete server views for client screens. |
+| `20261111000100` | Publishes screen refresh versions. |
+
+A private local stack applies the release 1 prefix, then the complete release 2 suffix.
+Both security catalogs come from that stack.
+The final migration history contains 589 rows through `20261111000100`.
+The shared attestation supplies the soak and immediate preflight ranges.

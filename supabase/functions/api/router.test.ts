@@ -8,6 +8,7 @@ const LEAGUE_ID = '66666666-6666-4666-8666-666666666666'
 
 const postgrestRequests: string[] = []
 const tradeRpcRequests: Record<string, unknown>[] = []
+const rpcIdentities: { path: string; id: string | null; actor: string | null }[] = []
 const optimizerRequests: { internalToken: string | null; body: unknown }[] = []
 let commissionerRole: string | null = 'commissioner'
 let authenticatedUserId = USER_ID
@@ -15,6 +16,7 @@ let authenticatedUserId = USER_ID
 const postgrest = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, async (req) => {
   const url = new URL(req.url)
   postgrestRequests.push(`${req.method} ${url.pathname}?${url.searchParams.toString()}`)
+  if (url.pathname.startsWith('/rest/v1/rpc/')) rpcIdentities.push({ path: url.pathname, id: req.headers.get('x-request-id'), actor: req.headers.get('x-request-actor') })
 
   let body: unknown = []
   if (url.pathname === '/auth/v1/user') {
@@ -108,7 +110,7 @@ const UUID = '11111111-1111-4111-8111-111111111111'
 function request(method: string, path: string, body: Record<string, unknown> = {}): Request {
   return new Request(`${API}${path}`, {
     method,
-    headers: method === 'GET' ? undefined : { 'content-type': 'application/json' },
+    headers: method === 'GET' ? undefined : { 'content-type': 'application/json', 'x-request-id': crypto.randomUUID() },
     body: method === 'GET' ? undefined : JSON.stringify(body),
   })
 }
@@ -764,6 +766,23 @@ Deno.test({
     } finally {
       Deno.env.delete('ADMIN_USER_IDS')
       postgrestRequests.length = 0
+    }
+  },
+})
+
+Deno.test({
+  name: 'API forwards the client ID with the verified actor and ignores a claimed actor',
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    authenticatedUserId = USER_ID
+    const req = authedRequest('POST', '/waivers/claims', { memberId: MEMBER_ID, leagueId: LEAGUE_ID, playerId: PLAYER_ID })
+    req.headers.set('x-request-actor', OTHER_USER_ID)
+    const response = await handleApiRoute(req)
+    await response.body?.cancel()
+    const identity = rpcIdentities.at(-1)
+    if (response.status !== 200 || identity?.path !== '/rest/v1/rpc/create_waiver_claim_atomic' || identity.id !== req.headers.get('x-request-id') || identity.actor !== USER_ID) {
+      throw new Error(`Request identity was not verified and forwarded: ${JSON.stringify(identity)}`)
     }
   },
 })

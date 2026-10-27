@@ -70,7 +70,7 @@ export function SettingsRow({
                 <Text style={[textStyles.rowTitle, tone === 'danger' && styles.danger]} numberOfLines={2}>{label}</Text>
                 {detail ? <Text style={textStyles.meta}>{detail}</Text> : null}
             </View>
-            {value != null ? <Text style={[textStyles.body, styles.value, reserveValue && styles.reservedValue]} numberOfLines={1}>{value}</Text> : null}
+            {value != null ? <Text style={[textStyles.body, styles.value, reserveValue && styles.reservedValue]}>{value}</Text> : null}
             {accessory}
             {showChevron ? <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} /> : null}
         </>

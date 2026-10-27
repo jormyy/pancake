@@ -1,3 +1,4 @@
+import { ListHeader } from '@/components/ui/ListHeader'
 import { RookiePickRow, rookiePickRowStyles } from '@/components/league/draft-room/RookiePickRow'
 import { draftYear } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
 
     separator: { height: 1, backgroundColor: colors.separator },
 
-    pickHeader: { borderBottomWidth: 1, borderBottomColor: colors.borderLight, minHeight: table.headerHeight, backgroundColor: colors.bgSubtle },
+    pickHeader: { paddingHorizontal: spacing.xl, gap: spacing.md },
     headerText: { ...textStyles.tableHeader },
 
 
@@ -679,9 +680,9 @@ const styles = StyleSheet.create({
 })
 
 const PickBoardHeader = (
-    <View style={[rookiePickRowStyles.pickRow, styles.pickHeader]}>
+    <ListHeader style={styles.pickHeader}>
         <Text style={[rookiePickRowStyles.pickNum, styles.headerText]}>#</Text>
         <Text style={[rookiePickRowStyles.pickTeam, styles.headerText]}>Team</Text>
         <Text style={[rookiePickRowStyles.pickPlayer, styles.headerText]}>Player</Text>
-    </View>
+    </ListHeader>
 )

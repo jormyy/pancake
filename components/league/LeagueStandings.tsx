@@ -1,8 +1,10 @@
+import { Badge } from '@/components/ui/Badge'
+import { ListHeader } from '@/components/ui/ListHeader'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { compareStandingsRows, type StandingRow } from '@/lib/scoring'
-import { colors, fontSize, fontWeight, layout, radii, spacing, srOnly, table, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles } from '@/constants/tokens'
 import { countLabel } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
@@ -127,8 +129,8 @@ function StandingsRow({
                     {item.teamName}
                 </Text>
                 {isMe ? (
-                    <View style={styles.youPill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-                        <Text style={styles.youText}>You</Text>
+                    <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                        <Badge size="small" variant="solid" color={colors.primary} label="You" />
                     </View>
                 ) : null}
             </View>
@@ -210,7 +212,8 @@ function StandingsHeader({
             >
                 <Text>{sortControlsLabel}</Text>
             </View>
-            <View
+            <ListHeader
+                interactive
                 style={[styles.header, { paddingHorizontal: padX }]}
                 role="toolbar"
                 aria-label={sortControlsLabel}
@@ -222,7 +225,7 @@ function StandingsHeader({
                 <SortHeader sortKey="pf" label="PF" style={pointsCol} {...sortProps} />
                 {showMaxPf ? <SortHeader sortKey="maxPf" label="Max PF" style={pointsCol} {...sortProps} /> : null}
                 {showPa ? <SortHeader sortKey="pa" label="PA" style={pointsCol} {...sortProps} /> : null}
-            </View>
+            </ListHeader>
         </Fragment>
     )
 }
@@ -389,15 +392,8 @@ const styles = StyleSheet.create({
     scroll: { flex: 1 },
     content: { paddingBottom: spacing['3xl'] },
     tableColumn: { width: '100%', maxWidth: layout.formMaxWidth + 2 * layout.pagePadX.regular, alignSelf: 'center' },
-    header: {
-        minHeight: table.headerHeight,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
-    headerCell: { minHeight: table.headerHeight, justifyContent: 'center' },
+    header: { gap: spacing.sm },
+    headerCell: { minHeight: controlSize.minTouch, justifyContent: 'center' },
     headerCellNumeric: { alignItems: 'flex-end' },
     headerActive: { color: colors.primaryDark },
     row: {
@@ -411,14 +407,6 @@ const styles = StyleSheet.create({
     teamWrap: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     // Link-colored so every row (not just "You") reads as a tappable roster.
     teamName: { ...textStyles.rowTitle, flexShrink: 1, color: colors.primaryDark },
-    youPill: {
-        paddingHorizontal: spacing.sm,
-        paddingVertical: spacing.xxs,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.primary,
-    },
-    youText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textWhite },
     cell: { ...textStyles.tableCell, textAlign: 'right' },
     playoffCutRow: {
         flexDirection: 'row',

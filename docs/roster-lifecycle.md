@@ -33,6 +33,22 @@ Waiver and trade-plan reservations share team and player locks.
 Player merges preserve history under the surviving identity and reject unresolved ownership conflicts.
 The [backend inventory](supabase-backend-route-inventory.md) maps public action paths.
 
+## History lock
+
+Roster moves preserve past dates, completed slates, and locked slots.
+A completed slate stays unchanged even when a player has no known NBA team.
+Only future slots with unstarted games can clear.
+A saved lineup receipt keeps its original row before a player changes NBA teams.
+This keeps the lock when a box score or participation record is missing.
+Drops, IR, taxi, trades, and waiver results share the cleanup rule.
+
+The history repair restores missing rows from complete saved receipts.
+It preserves each row ID, slot, date, and timestamp.
+It skips conflicts, missing identities, and seasons whose score inputs are retired.
+Each restored row creates a `lineup.history_restored` league event.
+A repeated repair restores zero additional rows.
+Rows lost before receipts exist require separate evidence; the repair does not guess their slots.
+
 ## IR activation and swaps
 
 Scheduled waiver claims can place eligible players straight into IR.
@@ -84,6 +100,60 @@ A new season without a schedule keeps the prior season's cadence.
 The server returns the used count, reset instant, and rejection reason.
 The client treats an ended cached week as eligible for a new server check.
 Commissioner overrides change the count without changing its reset boundary.
+
+## Retries
+
+Each write below gets a UUID before it enters the offline queue or sends a request.
+Transport retries keep that UUID and the original payload.
+The client retries a lost connection once, including a failure while reading the response body.
+A new action gets a new UUID.
+Queue records can restore the same UUID through `withPwaMutation` options.
+The current offline queue waits in memory and holds the PWA update guard.
+
+The API requires `x-request-id` on POST requests.
+It forwards the ID with the verified user to database calls and internal lineup optimization.
+Database calls use the authenticated user, even if a caller supplies another actor header.
+Service calls accept an actor from the trusted server.
+Internal jobs without a client action keep their existing behavior.
+
+`private.request_receipts` stores the actor, function, input hash, result, and creation time.
+One transaction lock serializes calls with the same ID.
+The write and its receipt commit together.
+A repeat returns the first result before it checks changed roster or draft state.
+Reusing an ID for another actor, function, or payload fails.
+A failed transaction leaves no receipt.
+A corrected action uses a new ID.
+Trade quote regeneration does not change the action identity.
+
+Nested atomic calls share the outer receipt.
+Season optimization derives a stable child ID for each member and date.
+Its first committed assignment wins if a retry recomputes projections.
+The existing retention job removes receipts older than seven days in bounded batches.
+Clients cannot read or change receipts directly.
+
+Each write-family recipe overlaps two sessions, repeats the action twice more, and checks equal results and one receipt.
+Row triggers record the writes and prove that retries add none.
+The settings recipe disables the guard as a negative control and requires the check to fail.
+
+| Write paths | Guarded database entry points | Proof |
+| --- | --- | --- |
+| Lineup moves and auto-set | `set_player_slot_atomic`, `set_player_slot_moves_atomic`, `auto_set_lineup_atomic`, `auto_set_lineup_service_atomic`, `update_lineup_slots_atomic` | [Lineup recipe](../tests/db/idempotency-lineup.sql) |
+| Claim create, edit, cancel, reorder | `create_waiver_claim_atomic`, `edit_waiver_claim_atomic`, `cancel_waiver_claim_atomic`, `reorder_waiver_claim_atomic` | [Claims recipe](../tests/db/idempotency-claims.sql) |
+| Trade propose, edit, counter, accept, reject, withdraw, veto, vote | `submit_trade_offer_atomic`, `propose_trade_atomic`, `propose_multi_team_trade_atomic`, `accept_trade_atomic`, `accept_trade_with_plan_atomic`, `reject_trade_atomic`, `withdraw_trade_atomic`, `veto_trade_atomic` | [Trades recipe](../tests/db/idempotency-trades.sql) |
+| Trade roster plans, destinations, and block | `set_trade_roster_plan_atomic`, `set_trade_taxi_destinations_atomic`, `add_trade_block_item_atomic`, `remove_trade_block_item_atomic` | Shared receipt guard; [client guard inventory](../tests/lib/api-client.test.ts) |
+| Draft picks, nominations, bids | `make_snake_pick_atomic`, `auto_pick_snake_pick_atomic`, `commissioner_snake_pick_atomic`, `create_auction_nomination_atomic`, `place_auction_bid_atomic`, `withdraw_auction_nomination_atomic` | [Draft recipe](../tests/db/idempotency-draft.sql) |
+| IR, taxi, activation, drop | `toggle_ir_atomic`, `toggle_taxi_atomic`, `activate_roster_player_with_lineup_atomic`, `activate_roster_player_with_overflow_atomic`, `drop_player_atomic` | [Roster recipe](../tests/db/idempotency-roster.sql); short drop overloads delegate to the guarded entry |
+| Legacy instant adds | `add_free_agent_atomic`, `drop_and_add_free_agent_atomic` | Shared guard; existing continuous-waiver rejection stays in force |
+| League, lineup slot, team, notification, and optimizer settings | `update_league_settings_atomic`, `update_league_configuration_atomic`, `update_lineup_slots_atomic`, `save_client_settings_atomic`, `commissioner_adjust_faab_balance_atomic`, `commissioner_override_weekly_add_count_atomic` | [Settings recipe](../tests/db/idempotency-settings.sql) |
+| Announcements | `notif_publish_announcement_atomic` | [Announcements recipe](../tests/db/idempotency-announcements.sql) |
+| League create and join | `create_league`, `join_league_by_invite_code` | [Leagues recipe](../tests/db/idempotency-leagues.sql) |
+| Failed requests, actor and input binding, retention, permissions | Shared receipt helpers | [Core recipe](../tests/db/idempotency-core.sql) |
+
+Run each recipe with `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/idempotency-FAMILY.sql`.
+Use only an isolated local stack.
+The shared support and cleanup files are recipe parts.
+Database catalog and function-source checks verify every wrapper against the migrated database.
+The guard inventory checks each client retry target against its canonical function source.
 
 ## Verification
 
@@ -296,3 +366,40 @@ Matchup types label early rounds, semifinals, and the final.
 Null entrant settings retain the legacy four- or six-team bracket and original seed snapshot.
 The legacy array constraint remains intact.
 Migration does not assign new seed snapshots to existing seasons.
+
+## Timeline
+
+Each team has one timeline from the league event log.
+Home opens it with one tap.
+Each claim and trade row opens its related history.
+Counteroffers and edits stay in the original offer's history.
+
+Managers see their own failed claims, recorded reasons, and bids.
+Other managers see public results without private bids, notes, or lineup assignments.
+Pending trade steps stay visible to the participants.
+Completed trades and score results appear for both teams.
+Trade events retain the participant IDs from that action.
+Direct table reads cannot access private event details.
+The reader checks the caller's league membership before it projects those details.
+
+The screen filters claims, trades, lineups, and scores.
+All activity also includes real draft picks, auction awards, and settings changes.
+Mock draft picks stay out of the timeline.
+Settings events record changed values, including lineup slot changes.
+Unchanged saves add no event.
+Each row shows a relative time and the recorded reason without changes.
+Trade failures retain the exact recorded completion reason.
+
+Older activity uses a timestamp and event ID cursor.
+IDs travel as strings, and the cursor preserves timestamp precision.
+Equal timestamps page without gaps or duplicate rows.
+The reader calls `public.view_team_timeline` through the authenticated database client.
+No separate Edge route is required.
+`private.timeline_event_catalog()` defines each kind and its visibility.
+
+`tests/db/timeline-read.sql` checks access, private details, order, and cursor paging.
+`tests/db/timeline-lifecycle.sql` performs claims, a counter trade, an auto-set, and score finalization.
+It checks both managers' timelines and pages through the real events.
+`tests/db/timeline-producers.sql` covers three-team acceptance, settings, real picks, auction awards, retries, and private trade failures.
+`tests/lib/timeline/app-browser.mjs` signs in locally and checks the Home entry, recorded reasons, filters, and claim deep link.
+The browser smoke route list also includes Timeline.

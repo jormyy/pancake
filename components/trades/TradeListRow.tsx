@@ -1,3 +1,4 @@
+import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
@@ -8,7 +9,7 @@ import { useRouter } from 'expo-router'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeBlockNoteEditor } from '@/components/trades/TradeBlockNoteEditor'
 import type { TradeTabKey } from '@/lib/trade-ui-model'
-import { colors, controlSize, fontSize, table, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, table, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { playerEligiblePositions, playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
 import type { Trade, TradeBlockItem, TradePickItem } from '@/lib/trades'
@@ -20,9 +21,7 @@ type ItemOf<Type extends TradeListItem['_type']> = Extract<TradeListItem, { _typ
 export const TradeSectionRow = memo(function TradeSectionRow({ item }: { item: ItemOf<'header'> }) {
     if (!item.label) return null
     return (
-        <View style={styles.sectionRow} role="heading" aria-level={2} accessibilityRole="header" accessibilityLabel={item.label}>
-            <Text style={styles.sectionText}>{item.label}</Text>
-        </View>
+        <SectionBand variant="plain" label={item.label} style={styles.sectionRow} />
     )
 })
 
@@ -205,11 +204,10 @@ export const TradeOfferRow = memo(function TradeOfferRow({
 
 const styles = StyleSheet.create({
     sectionRow: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
-    sectionText: { ...textStyles.sectionLabel },
     emptyRow: { paddingVertical: spacing.sm },
     emptyText: { ...textStyles.meta },
-    blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: spacing.md },
-    compactBlockRow: { paddingVertical: spacing.xs, gap: spacing.md },
+    blockRow: { minHeight: table.rowHeight, flexDirection: 'row', alignItems: 'center', gap: spacing.lg, paddingVertical: componentTokens.playerRow.standard.paddingVertical },
+    compactBlockRow: { paddingVertical: componentTokens.playerRow.compact.paddingVertical, gap: componentTokens.playerRow.compact.gap },
     tile: {
         flex: 1,
         margin: spacing.xs,

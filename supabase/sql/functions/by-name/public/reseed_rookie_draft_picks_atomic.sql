@@ -72,7 +72,7 @@ BEGIN
       rounds.round,
       ordered.member_id AS original_owner_id,
       CASE
-        WHEN rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
+        WHEN v_draft.rookie_draft_order = 'snake' AND rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
         ELSE ordered.position
       END AS pick_in_round
     FROM generate_series(1, v_rounds) AS rounds(round)

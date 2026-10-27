@@ -7,7 +7,20 @@ Deno.env.set('PANCAKE_EDGE_INTERNAL_TOKEN', 'edge-error-contract-test')
 
 const { handleApiRequest, throwDb } = await import('./apiRuntime.ts')
 
-const request = () => new Request('http://edge.test/functions/v1/api/roster/add', { method: 'POST' })
+const request = () => new Request('http://edge.test/functions/v1/api/roster/add', { method: 'POST', headers: { 'x-request-id': crypto.randomUUID() } })
+
+Deno.test('missing or invalid request IDs fail before dispatch', async () => {
+  for (const id of [undefined, 'invalid']) {
+    let called = false
+    const req = request()
+    if (id) req.headers.set('x-request-id', id)
+    else req.headers.delete('x-request-id')
+    const response = await handleApiRequest(req, 'test', async () => { called = true; return Response.json({ ok: true }) })
+    expect(response.status, 400, 'status')
+    expect(called, false, 'dispatch')
+    await response.body?.cancel()
+  }
+})
 
 async function respond(fail: () => never) {
   const response = await handleApiRequest(request(), 'test', () => Promise.resolve().then(fail))

@@ -57,7 +57,11 @@ RETURNS TABLE (
   projection_turnovers numeric,
   projection_status text,
   stats_season_year int,
-  career_regular_season_games int
+  career_regular_season_games int,
+  birthdate date,
+  age int,
+  injury_reason text,
+  injury_expected_return text
 )
 LANGUAGE plpgsql
 STABLE
@@ -202,6 +206,9 @@ filtered_base AS (
     p.nba_id,
     p.years_exp,
     p.career_regular_season_games,
+    p.birthdate,
+    p.injury_reason,
+    p.injury_expected_return,
     fp.avg_fantasy_points,
     avg.avg_points,
     avg.avg_rebounds,
@@ -326,7 +333,11 @@ SELECT
   proj.projection_turnovers,
   proj.projection_status,
   v_stats_season,
-  pb.career_regular_season_games
+  pb.career_regular_season_games,
+  pb.birthdate,
+  extract(year FROM age((now() AT TIME ZONE 'America/Los_Angeles')::date,pb.birthdate))::int,
+  pb.injury_reason,
+  pb.injury_expected_return
 FROM paged_base pb
 LEFT JOIN projection AS proj
   ON proj.player_id = pb.id

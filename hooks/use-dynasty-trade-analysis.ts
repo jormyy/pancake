@@ -1,7 +1,9 @@
+import { readScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { dynastyAnalyzerRouteSignature, dynastyScoringSignature } from '@/lib/dynasty-decisions'
-import { requestTradeEstimate, requestTradeRevaluation, type TradeEstimateQuote, type TradeRevaluation } from '@/lib/trade-estimates'
+import { type TradeEstimateQuote, type TradeRevaluation } from '@/lib/trade-estimates'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
 import type { Json } from '@/types/database'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
@@ -68,17 +70,12 @@ export function useDynastyTradeAnalysis(input: Input): {
         const request = ++sequence.current
         if (!active) return
         let cancelled = false
-        let expiry: ReturnType<typeof setTimeout> | undefined
         const timer = setTimeout(() => {
-            const requested = input.tradeId ? requestTradeRevaluation(input.memberId, input.tradeId)
-                : requestTradeEstimate(input.memberId, itemsRef.current)
+            const requested = readScreenView<{ analysis?: TradeRevaluation | null; quote?: TradeEstimateQuote }>(screenScope('trade-analysis', input.leagueId, input.memberId, input.tradeId ? { tradeId: input.tradeId } : { items: itemsRef.current }), { force: refresh > 0 }).then(view => { const value = view.quote ?? view.analysis; if (!value) throw new Error('Trade estimate unavailable. Try again after the next update.'); if (Date.parse(value.expiresAt) <= Date.now()) throw new Error('Trade estimate expired. Try again.'); return value })
             void requested.then(value => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
                 setResult({ scope, value, error: null })
-                expiry = setTimeout(() => {
-                    setResult(null)
-                    setRefresh(value => value + 1)
-                }, Math.max(1000, Date.parse(value.expiresAt) - Date.now()))
+
             }).catch(error => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
                 setResult({ scope, value: null, error: error instanceof Error ? error.message : 'Trade estimate unavailable.' })
@@ -87,9 +84,16 @@ export function useDynastyTradeAnalysis(input: Input): {
         return () => {
             cancelled = true
             clearTimeout(timer)
-            if (expiry) clearTimeout(expiry)
         }
-    }, [active, debounceMs, input.memberId, input.tradeId, scope, refresh])
+    }, [active, debounceMs, input.memberId, input.tradeId, input.leagueId, scope, refresh])
+
+    useEffect(() => {
+        if (!active || result?.scope !== scope || !result.value) return
+        const remaining = Date.parse(result.value.expiresAt) - Date.now()
+        if (!Number.isFinite(remaining)) return
+        const timer = setTimeout(retry, Math.max(1, remaining))
+        return () => clearTimeout(timer)
+    }, [active, result, scope, retry])
 
     const shown = active && result?.scope === scope ? result : null
     return {

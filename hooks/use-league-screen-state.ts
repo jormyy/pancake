@@ -2,14 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { parseLeagueTab, type LeagueSection } from '@/lib/league/tabs'
-import {
-    debounceRealtimeRefresh,
-    disposeTableChangeSubscription,
-    reportRealtimeCleanup,
-    subscribeToTableChanges,
-    type TableChangeWatch,
-} from '@/lib/realtime'
-import { leagueScreenWatches } from '@/lib/league/realtime'
+
+
 import { useLeagueTabResources } from '@/hooks/use-league-tab-resources'
 import { useLeagueDraftController } from '@/hooks/use-league-draft-controller'
 import { useMockRoomsController } from '@/hooks/use-mock-rooms-controller'
@@ -23,99 +17,14 @@ export function useLeagueScreenState() {
     const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
     const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
-    const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated })
+    const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated, view: useMemo(() => ({ draft: tabResources.activeDraft, loaded: tabResources.activeDraftLoaded, error: tabResources.activeDraftError }), [tabResources.activeDraft, tabResources.activeDraftLoaded, tabResources.activeDraftError]) })
     const mockRooms = useMockRoomsController({
         leagueId: currentLeague?.id,
         memberId: current?.id,
         refreshRooms: tabResources.refreshMockRooms,
         openDraftRoom: draft.openDraftRoom,
     })
-    const { invalidateTab } = tabResources
-    const { fetchActiveDraft } = draft
-
-    useEffect(() => {
-        setTab(parseLeagueTab(params.tab))
-    }, [params.tab])
-
-    const currentDraftKey = useMemo(() => [...new Set([
-        draft.activeDraft?.id,
-        ...tabResources.mockRooms.map((room) => room.id),
-    ].filter((id): id is string => Boolean(id)))].sort().join(','), [draft.activeDraft?.id, tabResources.mockRooms])
-
-    useEffect(() => {
-        const lid = currentLeague?.id
-        if (!lid) return
-        const refreshResults = debounceRealtimeRefresh(() => { invalidateTab('results') })
-        const refreshHistory = debounceRealtimeRefresh(() => { invalidateTab('history') })
-        const refreshSettings = debounceRealtimeRefresh(() => { invalidateTab('settings') })
-        const refreshDraftBoard = debounceRealtimeRefresh(() => { invalidateTab('draftBoard') })
-        const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
-        const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
-        const leagueWatches = leagueScreenWatches(lid, {
-            members: () => {
-                refreshResults.trigger()
-                refreshMockRooms.trigger()
-            },
-            history: refreshHistory.trigger,
-            settings: refreshSettings.trigger,
-            draftBoard: refreshDraftBoard.trigger,
-            drafts: () => {
-                refreshDraftState.trigger()
-                refreshMockRooms.trigger()
-            },
-        })
-        // League-wide watches live on a stable channel so mock-room churn (which
-        // changes the draft-id set below) doesn't tear down every subscription.
-        const channel = subscribeToTableChanges(`league-screen:${lid}`, {
-            mode: 'per-watch',
-            watches: leagueWatches,
-            onReconnect: () => {
-                for (const target of ['results', 'history', 'settings', 'draftBoard', 'mockRooms'] as const) invalidateTab(target)
-                return fetchActiveDraft(lid)
-            },
-        })
-        return () => reportRealtimeCleanup(
-            'league screen',
-            disposeTableChangeSubscription(channel, [
-                refreshResults,
-                refreshHistory,
-                refreshSettings,
-                refreshDraftBoard,
-                refreshMockRooms,
-                refreshDraftState,
-            ]),
-        )
-    }, [currentLeague?.id, fetchActiveDraft, invalidateTab])
-
-    useEffect(() => {
-        const lid = currentLeague?.id
-        if (!lid || !currentDraftKey) return
-        const refreshMockRooms = debounceRealtimeRefresh(() => { invalidateTab('mockRooms') })
-        const refreshDraftState = debounceRealtimeRefresh(() => { void fetchActiveDraft(lid) })
-        const draftFilter = `draft_id=in.(${currentDraftKey})`
-        const draftWatches: TableChangeWatch[] = [
-            { table: 'draft_room_members', filter: draftFilter, onChange: () => {
-                refreshDraftState.trigger()
-                refreshMockRooms.trigger()
-            } },
-        ]
-        const channel = subscribeToTableChanges(`league-screen-drafts:${lid}:${currentDraftKey}`, {
-            mode: 'per-watch',
-            watches: draftWatches,
-            onReconnect: () => {
-                invalidateTab('draftBoard')
-                invalidateTab('mockRooms')
-                return fetchActiveDraft(lid)
-            },
-        })
-        return () => reportRealtimeCleanup(
-            'league screen drafts',
-            disposeTableChangeSubscription(channel, [
-                refreshMockRooms,
-                refreshDraftState,
-            ]),
-        )
-    }, [currentDraftKey, currentLeague?.id, fetchActiveDraft, invalidateTab])
+    useEffect(() => { setTab(parseLeagueTab(params.tab)) }, [params.tab])
 
     const handleTabChange = (nextTab: LeagueSection) => {
         setTab(nextTab)

@@ -1,6 +1,9 @@
+import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { ClaimEditorView } from '@/lib/cache/view-types'
 import { clearEditorDraft, readEditorDraft, saveEditorDraft } from '@/lib/editor-draft'
 import { isClaimDraft } from '@/lib/claim-draft'
-import { getCurrentSeasonId } from '@/lib/shared/season'
+
 import { holdPwaUpdate } from '@/lib/pwa-update-guard'
 import { isTaxiEligible } from '@pancake/core'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -27,11 +30,11 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { useAuth } from '@/hooks/use-auth'
-import { getRoster, getTaxiExitPlayerIds, RosterPlayer } from '@/lib/roster'
+import { RosterPlayer } from '@/lib/roster'
 import { getPlayer } from '@/lib/players'
-import { claimProcessDateLabel, claimProcessTimeLabel, getMyWaiverPriority, getWaiverClearsAt, submitWaiverClaim, getMyWaiverClaims, editWaiverClaim, scheduledClaimLabel } from '@/lib/waivers'
+import { claimProcessDateLabel, claimProcessTimeLabel, submitWaiverClaim, editWaiverClaim, scheduledClaimLabel } from '@/lib/waivers'
 import { type MemberTransactionState } from '@/lib/league'
-import { loadAddLimitState } from '@/lib/roster-add-flow'
+
 import { addLimitSummary, canAddToIR, reportPickupError } from '@/lib/pickup'
 import { blockedActionProps } from '@/lib/a11y'
 import { useAddLimitGate } from '@/hooks/use-add-limit-gate'
@@ -70,7 +73,8 @@ export default function ClaimPlayerScreen() {
     useEffect(() => () => {
         if (draftOwnerRef.current) clearEditorDraft('claim', draftOwnerRef.current.scope)
     }, [])
-    const [initialCache] = useState(() => readPersistentCache<ClaimSnapshot>(cacheKey))
+    const savedView = userId && memberId && leagueId && playerId ? cachedScreenView<ClaimEditorView>(screenScope('claim-editor', leagueId, memberId, { playerId, claimId }, userId))?.value : undefined
+    const [initialCache] = useState<ClaimSnapshot | null>(() => savedView ? { player: savedView.player, roster: savedView.roster, priority: savedView.priority, clearsAt: savedView.clearsAt, transactionState: savedView.transactionState, taxiExitIds: savedView.taxiExitIds } : readPersistentCache<ClaimSnapshot>(cacheKey))
     const [loadError, setLoadError] = useState<string | null>(null)
     const [player, setPlayer] = useState<ClaimSnapshot['player'] | null>(initialCache?.player ?? null)
     const [myRoster, setMyRoster] = useState<RosterPlayer[]>(initialCache?.roster ?? [])
@@ -146,17 +150,10 @@ export default function ClaimPlayerScreen() {
             const requestedPlayerId = playerId
             const requestedLeagueId = leagueId
             try {
-                const [p, roster, prio, txState, waiverEnds, members, exits, claims, seasonId] = await Promise.all([
-                    getPlayer(requestedPlayerId),
-                    getRoster(memberId, requestedLeagueId),
-                    getMyWaiverPriority(memberId, requestedLeagueId),
-                    loadAddLimitState(memberId, requestedLeagueId),
-                    getWaiverClearsAt(requestedLeagueId, requestedPlayerId),
-                    getLeagueMembers(requestedLeagueId),
-                    (currentLeague?.taxi_slots ?? 0) > 0 ? getTaxiExitPlayerIds(memberId, requestedLeagueId) : Promise.resolve(new Set<string>()),
-                    claimId ? getMyWaiverClaims(memberId, requestedLeagueId) : Promise.resolve([]),
-                    getCurrentSeasonId(requestedLeagueId),
-                ])
+                const view = await readScreenView<ClaimEditorView>(screenScope('claim-editor', requestedLeagueId, memberId, { playerId: requestedPlayerId, claimId }, userId), { force: loadAttempt > 0 })
+                const { player: p, roster, priority: prio, transactionState: txState, clearsAt: waiverEnds, members, claims } = view
+                const exits = new Set(view.taxiExitIds)
+                const seasonId = view.context.seasonId
                 if (claimLoadSeqRef.current !== requestId || ownerRef.current !== owner || !isCurrent(generation)) return
                 if (!members.some(member => member.id === memberId && member.user_id === userId)) {
                     setLoadError('You no longer belong to this league.')
@@ -199,6 +196,12 @@ export default function ClaimPlayerScreen() {
         return () => { claimLoadSeqRef.current += 1 }
     }, [leagueId, memberId, playerId, claimId, ownerKey, userId, canRead, capture, isCurrent, markReady, blockActions, epoch, loadAttempt, cacheKey, currentLeague?.taxi_slots])
 
+    useEffect(() => {
+        if (!userId || !memberId || !leagueId || !playerId) return
+        const scope = screenScope('claim-editor', leagueId, memberId, { playerId, claimId }, userId)
+        return subscribeScreenView(scope, () => { if (cachedScreenView(scope)?.dirty) setLoadAttempt(value => value + 1) })
+    }, [userId, memberId, leagueId, playerId, claimId])
+
     const refreshTransactionState = useCallback(() => {
         blockActions()
         setLoadAttempt(value => value + 1)
@@ -219,12 +222,12 @@ export default function ClaimPlayerScreen() {
     const { addBlockedReason, explainBlock } = useAddLimitGate({ transactionState, refresh: refreshTransactionState })
 
     async function handleSubmit() {
-        if (!canAct() || submittingRef.current === ownerRef.current) return
+        if ((!online || !canAct()) || submittingRef.current === ownerRef.current) return
         if (!current || !user || !playerId || !currentLeague) return
         if (loading || !player) return
         if (balanceUnknown) return
         if (explainBlock()) return
-        if (!await rosterLegality.check(myRoster)) return
+        if (online && !await rosterLegality.check(myRoster)) return
         if (needsDrop && !selectedDrop) {
             showAlert('Select Drop', 'Your roster is full. Select a player to drop.')
             return
@@ -240,8 +243,8 @@ export default function ClaimPlayerScreen() {
         submittingRef.current = owner
         setSubmittingOwner(owner)
         try {
-            const members = await getLeagueMembers(currentLeague.id)
-            if (!isCurrent(generation) || ownerRef.current !== owner) return
+            const members = online ? await getLeagueMembers(currentLeague.id) : [{ id: current.id, user_id: user.id }]
+            if ((online && !isCurrent(generation)) || ownerRef.current !== owner) return
             if (!members.some(member => member.id === current.id && member.user_id === user.id)) {
                 blockActions()
                 showAlert('Access changed', 'You no longer belong to this league.')
@@ -273,8 +276,8 @@ export default function ClaimPlayerScreen() {
     }
 
     const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate) : claimProcessDateLabel(clearsAt)
-    const claimReady = canAct() && !loading && !!player
-    const submitDisabled = !online || submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
+    const claimReady = online && canAct() && !loading && !!player
+    const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
     // Wide screens put the claim beside the drop list instead of stacking them.
     const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
@@ -565,7 +568,7 @@ const styles = StyleSheet.create({
     bidField: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: controlSize.field.md,
+        minHeight: controlSize.field.md,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -575,7 +578,7 @@ const styles = StyleSheet.create({
     },
     bidCurrency: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textMuted },
     // 16px keeps iOS Safari from zooming into the field.
-    bidInput: { width: 64, height: '100%', fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
+    bidInput: { width: 64, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'right' },
     bidBalance: { ...textStyles.meta },
 
     dropSection: { gap: spacing.md },
@@ -634,7 +637,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.sm,
-        height: controlSize.field.md,
+        minHeight: controlSize.field.md,
         paddingHorizontal: spacing.md,
         borderRadius: radii.md,
         borderCurve: 'continuous' as const,
@@ -643,7 +646,7 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bgInput,
     },
     footerBidLabel: { ...textStyles.sectionLabel },
-    footerBidInput: { width: 56, height: '100%', fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
+    footerBidInput: { width: 56, minHeight: controlSize.field.md, fontSize: controlSize.field.fontSize, fontWeight: fontWeight.bold, color: colors.textPrimary, textAlign: 'center' },
     submitButton: {
         minHeight: controlSize.button.sm.height,
         paddingHorizontal: controlSize.button.sm.padX,

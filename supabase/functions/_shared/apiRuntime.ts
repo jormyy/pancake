@@ -1,6 +1,7 @@
 import { supabase } from './supabase.ts'
 import { errorMessage } from './responses.ts'
 import { utf8ByteLength } from './tradeLimits.ts'
+import { requestHeaders, setRequestActor, withWorkContext } from './workContext.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +12,7 @@ const CORS_HEADERS = {
     'x-client-info',
     'x-e2e-secret',
     'x-internal-function-token',
+    'x-request-id',
   ].join(', '),
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
@@ -89,7 +91,10 @@ export async function handleApiRequest(
   if (req.method === 'OPTIONS') return noContent()
 
   try {
-    return await fn()
+    const requestId = req.headers.get('x-request-id') ?? undefined
+    if (req.method === 'POST' && !requestId) throw new ValidationError('Request ID is required.')
+    if (requestId) assertUuid(requestId, 'Request ID')
+    return await withWorkContext({ signal: req.signal, requestId }, fn)
   } catch (error) {
     return errorResponse(scope, error)
   }
@@ -264,6 +269,7 @@ export async function requireUser(req: Request): Promise<string> {
 
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) throw new ApiError('Invalid or expired token', 401)
+  setRequestActor(data.user.id)
   return data.user.id
 }
 
@@ -407,6 +413,7 @@ export async function invokeInternalFunction(
       headers: {
         'Content-Type': 'application/json',
         'x-internal-function-token': internalToken(),
+        ...(functionName === 'lineup-optimizer' && body.mode === 'rest_of_season' ? requestHeaders() : {}),
         ...(key ? { Authorization: `Bearer ${key}`, apikey: key } : {}),
       },
       body: method === 'POST' ? JSON.stringify(body) : undefined,

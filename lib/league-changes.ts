@@ -1,11 +1,12 @@
+import type { LeagueVersionChange } from '@/lib/league-version'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
-type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources'
+type Topic = 'lineup' | 'roster' | 'score' | 'game' | 'stat' | 'player_stats' | 'inventory' | 'resources' | 'version'
 type Scope = { season_id: string; member_id?: string; date?: string | null; week?: number }
 type ResourceDetail = { resource: 'picks' | 'claims' | 'waivers' | 'priority' | 'faab' | 'season' | 'activity' | 'averages' | 'projections' | 'scoring'; season_id: string; member_id?: string }
-type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null }
+type LeagueChange = { topic: Topic | 'catchup'; scopes: Scope[] | null; details?: ResourceDetail[] | null; version?: string; changes?: LeagueVersionChange[] }
 type Listener = (change: LeagueChange) => void
-const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources'])
+const topics = new Set(['lineup', 'roster', 'score', 'game', 'stat', 'player_stats', 'inventory', 'resources', 'version'])
 const listeners = new Map<string, Set<Listener>>()
 const connected = new Set<string>()
 const revisions = new Map<string, Map<string, number>>()
@@ -127,6 +128,18 @@ export function leagueChangeReceiver(leagueId: string, receive: Listener) {
         if (row.league_id !== leagueId || typeof row.topic !== 'string') return false
         if (!topics.has(row.topic)) return true
         const topic = row.topic as Topic
+        if (topic === 'version') {
+            const change = Array.isArray(row.details) && row.details.length === 1 ? row.details[0] : null
+            if (!change || typeof change !== 'object' || typeof change.version !== 'string'
+                || !/^[1-9]\d{0,18}$/.test(change.version) || BigInt(change.version) > 9223372036854775807n
+                || typeof change.topic !== 'string' || !change.scope || typeof change.scope !== 'object'
+                || Array.isArray(change.scope) || typeof change.created_at !== 'string') return false
+            const version = BigInt(change.version)
+            if (version <= (revisions.get(topic) ?? 0n)) return true
+            revisions.set(topic, version)
+            receive({ topic, scopes: null, version: change.version, changes: [change] })
+            return true
+        }
         const raw = row.revision
         if (!(typeof raw === 'number' && Number.isSafeInteger(raw) && raw > 0)
             && !(typeof raw === 'string' && /^[1-9]\d*$/.test(raw))) {

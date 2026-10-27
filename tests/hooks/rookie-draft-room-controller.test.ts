@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     activate: vi.fn(),
     drop: vi.fn(),
     appStateListener: vi.fn(),
-    getRevision: vi.fn(),
+    getRevision: vi.fn(), version: null as null | ((snapshot: { changes: { topic: string }[] }) => void),
     getRoster: vi.fn(),
     getState: vi.fn(),
     getPlayers: vi.fn(),
@@ -30,6 +30,11 @@ vi.mock('react-native', () => ({
         }),
     },
 }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { params: { draftId: string; query?: string } }, options: { checkVersion: boolean }) => options.checkVersion === false
+    ? { prospects: await mocks.getPlayers(scope.params.draftId, scope.params.query) }
+    : await mocks.getState(scope.params.draftId),
+}))
+vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: (_league: string, listener: typeof mocks.version) => { mocks.version = listener; return () => { mocks.version = null } } }))
 vi.mock('@/lib/rookieDraft', () => ({
     activateRookieDraftLeague: mocks.activate,
     commissionerSnakePick: vi.fn(),
@@ -305,17 +310,17 @@ describe('useRookieDraftRoomController', () => {
             board.picks = [{ overallPick: 1, round: 1, pickInRound: 1, memberId: 'other', teamName: 'Other', pickedAt: 'now',
                 skippedAt: null, skipReason: null, timerExpiresAt: null,
                 player: { id: 'a', displayName: 'a', nbaTeam: null, position: 'PG', nbaId: null } }]
-            mocks.getRevision.mockResolvedValue('picked-a')
             mocks.getPlayers.mockRejectedValueOnce(new Error('Prospects unavailable')).mockResolvedValue([players[1]])
-            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            await act(async () => { mocks.subscribe.mock.calls.at(-1)?.[1](); await vi.advanceTimersByTimeAsync(300) })
             expect(mocks.getPlayers.mock.calls.length).toBe(before)
             expect(latest.prospects.map(p => p.id)).toEqual(['b'])
             await act(async () => { await latest.refresh() })
             expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
+            expect(latest.prospectsLoadError).toContain('Prospects unavailable')
             await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-            expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
+            expect(mocks.getPlayers.mock.calls.length).toBe(before + 1)
             expect(mocks.getPlayers).toHaveBeenLastCalledWith('draft', 'Rookie')
-            await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
+            await act(async () => { await latest.refresh() })
             expect(mocks.getPlayers.mock.calls.length).toBe(before + 2)
             expect(latest.prospects.map(p => p.id)).toEqual(['b'])
         } finally {
@@ -420,35 +425,6 @@ describe('useRookieDraftRoomController', () => {
         expect(mocks.activate).toHaveBeenCalledTimes(2)
         expect(latest.state?.draft.id).toBe('b')
         await act(async () => { renderer.unmount() })
-    })
-
-    it('binds the first revision to a board read, then skips unchanged and background polls', async () => {
-        vi.useFakeTimers()
-        mocks.getState.mockResolvedValue(draftState('a'))
-        mocks.getRevision.mockResolvedValueOnce('same').mockResolvedValueOnce('same').mockResolvedValueOnce('changed')
-        let renderer!: ReactTestRenderer
-        await act(async () => {
-            renderer = create(React.createElement(() => {
-                useRookieDraftRoomController({ draftId: 'a', memberId: 'member', leagueId: 'league', rosterSize: 20 })
-                return null
-            }))
-            await Promise.resolve()
-        })
-        expect(mocks.getState).toHaveBeenCalledTimes(1)
-
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-        expect(mocks.getRevision).toHaveBeenCalledTimes(1)
-        expect(mocks.getState).toHaveBeenCalledTimes(2)
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-        expect(mocks.getState).toHaveBeenCalledTimes(2)
-        await act(async () => { await vi.advanceTimersByTimeAsync(15_000) })
-        expect(mocks.getState).toHaveBeenCalledTimes(3)
-
-        mocks.appStateListener('background')
-        await act(async () => { await vi.advanceTimersByTimeAsync(60_000) })
-        expect(mocks.getRevision).toHaveBeenCalledTimes(3)
-        await act(async () => { renderer.unmount() })
-        vi.useRealTimers()
     })
 
     it('discards overflow state from a pick that completes after the draft changes', async () => {

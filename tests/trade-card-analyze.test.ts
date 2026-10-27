@@ -6,7 +6,9 @@ import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeOfferRow } from '@/components/trades/TradeListRow'
 import { trade } from './helpers/fixtures'
 
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
+const timelineNavigation = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member-a' }, currentLeague: { id: 'league' } }) }))
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: timelineNavigation.push }) }))
 vi.mock('@/components/SectionHeader', () => ({ SectionHeader: 'SectionHeader' }))
 vi.mock('@/components/trades/MultiTeamTradeOverview', () => ({ MultiTeamTradeOverview: () => null }))
 vi.mock('@/lib/format', () => ({ playerHeadshotUrl: () => null, yearShort: String }))
@@ -51,6 +53,12 @@ describe('TradeCard analyze action', () => {
 
         await act(async () => { analyze.props.onPress() })
         expect(onAnalyze).toHaveBeenCalledTimes(1)
+    })
+
+    it('opens the timeline for this trade and team', async () => {
+        const tree = await renderCard()
+        await act(async () => { tree.root.findByProps({ accessibilityLabel: 'What happened?' }).props.onPress() })
+        expect(timelineNavigation.push).toHaveBeenCalledWith({ pathname: '/timeline', params: { memberId: 'member-a', entityId: completed.id, filter: 'trades' } })
     })
 
     it('is disabled while another trade action is in flight', async () => {

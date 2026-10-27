@@ -4,7 +4,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
-import { colors, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -63,7 +63,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                 <View style={styles.avatarWrap}>
                     <PlayerAvatar name={player.display_name} nbaId={player.nba_id} size={headshotSize} />
                 </View>
-                <Text style={[styles.name, compact && styles.nameCompact]} numberOfLines={1} accessibilityLabel={player.display_name}>{player.display_name}</Text>
+                <Text style={[styles.name, compact && styles.nameCompact]} accessibilityLabel={player.display_name}>{player.display_name}</Text>
                 <View style={styles.actionWrap} aria-busy={busy} accessibilityState={{ busy }} testID="player-action-slot">
                     {action ? (
                         <Button size="inline" title={action.label}
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: controlSize.field.md },
     avatarWrap: { flexShrink: 0 },
     name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
-    nameCompact: { ...textStyles.rowTitle, fontSize: fontSize.lg },
+    nameCompact: { ...textStyles.rowTitle, fontSize: componentTokens.pageHeader.compact.title.fontSize },
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },

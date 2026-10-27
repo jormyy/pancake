@@ -78,7 +78,7 @@ Deno.test({
       'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
     const athletes = Array.from({ length: 360 }, (_, index) => ({
       id: `full-${suffix}-${index}`, firstName: `Full${suffix}`, lastName: `Player${String.fromCharCode(65 + Math.floor(index / 26))}${String.fromCharCode(65 + index % 26)}`,
-      experience: { years: index === 0 ? 0 : 1 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
+      experience: { years: index === 0 ? 0 : 2 }, position: { abbreviation: 'PG' }, status: { type: 'active' },
     }))
     let injuryMode = 'malformed'
     const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, request => {
@@ -91,12 +91,12 @@ Deno.test({
         : Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Other Player' } }, { status: 'Out' }] }] })
       if (url.pathname === '/news') return Response.json({ articles: [] })
       if (url.pathname === '/players/nba') return Response.json(Object.fromEntries(athletes.map((athlete, index) => [String(700000 + index), {
-        player_id: String(700000 + index), sport: 'nba', first_name: athlete.firstName, last_name: athlete.lastName, team: codes[Math.floor(index / 12)], years_exp: athlete.experience.years, position: 'PG',
+        player_id: String(700000 + index), sport: 'nba', first_name: athlete.firstName, last_name: athlete.lastName, team: codes[Math.floor(index / 12)], years_exp: Math.max(0, athlete.experience.years - 1), position: 'PG',
       }])))
       if (url.pathname === '/staticData/playerIndex.json') return Response.json({ resultSets: [{
         headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS', 'TEAM_ABBREVIATION', 'POSITION', 'FROM_YEAR'],
         rowSet: athletes.map((athlete, index) => [900000 + index, athlete.firstName, athlete.lastName, 1,
-          ({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[codes[Math.floor(index / 12)]] ?? codes[Math.floor(index / 12)], 'PG', 2026 - athlete.experience.years]),
+          ({ GS: 'GSW', NO: 'NOP', NY: 'NYK', SA: 'SAS', UTAH: 'UTA', WSH: 'WAS' } as Record<string, string>)[codes[Math.floor(index / 12)]] ?? codes[Math.floor(index / 12)], 'PG', 2026 - Math.max(0, athlete.experience.years - 1)]),
       }] })
       return new Response('unavailable', { status: 404 })
     })

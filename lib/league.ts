@@ -220,10 +220,9 @@ export async function getLeagueMembers(leagueId: string) {
 
 export async function updateTeamName(memberId: string, teamName: string) {
     return withPwaMutation('updateTeamName', async () => {
-        const { error } = await supabase
-            .from('league_members')
-            .update({ team_name: teamName })
-            .eq('id', memberId)
+        const { error } = await supabase.rpc('save_client_settings_atomic', {
+            p_kind: 'team', p_settings: { memberId, teamName },
+        })
         if (error) throw error
     })
 }

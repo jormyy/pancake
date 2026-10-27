@@ -10,11 +10,15 @@ BEGIN
   IF TG_OP='INSERT' THEN v_rows := 'SELECT * FROM new_rows';
   ELSIF TG_OP='DELETE' THEN v_rows := 'SELECT * FROM old_rows';
   ELSE
-    v_rows := $rows$SELECT n.* FROM new_rows n JOIN old_rows o USING(id)
+    v_rows := $rows$SELECT n.* FROM new_rows n LEFT JOIN old_rows o USING(id)
       WHERE (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')
-      UNION ALL SELECT o.* FROM old_rows o JOIN new_rows n USING(id)
+      UNION ALL SELECT o.* FROM old_rows o LEFT JOIN new_rows n USING(id)
       WHERE (to_jsonb(n)-'updated_at') IS DISTINCT FROM (to_jsonb(o)-'updated_at')$rows$;
   END IF;
+  FOR v_change IN EXECUTE format('WITH changed AS (%s) SELECT DISTINCT league_id FROM changed ORDER BY league_id',v_rows) LOOP
+    PERFORM private.league_version_enqueue(v_change.league_id,
+      CASE WHEN TG_TABLE_NAME='waiver_claims' THEN 'claims' ELSE 'inventory' END,TG_TABLE_NAME);
+  END LOOP;
   CASE TG_TABLE_NAME
     WHEN 'draft_picks' THEN
       v_details := $details$SELECT pick.league_id,

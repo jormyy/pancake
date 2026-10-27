@@ -16,8 +16,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  __request_context jsonb;
+  __request_result uuid;
 BEGIN
-  RETURN private.create_multi_team_trade_offer(
+  __request_context := private.request_begin('public.propose_multi_team_trade_atomic', jsonb_build_array(p_league_id, p_league_season_id, p_proposer_member_id, p_participant_member_ids, p_items, p_notes, p_expires_at), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
+  <<request_write>>
+BEGIN
+  __request_result := private.create_multi_team_trade_offer(
     p_league_id,
     p_league_season_id,
     p_proposer_member_id,
@@ -25,6 +32,9 @@ BEGIN
     p_items,
     p_notes,
     p_expires_at
-  );
+  ); EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

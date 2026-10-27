@@ -146,17 +146,18 @@ it.each([
     { checked: true, draft: null, error: null, visible: false },
     { checked: true, draft: { id: 'draft-1' }, error: null, visible: true },
     { checked: true, draft: null, error: 'Unavailable', visible: true },
-])('uses known draft availability in the menu: %j', async ({ checked, draft, error, visible }) => {
+])('keeps draft and account entries under League: %j', async ({ checked, draft, error }) => {
     state.draftChecked = checked
     state.draft = draft
     state.draftError = error
     await render()
     await act(async () => controls('Open menu')[0].props.onPress())
-    expect(controls('Draft Room')).toHaveLength(visible ? 1 : 0)
+    expect(controls('Draft Room')).toHaveLength(0)
     expect(controls('Playoffs')).toHaveLength(0)
     expect(state.openDraftRoom).not.toHaveBeenCalled()
-    await act(async () => controls('Profile & settings')[0].props.onPress())
-    expect(state.dismissTo).toHaveBeenCalledWith('/profile')
+    expect(controls('Profile & settings')).toHaveLength(0)
+    await act(async () => controls('League').at(-1)!.props.onPress())
+    expect(state.dismissTo).toHaveBeenCalledWith('/league')
     expect(state.push).not.toHaveBeenCalled()
     expect(controls('Profile & settings')).toHaveLength(0)
 })
@@ -245,6 +246,7 @@ it('keeps primary navigation ordered and reachable before and after the app moun
         expect(links.filter('[aria-hidden="true"]')).toHaveLength(0)
     })
     await act(async () => controls('Open menu')[0].props.onPress())
-    await act(async () => controls('Profile & settings')[0].props.onPress())
-    expect(state.dismissTo).toHaveBeenCalledWith('/profile')
+    expect(controls('Profile & settings')).toHaveLength(0)
+    await act(async () => controls('League').at(-1)!.props.onPress())
+    expect(state.dismissTo).toHaveBeenCalledWith('/league')
 })

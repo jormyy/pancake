@@ -1,219 +1,43 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useIsFocused } from '@react-navigation/native'
+import { useScreenView } from '@/hooks/use-screen-view'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
-import { releaseLeagueDailyPending } from '@/lib/league-daily-cache'
-import { deferLeagueRefresh, leagueResourceAffects, listenForLeagueChanges } from '@/lib/league-changes'
-import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
-import { getPlayer, getAvailableSeasons, getPlayerSeasonAverages, getPlayerAverageFantasyPoints, type PlayerSeasonAverages, getPlayerTransactionHistory, type PlayerDetailRow, type TransactionHistoryEntry } from '@/lib/players'
-import { getPlayerSeasonLines, getPlayerScoringSettings, summarizePlayerSeason, type PlayerSeasonLine } from '@/components/player/season-data'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { PlayerView } from '@/lib/cache/view-types'
 import { currentSeasonYear } from '@/lib/shared/season'
-import { todayET } from '@/lib/shared/dates'
-import { getErrorMessage } from '@/lib/shared/errors'
-import { getPlayerProjection, type LeagueProjectionRow } from '@/lib/projections'
-import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-
-const GAME_LOG_PAGE = 15
-const EMPTY_LINES: PlayerSeasonLine[] = []
-const EMPTY_SEASONS: number[] = []
-const EMPTY_TRANSACTIONS: TransactionHistoryEntry[] = []
-type PlayerScreenCache = {
-    today: string
-    player?: PlayerDetailRow
-    availableSeasons?: number[]
-    selectedSeason: number
-    seasons: [number, PlayerSeasonLine[]][]
-    averages?: [number, PlayerSeasonAverages | null][]
-    fantasyAverages?: [number, number | null][]
-    nextProjection?: LeagueProjectionRow | null
-    transactions?: TransactionHistoryEntry[]
-}
-const PLAYER_SCREEN_CACHE_PREFIX = 'pancake:player-screen:v2:'
-
-function useScreenResource<Value>(key: string, readEpoch: string, refresh: number, initial: Value | undefined, read: () => Promise<Value>, canRead: () => boolean) {
-    const [state, setState] = useState({ key, value: initial, settled: initial !== undefined, error: null as string | null })
-    const initialValue = useRef(initial)
-    initialValue.current = initial
-    const current = useRef<string | null>(null)
-    const identity = JSON.stringify([key, readEpoch])
-    current.current = identity
-    const pending = useRef<{ identity: string; queued: boolean } | null>(null)
-    useEffect(() => () => { current.current = null }, [])
-    useEffect(() => {
-        if (!canRead()) return
-        if (pending.current?.identity === identity) {
-            pending.current.queued = true
-            return
-        }
-        const request = { identity, queued: false }
-        pending.current = request
-        const isCurrent = () => current.current === identity && canRead()
-        async function load() {
-            do {
-                request.queued = false
-                try {
-                    const value = await read()
-                    if (!isCurrent()) return
-                    setState({ key, value, settled: true, error: null })
-                } catch (error) {
-                    if (!isCurrent()) return
-                    setState(previous => ({ key, value: previous.key === key ? previous.value : initialValue.current,
-                        settled: true, error: getErrorMessage(error) }))
-                }
-            } while (request.queued && isCurrent())
-            if (pending.current === request) pending.current = null
-        }
-        void load()
-    }, [key, identity, refresh, read, canRead])
-    return state.key === key ? state : { key, value: initial, settled: initial !== undefined, error: null }
-}
+import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
+import { summarizePlayerSeason } from '@/components/player/season-data'
 
 export function usePlayerScreenData(playerId: string, leagueId: string | null, options: { ownerKey?: string; authorized?: boolean; scoringSettings?: unknown } = {}) {
-    const activity = useBrowserReadActivity()
     const focused = useIsFocused()
-    const routeActivity = useRef({ focused, revision: 0 })
-    if (routeActivity.current.focused !== focused) {
-        routeActivity.current = { focused, revision: routeActivity.current.revision + 1 }
-    }
-    const owner = options.ownerKey ?? sessionOwner() ?? 'anonymous'
+    const activity = useBrowserReadActivity()
+    const accountId = sessionOwner()
+    let memberId: string | undefined
+    try { memberId = options.ownerKey ? (JSON.parse(options.ownerKey) as [string, string])[1] : undefined } catch {}
     const generation = sessionGeneration()
-    const resourceKey = JSON.stringify([owner, generation, leagueId, playerId])
-    const authorized = options.authorized !== false
-    const readEpoch = JSON.stringify([resourceKey, routeActivity.current.revision, activity.revision, authorized])
-    const admission = useRef<() => boolean>(() => false)
-    admission.current = () => focused && authorized && sessionGeneration() === generation && activity.isCurrent(activity.revision)
-    const epochRef = useRef(readEpoch)
-    epochRef.current = readEpoch
-    const canRead = useCallback(() => admission.current(), [])
-    const isCurrentRead = useCallback((epoch: string) => epochRef.current === epoch && admission.current(), [])
-    const selectedSeasonRef = useRef(currentSeasonYear())
-    const [refreshes, setRefreshes] = useState({ profile: 0, season: 0, projection: 0, history: 0, roster: 0, scoring: 0 })
-    useEffect(() => {
-        if (!leagueId || !authorized) return
-        const queued = new Set<keyof typeof refreshes>()
-        const refresh = deferLeagueRefresh(() => {
-            const resources = new Set(queued)
-            queued.clear()
-            setRefreshes(previous => ({
-                profile: previous.profile + Number(resources.has('profile')),
-                season: previous.season + Number(resources.has('season')),
-                projection: previous.projection + Number(resources.has('projection')),
-                history: previous.history + Number(resources.has('history')),
-                roster: previous.roster + Number(resources.has('roster')),
-                scoring: previous.scoring + Number(resources.has('scoring')),
-            }))
-        })
-        let registering = true
-        const stop = listenForLeagueChanges(leagueId, change => {
-            if ((registering && change.topic === 'catchup') || !canRead()) return
-            if (selectedSeasonRef.current === currentSeasonYear() &&
-                (change.topic === 'stat' || change.topic === 'game' || leagueResourceAffects(change, ['averages', 'season']))) queued.add('season')
-            if (change.topic === 'game' || leagueResourceAffects(change, ['projections', 'season'])) queued.add('projection')
-            if (leagueResourceAffects(change, ['averages', 'season'])) queued.add('profile')
-            if (leagueResourceAffects(change, ['scoring'])) queued.add('scoring')
-            if (change.topic === 'roster' || leagueResourceAffects(change, ['picks', 'claims', 'waivers', 'priority', 'faab', 'season'])) {
-                queued.add('roster')
-                queued.add('history')
-            }
-            if (queued.size) refresh.trigger()
-        })
-        registering = false
-        return () => { stop(); refresh.cancel() }
-    }, [leagueId, resourceKey, authorized, canRead])
-    useEffect(() => () => { if (leagueId) releaseLeagueDailyPending(leagueId) }, [leagueId, readEpoch])
-    const cacheKey = `${PLAYER_SCREEN_CACHE_PREFIX}${owner}:${leagueId ?? 'no-league'}:${playerId}`
-    const cache = useMemo(() => {
-        const saved = readPersistentCache<PlayerScreenCache>(cacheKey)
-        return saved?.today === todayET() ? saved : undefined
-    }, [cacheKey])
-    const [selection, setSelection] = useState({ key: resourceKey, year: cache?.selectedSeason ?? currentSeasonYear() })
-    const selectedSeason = selection.key === resourceKey ? selection.year : cache?.selectedSeason ?? currentSeasonYear()
-    selectedSeasonRef.current = selectedSeason
-    const seasonCache = useMemo(() => ({ owner: resourceKey, entries: new Map(cache?.seasons ?? []), averages: new Map(cache?.averages ?? []), fantasyAverages: new Map(cache?.fantasyAverages ?? []) }), [cache, resourceKey])
-    const [visibleGames, setVisibleGames] = useState({ key: '', count: GAME_LOG_PAGE })
-    const seasonKey = JSON.stringify([resourceKey, selectedSeason])
-    const [retryingSeason, setRetryingSeason] = useState<string | null>(null)
-    const readPlayer = useCallback(() => getPlayer(playerId), [playerId])
-    const readSeasons = useCallback(() => getAvailableSeasons(playerId), [playerId])
-    const readAverageFantasy = useCallback(() => leagueId ? getPlayerAverageFantasyPoints(playerId, leagueId, selectedSeason) : Promise.resolve(null), [playerId, leagueId, selectedSeason])
-    const readAverages = useCallback(() => getPlayerSeasonAverages(playerId, selectedSeason), [playerId, selectedSeason])
-    const readLines = useCallback(async () => {
-        const fetched = await getPlayerSeasonLines(playerId, selectedSeason).finally(() => setRetryingSeason(previous => previous === seasonKey ? null : previous))
-        const next = [...new Map(fetched.map(line => [line.nba_games.id, line])).values()]
-        const previous = seasonCache.entries.get(selectedSeason)
-        return previous && JSON.stringify(previous) === JSON.stringify(next) ? previous : next
-    }, [playerId, selectedSeason, seasonCache, seasonKey])
-    const suppliedScoringKey = JSON.stringify(options.scoringSettings ?? null)
-    const readScoring = useCallback(() => suppliedScoringKey !== 'null' && refreshes.scoring === 0
-        ? Promise.resolve(JSON.parse(suppliedScoringKey) as unknown)
-        : leagueId ? getPlayerScoringSettings(leagueId) : Promise.resolve(null), [leagueId, suppliedScoringKey, refreshes.scoring])
-    const readProjection = useCallback(() => leagueId ? getPlayerProjection(playerId, leagueId) : Promise.resolve(null), [playerId, leagueId])
-    const readTransactions = useCallback(() => leagueId ? getPlayerTransactionHistory(playerId, leagueId) : Promise.resolve(EMPTY_TRANSACTIONS), [playerId, leagueId])
-    const player = useScreenResource(resourceKey, readEpoch, refreshes.profile, cache?.player, readPlayer, canRead)
-    const seasons = useScreenResource(resourceKey, readEpoch, refreshes.profile, cache?.availableSeasons, readSeasons, canRead)
-    const fantasyAverage = useScreenResource(seasonKey, readEpoch, refreshes.season + refreshes.scoring, seasonCache.fantasyAverages.get(selectedSeason), readAverageFantasy, canRead)
-    const averages = useScreenResource(seasonKey, readEpoch, refreshes.season, seasonCache.averages.get(selectedSeason), readAverages, canRead)
-    const lines = useScreenResource(seasonKey, readEpoch, refreshes.season, seasonCache.entries.get(selectedSeason), readLines, canRead)
-    const projection = useScreenResource(resourceKey, readEpoch, refreshes.projection, cache?.nextProjection, readProjection, canRead)
-    const history = useScreenResource(resourceKey, readEpoch, refreshes.history, cache?.transactions, readTransactions, canRead)
-    const availableSeasons = useMemo(() => Array.from(new Set([currentSeasonYear(), ...(seasons.value ?? EMPTY_SEASONS)])).sort((a, b) => b - a), [seasons.value])
-    const scoringSettings = useScreenResource<unknown>(resourceKey, readEpoch, refreshes.scoring, options.scoringSettings, readScoring, canRead)
-    const scoringKey = JSON.stringify(scoringSettings.value ?? null)
+    const identity = JSON.stringify([accountId, memberId, leagueId, playerId, generation])
+    const [selection, setSelection] = useState({ identity, year: currentSeasonYear() })
+    const selectedSeason = selection.identity === identity ? selection.year : currentSeasonYear()
+    const enabled = focused && activity.active && options.authorized !== false
+    const view = useScreenView<PlayerView>(accountId && memberId && leagueId ? screenScope('player', leagueId, memberId, { playerId, seasonYear: selectedSeason }, accountId) : null, enabled)
+    const refreshView = view.refresh
+    const data = view.data
+    const [visible, setVisible] = useState({ identity, year: selectedSeason, count: 15 })
+    const count = visible.identity === identity && visible.year === selectedSeason ? visible.count : 15
+    const readEpoch = JSON.stringify([identity, activity.revision, focused])
+    const latestEpoch = useRef(readEpoch)
+    latestEpoch.current = readEpoch
+    const canRead = useCallback(() => enabled && generation === sessionGeneration(), [enabled, generation])
+    const isCurrentRead = useCallback((epoch: string) => canRead() && latestEpoch.current === epoch, [canRead])
     const scoring = useMemo(() => {
-        const value: unknown = JSON.parse(scoringKey)
-        if (!leagueId || !value || typeof value !== 'object' || Array.isArray(value)) return null
-        const settings: Record<string, number> = {}
-        for (const [key, coefficient] of Object.entries(value)) {
-            if (typeof coefficient === 'number' && Number.isFinite(coefficient)) settings[key] = coefficient
-        }
-        return settings
-    }, [leagueId, scoringKey])
-    const lastSeason = useRef({ resourceKey, year: selectedSeason, lines: EMPTY_LINES })
-    if (lastSeason.current.resourceKey !== resourceKey) lastSeason.current = { resourceKey, year: selectedSeason, lines: EMPTY_LINES }
-    if (lines.value !== undefined) lastSeason.current = { resourceKey, year: selectedSeason, lines: lines.value }
-    const displayedLines = lines.value ?? lastSeason.current.lines
-    const displayedSeasonKey = lines.value !== undefined ? seasonKey : JSON.stringify([resourceKey, lastSeason.current.year])
-    const summary = useMemo(() => summarizePlayerSeason(displayedLines, player.value?.nba_team ?? null, scoring), [displayedLines, player.value?.nba_team, scoring])
-    const persistedSnapshot = useRef<string | null>(null)
-    useEffect(() => {
-        if (!canRead()) return
-        if (fantasyAverage.value !== undefined) seasonCache.fantasyAverages.set(selectedSeason, fantasyAverage.value)
-        if (averages.value !== undefined) seasonCache.averages.set(selectedSeason, averages.value)
-        if (lines.value !== undefined) seasonCache.entries.set(selectedSeason, lines.value)
-        const snapshot: PlayerScreenCache = {
-            today: todayET(), player: player.value, availableSeasons: seasons.value, selectedSeason,
-            seasons: Array.from(seasonCache.entries.entries()).slice(-3), averages: Array.from(seasonCache.averages.entries()).slice(-3), fantasyAverages: Array.from(seasonCache.fantasyAverages.entries()).slice(-3), nextProjection: projection.value, transactions: history.value,
-        }
-        const serialized = JSON.stringify([resourceKey, snapshot])
-        if (persistedSnapshot.current === serialized) return
-        writePersistentCache(cacheKey, snapshot)
-        persistedSnapshot.current = serialized
-    }, [cacheKey, resourceKey, canRead, player.value, seasons.value, selectedSeason, lines.value, projection.value, history.value, seasonCache, averages.value, fantasyAverage.value])
-    const count = visibleGames.key === displayedSeasonKey ? visibleGames.count : GAME_LOG_PAGE
-    const gameLog = useMemo(() => summary.games.slice(0, count), [summary.games, count])
-    const loadMoreGames = useCallback(async () => {
-        if (!lines.settled || lines.error || displayedSeasonKey !== seasonKey || count >= summary.games.length) return
-        setVisibleGames({ key: seasonKey, count: Math.min(count + GAME_LOG_PAGE, summary.games.length) })
-    }, [seasonKey, displayedSeasonKey, lines.settled, lines.error, count, summary.games.length])
-    const retrySeason = useCallback(() => {
-        if (!canRead() || retryingSeason === seasonKey) return
-        setRetryingSeason(seasonKey)
-        setRefreshes(previous => ({ ...previous, season: previous.season + 1, scoring: previous.scoring + 1 }))
-    }, [canRead, retryingSeason, seasonKey])
-    const handleSeasonSelect = useCallback((year: number) => setSelection({ key: resourceKey, year }), [resourceKey])
-    const useLines = lines.value !== undefined || (averages.value === undefined && displayedLines.length > 0)
-    const seasonAverages = averages.value !== undefined ? averages.value : summary.averages
-    const averageFP = fantasyAverage.value ?? (useLines && scoring ? summary.avgFantasyPoints : null)
-    return {
-        canRead, readEpoch, isCurrentRead, rosterRevision: refreshes.roster,
-        initialSettled: player.settled && seasons.settled && lines.settled && scoringSettings.settled && projection.settled && history.settled,
-        player: player.value ?? null, loading: !player.settled, playerError: player.error,
-        availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonLoading: lines.value === undefined && averages.value === undefined && (!lines.settled || !averages.settled), seasonError: averages.error ?? fantasyAverage.error ?? lines.error ?? scoringSettings.error,
-        gameLogLoading: !lines.settled || retryingSeason === seasonKey, gameLogError: lines.error ?? scoringSettings.error, retrySeason,
-        includesLive: summary.includesLive, liveGame: summary.games.find(game => game.live && !game.didNotPlay) ?? null,
-        gameLog, hasMoreGames: summary.games.length > count, loadMoreGames,
-        fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: averageFP,
-        nextProjection: projection.value ?? null, projectionError: projection.error, projectionSettled: projection.settled,
-        transactions: history.value ?? EMPTY_TRANSACTIONS, transactionsError: history.error, transactionsSettled: history.settled,
-    }
+        const supplied = data?.scoringSettings ?? options.scoringSettings
+        if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied)) return null
+        return Object.fromEntries(Object.entries(supplied).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
+    }, [data?.scoringSettings, options.scoringSettings])
+    const summary = useMemo(() => summarizePlayerSeason([...new Map((data?.lines ?? []).map(line => [line.nba_games.id, line])).values()], data?.player.nba_team ?? null, scoring), [data, scoring])
+    const handleSeasonSelect = useCallback((year: number) => setSelection({ identity, year }), [identity])
+    const loadMoreGames = useCallback(async () => { setVisible({ identity, year: selectedSeason, count: count + 15 }) }, [identity, selectedSeason, count])
+    const retrySeason = useCallback(() => { void refreshView(true) }, [refreshView])
+    const error = view.error?.message ?? null
+    return { canRead, readEpoch, isCurrentRead, rosterRevision: data?.context.version ?? 0, initialSettled: view.loaded || Boolean(error), player: data?.player ?? null, loading: view.loading, playerError: error, availableSeasons: data?.availableSeasons ?? [currentSeasonYear()], selectedSeason, handleSeasonSelect, seasonAverages: data?.averages ?? summary.averages, seasonLoading: view.loading, seasonError: error, gameLogLoading: view.loading, gameLogError: error, retrySeason, includesLive: summary.includesLive, liveGame: summary.games.find(game => game.live && !game.didNotPlay) ?? null, gameLog: summary.games.slice(0, count), hasMoreGames: summary.games.length > count, loadMoreGames, fantasyPointsMap: summary.fantasyPointsMap, avgFantasyPoints: data?.avgFantasyPoints ?? summary.avgFantasyPoints, nextProjection: data?.nextProjection ?? null, projectionError: error, projectionSettled: view.loaded || Boolean(error), transactions: data?.transactions ?? [], transactionsError: error, transactionsSettled: view.loaded || Boolean(error), view: data }
 }

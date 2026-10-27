@@ -115,7 +115,8 @@ BEGIN
     is_mock,
     pick_timer_seconds,
     rounds,
-    timer_expiry_behavior
+    timer_expiry_behavior,
+    rookie_draft_order
   )
   VALUES (
     p_league_id,
@@ -126,47 +127,12 @@ BEGIN
     v_is_mock,
     p_pick_timer_seconds,
     p_rounds,
-    v_timer_expiry_behavior
+    v_timer_expiry_behavior,
+    v_league.rookie_draft_order
   )
   RETURNING * INTO v_draft;
 
-  WITH ordered_members AS (
-    SELECT
-      lm.id AS member_id,
-      CASE WHEN latest.member_id IS NULL THEN 0 ELSE 1 END AS has_standings,
-      (COALESCE(latest.wins, 0) + 0.5 * COALESCE(latest.ties, 0)) / GREATEST(COALESCE(latest.wins + latest.losses + latest.ties, 0), 1) AS win_rate,
-      COALESCE(latest.points_for, 0) / GREATEST(COALESCE(latest.wins + latest.losses + latest.ties, 0), 1) AS points_per_game
-    FROM league_members AS lm
-    LEFT JOIN LATERAL (
-      SELECT s.member_id, s.wins, s.losses, s.ties, s.points_for
-        FROM standings AS s
-       WHERE v_last_season_id IS NOT NULL
-         AND s.league_id = p_league_id
-         AND s.league_season_id = v_last_season_id
-         AND s.member_id = lm.id
-       ORDER BY s.week_number DESC
-       LIMIT 1
-    ) AS latest ON true
-    WHERE lm.league_id = p_league_id
-  ),
-  rookie_draft_order AS (
-    SELECT
-      member_id,
-      row_number() OVER (
-        ORDER BY
-          has_standings DESC,
-          win_rate ASC,
-          points_per_game ASC,
-          member_id ASC
-      )::int AS position
-    FROM ordered_members
-  )
-  INSERT INTO draft_orders (draft_id, member_id, position)
-  SELECT v_draft.id, member_id, position
-    FROM rookie_draft_order
-   ORDER BY position;
-
-  GET DIAGNOSTICS v_order_count = ROW_COUNT;
+  v_order_count := public.generate_linear_draft_order(v_draft.id);
   IF v_order_count < 2 THEN
     RAISE EXCEPTION 'Need at least 2 managers to start a draft';
   END IF;
@@ -180,7 +146,7 @@ BEGIN
         rounds.round,
         ordered.member_id,
         CASE
-          WHEN rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
+          WHEN v_draft.rookie_draft_order = 'snake' AND rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
           ELSE ordered.position
         END AS pick_in_round
       FROM generate_series(1, p_rounds) AS rounds(round)
@@ -210,7 +176,7 @@ BEGIN
         rounds.round,
         ordered.member_id AS original_owner_id,
         CASE
-          WHEN rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
+          WHEN v_draft.rookie_draft_order = 'snake' AND rounds.round % 2 = 0 THEN v_order_count - ordered.position + 1
           ELSE ordered.position
         END AS pick_in_round
       FROM generate_series(1, p_rounds) AS rounds(round)

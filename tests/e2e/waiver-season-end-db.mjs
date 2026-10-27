@@ -31,7 +31,7 @@ const edge = async (name, body = {}) => {
 }
 const log = (stage, data) => console.log(JSON.stringify({ provenance: 'SYNTHETIC', stage, ...data }))
 const invocations = []
-const keys = ['season-boundary', 'et-time:process-waivers']
+const keys = ['season-boundary', 'process-waivers']
 const configuration = `SELECT set_config('app.supabase_url',${q(internal)},true); SELECT set_config('app.edge_internal_token',${q(token)},true);`
 const wait = async (id) => {
   for (let attempt = 0; attempt < 150; attempt += 1) {
@@ -49,9 +49,15 @@ const gate = async (name, dayOffset = 0, hour = name === 'process-waivers' ? 3 :
   const before = Number(sql('SELECT COALESCE(max(id),0) FROM edge_invocations'))
   const when = `(((now() AT TIME ZONE 'America/New_York')::date+${dayOffset})::timestamp+interval '${hour} hours') AT TIME ZONE 'America/New_York'`
   const call = name === 'process-waivers'
-    ? `SELECT invoke_edge_function_at_et_time('process-waivers',3,0,${when});`
-    : `SELECT invoke_season_boundary_if_due(${when});`
-  sql(`BEGIN; ${configuration} ${call} COMMIT;`)
+    ? `SELECT private.enqueue_daily('process-waivers',3,0,${when});`
+    : `SELECT private.enqueue_season_boundary(${when});`
+  sql(`BEGIN; ${configuration} ${call}
+    UPDATE private.work_items SET due_at=least(due_at,now()) WHERE status='pending' AND kind IN(${keys.map(q).join(',')});
+    DO $dispatch$ DECLARE item record; BEGIN
+      FOR item IN SELECT * FROM private.work_claim(500) LOOP
+        PERFORM private.work_execute(item.id,item.lease_token);
+      END LOOP;
+    END $dispatch$; COMMIT;`)
   const id = Number(sql(`SELECT COALESCE(max(id),0) FROM edge_invocations WHERE id>${before} AND function_name=${q(name)}`))
   if (!id) return null
   invocations.push(id)
@@ -100,7 +106,7 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
       SELECT drop_player_atomic(id) FROM roster_players WHERE league_season_id=${q(season)} AND player_id IN(${q(players[2])},${q(players[3])});
       SELECT commissioner_adjust_faab_balance_atomic(${q(league)},${q(members[1])},25);
       SELECT create_waiver_claim_atomic(${q(league)},${q(members[1])},${q(players[2])},NULL,${q(users[1])},11);
-      DELETE FROM cron_dispatch_state WHERE job_key IN(${keys.map(q).join(',')});
+      DELETE FROM private.work_items WHERE kind IN(${keys.map(q).join(',')});
       COMMIT;`)
     let claim = sql(`SELECT id FROM waiver_claims WHERE league_season_id=${q(season)} AND status='pending'`)
     await edge('sync-scores', { leagueId: league, date: new Date().toISOString() })
@@ -120,10 +126,10 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
     assert.match(blocked.error, /pending waiver claims and waiver holds/)
     assert.equal(sql(`SELECT count(*) FROM league_seasons WHERE league_id=${q(league)}`), '1')
     sql(`UPDATE edge_invocations SET queued_at=now()-interval '2 minutes' WHERE id=${blocked.id}; SELECT private.reconcile_edge_invocations();`)
-    assert.equal(sql("SELECT retry_after>now() FROM cron_dispatch_state WHERE job_key='season-boundary'"), 't', 'Real reconciliation schedules a retry')
+    assert.equal(sql(`SELECT status='failed' AND due_at>now() FROM private.work_items WHERE id=(SELECT work_item_id FROM edge_invocations WHERE id=${blocked.id})`), 't', 'Real reconciliation schedules a retry')
     assert.equal(await gate('season-boundary'), null, 'Retry waits for backoff')
     sql(`SELECT cancel_waiver_claim_atomic(${q(claim)},${q(members[1])},${q(users[1])});
-      UPDATE cron_dispatch_state SET retry_after=now()-interval '1 second' WHERE job_key='season-boundary';`)
+      UPDATE private.work_items SET due_at=now()-interval '1 second' WHERE kind='season-boundary' AND status='failed';`)
     const holdOnly = await gate('season-boundary')
     assert.equal(holdOnly.worker_status, 'failed', 'An unclaimed drop hold also delays rollover')
     assert.match(holdOnly.error, /waiver holds/)
@@ -143,7 +149,7 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
     assert.equal(sql(`SELECT count(*) FROM waiver_wire_log WHERE league_season_id=${q(season)} AND cleared_at IS NULL`), '0', 'Unclaimed hold expires too')
     assert.equal(json(`SELECT to_json(finalized_at) FROM matchups WHERE league_season_id=${q(season)} AND matchup_type='playoff_final'`), final.finalized_at, 'Waiver refresh preserves the final grace timestamp')
     assert.equal(sql(`SELECT balance FROM faab_balances WHERE league_season_id=${q(season)} AND member_id=${q(members[1])}`), mode==='faab'?'14':'25')
-    sql("UPDATE cron_dispatch_state SET retry_after=now()-interval '1 second' WHERE job_key='season-boundary'")
+    sql("UPDATE private.work_items SET due_at=now()-interval '1 second' WHERE kind='season-boundary' AND status='failed'")
     const rolled = await gate('season-boundary')
     assert.equal(rolled.worker_status, 'success')
     const next = sql(`SELECT id FROM league_seasons WHERE league_id=${q(league)} AND is_current`)
@@ -151,7 +157,7 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
       const followingDay = await gate('season-boundary', 1)
       const liveWork = Number(sql('SELECT count(*) FROM get_live_poll_work()'))
       const beforeLive = sql('SELECT COALESCE(max(id),0) FROM edge_invocations')
-      sql(`BEGIN; ${configuration} SELECT invoke_live_poll_if_due(); COMMIT;`)
+      sql(`BEGIN; ${configuration} SELECT private.enqueue_live_poll(); COMMIT;`)
       assert.equal(sql('SELECT COALESCE(max(id),0) FROM edge_invocations'), beforeLive, 'No NBA work can dispatch a score refresh')
       log('rollover-stall', { mode, season, next, liveWork, followingDay,
         certificatesCurrent: sql(`SELECT bool_and(input_token=private.score_input_token(league_season_id,week_number)) FROM private.score_week_certificates WHERE league_season_id=${q(season)}`)==='t' })
@@ -187,7 +193,7 @@ for (const [index, mode] of ['faab', 'rolling'].entries()) {
       DELETE FROM players WHERE id IN(${players.map(q).join(',')});
       DELETE FROM auth.users WHERE id IN(${users.map(q).join(',')});
       DELETE FROM season_weeks WHERE season_year IN(${year},${year+1});
-      DELETE FROM cron_dispatch_state WHERE job_key IN(${keys.map(q).join(',')});`)
+      DELETE FROM private.work_items WHERE kind IN(${keys.map(q).join(',')});`)
   }
 }
 log('complete', { queuedRealWorkers: invocations.length })

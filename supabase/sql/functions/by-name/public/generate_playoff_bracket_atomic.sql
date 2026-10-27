@@ -25,7 +25,7 @@ DECLARE
   v_type public.matchup_type;
 BEGIN
   SELECT * INTO v_league FROM public.leagues WHERE id = p_league_id FOR UPDATE;
-  SELECT id, season_year, COALESCE(playoff_start_week, v_league.playoff_start_week, 20)
+  SELECT id, season_year, COALESCE(playoff_start_week, v_league.playoff_start_week)
     INTO v_season_id, v_season_year, v_playoff_start_week
     FROM public.league_seasons WHERE league_id = p_league_id AND is_current FOR UPDATE;
   IF NOT FOUND THEN

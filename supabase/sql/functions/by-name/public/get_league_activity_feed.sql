@@ -25,7 +25,8 @@ RETURNS TABLE (
   body text,
   years_exp int,
   career_regular_season_games int,
-  participant_team_names text[]
+  participant_team_names text[],
+  player_mentions jsonb
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -78,7 +79,8 @@ BEGIN
       CASE WHEN tx.acquired_to_taxi AND tx.transaction_type IN ('fa_add','waiver_add') THEN 'Player added to taxi.' ELSE NULL END::text AS body,
       player.years_exp,
       player.career_regular_season_games,
-      ARRAY[]::text[] AS participant_team_names
+      ARRAY[]::text[] AS participant_team_names,
+      CASE WHEN player.id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(jsonb_build_object('id',player.id,'name',player.display_name)) END AS player_mentions
     FROM roster_transactions AS tx
     JOIN current_season ON current_season.id = tx.league_season_id
     LEFT JOIN league_members AS member ON member.id = tx.member_id
@@ -113,7 +115,8 @@ BEGIN
             AND participant_member.league_id = activity.league_id
           WHERE participant.trade_id = activity.related_trade_id),
           array_remove(ARRAY[actor.team_name::text, target.team_name::text], NULL))
-      ELSE ARRAY[]::text[] END AS participant_team_names
+      ELSE ARRAY[]::text[] END AS participant_team_names,
+      COALESCE(activity.metadata->'player_mentions','[]'::jsonb) AS player_mentions
     FROM league_activity AS activity
     JOIN current_season
       ON activity.league_season_id = current_season.id
@@ -143,7 +146,8 @@ BEGIN
     feed.body,
     feed.years_exp,
     feed.career_regular_season_games,
-    feed.participant_team_names
+    feed.participant_team_names,
+    feed.player_mentions
   FROM feed
   ORDER BY feed.occurred_at DESC, feed.id DESC
   LIMIT v_limit

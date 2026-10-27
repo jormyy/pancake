@@ -9,13 +9,18 @@ vi.mock('@/lib/persistent-cache', () => ({ readPersistentCache: () => null, writ
 
 const mocks = vi.hoisted(() => ({
     appState: 'active', focused: true, listeners: new Set<(next: string) => void>(),
-    auction: vi.fn(), rookie: vi.fn(), pool: vi.fn(async () => []), search: vi.fn(async () => []),
+    auction: vi.fn(), rookie: vi.fn(), pool: vi.fn(async (..._args: unknown[]) => []), search: vi.fn(async (..._args: unknown[]) => []),
     revision: vi.fn(async () => 'revision'), launch: vi.fn(async () => ({id:'draft',draftType:'auction'})), push: vi.fn(),
     bid: vi.fn(), nominate: vi.fn(), pick: vi.fn(), expire: vi.fn(async () => ({closed:0,processed:false})),
     auctionChange: null as null | (() => void), rookieChange: null as null | (() => void),
     auctionStatus: null as null | ((status:string) => void),
     auctionResume: null as null | (() => Promise<boolean>), rookieResume: null as null | (() => Promise<boolean>),
 }))
+vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: async (scope: { params: { draftId: string; query?: string } }, options?: { checkVersion: boolean }) => scope.params.draftId === 'draft'
+    ? scope.params.query ? { searchResults: await mocks.search(scope.params.query) } : await mocks.auction()
+    : options?.checkVersion === false ? { prospects: await mocks.pool(scope.params.draftId, scope.params.query) } : await mocks.rookie(),
+}))
+vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {} }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => mocks.focused }))
 vi.mock('expo-router', () => ({ useRouter: () => ({push:mocks.push}) }))
 vi.mock('react-native', () => ({ AppState: { get currentState(){return mocks.appState},
@@ -32,7 +37,7 @@ vi.mock('@/lib/rookieDraft', () => ({getRookieDraftState:mocks.rookie,getRookieP
 }))
 vi.mock('@/lib/roster', () => ({getRoster:vi.fn(async()=>[]),dropPlayer:vi.fn()}))
 vi.mock('@/lib/alert', () => ({showAlert:vi.fn()}))
-vi.mock('@/contexts/league-context', () => ({useLeagueContext:()=>({current:null})}))
+vi.mock('@/contexts/league-context', () => ({useLeagueContext:()=>({current:null,currentLeague:{id:'league'}})}))
 vi.mock('@/lib/realtime', () => ({reportRealtimeCleanup:vi.fn()}))
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?:boolean}).IS_REACT_ACT_ENVIRONMENT=true
 let auction!:ReturnType<typeof useAuctionDraftRoomController>

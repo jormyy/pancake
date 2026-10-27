@@ -16,6 +16,13 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
+  __request_context jsonb;
+  __request_result uuid;
+BEGIN
+  __request_context := private.request_begin('public.add_trade_block_item_atomic', jsonb_build_array(p_member_id, p_league_id, p_player_id, p_pick_id, p_note, p_user_id), NULL, NULL);
+  IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
+  <<request_write>>
+DECLARE
   v_season_id uuid;
   v_item_id uuid;
 BEGIN
@@ -134,6 +141,9 @@ BEGIN
     jsonb_build_object('trade_block_item_id', v_item_id, 'pick_id', p_pick_id)
   );
 
-  RETURN v_item_id;
+  __request_result := v_item_id; EXIT request_write;
+END request_write;
+  PERFORM private.request_finish(__request_context, to_jsonb(__request_result));
+  RETURN __request_result;
 END;
 $$;

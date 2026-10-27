@@ -103,14 +103,14 @@ describe('player decision summary', () => {
         expect(screen.root.findAllByType(type('Pressable')).map(node => node.props.accessibilityLabel)).toEqual(labels)
     })
 
-    it('keeps rank and experience visible without layout measurements', async () => {
+    it('keeps rank, experience, and full names visible without layout measurements', async () => {
         await render(React.createElement(PlayerHeader, {
             player: headerPlayer({ dynasty_rank: 8, years_exp: 6, injury_status: 'GTD' }),
             rosterStatus: { status: 'free_agent' }, leagueActive: true, compact: true,
         }))
         expect(screen.root.findAllByType(Badge).map(node => node.props.label)).toEqual(['DTD', 'Dynasty #8', 'Yr 7'])
         expect(screen.root.findAllByType(type('View')).filter(node => typeof node.props.onLayout === 'function')).toHaveLength(0)
-        expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBe(1)
+        expect(screen.root.findByProps({ accessibilityLabel: 'Player A' }).props.numberOfLines).toBeUndefined()
     })
 
     it('reserves a fixed action slot from the first frame and takes its label from props', async () => {
@@ -218,7 +218,7 @@ describe('player decision summary', () => {
             next_game_opponent: 'vs BOS', projection_fantasy_points: null, projection_source_label: 'Season Avg',
             projection_fetched_at: '2026-10-23T12:00:00Z', projection_is_fresh: false } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toContain('Projection unavailable')
+        expect(text()).toContain('— proj')
         expect(text()).not.toContain('0.0 FP')
         expect(text()).toContain('Season Avg')
         expect(text()).toContain('Out of date')
@@ -232,11 +232,11 @@ describe('player decision summary', () => {
             projection_source_label: 'FantasyPros', projection_is_fresh: false,
         } as LeagueProjectionRow
         await render(React.createElement(NextProjectionCard, { projection }))
-        expect(text()).toMatch(/^vs BOS · Sat .+ · 42\.8 FP proj/)
-        expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBeUndefined()
+        expect(text()).toMatch(/^vs BOS Sat .+ · 42\.8 proj/)
+        expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBe(1)
         expect(text()).toContain('FantasyPros')
         expect(text()).toContain('42.8')
-        expect(text()).toContain('FP')
+        expect(text()).toContain('proj')
     })
 })
 

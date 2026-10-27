@@ -33,9 +33,9 @@ it.each(['pre-migration', 'post-migration'] as const)('accepts the exact %s sche
   const input = fixture(phase)
   const result = validateSecurityCatalog(input)
   expect(result.migrationCount).toBe(phase === 'pre-migration' ? contract.preMigration.count : files.length)
-  const cron = input.catalog.functions.find((row: { name: string }) => row.name === 'invoke_edge_function_at_et_time')
+  const cron = input.catalog.functions.find((row: { name: string }) => row.name === (phase === 'pre-migration' ? 'invoke_edge_function_at_et_time' : 'dispatch_work'))
   // Production converged on the p_now helper before this baseline, so both phases carry it.
-  expect(cron.identityArguments.includes('p_now')).toBe(true)
+  expect(cron.identityArguments.includes('p_now')).toBe(phase === 'pre-migration')
   expect(cron.anonExecute).toBe(false)
   expect(cron.authenticatedExecute).toBe(false)
   expect(cron.serviceRoleExecute).toBe(true)
@@ -49,7 +49,7 @@ it.each([
 
 it.each(['pre-migration', 'post-migration'] as const)('requires every existing %s function, not just a migration marker', (phase) => {
   const input = fixture(phase)
-  input.catalog.functions = input.catalog.functions.filter((row: { name: string }) => row.name !== 'invoke_edge_function_at_et_time')
+  input.catalog.functions = input.catalog.functions.filter((row: { name: string }) => row.name !== (phase === 'pre-migration' ? 'invoke_edge_function_at_et_time' : 'dispatch_work'))
   expect(() => validateSecurityCatalog(input)).toThrow('Catalog functions: missing or unexpected objects')
 })
 
@@ -112,7 +112,7 @@ it.each([
   ['changed started-game predicate', (x: ReturnType<typeof fixture>) => { x.catalog.functions.find((r: { name: string }) => r.name === 'lineup_game_started').bodySha256 = createHash('sha256').update('SELECT false').digest('hex') }, 'Catalog functions: unrecognized or changed object private.lineup_game_started'],
   ['removed trigger delegation', (x: ReturnType<typeof fixture>) => { x.catalog.functions.find((r: { name: string }) => r.name === 'sync_roster_linked_state').bodySha256 = '0'.repeat(64) }, 'Catalog functions: unrecognized or changed object private.sync_roster_linked_state'],
   ['changed helper search path', (x: ReturnType<typeof fixture>) => { x.catalog.functions.find((r: { name: string }) => r.name === 'clear_future_unlocked_lineups').config = ['search_path=public, unsafe'] }, 'Catalog functions: unrecognized or changed object private.clear_future_unlocked_lineups'],
-  ['cron grant to anon', (x: ReturnType<typeof fixture>) => { x.catalog.functions.find((r: { name: string }) => r.name === 'invoke_edge_function_at_et_time').anonExecute = true }, 'Catalog functions: unrecognized or changed object public.invoke_edge_function_at_et_time'],
+  ['cron grant to anon', (x: ReturnType<typeof fixture>) => { x.catalog.functions.find((r: { name: string }) => r.name === 'dispatch_work').anonExecute = true }, 'Catalog functions: unrecognized or changed object public.dispatch_work'],
   ['unknown overload', (x: ReturnType<typeof fixture>) => { x.catalog.functions.push({ ...x.catalog.functions[0], identityArguments: 'unexpected text' }) }, 'Catalog functions: missing or unexpected'],
   ['disabled lifecycle trigger', (x: ReturnType<typeof fixture>) => { x.catalog.triggers.find((r: { name: string }) => r.name === 'sync_roster_linked_state').enabled = 'D' }, 'Catalog triggers: unrecognized or changed object sync_roster_linked_state'],
   ['replica-only lifecycle trigger', (x: ReturnType<typeof fixture>) => { x.catalog.triggers.find((r: { name: string }) => r.name === 'sync_roster_linked_state').enabled = 'R' }, 'Catalog triggers: unrecognized or changed object sync_roster_linked_state'],

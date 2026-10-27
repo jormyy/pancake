@@ -1,26 +1,14 @@
-import { holdPwaUpdate } from '@/lib/pwa-update-guard'
+import { configureMutationReplay, pendingMutations, mutationRowIds } from '@/lib/cache/mutation-queue'
+import { refreshScreenVersions } from '@/lib/cache/screen-cache'
+import { sessionOwner , sessionGeneration } from '@/lib/session-cache-registry'
 import { supabase } from '@/lib/supabase'
 import { RequestError } from '@/lib/shared/errors'
+import { createMutationFetch, requestId } from '@/lib/api-client'
+import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 
-const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim()
-const configuredSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim()
-
-type ApiUrlConfig = {
-    configuredApiUrl: string | undefined
-    configuredSupabaseUrl: string | undefined
-}
-
-export function resolveDefaultApiUrl({
-    configuredApiUrl,
-    configuredSupabaseUrl,
-}: ApiUrlConfig): string {
-    if (configuredSupabaseUrl) return `${configuredSupabaseUrl.replace(/\/+$/, '')}/functions/v1/api`
-    if (configuredApiUrl) return configuredApiUrl
-    throw new Error('EXPO_PUBLIC_API_URL or EXPO_PUBLIC_SUPABASE_URL is required.')
-}
-
-const DEFAULT_API_URL = resolveDefaultApiUrl({ configuredApiUrl, configuredSupabaseUrl })
-export const API_URL = DEFAULT_API_URL
+import { API_URL } from '@/lib/shared/api-url'
+export { API_URL, resolveDefaultApiUrl } from '@/lib/shared/api-url'
+const DEFAULT_API_URL = API_URL
 const API_URL_OVERRIDE_KEY = 'PANCAKE_API_URL'
 const API_URL_OVERRIDE_PARAM = 'pancake_api_url'
 
@@ -68,6 +56,7 @@ async function authHeaders(options: { accessToken?: string; expectedUserId?: str
 const DEFAULT_TIMEOUT_MS = 30_000
 
 interface ApiRequestOptions {
+    requestId?: string
     timeoutMs?: number
     /** Act as this session instead of the stored one (cleanup after local sign-out). */
     accessToken?: string
@@ -94,7 +83,18 @@ export async function apiPost<T = unknown>(
     body: Record<string, unknown>,
     options: ApiRequestOptions = {},
 ): Promise<T> {
-    const release = holdPwaUpdate(`API ${path}`)
+    const id = requestId(options.requestId ?? (typeof body.requestId === 'string' ? body.requestId : undefined))
+    const payload = JSON.stringify({ ...body, requestId: id })
+    const accountId = options.expectedUserId ?? sessionOwner()
+    const leagueId = typeof body.leagueId === 'string' ? body.leagueId : null
+    const rowIds = [...mutationRowIds(body), ...(path.match(/[0-9a-f]{8}-[0-9a-f-]{27}/gi) ?? [])]
+    if (accountId && (typeof navigator !== 'undefined' && navigator.onLine === false || pendingMutations(accountId).length > 0)) return withPwaMutation(`API ${path}`, () => sendApiPost<T>(path, payload, { ...options, requestId: id }), { requestId: id, queued: { accountId, leagueId, rowIds, path, body: payload } })
+    const result = await withPwaMutation(`API ${path}`, () => sendApiPost<T>(path, payload, { ...options, requestId: id }), { requestId: id, waitForOnline: true })
+    await refreshScreenVersions(leagueId ?? undefined)
+    return result
+}
+
+async function sendApiPost<T>(path: string, body: string, options: ApiRequestOptions): Promise<T> {
     const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     const controller = new AbortController()
     let timeoutHandle: ReturnType<typeof setTimeout> | undefined
@@ -109,11 +109,12 @@ export async function apiPost<T = unknown>(
         let res: Response
         try {
             const headers = await authHeaders(options)
+            headers['x-request-id'] = options.requestId!
             await options.beforeSend?.()
-            res = await fetch(`${apiUrl()}${path}`, {
+            res = await createMutationFetch((input, init) => fetch(input, init), sessionGeneration)(`${apiUrl()}${path}`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify(body),
+                body,
                 signal: controller.signal,
             })
         } catch (err) {
@@ -133,6 +134,11 @@ export async function apiPost<T = unknown>(
         return await Promise.race([request(), timeout])
     } finally {
         if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
-        release()
     }
 }
+
+configureMutationReplay(async mutation => {
+    const result = await withPwaMutation(`API ${mutation.path}`, () => sendApiPost(mutation.path, mutation.body, { requestId: mutation.id, expectedUserId: mutation.accountId }), { requestId: mutation.id })
+    await refreshScreenVersions(mutation.leagueId ?? undefined)
+    return result
+})

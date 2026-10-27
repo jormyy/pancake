@@ -85,7 +85,7 @@ async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
       const result = await importPlayerChunk('espn', records.slice(offset, offset + CHUNK).map((record) => ({
         provider_id: record.espn_id, first_name: record.first_name, last_name: record.last_name,
         metadata: { nba_team: record.nba_team, position: record.position, eligible_positions: record.eligible_positions,
-          status: record.status, ...(Object.hasOwn(record, 'injury_status') ? { injury_status: record.injury_status } : {}), years_exp: record.years_exp },
+          status: record.status, ...(Object.hasOwn(record, 'injury_status') ? { injury_status: record.injury_status } : {}), years_exp: record.years_exp, ...(record.birthdate ? { birthdate: record.birthdate } : {}) },
       })), offset)
       updated += result.updated
       inserted += result.inserted

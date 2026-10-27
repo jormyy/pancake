@@ -1,3 +1,4 @@
+import { boundary, bumpView } from '../helpers/screen-view-boundary'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +37,7 @@ vi.mock('@/lib/trades-realtime', () => ({
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 beforeEach(() => {
+    boundary.read.mockImplementation(async () => await mocks.historyRead())
     vi.clearAllMocks()
     mocks.callbacks = null
     mocks.historyRead.mockResolvedValue({ trades: [], nextCursor: null, hasMore: false })
@@ -371,7 +373,7 @@ it.each(['visibility', 'focus'] as const)('releases a stalled read across %s sus
     } finally { await act(async () => { renderer?.unmount() }); vi.useRealTimers(); vi.unstubAllGlobals() }
 })
 
-it('uses one history read per visit when the feed and realtime owner run together', async () => {
+it('reuses an unchanged history view and reloads after its version changes', async () => {
     const other = vi.fn().mockResolvedValue(true)
     const Probe = ({ tab }: { tab: TradeTabKey }) => {
         const history = useTradeHistoryFeed('member', 'league', tab === 'history')
@@ -384,9 +386,11 @@ it('uses one history read per visit when the feed and realtime owner run togethe
         await act(async () => { screen = create(React.createElement(Probe, { tab: 'offers' })) })
         await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
-        expect(mocks.historyRead).toHaveBeenCalledExactlyOnceWith('member', 'league', 40)
+        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 40 }) }))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'offers' })))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
+        expect(mocks.historyRead).toHaveBeenCalledTimes(1)
+        await act(async () => bumpView())
         expect(mocks.historyRead).toHaveBeenCalledTimes(2)
     } finally { await act(async () => screen?.unmount()) }
 })
@@ -407,6 +411,6 @@ it('loads newly opened history as soon as an active offers read finishes', async
         await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
         await act(async () => finishOffers(true))
-        expect(mocks.historyRead).toHaveBeenCalledExactlyOnceWith('member', 'league', 40)
+        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 40 }) }))
     } finally { await act(async () => screen?.unmount()) }
 })

@@ -93,8 +93,8 @@ function ConnectionHint({ connected, failed, text, fallback, textStyle, height }
     const hasConnected = useRef(connected)
     if (connected) hasConnected.current = true
     const reconnecting = !connected && (hasConnected.current || failed)
-    return <Text style={[textStyle, { height, width: '100%', textAlign: 'left' }]}
-        numberOfLines={2} accessibilityLiveRegion="polite">{reconnecting ? fallback : text}</Text>
+    return <Text style={[textStyle, { minHeight: height, width: '100%', textAlign: 'left' }]}
+        accessibilityLiveRegion="polite">{reconnecting ? fallback : text}</Text>
 }
 
 const styles = StyleSheet.create({

@@ -112,7 +112,11 @@
     "scripts/bench/oracle.test.ts",
     "scripts/season-sim/edge.mjs",
     "supabase/tests/db/{live-ingestion,notif,pre-tipoff}-crash-worker.ts",
-    "supabase/tests/db/matchup-forecast-concurrency.mjs"
+    "supabase/tests/db/matchup-forecast-concurrency.mjs",
+    "components/ui/index.ts",
+    "tests/e2e/navigation-walkthrough.mjs",
+    "tests/ui/release-design-capture.mjs",
+    "tests/lib/timeline/browser/{main.tsx,safe-area.ts,supabase.ts,vite.config.mjs}"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

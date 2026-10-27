@@ -4,9 +4,11 @@ CREATE OR REPLACE FUNCTION public.complete_player_career_base_atomic(
   p_season_year integer DEFAULT public.current_season_year_et()
 )
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_player public.players%ROWTYPE; v_source text;
+DECLARE v_player public.players%ROWTYPE; v_source text; v_first_season integer;
 BEGIN
-  IF p_season_year IS NULL OR p_season_year<2021 OR
+  SELECT first_season_year INTO v_first_season FROM private.provider_history_policy WHERE source='career';
+  IF NOT FOUND THEN RAISE EXCEPTION 'Player career coverage policy is unavailable.' USING ERRCODE='55000'; END IF;
+  IF p_season_year IS NULL OR p_season_year<v_first_season OR
     (p_base IS NULL) IS DISTINCT FROM (p_base_season IS NULL) OR p_base<0 OR
     (p_base_season IS NOT NULL AND p_base_season<>p_season_year-1) THEN
     RAISE EXCEPTION 'A completed-season NBA career base is required.' USING ERRCODE='22023';

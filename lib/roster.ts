@@ -1,5 +1,5 @@
 import { assertReadActive } from '@/lib/shared/read-admission'
-import { withPwaMutation } from '@/lib/shared/pwa-mutation'
+import { assertMutationOnline, withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import { getActiveSeasonId } from '@/lib/shared/season'
 import { isDTD, isIREligible } from '@pancake/core'
@@ -213,9 +213,7 @@ export async function dropAndAddFreeAgent(
 
 export async function dropPlayer(rosterPlayerId: string, expectedLeagueSeasonId?: string, rookieDraftId?: string): Promise<void> {
     return withPwaMutation('dropPlayer', async () => {
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-            throw new Error('Connect to the internet to drop a player.')
-        }
+        assertMutationOnline()
         // Atomic: delete roster row, insert 48h waiver_wire_log, insert
         // roster_transactions audit row — all in a single Postgres transaction.
         // Prior implementation issued 3 serial writes with no rollback, so a

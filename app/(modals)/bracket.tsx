@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/Badge'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import {
     View,
@@ -189,29 +190,11 @@ function MatchupCard({
             <View style={[styles.cardHeader, compact && styles.cardHeaderCompact]}>
                 <Text style={styles.weekLabel}>{(matchup.endWeekNumber ?? matchup.weekNumber) === matchup.weekNumber
                     ? `Week ${matchup.weekNumber}` : `Weeks ${matchup.weekNumber}–${matchup.endWeekNumber}`}</Text>
-                <View
-                    style={[
-                        styles.statusPill,
-                        matchup.isFinalized
-                            ? styles.statusFinal
-                            : inProgress
-                              ? styles.statusLive
-                              : styles.statusPending,
-                    ]}
-                >
-                    <Text
-                        style={[
-                            styles.statusText,
-                            matchup.isFinalized
-                                ? styles.statusTextFinal
-                                : inProgress
-                                  ? styles.statusTextLive
-                                  : styles.statusTextPending,
-                        ]}
-                    >
-                        {matchup.isFinalized ? 'Final' : inProgress ? 'Live' : 'Upcoming'}
-                    </Text>
-                </View>
+                <Badge size="status" variant="solid"
+                    label={matchup.isFinalized ? 'Final' : inProgress ? 'Live' : 'Upcoming'}
+                    color={!matchup.isFinalized && inProgress ? uiColors.successSurfaceStrong : colors.bgMuted}
+                    textColor={matchup.isFinalized ? colors.textSecondary : inProgress ? uiColors.successTextLive : colors.textPlaceholder}
+                />
             </View>
 
             {/* Home team */}
@@ -334,20 +317,6 @@ const styles = StyleSheet.create({
     },
     cardHeaderCompact: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
     weekLabel: { ...textStyles.meta, fontWeight: fontWeight.semibold },
-
-    statusPill: {
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.xxs,
-        borderRadius: radii['3xl'],
-        borderCurve: 'continuous' as const,
-    },
-    statusPending: { backgroundColor: colors.bgMuted },
-    statusLive: { backgroundColor: uiColors.successSurfaceStrong },
-    statusFinal: { backgroundColor: colors.bgMuted },
-    statusText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold },
-    statusTextPending: { color: colors.textPlaceholder },
-    statusTextLive: { color: uiColors.successTextLive },
-    statusTextFinal: { color: colors.textSecondary },
 
     divider: { height: 1, backgroundColor: colors.separator, marginHorizontal: spacing.lg },
 

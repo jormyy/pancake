@@ -114,7 +114,8 @@ BEGIN
     is_mock,
     pick_timer_seconds,
     rounds,
-    timer_expiry_behavior
+    timer_expiry_behavior,
+    rookie_draft_order
   )
   VALUES (
     p_league_id,
@@ -130,7 +131,8 @@ BEGIN
     true,
     v_timer_seconds,
     CASE WHEN v_draft_type = 'snake' THEN p_rounds ELSE NULL END,
-    CASE WHEN v_draft_type = 'snake' THEN v_timer_expiry_behavior ELSE 'auction_no_bid' END
+    CASE WHEN v_draft_type = 'snake' THEN v_timer_expiry_behavior ELSE 'auction_no_bid' END,
+    v_league.rookie_draft_order
   )
   RETURNING * INTO v_draft;
 

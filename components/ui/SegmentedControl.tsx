@@ -1,7 +1,8 @@
+import { Badge } from '@/components/ui/Badge'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, motion, radii, spacing, webOverlays } from '@/constants/tokens'
+import { colors, componentTokens, fontWeight, motion, spacing, webOverlays } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
@@ -172,13 +173,15 @@ export function SegmentedControl<T extends string>({
                     ? [styles.tab, active && styles.tabActive, hovered && !active && styles.tabHover, pressed && styles.pressed]
                     : [styles.segment, equalWidth && styles.equalSegment, active && styles.segmentActive, hovered && !active && styles.segmentHover, pressed && styles.pressed]}
             >
-                <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]} numberOfLines={1}>
+                <Text style={tabs ? [styles.tabLabel, active && styles.tabLabelActive] : [styles.label, active && styles.labelActive]}>
                     {opt.label}
                 </Text>
                 {opt.reserveBadge || typeof opt.badge === 'number' && opt.badge > 0 ? (
-                    <View style={[tabs ? styles.tabBadge : [styles.badge, active && styles.badgeActive], opt.reserveBadge && { minWidth: 20 }, opt.reserveBadge && typeof opt.badge !== 'number' && { opacity: 0 }]}>
-                        <Text style={tabs ? styles.tabBadgeText : [styles.badgeText, active && styles.badgeTextActive]}>{opt.badge}</Text>
-                    </View>
+                    <Badge size="count" variant="solid" label={opt.badge}
+                        color={tabs ? colors.primary : active ? webOverlays.navBadgeActive : colors.bgCard}
+                        textColor={tabs || active ? colors.textWhite : colors.textSecondary}
+                        style={[opt.reserveBadge && { minWidth: 20 }, opt.reserveBadge && typeof opt.badge !== 'number' && { opacity: 0 }]}
+                    />
                 ) : null}
             </Pressable>
         )
@@ -235,9 +238,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
-        minHeight: controlSize.minTouch,
-        paddingHorizontal: spacing.lg,
-        borderRadius: radii['3xl'],
+        minHeight: componentTokens.segmentedControl.minHeight,
+        minWidth: componentTokens.segmentedControl.minWidth,
+        paddingHorizontal: componentTokens.segmentedControl.paddingHorizontal,
+        borderRadius: componentTokens.segmentedControl.radius,
         backgroundColor: colors.bgMuted,
         borderCurve: 'continuous',
     },
@@ -248,10 +252,7 @@ const styles = StyleSheet.create({
     segmentHover: { backgroundColor: colors.bgSubtle },
     pressed: { opacity: motion.pressedOpacity },
     label: {
-        fontSize: fontSize.sm,
-        fontWeight: fontWeight.bold,
-        fontFamily: fontFamily.displayMedium,
-        color: colors.textSecondary,
+        ...componentTokens.segmentedControl.pillLabel,
     },
     labelActive: { color: colors.textWhite },
     tabTrack: { gap: spacing.xs },
@@ -260,43 +261,18 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: spacing.sm,
-        minHeight: controlSize.minTouch,
-        paddingHorizontal: spacing.lg,
-        borderTopWidth: 2,
+        minHeight: componentTokens.segmentedControl.minHeight,
+        minWidth: componentTokens.segmentedControl.minWidth,
+        paddingHorizontal: componentTokens.segmentedControl.paddingHorizontal,
+        borderTopWidth: componentTokens.segmentedControl.underlineWidth,
         borderTopColor: 'transparent',
-        borderBottomWidth: 2,
+        borderBottomWidth: componentTokens.segmentedControl.underlineWidth,
         borderBottomColor: 'transparent',
     },
     tabActive: { borderBottomColor: colors.primary },
     tabHover: { borderBottomColor: colors.borderLight },
     tabLabel: {
-        fontSize: fontSize.md,
-        fontWeight: fontWeight.semibold,
-        color: colors.textMuted,
+        ...componentTokens.segmentedControl.tabLabel,
     },
     tabLabelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
-    // Underline tabs have no filled background, so the count keeps one solid
-    // style whether or not its tab is selected.
-    tabBadge: {
-        minWidth: 18,
-        height: 18,
-        paddingHorizontal: spacing.xs,
-        borderRadius: radii.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.primary,
-    },
-    tabBadgeText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: colors.textWhite },
-    badge: {
-        minWidth: 18,
-        height: 18,
-        paddingHorizontal: 5,
-        borderRadius: radii.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: colors.bgCard,
-    },
-    badgeActive: { backgroundColor: webOverlays.navBadgeActive },
-    badgeText: { fontSize: 10, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    badgeTextActive: { color: colors.textWhite },
 })

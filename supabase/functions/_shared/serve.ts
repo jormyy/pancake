@@ -1,6 +1,7 @@
 import { requireInternalFunctionAuth } from './auth.ts'
 import { internalServerError } from './responses.ts'
 import { runEdgeInvocation } from './syncRuns.ts'
+import { withWorkContext } from './workContext.ts'
 
 // Standard runtime for internal (cron/service) functions: token auth, then a
 // single catch that logs and returns a 500. Mirrors handleApiRequest in
@@ -14,7 +15,12 @@ export function serveInternal(
     if (authError) return authError
 
     try {
-      return await runEdgeInvocation(scope, req, handler)
+      const requestId = req.headers.get('x-request-id')
+      const requestActor = req.headers.get('x-request-actor')
+      const run = () => runEdgeInvocation(scope, req, handler)
+      return requestId && requestActor
+        ? await withWorkContext({ signal: req.signal, requestId, requestActor }, run)
+        : await run()
     } catch (error) {
       return internalServerError(scope, error)
     }

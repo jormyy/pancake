@@ -1,3 +1,6 @@
+import { PendingMutationBadge } from '@/components/PendingMutationBadge'
+import { Badge } from '@/components/ui/Badge'
+import { StatCell } from '@/components/ui/StatCell'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, StyleSheet, Pressable } from 'react-native'
@@ -6,7 +9,7 @@ import { claimProcessWeekdayLabel } from '@/lib/waivers'
 import { PlayerRow, getEligiblePositions } from '@/lib/players'
 import { formatPoints } from '@/lib/format'
 import { OwnedEntry } from '@/lib/roster'
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
 
 
 import { MotionPressable, MotionView } from '@/components/Motion'
@@ -68,28 +71,12 @@ function PlayerSearchItemImpl({
     const denseProjectionRow = statMode === 'projection' && !showStats
 
     const statusBadge = currentMemberId && (!isFA || showStats) ? (
-        <View style={[
-            styles.statusBadge,
-            showStats && styles.statusCell,
-            !showStats && styles.statusBadgeNarrow,
-            isMe && styles.statusBadgeMe,
-            isWaiver && styles.statusBadgeWaiver,
-            isFA && styles.statusBadgeFA,
-        ]}>
-            <Text
-                style={[
-                    styles.statusBadgeText,
-                    isMe && styles.statusBadgeTextMe,
-                    isWaiver && styles.statusBadgeTextWaiver,
-                ]}
-                numberOfLines={1}
-            >
-                {isMe ? 'Mine'
-                    : isOther ? owned!.teamName
-                    : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}`
-                    : 'FA'}
-            </Text>
-        </View>
+        <Badge size="ownership" variant="solid"
+            color={showStats ? 'transparent' : isMe ? colors.successLight : isWaiver ? colors.infoLight : colors.bgMuted}
+            textColor={isMe ? colors.successDark : isWaiver ? uiColors.waiverText : colors.textMuted}
+            style={[styles.statusBadge, !showStats && styles.statusBadgeNarrow]}
+            label={isMe ? 'Mine' : isOther ? owned!.teamName : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}` : 'FA'}
+        />
     ) : null
 
     const summary = showStats ? <View style={styles.statsGrid}>
@@ -115,6 +102,7 @@ function PlayerSearchItemImpl({
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.display_name}`}
             >
+                <PendingMutationBadge rowId={item.id} />
                 <PlayerRowContent compact={!showStats} name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
                     yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
 
@@ -187,39 +175,14 @@ function playerStats(item: PlayerRow, statMode: 'season' | 'projection') {
     ]
 }
 
-function StatCell({
-    value,
-    highlight = false,
-    integer = false,
-}: {
-    value?: number | null
-    highlight?: boolean
-    integer?: boolean
-}) {
-    const display = value != null && integer ? String(Math.round(Number(value))) : formatPoints(value)
-    return (
-        <Text style={[styles.statCell, highlight && styles.statCellPrimary]} numberOfLines={1}>
-            {display}
-        </Text>
-    )
-}
-
-const ADD_COL_W = controlSize.minTouch
-const HEADSHOT = controlSize.avatar.md
-
-/** Geometry the stat-table header mirrors so its columns line up with rows. */
-export const playerRowGeometry = {
-    addColWidth: ADD_COL_W,
-    headshot: HEADSHOT,
-    statCount: 10,
-} as const
+const ADD_COL_W = componentTokens.playerRow.actionWidth
 
 const styles = StyleSheet.create({
     playerRow: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.sm,
-        minHeight: table.rowHeight,
+        minHeight: componentTokens.playerRow.standard.minHeight,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },
@@ -243,11 +206,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingRight: spacing.lg,
-        paddingVertical: spacing.sm,
+        paddingVertical: componentTokens.playerRow.standard.paddingVertical,
         paddingLeft: spacing.sm,
         gap: spacing.md,
     },
-    playerCardNarrow: { paddingRight: spacing.xs, paddingVertical: spacing.xs },
+    playerCardNarrow: { paddingRight: spacing.xs, paddingVertical: componentTokens.playerRow.compact.paddingVertical, minHeight: controlSize.minTouch },
     playerCardDense: { paddingVertical: spacing.xs, paddingRight: spacing.xs, gap: spacing.md },
     playerMetaScore: { fontWeight: fontWeight.bold, color: colors.primaryDark },
     playerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minWidth: 0 },
@@ -255,40 +218,12 @@ const styles = StyleSheet.create({
     liveLabel: { color: colors.success, fontWeight: fontWeight.bold },
     statsGrid: {
         alignSelf: 'flex-end',
-        width: 10 * table.statColWidth,
+        width: componentTokens.playerRow.statCount * table.statColWidth,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'flex-end',
         flexShrink: 0,
     },
-    statCell: {
-        width: table.statColWidth,
-        textAlign: 'right',
-        ...textStyles.meta,
-        fontWeight: fontWeight.semibold,
-    },
-    statCellPrimary: {
-        color: colors.primaryDark,
-        fontWeight: fontWeight.extrabold,
-    },
-    statusBadge: {
-        paddingHorizontal: spacing.sm,
-        height: textStyles.rowTitle.lineHeight,
-        justifyContent: 'center',
-        paddingVertical: 0,
-        flexShrink: 0,
-        borderRadius: radii.sm,
-        borderCurve: 'continuous' as const,
-        backgroundColor: colors.bgMuted,
-        width: 90,
-        alignItems: 'center',
-    },
-    statusCell: { backgroundColor: 'transparent' },
-    statusBadgeNarrow: { width: 'auto', paddingHorizontal: spacing.xs, maxWidth: 96 },
-    statusBadgeMe: { backgroundColor: colors.successLight },
-    statusBadgeWaiver: { backgroundColor: colors.infoLight },
-    statusBadgeFA: { backgroundColor: colors.bgMuted },
-    statusBadgeText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.textMuted },
-    statusBadgeTextMe: { color: colors.successDark },
-    statusBadgeTextWaiver: { color: uiColors.waiverText },
+    statusBadge: { width: componentTokens.badge.ownership.width },
+    statusBadgeNarrow: { width: 'auto', paddingHorizontal: spacing.xs, maxWidth: componentTokens.badge.ownership.maxCompactWidth },
 })

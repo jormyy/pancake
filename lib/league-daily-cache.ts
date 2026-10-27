@@ -7,7 +7,7 @@ const entries = new Map<string, Entry>()
 const MAX_AGE = 300_000
 const MAX_ENTRIES = 64
 
-export function releaseLeagueDailyPending(leagueId?: string) {
+function releaseLeagueDailyPending(leagueId?: string) {
     for (const [key, entry] of entries) if (!entry.settled && (!leagueId || entry.leagueId === leagueId)) entries.delete(key)
 }
 

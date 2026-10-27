@@ -71,7 +71,7 @@ export async function replay(options = {}) {
     await writeJson(path.join(miniRoot, 'evidence/replay-progress.json'), { phase, completedDates: report.days.length, requestedDates: selected.length, fullAcceptance: report.fullAcceptance })
   }
   const sample = async (_at, jobs) => {
-    if (!context || !jobs.some(job => job.jobname === 'nba-live-poll')) return
+    if (!context || !jobs.some(job => ['work-dispatcher', 'nba-live-poll'].includes(job.jobname))) return
     const date = activeDate ?? etDate(new Date(clockTime(JSON.parse(await readFile(path.join(miniRoot, 'state/clock.json'), 'utf8')), Date.now())).toISOString())
     const activeGames = Number(await sql(`SELECT count(*) FROM nba_games WHERE game_date='${date}' AND status='InProgress'`))
     if (!activeGames) return
