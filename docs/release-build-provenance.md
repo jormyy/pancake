@@ -108,7 +108,20 @@ Remote recovery requires `VERCEL_ENV=production` or `PANCAKE_FETCH_PREDECESSOR=1
 Production still requires the pinned predecessor file.
 For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the previous verified export directory. This replaces the remote predecessor for that build. Never use an export with a different API issuer as a production predecessor.
 
-The generated `release-compatibility.json` records the retained files and their source. They stay lazy and remain outside the startup precache. Each build retains one predecessor's own assets. It excludes assets inherited by that predecessor, old HTML, and old service workers. Conflicting immutable paths fail the build. Changing the predecessor requires a clean export.
+The generated `release-compatibility.json` records the retained files and their source. They stay lazy and remain outside the startup precache. Each build retains one predecessor's own assets. It excludes assets inherited by that predecessor, old HTML, and old service workers. Changing the predecessor requires a clean export.
+
+Metro can also change a route loader's target paths without changing its filename.
+The guard parses each Metro module's dependency `paths` map and normalizes only its asset values before comparing the complete source.
+All other source text and dependency keys must match.
+Every old target must remain available with its verified predecessor bytes, including targets that do not change.
+Every new target must exist in the output.
+An inherited target that disappears blocks the build.
+The new loader stays in place and uses the new manifest and worker hashes.
+The compatibility receipt lists copied predecessor files, so it never marks that new loader as retained.
+Other changes at the same path still fail the build.
+
+This policy preserves cached loaders without rewriting the exported module graph.
+Renaming loaders requires rewriting parent chunks and every export reference, which adds a separate source of graph errors.
 
 Before publishing, verify the predecessor still matches the live deployment. Test an unfinished edit in that release, update detection, closing and reopening, and offline use. Recheck the displayed release identity after deployment.
 
