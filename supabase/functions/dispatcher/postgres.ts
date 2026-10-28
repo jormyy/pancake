@@ -6,19 +6,32 @@ const decoder = new TextDecoder()
 const hash = (value: Uint8Array | string) => createHash('sha256').update(value).digest()
 const hmac = (key: Uint8Array, value: Uint8Array | string) => createHmac('sha256', key).update(value).digest()
 
+function closeConnection(connection: Deno.Conn): void {
+  try {
+    connection.close()
+  } catch (error) {
+    if (!(error instanceof Deno.errors.BadResource)) throw error
+  }
+}
+
 async function connect(hostname: string, port: number): Promise<Deno.Conn> {
-  let expired = false
-  let timer: ReturnType<typeof setTimeout> | undefined
+  const signal = AbortSignal.timeout(10_000)
+  const error = new Error('PostgreSQL connection timed out after 10 s')
+  let expire: () => void = () => {}
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => { expired = true; reject(new Error('PostgreSQL connection timed out')) }, 10_000)
+    expire = () => reject(error)
+    signal.addEventListener('abort', expire, { once: true })
   })
   try {
     return await Promise.race([Deno.connect({ hostname, port }).then(connection => {
-      if (expired) { connection.close(); throw new Error('PostgreSQL connection timed out') }
+      if (signal.aborted) {
+        try { closeConnection(connection) } catch { throw error }
+        throw error
+      }
       return connection
     }), deadline])
   } finally {
-    clearTimeout(timer)
+    signal.removeEventListener('abort', expire)
   }
 }
 
@@ -27,9 +40,19 @@ export async function vacuumResponses(databaseUrl: string): Promise<void> {
   if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('PostgreSQL URL required')
   const user = decodeURIComponent(url.username)
   const password = decodeURIComponent(url.password)
+  const deadline = AbortSignal.timeout(20_000)
   let connection: Deno.Conn = await connect(url.hostname, Number(url.port || 5432))
-  const timeout = setTimeout(() => { try { connection.close() } catch { return } }, 60_000)
+  let closed = false
+  let failed = false
+  const close = () => {
+    if (closed) return
+    closed = true
+    closeConnection(connection)
+  }
+  const expire = () => { try { close() } catch { return } }
+  deadline.addEventListener('abort', expire, { once: true })
   const read = async (size: number) => {
+    deadline.throwIfAborted()
     const bytes = new Uint8Array(size)
     let offset = 0
     while (offset < size) {
@@ -40,6 +63,7 @@ export async function vacuumResponses(databaseUrl: string): Promise<void> {
     return bytes
   }
   const write = async (bytes: Uint8Array) => {
+    deadline.throwIfAborted()
     let offset = 0
     while (offset < bytes.length) offset += await connection.write(bytes.subarray(offset))
   }
@@ -115,8 +139,12 @@ export async function vacuumResponses(databaseUrl: string): Promise<void> {
         querySent = true
       }
     }
+  } catch (error) {
+    failed = true
+    if (deadline.aborted) throw new Error('vacuum timed out after 20 s', { cause: error })
+    throw error
   } finally {
-    clearTimeout(timeout)
-    connection.close()
+    deadline.removeEventListener('abort', expire)
+    try { close() } catch (error) { if (!failed) throw error }
   }
 }

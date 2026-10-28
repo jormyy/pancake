@@ -70,3 +70,23 @@ export async function revalueTrade(userId: string, memberId: string, tradeId: st
     terms: inputs.terms,
   }
 }
+
+export async function reanalyzeTradeEstimates(runVersion = DYNASTY_TRADE_MODEL_VERSION) {
+  const batch = await supabase.rpc('get_trade_estimate_reanalysis_batch', { p_run: runVersion })
+  if (batch.error) throwDb(batch.error)
+  let updated = 0
+  for (const tradeId of batch.data ?? []) {
+    const result = await supabase.rpc('get_trade_estimate_reanalysis_inputs', { p_trade_id: tradeId, p_run: runVersion })
+    if (result.error) throwDb(result.error)
+    if (!result.data) continue
+    const inputs = result.data as unknown as TradeEstimateInputs & { observedAt: string }
+    const saved = await supabase.rpc('save_trade_estimate_reanalysis', {
+      p_trade_id: tradeId, p_run: runVersion, p_inputs: result.data, p_analysis: analyzeTradeEstimate(inputs, Date.parse(inputs.observedAt)) as unknown as Json,
+    })
+    if (saved.error) throwDb(saved.error)
+    updated++
+  }
+  const queued = await supabase.rpc('queue_trade_estimate_reanalysis', { p_run: runVersion })
+  if (queued.error) throwDb(queued.error)
+  return { updated, remaining: Number(queued.data) }
+}

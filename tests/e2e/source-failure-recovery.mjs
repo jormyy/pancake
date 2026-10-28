@@ -18,13 +18,6 @@ export const CONFIGURED_SOURCE_SUITES = Object.freeze([
       'supabase/functions/sync-projections/match.test.ts',
     ],
   },
-  {
-    id: 'hashtag-basketball',
-    files: [
-      'supabase/functions/sync-rankings/parser.test.ts',
-      'supabase/functions/sync-rankings/match.test.ts',
-    ],
-  },
   { id: 'nba-draft-order', files: ['supabase/functions/sync-draft-order/degraded.test.ts'] },
   { id: 'sleeper-fallback', disabledReason: 'The fallback source is disabled by default.' },
 ])

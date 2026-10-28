@@ -280,3 +280,31 @@ Those artifacts are both attestations, `supabase/sql/function-catalog.json`, and
 The generator preserves the recorded production baseline and historical aliases.
 [Release contract](../supabase/RELEASE-DB.md) owns deployment order and the complete Edge function list.
 [Integration evidence](release-2.5-integration.md) owns executed counts and changed files.
+
+
+## Release 2.6 candidate
+
+Release 2.6 starts from `78c01b8c` and the supplied head `20261123000100` at 621 migrations.
+It adds four migrations and reaches `20261124000400`, for 625 total migrations.
+The fixed 329-migration audit anchor leaves 296 approved migrations.
+The recorded security baseline stays at 564 migrations through `20261029000800`.
+Its candidate suffix contains 61 migrations; rollout verifies the actual applied prefix.
+
+| Migration | Change |
+| --- | --- |
+| `20261124000100_trade_value_fetch_retries.sql` | Releases failed daily claims and schedules bounded retries. |
+| `20261124000200_trade_estimate_reanalysis.sql` | Preserves original quotes and adds versioned trade re-analysis. |
+| `20261124000300_trade_estimate_pick_inputs.sql` | Shares pick bands and bounds replacement-player inputs. |
+| `20261124000400_pick_predictions_and_ranking_cleanup.sql` | Stores pick predictions, chains refreshes, and removes ranking work. |
+
+All four timestamps are distinct and remain unchanged.
+The final scheduler retains daily values and league-local midnight waivers.
+Successful values queue pick predictions before versioned trade re-analysis.
+The retry RPC retains its claim-release and 30-minute retry rules beside that chain.
+Private project `pt4bafabler26` uses ports `586xx`.
+Both attestations, the function catalog, and database types come from that private database.
+An ordered upgrade and fresh installation produce identical bytes for all four artifacts.
+The audit anchor, historical aliases, and recorded production catalog remain unchanged.
+No production metadata or application data is read during this integration.
+[Release contract](../supabase/RELEASE-DB.md) owns rollout order and all five changed Edge functions.
+[Integration evidence](release-2.6-integration.md) owns executed counts and changed files.

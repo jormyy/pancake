@@ -56,18 +56,20 @@ const player = (id: string, rank: number, points: number, age = 25): DynastyPlay
     sources: [{ name: 'test', fetchedAt: '2026-08-16T00:00:00Z' }],
 })
 
+const tradedPlayer = (...args: Parameters<typeof player>): DynastyPlayerAsset => ({ ...player(...args), tradeValue: Math.max(0, 1000 - args[1] * 2) })
+
 describe('dynasty decision engine', () => {
     it('rejects repeated assets and routes that do not transfer ownership', () => {
-        const route = { fromMemberId: 'a', toMemberId: 'b', asset: player('one', 40, 20) }
+        const route = { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('one', 40, 20) }
         expect(() => analyzeDynastyTrade(context, 'overall', [route, route])).toThrow(/once/)
         expect(() => analyzeDynastyTrade(context, 'overall', [{ ...route, toMemberId: 'a' }])).toThrow(/different/)
     })
 
     it('exposes exact package accounting and reverses uneven trade adjustments', () => {
         const routes = [
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('one', 40, 20) },
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('two', 80, 15) },
-            { fromMemberId: 'b', toMemberId: 'a', asset: player('elite', 8, 28) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('one', 40, 20) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('two', 80, 15) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('elite', 8, 28) },
         ]
         const input = { ...context, replacementValue: 125 }
         const forward = analyzeDynastyTrade(input, 'overall', routes)
@@ -77,8 +79,8 @@ describe('dynasty decision engine', () => {
         expect(forward.teams[0].valuesSent).toBe(forward.assets[0].values.overall + forward.assets[1].values.overall)
         for (const [index, team] of forward.teams.entries()) {
             expect(team.impact).toBe(team.valuesReceived - team.valuesSent + team.packageEffect + team.rosterSlotEffect + team.replacementEffect)
-            expect(reverse.teams[index].impact).toBe(-team.impact)
-            expect(reverse.teams[index].replacementEffect).toBe(-team.replacementEffect)
+            expect(reverse.teams[index].impact).toBe(-team.impact || 0)
+            expect(reverse.teams[index].replacementEffect).toBe(-team.replacementEffect || 0)
         }
     })
 
@@ -88,66 +90,44 @@ describe('dynasty decision engine', () => {
         expect(valueDynastyAsset(context, { ...asset, amount: 100 }).values.overall).toBe(98)
     })
 
-    it('reports wider value ranges when player evidence is missing or the player is a rookie', () => {
-        const veteran = valueDynastyAsset(context, player('veteran', 50, 20))
-        const rookie = valueDynastyAsset(context, { ...player('rookie', 50, 20), isRookie: true })
-        const unknown = valueDynastyAsset(context, {
-            kind: 'player', id: 'unknown', label: 'Unknown', age: null, dynastyRank: null, rankMovement: null, healthStatus: null,
+    it('uses imported values for every strategy and ignores legacy inputs', () => {
+        const asset = tradedPlayer('player-1', 80, 30)
+        const result = valueDynastyAsset(context, asset)
+        const changed = valueDynastyAsset({ ...context, scoringSettings: { points: 100 } }, {
+            ...asset, age: 40, healthStatus: 'OUT', marketRanks: { overall: 1, contend: 500, rebuild: 500 },
         })
-        expect(veteran.ranges.overall).toBeDefined()
-        const width = (result: typeof veteran) => (result.ranges.overall?.high ?? 0) - (result.ranges.overall?.low ?? 0)
-        expect(width(rookie)).toBeGreaterThan(width(veteran))
-        expect(width(unknown)).toBeGreaterThan(width(veteran))
-        expect(unknown.values.overall).toBeGreaterThan(0)
-        expect(unknown.missingInputs).toContain('current production')
+        expect(result.values).toEqual({ overall: 840, contend: 840, rebuild: 840 })
+        expect(changed.values).toEqual(result.values)
+        expect(result.ranges).toEqual({})
+        expect(result.components.production).toBe(0)
+        expect(result.components.age).toBe(0)
     })
 
-    it('returns the same result for the same input', () => {
-        const asset = player('player-1', 12, 24)
-        expect(valueDynastyAsset(context, asset)).toEqual(valueDynastyAsset(context, asset))
-    })
-
-    it('uses active league scoring settings', () => {
-        const asset = player('player-1', 80, 30)
-        const pointsLeague = valueDynastyAsset(context, asset)
-        const assistsLeague = valueDynastyAsset({
-            ...context,
-            scoringSettings: { ...settings, points: 0, assists: 4 },
-        }, asset)
-
-        expect(pointsLeague.components.shortTermPoints).not.toBe(assistsLeague.components.shortTermPoints)
-        expect(pointsLeague.values.overall).not.toBe(assistsLeague.values.overall)
-    })
-
-    it('uses the published market rank for each strategy', () => {
-        const baseline = valueDynastyAsset(context, player('player-1', 250, 30))
-        const result = valueDynastyAsset(context, {
-            ...player('player-1', 250, 30),
-            marketRanks: { overall: 1, contend: 400, rebuild: 500 },
-        })
-
-        expect(result.values.overall).toBeGreaterThan(baseline.values.overall)
-        expect(result.values.contend).toBeLessThan(baseline.values.contend)
-        expect(result.values.rebuild).toBeLessThan(baseline.values.rebuild)
+    it('gives missing imported values zero instead of synthesizing a rank or age value', () => {
+        const asset = player('player-1', 1, 55, 22)
+        const result = valueDynastyAsset(context, asset)
+        expect(result.values).toEqual({ overall: 0, contend: 0, rebuild: 0 })
+        expect(result.missingInputs).toEqual(['imported player value'])
+        expect(result.ranges).toEqual({})
     })
 
     it('keeps Overall stable when the selected strategy changes', () => {
-        const result = valueDynastyAsset(context, player('young-star', 8, 25, 21))
+        const result = valueDynastyAsset(context, tradedPlayer('young-star', 8, 25, 21))
         const analyses = ['overall', 'contend', 'rebuild'] as const
-        const routes: DynastyTradeRoute[] = [{ fromMemberId: 'a', toMemberId: 'b', asset: player('young-star', 8, 25, 21) }]
+        const routes: DynastyTradeRoute[] = [{ fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('young-star', 8, 25, 21) }]
 
         for (const strategy of analyses) {
             expect(analyzeDynastyTrade(context, strategy, routes).assets[0].values.overall).toBe(result.values.overall)
         }
-        expect(result.values.rebuild).toBeGreaterThan(result.values.contend)
+        expect(result.values.rebuild).toBe(result.values.contend)
     })
 
     it('returns a wider and less certain range for an unknown future pick', () => {
         const known = valueDynastyAsset(context, {
-            kind: 'pick', id: 'known', label: '2027 1.03', seasonYear: 2027, round: 1, slot: 3, teams: 12,
+            kind: 'pick', id: 'known', label: '2027 1.03', seasonYear: 2027, round: 1, slot: 3, teams: 12, valueBands: { early: 700, mid: 500, late: 300 },
         })
         const unknown = valueDynastyAsset(context, {
-            kind: 'pick', id: 'unknown', label: '2029 first', seasonYear: 2029, round: 1, slot: null, teams: 12,
+            kind: 'pick', id: 'unknown', label: '2029 first', seasonYear: 2029, round: 1, slot: null, teams: 12, valueBands: { early: 700, mid: 500, late: 300 },
         })
 
         expect(known.ranges.overall).toBeUndefined()
@@ -158,8 +138,8 @@ describe('dynasty decision engine', () => {
 
     it('reverses two-team impacts when every route reverses', () => {
         const routes: DynastyTradeRoute[] = [
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('alpha', 15, 25) },
-            { fromMemberId: 'b', toMemberId: 'a', asset: player('beta', 60, 18) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('alpha', 15, 25) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('beta', 60, 18) },
         ]
         const forward = analyzeDynastyTrade(context, 'overall', routes)
         const reverse = analyzeDynastyTrade(context, 'overall', routes.map((route) => ({
@@ -171,36 +151,36 @@ describe('dynasty decision engine', () => {
         for (const memberId of ['a', 'b']) {
             const forwardTeam = forward.teams.find((team) => team.memberId === memberId)
             const reverseTeam = reverse.teams.find((team) => team.memberId === memberId)
-            expect(reverseTeam?.impact).toBe(-(forwardTeam?.impact ?? 0))
-            expect(reverseTeam?.shortTermPoints).toBe(-(forwardTeam?.shortTermPoints ?? 0))
+            expect(reverseTeam?.impact).toBe(-(forwardTeam?.impact ?? 0) || 0)
+            expect(reverseTeam?.shortTermPoints).toBe(-(forwardTeam?.shortTermPoints ?? 0) || 0)
         }
     })
 
-    it('adds a roster-slot effect to a two-for-one', () => {
+    it('uses consolidation without an extra roster-slot adjustment', () => {
         const analysis = analyzeDynastyTrade(context, 'overall', [
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('one', 40, 20) },
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('two', 80, 15) },
-            { fromMemberId: 'b', toMemberId: 'a', asset: player('elite', 8, 28) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('one', 40, 20) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('two', 80, 15) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('elite', 8, 28) },
         ])
 
-        expect(analysis.teams.find((team) => team.memberId === 'a')?.rosterSlotEffect).toBeGreaterThan(0)
-        expect(analysis.teams.find((team) => team.memberId === 'b')?.rosterSlotEffect).toBeLessThan(0)
+        expect(analysis.teams.find((team) => team.memberId === 'a')?.rosterSlotEffect).toBe(0)
+        expect(analysis.teams.find((team) => team.memberId === 'b')?.rosterSlotEffect).toBe(0)
     })
 
     it('prevents weak asset count from overwhelming one elite asset', () => {
         const assets = valueDynastyAssets(context, [
-            player('elite', 1, 42, 22),
-            player('weak-1', 450, 2, 34),
-            player('weak-2', 460, 2, 34),
-            player('weak-3', 470, 2, 34),
-            player('weak-4', 480, 2, 34),
+            tradedPlayer('elite', 1, 42, 22),
+            tradedPlayer('weak-1', 450, 2, 34),
+            tradedPlayer('weak-2', 460, 2, 34),
+            tradedPlayer('weak-3', 470, 2, 34),
+            tradedPlayer('weak-4', 480, 2, 34),
         ])
         const elite = assets[0].values.overall
         const analysis = analyzeDynastyTrade(context, 'overall', [
             ...assets.slice(1).map((_, index) => ({
-                fromMemberId: 'a', toMemberId: 'b', asset: player(`weak-${index + 1}`, 450 + index * 10, 2, 34),
+                fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer(`weak-${index + 1}`, 450 + index * 10, 2, 34),
             })),
-            { fromMemberId: 'b', toMemberId: 'a', asset: player('elite', 1, 42, 22) },
+            { fromMemberId: 'b', toMemberId: 'a', asset: tradedPlayer('elite', 1, 42, 22) },
         ])
         const weakPackage = analysis.teams.find((team) => team.memberId === 'a')?.valuesSent ?? 0
 
@@ -210,7 +190,7 @@ describe('dynasty decision engine', () => {
 
     it('does not let a negative asset increase the sending package', () => {
         const baseRoutes: DynastyTradeRoute[] = [
-            { fromMemberId: 'a', toMemberId: 'b', asset: player('starter', 80, 18) },
+            { fromMemberId: 'a', toMemberId: 'b', asset: tradedPlayer('starter', 80, 18) },
         ]
         const withCost: DynastyTradeRoute[] = [
             ...baseRoutes,
@@ -230,7 +210,7 @@ describe('dynasty decision engine', () => {
 
     it('keeps every finite value inside the display scale', () => {
         for (let rank = 1; rank <= 500; rank += 7) {
-            const result = valueDynastyAsset(context, player(`player-${rank}`, rank, rank % 55, 18 + rank % 24))
+            const result = valueDynastyAsset(context, tradedPlayer(`player-${rank}`, rank, rank % 55, 18 + rank % 24))
             for (const value of Object.values(result.values)) {
                 expect(Number.isFinite(value)).toBe(true)
                 expect(value).toBeGreaterThanOrEqual(0)

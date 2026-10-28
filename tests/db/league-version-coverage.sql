@@ -139,7 +139,6 @@ INSERT INTO version_worker_rpcs VALUES
   ('supabase/functions/sync-players/nbaIds.ts','merge_duplicate_players'),
   ('supabase/functions/sync-players/release.ts','resolve_player_imports_atomic'),
   ('supabase/functions/sync-players/release.ts','complete_player_roster_cycle_atomic'),
-  ('supabase/functions/sync-rankings/index.ts','replace_dynasty_rankings'),
   ('supabase/functions/sync-schedule/index.ts','publish_nba_schedule_atomic'),
   ('supabase/functions/sync-scores/index.ts','try_live_poll_lease'),
   ('supabase/functions/sync-scores/index.ts','release_live_poll_lease'),

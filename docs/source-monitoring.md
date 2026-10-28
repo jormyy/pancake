@@ -217,9 +217,10 @@ UTC windows retain their original calendar boundaries.
 | `season-boundary`, `setup-season-rollover`  |  Every fifteen minutes after 09:00 ET. Active, playoff, offseason, or drafting leagues get one boundary item per day. Setup rollover retains each eligible gate tick. |
 | `sync-players`, `player-injuries`  |  Every fifteen minutes. Full players refresh once after 06:00 ET. Injuries refresh every fifteen minutes from 11:00 through the last valid tipoff, otherwise hourly from 08:00 through 02:00 ET. |
 | `sync-schedule`  |  Minutes 05, 20, 35, and 50; once per day after 06:05 ET. |
-| `process-waivers`  |  Every fifteen minutes; once per day after 03:00 ET, including both DST changes. Existing waiver eligibility and hold rules stay in the worker. |
+| `process-waivers` | Every fifteen minutes; each league uses its local midnight. Existing waiver eligibility and elapsed 48-hour holds stay in the worker. |
 | `pt:sleeper-week`, `pt:sleeper-day`, `pt:fantasypros`  |  Every fifteen minutes. Sleeper weekly follows a configured Pacific calendar week. Sleeper daily uses 08:00, 12:00, and 15:00 PT before first regular-season tipoff. FantasyPros uses 08:00 and 15:00 PT. |
-| `sync-rankings`  |  Hourly; Monday after 07:00 ET or later in the ISO week. Each of `POINT_3`, `ROOKIE`, and `POINT_5` gets its own weekly key. |
+| `sync-trade-values` | Every fifteen minutes after 07:15 ET; one successful live publication per Eastern day. Failed fetches release the claim and queue up to four 30-minute retries. |
+| `pick-predictions` | Successful value publication queues the source hash. The internal API refreshes every league before queuing versioned trade re-analysis. |
 | `sync-draft-order`  |  13:00 UTC on June 20–30. |
 | `sync-draft-order`  |  13:00 UTC on July 1–15. |
 | `daily-stat-corrections`  |  Every fifteen minutes after 06:20 ET; a final regular-season game exists in the preceding seven dates. The range job remains unique. |
@@ -233,6 +234,8 @@ UTC windows retain their original calendar boundaries.
 | `trade-publication` | A trade write queues its coalesced league events and screen invalidation. |
 | `retention-prune`  |  Daily after 10:00 UTC, with one key per UTC date. |
 
+The former hourly ranking enqueue and its weekly catch-up gate are removed.
+The `sync-rankings` endpoint returns HTTP 410 without fetching or writing.
 The old `invoke_*_if_due` functions and daily dispatch wrappers are removed.
 The old dispatch claim helpers and state table are removed.
 The unused general lineup gate becomes `private.enqueue_lineup_optimizer` for explicit callers.

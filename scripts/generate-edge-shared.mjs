@@ -186,13 +186,13 @@ async function lineupAssignments() {
 
 async function dynastyEngine() {
   const source = rewriteImportDeclarations(await read('core/src/dynasty/decisionEngine.ts'), 'dynastyEngine', {
-    '../scoring/formula': './scoringCore.ts',
     '../scoring/types': './scoringCore.ts',
+    './tradeScoring': './dynastyEngineTradeValues.ts',
   })
   return `${HEADER}${pruneEdgeExports(source, 'dynastyEngine', [
-    'DYNASTY_STRATEGIES', 'DYNASTY_STRATEGY_WEIGHTS', 'DynastySource', 'DynastyPickAsset',
+    'DYNASTY_STRATEGIES', 'DynastySource', 'DynastyPickAsset',
     'DynastyFaabAsset', 'DynastyRosterSlotAsset', 'DynastyValueRange', 'DynastyAssetComponents',
-    'DynastyTradeTeamResult',
+    'DynastyTradeTeamResult', 'valueDynastyAsset',
   ], ['valueDynastyAssets'])}`
 }
 
@@ -203,6 +203,7 @@ async function matchupForecast() {
 
 const outputs = [
   ['supabase/functions/_shared/dynastyEngine.ts', await dynastyEngine()],
+  ['supabase/functions/_shared/dynastyEngineTradeValues.ts', `${HEADER}${pruneEdgeExports(rewriteImportDeclarations(await read('core/src/dynasty/tradeScoring.ts'), 'dynastyEngineTradeValues', { './decisionEngine': './dynastyEngine.ts' }), 'dynastyEngineTradeValues', ['scoreTradeSides'])}`],
   ['supabase/functions/_shared/matchupForecast.ts', await matchupForecast()],
   ['supabase/functions/_shared/lineupAssignments.ts', await lineupAssignments()],
   ['supabase/functions/_shared/lineupSlots.ts', `${HEADER}${await read('core/src/positions/lineupSlots.ts')}`],

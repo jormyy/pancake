@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261123000100",
+  "candidateVersion": "20261124000400",
   "common": {
     "functions": [
       {
@@ -616,7 +616,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "f37112815e0ad9452f2634467188d1eb15c088addd89f63bb7970e0620a4118d",
+          "bodySha256": "b03426e9f9090864104466641729117693c480cf376d48288b547c60b64850e1",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1949,6 +1949,22 @@
     {
       "filename": "20261123000100_release25_player_values_and_schedule.sql",
       "sha256": "f576270ae6bc5d0925792bf17b47852f21804bfe9305489f79179f559521c0ee"
+    },
+    {
+      "filename": "20261124000100_trade_value_fetch_retries.sql",
+      "sha256": "fa7076bc8d8f6035d9f4ca26cb8711b358050bea55a70d90672e561bb58f31ef"
+    },
+    {
+      "filename": "20261124000200_trade_estimate_reanalysis.sql",
+      "sha256": "979ed892e31c490a301b87aa5e2f295e003bd1d5ee2b5fadf0ff530dc627674f"
+    },
+    {
+      "filename": "20261124000300_trade_estimate_pick_inputs.sql",
+      "sha256": "509ceda587a350391f50c678ea6445379efbc4f4ddc90c35a386acae6349ea1e"
+    },
+    {
+      "filename": "20261124000400_pick_predictions_and_ranking_cleanup.sql",
+      "sha256": "43e92332aee39e977d04106ecced28190ee6d381c309c8ed5d2ee62cb9636030"
     }
   ],
   "preMigration": {
