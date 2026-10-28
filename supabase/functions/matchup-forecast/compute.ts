@@ -89,7 +89,11 @@ export function computeForecast(context: ForecastContext) {
     const frozen = previous.get(`${player.player_id}:${game.id}`)
     if (started(game, now)) return frozen ?? null
     const row = projections.get(`${player.player_id}:${game.game_date}`)
-    if (!row || row.projection_date !== game.game_date || !row.projection_is_fresh ||
+    if (!row || row.projection_fantasy_points === null) {
+      const variation = history.get(player.player_id)
+      return variation ? { projection: variation.mean, source: 'Recent games', sourceAt: null } : null
+    }
+    if (row.projection_date !== game.game_date || !row.projection_is_fresh ||
       row.projection_fetched_at !== null && Date.parse(row.projection_fetched_at) > now) return null
     return { projection: row.projection_fantasy_points, source: row.projection_source_label, sourceAt: row.projection_fetched_at }
   }

@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
+import { colors, spacing } from '@/constants/tokens'
 
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, View: 'View', Text: 'Text', StyleSheet: { create: (value: unknown) => value } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -35,7 +36,7 @@ it('uses current scores when projected finals are unavailable', async () => {
     value.teams = value.teams.map(team => ({ ...team, projectedFinal: null, winProbability: null, coveredGames: 0 }))
     value.missingInputs = ['Projection unavailable: secret-player-id']
     await render(value)
-    expect(text()).toContain('— proj')
+    expect(text()).toContain('n/a proj')
     expect(text()).toContain('33% win')
     expect(text()).toContain('67% win')
     expect(text()).not.toContain('Limited forecast')
@@ -50,8 +51,7 @@ it('keeps retained estimates compact during refresh', async () => {
 })
 it('shows a missing cache without fabricated values', async () => {
     await render(null)
-    expect(text()).toContain('— proj')
-    expect(text()).toContain('— win')
+    expect(text()).toContain('pending')
     expect(text()).not.toContain('% win')
 })
 
@@ -89,5 +89,30 @@ it.each([[620, 380, '62% win', '38% win'], [0, 0, '50% win', '50% win'], [100, 1
 })
 it('shows neutral odds for an existing forecast with no team inputs', async () => {
     await render({ ...forecast(), teams: [] })
+    expect(text().match(/50% win/g)).toHaveLength(2)
+})
+
+it.each([0.68, 0.5, 0.95, 0.05])('places projections outside the odds and splits the bar at %s', async probability => {
+    const value = forecast()
+    value.teams[0].winProbability = probability
+    value.teams[1].winProbability = 1 - probability
+    await render(value)
+    const summary = screen.root.findByProps({ testID: 'matchup-forecast' })
+    expect(summary.children.map(child => typeof child === 'string' ? child : child.props.testID)).toEqual([
+        'matchup-projection-left', 'matchup-odds-left', 'matchup-probability-bar', 'matchup-odds-right', 'matchup-projection-right',
+    ])
+    const bar = screen.root.findByProps({ testID: 'matchup-probability-bar' })
+    expect(bar.props.style).toMatchObject({ flex: 1, minWidth: spacing.md })
+    expect(bar.children.map(child => typeof child === 'string' ? null : child.props.style)).toEqual([
+        { flex: probability, backgroundColor: probability >= 0.5 ? colors.success : colors.danger },
+        { flex: 1 - probability, backgroundColor: probability < 0.5 ? colors.success : colors.danger },
+    ])
+})
+
+it('shows equal portions for a completed tie with zero outright win odds', async () => {
+    const value = forecast()
+    value.teams.forEach(team => { team.winProbability = 0 })
+    value.tieProbability = 1
+    await render(value)
     expect(text().match(/50% win/g)).toHaveLength(2)
 })

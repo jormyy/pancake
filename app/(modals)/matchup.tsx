@@ -65,7 +65,7 @@ export default function OtherMatchupScreen() {
                             /> : null}
                         </> : null}
                     </DeferredContent>
-                    <OtherMatchups matchups={data.leagueMatchups} onOpen={id => router.replace({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
+                    <OtherMatchups currentMatchupId={matchup?.id ?? matchupId} matchups={data.leagueMatchups} onOpen={id => router.replace({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
                 </View>
             </ScrollView>
             <ScoreBreakdownSheet visible={details !== null} onClose={() => setDetails(null)} slotType={details?.slotType ?? ''}
