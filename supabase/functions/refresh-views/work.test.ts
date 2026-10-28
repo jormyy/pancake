@@ -23,8 +23,8 @@ const backend = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, as
   }
   assert.equal(path, '/rest/v1/rpc/view_refresh_work')
   calls.push(body)
-  if (body.p_params.operation === 'claim') return Response.json([{ leagueId, seasonId, version: 12, claimToken,
-    trades: [{ tradeId, memberId, userId }] }])
+  if (body.p_params.operation === 'claim') { assert.equal(body.p_params.limit, 1); return Response.json([{ leagueId, seasonId, version: 12, claimToken,
+    trades: [{ tradeId, memberId, userId }] }]) }
   return Response.json(saved)
 })
 Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(backend.addr as Deno.NetAddr).port}`)

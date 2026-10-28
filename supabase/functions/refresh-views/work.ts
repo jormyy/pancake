@@ -13,7 +13,7 @@ type RefreshClaim = {
 
 export async function refreshViews() {
   await renewCurrentWorkLease()
-  const { data, error } = await supabase.rpc('view_refresh_work', { p_params: { operation: 'claim', limit: 5 } })
+  const { data, error } = await supabase.rpc('view_refresh_work', { p_params: { operation: 'claim', limit: 1 } })
   if (error) throw error
   const claims = data as unknown as RefreshClaim[]
   let completed = 0

@@ -3,10 +3,10 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261111000100`, as reported by the release operator.
+Production currently stops at migration `20261113000200`, as reported by the release operator.
 The pinned predecessor is release 1 at `1e62824e43044d30007b9601a8a3993c576b6a7e`, using the orchestrator-supplied live bundle digest.
 Release 1 reaches production on 2026-10-27 from frontend commit `1e62824e43044d30007b9601a8a3993c576b6a7e`.
-Apply release 2 through repository head `20261113000200`, for 593 migrations.
+Apply release 2 through repository head `20261114000200`, for 595 migrations.
 Keep published migrations unchanged.
 
 | Migration | Change |
@@ -40,6 +40,8 @@ Keep published migrations unchanged.
 | `20261112000200_trade_activity_transitions.sql` | Records every trade transition with player identity and preserves feed privacy. |
 | `20261113000100_bounded_notification_claim.sql` | Bounds notification checks before stale and preference evaluation. |
 | `20261113000200_worker_lease_phases.sql` | Gives workers five-minute leases and avoids renewal lock waits. |
+| `20261114000100_bounded_worker_database_work.sql` | Bounds retention, refresh batches, active workers and database waits. |
+| `20261114000200_worker_pause_control.sql` | Adds the operator pause control before SQL dispatch claims. |
 
 Freeze the reviewed source and record the current frontend and Edge artifacts before release.
 Refresh migration-range and database security attestations for this exact candidate.
@@ -453,3 +455,35 @@ ALTER TABLE public.notification_outbox
   DROP COLUMN ticketed_at,
   DROP COLUMN receipt_attempt_count;
 ```
+
+## Worker incident controls
+
+Cron calls `public.dispatch_work()` directly.
+Replacing the Edge `dispatcher` does not pause the SQL scheduler or other workers.
+Pause new scheduled work with the operator RPC:
+
+```sql
+SELECT public.set_worker_paused(true, 'Investigating database load');
+```
+
+Resume work after the database recovers:
+
+```sql
+SELECT public.set_worker_paused(false, 'Database checks pass');
+```
+
+Only the service role and database owner can call this RPC.
+The flag lives in the singleton `private.worker_controls` row.
+The scheduler checks it before enqueueing or claiming work.
+The flag does not cancel a statement already running.
+Service-role requests have a three-second statement budget and a 250ms lock budget.
+The cron command sets a five-second outer statement budget before calling the dispatcher.
+A timeout set inside an already running SQL function does not replace that outer budget.
+Retention statements delete at most 5,000 rows and skip locked candidates.
+Each retention pass stops starting new helpers after two seconds.
+The queue admits at most eight active workers.
+Screen refresh claims one season and at most 20 trade valuations per run.
+Incomplete valuation sets keep the season dirty for continuation.
+
+Apply `20261114000100_bounded_worker_database_work.sql`, then `20261114000200_worker_pause_control.sql`.
+Deploy `refresh-views` after these migrations.

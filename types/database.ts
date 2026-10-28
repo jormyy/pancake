@@ -6333,6 +6333,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_worker_paused: {
+        Args: { p_paused: boolean; p_reason?: string }
+        Returns: Json
+      }
       start_auction_draft_atomic: {
         Args: {
           p_budget_per_team?: number

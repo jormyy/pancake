@@ -2244,6 +2244,20 @@
       "statementCount": 2,
       "statementsSha256": "31b4212810e0791e4f3430022c7fccc6f4c688e447d318a34629d177c4327af4",
       "sha256": "5759145af6c56febdeca0fa75f53ac747c48a207533bae6431c389709f386374"
+    },
+    {
+      "name": "bounded_worker_database_work",
+      "version": "20261114000100",
+      "statementCount": 29,
+      "statementsSha256": "23f7d9dcd5f3abd1d6495e6eb54c630a11236735d2bb125661432841a1052b4c",
+      "sha256": "8b5ecf6b75973621721a27da0dd3f59f3069de849c73c59f763dc4d4559382c0"
+    },
+    {
+      "name": "worker_pause_control",
+      "version": "20261114000200",
+      "statementCount": 8,
+      "statementsSha256": "78c6765a538185dcdf2c0944d35477dd246bdf6691279ed81734855adc53bb7c",
+      "sha256": "889ad5c3271956cb3b3ba662df9f083df315caa57e18bff5064970487326f91b"
     }
   ]
 }

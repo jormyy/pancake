@@ -426,7 +426,11 @@
     "e2e:ux-batch1": "node tests/e2e/ux-fixes.mjs",
     "e2e:ux-forecast": "node tests/e2e/ux-forecast-diagnostic.mjs",
     "e2e:ux-batch2:seed": "node tests/e2e/ux-round2-fixture.mjs",
-    "e2e:ux-batch2": "node tests/e2e/ux-round2.mjs"
+    "e2e:ux-batch2": "node tests/e2e/ux-round2.mjs",
+    "test:db:worker-retention-bounds": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-retention-bounds.sql",
+    "test:db:worker-guard-lock": "node tests/e2e/worker-guard-lock-db.mjs",
+    "test:db:worker-pause": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-pause.sql",
+    "test:db:worker-refresh-bounds": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-refresh-bounds.sql"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

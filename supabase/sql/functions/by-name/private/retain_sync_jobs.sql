@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION private.retain_sync_jobs(p_now timestamptz DEFAULT now())
 RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms'
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms' SET statement_timeout = '3s'
 AS $$
 DECLARE v_count bigint;
 BEGIN

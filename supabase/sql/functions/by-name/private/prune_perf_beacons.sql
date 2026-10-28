@@ -3,13 +3,13 @@ RETURNS bigint
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
-SET lock_timeout = '250ms'
+SET lock_timeout = '100ms'
+SET statement_timeout = '3s'
 AS $$
 DECLARE
   removed bigint;
 BEGIN
-  DELETE FROM public.perf_beacons WHERE received_at < now() - interval '30 days';
-  GET DIAGNOSTICS removed = ROW_COUNT;
+  removed := (private.retain_perf_beacons()->>'public.perf_beacons')::bigint;
   RETURN removed;
 END;
 $$;

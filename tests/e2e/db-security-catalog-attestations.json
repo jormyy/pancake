@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261113000200",
+  "candidateVersion": "20261114000200",
   "common": {
     "functions": [
       {
@@ -656,7 +656,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "b836d0fce26908e398e0f2131bca581701f10c1dcfbd2f8d724616aca53ab874",
+          "bodySha256": "5f5826a86b58a19c46753571a56cfe5b6d2eb5364c1db179c5cac51ae6a9205f",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -676,7 +676,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "136904601b9830592f67187e2d0d9ae89771dc7e363340a2f7ac0d61b513eb04",
+          "bodySha256": "82fa8ff9f40b6664cc36848750a43b15af5ba06bb7a527285f1a96ad6ca10f27",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -756,7 +756,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "467504218eee9939cb69a575bb87c4f41dc0c9254582410b285254bc562a8293",
+          "bodySha256": "b879f49630c362d8a60060b39c975031df606da130d32e3ef3495606d25a41ad",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1727,6 +1727,14 @@
     {
       "filename": "20261113000200_worker_lease_phases.sql",
       "sha256": "5759145af6c56febdeca0fa75f53ac747c48a207533bae6431c389709f386374"
+    },
+    {
+      "filename": "20261114000100_bounded_worker_database_work.sql",
+      "sha256": "8b5ecf6b75973621721a27da0dd3f59f3069de849c73c59f763dc4d4559382c0"
+    },
+    {
+      "filename": "20261114000200_worker_pause_control.sql",
+      "sha256": "889ad5c3271956cb3b3ba662df9f083df315caa57e18bff5064970487326f91b"
     }
   ],
   "preMigration": {
