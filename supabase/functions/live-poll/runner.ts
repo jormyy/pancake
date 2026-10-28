@@ -9,6 +9,7 @@ import { errorMessage } from '../_shared/responses.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/livePoll.ts'
 import { withWorkContext } from '../_shared/workContext.ts'
+import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
 
 const LIVE_TICK_MS = 20_000
@@ -31,12 +32,16 @@ async function stampAttempts(holder: string, checkedIds: string[], statIds: stri
   if (error) throw error
 }
 
-export async function ingestTick(holder: string): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number }> {
-  let work = await loadWork()
-  if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0 }
+export async function ingestTick(holder: string, onRetry?: () => void): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number }> {
+  let tickRetries = 0
+  const retry = <T>(run: () => Promise<T>, failures?: (result: T) => unknown[]) => retryDatabaseContention(run, {
+    failures, onRetry: () => { tickRetries++; onRetry?.() },
+  })
+  let work = await retry(loadWork)
+  if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries }
   const boardGames = work.filter(game => game.needs_scoreboard)
   if (boardGames.length) {
-    await stampAttempts(holder, boardGames.map(game => game.id), [])
+    await retry(() => stampAttempts(holder, boardGames.map(game => game.id), []))
     const games = await recordSyncRun('source:nba-cdn-scoreboard', async () => {
       const games = await fetchTodaysGames()
       return { result: games, rowsAffected: games.length }
@@ -44,17 +49,17 @@ export async function ingestTick(holder: string): Promise<{ lines: number; keepR
       console.error('[live-poll] scoreboard unavailable:', errorMessage(error))
       return []
     })
-    await saveScoreboardGames(games, work)
-    work = await loadWork()
+    await retry(() => saveScoreboardGames(games, work))
+    work = await retry(loadWork)
   }
   const statsGames = work.filter(game => game.needs_stats)
-  await stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id))
+  await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
   let scoreRetries = 0
   const failures: unknown[] = []
   if (statsGames.length) {
     try {
-      const result = await syncLiveStatsGames(statsGames)
+      const result = await retry(() => syncLiveStatsGames(statsGames), result => result.failures)
       lines = result.statLines
       failures.push(...result.failures)
     } catch (error) {
@@ -68,7 +73,7 @@ export async function ingestTick(holder: string): Promise<{ lines: number; keepR
   }
   for (const error of failures) console.error('[live-poll] input failed:', error)
   const keepRunning = shouldKeepPolling(work)
-  return { lines, keepRunning, worked: true, failures: failures.map(errorMessage), scoreRetries }
+  return { lines, keepRunning, worked: true, failures: failures.map(errorMessage), scoreRetries, tickRetries }
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {
@@ -92,6 +97,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
       let ticks = 0
       let statLines = 0
       let scoreRetries = 0
+      let tickRetries = 0
       const failures: string[] = []
       for (let next = started; next < started + LIVE_RUN_MS; next += LIVE_TICK_MS) {
         if (controller.signal.aborted || heartbeat.lost) break
@@ -107,7 +113,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
         }
         try {
           const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(LIVE_TICK_BUDGET_MS)])
-          const tick = await withWorkContext({ signal, livePollHolder: holder }, () => ingestTick(holder))
+          const tick = await withWorkContext({ signal, livePollHolder: holder }, () => ingestTick(holder, () => { tickRetries++ }))
           if (tick.worked) ticks++
           statLines += tick.lines
           scoreRetries += tick.scoreRetries
@@ -121,7 +127,7 @@ export async function runLivePoll(request: Request): Promise<Response> {
       }
       if (controller.signal.aborted || heartbeat.lost) failures.push(errorMessage(controller.signal.reason))
       return {
-        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, scoreRetries, elapsedMs: Date.now() - started, failures },
+        result: { ok: failures.length === 0, action: 'loop', ticks, statLines, scoreRetries, tickRetries, elapsedMs: Date.now() - started, failures },
         rowsAffected: statLines, failure: failures.length ? failures.join('; ') : null,
       }
     }, request)

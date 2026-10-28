@@ -48,6 +48,7 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
     if (url.pathname === '/rest/v1/rpc/link_player_sources_atomic') {
       const body = await request.json()
       assert.equal(body.p_source, 'espn')
+      assert.equal(body.p_records.length, 1)
       const result = body.p_records.map((row: { provider_id: string; display_name: string }, index: number) => {
         const matched = players.find(player => player.display_name === row.display_name)!
         assert.ok(matched)
@@ -120,7 +121,7 @@ Deno.test('a healthy feed clears a recovered player and joins names with the ful
   ])
   assert.equal(result.response.status, 200)
   assert.deepEqual(result.writes, [
-    { id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } }, { id: 'eq.recovered', body: { injury_status: null, injury_reason: 'unknown', injury_expected_return: 'unknown' } },
+    { id: 'eq.recovered', body: { injury_status: null, injury_reason: 'unknown', injury_expected_return: 'unknown' } }, { id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'unknown', injury_expected_return: 'unknown' } },
   ])
 })
 
@@ -130,6 +131,17 @@ Deno.test('a shared name never changes either player injury', async () => {
   ])
   assert.equal(result.response.status, 200)
   assert.deepEqual(result.writes, [])
+})
+
+Deno.test('each injury identity links in a separate transaction before guarded status writes', async () => {
+  const rows = [player('one', 'First Scratch'), player('two', 'Second Scratch')]
+  const result = await refresh({ injuries: [{ id: '2', injuries: rows.map((row, index) => ({
+    status: 'Out', athlete: { displayName: row.display_name, id: String(12345 + index) },
+  })) }] }, rows)
+  assert.equal(result.response.status, 200)
+  assert.equal(result.result.updated, 2)
+  assert.equal(result.requests.filter(path => path.endsWith('/link_player_sources_atomic')).length, 2)
+  assert.equal(result.writes.length, 2)
 })
 
 for (const payload of [{}, { injuries: [] }, { injuries: [{ injuries: [injury('Scratch', 'Unknown')] }] }, { injuries: [{}] }]) {

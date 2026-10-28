@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261124000400",
+  "candidateVersion": "20261128000100",
   "common": {
     "functions": [
       {
@@ -1965,6 +1965,10 @@
     {
       "filename": "20261124000400_pick_predictions_and_ranking_cleanup.sql",
       "sha256": "43e92332aee39e977d04106ecced28190ee6d381c309c8ed5d2ee62cb9636030"
+    },
+    {
+      "filename": "20261128000100_live_poll_injury_contention.sql",
+      "sha256": "e94d5e6b8455cc9e5105c10adc5c946017e7eb30c26a040e7744ef08dd2b9d18"
     }
   ],
   "preMigration": {
