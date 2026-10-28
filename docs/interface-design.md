@@ -244,14 +244,24 @@ Row dividers use the shared separator color.
 
 ## Matchup forecasts
 
+Forecast lines place projections outside the win percentages.
+One flexible bar sits between the percentages with `spacing.xs` gaps.
+The bar splits at the left win probability.
+The winning portion uses `colors.success`; the losing portion uses `colors.danger`.
+Ties split green and red equally.
+Labels use tabular numerals and the minimum `textStyles.meta` size without wrapping.
+The current matchup card uses `colors.primary` and `borderWidth.strong`.
+Other cards use the default border.
 Forecast lines show rounded final points and supplied win odds.
 Final points include earned points and projected remaining games.
-Missing final points show an em dash.
+Absent provider values use the mean of at least five recent completed games.
+Started games retain their saved pregame estimate.
+Missing final points show “n/a proj”.
 Saved odds remain visible when a projected total is missing.
 If saved odds are missing, the display uses each team's share of projected finals.
 Missing finals fall back to current points for that display calculation.
 Negative totals count as zero; ties show 50%.
-An absent forecast row shows “— win”.
+An absent forecast shows “pending”; a failed read shows “n/a”.
 This display fallback does not change the stored forecast model or its coverage.
 
 ## Lineup and waivers

@@ -58,6 +58,8 @@ it('opens another matchup from the shared strip below the lineup', async () => {
     await act(async () => { screen = create(React.createElement(OtherMatchupScreen)) })
     const strip = screen!.root.findByType(OtherMatchups)
     expect(strip.props.matchups).toEqual(payload().leagueMatchups)
+    expect(strip.props.currentMatchupId).toBe('other')
+    expect(screen!.root.findAll(node => typeof node.type === 'string' && node.props['aria-current'] === 'true')).toHaveLength(1)
     const content = strip.parent!
     expect(content.children.at(-1)).toBe(strip)
     await act(async () => strip.props.onOpen('next-matchup'))
@@ -98,3 +100,7 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('fits the other matchup and strip
         }
     } finally { await browser.close() }
 }, 30000)
+
+it.skipIf(!process.env.PANCAKE_MATCHUP_STACK)('verifies the restored forecast and header layouts through the private stack', async () => {
+    await import('../e2e/matchup-projection-layout.mjs')
+}, 360000)
