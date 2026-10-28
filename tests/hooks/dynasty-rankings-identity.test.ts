@@ -64,6 +64,28 @@ beforeEach(() => {
 })
 
 describe('dynasty rankings identity', () => {
+    it('values current-year rookie picks with the original curve without stored trade bands', async () => {
+        mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
+        mocks.getDynastyDecisionInputs.mockResolvedValue([])
+        let latest!: ReturnType<typeof useDynastyRankings>
+        const Probe = () => {
+            latest = useDynastyRankings({
+                userId: 'user', memberId: 'member', leagueId: 'league', scoringSettings, teamCount: 12,
+            })
+            return null
+        }
+        let renderer!: ReactTestRenderer
+        await act(async () => { renderer = create(React.createElement(Probe)); await flush() })
+        await act(async () => { latest.setView('rookies-picks'); await flush() })
+        const pick = latest.players.find(player => player.displayName === '2026 Round 1')
+        expect(pick?.strategyValues).toEqual({ overall: 619, contend: 508, rebuild: 705 })
+        expect(pick?.valueRange).toEqual({ low: 441, high: 796 })
+        expect(latest.players.filter(player => player.isDraftPick)).toHaveLength(12)
+        expect(latest.players.every(player => (player.selectedValue ?? 0) > 0)).toBe(true)
+        expect(mocks.getDynastyPickValues).not.toHaveBeenCalled()
+        await act(async () => { renderer.unmount() })
+    })
+
     it('keeps both published forecast orders and changes tabs without another request', async () => {
         mocks.getCurrentSeason.mockResolvedValue({ seasonYear: 2026 })
         mocks.getDynastyDecisionInputs.mockResolvedValue([

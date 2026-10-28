@@ -1,10 +1,18 @@
-# Release 2.6 database contract
+# Release 2.6.3 database contract
 
 ## Release order for this release
 
+The supplied production head is `20261128000100`, with 626 migrations.
+Apply `20261129000100_restore_hashtag_rankings.sql`, then `20261130000100_player_page_speed.sql`.
+Database, then Edge, then merge the frontend.
+See [Release 2.6.3](#release-263) for deployment, rollout, and rollback.
+This integration makes no production request.
+
+## Release 2.6 historical contract
+
 Apply the database changes, deploy Edge functions, then merge the frontend.
 The integration base is `origin/main` at `78c01b8c`, the release 2.5 source.
-The supplied production head is `20261123000100`, with 621 migrations.
+Production currently stops at migration `20261123000100` for the recorded release 2.6 baseline, with 621 migrations.
 This integration makes no production request.
 The release planner must verify the applied prefix during an authorized rollout.
 
@@ -453,3 +461,52 @@ Deploy every Edge function; `_shared/databaseRetry.ts`, `live-poll`, `sync-playe
 The injury worker now commits one short transaction per player batch, and the live scoring loop retries a lock timeout per tick.
 Evidence and the blocking statement pair are in [docs/live-scoring-lock-contention.md](../docs/live-scoring-lock-contention.md).
 Rollback: redeploy the release 2.6.1 Edge functions; the migration is safe to keep.
+
+## Release 2.6.3
+
+The integration starts at `045f2d09`, the release 2.6.2 source.
+The supplied production head is `20261128000100`, with 626 migrations.
+The two migrations reach `20261130000100`, with 628 migrations.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261129000100_restore_hashtag_rankings.sql` | Restores Hashtag readers, ranking writes, and hourly work. Preserves OneNumberHoops trade inputs. |
+| 2 | `20261130000100_player_page_speed.sql` | Keeps Hashtag sources and computes league fantasy averages once per dynasty read. |
+
+Hashtag supplies five-year points, three-year points, dynasty ranks, and rookie ranks.
+Future picks use the original release 2.4 curve.
+OneNumberHoops supplies trade calculations, estimates, pick predictions, and re-analysis.
+Its stored player values and pick bands stay intact.
+The [reader map](../docs/dynasty-rankings-restoration.md) records each source.
+The dynasty reader keeps its arguments, columns, grants, and snapshot values.
+
+Only one Edge function changes against `origin/main` at `045f2d09`.
+
+| Edge function | Required deployment |
+| --- | --- |
+| `sync-rankings` | Deploy the restored worker, parser, matching, forms, and view selection. It replaces the retired HTTP 410 handler. |
+
+Use this rollout order:
+
+1. Record rollback artifacts and verify the applied database prefix.
+2. Pause scheduled work with `public.set_worker_paused(true, reason)` and let running work settle.
+3. Apply both migrations in the listed order after every earlier pending migration.
+4. Check migration fingerprints, function sources, catalog grants, and database types.
+5. Deploy `sync-rankings` and verify its internal authorization.
+6. Check all three Hashtag views and preserved trade values on a private stack.
+7. Deploy the frontend after database and Edge checks pass.
+8. Resume scheduled work and inspect the first ranking refresh.
+
+The hourly scheduler retains weekly success keys and Monday's 07:00 Eastern gate.
+The worker writes three-year, rookie, then five-year rows.
+Daily trade work and league-local midnight waiver work stay scheduled.
+
+Rollback: pause scheduled work and restore the previous frontend.
+Keep both migrations and the restored `sync-rankings` worker.
+Trade input signatures and stored OneNumberHoops rows remain compatible.
+Keep work paused if worker compatibility is uncertain.
+Use a reviewed forward migration for a database repair.
+Resume work after the relevant private checks pass.
+
+[Migration history](../docs/production-migration-history.md#release-263-candidate) records the combined range.
+[Integration evidence](../docs/release-2.6.3-integration.md) records checks and every changed file.

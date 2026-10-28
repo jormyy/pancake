@@ -64,7 +64,6 @@ candidate_ids AS (
     FROM authorized
     JOIN public.dynasty_rankings AS ranking
       ON ranking.source IN (
-        'onenumberhoops.com',
         'hashtagbasketball.com',
         'hashtagbasketball.com/points-3',
         'hashtagbasketball.com/rookie'
@@ -107,8 +106,8 @@ bounded_players AS (
     SELECT ranking.id, ranking.source_rank, ranking.rank_change, ranking.age, ranking.source, ranking.fetched_at, ranking.trade_value
       FROM public.dynasty_rankings AS ranking
      WHERE ranking.player_id = player.id
-       AND ranking.source IN ('onenumberhoops.com','hashtagbasketball.com')
-     ORDER BY (ranking.source='onenumberhoops.com') DESC, ranking.fetched_at DESC, ranking.source_rank, ranking.id
+       AND ranking.source = 'hashtagbasketball.com'
+     ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
      LIMIT 1
   ) AS five_year ON true
   LEFT JOIN LATERAL (
@@ -150,6 +149,12 @@ projections AS (
       0
     ) AS projection
    WHERE ids.player_ids IS NOT NULL
+),
+fantasy_averages AS MATERIALIZED (
+  SELECT player_id, avg_fantasy_points
+    FROM public.v_player_avg_fantasy_points
+   WHERE league_id = p_league_id
+     AND season_year = p_season_year
 )
 SELECT
   player.id,
@@ -190,10 +195,8 @@ FROM bounded_players AS player
 LEFT JOIN public.mv_player_season_averages AS average
   ON average.player_id = player.id
  AND average.season_year = p_season_year
-LEFT JOIN public.v_player_avg_fantasy_points AS fantasy
+LEFT JOIN fantasy_averages AS fantasy
   ON fantasy.player_id = player.id
- AND fantasy.league_id = p_league_id
- AND fantasy.season_year = p_season_year
 LEFT JOIN projections AS projection ON projection.player_id = player.id
 ORDER BY player.five_year_rank NULLS LAST, player.display_name, player.id;
 $$;
@@ -203,4 +206,4 @@ REVOKE ALL ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[
 GRANT EXECUTE ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) IS
-  'Returns authorized dynasty ranks, market values, production, and projections.';
+  'Returns authorized Hashtag dynasty ranks, production, and projections.';

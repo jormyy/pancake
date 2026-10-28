@@ -1,0 +1,1835 @@
+{
+  "provenance": "SYNTHETIC: public 2025 NBA draft names; invented ranks, statistics, dates and ASP.NET form state. Not archived Hashtag pages.",
+  "pages": [
+    {
+      "file": "rookies-2025-point_5-1.html.gz",
+      "snapshot": 1,
+      "view": "POINT_5",
+      "sha256": "16360763ff786e30ab045a8c2bfbc8feb4918ca30bbc50c010873039ec4ec98b",
+      "bytes": 252342,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 21
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 22
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 23
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 24
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 25
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 26
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 27
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 28
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 29
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 30
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 31
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 32
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 33
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 34
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 35
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 36
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 37
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 38
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 39
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 40
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 41
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 42
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 43
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 44
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 45
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 46
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 47
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 48
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 49
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 50
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 51
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 52
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 53
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 54
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 55
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 56
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 57
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 58
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 59
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 60
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 61
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 62
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 63
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 64
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 65
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 66
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 67
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 68
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 69
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 70
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 71
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 72
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 73
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 74
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 75
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 76
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 77
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 78
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 79
+        }
+      ],
+      "compressed_bytes": 4983
+    },
+    {
+      "file": "rookies-2025-point_3-1.html.gz",
+      "snapshot": 1,
+      "view": "POINT_3",
+      "sha256": "7776e993940737de36a754c5fbac42852978c6b80827cb775b8b6a2f2cdd0ecc",
+      "bytes": 252342,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 11
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 12
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 13
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 14
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 15
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 16
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 17
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 18
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 19
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 20
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 21
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 22
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 23
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 24
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 25
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 26
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 27
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 28
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 29
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 30
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 31
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 32
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 33
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 34
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 35
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 36
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 37
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 38
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 39
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 40
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 41
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 42
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 43
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 44
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 45
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 46
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 47
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 48
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 49
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 50
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 51
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 52
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 53
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 54
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 55
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 56
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 57
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 58
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 59
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 60
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 61
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 62
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 63
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 64
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 65
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 66
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 67
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 68
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 69
+        }
+      ],
+      "compressed_bytes": 4982
+    },
+    {
+      "file": "rookies-2025-rookie-1.html.gz",
+      "snapshot": 1,
+      "view": "ROOKIE",
+      "sha256": "f3d9afd1c622e5daf4d323b4650e50414de0d49f89d5f3c1575407db6b204268",
+      "bytes": 49490,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 1
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 2
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 3
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 4
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 5
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 6
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 7
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 8
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 9
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 10
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 11
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 12
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 13
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 14
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 15
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 16
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 17
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 18
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 19
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 20
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 21
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 22
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 23
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 24
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 25
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 26
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 27
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 28
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 29
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 30
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 31
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 32
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 33
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 34
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 35
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 36
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 37
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 38
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 39
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 40
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 41
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 42
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 43
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 44
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 45
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 46
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 47
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 48
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 49
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 50
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 51
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 52
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 53
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 54
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 55
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 56
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 57
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 58
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 59
+        }
+      ],
+      "compressed_bytes": 1894
+    },
+    {
+      "file": "rookies-2025-point_5-2.html.gz",
+      "snapshot": 2,
+      "view": "POINT_5",
+      "sha256": "8ff40674d4aaab8a2527930fd3e3354b0b71630db4008e7cd64674d8eae5b9ab",
+      "bytes": 252401,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 179
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 178
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 177
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 176
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 175
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 174
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 173
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 172
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 171
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 170
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 169
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 168
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 167
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 166
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 165
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 164
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 163
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 162
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 161
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 160
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 159
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 158
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 157
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 156
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 155
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 154
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 153
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 152
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 151
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 150
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 149
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 148
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 147
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 146
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 145
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 144
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 143
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 142
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 141
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 140
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 139
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 138
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 137
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 136
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 135
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 134
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 133
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 132
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 131
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 130
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 129
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 128
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 127
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 126
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 125
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 124
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 123
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 122
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 121
+        }
+      ],
+      "compressed_bytes": 4986
+    },
+    {
+      "file": "rookies-2025-point_3-2.html.gz",
+      "snapshot": 2,
+      "view": "POINT_3",
+      "sha256": "08398313e5cbd94c6aff6022c6319c98ca20c4d93ba447a72d132ca922e4d9fe",
+      "bytes": 252401,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 169
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 168
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 167
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 166
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 165
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 164
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 163
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 162
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 161
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 160
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 159
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 158
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 157
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 156
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 155
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 154
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 153
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 152
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 151
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 150
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 149
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 148
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 147
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 146
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 145
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 144
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 143
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 142
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 141
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 140
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 139
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 138
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 137
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 136
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 135
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 134
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 133
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 132
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 131
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 130
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 129
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 128
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 127
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 126
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 125
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 124
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 123
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 122
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 121
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 120
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 119
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 118
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 117
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 116
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 115
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 114
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 113
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 112
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 111
+        }
+      ],
+      "compressed_bytes": 4985
+    },
+    {
+      "file": "rookies-2025-rookie-2.html.gz",
+      "snapshot": 2,
+      "view": "ROOKIE",
+      "sha256": "fa7f16892c0ac58473d49dec45c13ad4fae2a5d79a3f36c1d022dda192634acb",
+      "bytes": 49558,
+      "expected": [
+        {
+          "pick": 1,
+          "name": "Cooper Flagg",
+          "rank": 159
+        },
+        {
+          "pick": 2,
+          "name": "Dylan Harper",
+          "rank": 158
+        },
+        {
+          "pick": 3,
+          "name": "VJ Edgecombe",
+          "rank": 157
+        },
+        {
+          "pick": 4,
+          "name": "Kon Knueppel",
+          "rank": 156
+        },
+        {
+          "pick": 5,
+          "name": "Ace Bailey",
+          "rank": 155
+        },
+        {
+          "pick": 6,
+          "name": "Tre Johnson",
+          "rank": 154
+        },
+        {
+          "pick": 7,
+          "name": "Jeremiah Fears",
+          "rank": 153
+        },
+        {
+          "pick": 8,
+          "name": "Egor Dëmin",
+          "rank": 152
+        },
+        {
+          "pick": 9,
+          "name": "Collin MurrayBoyles",
+          "rank": 151
+        },
+        {
+          "pick": 10,
+          "name": "Khaman Maluach",
+          "rank": 150
+        },
+        {
+          "pick": 11,
+          "name": "Cedric Coward",
+          "rank": 149
+        },
+        {
+          "pick": 12,
+          "name": "Noa Essengue",
+          "rank": 148
+        },
+        {
+          "pick": 13,
+          "name": "Derik Queen",
+          "rank": 147
+        },
+        {
+          "pick": 14,
+          "name": "Carter Bryant",
+          "rank": 146
+        },
+        {
+          "pick": 15,
+          "name": "Thomas Sorber",
+          "rank": 145
+        },
+        {
+          "pick": 16,
+          "name": "Yang Hansen",
+          "rank": 144
+        },
+        {
+          "pick": 17,
+          "name": "Joan Beringer",
+          "rank": 143
+        },
+        {
+          "pick": 18,
+          "name": "Walter Clayton",
+          "rank": 142
+        },
+        {
+          "pick": 19,
+          "name": "Nolan Traore",
+          "rank": 141
+        },
+        {
+          "pick": 20,
+          "name": "Kasparas Jakučionis",
+          "rank": 140
+        },
+        {
+          "pick": 21,
+          "name": "Will Riley",
+          "rank": 139
+        },
+        {
+          "pick": 22,
+          "name": "Drake Powell",
+          "rank": 138
+        },
+        {
+          "pick": 23,
+          "name": "Asa Newell",
+          "rank": 137
+        },
+        {
+          "pick": 24,
+          "name": "Nique Clifford",
+          "rank": 136
+        },
+        {
+          "pick": 25,
+          "name": "Jase Richardson",
+          "rank": 135
+        },
+        {
+          "pick": 26,
+          "name": "Ben Saraf",
+          "rank": 134
+        },
+        {
+          "pick": 27,
+          "name": "Danny Wolf",
+          "rank": 133
+        },
+        {
+          "pick": 28,
+          "name": "Hugo González",
+          "rank": 132
+        },
+        {
+          "pick": 29,
+          "name": "Liam McNeeley",
+          "rank": 131
+        },
+        {
+          "pick": 30,
+          "name": "Yanic Konan Niederhäuser",
+          "rank": 130
+        },
+        {
+          "pick": 31,
+          "name": "Rasheer Fleming",
+          "rank": 129
+        },
+        {
+          "pick": 32,
+          "name": "Noah Penda",
+          "rank": 128
+        },
+        {
+          "pick": 33,
+          "name": "Sion James",
+          "rank": 127
+        },
+        {
+          "pick": 34,
+          "name": "Ryan Kalkbrenner",
+          "rank": 126
+        },
+        {
+          "pick": 35,
+          "name": "Johni Broome",
+          "rank": 125
+        },
+        {
+          "pick": 36,
+          "name": "Adou Thiero",
+          "rank": 124
+        },
+        {
+          "pick": 37,
+          "name": "Chaz Lanier",
+          "rank": 123
+        },
+        {
+          "pick": 38,
+          "name": "Kam Jones",
+          "rank": 122
+        },
+        {
+          "pick": 39,
+          "name": "Alijah Martin",
+          "rank": 121
+        },
+        {
+          "pick": 40,
+          "name": "Micah Peavy",
+          "rank": 120
+        },
+        {
+          "pick": 41,
+          "name": "Koby Brea",
+          "rank": 119
+        },
+        {
+          "pick": 42,
+          "name": "Maxime Raynaud",
+          "rank": 118
+        },
+        {
+          "pick": 43,
+          "name": "Jamir Watkins",
+          "rank": 117
+        },
+        {
+          "pick": 44,
+          "name": "Brooks Barnhizer",
+          "rank": 116
+        },
+        {
+          "pick": 45,
+          "name": "Rocco Zikarsky",
+          "rank": 115
+        },
+        {
+          "pick": 46,
+          "name": "Amari Williams",
+          "rank": 114
+        },
+        {
+          "pick": 47,
+          "name": "Bogoljub Marković",
+          "rank": 113
+        },
+        {
+          "pick": 48,
+          "name": "Javon Small",
+          "rank": 112
+        },
+        {
+          "pick": 49,
+          "name": "Tyrese Proctor",
+          "rank": 111
+        },
+        {
+          "pick": 50,
+          "name": "Kobe Sanders",
+          "rank": 110
+        },
+        {
+          "pick": 51,
+          "name": "Mohamed Diawara",
+          "rank": 109
+        },
+        {
+          "pick": 52,
+          "name": "Alex Toohey",
+          "rank": 108
+        },
+        {
+          "pick": 53,
+          "name": "John Tonje",
+          "rank": 107
+        },
+        {
+          "pick": 54,
+          "name": "Taelon Peter",
+          "rank": 106
+        },
+        {
+          "pick": 55,
+          "name": "Lachlan Olbrich",
+          "rank": 105
+        },
+        {
+          "pick": 56,
+          "name": "Will Richard",
+          "rank": 104
+        },
+        {
+          "pick": 57,
+          "name": "Max Shulga",
+          "rank": 103
+        },
+        {
+          "pick": 58,
+          "name": "Saliou Niang",
+          "rank": 102
+        },
+        {
+          "pick": 59,
+          "name": "Jahmai Mashack",
+          "rank": 101
+        }
+      ],
+      "compressed_bytes": 1899
+    }
+  ]
+}

@@ -36,8 +36,8 @@ type DynastyAnalyzerCacheIdentity = Pick<
     'userId' | 'memberId' | 'leagueId'
 >
 
-const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v2:'
-const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v2:'
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v3:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v3:'
 // Older snapshots can omit unavailable routes or contain another selection’s values.
 const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v7:'
 const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v3:'
@@ -131,12 +131,6 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
 }
 
 export type DynastyPickValue = Database['public']['Functions']['get_dynasty_pick_values']['Returns'][number]
-
-export async function getDynastyPickValues(leagueId: string): Promise<DynastyPickValue[]> {
-    const { data, error } = await supabase.rpc('get_dynasty_pick_values', { p_league_id: leagueId })
-    if (error) throw error
-    return data ?? []
-}
 
 export function dynastyPickBands(rows: DynastyPickValue[], draftYear: number, round: number) {
     const values = rows.filter(row => row.draft_year === draftYear && row.round === round)

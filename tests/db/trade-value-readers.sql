@@ -11,10 +11,10 @@ BEGIN
     VALUES('hashtagbasketball.com',9001,'Legacy Wembanyama',v_player_id,now()+interval '1 day');
   PERFORM set_config('request.jwt.claim.sub',fixture.user_ids[1]::text,true);
   SELECT * INTO value_row FROM public.get_dynasty_forecast_inputs(fixture.league_id,fixture.member_ids[1],2027,ARRAY[v_player_id],'',1,0);
-  PERFORM pg_temp.check_rules(value_row.ranking_source='onenumberhoops.com' AND value_row.trade_value=999.9,
-    'reader prefers OneNumberHoops even when the old row is newer');
+  PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=9001 AND value_row.trade_value IS NULL,
+    'ranking reader uses Hashtag while both sources exist');
   profile:=public.view_player(fixture.league_id,fixture.member_ids[1],jsonb_build_object('playerId',v_player_id));
-  PERFORM pg_temp.check_rules((profile->'player'->>'trade_value')::numeric=999.9,'profile receives the source value');
+  PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value'),'profile does not show trade calculator values');
   INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
     VALUES(fixture.league_id,2028,1,fixture.member_ids[1],fixture.member_ids[1]) RETURNING id INTO v_pick_id;
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
@@ -42,7 +42,7 @@ BEGIN
   DELETE FROM public.dynasty_rankings ranking WHERE ranking.source='onenumberhoops.com' AND ranking.player_id=v_player_id;
   SELECT * INTO value_row FROM public.get_dynasty_forecast_inputs(fixture.league_id,fixture.member_ids[1],2027,ARRAY[v_player_id],'',1,0);
   PERFORM pg_temp.check_rules(value_row.ranking_source='hashtagbasketball.com' AND value_row.five_year_rank=9001
-    AND value_row.trade_value IS NULL,'reader falls back only when the source row is absent');
+    AND value_row.trade_value IS NULL,'removing trade values leaves the Hashtag ranking intact');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

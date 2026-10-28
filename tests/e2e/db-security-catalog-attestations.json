@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261128000100",
+  "candidateVersion": "20261130000100",
   "common": {
     "functions": [
       {
@@ -616,7 +616,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "b03426e9f9090864104466641729117693c480cf376d48288b547c60b64850e1",
+          "bodySha256": "436cc6958d37164253818a3e35b08aa8ab84c7672a93aae8cd3c74dda185b7eb",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1969,6 +1969,14 @@
     {
       "filename": "20261128000100_live_poll_injury_contention.sql",
       "sha256": "e94d5e6b8455cc9e5105c10adc5c946017e7eb30c26a040e7744ef08dd2b9d18"
+    },
+    {
+      "filename": "20261129000100_restore_hashtag_rankings.sql",
+      "sha256": "b9df795722df683e35c45e8a5a54184374781d9fa0c770818f9ef2d5b17fd433"
+    },
+    {
+      "filename": "20261130000100_player_page_speed.sql",
+      "sha256": "c0a8fda96f94e6cb357abf4a63bfc791b86a570ea6e5803a107240316ef7540e"
     }
   ],
   "preMigration": {

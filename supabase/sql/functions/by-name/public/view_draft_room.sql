@@ -21,7 +21,7 @@ BEGIN
     'player', jsonb_build_object('displayName', COALESCE(player.display_name, 'Unknown'), 'nbaTeam', player.nba_team,
       'position', player.position, 'nbaId', player.nba_id, 'yearsExp', player.years_exp,
       'careerGames', player.career_regular_season_games, 'injuryStatus', player.injury_status,
-      'age', (SELECT age FROM public.dynasty_rankings WHERE player_id = player.id AND age IS NOT NULL ORDER BY fetched_at DESC NULLS LAST LIMIT 1)))
+      'age', (SELECT age FROM public.dynasty_rankings WHERE player_id = player.id AND source = 'hashtagbasketball.com' AND age IS NOT NULL ORDER BY fetched_at DESC NULLS LAST LIMIT 1)))
     ORDER BY nomination.nomination_order, nomination.id), '[]') INTO nominations
   FROM (SELECT * FROM public.nominations WHERE draft_id = draft.id ORDER BY nomination_order DESC LIMIT 500) nomination
     LEFT JOIN public.players player ON player.id = nomination.player_id;
@@ -47,7 +47,7 @@ BEGIN
       ORDER BY nba_draft_number, id LIMIT 100) player
     WHERE NOT EXISTS (SELECT 1 FROM public.snake_draft_picks WHERE draft_id = draft.id AND player_id = player.id);
   SELECT COALESCE(jsonb_agg(to_jsonb(player) || jsonb_build_object('age', (SELECT age FROM public.dynasty_rankings
-    WHERE player_id = player.id AND age IS NOT NULL ORDER BY fetched_at DESC NULLS LAST LIMIT 1)) ORDER BY ordinal), '[]') INTO search_results
+    WHERE player_id = player.id AND source = 'hashtagbasketball.com' AND age IS NOT NULL ORDER BY fetched_at DESC NULLS LAST LIMIT 1)) ORDER BY ordinal), '[]') INTO search_results
     FROM (SELECT p.id, p.display_name, p.nba_team, p.position, p.nba_id, p.injury_status, p.years_exp,
       p.career_regular_season_games, p.dynasty_rank, p.dynasty_rank_source, p.dynasty_rank_fetched_at,
       row_number() OVER (ORDER BY CASE WHEN draft.nomination_order_mode <> 'alphabetical' THEN p.dynasty_rank END NULLS LAST, p.last_name, p.display_name, p.id) AS ordinal

@@ -26,10 +26,8 @@ BEGIN
     ORDER BY average.avg_fantasy_points DESC,average.player_id LIMIT 5
   ) candidate;
   PERFORM set_config('request.jwt.claim.sub',actor::text,true);
-  SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO players
-    FROM public.get_dynasty_forecast_inputs(league.id,trade.proposer_member_id,season.season_year,player_ids,'',100,0) p;
-  SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO replacements
-    FROM public.get_dynasty_forecast_inputs(league.id,trade.proposer_member_id,season.season_year,replacement_ids,'',5,0) p;
+  players:=private.trade_value_player_inputs(league.id,trade.proposer_member_id,season.season_year,player_ids,100);
+  replacements:=private.trade_value_player_inputs(league.id,trade.proposer_member_id,season.season_year,replacement_ids,5);
   SELECT LEAST(500,COALESCE(avg(r.trade_value),GREATEST(50,180.0*200/GREATEST(1,teams*league.roster_size)))) INTO floor_value
     FROM public.dynasty_rankings r WHERE r.source='onenumberhoops.com' AND r.player_id=ANY(replacement_ids);
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'seasonYear',pick.season_year,'round',pick.round,

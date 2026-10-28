@@ -16,9 +16,6 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Review not found.' USING ERRCODE='22023'; END IF;
   UPDATE public.dynasty_rankings SET player_id=p_player_id,updated_at=clock_timestamp()
     WHERE source='onenumberhoops.com' AND source_player_id=p_source_id;
-  UPDATE public.players player SET dynasty_rank=ranking.source_rank,dynasty_rank_source=ranking.source,
-    dynasty_rank_fetched_at=ranking.fetched_at FROM public.dynasty_rankings ranking
-    WHERE player.id=p_player_id AND ranking.source='onenumberhoops.com' AND ranking.source_player_id=p_source_id;
   INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details)
     SELECT id,'resources',1,NULL,NULL FROM public.leagues WHERE deleted_at IS NULL
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,scopes=NULL,details=NULL,updated_at=clock_timestamp();

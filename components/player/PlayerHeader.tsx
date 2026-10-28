@@ -19,7 +19,8 @@ type PlayerHeaderPlayer = {
     jersey_number: string | null
     injury_status: string | null
     dynasty_rank: number | null
-    trade_value?: number | null
+    five_year_points?: number | null
+    three_year_points?: number | null
     headshot_url: string | null
     nba_id: string | null
     career_regular_season_games?: number | null
@@ -90,7 +91,9 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                 <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken' ? rosterStatus.isOnTaxi : false} />
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
-                {player.trade_value != null || player.dynasty_rank != null ? <Badge inline label={player.trade_value != null ? `Value ${player.trade_value}` : `Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.five_year_points != null ? <Badge inline label={`5-year points ${player.five_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.three_year_points != null ? <Badge inline label={`3-year points ${player.three_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
                 {age != null ? <Badge inline label={`${age}`} accessibilityLabel={`Age ${age}`} color={colors.textMuted} /> : null}
                 {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
@@ -106,7 +109,7 @@ const styles = StyleSheet.create({
     name: { ...textStyles.pageTitle, flex: 1, minWidth: 0 },
     nameCompact: { ...textStyles.rowTitle, fontSize: componentTokens.pageHeader.compact.title.fontSize },
     metaRow: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
-    summaryRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
+    summaryRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.xs, minHeight: textStyles.body.lineHeight },
     meta: { ...textStyles.meta, fontSize: fontSize.sm },
     rosterStatus: { ...textStyles.meta, fontSize: fontSize.xs, maxWidth: spacing['6xl'] * 2 + spacing.xl, flexShrink: 1, backgroundColor: colors.bgMuted, borderRadius: radii.sm, paddingHorizontal: spacing.xs },
     actionWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, width: controlSize.minTouch * 2 + spacing['3xl'], minWidth: controlSize.minTouch * 2 + spacing['3xl'], minHeight: controlSize.minTouch, flexShrink: 0, justifyContent: 'flex-end' },
