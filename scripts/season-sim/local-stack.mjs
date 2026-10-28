@@ -44,7 +44,7 @@ export function localKeys() {
 export function databaseEnvironment(target = assertTarget(localKeys().DB_URL, 'db')) {
   assertTarget(target.href, 'db')
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !['PGSERVICE', 'PGSERVICEFILE'].includes(key)))
-  return { ...inherited, PGHOST: '127.0.0.1', PGHOSTADDR: '127.0.0.1', PGPORT: target.port, PGUSER: 'supabase_admin', PGDATABASE: 'postgres', PGPASSWORD: decodeURIComponent(target.password), PGPASSFILE: '/dev/null' }
+  return { ...inherited, PGHOST: '127.0.0.1', PGHOSTADDR: '127.0.0.1', PGPORT: target.port, PGUSER: 'supabase_admin', PGDATABASE: 'postgres', PGPASSWORD: decodeURIComponent(target.password), PGPASSFILE: '/dev/null', PGSSLMODE: 'disable' }
 }
 
 export async function sql(statement) {

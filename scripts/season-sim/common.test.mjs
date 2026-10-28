@@ -4,11 +4,12 @@ import { assertTarget, config, configuration, dates, etDate, historicalSummary, 
 import { databaseEnvironment } from './local-stack.mjs'
 
 test('database connections cannot inherit a different host or service', () => {
-  const poisoned = { PGHOSTADDR: '198.51.100.1', PGSERVICE: 'wrong-service', PGSERVICEFILE: '/missing-service' }
+  const poisoned = { PGHOSTADDR: '198.51.100.1', PGSERVICE: 'wrong-service', PGSERVICEFILE: '/missing-service', PGSSLMODE: 'require' }
   const previous = Object.fromEntries(Object.keys(poisoned).map(key => [key, process.env[key]]))
   Object.assign(process.env, poisoned)
   try {
     const env = databaseEnvironment(new URL(`postgresql://postgres:fixture@localhost:${config.ports.db}/postgres`))
+    assert.equal(env.PGSSLMODE, 'disable')
     assert.equal(env.PGHOST, '127.0.0.1')
     assert.equal(env.PGHOSTADDR, '127.0.0.1')
     assert.equal(Object.hasOwn(env, 'PGSERVICE'), false)

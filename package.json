@@ -430,6 +430,7 @@
     "test:db:worker-retention-bounds": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-retention-bounds.sql",
     "test:db:worker-guard-lock": "node tests/e2e/worker-guard-lock-db.mjs",
     "test:db:worker-pause": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-pause.sql",
+    "test:db:dispatcher-contention": "node tests/e2e/dispatcher-contention-db.mjs",
     "test:db:worker-refresh-bounds": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/worker-refresh-bounds.sql"
   },
   "dependencies": {

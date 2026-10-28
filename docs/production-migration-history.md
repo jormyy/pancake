@@ -146,7 +146,7 @@ Frontend rollback retains these database changes.
 [Source monitoring](source-monitoring.md) owns projection and retention behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
 
-The approved release 2 candidate ends at `20261114000200`, with 595 migrations.
+The approved release 2 candidate ends at `20261114000300`, with 596 migrations.
 The audit baseline stays at `20261005000003`, with 329 migrations.
 Release 1 reaches production on 2026-10-27 at `20261029000800`, with 564 migrations.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
@@ -207,10 +207,11 @@ The audited range contains 266 migrations after the fixed 329-row baseline.
 | `20261113000200` | Gives workers five-minute leases and avoids renewal lock waits. |
 | `20261114000100` | Bounds retention, refresh batches, active workers and database waits. |
 | `20261114000200` | Adds the operator pause control before SQL dispatch claims. |
+| `20261114000300` | Limits dispatch transactions and skips existing active work before queue insertion. |
 
 A private local stack applies the release 1 prefix, then the complete release 2 suffix.
 Both security catalogs come from that stack.
-The final migration history contains 595 rows through `20261114000200`.
+The final migration history contains 596 rows through `20261114000300`.
 The shared attestation supplies the soak and immediate preflight ranges.
 
 Production reaches `20261111000100` before the worker timeout repair, as reported by the release operator.
