@@ -5,15 +5,19 @@ import { errorMessage, logInternalError } from '../_shared/responses.ts'
 import { fetchAllPlayers } from './players.ts'
 import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import { linkPlayerSources } from '../_shared/sourceLinks.ts'
+import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 
 export async function syncInjuries(): Promise<{ updated: number; failure: string | null }> {
   const { statuses, byId, identities, detailsById, detailsByName, failure } = await fetchEspnInjuries()
   if (!statuses) return { updated: 0, failure }
-  if (identities.length) await linkPlayerSources(supabase, 'espn', [...new Map(identities.map(row => [row.provider_id, row])).values()])
+  for (const identity of new Map(identities.map(row => [row.provider_id, row])).values()) {
+    await renewCurrentWorkLease()
+    await retryDatabaseContention(() => linkPlayerSources(supabase, 'espn', [identity]))
+  }
   const rows = await fetchAllPlayers<{
     id: string; display_name: string; espn_id: string | null; nba_team: string | null; injury_status: string | null; injury_reason: string; injury_expected_return: string
   }>(supabase, 'id, display_name, espn_id, nba_team, injury_status, injury_reason, injury_expected_return')
-  const players = rows.filter(player => player.espn_id !== null && player.nba_team !== null)
+  const players = rows.filter(player => player.espn_id !== null && player.nba_team !== null).sort((a, b) => a.id.localeCompare(b.id))
   const counts = new Map<string, number>()
   for (const player of players) {
     const name = normalizeName(player.display_name)
@@ -41,17 +45,10 @@ export async function syncInjuries(): Promise<{ updated: number; failure: string
       query = player.injury_status === null ? query.is('injury_status', null) : query.eq('injury_status', player.injury_status)
       return query.select('id')
     }
-    let result = await save()
-    for (let attempt = 0; result.error && ['55P03', '40P01', '40001'].includes(result.error.code) && attempt < 4; attempt++) {
-      logInternalError(`sync-player-injuries: retry ${attempt + 1}`, result.error)
-      await renewCurrentWorkLease()
-      const pause = Math.min(100 * 2 ** attempt, writeDeadline - performance.now())
-      if (pause <= 0) break
-      await new Promise(resolve => setTimeout(resolve, pause))
-      if (performance.now() >= writeDeadline) break
-      await renewCurrentWorkLease()
-      result = await save()
-    }
+    const result = await retryDatabaseContention(save, {
+      failures: result => result.error ? [result.error] : [], deadline: writeDeadline,
+      onRetry: (error, attempt) => logInternalError(`sync-player-injuries: retry ${attempt}`, error),
+    })
     const { data, error } = result
     if (error) failures.push(`${player.id}: ${errorMessage(error)}`)
     else updated += data?.length ?? 0

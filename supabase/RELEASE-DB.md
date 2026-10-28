@@ -444,3 +444,12 @@ Check the upgraded database with both current and rollback consumers before fron
 Run the focused recipes in [verification](../docs/verification.md), then the full release checks.
 Keep local fixture evidence separate from rollout evidence.
 This integration does not authorize a hosted release.
+
+## Release 2.6.2 live scoring lock fix
+
+Apply migration `20261128000100_live_poll_injury_contention.sql` after `20261124000400`.
+It replaces `private.recount_changed_player_careers` so the career trigger locks a player row only when the appearance count changes.
+Deploy every Edge function; `_shared/databaseRetry.ts`, `live-poll`, `sync-player-injuries` and `sync-players` changed.
+The injury worker now commits one short transaction per player batch, and the live scoring loop retries a lock timeout per tick.
+Evidence and the blocking statement pair are in [docs/live-scoring-lock-contention.md](../docs/live-scoring-lock-contention.md).
+Rollback: redeploy the release 2.6.1 Edge functions; the migration is safe to keep.

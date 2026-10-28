@@ -2468,6 +2468,13 @@
       "statementCount": 34,
       "statementsSha256": "f3a1d22593aa979983e7c1c39e2c44ba60bb25b0e410c1b4f716a14eddf73734",
       "sha256": "43e92332aee39e977d04106ecced28190ee6d381c309c8ed5d2ee62cb9636030"
+    },
+    {
+      "name": "live_poll_injury_contention",
+      "version": "20261128000100",
+      "statementCount": 4,
+      "statementsSha256": "b8b26d2144f4272808f4d94926f001f76c44652a823ea566b536e638db0fd73a",
+      "sha256": "e94d5e6b8455cc9e5105c10adc5c946017e7eb30c26a040e7744ef08dd2b9d18"
     }
   ]
 }
