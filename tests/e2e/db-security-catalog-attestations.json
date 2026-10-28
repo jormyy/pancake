@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261111000100",
+  "candidateVersion": "20261113000200",
   "common": {
     "functions": [
       {
@@ -656,7 +656,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "08a6dcc2fcefaf198a9552bb9833bba9915e56fdfccaf853617dee41ff2a4b11",
+          "bodySha256": "b836d0fce26908e398e0f2131bca581701f10c1dcfbd2f8d724616aca53ab874",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -836,7 +836,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_invocation_key uuid",
-          "bodySha256": "688fd65f1a87e8d30009aaa4572403aa22d43aa9f6083b43ef9e960986188739",
+          "bodySha256": "7e35b37ef34aa8c1b6300e2363954204de88411cc3fe1d17adb5dce7f401bce4",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1711,6 +1711,22 @@
     {
       "filename": "20261111000100_screen_publication_versions.sql",
       "sha256": "fb2883f0d0b3bbf9cfc1bfa6c5ac98bc9b6b307a7206daab2235539f69596eb6"
+    },
+    {
+      "filename": "20261112000100_rookie_ppg_tiebreak.sql",
+      "sha256": "291a6d9c0e07703c911d1600535b103899a77a1e8d438055794b2a4a9595f36a"
+    },
+    {
+      "filename": "20261112000200_trade_activity_transitions.sql",
+      "sha256": "0bb1a2ce80c12cd8f8afd0a0e2e4a3c3069ee0a0c1bfeb71ca55a9bd5029f426"
+    },
+    {
+      "filename": "20261113000100_bounded_notification_claim.sql",
+      "sha256": "077acf97add851fdbeb460648c153d4605aacde8c1dd647273d9cb5d469602ae"
+    },
+    {
+      "filename": "20261113000200_worker_lease_phases.sql",
+      "sha256": "5759145af6c56febdeca0fa75f53ac747c48a207533bae6431c389709f386374"
     }
   ],
   "preMigration": {

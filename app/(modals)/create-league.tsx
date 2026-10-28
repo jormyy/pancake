@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/use-auth'
 import { useLeagueContext } from '@/contexts/league-context'
 import { createLeague } from '@/lib/league'
-import { colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, fontFamily, fontSize, fontWeight, layout, radii, spacing, textStyles, tracking } from '@/constants/tokens'
 import { Button, Input, usePageMetrics } from '@/components/ui'
 import { ModalScreen } from '@/components/ui/ModalScreen'
 import { getErrorMessage } from '@/lib/shared/errors'
@@ -236,5 +236,5 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.xl,
         paddingHorizontal: spacing.xl,
     },
-    codeText: { fontSize: fontSize.xl, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: 1, textAlign: 'center' },
+    codeText: { fontSize: fontSize.xl, fontFamily: fontFamily.display, fontWeight: fontWeight.bold, color: colors.primaryDark, letterSpacing: tracking.wide, textAlign: 'center' },
 })

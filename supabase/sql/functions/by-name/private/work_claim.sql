@@ -12,7 +12,7 @@ BEGIN
     WITH due AS (SELECT id FROM private.work_items WHERE status IN ('pending','failed') AND due_at<=now()
       ORDER BY due_at,id LIMIT greatest(0,least(p_limit,500)) FOR UPDATE SKIP LOCKED)
     UPDATE private.work_items item SET status='running',attempts=attempts+1,
-      lease_token=gen_random_uuid(),lease_until=now()+interval '90 seconds',invocation_key=NULL
+      lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL
     FROM due WHERE item.id=due.id RETURNING item.*;
 END;
 $$;

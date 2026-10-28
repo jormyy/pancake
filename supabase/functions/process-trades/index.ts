@@ -1,3 +1,4 @@
+import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import type { Database } from '../_shared/database.ts'
 import { notifyMembers, suppressNotification } from '../_shared/notifications.ts'
 import { serveInternal } from '../_shared/serve.ts'
@@ -42,7 +43,9 @@ async function processAcceptedTrades(): Promise<{
   notificationsDiscarded: number
   notificationsDeadLettered: number
 }> {
+  await renewCurrentWorkLease()
   await expirePendingTrades()
+  await renewCurrentWorkLease()
 
   const { data, error } = await supabase.rpc('process_due_accepted_trades_atomic', {
     p_limit: PROCESS_BATCH_LIMIT,
@@ -53,12 +56,15 @@ async function processAcceptedTrades(): Promise<{
   const partitioned = partitionTradeResults(results)
   for (const row of partitioned.completed) {
     try {
+      await renewCurrentWorkLease()
       await activateLeagueAfterTrade(row.trade_id)
     } catch (error) {
       console.error('Post-trade activation failed', { tradeId: row.trade_id, error })
     }
   }
+  await renewCurrentWorkLease()
   const deliveryResult = await drainDueNotifications()
+  await renewCurrentWorkLease()
   const receiptResult = await drainNotificationReceipts()
 
   if (partitioned.retryableFailures.length > 0) {
@@ -83,6 +89,7 @@ async function drainDueNotifications(): Promise<{ ticketed?: number; delivered: 
 }
 
 async function claimNotificationOutbox(): Promise<OutboxRow[]> {
+  await renewCurrentWorkLease()
   const { data, error } = await supabase.rpc('claim_notification_outbox_atomic', {
     p_limit: OUTBOX_CLAIM_LIMIT,
     p_lease_seconds: OUTBOX_LEASE_SECONDS,
@@ -158,6 +165,7 @@ async function drainNotificationReceipts(): Promise<{
     return { delivered: 0, retried: 0, ...released, discarded: 0 }
   }
 
+  await renewCurrentWorkLease()
   const memberIds = [...new Set(rows.map((row) => row.member_id))]
   const { data: members, error: memberError } = await supabase
     .from('league_members')

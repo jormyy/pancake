@@ -29,14 +29,15 @@ it('shows shared final points and odds next to each team', async () => {
     expect(text()).not.toContain('Updated')
     expect(text()).not.toContain('Saved lineups')
 })
-it('never invents odds or points when inputs are missing', async () => {
+it('uses current scores when projected finals are unavailable', async () => {
     const value = forecast()
     value.status = 'limited'
     value.teams = value.teams.map(team => ({ ...team, projectedFinal: null, winProbability: null, coveredGames: 0 }))
     value.missingInputs = ['Projection unavailable: secret-player-id']
     await render(value)
     expect(text()).toContain('— proj')
-    expect(text()).toContain('— win')
+    expect(text()).toContain('33% win')
+    expect(text()).toContain('67% win')
     expect(text()).not.toContain('Limited forecast')
     expect(text()).not.toContain('50%')
     expect(text()).not.toContain('0.0 FP')
@@ -54,12 +55,13 @@ it('shows a missing cache without fabricated values', async () => {
     expect(text()).not.toContain('% win')
 })
 
-it('withholds both odds when either final projection is missing', async () => {
+it('shows saved odds even when a final projection is missing', async () => {
     const value = forecast()
     value.teams[1].projectedFinal = null
+    value.teams[0].winProbability = 0.62
     await render(value)
-    expect(text()).not.toContain('% win')
-    expect(text()).toContain('— win')
+    expect(text()).toContain('62% win')
+    expect(text()).toContain('27% win')
 })
 it('uses current scores plus remaining projections for both teams', async () => {
     const { estimateMatchup } = await import('@pancake/core')
@@ -73,4 +75,19 @@ it('uses current scores plus remaining projections for both teams', async () => 
     expect(text()).toContain('1769 proj')
     expect(text()).toContain(`${Math.round(estimate.teams[0].winProbability! * 100)}% win`)
     expect(estimate.teams[0].winProbability).toBeLessThan(0.5)
+})
+
+it.each([[620, 380, '62% win', '38% win'], [0, 0, '50% win', '50% win'], [100, 100, '50% win', '50% win']])('uses projected final shares without scoring history: %s vs %s', async (mine, other, mineLabel, otherLabel) => {
+    const value = forecast()
+    value.teams[0] = { ...value.teams[0], currentPoints: 200, projectedFinal: mine, winProbability: null }
+    value.teams[1] = { ...value.teams[1], currentPoints: 50, projectedFinal: other, winProbability: null }
+    value.missingInputs = ['Scoring history unavailable']
+    await render(value)
+    expect(text()).toContain(mineLabel)
+    expect(text()).toContain(otherLabel)
+    expect(text()).not.toContain('— win')
+})
+it('shows neutral odds for an existing forecast with no team inputs', async () => {
+    await render({ ...forecast(), teams: [] })
+    expect(text().match(/50% win/g)).toHaveLength(2)
 })

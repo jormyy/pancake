@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { documentWorkerScript } from './helpers/document-worker-script'
 import { describe, expect, it, vi } from 'vitest'
 import { authSession, fixtureProject } from './helpers/auth-session'
 import { getInitials } from '@/lib/format'
@@ -290,8 +290,7 @@ describe('boot shell', () => {
 describe('release reconciliation', () => {
     async function updatePage({ held = false, loading = false, previous = null as string | null, documentVersion = 'old' } = {}) {
         const { runInNewContext } = await import('node:vm')
-        const source = readFileSync('app/+html.tsx', 'utf8')
-        const script = source.split("const SW_REGISTER = process.env.NODE_ENV === 'production' ? `")[1].split('` : `')[0]
+        const script = documentWorkerScript()
         const windowEvents = new Map<string, () => void>()
         const documentEvents = new Map<string, () => void>()
         const workerEvents = new Map<string, () => void>()

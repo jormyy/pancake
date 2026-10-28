@@ -2,11 +2,12 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { useScreenView } from '@/hooks/use-screen-view'
-import { clearScreenViews, saveScreenView, type ScreenScope } from '@/lib/cache/screen-cache'
+import { clearScreenViews, saveScreenView, invalidateScreenViews, type ScreenScope } from '@/lib/cache/screen-cache'
 const state = vi.hoisted(() => ({ online: false, focused: true, generation: 0, requests: vi.fn(), clears: [] as (() => void)[] }))
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => state.focused }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => state.online }))
 vi.mock('@/lib/session-cache-registry', () => ({ sessionGeneration: () => state.generation, sessionOwner: () => 'account', onSessionCachesCleared: (callback: () => void) => state.clears.push(callback) }))
+vi.mock('@/lib/supabase', () => ({ supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'account' }, access_token: 'fixture' } } }) } } }))
 vi.mock('@/lib/league-version', () => ({ subscribeLeagueVersion: () => () => {}, compareLeagueVersions: () => 0, leagueVersionSnapshot: () => ({ version: '1', changes: [] }), readLeagueVersion: async () => { state.requests(); return { version: '1', changes: [] } } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const scope: ScreenScope = { accountId: 'account', leagueId: 'league', memberId: 'member', seasonId: 'season', screen: 'roster' }
@@ -40,4 +41,35 @@ it('does no network work for an inactive screen', async () => {
     await act(async () => { renderer = create(React.createElement(Probe)) })
     expect(state.requests).not.toHaveBeenCalled()
     await act(async () => { renderer.unmount() })
+})
+
+it.each(['home', 'roster', 'players', 'waivers', 'trades-offers', 'trades-block', 'trades-history', 'league'])('paints the saved %s view before background validation', async screen => {
+    state.online = true
+    vi.stubGlobal('navigator', { onLine: true })
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    const selected: ScreenScope = { ...scope, screen: screen.startsWith('trades') ? screen === 'trades-block' ? 'trade-block' : 'trades' : screen === 'waivers' ? 'roster' : screen as ScreenScope['screen'], params: { section: screen } }
+    saveScreenView(selected, { text: '20 players · 2026–2027 adds' }, '1')
+    invalidateScreenViews('league')
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true, view: { text: 'Updated in background' } })))
+    vi.stubGlobal('fetch', fetch)
+    const renders: string[] = []
+    let renderer!: ReactTestRenderer
+    const Probe = () => {
+        const view = useScreenView<{ text: string }>(selected)
+        renders.push(`${view.data?.text}|${view.loading}`)
+        return React.createElement('span', null, view.data?.text)
+    }
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(renders[0]).toBe('20 players · 2026–2027 adds|false')
+    expect(state.requests).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
+    await act(async () => { frames.shift()!(0); frames.shift()!(0); await new Promise(resolve => setTimeout(resolve, 110)) })
+    expect(state.requests).toHaveBeenCalledOnce()
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(renders.at(-1)).toBe('Updated in background|false')
+    await act(async () => renderer.unmount())
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
 })

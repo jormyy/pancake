@@ -220,9 +220,9 @@ describe('player decision summary', () => {
         await render(React.createElement(NextProjectionCard, { projection }))
         expect(text()).toContain('— proj')
         expect(text()).not.toContain('0.0 FP')
-        expect(text()).toContain('Season Avg')
-        expect(text()).toContain('Out of date')
-        expect(text()).toContain('Updated')
+        expect(text()).not.toContain('Season Avg')
+        expect(text()).not.toContain('Out of date')
+        expect(text()).not.toContain('Updated')
     })
 
     it('shows the next opponent, date and projection without expanding details', async () => {
@@ -234,7 +234,7 @@ describe('player decision summary', () => {
         await render(React.createElement(NextProjectionCard, { projection }))
         expect(text()).toMatch(/^vs BOS Sat .+ · 42\.8 proj/)
         expect(screen.root.findAllByType(type('Text'))[0].props.numberOfLines).toBe(1)
-        expect(text()).toContain('FantasyPros')
+        expect(text()).not.toContain('FantasyPros')
         expect(text()).toContain('42.8')
         expect(text()).toContain('proj')
     })

@@ -3,6 +3,12 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "test:db:work-lease-phases": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/work-lease-phases.sql",
+    "test:db:work-lease-renewal": "node tests/e2e/work-lease-renewal-db.mjs",
+    "test:db:notification-claim-bounded": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/notification-claim-bounded.sql",
+    "test:db:release2-standings": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/release2-standings-dispatch.sql",
+    "test:db:release2-trade-activity": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/release2-trade-activity.sql",
+    "test:db:release2-accept-capacity": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/release2-trade-accept-capacity.sql",
     "test:db:trade-plan-moves-capacity": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/trade-plan-moves-capacity.sql",
     "test:db:inactive-trade-block": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/inactive-trade-block.sql",
     "test:db:continuous-faab": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" -X -v ON_ERROR_STOP=1 -f tests/db/continuous-faab.sql",
@@ -34,7 +40,7 @@
     "check:surface-matrix": "node tests/e2e/surface-matrix.mjs",
     "check:source-recovery": "node tests/e2e/source-failure-recovery.mjs",
     "check:edge-functions": "node scripts/check-edge-functions.mjs",
-    "check:quality": "npm run lint:all && npm run typecheck && npm run typecheck:tests && npm run typecheck:e2e && npm run typecheck:harness-boundaries && npm run typecheck:core && npm run check:core-cjs && npm run check:dead-code && npm run check:edge-shared && npm run check:edge-function-inventory && npm run check:db-function-sources && npm run check:surface-matrix",
+    "check:quality": "npm run lint:all && npm run typecheck && npm run typecheck:tests && npm run typecheck:e2e && npm run typecheck:harness-boundaries && npm run typecheck:core && npm run check:core-cjs && npm run check:dead-code && npm run check:edge-shared && npm run check:edge-function-inventory && npm run check:db-function-sources && npm run check:surface-matrix && npm run check:design-system",
     "check:comprehensive": "npm run check:quality && npm run check:edge-functions && npm run check:database-types && npm run check:db-function-catalog",
     "test": "vitest run && node --test scripts/mutation/waivers/targets.test.mjs",
     "test:db:draft-goal": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/draft-goal-behavior.sql",
@@ -415,7 +421,12 @@
     "e2e:timeline:fixture": "node tests/lib/timeline/browser/check.mjs",
     "e2e:timeline:fixture:serve": "node node_modules/vite/bin/vite.js --config tests/lib/timeline/browser/vite.config.mjs",
     "e2e:claims-navigation": "node tests/ui/claims-navigation.mjs",
-    "test:db:season-lineup-full-roster": "node tests/db/season-lineup-full-roster.mjs"
+    "test:db:season-lineup-full-roster": "node tests/db/season-lineup-full-roster.mjs",
+    "check:design-system": "node scripts/check-design-system.mjs",
+    "e2e:ux-batch1": "node tests/e2e/ux-fixes.mjs",
+    "e2e:ux-forecast": "node tests/e2e/ux-forecast-diagnostic.mjs",
+    "e2e:ux-batch2:seed": "node tests/e2e/ux-round2-fixture.mjs",
+    "e2e:ux-batch2": "node tests/e2e/ux-round2.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/outfit": "^0.4.3",

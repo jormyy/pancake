@@ -45,7 +45,9 @@ export async function retainReleaseAssets(root, previousRoot) {
 }
 
 export async function prepareReleaseCompatibility(root, previousRoot) {
-  if (previousRoot) return retainReleaseAssets(root, previousRoot)
+  const localRoot = previousRoot || process.env.PANCAKE_PREVIOUS_RELEASE_ROOT
+  if (localRoot) return retainReleaseAssets(root, localRoot)
+  if (process.env.VERCEL_ENV !== 'production' && process.env.PANCAKE_FETCH_PREDECESSOR !== '1') return null
   const descriptor = await readOptional(path.join(root, 'release-predecessor.json'))
   if (!descriptor) {
     if (process.env.VERCEL_ENV === 'production') throw new Error('Production build requires a pinned release-predecessor.json')

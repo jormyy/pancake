@@ -1,3 +1,4 @@
+import { spacing } from '@/constants/tokens'
 import { createContext, type PropsWithChildren, useContext, useLayoutEffect, useState } from 'react'
 
 export const AUTH_DOCUMENT_ID = 'pancake-auth-document'
@@ -24,7 +25,7 @@ export function AuthHydrationFrame({ route, children }: PropsWithChildren<{ rout
     return (
         <AuthRouteReady.Provider value={markReady}>
             <div style={frameStyle} aria-busy={pending}>
-                <div style={{ ...frameStyle, ...(pending ? { position: 'absolute' as const, inset: 0, visibility: 'hidden' as const } : {}) }} inert={pending}>
+                <div style={{ ...frameStyle, ...(pending ? { position: 'absolute' as const, inset: spacing.none, visibility: 'hidden' as const } : {}) }} inert={pending}>
                     {children}
                 </div>
             </div>

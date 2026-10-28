@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { PlayerRosterStatus } from '@/lib/roster'
 import { blockedActionProps } from '@/lib/a11y'
 import { colors, componentTokens, controlSize, fontSize, radii, spacing, textStyles } from '@/constants/tokens'
+import { playerAge } from '@/lib/player-context'
 import { PlayerAvatar } from './PlayerAvatar'
 import { Badge } from '@/components/Badge'
 import { PosTag } from '@/components/PosTag'
@@ -21,6 +22,7 @@ type PlayerHeaderPlayer = {
     headshot_url: string | null
     nba_id: string | null
     career_regular_season_games?: number | null
+    birthdate?: string | null
     years_exp: number | null
 }
 
@@ -50,6 +52,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
+    const age = playerAge(player.birthdate)
     const statusLabel = rosterStatus?.status === 'free_agent' ? 'Free agent'
         : rosterStatus?.status === 'on_waivers' ? 'On waivers'
         : rosterStatus?.status === 'mine' ? ownTeamName ?? 'On your roster'
@@ -87,6 +90,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
                 {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {age != null ? <Badge inline label={`${age}`} accessibilityLabel={`Age ${age}`} color={colors.textMuted} /> : null}
                 {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>

@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, lineHeight } from '@/constants/tokens'
 
 export const styles = StyleSheet.create({
     // Screens add the page's side padding from usePageMetrics().
@@ -86,7 +86,7 @@ export const styles = StyleSheet.create({
         fontSize: fontSize.lg,
         fontWeight: fontWeight.semibold,
         color: colors.primaryDark,
-        padding: 0,
+        padding: spacing.none,
     },
     segmentRow: {
         flexDirection: 'row',
@@ -170,7 +170,7 @@ export const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepBtnText: { fontSize: fontSize.xl, color: colors.textPrimary, lineHeight: 24 },
+    stepBtnText: { fontSize: fontSize.xl, color: colors.textPrimary, lineHeight: lineHeight.title },
     stepValue: {
         fontSize: fontSize.lg,
         fontWeight: fontWeight.bold,

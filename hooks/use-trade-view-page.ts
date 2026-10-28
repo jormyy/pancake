@@ -39,5 +39,5 @@ export function useTradeViewPage(memberId: string, leagueId: string, tab: 'offer
         } finally { if (current.current === identity) { pending.current = false; setLoadingMore(false) } }
     }, [identity, scope, enabled])
     const updateTrades = useCallback((update: (trades: Trade[]) => Trade[]) => { const previous = selectedRef.current; setPage({ ...previous, trades: update(previous.trades) }) }, [])
-    return { trades: selected.trades, hasData: view.loaded, loading: view.loading || view.refreshing, loadingMore, hasMore: selected.hasMore, error: view.error?.message ?? null, isSnapshot: !view.loaded || view.offline || view.refreshing || Boolean(view.error), loadMoreError, refresh, loadMore, updateTrades }
+    return { trades: selected.trades, hasData: view.loaded, loading: view.loading, refreshing: view.refreshing, loadingMore, hasMore: selected.hasMore, error: view.error?.message ?? null, isSnapshot: !view.loaded || view.offline || view.refreshing || Boolean(view.error), loadMoreError, refresh, loadMore, updateTrades }
 }

@@ -303,7 +303,7 @@ export function DraftTimerControl({
 
 const styles = StyleSheet.create({
     nominationModeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm },
-    nominationModeRowCompact: { marginBottom: 0 },
+    nominationModeRowCompact: { marginBottom: spacing.none },
     nominationModeChip: {
         flexGrow: 1,
         flexBasis: 78,
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     timerControlCompact: {
-        marginBottom: 0,
+        marginBottom: spacing.none,
     },
     timerPresetWrap: {
         flexGrow: 1,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     customTimerLabelActive: { color: colors.primaryDark },
     customTimerInput: {
         minHeight: 22,
-        padding: 0,
+        padding: spacing.none,
         // 16px keeps iOS Safari from zooming the page when the field is focused.
         fontSize: fontSize.lg,
         fontWeight: fontWeight.semibold,

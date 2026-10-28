@@ -146,7 +146,7 @@ Frontend rollback retains these database changes.
 [Source monitoring](source-monitoring.md) owns projection and retention behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
 
-The approved release 2 candidate ends at `20261111000100`, with 589 migrations.
+The approved release 2 candidate ends at `20261113000200`, with 593 migrations.
 The audit baseline stays at `20261005000003`, with 329 migrations.
 Release 1 reaches production on 2026-10-27 at `20261029000800`, with 564 migrations.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
@@ -171,8 +171,8 @@ The upgrade from that state also matches the fresh installation through `2026102
 
 ## Release 2 candidate
 
-Release 2 adds 25 migrations after the deployed release 1 head.
-The audited range contains 260 migrations after the fixed 329-row baseline.
+Release 2 adds 29 migrations after the deployed release 1 head.
+The audited range contains 264 migrations after the fixed 329-row baseline.
 
 | Migration | Change |
 | --- | --- |
@@ -201,8 +201,15 @@ The audited range contains 260 migrations after the fixed 329-row baseline.
 | `20261109000900` | Derives provider history windows from policy and preserves career eligibility. |
 | `20261110000100` | Adds complete server views for client screens. |
 | `20261111000100` | Publishes screen refresh versions. |
+| `20261112000100` | Gives tied rookie records the higher points-per-game pick first. |
+| `20261112000200` | Records every trade transition with player identity and preserves feed privacy. |
+| `20261113000100` | Bounds notification checks before stale and preference evaluation. |
+| `20261113000200` | Gives workers five-minute leases and avoids renewal lock waits. |
 
 A private local stack applies the release 1 prefix, then the complete release 2 suffix.
 Both security catalogs come from that stack.
-The final migration history contains 589 rows through `20261111000100`.
+The final migration history contains 593 rows through `20261113000200`.
 The shared attestation supplies the soak and immediate preflight ranges.
+
+Production reaches `20261111000100` before the worker timeout repair, as reported by the release operator.
+The historical pre-migration catalog still records release 1.

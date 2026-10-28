@@ -44,16 +44,23 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
         const selected = scopeRef.current
         if (!selected) return
         const cached = cachedScreenView<T>(selected)
-        setState({ key, generation, data: cached?.value, loading: Boolean(admitted && online && !cached), error: null })
+        setState({ key, generation, data: cached?.value, loading: Boolean(admitted && online && autoLoad), error: null })
         const stop = admitted && online ? subscribeScreenView(selected, () => {
             const next = cachedScreenView<T>(selected)
             if (next && !next.dirty) setState({ key, generation, data: next.value, loading: false, error: null })
             else if (next?.dirty && admitted && online) void refresh(false, false)
         }) : () => {}
-        if (admitted && online && autoLoad) void refresh()
+        let firstFrame: number | undefined
+        let secondFrame: number | undefined
+        let background: ReturnType<typeof setTimeout> | undefined
+        if (admitted && online && autoLoad) {
+            if (cached && typeof requestAnimationFrame === 'function') {
+                firstFrame = requestAnimationFrame(() => { secondFrame = requestAnimationFrame(() => { background = setTimeout(() => { void refresh() }, 100) }) })
+            } else void refresh(false, Boolean(cached))
+        }
         const resume = () => { if (admitted && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void refresh() }
         if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
-        return () => { request.current += 1; stop(); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume) }
+        return () => { clearTimeout(background); if (firstFrame !== undefined) cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); request.current += 1; stop(); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume) }
     }, [key, admitted, online, generation, refresh, autoLoad])
     const owns = state.key === key && state.generation === generation
     const data = owns ? state.data : initial?.value

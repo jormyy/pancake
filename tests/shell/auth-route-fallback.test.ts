@@ -3,6 +3,8 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AuthHydrationFrame, useAuthRouteReady } from '@/components/auth/AuthHydrationFrame'
 
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
+
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
 let documentPresent: boolean

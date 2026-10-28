@@ -9,7 +9,7 @@ export const AUTH_SCAFFOLD_CSS = `
 html [data-auth-hero] { display: none; }
 html [data-auth-scroll] > div {
     justify-content: flex-start;
-    padding: calc(env(safe-area-inset-top, 0px) + ${spacing.lg}px) ${spacing.lg}px calc(env(safe-area-inset-bottom, 0px) + ${spacing.lg}px);
+    padding: calc(env(safe-area-inset-top, ${spacing.none}px) + ${spacing.lg}px) ${spacing.lg}px calc(env(safe-area-inset-bottom, ${spacing.none}px) + ${spacing.lg}px);
 }
 html [data-auth-card] { padding: ${spacing.xl}px; }
 @media (min-width: ${breakpoints.phone}px) {

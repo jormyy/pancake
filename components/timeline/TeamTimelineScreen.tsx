@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
-import { colors, spacing, textStyles } from '@/constants/tokens'
+import { colors, radii, spacing, textStyles } from '@/constants/tokens'
 import { timelineMatches, timelineRelativeTime, type TimelineFilter } from '@/lib/timeline'
 import { useTeamTimeline } from '@/lib/timeline/useTeamTimeline'
 
@@ -41,7 +41,7 @@ export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, fil
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
                 {filters.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityState={{ selected: filter === item.value }}
                     onPress={() => setFilter(item.value)} style={{ minHeight: 44, justifyContent: 'center', paddingHorizontal: spacing.md,
-                        borderBottomWidth: filter === item.value ? 3 : 1, borderColor: filter === item.value ? colors.primary : colors.borderLight }}>
+                        borderRadius: radii.md, backgroundColor: filter === item.value ? colors.primaryLight : undefined }}>
                     <Text style={{ ...textStyles.body, color: filter === item.value ? colors.primaryDark : colors.textSecondary }}>{item.label}</Text>
                 </Pressable>)}
             </View>

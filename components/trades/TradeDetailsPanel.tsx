@@ -75,7 +75,7 @@ export function TradeDetailsPanel({
             ) : null}
 
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
-            <SavedTradeEstimate trade={trade} />
+            <SavedTradeEstimate trade={trade} myMemberId={context.myMemberId} />
             {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
             <TradeActionButtons trade={trade} model={model} actions={actions} />
             <MotionPressable

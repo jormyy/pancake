@@ -332,8 +332,8 @@ const styles = StyleSheet.create({
     avatarWrapper: { position: 'relative' },
     avatarBadge: {
         position: 'absolute',
-        bottom: 0,
-        right: 0,
+        bottom: spacing.none,
+        right: spacing.none,
         width: 22,
         height: 22,
         borderRadius: radii.full,

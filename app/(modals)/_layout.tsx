@@ -8,6 +8,7 @@ export default function ModalsLayout() {
         <Stack
             screenOptions={{
                 presentation: 'card',
+                headerShown: false,
                 animation: 'fade',
                 headerStyle: { backgroundColor: colors.bgCard },
                 headerTintColor: colors.textPrimary,

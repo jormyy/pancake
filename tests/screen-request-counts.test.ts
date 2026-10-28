@@ -29,6 +29,8 @@ const payload = { context, draft: { id: 'draft', status: 'paused', leagueId: 'le
 beforeEach(() => {
     for (const clear of state.clears) clear()
     clearScreenViews(); state.requests = []
+    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
     vi.stubGlobal('fetch', vi.fn(async (input: string) => {
         const url = new URL(input)
         state.requests.push(url.pathname)
@@ -38,6 +40,7 @@ beforeEach(() => {
 const cases: [string, string, () => unknown][] = [
     ['home', 'home', () => useMatchupData({ id: 'member' }, { id: 'account' }, { id: 'league' })],
     ['players', 'players', () => usePlayerSearch('league', new Map(), new Set(), 'member', { ownerId: 'account' })],
+    ['waivers', 'roster', () => useScreenView({ accountId: 'account', leagueId: 'league', memberId: 'member', screen: 'roster', params: { section: 'waivers' } })],
     ['player', 'player', () => usePlayerScreenData('player', 'league', { ownerKey: JSON.stringify(['account', 'member']) })],
     ['trades offers', 'trades', () => useTradesFeed('member', 'league')],
     ['trades history', 'trades', () => useTradeHistoryFeed('member', 'league', true)],
@@ -48,15 +51,20 @@ const cases: [string, string, () => unknown][] = [
     ...(['roster', 'lineup', 'claim-editor', 'draft-room', 'trade-details', 'trade-analysis', 'standings', 'activity', 'picks', 'settings', 'draft-rooms'] satisfies ScreenName[]).map(screen => [screen, screen, () => useScreenView({ accountId: 'account', leagueId: 'league', memberId: 'member', seasonId: 'season', screen })] as [string, string, () => unknown]),
 ]
 describe('screen view request budgets', () => {
-    it.each(cases)('%s opens with one view and one shared version check', async (name, screen, hook) => {
+    it.each(cases)('%s opens with one screen request', async (name, screen, hook) => {
         let renderer!: ReactTestRenderer
         const Probe = () => { hook(); return null }
         await act(async () => { renderer = create(React.createElement(Probe)) })
         await act(async () => {})
         const reads = state.requests.filter(path => path.includes('/views/'))
         expect(reads, name).toEqual([`/functions/v1/api/views/${screen}`])
-        expect(state.requests.filter(path => path.endsWith('/version'))).toHaveLength(screen === 'profile' ? 0 : 1)
-        expect(state.requests).toHaveLength(screen === 'profile' ? 1 : 2)
+        expect(state.requests.filter(path => path.endsWith('/version'))).toHaveLength(name === 'rookie controller' ? 1 : 0)
+        expect(state.requests).toHaveLength(name === 'rookie controller' ? 2 : 1)
+        await act(async () => { renderer.unmount() })
+        if (name === 'rookie controller') return
+        state.requests = []
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        expect(state.requests, `${name} reopens before background refresh`).toEqual([])
         await act(async () => { renderer.unmount() })
     })
 })

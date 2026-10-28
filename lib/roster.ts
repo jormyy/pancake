@@ -25,6 +25,7 @@ export type RosterPlayer = {
         nba_id: string | null
         nba_draft_number: number | null
         career_regular_season_games?: number | null
+        birthdate?: string | null
         years_exp: number | null
     }
 }
@@ -56,7 +57,7 @@ export async function getRostersForMembers(
         .select(
             `
       id, member_id, is_on_ir, is_on_taxi, acquired_via, taxi_start_season_year,
-      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, years_exp, career_regular_season_games )
+      players ( id, display_name, nba_team, position, eligible_positions, injury_status, nba_id, nba_draft_number, birthdate, years_exp, career_regular_season_games )
     `,
         )
         .in('member_id', uniqueMemberIds)

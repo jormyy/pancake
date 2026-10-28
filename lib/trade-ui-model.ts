@@ -1,10 +1,11 @@
 import type { RosterPlayer } from '@/lib/roster'
 import type { TradePickItem } from '@/lib/trades'
 
-export type TradeTabKey = 'offers' | 'block' | 'history'
+export type TradeTabKey = 'offers' | 'block' | 'history' | 'analyzer'
 
 export function normalizeTradeTab(value: unknown): TradeTabKey {
     const tab = Array.isArray(value) ? value[0] : value
+    if (tab === 'analyzer') return 'analyzer'
     if (tab === 'history') return 'history'
     if (tab === 'block' || tab === 'my-block' || tab === 'league-block' || tab === 'leagueBlock') return 'block'
     return 'offers'

@@ -1,3 +1,4 @@
+import { readScreenSection, saveScreenSection } from '@/lib/screen-section'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { WaiversSection } from '@/components/waivers/WaiversSection'
@@ -516,23 +517,26 @@ function PlayersScreen() {
     const focused = useIsFocused()
     const params = useLocalSearchParams<{ section?: string }>()
     const { user, loading: authLoading } = useAuth()
-    const { memberships, loading: leagueLoading } = useLeagueContext()
-    const [section, setSection] = useState<PlayersSection>(() => initialSection(params.section))
-    const [opened, setOpened] = useState<Set<PlayersSection>>(() => new Set([initialSection(params.section)]))
+    const { memberships, current, loading: leagueLoading } = useLeagueContext()
+    const [section, setSection] = useState<PlayersSection>(() => initialSection(params.section ?? readScreenSection(user?.id, current?.id, 'players')))
+    const [opened, setOpened] = useState<Set<PlayersSection>>(() => new Set([initialSection(params.section ?? readScreenSection(user?.id, current?.id, 'players'))]))
 
     useEffect(() => {
-        if (!params.section) return
-        const next = initialSection(params.section)
+        const saved = params.section ?? readScreenSection(user?.id, current?.id, 'players')
+        if (!saved) return
+        const next = initialSection(saved)
+        saveScreenSection(user?.id, current?.id, 'players', next)
         setSection(next)
         setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
-    }, [params.section])
+    }, [params.section, user?.id, current?.id])
 
     const [lastDynasty, setLastDynasty] = useState<'rankings' | 'news'>('rankings')
     const openSection = useCallback((next: PlayersSection) => {
         if (next === 'rankings' || next === 'news') setLastDynasty(next)
+        saveScreenSection(user?.id, current?.id, 'players', next)
         setSection(next)
         setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
-    }, [])
+    }, [user?.id, current?.id])
 
     if (authLoading || (leagueLoading && memberships.length === 0)) return <View style={styles.container} />
     if (!user || memberships.length === 0) return <NoLeagueState />

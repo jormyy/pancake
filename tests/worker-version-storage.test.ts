@@ -1,9 +1,9 @@
-import { readFileSync } from 'node:fs'
+import { documentWorkerScript } from './helpers/document-worker-script'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it, vi } from 'vitest'
 
-const source = readFileSync('app/+html.tsx', 'utf8')
-const script = source.split("const SW_REGISTER = process.env.NODE_ENV === 'production' ? `")[1].split('` : `')[0]
+vi.mock('react-native', () => ({ Platform: { OS: 'web' } }))
+const script = documentWorkerScript()
 
 async function fixture(failure?: 'getter' | 'read' | 'write', previous: string | null = null, reloadMarker = previous) {
     const windowEvents = new Map<string, () => void>()

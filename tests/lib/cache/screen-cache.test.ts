@@ -26,6 +26,21 @@ describe('versioned screen cache', () => {
         await readScreenView(scope)
         expect(mocks.fetch).toHaveBeenCalledTimes(1); expect(mocks.check).toHaveBeenCalledTimes(2)
     })
+    it('waits for the shared push baseline before its one cold screen request', async () => {
+        vi.stubGlobal('window', { WebSocket: class {} })
+        const { setLeagueChangesConnected, notifyLeagueChange } = await import('@/lib/league-changes')
+        const selected = { ...scope, leagueId: 'baseline-league' }
+        const task = readScreenView(selected, { checkVersion: false })
+        await new Promise(resolve => setImmediate(resolve))
+        expect(mocks.fetch).not.toHaveBeenCalled()
+        setLeagueChangesConnected(selected.leagueId, true)
+        notifyLeagueChange(selected.leagueId, { topic: 'catchup', scopes: null })
+        await task
+        expect(mocks.fetch).toHaveBeenCalledOnce()
+        expect(mocks.check).not.toHaveBeenCalled()
+        setLeagueChangesConnected(selected.leagueId, false)
+        vi.stubGlobal('window', undefined)
+    })
     it('keeps an unrelated screen and refetches an awarded claim within one bump', async () => {
         saveScreenView(scope, { claims: [{ status: 'pending' }] }, '1')
         const stop = subscribeScreenView(scope, () => {})

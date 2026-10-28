@@ -14,7 +14,7 @@ Screens pass content, labels, and actions to these components.
 | `radii` | Corners | `xs` 4, `sm` 6, `md` 8, `lg` 10, `xl` 12, `2xl` 16, `3xl` 20px |
 | `radii.full` | Pills and circles | 9999px |
 | `borderWidth` | Rules and outlines | `thin` 1, `medium` 1.5, `strong` 2, `accent` 3px |
-| `fontSize` | Small type | `2xs` 10, `xs` 11, `2sm` 12, `sm` 12, `md` 13px |
+| `fontSize` | Small type | `2xs` 10, `xs` 11, `2sm` 12, `sm` 12, `md` 13, `2md` 14px |
 | `fontSize` | Large type | `lg` 16, `2lg` 17, `xl` 18, `2xl` 20, `3xl` 24, `4xl` 28, `5xl` 32px |
 | `fontFamily` | Outfit faces | Display bold, display semibold, control medium |
 | `fontWeight` | Weight scale | 300, 400, 500, 600, 700, 800, 900 |
@@ -55,7 +55,6 @@ Web colors follow the chosen light, dark, or system theme.
 | `INJURY_COLORS` | Injury badges |
 | `TX_COLORS` | Transaction types |
 | `TRADE_STATUS_COLORS` | Trade status backgrounds and text |
-| `scoreboardColors` | Scoreboard surfaces and states |
 | `scrim` | Shared sheet backdrop |
 | `alpha` | Theme-aware transparent colors |
 | `themeVariablesCss` | Light and dark web variables |
@@ -93,7 +92,7 @@ Change these definitions before adding screen-specific measurements.
 | `badge.ownership` | 16px minimum height; 90px table width; at most 96px on phones |
 | `statCell` | 44px column; 12px tabular text aligned right; 17px centered summary values |
 | `matchupRow` | 52px slot, 64px points, 34px stat columns, 46px wide stat columns, 24px phone avatar |
-| `segmentedControl` | 44px minimum target, 12px horizontal padding, 2px tab underline |
+| `segmentedControl` | 44px minimum target, 12px horizontal padding, selected background highlight |
 | `textLink` | 44px minimum target and 20px line height |
 | `lineupControls` | 44px targets; 13px labels; season action receives 1.4 times the width |
 | `daySelector.compact` | 2px gaps above, below, and between date targets |
@@ -183,13 +182,13 @@ One-time actions do not change the saved automatic preference.
 Every empty starter, bench, IR, and taxi place remains visible.
 
 Matchup player names retain their full accessible names and injury labels.
-Phone labels use the first initial and full surname, including suffixes.
+Phone labels follow the compact name rule below.
 The 24px face stays beside the label.
 Profile, points, and slot targets remain separate.
 Only points open the scoring breakdown.
 No-game rows omit team abbreviations and OFF text.
 Game rows retain bold away-at-home labels.
-Live rows retain their points, rebounds, assists, and live state.
+Live rows retain fantasy points and live state.
 Other matchups retain both scores and Final status.
 
 DTD, GTD, and day-to-day injury values use the same red as Out.
@@ -215,9 +214,9 @@ Near-end scrolling reveals 15 cached rows without another data request.
 Player and season changes reset the visible page.
 Retry, empty, complete, and manual paging states remain available.
 
-Asset values wrap fully, with each range on its own line at phone widths.
+Asset values and ranges share one fitted line.
 Trade review retains each over-limit team's required drop count.
-Saved estimate and sources opens the original quote and frozen inputs.
+History shows the frozen sent and received values.
 Revalue with current inputs leaves the original quote unchanged.
 The League pick bank includes original and acquired picks, with known zero counts visible.
 
@@ -312,8 +311,8 @@ Two compact control rows sit directly below the title, without a card title or d
 The first row has Today, This week, and Rest of season buttons with single-line 13px labels.
 Rest of season gets extra width to keep its full label visible at larger text sizes.
 Rest of season sets the remaining season dates. Its accessible label remains Auto-set rest of season.
-Home uses the shared lineup controls directly.
-Roster and Home's matchup details retain Auto-set with the accessible label Open auto-set lineup options.
+The separate lineup page uses the shared lineup controls.
+Roster and Home retain Auto-set with the accessible label Open auto-set lineup options.
 Their sheets use Today, This week, Rest of season, and Edit lineup manually.
 The second row places Keep updated automatically on the left and the switch on the right.
 The whole row acts as one switch with the accessible name Keep lineup updated automatically.
@@ -331,10 +330,10 @@ Players and slots retain the manual move flow. Offline and read-only states disa
 
 ## Trades
 
-Asset values wrap fully. Each range appears on its own line at phone widths.
+Asset values and ranges share one fitted line.
 Review trade states how many players an over-limit team must drop to accept.
 The count comes from the displayed regular, IR, and taxi roster counts.
-Saved estimate and sources opens the original quote and its frozen inputs.
+History shows the frozen sent and received values.
 Revalue with current inputs opens a separate calculation for the saved trade.
 Revaluation leaves the original quote unchanged, including after settlement.
 
@@ -342,22 +341,27 @@ Revaluation leaves the original quote unchanged, including after settlement.
 ### Compact fantasy screens
 
 Use the last word before any suffix as the surname.
-Matchup names use the first initial and surname when the surname has seven characters or fewer.
-Longer surnames show only their first ten characters, with no ellipsis or trailing hyphen.
+Use the first initial and surname when the result has at most 12 characters.
+Otherwise show the complete surname.
+Surnames longer than 12 characters shrink to fit one line, without wrapping or ellipsis.
 Remove suffixes such as Jr., Sr., II, III, IV, and V before this rule.
-One-word names use the same ten-character cap.
+One-word names stay complete and shrink when needed.
 Keep the full name in the profile button label.
 Matchup headshots sit beside the centre position column.
 Names and injury badges extend outward in mirrored rows.
-Names and game lines each occupy one line.
+Each player occupies a fixed 56px row with a name line and a game line.
+No-game players retain an empty game line.
+Fantasy points sit at the vertical centre.
 Forecast lines show rounded final points and the supplied win probability.
 Final points include the current score and all projected remaining games for each team.
-Missing final points or odds show an em dash.
-Do not substitute projected point share for a win probability.
-The claims count remains visible at zero, directly beside Auto-set.
+Missing final points show an em dash.
+Missing saved odds use each team’s share of the two projected finals.
+Missing finals use current points, negative totals count as zero, and ties show 50%.
+Only an absent forecast row shows “— win”.
+The claims pill reads `0 Waivers`, `1 Waiver`, or `2 Waivers`, directly beside Auto-set.
 Zero opens Players; positive counts open Waivers.
 Both controls have a minimum height of 44 pixels.
-Player projections use one opponent, time, and points line, with source details in a smaller caption.
+Player projections use one opponent, time, and points line without source captions.
 Trade assets use one name line, one team and positions line, and one value line.
 
 ### Waivers copy and claims navigation
@@ -379,15 +383,26 @@ node tests/ui/claims-navigation.mjs \
 ```
 ## Navigation
 
-Home follows the daily job: read the matchup, fix the lineup, then check waivers.
-Live points and win odds appear first. The full lineup editor appears directly below them.
-Today, This week and Rest of season actions use the same editor on Home and its own route.
-The automatic switch saves the same team preference. Tap a player, then its destination to swap.
-Locked players stay in place. Matchup comparison sits behind Matchup details.
-Pending claims, the next run and available FAAB appear after the lineup. Claim editing opens directly from Home.
-Players and Trades remain one tap away. Players groups search, Waivers, Rankings and News.
-League opens clear sections for league information, team tools, draft rooms, accounts and commissioner controls.
-Profile, draft rooms and commissioner tools live inside those sections.
+Home is the matchup screen.
+It shows the week status, teams, records, scores, projected totals, win odds, days, and lineup rows.
+The lineup comparison stays visible without a toggle.
+Home has no timeline link, daily editor, waivers card, announcement card, or other matchup cards.
+Saved win odds remain visible when a projected total is missing.
+Players groups search, Waivers, Rankings, and News.
+League opens Standings by default.
+Its scrollable section bar contains Standings, Activity, Picks, Draft, Bracket, and Settings.
+Bracket opens its detail page on demand.
+The page does not repeat the league name from the shell.
+The hamburger menu opens league settings, commissioner tools, invite sharing, notification settings, and profile directly.
+Section bars use a background highlight without an underline.
+Cached screens paint their saved content before a background version check.
+Players and Trades restore their last selected section before reading data.
+Cold reads wait for the shared change stream to avoid a duplicate view request.
+A cold screen reads one complete view without a separate version request.
+Background checks share the league version stream and refresh affected views.
+Trades keeps saved offers, block listings, and history visible during refresh.
+Search summaries, claims, and trade assets come from the same screen response.
+Details load when opened.
 Controls keep their accessibility names. Navigation targets stay at least 44 pixels.
 The shell keeps safe-area spacing. New forms use the existing input components.
 The [feature map](supabase-backend-route-inventory.md#navigation-feature-map) records each entry and its tap count.
@@ -396,3 +411,30 @@ Navigation checks use local manager and commissioner accounts in WebKit at 390×
 All 25 routes appear in 66 screen checks. Thirty-five entry checks verify the visible paths.
 Lineup swaps take two taps. Pending claims open in one tap. Measured navigation and lineup targets meet 44 pixels.
 The timeline route loads team events. A failed import shows a retry control.
+
+## Trade and player screens
+
+Trades shows Offers, Block, History, and Analyzer in this order.
+History cards show the status, veto deadline, and one row for each asset.
+The value line shows sent value, then received value: `1412 vs 605`.
+Cards omit timeline links, saved dates, and source captions.
+Analyzer requests current values from the estimate and revaluation endpoints.
+It uses compact asset rows without a title row or explanatory captions.
+Modal pages omit visible title and back rows on the web.
+Native pages can show a close control.
+Player age sits directly before the experience badge.
+Player rows share the same headshot, name, team, positions, and statistics layout.
+Trade block entries have a border and space between them.
+Provider names and update captions do not appear in player, ranking, projection, or news rows.
+
+Run `node tests/e2e/ux-round2-fixture.mjs` on the private mini stack with the runner arguments.
+The runner captures six screens before and after the change in iPhone 14 WebKit.
+The runner checks card height, value visibility, section order, age order, and horizontal overflow.
+It deletes its fixture and stops its static servers after each run.
+
+League opens on Standings and keeps every section in the same horizontal control as Trades.
+Direct section links still open their target, including the Bracket route.
+
+`npm run check:design-system` checks app screens and feature components for raw colors, type sizes, radii, and spacing.
+Shared tokens and UI primitives define these values.
+The quality check includes this rule.

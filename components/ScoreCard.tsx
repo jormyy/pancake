@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/Badge'
 import type { ReactNode } from 'react'
 import { Platform, View, Text, StyleSheet } from 'react-native'
-import { Matchup } from '@/lib/scoring'
+import type { Matchup } from '@/lib/scoring'
 import { alpha, componentTokens, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
@@ -55,6 +55,7 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
             <View style={[styles.scores, compact && styles.scoresCompact]}>
                 <View style={styles.side}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact]}>{matchup.myTeamName}</Text>
+                    <Text style={styles.record}>{`${matchup.myWins ?? 0}-${matchup.myLosses ?? 0}`}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.myPoints)}
                     </Text>
@@ -62,6 +63,7 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
 
                 <View style={[styles.side, styles.sideRight]}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
+                    <Text style={styles.record}>{`${matchup.opponentWins ?? 0}-${matchup.opponentLosses ?? 0}`}</Text>
                     <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
                         {formatPoints(matchup.opponentPoints)}
                     </Text>
@@ -145,7 +147,7 @@ const styles = StyleSheet.create({
     },
     teamNameRight: { textAlign: 'right' },
     compactMeta: {
-        marginTop: 0,
+        marginTop: spacing.none,
         fontSize: fontSize['2xs'],
         lineHeight: textStyles.tableHeader.lineHeight,
         color: colors.textPlaceholder,

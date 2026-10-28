@@ -18,7 +18,7 @@ import { ScreenFrame } from '@/components/ui/ScreenFrame'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { type RookieProspect } from '@/lib/rookieDraft'
-import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { breakpoints, colors, controlSize, fontSize, fontWeight, layout, radii, scrim, spacing, table, textStyles, uiColors, lineHeight } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 import { showSuccess } from '@/lib/alert'
 import { countLabel } from '@/lib/format'
@@ -521,21 +521,15 @@ const styles = StyleSheet.create({
     bannerSub: { fontSize: fontSize.md, color: colors.textSecondary },
     bannerMe: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
-    tabs: {
-        flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: colors.borderLight,
-    },
+    tabs: { flexDirection: 'row', gap: spacing.xs },
     tab: {
+        borderRadius: radii.md,
         flex: 1,
         minHeight: controlSize.minTouch,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    tabActive: {
-        borderBottomWidth: 2,
-        borderBottomColor: colors.primary,
-    },
+    tabActive: { backgroundColor: colors.primaryLight },
     tabText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textMuted },
     tabTextActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
 
@@ -555,8 +549,8 @@ const styles = StyleSheet.create({
         minHeight: controlSize.minTouch,
         marginHorizontal: spacing.xs,
         marginTop: spacing.xxs,
-        marginBottom: 0,
-        paddingVertical: 0,
+        marginBottom: spacing.none,
+        paddingVertical: spacing.none,
         borderRadius: radii.md,
     },
     // 16px keeps iOS Safari from zooming into the field.
@@ -636,7 +630,7 @@ const styles = StyleSheet.create({
     overflowBody: {
         fontSize: fontSize.md,
         color: colors.textSecondary,
-        lineHeight: 22,
+        lineHeight: lineHeight.roomy,
     },
     overflowBtn: {
         minHeight: controlSize.minTouch,

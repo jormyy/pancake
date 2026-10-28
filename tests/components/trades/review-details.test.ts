@@ -18,7 +18,7 @@ it.each([0, 1, 2])('reports %s required drops from the displayed roster counts',
     const team: TradeRosterPreview = { memberId: 'partner', teamName: 'Team 006', limits: { active: 20, ir: 2, taxi: 3 },
         roster: Array.from({ length: 20 + excess }, (_, i) => ({ playerId: String(i), name: `Player ${i}`, location: 'active' })), drops: [], moves: [], error: null }
     await act(async () => { screen = create(React.createElement(TradeRosterPreviewList, { teams: [team] })) })
-    expect(texts()).toContain(`Regular: ${20 + excess}/20`)
+    expect(texts()).toContain(`Team 006: ${20 + excess}/20 · IR 0/2 · Taxi 0/3`)
     if (excess) expect(texts()).toContain(`Team 006 must drop ${excess} ${excess === 1 ? 'player' : 'players'} to accept.`)
     else expect(texts().join(' ')).not.toContain('must drop')
 })
@@ -35,7 +35,7 @@ it('keeps complete asset values and range on one line', async () => {
     const analysis = { strategy: 'balanced', confidence: 1, teams: [], assets: [{ kind: 'player', assetId: 'player', label: 'Player', values: { balanced: 348 }, components: { shortTermPoints: 9.3, longTermValue: 419 }, ranges: { balanced: { low: 306, high: 390 } }, confidence: 1 }], sources: [], missingInputs: [], assumptions: [] } as unknown as DynastyTradeAnalysis
     await act(async () => { screen = create(React.createElement(TradeAnalysisSummary, { analysis, participantName: String })) })
     expect(texts()).toContain('Value 348 · Now 9.3 · Long 419 · 306–390')
-    expect(texts().join(' ')).not.toContain('Sources and limits')
+    for (const caption of ['Estimated trade value', 'Input quality', 'Asset details', 'Sources and limits']) expect(texts().join(' ')).not.toContain(caption)
     expect(texts().join(' ')).not.toContain('Missing:')
     for (const node of screen.root.findAllByType('Text' as React.ElementType).filter(node => /Value 348|Range 306/.test(React.Children.toArray(node.props.children).join('')))) expect(node.props.numberOfLines).toBe(1)
 })

@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
-import { colors, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, foundation, layout, radii, spacing, textStyles } from '@/constants/tokens'
 import { usePageMetrics } from '@/components/ui/Page'
 import { Button } from '@/components/ui/Button'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -30,7 +30,7 @@ import { saveTradeAnalyzerDraft } from '@/lib/trade-analyzer-session'
 import type { Trade } from '@/lib/trades'
 import type { TradeComposerMember } from '@/lib/trade-ui-model'
 
-const BUILDER_WIDTH = 900
+const BUILDER_WIDTH = componentTokens.tradeAnalyzer.builderWidth
 
 type Snapshot = {
     analysis: DynastyTradeAnalysis
@@ -191,12 +191,12 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         participantCountReady &&
         composer.participantIds.every((memberId) => twoTeamInvolved.has(memberId))
     const canMakeOffer = !historical && networkAvailable && !isTradingClosed(currentLeague) && composer.selectedAssetsAvailable && routeIsComplete
-    const offerHelp = !online ? 'Connect to make an offer.'
-        : networkUnavailable ? 'Retry loading league teams to make an offer.'
-        : isTradingClosed(currentLeague) ? 'Trades are locked for this league.'
-            : !composer.assetsReady ? 'Trade assets are still loading.'
-                : !composer.selectedAssetsAvailable ? 'Remove unavailable routes before making an offer.'
-                : !routeIsComplete ? 'Add at least one asset from or to every selected team.'
+    const offerHelp = !online ? 'Offline'
+        : networkUnavailable ? 'Reload teams.'
+        : isTradingClosed(currentLeague) ? 'Trades locked.'
+            : !composer.assetsReady ? 'Loading assets.'
+                : !composer.selectedAssetsAvailable ? 'Remove unavailable assets.'
+                : !routeIsComplete ? 'Add assets for each team.'
                     : null
     const makeOffer = useCallback(() => {
         if (!canMakeOffer) return
@@ -245,7 +245,6 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
 
     const verdict = (
         <View style={styles.verdict}>
-            {historical ? <Text style={styles.copy}>Current values for the original trade terms. The saved estimate stays unchanged.</Text> : null}
             {error || composer.rosterError || networkUnavailable ? <View style={styles.analysisError}>
                 <Text accessibilityRole="alert" style={styles.offline}>{error || composer.rosterError || 'Could not load league teams.'}</Text>
                 <Pressable accessibilityRole="button" accessibilityLabel="Retry trade analysis"
@@ -274,10 +273,10 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, sideBySide && styles.contentWide]} keyboardShouldPersistTaps="handled">
             <View style={[styles.main, sideBySide && styles.mainWide]}>
                 <View style={styles.intro}>
-                    {!online ? <Text style={styles.offline}>Offline: the last safe result stays visible. Offer creation is disabled.</Text>
+                    {!online ? <Text style={styles.offline}>Offline</Text>
                         : networkUnavailable ? (
                             <View>
-                                <Text style={styles.offline}>Could not load league teams. Offer creation is disabled.</Text>
+                                <Text style={styles.offline}>Could not load teams.</Text>
                                 <Pressable onPress={() => setMembersRetryToken((value) => value + 1)} accessibilityRole="button"
                                     accessibilityLabel="Retry loading league teams" style={styles.cancel}>
                                     <Text style={styles.cancelText}>Retry</Text>
@@ -332,7 +331,7 @@ const styles = StyleSheet.create({
     mainWide: { flexShrink: 0, alignSelf: 'flex-start' },
     rail: { width: layout.railWidth, paddingTop: spacing.xl },
     // Keeps the verdict in view while the builder scrolls (web only).
-    railSticky: { position: 'sticky', top: 0 } as unknown as ViewStyle,
+    railSticky: { position: 'sticky', top: spacing.none } as unknown as ViewStyle,
     verdict: { gap: spacing.md },
     analysisError: { paddingHorizontal: spacing.xl, gap: spacing.sm },
     analysisActions: { flexDirection: 'row', justifyContent: 'space-between', padding: spacing.lg, gap: spacing.md },
@@ -340,7 +339,7 @@ const styles = StyleSheet.create({
     copy: { ...textStyles.body },
     offline: { fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.warningDark },
     modeRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.xl, paddingTop: spacing.lg },
-    modeButton: { minHeight: controlSize.minTouch, minWidth: 96, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderLight },
+    modeButton: { minHeight: controlSize.minTouch, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md, borderWidth: borderWidth.thin, borderColor: colors.borderLight },
     modeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
     teamTrack: { flexGrow: 0, minHeight: foundation.minTouch },
     teamChips: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
@@ -353,6 +352,6 @@ const styles = StyleSheet.create({
     makeOfferText: { color: colors.textWhite, fontSize: fontSize.md, fontWeight: fontWeight.bold },
     disabled: { opacity: 0.45 },
     offerHelp: { ...textStyles.meta, textAlign: 'center' },
-    cancel: { minHeight: controlSize.button.md.height, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
+    cancel: { minHeight: controlSize.button.md.height, minWidth: componentTokens.tradeAnalyzer.teamTabWidth, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bgMuted, borderRadius: radii.md },
     cancelText: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textSecondary },
 })

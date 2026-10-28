@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/Badge'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef } from 'react'
 import { Platform, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native'
 import { Pressable } from 'react-native'
-import { colors, componentTokens, fontWeight, motion, spacing, webOverlays } from '@/constants/tokens'
+import { colors, componentTokens, fontWeight, motion, spacing } from '@/constants/tokens'
 import { nextRovingIndex } from '@/components/ui/rovingFocus'
 import { useEdgeFade } from '@/components/ui/useEdgeFade'
 import { scheduleWebFocusRecovery, shouldRecoverFocus } from '@/components/ui/webFocus'
@@ -178,7 +178,7 @@ export function SegmentedControl<T extends string>({
                 </Text>
                 {opt.reserveBadge || typeof opt.badge === 'number' && opt.badge > 0 ? (
                     <Badge size="count" variant="solid" label={opt.badge}
-                        color={tabs ? colors.primary : active ? webOverlays.navBadgeActive : colors.bgCard}
+                        color={tabs || active ? colors.primary : colors.bgCard}
                         textColor={tabs || active ? colors.textWhite : colors.textSecondary}
                         style={[opt.reserveBadge && { minWidth: 20 }, opt.reserveBadge && typeof opt.badge !== 'number' && { opacity: 0 }]}
                     />
@@ -247,14 +247,14 @@ const styles = StyleSheet.create({
     },
     equalSegment: { flex: 1, minWidth: 0, paddingHorizontal: spacing.sm },
     segmentActive: {
-        backgroundColor: colors.primary,
+        backgroundColor: colors.primaryLight,
     },
     segmentHover: { backgroundColor: colors.bgSubtle },
     pressed: { opacity: motion.pressedOpacity },
     label: {
         ...componentTokens.segmentedControl.pillLabel,
     },
-    labelActive: { color: colors.textWhite },
+    labelActive: { color: colors.primaryDark, fontWeight: fontWeight.bold },
     tabTrack: { gap: spacing.xs },
     tab: {
         flexDirection: 'row',
@@ -264,13 +264,10 @@ const styles = StyleSheet.create({
         minHeight: componentTokens.segmentedControl.minHeight,
         minWidth: componentTokens.segmentedControl.minWidth,
         paddingHorizontal: componentTokens.segmentedControl.paddingHorizontal,
-        borderTopWidth: componentTokens.segmentedControl.underlineWidth,
-        borderTopColor: 'transparent',
-        borderBottomWidth: componentTokens.segmentedControl.underlineWidth,
-        borderBottomColor: 'transparent',
+        borderRadius: componentTokens.segmentedControl.radius,
     },
-    tabActive: { borderBottomColor: colors.primary },
-    tabHover: { borderBottomColor: colors.borderLight },
+    tabActive: { backgroundColor: colors.primaryLight },
+    tabHover: { backgroundColor: colors.bgSubtle },
     tabLabel: {
         ...componentTokens.segmentedControl.tabLabel,
     },

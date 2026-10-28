@@ -4,7 +4,7 @@ import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } 
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FlashList } from '@shopify/flash-list'
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import {
     Pressable,
     ScrollView,
@@ -28,9 +28,8 @@ import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { API_URL } from '@/lib/shared/api'
 import { getLeagueMembers } from '@/lib/league'
-import { colors, fontSize, fontWeight, controlSize, layout, radii, spacing, table, textStyles } from '@/constants/tokens'
+import { colors, fontSize, fontWeight, controlSize, layout, radii, spacing, table, textStyles, lineHeight } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { readableSourceName } from '@/lib/source-names'
 
 type DynastySection = 'rankings' | 'news'
 const EMPTY_NEWS: DynastyNewsItem[] = []
@@ -109,7 +108,7 @@ function RankingRowImpl({
                 <View style={styles.draftBadge}><MaterialIcons name="style" size={controlSize.icon.md} color={colors.primaryDark} /></View>
                 <View style={styles.rankMain}><Text style={styles.playerName} numberOfLines={1}>{player.displayName}</Text><Text style={styles.valueText}>Value {valueText}</Text><Text style={styles.decisionMeta}>{support}</Text></View>
             </> : <PlayerRowContent name={player.displayName} nbaId={player.nbaId} headshotUrl={playerAvatarUri(player)} team={player.sourceTeam ?? player.nbaTeam}
-                positions={positions} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus}
+                positions={positions} age={player.age} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus}
                 stats={`Value ${valueText}${support ? ` · ${support}` : ''}`} />}
 
         </Pressable>
@@ -169,18 +168,6 @@ export function DynastyHub({ section }: { section: DynastySection }) {
     const activeNews = feed === 'my-news' ? myNews : news
     const activeNewsHydrated = activeNews.length > 0 || (!newsLoading && !newsError && newsFeedReady(newsData, feed))
     const emptyNewsMessage = feed === 'my-news' ? 'No news for your players.' : 'No dynasty news yet.'
-    const visibleSync = rankings.players.find((player) => Date.parse(player.rankFetchedAt) > 0)?.rankFetchedAt ?? null
-    // A search that matches nothing has no rows to read the date from; keep the last one seen.
-    const [knownSync, setKnownSync] = useState<string | null>(null)
-    useEffect(() => {
-        if (visibleSync && (!knownSync || Date.parse(visibleSync) > Date.parse(knownSync))) setKnownSync(visibleSync)
-    }, [visibleSync, knownSync])
-    const latestSync = visibleSync ?? knownSync
-    const sourceNames = [...new Set(rankings.players.flatMap((player) =>
-        player.decisionSources?.length
-            ? player.decisionSources.map((source) => readableSourceName(source.name))
-            : player.rankSource ? [readableSourceName(player.rankSource)] : [],
-    ))]
     const rankingFooter = (
         <View>
             {rankings.loadMoreError ? (
@@ -189,11 +176,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                     <Text style={styles.footerRetryText}>Retry rankings</Text>
                 </Pressable>
             ) : null}
-            {rankings.players.length > 0 ? (
-                <Text style={styles.sourceFootnote}>
-                    {[sourceNames.length ? `Sources: ${sourceNames.join(', ')}` : null, latestSync ? `Updated ${formatDate(latestSync)}` : null].filter(Boolean).join(' · ')}
-                </Text>
-            ) : null}
+
         </View>
     )
 
@@ -251,9 +234,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                     ? null
                                     : rankings.query.trim()
                                         ? <EmptyState message={`No ranked players match "${rankings.query.trim()}".`} actionLabel="Clear search" onAction={() => rankings.setQuery('')} fullScreen={false} />
-                                    : latestSync
-                                        ? <EmptyState message="No ranked players in this view." fullScreen={false} />
-                                        : <EmptyState message="Rankings haven't synced yet." description="They refresh daily from the published dynasty ranks. Check back after the next sync." fullScreen={false} />}
+                                    : <EmptyState message="No ranked players in this view." fullScreen={false} />}
                                 ListFooterComponent={rankingFooter}
                                 onEndReached={rankings.loadMore}
                                 onEndReachedThreshold={0.4}
@@ -386,7 +367,7 @@ const styles = StyleSheet.create({
         maxWidth: 520,
         textAlign: 'center',
         fontSize: fontSize.sm,
-        lineHeight: 20,
+        lineHeight: lineHeight.control,
         color: colors.textMuted,
     },
     retryButton: {

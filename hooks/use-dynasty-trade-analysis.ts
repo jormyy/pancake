@@ -1,5 +1,5 @@
-import { readScreenView } from '@/lib/cache/screen-cache'
-import { screenScope } from '@/lib/cache/screen-scope'
+import { apiPost } from '@/lib/shared/api'
+import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { dynastyAnalyzerRouteSignature, dynastyScoringSignature } from '@/lib/dynasty-decisions'
@@ -71,7 +71,15 @@ export function useDynastyTradeAnalysis(input: Input): {
         if (!active) return
         let cancelled = false
         const timer = setTimeout(() => {
-            const requested = readScreenView<{ analysis?: TradeRevaluation | null; quote?: TradeEstimateQuote }>(screenScope('trade-analysis', input.leagueId, input.memberId, input.tradeId ? { tradeId: input.tradeId } : { items: itemsRef.current }), { force: refresh > 0 }).then(view => { const value = view.quote ?? view.analysis; if (!value) throw new Error('Trade estimate unavailable. Try again after the next update.'); if (Date.parse(value.expiresAt) <= Date.now()) throw new Error('Trade estimate expired. Try again.'); return value })
+            const body = { leagueId: input.leagueId, memberId: input.memberId }
+            const requested = (input.tradeId
+                ? apiPost<{ revaluation: TradeRevaluation }>(`/trades/${input.tradeId}/revalue`, body, { expectedUserId: sessionOwner() ?? undefined }).then(response => response.revaluation)
+                : apiPost<{ quote: TradeEstimateQuote }>('/trades/estimate', { ...body, items: itemsRef.current }, { expectedUserId: sessionOwner() ?? undefined }).then(response => response.quote)
+            ).then(value => {
+                if (!value) throw new Error('Trade estimate unavailable. Try again after the next update.')
+                if (Date.parse(value.expiresAt) <= Date.now()) throw new Error('Trade estimate expired. Try again.')
+                return value
+            })
             void requested.then(value => {
                 if (cancelled || sequence.current !== request || currentScope.current !== scope) return
                 setResult({ scope, value, error: null })

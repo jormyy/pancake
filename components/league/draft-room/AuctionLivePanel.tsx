@@ -3,7 +3,7 @@ import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 
 import { MotionPressable } from '@/components/Motion'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints, tracking } from '@/constants/tokens'
 import { draftAgeLabel, draftEventTime } from '@/lib/draft-display'
 import { formatCountdown } from '@/lib/format'
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
     bidRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     bidInfo: { gap: spacing.xs },
     bidAmount: { fontSize: fontSize['4xl'], fontFamily: fontFamily.display, fontWeight: fontWeight.bold,
-        color: colors.primaryDark, letterSpacing: 0 },
+        color: colors.primaryDark, letterSpacing: tracking.none },
     bidAmountLeading: { color: colors.successDark },
     bidLeader: { fontSize: fontSize.sm, color: colors.textMuted },
     bidLeaderLeading: { color: colors.successDark, fontWeight: fontWeight.bold, backgroundColor: colors.successLight,
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     countdownTextUrgent: { color: colors.dangerDark },
     bidInputRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md },
     bidStepGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flexShrink: 0 },
-    bidStep: { width: 44, height: controlSize.minTouch, borderRadius: 22, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
+    bidStep: { width: 44, height: controlSize.minTouch, borderRadius: radii.full, borderCurve: 'continuous', backgroundColor: colors.bgMuted,
         justifyContent: 'center', alignItems: 'center' },
     bidStepText: { fontSize: fontSize.xl, fontWeight: fontWeight.semibold, color: colors.textSecondary },
     bidAmountInput: { fontSize: fontSize['2lg'], fontWeight: fontWeight.extrabold, width: 84, height: controlSize.minTouch,

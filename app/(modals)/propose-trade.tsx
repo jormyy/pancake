@@ -585,8 +585,11 @@ export default function ProposeTradeScreen() {
 
     if (analyzing) return <PageFrame style={styles.container}>
         <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
-            actions={<Button title="Review" size="sm" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
-                accessibilityLabel="Review trade proposal" />} />
+            actions={<>
+                <Button title="Edit assets" size="sm" variant="secondary" onPress={() => setAnalyzing(false)} />
+                <Button title="Review" size="sm" disabled={!canSubmit} onPress={() => { setAnalyzing(false); setReviewing(true) }}
+                    accessibilityLabel="Review trade proposal" />
+            </>} />
         <DeferredContent ready={!tradeAnalysis.loading} style={styles.scrollRegion}>
             <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                 {verdict}
@@ -623,6 +626,7 @@ export default function ProposeTradeScreen() {
                 <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
                     <DeferredContent ready={reviewReady}>
                     <View style={styles.reviewColumn}>
+                        <Button title="Edit assets" size="sm" variant="secondary" onPress={() => setReviewing(false)} />
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
                         {currentLeague ? <TradeRosterPreviewList teams={previewTradeRosters(

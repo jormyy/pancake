@@ -11,7 +11,7 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { DaySelector } from '@/components/DaySelector'
 
 
-import { colors, componentTokens, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, fontWeight, layout, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { useLeagueContext } from '@/contexts/league-context'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
 import { useAuth } from '@/hooks/use-auth'
@@ -576,9 +576,9 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
               ? 'Could not load lineup.'
               : !snapshotScope && membershipValidated ? 'No active league.' : 'No active lineup yet.'
         return (
-            <DeferredContent ready={!lineupLoading} fallback={<LineupFrame inline={inline}><PageHeader compact title="Lineup" onBack={inline ? undefined : () => back()} backLabel="Close lineup" /></LineupFrame>}>
+            <DeferredContent ready={!lineupLoading} fallback={<LineupFrame inline={inline}>{!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" /> : null}</LineupFrame>}>
             <LineupFrame inline={inline}>
-                <PageHeader compact title="Lineup" onBack={inline ? undefined : () => back()} backLabel="Close lineup" />
+                {!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" /> : null}
                 <View style={[styles.empty, { minHeight: 320 }]} aria-busy={lineupLoading} accessibilityState={{ busy: lineupLoading }}>
                     <Text style={styles.emptyText}>{emptyMessage}</Text>
                     {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
@@ -603,12 +603,12 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     return (
         <DeferredContent ready={(!lineupLoading && matchingDay && gamesReady && (!preselectedKey || preselectedKeyRef.current === preselectedKey || !lineupRefreshing)) || Boolean(lineupError)}>
         <LineupFrame inline={inline}>
-            <PageHeader
+            {!inline ? <PageHeader
                 title={`Week ${visibleCtx.weekNumber} lineup`}
-                onBack={inline ? undefined : () => back()}
+                onBack={() => back()}
                 backLabel="Close lineup"
                 compact
-            />
+            /> : null}
 
             <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <LineupControls
@@ -804,7 +804,7 @@ const styles = StyleSheet.create({
     errorRetryButtonText: { fontSize: fontSize.sm, color: colors.dangerDark, fontWeight: fontWeight.bold },
 
     scroller: { flex: 1, minHeight: 0 },
-    scroll: { paddingTop: 0, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
+    scroll: { paddingTop: spacing.none, paddingBottom: spacing.lg, gap: spacing.md, width: '100%', maxWidth: layout.lineupMaxWidth, alignSelf: 'center' },
     scrollWide: { maxWidth: 2 * layout.lineupMaxWidth },
     columns: { gap: spacing.md },
     columnsWide: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing['3xl'] },
@@ -812,7 +812,7 @@ const styles = StyleSheet.create({
     column: { minWidth: 0 },
     columnWide: { flex: 1 },
 
-    firstSectionLabel: { marginBottom: 0 },
+    firstSectionLabel: { marginBottom: spacing.none },
 
     card: {
         backgroundColor: colors.bgCard,
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
         fontSize: fontSize['2xs'],
         fontWeight: fontWeight.extrabold,
         color: colors.successDark,
-        letterSpacing: 0.5,
+        letterSpacing: tracking.label,
     },
     benchEmpty: { fontSize: fontSize.sm, color: colors.textPlaceholder, fontStyle: 'italic' },
 

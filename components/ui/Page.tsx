@@ -62,7 +62,7 @@ export function Page({
  * The back control for screens opened on top of a tab. The installed iPhone
  * app has no back swipe, so every such screen shows one in the same place.
  */
-export function BackButton({ onPress, label = 'Back' }: { onPress: () => void; label?: string }) {
+export function BackButton({ onPress, label = 'Back', icon = 'arrow-back' }: { onPress: () => void; label?: string; icon?: 'arrow-back' | 'close' }) {
     return (
         <Pressable
             onPress={onPress}
@@ -70,7 +70,7 @@ export function BackButton({ onPress, label = 'Back' }: { onPress: () => void; l
             accessibilityRole="button"
             accessibilityLabel={label}
         >
-            <MaterialIcons name="arrow-back" size={controlSize.icon.lg} color={colors.textPrimary} />
+            <MaterialIcons name={icon} size={controlSize.icon.lg} color={colors.textPrimary} />
         </Pressable>
     )
 }
@@ -105,14 +105,17 @@ export function PageHeader({
 }) {
     const { padX } = usePageMetrics()
     const small = variant ? variant === 'compact' : compact
+    const hideTitle = Boolean(title && onBack && !tabs)
+    if (hideTitle && !actions && Platform.OS === 'web') return titleIsPageHeading ? <Text style={srOnly} role="heading" aria-level={1}>{title}</Text> : null
     const headingProps = titleIsPageHeading
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
         <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, small && styles.headerCompact, { paddingHorizontal: padX }]}>
-            {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={backLabel} /></View> : null}
+            {hideTitle && titleIsPageHeading ? <Text style={srOnly} {...headingProps}>{title}</Text> : null}
+            {onBack && Platform.OS !== 'web' ? <View style={styles.headerBack}><BackButton onPress={onBack} label={hideTitle ? 'Close' : backLabel} icon={hideTitle ? 'close' : 'arrow-back'} /></View> : null}
             <View style={styles.headerMain}>
-                {tabs ?? (title ? (
+                {tabs ?? (title && !hideTitle ? (
                     <>
                         <Text style={[componentTokens.pageHeader.standard.title, small && styles.titleCompact]} {...headingProps}>{title}</Text>
                         {meta || reserveMeta ? <Text style={[textStyles.meta, { minHeight: textStyles.meta.lineHeight }]}>{meta ?? ''}</Text> : null}

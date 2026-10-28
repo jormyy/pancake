@@ -7,7 +7,7 @@ BEGIN
     UNION
     SELECT item.player_id FROM public.trade_items item
     JOIN public.trades trade ON trade.id=item.trade_id AND trade.league_id=NEW.league_id
-    WHERE trade.id=NEW.related_trade_id AND NEW.event_type='trade_completed'
+    WHERE trade.id=NEW.related_trade_id AND NEW.event_type IN ('trade_offered','trade_countered','trade_edited','trade_accepted','trade_rejected','trade_withdrawn','trade_expired','trade_vetoed','trade_completed')
     UNION
     SELECT unnest(participant.drop_player_ids) FROM public.trade_participants participant
     JOIN public.trades trade ON trade.id=participant.trade_id AND trade.league_id=NEW.league_id

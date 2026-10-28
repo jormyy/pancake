@@ -15,7 +15,7 @@ vi.mock('@/lib/scoring', () => ({ computeLiveFantasyPoints: () => 0 }))
 let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
-it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Jackson', 'IOS67'], ['Shai Gilgeous-Alexander', 'Gilgeous-A', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
+it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Jackson', 'IOS67'], ['Shai Gilgeous-Alexander', 'Gilgeous-Alexander', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
     await act(async () => {
         screen = create(React.createElement(MatchupRow, {
             myPlayer: { rosterPlayerId: 'roster', playerId: 'player', displayName, position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId },

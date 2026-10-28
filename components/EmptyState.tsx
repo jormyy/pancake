@@ -1,7 +1,7 @@
 import { ComponentProps } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, lineHeight } from '@/constants/tokens'
 import { Button } from '@/components/ui'
 import { PromptFrame } from '@/components/ui/PromptFrame'
 
@@ -85,12 +85,12 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
         fontSize: fontSize.md,
         textAlign: 'center',
-        lineHeight: 20,
+        lineHeight: lineHeight.control,
         maxWidth: 320,
     },
     reservedTitle: { width: '100%' },
     reservedDescription: { width: '100%', maxWidth: 320 },
     copyMeasure: { opacity: 0 },
-    copyOverlay: { position: 'absolute', top: 0, left: 0, right: 0 },
+    copyOverlay: { position: 'absolute', top: spacing.none, left: spacing.none, right: spacing.none },
     action: { marginTop: spacing.sm },
 })

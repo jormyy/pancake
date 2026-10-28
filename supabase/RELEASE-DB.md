@@ -3,9 +3,10 @@
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
-Production currently stops at migration `20261029000800`.
+Production currently stops at migration `20261111000100`, as reported by the release operator.
+The pinned predecessor is release 1 at `1e62824e43044d30007b9601a8a3993c576b6a7e`, using the orchestrator-supplied live bundle digest.
 Release 1 reaches production on 2026-10-27 from frontend commit `1e62824e43044d30007b9601a8a3993c576b6a7e`.
-Apply release 2 through repository head `20261111000100`, for 589 migrations.
+Apply release 2 through repository head `20261113000200`, for 593 migrations.
 Keep published migrations unchanged.
 
 | Migration | Change |
@@ -35,6 +36,10 @@ Keep published migrations unchanged.
 | `20261109000900_dynamic_provider_policy.sql` | Derives provider history windows from policy and preserves career eligibility. |
 | `20261110000100_screen_view_clients.sql` | Adds complete server views for client screens. |
 | `20261111000100_screen_publication_versions.sql` | Publishes screen refresh versions. |
+| `20261112000100_rookie_ppg_tiebreak.sql` | Gives tied rookie records the higher points-per-game pick first. |
+| `20261112000200_trade_activity_transitions.sql` | Records every trade transition with player identity and preserves feed privacy. |
+| `20261113000100_bounded_notification_claim.sql` | Bounds notification checks before stale and preference evaluation. |
+| `20261113000200_worker_lease_phases.sql` | Gives workers five-minute leases and avoids renewal lock waits. |
 
 Freeze the reviewed source and record the current frontend and Edge artifacts before release.
 Refresh migration-range and database security attestations for this exact candidate.
@@ -42,18 +47,35 @@ Refresh migration-range and database security attestations for this exact candid
 
 Deploy these changed Edge functions after the database upgrade and before the frontend merge:
 
-- `api`: Screen views, league versions, request receipts, settings writes, and timing beacons.
-- `dispatcher`: Leased delayed work and response cleanup.
-- `refresh-views`: Stored screen result refreshes.
-- `backfill`: Provider history policy and shared worker handling.
-- `close-expired-nominations`, `lineup-optimizer`, `live-poll`, `matchup-forecast`, `process-trades`, and `process-waivers`: Shared worker leases and outcomes.
-- `season-boundary`, `sync-draft-order`, `sync-player-injuries`, `sync-players`, `sync-projections`, and `sync-rankings`: Shared worker leases and outcomes.
-- `sync-schedule`, `sync-scores`, `sync-sleeper-projections`, `sync-stats`, and `verify`: Shared worker leases and outcomes.
+- `api`
+- `backfill`
+- `close-expired-nominations`
+- `dispatcher`
+- `lineup-optimizer`
+- `live-poll`
+- `matchup-forecast`
+- `process-trades`
+- `process-waivers`
+- `refresh-views`
+- `season-boundary`
+- `sync-draft-order`
+- `sync-player-injuries`
+- `sync-players`
+- `sync-projections`
+- `sync-rankings`
+- `sync-schedule`
+- `sync-scores`
+- `sync-sleeper-projections`
+- `sync-stats`
+- `verify`
 
-Changes to `_shared/serve.ts` and `_shared/syncRuns.ts` affect these bundled handlers.
+The worker timeout repair changes shared invocation code.
+Redeploy every function in this list after the database upgrade.
+
+This list uses the release runner import graph against local `origin/main`.
+It includes handlers that import changed shared code.
 `_shared` is not a deployable function.
-Use the release runner's import graph to confirm the complete changed-function set.
-A directory-only diff misses functions that import changed shared code.
+Apply the `20261112` and `20261113` migrations before these handlers and the release 2 frontend.
 
 Apply each dependency before its consumer:
 
@@ -240,73 +262,52 @@ DECLARE
   v_limit int := LEAST(GREATEST(COALESCE(p_limit, 100), 0), 200);
   v_lease_seconds int := LEAST(GREATEST(COALESCE(p_lease_seconds, 60), 15), 600);
 BEGIN
-  WITH deleted AS (
-    SELECT queued.id FROM public.notification_outbox queued
-    JOIN public.league_members member ON member.id=queued.member_id
-    JOIN public.leagues league ON league.id=member.league_id AND league.deleted_at IS NOT NULL
-    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL AND queued.suppressed_at IS NULL
-      AND (queued.claimed_at IS NULL OR queued.claimed_at<=now()-make_interval(secs=>v_lease_seconds))
-    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
-  )
-  UPDATE public.notification_outbox queued SET suppressed_at=clock_timestamp(),suppression_reason='league_deleted',
-    claimed_at=NULL,claim_token=NULL FROM deleted WHERE queued.id=deleted.id;
-  WITH stale AS (
-    SELECT queued.id FROM public.notification_outbox queued
-    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
-      AND queued.suppressed_at IS NULL
-      AND queued.available_at <= clock_timestamp()
-      AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds))
-      AND private.notif_is_stale(queued.event_type,queued.data)
-    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
-  )
-  UPDATE public.notification_outbox queued SET suppressed_at = clock_timestamp(), suppression_reason = 'stale',
-    claimed_at = NULL, claim_token = NULL FROM stale WHERE queued.id = stale.id;
-  WITH disabled AS (
-    SELECT queued.id FROM public.notification_outbox queued
-    JOIN public.league_members member ON member.id = queued.member_id
-    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
-      AND queued.suppressed_at IS NULL
-      AND queued.available_at <= now()
-      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
-      AND (queued.claimed_at IS NULL OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds))
-      AND NOT private.notif_preference_enabled(member.user_id,queued.event_type,queued.category)
-    ORDER BY queued.available_at,queued.id LIMIT v_limit FOR UPDATE OF queued SKIP LOCKED
-  )
-  UPDATE public.notification_outbox queued SET suppressed_at = now(), suppression_reason = 'preferences_disabled',
-    claimed_at = NULL, claim_token = NULL FROM disabled WHERE queued.id = disabled.id;
   RETURN QUERY
-  WITH candidates AS (
-    SELECT queued.id
-      FROM notification_outbox AS queued
-     WHERE queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
-       AND queued.suppressed_at IS NULL
-       AND EXISTS (SELECT 1 FROM public.league_members member JOIN public.leagues league ON league.id=member.league_id
-         WHERE member.id=queued.member_id AND league.deleted_at IS NULL)
-       AND NOT private.notif_is_stale(queued.event_type,queued.data)
-       AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
-       AND private.notif_preference_enabled((SELECT member.user_id FROM public.league_members member WHERE member.id = queued.member_id),queued.event_type,queued.category)
-       AND queued.delivered_at IS NULL
-       AND queued.dead_lettered_at IS NULL
-       AND queued.available_at <= now()
-       AND (
-         queued.claimed_at IS NULL
-         OR queued.claimed_at <= now() - make_interval(secs => v_lease_seconds)
-       )
-     ORDER BY queued.available_at, queued.created_at, queued.id
-     LIMIT v_limit
-     FOR UPDATE SKIP LOCKED
-  ), claimed AS (
-    UPDATE notification_outbox AS queued
-       SET claimed_at = now(),
-           claim_token = gen_random_uuid()
-      FROM candidates
-     WHERE queued.id = candidates.id
-     RETURNING queued.id, queued.claim_token, queued.member_id, queued.title,
-       queued.body, queued.data || jsonb_build_object('notificationEvent',queued.event_type,'outboxId',queued.id) AS data, queued.category
+  WITH pending AS MATERIALIZED (
+    SELECT queued.id, queued.member_id, queued.event_type, queued.data, queued.category,
+      queued.available_at, queued.created_at, member.user_id, league.deleted_at
+    FROM public.notification_outbox queued
+    JOIN public.league_members member ON member.id=queued.member_id
+    JOIN public.leagues league ON league.id=member.league_id
+    WHERE queued.delivered_at IS NULL AND queued.dead_lettered_at IS NULL
+      AND queued.suppressed_at IS NULL
+      AND queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
+      AND queued.available_at<=now()
+      AND (queued.claimed_at IS NULL OR queued.claimed_at<=now()-make_interval(secs=>v_lease_seconds))
+    ORDER BY queued.available_at,queued.created_at,queued.id
+    LIMIT CASE WHEN v_limit=0 THEN 0 ELSE GREATEST(v_limit,100) END
+    FOR UPDATE OF queued SKIP LOCKED
+  ), stale AS MATERIALIZED (
+    SELECT pending.*, CASE WHEN pending.deleted_at IS NOT NULL THEN 'league_deleted'
+      WHEN private.notif_is_stale(pending.event_type,pending.data) THEN 'stale' END AS reason
+    FROM pending
+  ), deferred AS MATERIALIZED (
+    SELECT stale.*, CASE WHEN stale.reason IS NULL THEN private.notif_draft_deferred_until(stale.event_type,stale.data) END AS resume_at
+    FROM stale
+  ), classified AS MATERIALIZED (
+    SELECT deferred.*, CASE WHEN deferred.reason IS NOT NULL THEN deferred.reason
+      WHEN deferred.resume_at IS NULL AND NOT private.notif_preference_enabled(deferred.user_id,deferred.event_type,deferred.category)
+        THEN 'preferences_disabled' END AS suppression
+    FROM deferred
+  ), delivery AS MATERIALIZED (
+    SELECT classified.id FROM classified WHERE classified.suppression IS NULL AND classified.resume_at IS NULL
+    ORDER BY classified.available_at,classified.created_at,classified.id LIMIT v_limit
+  ), changed AS (
+    UPDATE public.notification_outbox queued SET
+      suppressed_at=CASE WHEN classified.suppression IS NOT NULL THEN clock_timestamp() ELSE queued.suppressed_at END,
+      suppression_reason=COALESCE(classified.suppression,queued.suppression_reason),
+      available_at=CASE WHEN classified.resume_at IS NOT NULL AND classified.suppression IS NULL
+        THEN LEAST(classified.resume_at,clock_timestamp()+interval '1 minute') ELSE queued.available_at END,
+      claimed_at=CASE WHEN delivery.id IS NOT NULL THEN clock_timestamp() ELSE NULL END,
+      claim_token=CASE WHEN delivery.id IS NOT NULL THEN gen_random_uuid() ELSE NULL END
+    FROM classified LEFT JOIN delivery ON delivery.id=classified.id
+    WHERE queued.id=classified.id AND (classified.suppression IS NOT NULL OR classified.resume_at IS NOT NULL OR delivery.id IS NOT NULL)
+    RETURNING queued.*
   )
-  SELECT claimed.id, claimed.claim_token, claimed.member_id, claimed.title,
-    claimed.body, claimed.data, claimed.category
-  FROM claimed;
+  SELECT changed.id,changed.claim_token,changed.member_id,changed.title,changed.body,
+    changed.data||jsonb_build_object('notificationEvent',changed.event_type,'outboxId',changed.id),changed.category
+  FROM changed JOIN delivery ON delivery.id=changed.id
+  ORDER BY changed.available_at,changed.created_at,changed.id;
 END;
 $$;
 

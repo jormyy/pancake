@@ -5,7 +5,7 @@ import { controlSize, radii } from '@/constants/tokens'
 
 export function ClaimsPill({ count }: { count: number }) {
     const { push } = useRouter()
-    return <Button title={String(count)} size="inline" variant="outline" style={styles.pill}
+    return <Button title={`${count} ${count === 1 ? 'Waiver' : 'Waivers'}`} size="inline" variant="outline" style={styles.pill}
         accessibilityLabel={`${count} pending claims, open ${count > 0 ? 'Waivers' : 'Players'}`}
         onPress={() => push(count > 0 ? '/players?section=waivers' : '/players?section=players')} />
 }

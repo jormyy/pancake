@@ -1,17 +1,9 @@
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { etDate } from './common.mjs'
 import { expectedWinner } from './score-oracle.mjs'
 import { rookiePickOrder } from './official-outcomes.mjs'
 
-export function rookieOrder(members, standings, seed = null) {
-  return members.map(memberId => {
-    const latest = standings.filter(row => row.member_id === memberId).sort((a, b) => b.week_number - a.week_number)[0]
-    const games = Math.max(Number(latest?.wins ?? 0) + Number(latest?.losses ?? 0) + Number(latest?.ties ?? 0), 1)
-    const tie = seed ? createHash('md5').update(seed + memberId).digest('hex') : memberId
-    return { memberId, hasStandings: latest ? 1 : 0, rate: (Number(latest?.wins ?? 0) + 0.5 * Number(latest?.ties ?? 0)) / games, points: Number(latest?.points_for ?? 0) / games, tie }
-  }).sort((a, b) => b.hasStandings - a.hasStandings || a.rate - b.rate || a.points - b.points || a.tie.localeCompare(b.tie) || a.memberId.localeCompare(b.memberId)).map(row => row.memberId)
-}
+export { rookieOrder } from './official-outcomes.mjs'
 
 export function checkDraftOrder({ picks, assets, expectedOrder, rounds, orderType = 'linear' }) {
   assert.equal(picks.length, expectedOrder.length * rounds, 'Complete rookie draft slots')

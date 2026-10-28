@@ -10,6 +10,7 @@ import { readPwaRelease } from './e2e/pwa-update-release.mjs'
 const roots: string[] = []
 afterEach(async () => {
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
 })
 
@@ -66,4 +67,39 @@ it('requires an explicit verified predecessor for production builds', async () =
   const root = await exportRelease('a')
   vi.stubEnv('VERCEL_ENV', 'production')
   await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow(/pinned release-predecessor/)
+})
+
+
+it.each(['', 'development', 'preview'])('never fetches a pinned remote predecessor during %s local builds', async environment => {
+  const root = await exportRelease('local')
+  await writeFile(path.join(root, 'release-predecessor.json'), JSON.stringify({ url: 'https://predecessor.example.test', commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }))
+  vi.stubEnv('VERCEL_ENV', environment)
+  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', '0')
+  const fetch = vi.fn(async () => { throw new Error('Unexpected network request') })
+  vi.stubGlobal('fetch', fetch)
+  await expect(prepareReleaseCompatibility(root, undefined)).resolves.toBeNull()
+  expect(fetch).not.toHaveBeenCalled()
+})
+
+it.each(['production', 'opt-in'])('permits remote recovery only for %s', async mode => {
+  const root = await exportRelease('allowed')
+  await writeFile(path.join(root, 'release-predecessor.json'), JSON.stringify({ url: 'https://predecessor.example.test', commitSha: 'a'.repeat(40), bundleDigest: 'b'.repeat(64) }))
+  vi.stubEnv('VERCEL_ENV', mode === 'production' ? 'production' : 'preview')
+  vi.stubEnv('PANCAKE_FETCH_PREDECESSOR', mode === 'opt-in' ? '1' : '0')
+  const fetch = vi.fn(async () => new Response('{}', { status: 200 }))
+  vi.stubGlobal('fetch', fetch)
+  await expect(prepareReleaseCompatibility(root, undefined)).rejects.toThrow()
+  expect(fetch).toHaveBeenCalled()
+})
+
+it('uses a verified local predecessor without network access', async () => {
+  const previous = await exportRelease('previous')
+  await stampReleaseProvenance({ root: previous, commitSha: 'a'.repeat(40) })
+  const root = await exportRelease('current')
+  vi.stubEnv('VERCEL_ENV', 'preview')
+  vi.stubEnv('PANCAKE_PREVIOUS_RELEASE_ROOT', path.join(previous, 'dist'))
+  const fetch = vi.fn(async () => { throw new Error('Unexpected network request') })
+  vi.stubGlobal('fetch', fetch)
+  expect(await prepareReleaseCompatibility(root, undefined)).toMatchObject({ commitSha: 'a'.repeat(40) })
+  expect(fetch).not.toHaveBeenCalled()
 })

@@ -61,7 +61,8 @@ it('keeps a settled empty block available during refresh', async () => {
     let request!: Promise<boolean>
     await act(async () => { request = h.block.refresh() })
     expect(h.block.hasData).toBe(true)
-    expect(h.block.loading).toBe(true)
+    expect(h.block.loading).toBe(false)
+    expect(h.block.refreshing).toBe(true)
     expect(h.block.items).toEqual([])
     await act(async () => { next.resolve(blockPayload()); await request })
 })

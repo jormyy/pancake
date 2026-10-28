@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native'
 import type { Draft } from '@/lib/draft'
-import { controlSize, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
+import { controlSize, colors, fontSize, fontWeight, radii, spacing, lineHeight } from '@/constants/tokens'
 import { panelStyles } from '@/components/league/draftPanelStyles'
 
 const OPEN_DRAFT_STATUSES = new Set(['pending', 'in_progress', 'paused'])
@@ -147,14 +147,14 @@ const styles = StyleSheet.create({
     activeDraftCardCompact: {
         paddingHorizontal: spacing.lg,
         paddingVertical: spacing.xxs,
-        gap: 0,
+        gap: spacing.none,
     },
     activeDraftCompactTitle: {
         alignSelf: 'center',
         minWidth: 70,
         maxWidth: 96,
         fontSize: fontSize.sm,
-        lineHeight: 18,
+        lineHeight: lineHeight.body,
     },
     activeDraftCompactButton: {
         flex: 1,

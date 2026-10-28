@@ -1,3 +1,4 @@
+import { readScreenSection, saveScreenSection } from '@/lib/screen-section'
 import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { ScreenStatusScrollView as ScrollView, ScreenStatusOverlay, ScreenStatusProvider, useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
@@ -13,7 +14,6 @@ import { isTradingClosed } from '@/lib/league'
 import { type Trade } from '@/lib/trades'
 import { colors, controlSize, fontSize, layout, spacing, textStyles } from '@/constants/tokens'
 import { SegmentedControl, type SegmentOption } from '@/components/ui/SegmentedControl'
-import { ItemSeparator } from '@/components/ItemSeparator'
 import { Button, ErrorBanner, Page, PageHeader, usePageMetrics } from '@/components/ui'
 import { TradeDetailsPanel } from '@/components/trades/TradeDetailsPanel'
 import { tradeCardModel } from '@/components/trades/TradeCard'
@@ -74,8 +74,8 @@ function TradesScreen() {
     const leagueId = currentLeague?.id ?? ''
     const myTeamName = current?.team_name ?? ''
     const tradingClosed = isTradingClosed(currentLeague)
-    const { padX, usableWidth } = usePageMetrics()
-    const tab = normalizeTradeTab(params.tab)
+    const { compact, padX, usableWidth } = usePageMetrics()
+    const tab = normalizeTradeTab(params.tab ?? readScreenSection(user?.id, myMemberId, 'trades'))
     const openTradeId = Array.isArray(params.tradeId) ? params.tradeId[0] : params.tradeId
     const setOpenTradeId = useCallback((tradeId: string | null) => setParams({ tradeId: tradeId ?? undefined }), [setParams])
     const [analyzerTrade, setAnalyzerTrade] = useState<{
@@ -89,10 +89,11 @@ function TradesScreen() {
     }, [leagueId, myMemberId, user?.id])
     useEffect(() => { setAnalyzerTrade(null) }, [leagueId, myMemberId, user?.id])
     useEffect(() => {
-        const next = normalizeTradeTab(params.tab)
+        const next = normalizeTradeTab(params.tab ?? readScreenSection(user?.id, myMemberId, 'trades'))
+        saveScreenSection(user?.id, myMemberId, 'trades', next)
         setAnalyzerTrade(null)
         if (params.tab && params.tab !== next) setParams({ tab: next })
-    }, [params.tab, setParams])
+    }, [params.tab, setParams, user?.id, myMemberId])
     const ownedAnalyzerTrade = analyzerTrade?.userId === user?.id &&
         analyzerTrade?.memberId === myMemberId && analyzerTrade?.leagueId === leagueId
         ? analyzerTrade.trade : null
@@ -229,6 +230,7 @@ function TradesScreen() {
         { label: 'Offers', value: 'offers', badge: pendingInboxCount > 0 ? pendingInboxCount : undefined },
         { label: 'Block', value: 'block' },
         { label: 'History', value: 'history' },
+        { label: 'Analyzer', value: 'analyzer' },
     ]
     const activeResource = tradeScreenResource(tab)
     const activeError = activeResource === 'block' ? blockError || picksError
@@ -252,14 +254,16 @@ function TradesScreen() {
                 : load
 
     const changeTab = (next: TradeTabKey) => {
+        saveScreenSection(user?.id, myMemberId, 'trades', next)
+        setAnalyzerTrade(null)
         setParams({ tab: next, tradeId: undefined })
     }
     const header = (disabled: boolean, onPropose: () => void) => (
         <PageHeader
-            tabs={<TradeTabs options={tabOptions} tab={tab} setTab={changeTab} />}
+            tabs={<TradeTabs options={tabOptions} tab={ownedAnalyzerTrade ? 'analyzer' : tab} setTab={changeTab} />}
             actions={(
                 <Button
-                    title={usableWidth < layout.railWidth + controlSize.minTouch ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
+                    title={compact ? undefined : !online ? 'Offline' : disabled ? 'Locked' : 'Propose'}
                     icon={disabled ? 'lock' : 'add'}
                     size="inline"
                     style={{ minWidth: controlSize.minTouch }}
@@ -302,7 +306,7 @@ function TradesScreen() {
             overrideItemLayout={(itemLayout, item, _index, maxColumns) => {
                 if (item._type === 'header' || item._type === 'empty') itemLayout.span = maxColumns
             }}
-            ItemSeparatorComponent={tradeTab ? CardGap : gridColumns > 1 ? undefined : ItemSeparator}
+            ItemSeparatorComponent={tradeTab ? CardGap : undefined}
             renderItem={renderItem}
             contentContainerStyle={statusScroll.contentStyle({ paddingHorizontal: padX, paddingBottom: spacing['3xl'] })}
             onEndReached={tab === 'history' && historyHasMore
@@ -331,8 +335,8 @@ function TradesScreen() {
         {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
     </Page>
 
-    if (ownedAnalyzerTrade) return <Page title="Trade analysis">
-        <PageHeader title="Trade analysis" onBack={() => setAnalyzerTrade(null)} backLabel="Back to trades" />
+    if (ownedAnalyzerTrade || tab === 'analyzer') return <Page title="Trade analysis">
+        {header(!online || tradingClosed, () => push('/(modals)/propose-trade'))}
         <Suspense fallback={<View style={styles.loading} aria-busy accessibilityState={{ busy: true }} />}>
             <TradeAnalyzer key={`${user?.id}:${leagueId}:${myMemberId}`} prefillTrade={ownedAnalyzerTrade} />
         </Suspense>
@@ -361,7 +365,7 @@ function TradesScreen() {
                     : gridColumns === 1 && (staticTradeList || tab === 'block' || listData.every((item) => item._type === 'empty')) ? (
                         <ScrollView contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing['3xl'] }}>
                             {listData.map((item, index) => <View key={tradeListKey(item, index)}>
-                                {index > 0 ? tradeTab ? <CardGap /> : item._type !== 'header' && item._type !== 'empty' && listData[index - 1]._type !== 'header' ? <ItemSeparator /> : null : null}
+                                {index > 0 && tradeTab ? <CardGap /> : null}
                                 {renderItem({ item })}
                             </View>)}
                         </ScrollView>
@@ -372,7 +376,7 @@ function TradesScreen() {
 }
 
 function TradeTabs({ options, tab, setTab }: { options: SegmentOption<TradeTabKey>[]; tab: TradeTabKey; setTab: (tab: TradeTabKey) => void }) {
-    return <SegmentedControl variant="tabs" options={options} value={tab} onChange={setTab}
+    return <SegmentedControl variant="tabs" scrollable options={options} value={tab} onChange={setTab}
             idBase="trade-section" style={styles.tabOptions} accessibilityLabel="Trade sections" />
 }
 

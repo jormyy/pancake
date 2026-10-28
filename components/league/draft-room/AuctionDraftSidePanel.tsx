@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     stackedHeading: { marginTop: spacing.md },
     card: { backgroundColor: colors.bgCard, borderRadius: radii.lg, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing.lg, paddingVertical: spacing.xs },
     cardCompact: { paddingHorizontal: spacing.md },
-    historyCard: { paddingVertical: 0 },
+    historyCard: { paddingVertical: spacing.none },
     budgetRow: { flexDirection: 'row', alignItems: 'center', minHeight: table.rowHeightCompact, gap: spacing.md },
     divider: { borderTopWidth: 1, borderTopColor: colors.separator },
     budgetTeam: { ...textStyles.rowTitle, flex: 1 },
