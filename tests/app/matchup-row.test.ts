@@ -79,3 +79,16 @@ it('keeps earned points and game lines without per-player projection text', asyn
     expect(texts).toContain('0.0')
     expect(texts.join(' ')).not.toMatch(/Proj|23\.4|Sleeper/)
 })
+
+it('renders the game line and tip time together on the first row commit', async () => {
+    const commits: string[][] = []
+    const props = { ...rowProps(), myPlayer: rowPlayer('Mine', 'WAS'), oppPlayer: rowPlayer('Theirs', 'CLE'), teamMatchups: new Map([
+        ['WAS', { opponent: 'CLE', isHome: false, gameTime: '2026-10-28T23:00:00Z', timezone: 'America/New_York', status: 'Scheduled' }],
+        ['CLE', { opponent: 'WAS', isHome: true, gameTime: '2026-10-28T23:00:00Z', timezone: 'America/New_York', status: 'Scheduled' }],
+    ]) }
+    await act(async () => {
+        screen = create(React.createElement(React.Profiler, { id: 'row', onRender: () => commits.push(screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).filter((value): value is string => typeof value === 'string')) }, React.createElement(MatchupRow, props)))
+    })
+    expect(commits).toHaveLength(1)
+    expect(commits[0].filter(text => text.startsWith('WAS @ CLE'))).toEqual(['WAS @ CLE 7:00 PM ET', 'WAS @ CLE 7:00 PM ET'])
+})

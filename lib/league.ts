@@ -1,15 +1,17 @@
+import { rememberLeagueTimezone, leagueTimezone } from '@/lib/league-timezones'
+import { todayLeague } from '@/lib/timezone'
 import { sessionGeneration } from '@/lib/session-cache-registry'
 import { notifyLeagueChange } from '@/lib/league-changes'
 import { withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
 import type { Json, League, LeagueStatus } from '@/types/database'
 import type { LeagueInfo, LeagueMembership, TradeVetoMode } from '@/types/app'
-import { todayET } from '@/lib/shared/dates'
 
 export type WaiverMode = 'rolling' | 'faab'
 export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
+    timezone?: string
     team_limit?: number
     taxi_max_seasons?: number
     allow_inactive_trades?: boolean
@@ -52,6 +54,7 @@ function numericRecordPayload(values: Record<string, number>): JsonObject {
 
 function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     const payload: JsonObject = {}
+    if (updates.timezone !== undefined) payload.timezone = updates.timezone
     for (const key of ['team_limit','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
         if (updates[key] !== undefined) payload[key] = updates[key]
     }
@@ -175,6 +178,7 @@ export async function fetchUserLeagues(userId: string) {
         drafts: { draft_type: string; is_mock: boolean; status: string; league_seasons: { is_current: boolean } | null }[]
     } })[]).map(({ leagues, ...membership }) => {
         const { drafts, ...league } = leagues
+        rememberLeagueTimezone(league.id, league.timezone)
         return { ...membership, leagues: { ...league, hasStartupAuction: drafts?.some(draft => draft.draft_type === 'auction' && !draft.is_mock
             && draft.league_seasons?.is_current && ['pending', 'in_progress', 'paused'].includes(draft.status)) ?? false } }
     })
@@ -186,6 +190,8 @@ const TRADE_OPEN_STATUSES = new Set<LeagueStatus>(['drafting', 'active', 'playof
 export function isTradingClosed(
     league: {
         status: LeagueStatus
+        id?: string
+        timezone?: string
         trade_deadline?: string | null
         hasStartupAuction?: boolean
     } | null | undefined,
@@ -195,7 +201,7 @@ export function isTradingClosed(
     if (league.hasStartupAuction) return true
     if (league.status !== 'active' && league.status !== 'playoffs') return false
     if (!league.trade_deadline) return false
-    return league.trade_deadline < todayET()
+    return league.trade_deadline < todayLeague(league.timezone ?? leagueTimezone(league.id))
 }
 
 export async function getLeagueMembers(leagueId: string) {
@@ -284,7 +290,7 @@ export type MemberTransactionState = {
     addLimitResetsAt: string | null
     /** The sentence the server raises while this week's adds are used up; null otherwise. */
     addLimitMessage: string | null
-    /** "Mon, Nov 2 at 12:00 AM ET" — the reset boundary as the server renders it; null when the league has no schedule yet. */
+    /** The weekly reset boundary; null when the league has no schedule yet. */
     addLimitResetsLabel: string | null
 }
 

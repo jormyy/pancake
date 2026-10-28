@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({ member: true, failSeason: false, failWeeks: false, reads: [] as string[], filters: [] as [string, unknown][] }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from(table: string) {
@@ -19,12 +19,14 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from(table: string) {
     }
     return query
 } } }))
-vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-08' }))
 import { getLineupContext } from '@/lib/lineup/read'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
 
+afterEach(() => vi.useRealTimers())
 beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-08T20:00:00Z'))
     state.member = true; state.failSeason = false; state.failWeeks = false; state.reads = []; state.filters = []
     invalidateSeasonCache(); invalidateWeekNumberCache()
 })

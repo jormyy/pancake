@@ -361,7 +361,10 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
 }
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
-    const notes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    const baseNotes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
+        .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
+    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n`)
     const productionHead = notes.match(/Production currently stops at migration `([0-9]+)`/)?.[1] ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
     const newest = migrations.at(-1)!.split('_')[0]

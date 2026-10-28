@@ -4,7 +4,7 @@ import type { Database, Json } from '@/types/database'
 import type {
     DynastyEngineContext,
     DynastyPlayerAsset,
-} from '@pancake/core'
+} from '@/core/src/dynasty/decisionEngine'
 import type { MultiTeamTradeItemPayload } from '@/lib/trades'
 
 export type DynastyDecisionInput = Database['public']['Functions']['get_dynasty_forecast_inputs']['Returns'][number] & { career_regular_season_games?: number | null }
@@ -36,8 +36,8 @@ type DynastyAnalyzerCacheIdentity = Pick<
     'userId' | 'memberId' | 'leagueId'
 >
 
-const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v1:'
-const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v1:'
+const DYNASTY_DECISION_CACHE_PREFIX = 'pancake:dynasty-forecast-snapshot:v2:'
+const DYNASTY_DECISION_LATEST_PREFIX = 'pancake:dynasty-forecast-latest:v2:'
 // Older snapshots can omit unavailable routes or contain another selection’s values.
 const DYNASTY_ANALYZER_CACHE_PREFIX = 'pancake:dynasty-analyzer-snapshot:v7:'
 const DYNASTY_ANALYZER_LATEST_PREFIX = 'pancake:dynasty-analyzer-latest:v3:'
@@ -120,6 +120,7 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
         label: row.display_name,
         age: row.age,
         dynastyRank: row.five_year_rank,
+        tradeValue: row.trade_value,
         rankMovement: row.rank_change,
         healthStatus: row.injury_status,
         productionFantasyPoints: row.avg_fantasy_points,
@@ -127,6 +128,22 @@ export function playerAssetFromDecisionInput(row: DynastyDecisionInput): Dynasty
         isRookie: row.years_exp === 0,
         sources,
     }
+}
+
+export type DynastyPickValue = Database['public']['Functions']['get_dynasty_pick_values']['Returns'][number]
+
+export async function getDynastyPickValues(leagueId: string): Promise<DynastyPickValue[]> {
+    const { data, error } = await supabase.rpc('get_dynasty_pick_values', { p_league_id: leagueId })
+    if (error) throw error
+    return data ?? []
+}
+
+export function dynastyPickBands(rows: DynastyPickValue[], draftYear: number, round: number) {
+    const values = rows.filter(row => row.draft_year === draftYear && row.round === round)
+    const early = values.find(row => row.tier === 'early')?.trade_value
+    const mid = values.find(row => row.tier === 'mid')?.trade_value
+    const late = values.find(row => row.tier === 'late')?.trade_value
+    return early != null && mid != null && late != null ? { early, mid, late } : null
 }
 
 export async function getUnmatchedRookieRankings(): Promise<UnmatchedRookieRanking[]> {

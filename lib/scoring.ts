@@ -1,3 +1,4 @@
+import { leagueTimezone } from '@/lib/league-timezones'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
 import { getCurrentSeason } from '@/lib/shared/season'
@@ -117,7 +118,7 @@ export async function getMyMatchup(memberId: string, leagueId: string, onContext
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
 
-    const weekNumber = await getCurrentWeekNumber(season.seasonYear)
+    const weekNumber = await getCurrentWeekNumber(season.seasonYear, leagueTimezone(leagueId))
     if (!weekNumber) return null
 
     const { data, error } = await supabase

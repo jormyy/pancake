@@ -167,6 +167,8 @@ Home is the matchup screen.
 It shows week status, teams, records, scores, forecasts, days, and both lineups.
 The header, day selector, and rows share one vertical scroller.
 Other matchups open a detail page with their own selected date.
+Their bottom matchup strip keeps team browsing separate from the Home action.
+Home restores its cached matchup when the user returns.
 Home has no timeline, waivers card, announcement card, or separate daily editor.
 
 Players groups Players, Waivers, Rankings, and News.
@@ -183,6 +185,21 @@ Native pages can show a close control.
 Navigation targets stay at least 44px.
 The shell preserves safe-area spacing and expands for wrapped league names.
 [The feature map](supabase-backend-route-inventory.md#navigation-feature-map) records current entry points.
+
+## League dates and times
+
+Home, Roster, player availability, and shared screen context use the league timezone.
+Day labels and displayed tipoff times follow that timezone and include its short name.
+Waivers show the next league-local midnight, including daylight saving changes.
+NBA statistics and scoring retain NBA game dates.
+
+## Player profiles
+
+The overview loads first with identity, injuries, full-season averages, projection, ownership, and claim actions.
+Games, news, and history load as separate sections when opened.
+Matchup rows receive game lines and tipoff times together on their first render.
+Rankings and profiles show the stored dynasty value when available.
+Both compact and legacy profile responses keep that value.
 
 ## Player rows and names
 
@@ -271,6 +288,8 @@ The server validates the same submitted plan.
 
 History cards show status, veto deadline, and one row per asset.
 Values show sent then received, such as `1412 vs 605`.
+Cards prefer current source values, then saved asset values or saved totals.
+Cards omit a missing comparison.
 Cards omit timeline links, saved dates, and source captions.
 Analyzer requests current estimates and revaluations.
 Revaluation preserves the original quote.

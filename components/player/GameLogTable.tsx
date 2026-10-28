@@ -15,6 +15,7 @@ type Props = {
     compact?: boolean
     error?: string | null
     onRetry?: () => void
+    loadOnScroll?: boolean
 }
 
 function fmtDate(dateStr: string): string {
@@ -50,10 +51,11 @@ export const GameLogTable = memo(function GameLogTable({
     compact = false,
     error,
     onRetry,
+    loadOnScroll = true,
 }: Props) {
     const endRef = useRef<View>(null)
     const pageKey = games.map(game => game.gameId).join(',')
-    const automatic = compact && Platform.OS === 'web' && typeof IntersectionObserver !== 'undefined'
+    const automatic = loadOnScroll && compact && Platform.OS === 'web' && typeof IntersectionObserver !== 'undefined'
     useEffect(() => {
         if (!automatic || !hasMore || loading || loadingMore || error || typeof IntersectionObserver === 'undefined') return
         const sentinel = endRef.current as unknown as HTMLElement | null

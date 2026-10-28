@@ -1,3 +1,4 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { StatCell } from '@/components/ui/StatCell'
@@ -54,6 +55,7 @@ function PlayerSearchItemImpl({
     onPress: (player: PlayerRow) => void
     onPrepare?: (player: PlayerRow) => void
 }) {
+    const timezone = useLeagueTimezone()
     const owned = ownedMap.get(item.id)
     const isMe = owned?.memberId === currentMemberId
     const isOther = owned && !isMe
@@ -75,7 +77,7 @@ function PlayerSearchItemImpl({
             color={showStats ? colors.transparent : isMe ? colors.successLight : isWaiver ? colors.infoLight : colors.bgMuted}
             textColor={isMe ? colors.successDark : isWaiver ? uiColors.waiverText : colors.textMuted}
             style={[styles.statusBadge, !showStats && styles.statusBadgeNarrow]}
-            label={isMe ? 'Mine' : isOther ? owned!.teamName : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}` : 'FA'}
+            label={isMe ? 'Mine' : isOther ? owned!.teamName : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt, new Date(), timezone)}` : 'FA'}
         />
     ) : null
 

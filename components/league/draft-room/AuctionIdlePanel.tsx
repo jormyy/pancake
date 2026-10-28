@@ -1,3 +1,5 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { FlashList } from '@shopify/flash-list'
 import { useRef } from 'react'
@@ -21,6 +23,7 @@ export function AuctionIdlePanel({
     memberId?: string
     compact: boolean
 }) {
+    const timezone = useLeagueTimezone()
     const state = controller.state
     if (!state) return null
     const { draft, order, currentNominatorMemberId } = state
@@ -33,9 +36,7 @@ export function AuctionIdlePanel({
         // Before the start, no one holds the nomination yet.
         content = <View style={styles.waitingRow}>
             <Text style={styles.waitingTeam}>Draft hasn&apos;t started</Text>
-            <Text style={styles.waitingText}>{draft.scheduledAt ? `Starts ${new Date(draft.scheduledAt).toLocaleString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-            })}` : 'The commissioner starts the draft.'}</Text>
+            <Text style={styles.waitingText}>{draft.scheduledAt ? `Starts ${formatLeagueDateTime(draft.scheduledAt, timezone)}` : 'The commissioner starts the draft.'}</Text>
         </View>
     } else if (isPaused) {
         content = <View style={styles.waitingRow}>

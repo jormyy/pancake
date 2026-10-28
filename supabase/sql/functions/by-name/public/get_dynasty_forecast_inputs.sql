@@ -44,7 +44,8 @@ RETURNS TABLE (
   avg_fantasy_points numeric,
   projection_fantasy_points numeric,
   projection_fetched_at timestamptz,
-  projection_source text
+  projection_source text,
+  trade_value numeric
 )
 LANGUAGE sql
 STABLE
@@ -63,6 +64,7 @@ candidate_ids AS (
     FROM authorized
     JOIN public.dynasty_rankings AS ranking
       ON ranking.source IN (
+        'onenumberhoops.com',
         'hashtagbasketball.com',
         'hashtagbasketball.com/points-3',
         'hashtagbasketball.com/rookie'
@@ -97,15 +99,16 @@ bounded_players AS (
     five_year.rank_change,
     five_year.age,
     five_year.source AS ranking_source,
-    five_year.fetched_at AS ranking_fetched_at
+    five_year.fetched_at AS ranking_fetched_at,
+    five_year.trade_value
   FROM candidate_ids AS candidate
   JOIN public.players AS player ON player.id = candidate.player_id
   LEFT JOIN LATERAL (
-    SELECT ranking.id, ranking.source_rank, ranking.rank_change, ranking.age, ranking.source, ranking.fetched_at
+    SELECT ranking.id, ranking.source_rank, ranking.rank_change, ranking.age, ranking.source, ranking.fetched_at, ranking.trade_value
       FROM public.dynasty_rankings AS ranking
      WHERE ranking.player_id = player.id
-       AND ranking.source = 'hashtagbasketball.com'
-     ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
+       AND ranking.source IN ('onenumberhoops.com','hashtagbasketball.com')
+     ORDER BY (ranking.source='onenumberhoops.com') DESC, ranking.fetched_at DESC, ranking.source_rank, ranking.id
      LIMIT 1
   ) AS five_year ON true
   LEFT JOIN LATERAL (
@@ -181,7 +184,8 @@ SELECT
   fantasy.avg_fantasy_points,
   projection.projection_fantasy_points,
   projection.projection_fetched_at,
-  projection.projection_source
+  projection.projection_source,
+  player.trade_value
 FROM bounded_players AS player
 LEFT JOIN public.mv_player_season_averages AS average
   ON average.player_id = player.id
@@ -199,4 +203,4 @@ REVOKE ALL ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[
 GRANT EXECUTE ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) IS
-  'Returns one authorized batch with 5-year, 3-year, and rookie Hashtag ranks plus league production and projections.';
+  'Returns authorized dynasty ranks, market values, production, and projections.';

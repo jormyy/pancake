@@ -239,3 +239,5 @@ it('loads a late game first opened after midnight and catches up after backgroun
     expect(reads()).toBe(2)
     expect(latest.todaysGames[0].status).toBe('Final')
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => state.today }))

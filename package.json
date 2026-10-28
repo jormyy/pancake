@@ -222,6 +222,7 @@
     "test:db:process-trades-gate": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/process-trades-gate.sql",
     "test:db:advisory-access": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/advisory-access.sql",
     "test:db:draft-clock": "node supabase/tests/db/draft-clock.mjs",
+    "e2e:other-matchup-navigation": "node tests/e2e/other-matchup-navigation.mjs",
     "e2e:season-sim": "node scripts/season-sim/index.mjs",
     "test:db:cdn-player-identity-correction": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/cdn-player-identity-correction.sql",
     "test:db:live-snapshot-order": "psql \"${SUPABASE_DB_URL:?SUPABASE_DB_URL is required}\" --set ON_ERROR_STOP=1 -f tests/db/live-snapshot-order.sql",

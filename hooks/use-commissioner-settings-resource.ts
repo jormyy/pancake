@@ -1,3 +1,4 @@
+import { resolveLeagueTimezone } from '@/lib/timezone'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { useEffect, useRef, useState } from 'react'
@@ -35,6 +36,7 @@ function remoteDraft(
     if (roundInputs.length < roundCount) roundInputs.unshift('')
     if (roundInputs.length > roundCount) roundInputs.shift()
     return {
+        timezone: resolveLeagueTimezone(league.timezone),
         teamLimit: String(league.team_limit ?? 10),
         taxiMaxSeasons: league.taxi_max_seasons == null ? '' : String(league.taxi_max_seasons),
         allowInactiveTrades: league.allow_inactive_trades ?? false,

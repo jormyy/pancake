@@ -333,3 +333,5 @@ it('places the current week strip below the lineup and opens a read-only matchup
     await act(async () => strip.props.onOpen('other-matchup'))
     expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/matchup', params: { matchupId: 'other-matchup' } })
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-11' }))

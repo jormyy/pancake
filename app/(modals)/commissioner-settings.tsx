@@ -40,7 +40,7 @@ export default function CommissionerSettingsScreen() {
         setOverrideMemberId, tradeVetoModeDescription, updateField, updateScoring,
     } = useCommissionerSettingsController()
     const {
-        scoring, slots, rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek,
+        timezone, scoring, slots, rosterSize, irSlots, taxiSlots, auctionBudget, playoffWeek,
         weeklyAddLimit, waiverMode, faabBudget, tradeVetoMode, tradeVetoWindowHours,
         tradeVetoThresholdPercent, tradeDeadline, playoffRoundWeeks,
     } = draft
@@ -132,6 +132,23 @@ export default function CommissionerSettingsScreen() {
                         </View>
                     </View>
 
+                    <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Timezone</Text>
+                    <View style={styles.card}>
+                        <View style={styles.row}>
+                            <Text style={styles.rowLabel}>League timezone</Text>
+                            <TextInput
+                                style={[styles.scoreInput, { flex: 1 }]}
+                                accessibilityLabel="League timezone"
+                                value={timezone ?? 'America/Los_Angeles'}
+                                placeholder="America/Los_Angeles"
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                editable={authorityReady && !saving}
+                                onChangeText={value => updateField('timezone', value)}
+                            />
+                        </View>
+                        <Text style={styles.actionDescription}>Waiver runs occur at local midnight. All times and day boundaries follow this timezone.</Text>
+                    </View>
                     <NotificationAnnouncementComposer />
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Scoring</Text>
                     <View style={styles.card}>

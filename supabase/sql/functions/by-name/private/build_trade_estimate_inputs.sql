@@ -57,10 +57,13 @@ BEGIN
     FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,player_ids,'',100,0) p;
   SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO replacement_rows
     FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,replacement_ids,'',5,0) p;
-  PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'seasonYear',pick.season_year,'round',pick.round,
     'ownerId',pick.current_owner_id,'originalOwnerId',pick.original_owner_id,'originalTeamName',member.team_name,
-    'slot',slot.pick_in_round) ORDER BY pick.id),'[]'::jsonb) INTO picks
+    'slot',slot.pick_in_round,
+    'valueBands',(SELECT jsonb_object_agg(value.tier,value.trade_value) FROM public.get_dynasty_pick_values(league.id) value
+      WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round),
+    'valueFetchedAt',(SELECT max(value.fetched_at) FROM public.get_dynasty_pick_values(league.id) value
+      WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round)) ORDER BY pick.id),'[]'::jsonb) INTO picks
   FROM public.draft_picks pick JOIN public.league_members member ON member.id=pick.original_owner_id
   LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
   WHERE pick.id IN(SELECT (item->>'pickId')::uuid FROM jsonb_array_elements(terms) item);
@@ -68,6 +71,7 @@ BEGIN
     INTO balances FROM public.league_members member LEFT JOIN public.faab_balances balance
     ON balance.member_id=member.id AND balance.league_season_id=season.id WHERE member.league_id=league.id
     AND member.id IN(SELECT (item->>'fromMemberId')::uuid FROM jsonb_array_elements(terms) item);
+  PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
   RETURN jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,
     'teams',teams,'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
     'terms',terms,'players',player_rows,'replacementPlayers',replacement_rows,'picks',picks,'balances',balances);

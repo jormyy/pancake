@@ -57,7 +57,7 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
     const loadMyLineup = useCallback(async (_matchup: MatchupContext, date: string) => { if (latestSelection.current.identity !== identity || latestSelection.current.date !== date) return false; return refreshView(true) }, [identity, refreshView])
     const loadLineups = loadMyLineup
     const refreshSilently = useCallback(async () => { if (todayLeague(timezone) !== day) { setDay(todayLeague(timezone)); return false }; return refreshView(false, false) }, [day, timezone, setDay, refreshView])
-    const gameTimes = useMatchupGameTimes(data?.todaysGames ?? [], league?.id, data?.context.version)
+    const gameTimes = useMatchupGameTimes(data?.todaysGames ?? [], (data?.context as HomePayload['context'] & { league?: { timezone?: string } })?.league?.timezone ?? timezone)
     const displayMatchups = useMemo(() => {
         const matchups = new Map<string, MatchupGame>(Object.entries(data?.teamMatchups ?? {}))
         for (const game of data?.todaysGames ?? []) {

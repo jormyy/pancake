@@ -1,3 +1,5 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
@@ -6,7 +8,6 @@ import { useCallback } from 'react'
 import { FlashList, type ListRenderItem } from '@shopify/flash-list'
 import { TransactionRow, TRANSACTION_LABELS, activityEventCategory } from '@/lib/transactions'
 import { alpha, colors, controlSize, fontSize, fontWeight, layout, spacing, srOnly, table, textStyles, TX_COLORS } from '@/constants/tokens'
-import { timeAgo } from '@/lib/format'
 import { ItemSeparator } from '@/components/ItemSeparator'
 import { EmptyState } from '@/components/EmptyState'
 import { Avatar } from '@/components/Avatar'
@@ -16,6 +17,7 @@ import { usePageMetrics } from '@/components/ui'
 
 /** One league transaction. */
 function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
+    const timezone = useLeagueTimezone()
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
     const avatarSize = controlSize.avatar.md
@@ -37,7 +39,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                 </View>
                 <View style={styles.txRight}>
                     <Badge label={label} color={color} variant="soft" />
-                    <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
+                    <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
                 </View>
             </View>
         )
@@ -49,7 +51,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                 stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />
-                <Text style={styles.txTime}>{timeAgo(item.occurredAt)}</Text>
+                <Text style={styles.txTime}>{formatLeagueDateTime(item.occurredAt, timezone)}</Text>
             </View>
         </View>
     )

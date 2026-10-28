@@ -264,7 +264,7 @@ export default function ClaimPlayerScreen() {
             if (draftOwnerRef.current) clearEditorDraft('claim', draftOwnerRef.current.scope)
             showSuccess(
                 claimId ? 'Claim Updated' : 'Claim Submitted',
-                `Your claim processes ${savedProcessDate ? scheduledClaimLabel(savedProcessDate) : claimProcessTimeLabel(clearsAt)}.`,
+                `Your claim processes ${savedProcessDate ? scheduledClaimLabel(savedProcessDate, currentLeague?.timezone) : claimProcessTimeLabel(clearsAt, new Date(), currentLeague?.timezone)}.`,
             )
             goBack()
         } catch (e) {
@@ -275,7 +275,7 @@ export default function ClaimPlayerScreen() {
         }
     }
 
-    const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate) : claimProcessDateLabel(clearsAt)
+    const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate, currentLeague?.timezone) : claimProcessDateLabel(clearsAt, new Date(), currentLeague?.timezone)
     const claimReady = online && canAct() && !loading && !!player
     const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
     const compactDropMode = isCompactLandscape && needsDrop
@@ -301,7 +301,7 @@ export default function ClaimPlayerScreen() {
                 testID="add-limit-notice"
             >
                 <Text style={styles.limitBody}>{addBlockedReason}</Text>
-                <Text style={styles.limitMeta}>{addLimitSummary(transactionState)}</Text>
+                <Text style={styles.limitMeta}>{addLimitSummary(transactionState, Date.now(), currentLeague?.timezone)}</Text>
             </View>
         )
     }

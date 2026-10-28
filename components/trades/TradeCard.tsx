@@ -1,3 +1,5 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { formatLeagueDateTime } from '@/lib/timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { pickLabel } from '@/lib/picks'
@@ -28,8 +30,6 @@ const STATUS_LABELS: Record<string, string> = {
     edited: 'Edited',
 }
 
-const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
-
 export type TradeCardActions = {
     acting: boolean
     acceptDisabled?: boolean
@@ -43,6 +43,7 @@ export type TradeCardActions = {
 }
 
 export type TradeCardContext = {
+    timezone?: string
     trade: Trade
     myMemberId: string
     tab: TradeTabKey
@@ -51,7 +52,7 @@ export type TradeCardContext = {
 }
 
 /** Everything a card or detail view needs to describe a trade and its actions. */
-export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member_vote', isCommissioner = false }: TradeCardContext) {
+export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member_vote', isCommissioner = false, timezone }: TradeCardContext) {
     const isProposer = trade.proposerMemberId === myMemberId
     const isRecipient = trade.recipientMemberId === myMemberId
     const participants = trade.participants
@@ -73,10 +74,10 @@ export function tradeCardModel({ trade, myMemberId, tab, tradeVetoMode = 'member
     const canEdit = tab === 'offers' && isProposer && trade.status === 'pending'
     const meta = [
         trade.status === 'accepted' && trade.vetoWindowExpiresAt
-            ? `Veto window closes ${new Date(trade.vetoWindowExpiresAt).toLocaleString([], SHORT_DATE)}`
+            ? `Veto window closes ${formatLeagueDateTime(trade.vetoWindowExpiresAt, timezone)}`
             : null,
         trade.status === 'pending' && trade.expiresAt
-            ? `Expires ${new Date(trade.expiresAt).toLocaleString([], SHORT_DATE)}`
+            ? `Expires ${formatLeagueDateTime(trade.expiresAt, timezone)}`
             : null,
         trade.isMultiTeam
             ? `${participants.filter((participant) => participant.acceptedAt != null).length}/${participants.length} teams accepted`
@@ -299,7 +300,8 @@ export function TradeCard({
     /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
     onOpen?: () => void
 }) {
-    const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner })
+    const timezone = useLeagueTimezone()
+    const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner, timezone })
 
     // The summary is the press target, not the whole card, so the header and
     // action buttons never sit inside another button.

@@ -21,6 +21,7 @@ async function withImports(replies: (string | Error)[], run: () => Promise<void>
     assert.equal(body.p_source, 'nba_cdn')
     assert.equal(body.p_records.length, 1)
     assert.equal(body.p_records[0].provider_id, 'nba-id')
+    assert.equal(body.p_records[0].identity_only, true)
     const reply = replies[calls++]
     assert.ok(reply, 'Unexpected extra import request')
     return reply instanceof Error

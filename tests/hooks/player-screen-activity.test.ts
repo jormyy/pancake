@@ -52,7 +52,8 @@ it('waits for one complete view before settling all initial cards', async () => 
     expect(h.latest.projectionSettled).toBe(false)
     expect(h.latest.transactionsSettled).toBe(false)
     await act(async () => next.resolve(playerPayload()))
-    expect(h.latest.initialSettled && h.latest.projectionSettled && h.latest.transactionsSettled).toBe(true)
+    expect(h.latest.initialSettled && h.latest.projectionSettled).toBe(true)
+    expect(h.latest.transactionsSettled).toBe(false)
 })
 it('keeps the prior numbers through a pending version refresh', async () => {
     await h.render(); const next = held<ReturnType<typeof playerPayload>>()

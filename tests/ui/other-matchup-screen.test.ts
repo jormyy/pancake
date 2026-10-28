@@ -29,7 +29,7 @@ const player = (id: string) => ({ rosterPlayerId: id, playerId: id, displayName:
 const lineup = (id: string) => ({ starters: [{ slotType: 'PG', player: player(id) }], bench: [player(`${id} Bench`)], benchSlots: 1, ir: [], taxi: [] })
 const matchup = { id: 'other', weekNumber: 1, myTeamName: 'Owls', opponentTeamName: 'Foxes', myWins: 2, myLosses: 1, opponentWins: 1, opponentLosses: 2, myPoints: 100, opponentPoints: 90, myMemberId: 'a', opponentMemberId: 'b' } as Matchup
 function payload() {
-    return { matchup, myLineup: lineup('Jayson Tatum'), oppLineup: lineup('Jaylen Brown'), selectedDate: '2026-10-27', setSelectedDate: state.setDate, weekDays: [{ date: '2026-10-27', dayLabel: 'Tue', dateNum: 27, isToday: true, hasGames: true, playingTeams: ['BOS'] }],
+    return { leagueMatchups: [{ id: 'other', homeMemberId: 'a', awayMemberId: 'b', homeTeamName: 'Owls', awayTeamName: 'Foxes', homePoints: 100, awayPoints: 90, isMine: false, isFinalized: false }], matchup, myLineup: lineup('Jayson Tatum'), oppLineup: lineup('Jaylen Brown'), selectedDate: '2026-10-27', setSelectedDate: state.setDate, weekDays: [{ date: '2026-10-27', dayLabel: 'Tue', dateNum: 27, isToday: true, hasGames: true, playingTeams: ['BOS'] }],
         forecastState: { forecast: { teams: [{ memberId: 'a', currentPoints: 100, projectedFinal: 150, winProbability: 0.65 }, { memberId: 'b', currentPoints: 90, projectedFinal: 130, winProbability: 0.35 }], games: [] }, pending: false, error: false, stale: false },
         liveSnapshot: { todaysGames: [], freshness: 'fresh', liveStats: new Map(['Jayson Tatum', 'Jaylen Brown', 'Jayson Tatum Bench', 'Jaylen Brown Bench'].map(id => [id, { points: 12, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, threeMade: 0, fgMade: 0, fgAttempted: 0, ftMade: 0, ftAttempted: 0, doubleDouble: false, tripleDouble: false }])), teamMatchups: new Map() }, error: null, emptyConfirmed: false, refresh: () => {},
     }
@@ -50,15 +50,18 @@ it('renders the shared Home components with read-only rows and no lineup actions
     await act(async () => screen!.root.findByType(DaySelector).props.onSelect('2026-10-28'))
     expect(state.setDate).toHaveBeenCalledWith('2026-10-28')
 })
-it('returns to Home from history and direct links without a title row', async () => {
+it('removes the back row', async () => {
     await act(async () => { screen = create(React.createElement(OtherMatchupScreen)) })
-    const button = screen!.root.findByType(Button)
-    expect(button).toBeDefined()
-    await act(async () => button.props.onPress())
-    expect(state.back).toHaveBeenCalledOnce()
-    state.canBack = false
-    await act(async () => button.props.onPress())
-    expect(state.replace).toHaveBeenCalledWith('/')
+    expect(screen!.root.findAllByType(Button)).toHaveLength(0)
+})
+it('opens another matchup from the shared strip below the lineup', async () => {
+    await act(async () => { screen = create(React.createElement(OtherMatchupScreen)) })
+    const strip = screen!.root.findByType(OtherMatchups)
+    expect(strip.props.matchups).toEqual(payload().leagueMatchups)
+    const content = strip.parent!
+    expect(content.children.at(-1)).toBe(strip)
+    await act(async () => strip.props.onOpen('next-matchup'))
+    expect(state.replace).toHaveBeenCalledExactlyOnceWith({ pathname: '/(modals)/matchup', params: { matchupId: 'next-matchup' } })
 })
 it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('fits the other matchup and strip in WebKit at 390x844', async () => {
     const output = process.env.PANCAKE_LAYOUT_OUTPUT!
@@ -81,7 +84,11 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('fits the other matchup and strip
             if (name === 'screen') {
                 for (const label of ['WEEK 1', '2-1', '1-2', '150 proj', '65% win', '130 proj', '35% win', 'STARTERS', 'BENCH', '12']) expect(text).toContain(label)
                 expect(text).not.toContain('Auto-set')
-                expect(await page.getByRole('button', { name: 'Back to Home', exact: true }).count()).toBe(1)
+                expect(await page.getByRole('button', { name: 'Back to Home', exact: true }).count()).toBe(0)
+                expect(await page.getByTestId('other-matchups').count()).toBe(1)
+                const stripBox = await page.getByTestId('other-matchups').boundingBox()
+                const lineupBox = await page.getByTestId('matchup-player-name').last().boundingBox()
+                expect(stripBox!.y).toBeGreaterThan(lineupBox!.y + lineupBox!.height)
                 const names = await page.getByTestId('matchup-player-name').evaluateAll(nodes => nodes.map(node => ({ height: node.getBoundingClientRect().height, line: parseFloat(getComputedStyle(node).lineHeight) })))
                 expect(names).toHaveLength(4)
                 for (const name of names) expect(name.height).toBeLessThanOrEqual(name.line)

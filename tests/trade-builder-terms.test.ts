@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     ActivityIndicator: 'ActivityIndicator',
@@ -69,7 +70,7 @@ it('reviews the expiry capped at the trade deadline', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T12:00:00Z'))
     const renderer = await render({ reviewOnly: true, expirationDays: '7', leagueStatus: 'active', tradeDeadline: '2026-01-02' })
-    const capped = new Date('2026-01-03T04:59:59.999Z').toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const capped = 'Jan 2, 2026, 8:59 PM PT'
     expect(JSON.stringify(renderer.toJSON())).toContain(capped)
     await act(async () => { renderer.unmount() })
 })

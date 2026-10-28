@@ -61,3 +61,24 @@ it('keeps Taxi Tenure and removes the league eligibility toggle', async () => {
     expect(text).not.toContain('Taxi: rookie or fewer than 65 NBA games')
     await act(async () => renderer.unmount())
 })
+
+it('shows the league timezone and explains its clock boundaries', async () => {
+    const updateField = vi.fn()
+    mocks.controller.mockReturnValue({
+        ...mocks.controller(), updateField,
+        draft: { ...EMPTY_COMMISSIONER_SETTINGS_DRAFT, timezone: 'America/Chicago' },
+    })
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(CommissionerSettingsScreen)) })
+    try {
+        const input = renderer.root.findByProps({ accessibilityLabel: 'League timezone' })
+        expect(input.props.value).toBe('America/Chicago')
+        expect(input.props.editable).toBe(true)
+        await act(async () => input.props.onChangeText('Asia/Tokyo'))
+        expect(updateField).toHaveBeenCalledWith('timezone', 'Asia/Tokyo')
+        const text = renderer.root.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')
+        expect(text).toContain('Waiver runs occur at local midnight. All times and day boundaries follow this timezone.')
+    } finally {
+        await act(async () => renderer.unmount())
+    }
+})

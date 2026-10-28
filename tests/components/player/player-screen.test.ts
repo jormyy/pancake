@@ -49,6 +49,7 @@ beforeEach(() => {
     vi.clearAllMocks()
     state.params = { id: 'player', playerHeader: undefined }
     state.data = {
+        opened: {}, toggleSection: vi.fn(), news: [],
         player: { ...headerPlayer(), id: 'player' }, loading: false, canRead: state.canRead,
         readEpoch: 'first', isCurrentRead: state.isCurrent, rosterRevision: 0,
         availableSeasons: [2026, 2025], selectedSeason: 2026, seasonAverages: null, seasonLoading: true,
@@ -225,4 +226,16 @@ it('paints completed averages without waiting for history, projection, or pickup
     expect(screen!.root.findByType(PlayerHeader).props.player.display_name).toBe('Player A')
     expect(screen!.root.findByType(StatsOverview).props.averages.avgPoints).toBe(24)
     expect(screen!.root.findByType(StatsOverview).props.loading).toBe(false)
+})
+
+it('shows the injury detail beside the initial profile and keeps sections closed', async () => {
+    state.data.player = { ...headerPlayer(), id: 'player', injury_status: 'Out', injury_reason: 'Ankle', injury_expected_return: 'Day to day' }
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findByProps({ children: 'Out · Ankle · Day to day' })).toBeDefined()
+    for (const label of ['Game log', 'News', 'League history']) {
+        const toggle = screen!.root.findByProps({ accessibilityLabel: label })
+        expect(toggle.props.accessibilityState).toEqual({ expanded: false })
+    }
+    await act(async () => screen!.root.findByProps({ accessibilityLabel: 'News' }).props.onPress())
+    expect(state.data.toggleSection).toHaveBeenCalledExactlyOnceWith('news')
 })

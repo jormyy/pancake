@@ -1,3 +1,4 @@
+import { withGameTimes } from './game-times.ts'
 import { otherMatchupView } from './other-matchup.ts'
 import { assertUuid, json, NotFoundError, requireUser, throwDb } from '../../_shared/apiRuntime.ts'
 import { screenViews, viewClient, viewRequest, type ScreenView } from '../../_shared/views.ts'
@@ -18,6 +19,11 @@ export async function handleViewRoute(request: Request, path: string): Promise<R
     const quote = await createTradeEstimate(userId, args.p_member_id, args.p_params.items)
     return json({ ok: true, view: { context, quote, analysis: quote.analysis } })
   }
+  const completeHome = (view: Record<string, unknown>) => withGameTimes(view, async ids => {
+    const result = await client.from('nba_games').select('id,game_time').in('id', ids)
+    if (result.error) throwDb(result.error)
+    return result.data ?? []
+  })
   const { data, error } = await client.rpc(screenViews[name], args)
   if (error) throwDb(error)
   if (name === 'home' && args.p_params && typeof args.p_params === 'object' && !Array.isArray(args.p_params) && args.p_params.matchupId !== undefined) {
@@ -41,7 +47,7 @@ export async function handleViewRoute(request: Request, path: string): Promise<R
       return result.data
     })
     if (!view) throw new NotFoundError('This matchup is not available this week.')
-    return json({ ok: true, view })
+    return json({ ok: true, view: await completeHome(view) })
   }
-  return json({ ok: true, view: data })
+  return json({ ok: true, view: name === 'home' ? await completeHome(data as Record<string, unknown>) : data })
 }

@@ -1,3 +1,4 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native'
 import { ScreenFrame } from '@/components/ui/ScreenFrame'
@@ -10,7 +11,7 @@ const filters: { value: TimelineFilter; label: string }[] = [
     { value: 'lineups', label: 'Lineups' }, { value: 'scores', label: 'Scores' },
 ]
 
-export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, filter: initialFilter = 'all', enabled = true, showTitle = true }: {
+export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, filter: initialFilter = 'all', enabled = true, showTitle = true, timezone }: {
     leagueId: string | null
     memberId: string | null
     teamName?: string
@@ -18,6 +19,7 @@ export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, fil
     filter?: TimelineFilter
     enabled?: boolean
     showTitle?: boolean
+    timezone?: string
 }) {
     const timeline = useTeamTimeline({ leagueId, memberId, enabled })
     const [filter, setFilter] = useState(initialFilter)
@@ -60,7 +62,7 @@ export function TeamTimelineScreen({ leagueId, memberId, teamName, entityId, fil
             </Text> : null}
             <View>
                 {events.map(event => <View key={event.id} style={{ borderLeftWidth: 2, borderColor: colors.borderLight, paddingLeft: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm }}>
-                    <Text accessibilityLabel={new Date(event.createdAt).toLocaleString()} style={textStyles.meta}>{timelineRelativeTime(event.createdAt, now)}</Text>
+                    <Text accessibilityLabel={formatLeagueDateTime(event.createdAt, timezone)} style={textStyles.meta}>{`${timelineRelativeTime(event.createdAt, now, timezone)} · ${formatLeagueDateTime(event.createdAt, timezone)}`}</Text>
                     <Text style={textStyles.rowTitle}>{event.summary}</Text>
                     {event.reason !== null ? <Text selectable style={{ ...textStyles.body, color: colors.textPrimary }}>{event.reason}</Text> : null}
                     {typeof event.detail.bid_amount === 'number' ? <Text style={textStyles.body}>Bid: ${event.detail.bid_amount}</Text> : null}

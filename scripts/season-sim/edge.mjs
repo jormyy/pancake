@@ -9,6 +9,7 @@ import { config, originUrl, assertTarget, laneDirectory, miniRoot, sha256 } from
 import { virtualDate } from './virtual-clock.mjs'
 import { virtualTimers } from './timers.mjs'
 import { trackWorkerWait, workerHealth } from './worker-waits.mjs'
+import { tradeValueWorkRequest } from './trade-value-catalog.mjs'
 
 const Deno = globalThis['Deno']
 assert.equal(Deno.version.deno, '2.7.14', 'Use the task-local Deno runtime')
@@ -103,7 +104,7 @@ let loading
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
 Object.defineProperty(Deno, 'serve', { value: handler => { assert.ok(loading); handlers.set(loading, handler) }, configurable: true })
 try {
-  const names = Deno.env.get('SEASON_SIM_PROFILE') ? readdirSync(new URL('../../supabase/functions/', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('_') && existsSync(new URL(`../../supabase/functions/${entry.name}/index.ts`, import.meta.url))).map(entry => entry.name).sort() : ['dispatcher', 'api', 'sync-rankings', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']
+  const names = Deno.env.get('SEASON_SIM_PROFILE') ? readdirSync(new URL('../../supabase/functions/', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('_') && existsSync(new URL(`../../supabase/functions/${entry.name}/index.ts`, import.meta.url))).map(entry => entry.name).sort() : ['dispatcher', 'api', 'sync-rankings', 'sync-trade-values', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']
   for (const name of names) {
     loading = name
     await import(new URL(`../../supabase/functions/${name}/index.ts`, import.meta.url).href)
@@ -128,7 +129,7 @@ nativeServe({ hostname: '127.0.0.1', port: config.ports.edge }, async request =>
   const started = performance.now()
   let status = 500
   try {
-    const response = await requestContext.run(state, () => handler(request))
+    const response = await requestContext.run(state, () => handler(tradeValueWorkRequest(name, request)))
     status = response.status
     if (name === 'live-poll' && response.ok) await sampleLive('worker-finished',state)
     return response

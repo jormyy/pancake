@@ -17,12 +17,12 @@ DECLARE
   p uuid; c1 uuid; c2 uuid; placed timestamptz; actual timestamptz; expected timestamptz;
   before_reset timestamptz; after_reset timestamptz; wk int; got int; i int;
   today date:=(now() AT TIME ZONE 'America/New_York')::date;
-  run_day date:=((now() AT TIME ZONE 'America/New_York')-interval '3 hours')::date;
+  run_day date:=(now() AT TIME ZONE 'America/New_York')::date;
 BEGIN
   INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
   VALUES(u,'authenticated','authenticated',u||'@example.test','x',now(),'{}','{}',now(),now());
-  INSERT INTO leagues(id,name,slug,commissioner_id,status,waiver_mode,weekly_add_limit)
-  VALUES(l,'Synthetic DST waiver',l::text,u,'playoffs','faab',NULL);
+  INSERT INTO leagues(id,name,slug,commissioner_id,status,waiver_mode,weekly_add_limit,timezone)
+  VALUES(l,'Synthetic DST waiver',l::text,u,'playoffs','faab',NULL,'America/New_York');
   INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(m,l,u,'commissioner','DST');
   INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(s,l,2199,true);
   INSERT INTO waiver_priorities(league_id,league_season_id,member_id,priority) VALUES(l,s,m,1);
@@ -32,8 +32,8 @@ BEGIN
     VALUES(p,'Synthetic','DST','PG',ARRAY['PG'],'Active','SIM');
     placed:=CASE i WHEN 1 THEN '2026-10-31 01:30:00-04'::timestamptz
       WHEN 2 THEN '2026-11-01 01:59:59-04'::timestamptz ELSE '2026-11-01 01:00:00-05'::timestamptz END;
-    expected:=CASE i WHEN 1 THEN '2026-11-02 03:00:00-05'::timestamptz
-      WHEN 2 THEN '2026-11-03 03:00:00-05'::timestamptz ELSE '2026-11-03 03:00:00-05'::timestamptz END;
+    expected:=CASE i WHEN 1 THEN '2026-11-03 00:00:00-05'::timestamptz
+      WHEN 2 THEN '2026-11-04 00:00:00-05'::timestamptz ELSE '2026-11-04 00:00:00-05'::timestamptz END;
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     VALUES(l,s,p,placed) RETURNING clears_at INTO actual;
     IF actual<>expected OR actual-placed<interval '48 hours' OR actual-placed>=interval '72 hours' THEN
@@ -61,13 +61,13 @@ BEGIN
     p:=gen_random_uuid();
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,status,nba_team)
     VALUES(p,'Synthetic','ET edge','PG',ARRAY['PG'],'Active','SIM');
-    expected:=(CASE i WHEN 1 THEN (run_day-1)::timestamp ELSE run_day::timestamp END+interval '3 hours') AT TIME ZONE 'America/New_York';
+    expected:=(CASE i WHEN 1 THEN (run_day-1)::timestamp ELSE run_day::timestamp END+interval '0 hours') AT TIME ZONE 'America/New_York';
     INSERT INTO waiver_wire_log(league_id,league_season_id,player_id,placed_on_waivers_at)
     VALUES(l,s,p,expected-interval '48 hours');
     IF i=1 THEN c1:=create_waiver_claim_atomic(l,m,p,NULL,u,0); ELSE c2:=create_waiver_claim_atomic(l,m,p,NULL,u,0); END IF;
   END LOOP;
   IF EXISTS (SELECT 1 FROM waiver_claims WHERE id IN(c1,c2)
-    AND (process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()) THEN
+    AND (process_date + time '00:00') AT TIME ZONE 'America/New_York' <= now()) THEN
     RAISE EXCEPTION 'ASSERT new submission must use a future ET run';
   END IF;
   UPDATE waiver_claims SET process_date=run_day-1 WHERE id=c1;
@@ -78,6 +78,6 @@ BEGIN
   END IF;
   SELECT count(*) INTO got FROM process_due_waiver_claims_atomic(run_day,100) WHERE claim_id IN(c1,c2);
   IF got<>1 OR (SELECT status FROM waiver_claims WHERE id=c2)<>'succeeded' THEN RAISE EXCEPTION 'ASSERT current run claim must process on its ET day'; END IF;
-  RAISE NOTICE 'PASS SYNTHETIC fixed 2026 DST drop instants, 48-hour minimum before the 03:00 ET run, ET midnight labels, real submission/processing day edges';
+  RAISE NOTICE 'PASS SYNTHETIC fixed 2026 DST drop instants, 48-hour minimum before the league-local midnight run, ET midnight labels, real submission/processing day edges';
 END $$;
 ROLLBACK;

@@ -1,3 +1,4 @@
+import { formatLeagueTime, resolveLeagueTimezone, startOfLeagueDayUTC, todayLeague } from '@/lib/timezone'
 import { assertMutationOnline } from '@/lib/shared/pwa-mutation'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { supabase } from '@/lib/supabase'
@@ -264,41 +265,32 @@ export async function getWaiverPriorityOrder(leagueId: string, canRead?: () => b
     })
 }
 
-const waiverTimeZone = 'America/New_York'
-const waiverHour = new Intl.DateTimeFormat('en-US', { timeZone: waiverTimeZone, hour: '2-digit', hourCycle: 'h23' })
-
-export function claimRunAt(clearsAt: string | null, now: Date = new Date()): Date {
+export function claimRunAt(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): Date {
     const threshold = new Date(Math.max(now.getTime(), clearsAt ? Date.parse(clearsAt) || now.getTime() : now.getTime()))
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: waiverTimeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(threshold)
-    const part = (type: string) => Number(parts.find((value) => value.type === type)?.value)
-    const day = Date.UTC(part('year'), part('month') - 1, part('day'))
-    const runOnDay = (date: number) => {
-        const early = new Date(date + 7 * 60 * 60 * 1000)
-        return waiverHour.format(early) === '03' ? early : new Date(date + 8 * 60 * 60 * 1000)
-    }
-    const run = runOnDay(day)
-    return run.getTime() > now.getTime() && run.getTime() >= threshold.getTime() ? run : runOnDay(day + 24 * 60 * 60 * 1000)
+    const day = todayLeague(timezone, threshold)
+    const run = startOfLeagueDayUTC(day, timezone)
+    if (run.getTime() > now.getTime() && run.getTime() >= threshold.getTime()) return run
+    const nextDay = new Date(Date.parse(`${day}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
+    return startOfLeagueDayUTC(nextDay, timezone)
 }
 
-export function claimProcessDateLabel(clearsAt: string | null, now: Date = new Date()): string {
-    return `${claimRunAt(clearsAt, now).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: waiverTimeZone })} · 3 AM ET`
+export function claimProcessDateLabel(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): string {
+    return scheduledClaimLabel(todayLeague(timezone, claimRunAt(clearsAt, now, timezone)), timezone)
 }
 
-export function claimProcessWeekdayLabel(clearsAt: string | null, now: Date = new Date()): string {
-    return claimRunAt(clearsAt, now).toLocaleDateString('en-US', { weekday: 'short', timeZone: waiverTimeZone })
+export function claimProcessWeekdayLabel(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): string {
+    return claimRunAt(clearsAt, now, timezone).toLocaleDateString('en-US', { weekday: 'short', timeZone: resolveLeagueTimezone(timezone) })
 }
 
-export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new Date()): string {
-    return `${claimProcessWeekdayLabel(clearsAt, now)} 3 AM ET`
+export function claimProcessTimeLabel(clearsAt: string | null, now: Date = new Date(), timezone?: string | null): string {
+    return `${claimProcessWeekdayLabel(clearsAt, now, timezone)} ${formatLeagueTime(claimRunAt(clearsAt, now, timezone), resolveLeagueTimezone(timezone))}`
 }
 
-export function scheduledClaimLabel(processDate: string): string {
-    const date = new Date(`${processDate}T12:00:00Z`)
-    return `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: waiverTimeZone })} · 3 AM ET`
+export function scheduledClaimLabel(processDate: string, timezone?: string | null): string {
+    const date = scheduledClaimRunAt(processDate, timezone)
+    return `${date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: resolveLeagueTimezone(timezone) })} · ${formatLeagueTime(date, resolveLeagueTimezone(timezone))}`
 }
 
-export function scheduledClaimRunAt(processDate: string): Date {
-    const day = Date.parse(`${processDate}T00:00:00Z`)
-    const early = new Date(day + 7 * 60 * 60 * 1000)
-    return waiverHour.format(early) === '03' ? early : new Date(day + 8 * 60 * 60 * 1000)
+export function scheduledClaimRunAt(processDate: string, timezone?: string | null): Date {
+    return startOfLeagueDayUTC(processDate, timezone)
 }

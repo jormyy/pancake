@@ -65,6 +65,6 @@ Deno.test('a box side carries missing position metadata in the same identity imp
   }
   try {
     await recordBoxSides({ homeTeam: { teamTricode: 'BOS', players: [{ personId: 123, name: 'Box Player', position: 'C' } as NBABoxScorePlayer] } }, '0022600001')
-    assert.deepEqual(records, [{ provider_id: '123', display_name: 'Box Player', nba_game_id: '0022600001', nba_team: 'BOS', metadata: { position: 'C' } }])
+    assert.deepEqual(records, [{ provider_id: '123', display_name: 'Box Player', nba_game_id: '0022600001', nba_team: 'BOS', identity_only: true, metadata: { position: 'C' } }])
   } finally { globalThis.fetch = originalFetch }
 })

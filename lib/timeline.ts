@@ -1,3 +1,4 @@
+import { formatLeagueDate } from '@/lib/timezone'
 import { supabase } from '@/lib/supabase'
 import type { Json } from '@/types/database'
 
@@ -36,7 +37,7 @@ export function timelineMatches(event: TimelineEvent, filter: TimelineFilter): b
     return event.kind.startsWith(prefix)
 }
 
-export function timelineRelativeTime(createdAt: string, now = Date.now()): string {
+export function timelineRelativeTime(createdAt: string, now = Date.now(), timezone?: string): string {
     const elapsed = Math.max(0, now - Date.parse(createdAt))
     if (!Number.isFinite(elapsed)) return ''
     const minutes = Math.floor(elapsed / 60_000)
@@ -46,5 +47,5 @@ export function timelineRelativeTime(createdAt: string, now = Date.now()): strin
     if (hours < 24) return `${hours}h ago`
     const days = Math.floor(hours / 24)
     if (days < 7) return `${days}d ago`
-    return new Date(createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    return formatLeagueDate(createdAt, timezone)
 }

@@ -176,6 +176,7 @@ export async function recordBoxSides(
     const side = team?.teamTricode
     return typeof side === 'string' && side.trim() ? (team?.players ?? []).map(player => ({
       provider_id: String(player.personId), display_name: player.name ?? '', nba_game_id: providerGameId, nba_team: side,
+      identity_only: true,
       ...player.position && ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].includes(player.position) ? { metadata: { position: player.position } } : {},
     })) : []
   })

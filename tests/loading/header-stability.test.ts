@@ -5,6 +5,7 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { AuctionIdlePanel } from '@/components/league/draft-room/AuctionIdlePanel'
 import { PageHeader } from '@/components/ui/Page'
 import { SettingsRow } from '@/components/settings/SettingsGroup'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', TextInput: 'TextInput', Pressable: 'Pressable',

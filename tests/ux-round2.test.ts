@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge'
 import { normalizeTradeTab } from '@/lib/trade-ui-model'
 import { playerAge } from '@/lib/player-context'
 import { headerPlayer, playerRow, trade } from './helpers/fixtures'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
 let screen: ReactTestRenderer | undefined

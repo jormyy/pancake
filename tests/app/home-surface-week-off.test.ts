@@ -68,3 +68,5 @@ it('opens Players from the notice', async () => {
     await act(async () => screen.root.findByType('Button' as React.ElementType).props.onPress())
     expect(browse).toHaveBeenCalledOnce()
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-24' }))

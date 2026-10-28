@@ -13,9 +13,12 @@ import { handleTradeActivationWork, handleTradeEstimateWork } from './tradeEstim
 import { handleWaiverRoute } from './waivers.ts'
 import { handleVersionRoute } from './version/index.ts'
 import { handleViewRoute } from './views/index.ts'
+import { handlePublicRoute } from './public/index.ts'
 import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMetadata.ts'
 
-export function handleApiRoute(req: Request): Promise<Response> {
+export async function handleApiRoute(req: Request): Promise<Response> {
+  const publicResponse = await handlePublicRoute(req, routePath(req))
+  if (publicResponse) return publicResponse
   if (req.method === 'POST' && routePath(req) === '/trades/estimate-work') return handleTradeEstimateWork(req)
   if (req.method === 'POST' && routePath(req) === '/trades/activation-work') return handleTradeActivationWork(req)
   return handleApiRequest(req, 'api', async () => {

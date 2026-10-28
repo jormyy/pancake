@@ -3,6 +3,7 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@pancake/core'
+import { formatTradeValue } from '@/lib/trade-estimates'
 import { borderWidth, colors, componentTokens, fontSize, fontWeight, spacing, textStyles, lineHeight } from '@/constants/tokens'
 
 export function TradeAnalysisSummary({
@@ -31,7 +32,7 @@ export function TradeAnalysisSummary({
                 {analysis.teams.map((team) => (
                     <View key={team.memberId} style={styles.teamCard}>
                         <Text style={styles.teamName}>{participantName(team.memberId)}</Text>
-                        <Text style={styles.detail}>{team.valuesSent} vs {team.valuesReceived}</Text>
+                        <Text style={styles.detail}>{formatTradeValue(team.valuesSent)} vs {formatTradeValue(team.valuesReceived)}</Text>
                         <Text style={[styles.value, team.impact < 0 && styles.valueNegative]}>{signed(team.impact)}</Text>
                     </View>
                 ))}
@@ -59,7 +60,7 @@ export function TradeAnalysisSummary({
 
 function assetValueLine(asset: DynastyTradeAnalysis['assets'][number], strategy: DynastyTradeAnalysis['strategy']): string {
     const range = asset.ranges[strategy]
-    return `Value ${asset.values[strategy]} · Now ${asset.components.shortTermPoints} · Long ${asset.components.longTermValue}${range ? ` · ${range.low}–${range.high}` : ''}`
+    return `Value ${formatTradeValue(asset.values[strategy])} · Now ${asset.components.shortTermPoints} · Long ${formatTradeValue(asset.components.longTermValue)}${range ? ` · ${formatTradeValue(range.low)}–${formatTradeValue(range.high)}` : ''}`
 }
 
 function signed(value: number): string {

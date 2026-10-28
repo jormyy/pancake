@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RosterClaimItem } from '@/components/roster/RosterItems'
 import { type WaiverClaim } from '@/lib/waivers'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 const claim: WaiverClaim = {
     id: 'claim', playerId: 'player', playerName: 'Player A', playerNbaId: null,
@@ -20,7 +21,7 @@ it('shows the scheduled run without repeated priority or order and preserves cla
     const onCancel = vi.fn(), onReorder = vi.fn(), onEditBid = vi.fn()
     await act(async () => { renderer = create(React.createElement(RosterClaimItem, { claim, cancellingId: null, waiverMode: 'faab', onCancel, onReorder, onEditBid })) })
     const text = JSON.stringify(renderer!.toJSON())
-    expect(text).toContain('Processes Sun, Oct 11 · 3 AM ET')
+    expect(text).toContain('Processes Sun, Oct 11 · 12:00 AM PT')
     expect(text).toContain('Bid $10')
     expect(text).not.toContain('Order ')
     expect(text).not.toContain('Waiver priority')

@@ -5,6 +5,7 @@ import { MultiTeamTradeBuilder } from '@/components/trades/MultiTeamTradeBuilder
 import { validateTradeNotes } from '@/lib/trade-composer'
 import { MAX_TRADE_NOTES_BYTES } from '@pancake/core'
 import type { TradeParticipantView } from '@/lib/trade-ui-model'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     ActivityIndicator: 'ActivityIndicator',

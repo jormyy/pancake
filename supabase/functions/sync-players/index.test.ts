@@ -4,6 +4,7 @@ for (const [key, value] of Object.entries({
   SUPABASE_URL: 'http://database.invalid', PANCAKE_SUPABASE_SECRET_KEY: 'fixture-key',
   PANCAKE_EDGE_INTERNAL_TOKEN: 'fixture-token', PLAYER_SYNC_SOURCE: 'espn',
   ESPN_SITE_BASE_URL: 'http://espn.invalid', NBA_CDN_BASE_URL: 'http://nba.invalid',
+  SLEEPER_BASE_URL: 'http://sleeper.invalid',
   ESPN_CAREER_BASE_URL: 'http://career.invalid',
 })) Deno.env.set(key, value)
 
@@ -21,7 +22,7 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 const healthyInjuries = { injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Team0 Player0' } }] }] }
 
-async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200, earlierWorkMs = 0) {
+async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200, earlierWorkMs = 0, sleeperUnavailable = false) {
   const originalFetch = globalThis.fetch
   const originalNow = performance.now.bind(performance)
   const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
@@ -48,6 +49,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [],
     }] })
     if (url.hostname === 'career.invalid') return Response.json({ unavailable: true })
+    if (url.hostname === 'sleeper.invalid') return new Response(null, { status: 503 })
     assert.equal(url.hostname, 'database.invalid', url.href)
     if (url.pathname === '/rest/v1/sync_runs') {
       runs.push(await request.json())
@@ -67,7 +69,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     return Response.json([
-      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, sleeper_id: 'fixture-rookie', position: 'G', career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
+      { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, sleeper_id: sleeperUnavailable ? null : 'fixture-rookie', position: 'G', career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
       { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, sleeper_id: 'fixture-veteran', position: 'G', career_games_base: null, career_games_base_attempted_at: null, injury_status: null },
     ])
   }
@@ -122,4 +124,12 @@ Deno.test('earlier sync work can exhaust the career base lookup budget without c
   const result = await sync({}, healthyInjuries, 200, 120000)
   assert.equal(result.response.status, 200)
   assert.ok(!result.requests.some(url => url.pathname === '/rest/v1/rpc/claim_player_career_base_atomic'))
+})
+
+Deno.test('a provider 503 defers identity refresh without failing the complete worker', async () => {
+  const result = await sync({}, healthyInjuries, 200, 0, true)
+  assert.equal(result.response.status, 200)
+  assert.equal(result.result.identityRefreshDeferred, true)
+  assert.equal(result.result.failure, null)
+  assert.equal(result.runs.at(-1)?.status, 'success')
 })

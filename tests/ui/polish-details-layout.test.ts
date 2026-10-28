@@ -10,6 +10,7 @@ import { themeVariablesCss } from '@/constants/tokens'
 import type { LeagueProjectionRow } from '@/lib/projections'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { rosterPlayer } from '@/tests/helpers/fixtures'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', async () => ({ ...await vi.importActual('react-native-web') }))
 vi.mock('@/hooks/use-browser-read-activity', () => ({ useBrowserReadActivity: () => ({ active: false, revision: 0 }) }))

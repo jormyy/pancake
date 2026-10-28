@@ -26,7 +26,7 @@ BEGIN
     'provider_id', v_tag || '-espn', 'first_name', 'First', 'last_name', v_tag,
     'metadata', jsonb_build_object('position','G','eligible_positions',ARRAY['G'],'nba_team','BOS',
       'status','ACT','injury_status',NULL,'years_exp',4))));
-  IF (v_result->'results'->0->>'player_id')::uuid <> v_id OR v_result->'results'->0->>'action' <> 'updated'
+  IF (v_result->'results'->0->>'player_id')::uuid IS DISTINCT FROM v_id OR v_result->'results'->0->>'action' IS DISTINCT FROM 'updated'
     OR NOT EXISTS(SELECT FROM players WHERE id=v_id AND nba_id=v_tag||'-nba' AND espn_id=v_tag||'-espn'
       AND position='SG' AND eligible_positions=ARRAY['SG','SF'] AND nba_team='BOS' AND years_exp=4
       AND nba_draft_number=7 AND headshot_url='https://example.test/picture') THEN
@@ -34,15 +34,15 @@ BEGIN
   END IF;
   -- Stable provider ownership wins even when its current name changes.
   v_result := resolve_player_imports_atomic('espn', jsonb_build_array(jsonb_build_object(
-    'provider_id', v_tag || '-espn', 'first_name', 'Renamed', 'last_name', v_tag,
+    'provider_id', v_tag || '-espn', 'first_name', 'FIRST', 'last_name', v_tag,
     'metadata', jsonb_build_object('position','G','eligible_positions',ARRAY['G'],'nba_team','NYK',
       'status','ACT','injury_status','Out','years_exp',5))));
-  IF (v_result->'results'->0->>'player_id')::uuid <> v_id THEN RAISE EXCEPTION 'Provider rename forked identity'; END IF;
+  IF (v_result->'results'->0->>'player_id')::uuid IS DISTINCT FROM v_id THEN RAISE EXCEPTION 'Provider rename forked identity'; END IF;
   SELECT to_jsonb(p) INTO v_original FROM players p WHERE id=v_id;
   BEGIN
     PERFORM resolve_player_imports_atomic('nba_cdn', jsonb_build_array(
       jsonb_build_object('provider_id',v_tag||'-fresh','display_name','Fresh '||v_tag),
-      jsonb_build_object('provider_id',v_tag||'-conflict','display_name','Renamed '||v_tag)));
+      jsonb_build_object('provider_id',v_tag||'-conflict','display_name','FIRST '||v_tag)));
     RAISE EXCEPTION 'Conflicting provider identity was accepted';
   EXCEPTION WHEN check_violation THEN NULL; END;
   IF EXISTS(SELECT FROM players WHERE nba_id=v_tag||'-fresh')
@@ -62,10 +62,10 @@ BEGIN
     OR EXISTS(SELECT FROM players WHERE nba_id=v_tag||'-ambiguous') THEN RAISE EXCEPTION 'Ambiguous import guessed'; END IF;
 
   v_result := resolve_player_imports_atomic('sleeper', jsonb_build_array(jsonb_build_object(
-    'provider_id',v_tag||'-sleeper','first_name','Renamed','last_name',v_tag,
+    'provider_id',v_tag||'-sleeper','first_name','FIRST','last_name',v_tag,
     'metadata',jsonb_build_object('position','PG','eligible_positions',ARRAY['PG'],'nba_team','NYK',
       'status','ACT','injury_status',NULL,'years_exp',6))));
-  IF (v_result->'results'->0->>'player_id')::uuid <> v_id OR NOT EXISTS(
+  IF (v_result->'results'->0->>'player_id')::uuid IS DISTINCT FROM v_id OR NOT EXISTS(
     SELECT FROM players WHERE id=v_id AND sleeper_id=v_tag||'-sleeper' AND position='PG'
       AND eligible_positions=ARRAY['PG'] AND espn_id=v_tag||'-espn' AND nba_id=v_tag||'-nba') THEN
     RAISE EXCEPTION 'Sleeper authoritative metadata or atomic claim failed';
@@ -80,7 +80,7 @@ BEGIN
   INSERT INTO players(first_name,last_name) VALUES('Unclaimed',v_tag) RETURNING id INTO v_other;
   v_result := resolve_player_imports_atomic('nba_index', jsonb_build_array(jsonb_build_object(
     'provider_id',v_tag||'-nba','player_id',v_other,'expected_display_name','Unclaimed '||v_tag,'name_match','exact')));
-  IF (v_result->'results'->0->>'player_id')::uuid <> v_id
+  IF (v_result->'results'->0->>'player_id')::uuid IS DISTINCT FROM v_id
     OR EXISTS(SELECT FROM players WHERE id=v_other) THEN RAISE EXCEPTION 'Compatible index merge failed'; END IF;
   INSERT INTO players(first_name,last_name,espn_id) VALUES('Conflicting',v_tag,v_tag||'-different-espn') RETURNING id INTO v_other;
   SELECT to_jsonb(p) INTO v_original FROM players p WHERE id=v_id;

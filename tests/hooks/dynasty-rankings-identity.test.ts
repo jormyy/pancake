@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
     getCurrentSeason: vi.fn(),
     getDynastyDecisionInputs: vi.fn(),
     getUnmatchedRookieRankings: vi.fn(),
+    getDynastyPickValues: vi.fn(),
     readPersistentCache: vi.fn(),
     writePersistentCache: vi.fn(),
 }))
@@ -26,6 +27,7 @@ vi.mock('@/lib/dynasty-decisions', async (importOriginal) => {
         ...actual,
         getDynastyDecisionInputs: mocks.getDynastyDecisionInputs,
         getUnmatchedRookieRankings: mocks.getUnmatchedRookieRankings,
+        getDynastyPickValues: mocks.getDynastyPickValues,
     }
 })
 vi.mock('@/lib/supabase', () => ({ supabase: { rpc: vi.fn() } }))
@@ -58,6 +60,7 @@ beforeEach(() => {
     vi.clearAllMocks()
     mocks.readPersistentCache.mockReturnValue(null)
     mocks.getUnmatchedRookieRankings.mockResolvedValue([])
+    mocks.getDynastyPickValues.mockResolvedValue([])
 })
 
 describe('dynasty rankings identity', () => {

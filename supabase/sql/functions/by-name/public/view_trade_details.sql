@@ -13,6 +13,7 @@ BEGIN
   INTO participants FROM public.trade_participants participant LEFT JOIN public.league_members member ON member.id = participant.member_id
     WHERE participant.trade_id = trade.id;
   SELECT COALESCE(jsonb_agg(CASE WHEN item.player_id IS NOT NULL THEN jsonb_build_object('kind', 'player',
+      'tradeValue', (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1),
       'playerId', player.id, 'playerName', COALESCE(player.display_name, 'Unknown'), 'position', player.position,
       'eligiblePositions', player.eligible_positions, 'nbaTeam', player.nba_team, 'nbaId', player.nba_id,
       'injuryStatus', player.injury_status, 'yearsExp', player.years_exp, 'nbaDraftNumber', player.nba_draft_number,
@@ -22,11 +23,18 @@ BEGIN
       'avgFantasyPoints', COALESCE(average.avg_fantasy_points, source_fantasy.avg_fantasy_points),
       'avgMinutesPlayed', COALESCE(average.averages->'avg_minutes_played', to_jsonb(source_average.avg_minutes_played)))
     WHEN item.pick_id IS NOT NULL THEN jsonb_build_object('kind', 'pick', 'pickId', pick.id, 'seasonYear', pick.season_year,
+      'tradeValue', (SELECT value.trade_value FROM public.get_dynasty_pick_values(p_league_id) value
+        WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round AND value.tier=CASE
+          WHEN slot.pick_in_round IS NULL THEN 'mid'
+          WHEN slot.pick_in_round<=ceil(GREATEST(4,(SELECT count(*) FROM public.league_members WHERE league_id=p_league_id))/3.0) THEN 'early'
+          WHEN slot.pick_in_round<=ceil(GREATEST(4,(SELECT count(*) FROM public.league_members WHERE league_id=p_league_id))*2/3.0) THEN 'mid'
+          ELSE 'late' END),
       'round', pick.round, 'originalTeamName', COALESCE(original.team_name, 'Unknown'))
     ELSE jsonb_build_object('kind', 'faab', 'amount', item.faab_amount) END
     || jsonb_build_object('fromMemberId', item.from_member_id, 'toMemberId', item.to_member_id) ORDER BY item.id), '[]')
   INTO items FROM public.trade_items item LEFT JOIN public.players player ON player.id = item.player_id
     LEFT JOIN public.draft_picks pick ON pick.id = item.pick_id LEFT JOIN public.league_members original ON original.id = pick.original_owner_id
+    LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
     LEFT JOIN public.player_season_averages average ON average.league_id = p_league_id AND average.player_id = item.player_id
       AND average.season_year = public.current_season_year_et()
     LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = item.player_id
@@ -35,7 +43,7 @@ BEGIN
       AND source_fantasy.player_id = item.player_id AND source_fantasy.season_year = public.current_season_year_et()
     WHERE item.trade_id = trade.id;
   SELECT CASE WHEN quote.id IS NOT NULL THEN jsonb_build_object('quoteId', quote.id, 'modelVersion', quote.model_version,
-    'inputVersion', quote.input_version, 'createdAt', quote.created_at, 'teams', quote.analysis->'teams') END,
+    'inputVersion', quote.input_version, 'createdAt', quote.created_at, 'teams', quote.analysis->'teams', 'assets', quote.analysis->'assets') END,
     recorded.unavailable_reason INTO estimate, unavailable FROM public.trade_estimates recorded
     LEFT JOIN public.trade_estimate_quotes quote ON quote.id = recorded.quote_id WHERE recorded.trade_id = trade.id;
   result := jsonb_build_object('id', trade.id, 'status', trade.status, 'completionFailureReason', trade.completion_failure_reason,

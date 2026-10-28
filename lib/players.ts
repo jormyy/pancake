@@ -29,6 +29,7 @@ export type PlayerRow = {
     career_regular_season_games?: number | null
     playing_now?: boolean
     stats_season_year?: number | null
+    dynasty_rank?: number | null
     avg_fantasy_points?: number | null
     avg_points?: number | null
     avg_rebounds?: number | null
@@ -84,6 +85,9 @@ type PlayerDetailSourceRow = Pick<
 
 export type PlayerDetailRow = PlayerDetailSourceRow & {
     display_name: string
+    injury_reason?: string | null
+    injury_expected_return?: string | null
+    trade_value?: number | null
 }
 
 type TransactionHistoryRow = Pick<

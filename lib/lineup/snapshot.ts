@@ -1,7 +1,8 @@
 import { readPersistentCache, removePersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { readStoredAuthState } from '@/lib/supabase'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import type { LineupContext, LineupPlayer, LineupSlot, WeekDay } from './read'
 import { clampDateToWeek } from './date'
 
@@ -51,7 +52,7 @@ function validContext(c: LineupContext | undefined, day: string): c is LineupCon
 
 export function readLineupSnapshot(scope: LineupSnapshotScope, date: string, context?: LineupContext): LineupSnapshot | undefined {
     const project = projectForOwner(scope.ownerId)
-    if (!project || scope.day !== todayET()) return undefined
+    if (!project || scope.day !== todayLeague(leagueTimezone(scope.leagueId))) return undefined
     const key = scopeKey(scope, project)
     const savedContext = readPersistentCache<SavedContext>(`${key}:context`)
     if (!validContext(savedContext ?? undefined, scope.day)) return undefined
@@ -84,7 +85,7 @@ export function saveLineupSnapshot(
 ): void {
     const project = projectForOwner(scope.ownerId)
     if (!project || sessionOwner() !== scope.ownerId || sessionGeneration() !== generation
-        || scope.day !== todayET() || value.context.today !== scope.day) return
+        || scope.day !== todayLeague(leagueTimezone(scope.leagueId)) || value.context.today !== scope.day) return
     const snapshot: LineupSnapshot = { schema: 1, scope, project, savedAt: Date.now(), ...value }
     if (new TextEncoder().encode(JSON.stringify(snapshot)).byteLength > MAX_BYTES) return
     const key = scopeKey(scope, project)
@@ -100,7 +101,7 @@ export function discardLineupSnapshot(scope: LineupSnapshotScope): void {
 
 export function updateLineupOptimizerSnapshot(scope: LineupSnapshotScope, generation: number, seasonId: string, enabled: boolean): void {
     const project = projectForOwner(scope.ownerId)
-    if (!project || sessionGeneration() !== generation || scope.day !== todayET()) return
+    if (!project || sessionGeneration() !== generation || scope.day !== todayLeague(leagueTimezone(scope.leagueId))) return
     const key = `${scopeKey(scope, project)}:context`
     const context = readPersistentCache<SavedContext>(key)
     if (!context || !validContext(context, scope.day) || context.seasonId !== seasonId) return

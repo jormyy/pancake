@@ -1,0 +1,16 @@
+{
+  "cached": {
+    "ok": true,
+    "result": {
+      "cached": true,
+      "snapshot": {
+        "fetchedAt": "2026-10-28T08:14:43.772+00:00",
+        "matched": 445
+      }
+    }
+  },
+  "fetchedAt": "2026-10-28T08:14:43.772+00:00",
+  "sha256": "fd4fed8fc9354cc6ca3f8286a5920727ca8e49255370b3ec64f972441cdd5c69",
+  "matched": 445,
+  "mode": "live"
+}

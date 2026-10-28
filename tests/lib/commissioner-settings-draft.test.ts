@@ -141,3 +141,13 @@ describe('commissioner settings draft', () => {
         })).toBe('hydrate')
     })
 })
+
+it('saves a valid timezone during the active season and rejects an invalid timezone', () => {
+    const baseline = draft()
+    expect(buildCommissionerSettingsChange(draft({ timezone: 'Asia/Tokyo' }), baseline, 'active', ['points'], ['PG']))
+        .toEqual({ updates: { timezone: 'Asia/Tokyo' }, slotsChanged: false, slotUpdates: null })
+    expect(buildCommissionerSettingsChange(draft({ timezone: 'Mars/Olympus' }), baseline, 'active', ['points'], ['PG']))
+        .toEqual({ error: 'Choose a valid IANA timezone, such as America/Los_Angeles.' })
+    expect(buildCommissionerSettingsChange(draft({ timezone: '' }), baseline, 'active', ['points'], ['PG']))
+        .toEqual({ error: 'Choose a valid IANA timezone, such as America/Los_Angeles.' })
+})

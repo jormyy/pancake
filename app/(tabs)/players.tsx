@@ -262,7 +262,7 @@ function PlayerSearchSection() {
         : ''
     const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
     const summaryLoading = !playerSupportReady || (search.results.players.length === 0 && search.results.loading)
-    const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState), waiverLine].filter(Boolean).join(' · ')
+    const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState, Date.now(), currentLeague?.timezone), waiverLine].filter(Boolean).join(' · ')
     const filterControls = (variant: 'chip' | 'field') => (
         <>
             <FilterSelect
@@ -308,6 +308,16 @@ function PlayerSearchSection() {
                 value={search.toggles.rookiesOnly ? 'rookies' : 'all'}
                 options={CLASS_FILTERS}
                 onChange={(value) => search.toggles.setRookiesOnly(value === 'rookies')}
+            />
+            <FilterSelect
+                variant={variant}
+                label="Sort"
+                value={search.sort.mode}
+                options={SORT_OPTIONS}
+                onChange={(value) => {
+                    search.sort.setMode(value)
+                    search.sort.setDir('desc')
+                }}
             />
             <FilterSelect
                 variant={variant}
@@ -387,21 +397,13 @@ function PlayerSearchSection() {
             <Sheet visible={compactToolbar && filtersOpen} title="Filters" onClose={() => setFiltersOpen(false)}>
                 <View style={localStyles.sheetFields}>
                     {filterControls('field')}
-                    <FilterSelect
-                        label="Sort"
-                        value={search.sort.mode}
-                        options={SORT_OPTIONS}
-                        onChange={(value) => {
-                            search.sort.setMode(value)
-                            search.sort.setDir('desc')
-                        }}
-                    />
                     <Pressable
                         style={[styles.sortDirButton, localStyles.sortDirInSheet]}
+                        disabled={search.sort.mode === 'dynasty'}
                         onPress={() => search.sort.setDir((dir) => dir === 'asc' ? 'desc' : 'asc')}
                         accessibilityRole="button"
                     >
-                        <Text style={styles.sortDirText}>{search.sort.dir === 'asc' ? 'Lowest first ↑' : 'Highest first ↓'}</Text>
+                        <Text style={styles.sortDirText}>{search.sort.mode === 'dynasty' ? 'Best rank first' : search.sort.dir === 'asc' ? 'Lowest first ↑' : 'Highest first ↓'}</Text>
                     </Pressable>
                 </View>
                 <View style={localStyles.sheetActions}>

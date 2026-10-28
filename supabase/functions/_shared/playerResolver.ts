@@ -53,6 +53,7 @@ export async function resolveCdnPlayers(
   if (players.length === 0) return []
   const { results } = await resolvePlayerImports('nba_cdn', players.map(player => ({
     provider_id: player.personId, display_name: player.displayName,
+    identity_only: true,
     ...(providerGameId === undefined ? {} : { nba_game_id: providerGameId }),
   })))
   return results.map((result, index) => {

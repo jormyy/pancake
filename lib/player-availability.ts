@@ -1,6 +1,7 @@
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { getCurrentSeasonId, getLatestSeasonId } from '@/lib/shared/season'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { getOwnedPlayerMapForSeason, type OwnedEntry } from '@/lib/roster'
 import { getWaiverClearsAtForSeason, getPendingWaiverPlayerIdsForSeason } from '@/lib/waivers'
 import { getMemberTransactionState, type MemberTransactionState } from '@/lib/league'
@@ -28,7 +29,7 @@ export async function loadPlayerSupport(
     assertReadActive(options.canRead)
     const seasonId = currentSeasonId ?? await getLatestSeasonId(leagueId)
     assertReadActive(options.canRead)
-    const day = todayET()
+    const day = todayLeague(leagueTimezone(leagueId))
     const previous = options.previous
     const reuse = previous?.leagueId === leagueId && previous.seasonId === seasonId
         && previous.memberId === (memberId ?? null) && previous.day === day

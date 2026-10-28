@@ -2,6 +2,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
 import { AuctionIdlePanel } from '@/components/league/draft-room/AuctionIdlePanel'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',

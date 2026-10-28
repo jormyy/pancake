@@ -5,10 +5,11 @@ import { resolvePlayerImports } from '../_shared/playerImports.ts'
 import { linkPlayerSources, type SourceLinkRecord } from '../_shared/sourceLinks.ts'
 import { fetchAllPlayers } from './players.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
+import { planNbaLinks, type NbaLinkPlayer } from './nbaLinkPlan.ts'
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
-const CHUNK = 500
+const CHUNK = 50
 
 // Fetch the NBA CDN player index and populate nba_id for any players missing it.
 // The index includes all active NBA players with their PERSON_ID, first name, and last name
@@ -57,7 +58,17 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
   if (rosterRecords.length < 350) rosterGaps.push('NBA roster has fewer than 350 active players')
   if (new Set(rosterRecords.map(row => row.nba_team)).size !== 30) rosterGaps.push('NBA roster does not cover all 30 teams')
   if (rows.some(row => row[statusIdx] === 1 && !validTeams.has(String(row[teamIndex])))) rosterGaps.push('NBA roster contains an unknown active team')
-  const links = await linkPlayerSources(supabase, 'nba', rosterRecords, rosterGaps.length === 0)
+  const currentRoster = rosterGaps.length === 0
+  const stored = await fetchAllPlayers<NbaLinkPlayer>(supabase,
+    'id, display_name, nba_id, nba_team, espn_id, sleeper_id, years_exp, position, eligible_positions')
+  const plan = planNbaLinks(rosterRecords, stored, currentRoster)
+  const links: { index: number; player_id: string | null; action: string }[] = [...plan.completed]
+  for (let offset = 0; offset < plan.pending.length; offset += 50) {
+    const batch = plan.pending.slice(offset, offset + 50)
+    const results = await linkPlayerSources(supabase, 'nba', batch.map(row => row.record), currentRoster)
+    links.push(...results.map(row => ({ ...row, index: batch[row.index].index })))
+  }
+  links.sort((a, b) => a.index - b.index)
   const linkFailures = links.filter(row => row.action === 'ambiguous').map(row => `NBA roster provider ${rosterRecords[row.index].provider_id}: ambiguous`)
 
   // Build maps from the active CDN index. Exact names are preferred; normalized

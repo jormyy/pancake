@@ -35,7 +35,7 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
@@ -294,7 +294,7 @@ export default function HomeScreen() {
                 visible={autoSetModalVisible}
                 disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(todayET()) }}
+                onToday={() => { void doAutoSet(todayLeague(league?.timezone)) }}
                 onWholeWeek={() => { void doAutoSet(null) }}
                 onRestOfSeason={() => { void doAutoSet(null, true) }}
                 onEditManually={() => { setAutoSetModalVisible(false); router.push('/lineup') }}

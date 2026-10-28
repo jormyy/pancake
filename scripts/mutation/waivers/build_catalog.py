@@ -110,7 +110,7 @@ add('waiver-limits', 'private.current_add_week', 'v_elapsed_weeks := (v_today - 
 add('trade-deadline', 'private.create_trade_offer', "v_league.trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_league.trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock proposals on the deadline date instead of the next New York date')
 add('trade-deadline', 'public.prevent_trade_acceptance_after_deadline', "v_trade_deadline < (now() AT TIME ZONE 'America/New_York')::date", "v_trade_deadline <= (now() AT TIME ZONE 'America/New_York')::date", 'ROR', 'Lock acceptance on the deadline date instead of the next New York date')
 
-add('waiver-order', p, "AND (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()", "AND (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York' < now()", 'ROR <= -> <', 'Exact scheduled 03:00 boundary is delayed')
+add('waiver-order', p, "AND (candidate.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles') <= now()", "AND (candidate.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles') < now()", 'ROR <= -> <', 'Exact league-local midnight boundary is delayed')
 
 oracles = {
     'initial': [

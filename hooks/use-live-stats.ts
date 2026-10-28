@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getGameDay, getLivePlayerStats, NBAGameRow, LiveStatLine, type GameDay } from '@/lib/games'
 import { deferLeagueRefresh, leagueChangeAffects, leagueChangesConnected, leagueSnapshotRevision, listenForLeagueChanges, waitForLeagueChanges } from '@/lib/league-changes'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
 
 type Snapshot = {
@@ -133,7 +134,7 @@ async function loadSnapshot(date: string): Promise<void> {
         snapshots.set(date, snapshot)
         evictSnapshots()
         notify(date, snapshot)
-        if (listenersByScope.has(date) && (scopes.get(date)?.date === todayET() || anyGameInProgress(date))) ensurePoll()
+        if (listenersByScope.has(date) && (scopes.get(date)?.date === todayLeague(leagueTimezone(scopes.get(date)?.leagueId)) || anyGameInProgress(date))) ensurePoll()
     })().finally(() => {
         inFlightByScope.delete(date)
         inFlightEpochByScope.delete(date)
@@ -262,7 +263,7 @@ function ensurePoll() {
     if (pollInterval) return
     watchVisibility()
     pollInterval = setInterval(async () => {
-        const dates = [...listenersByScope.keys()].filter(date => scopes.get(date)?.date === todayET() || anyGameInProgress(date))
+        const dates = [...listenersByScope.keys()].filter(date => scopes.get(date)?.date === todayLeague(leagueTimezone(scopes.get(date)?.leagueId)) || anyGameInProgress(date))
         if (dates.length === 0) {
             clearInterval(pollInterval!)
             pollInterval = null
@@ -289,7 +290,7 @@ onSessionCachesCleared(() => {
 export function readCachedLiveTeams(leagueId: string): Set<string> | null {
     let latest: Snapshot | null = null
     for (const [key, scope] of scopes) {
-        if (scope.leagueId !== leagueId || scope.date !== todayET() || scope.generation !== sessionGeneration() || !snapshotFresh(key)) continue
+        if (scope.leagueId !== leagueId || scope.date !== todayLeague(leagueTimezone(leagueId)) || scope.generation !== sessionGeneration() || !snapshotFresh(key)) continue
         const snapshot = snapshots.get(key)!
         if (!latest || snapshot.fetchedAt > latest.fetchedAt) latest = snapshot
     }

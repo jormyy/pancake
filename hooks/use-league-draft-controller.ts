@@ -1,3 +1,5 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { useRouter } from 'expo-router'
@@ -30,6 +32,7 @@ const writeActiveDraftCache = (leagueId: string, draft: Draft | null) =>
     writePersistentCache<ActiveDraftCacheEntry>(`${ACTIVE_DRAFT_CACHE_PREFIX}${leagueId}`, { draft })
 
 export function useLeagueDraftController(leagueId: string | undefined, options: { memberId?: string; authorized?: boolean; view?: { draft: Draft | null; loaded: boolean; error: string | null } } = {}) {
+    const timezone = useLeagueTimezone()
     const { push } = useRouter()
     const activity = useBrowserReadActivity()
     const focused = useRef(false)
@@ -246,7 +249,7 @@ export function useLeagueDraftController(leagueId: string | undefined, options: 
             const warningText = warning.code === 'opening_night_unpublished'
                 ? 'Opening night is not published yet. Its completion cutoff is unknown.'
                 : warning.code === 'opening_night_overrun'
-                    ? `This draft could run past opening night. Unfinished picks will be auto-picked at ${new Date(warning.openingNightCutoff!).toLocaleString()}.`
+                    ? `This draft could run past opening night. Unfinished picks will be auto-picked at ${formatLeagueDateTime(warning.openingNightCutoff!, timezone)}.`
                     : 'Unfinished picks will be auto-picked at 09:00 Eastern on opening day.'
             confirmAction(
                 'Start Rookie Draft?',

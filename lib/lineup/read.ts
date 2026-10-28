@@ -3,7 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { Database, RosterSlotType } from '@/types/database'
 import { getCurrentSeason, invalidateSeasonCache } from '@/lib/shared/season'
 import { getCurrentWeekNumber, getSeasonWeekDates, invalidateWeekNumberCache } from '@/lib/shared/week'
-import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
+import { endOfLeagueDayUTC, todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { getEligiblePositions } from '@/lib/players'
 import { onSessionCachesCleared } from '@/lib/session-cache-registry'
 
@@ -66,21 +67,18 @@ export async function getLineupContext(
     }
     const season = await getCurrentSeason(leagueId)
     if (!season) return null
-    const weekNumber = await getCurrentWeekNumber(season.seasonYear) ?? 1
-    // `today` flows through to queries comparing against nba_games.game_date /
-    // weekly_lineups.game_date — both stored in ET. Use ET here so non-ET
-    // clients select the correct slate during the 0–3h skew.
-    const today = todayET()
+    const weekNumber = await getCurrentWeekNumber(season.seasonYear, leagueTimezone(leagueId)) ?? 1
+    const today = todayLeague(leagueTimezone(leagueId))
     return { seasonId: season.id, seasonYear: season.seasonYear, weekNumber, today }
 }
 
-export async function getWeekDays(weekNumber: number, seasonYear: number): Promise<WeekDay[]> {
+export async function getWeekDays(weekNumber: number, seasonYear: number, timezone?: string): Promise<WeekDay[]> {
     // Fetch week boundaries first, then query games by date range.
     // Querying by week_number on nba_games is unreliable — rows can have stale/incorrect
     // week_number values if the schedule was synced out of order or re-seeded.
-    const dates = await getSeasonWeekDates(seasonYear, weekNumber)
+    const dates = await getSeasonWeekDates(seasonYear, weekNumber, timezone)
 
-    const today = todayET()
+    const today = todayLeague(timezone)
     const DAY_CHARS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
     const result: WeekDay[] = []
 
@@ -223,12 +221,9 @@ export async function getWeeklyLineup(
     seasonId: string,
     weekNumber: number,
     gameDate: string,
-    options: { allowCachedStatics?: boolean } = {},
+    options: { allowCachedStatics?: boolean; timezone?: string } = {},
 ): Promise<{ starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[] }> {
-    // gameDate is a YYYY-MM-DD string aligned to nba_games.game_date (ET).
-    // Compare against todayET so non-ET clients don't misclassify the current
-    // slate as "past" (or vice versa) during the 0–3h skew.
-    const today = todayET()
+    const today = todayLeague(options.timezone ?? leagueTimezone(leagueId))
     const isPastDate = gameDate < today
     const allowCached = options.allowCachedStatics ?? false
 
@@ -295,9 +290,7 @@ export async function getWeeklyLineup(
                 .eq('league_id', leagueId)
                 .eq('league_season_id', seasonId)
                 .in('transaction_type', ['fa_add', 'waiver_add', 'trade_in', 'draft_won', 'carry_over'])
-                // gameDate is ET-keyed (YYYY-MM-DD). Use exact next local midnight
-                // so DST does not shift post-slate transaction history by an hour.
-                .gt('occurred_at', endOfETDayUTC(gameDate))
+                .gt('occurred_at', endOfLeagueDayUTC(gameDate, options.timezone ?? leagueTimezone(leagueId)))
                 : Promise.resolve({ data: [] as { player_id: string }[], error: null }),
         ])
         if (extraPlayersResult.error) throw extraPlayersResult.error

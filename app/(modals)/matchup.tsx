@@ -4,13 +4,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useAuth } from '@/hooks/use-auth'
 import { useMatchupData } from '@/hooks/use-matchup-data'
+import { OtherMatchups } from '@/components/OtherMatchups'
 import { ScoreCard } from '@/components/ScoreCard'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { DaySelector } from '@/components/DaySelector'
 import { ScoreBreakdownSheet } from '@/components/ScoreBreakdownSheet'
 import { statLineupWidth } from '@/components/MatchupRow'
-import { Button, ErrorBanner, Page, usePageMetrics } from '@/components/ui'
+import { ErrorBanner, Page, usePageMetrics } from '@/components/ui'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { breakpoints, layout, spacing } from '@/constants/tokens'
@@ -43,7 +44,6 @@ export default function OtherMatchupScreen() {
         <Page title="Matchup" width="full">
             <ScrollView testID="other-matchup-page" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing.xl }}>
                 <View style={{ width: '100%', alignSelf: 'center', maxWidth: showColumns ? layout.statLineupMaxWidth : layout.lineupMaxWidth }}>
-                    <Button title="Back to Home" variant="ghost" size="sm" onPress={back} />
                     {data.error ? <ErrorBanner message={data.error} onRetry={data.refresh} /> : null}
                     {!matchupId ? <ErrorBanner message="Choose a matchup from Home." onRetry={back} /> : null}
                     <DeferredContent ready={Boolean(data.error) || data.emptyConfirmed || Boolean(matchup && myLineup && oppLineup)}>
@@ -65,6 +65,7 @@ export default function OtherMatchupScreen() {
                             /> : null}
                         </> : null}
                     </DeferredContent>
+                    <OtherMatchups matchups={data.leagueMatchups} onOpen={id => router.replace({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
                 </View>
             </ScrollView>
             <ScoreBreakdownSheet visible={details !== null} onClose={() => setDetails(null)} slotType={details?.slotType ?? ''}

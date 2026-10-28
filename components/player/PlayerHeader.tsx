@@ -19,6 +19,7 @@ type PlayerHeaderPlayer = {
     jersey_number: string | null
     injury_status: string | null
     dynasty_rank: number | null
+    trade_value?: number | null
     headshot_url: string | null
     nba_id: string | null
     career_regular_season_games?: number | null
@@ -89,7 +90,7 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                 <PlayerEligibilityTags yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={rosterStatus?.status === 'mine' || rosterStatus?.status === 'taken' ? rosterStatus.isOnTaxi : false} />
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
-                {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.trade_value != null || player.dynasty_rank != null ? <Badge inline label={player.trade_value != null ? `Value ${player.trade_value}` : `Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
                 {age != null ? <Badge inline label={`${age}`} accessibilityLabel={`Age ${age}`} color={colors.textMuted} /> : null}
                 {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}

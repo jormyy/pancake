@@ -15,6 +15,7 @@ type PlayerInput = {
   projection_fantasy_points: number | null
   years_exp: number | null
   ranking_source: string | null
+  trade_value?: number | null
 }
 export type EstimateTerm = {
   fromMemberId: string
@@ -34,7 +35,7 @@ export type TradeEstimateInputs = {
   terms: EstimateTerm[]
   players: PlayerInput[]
   replacementPlayers: PlayerInput[]
-  picks: { id: string; seasonYear: number; round: number; ownerId: string; originalOwnerId: string; originalTeamName: string; slot: number | null }[]
+  picks: { id: string; seasonYear: number; round: number; ownerId: string; originalOwnerId: string; originalTeamName: string; slot: number | null; valueBands?: { early: number; mid: number; late: number } | null; valueFetchedAt?: string | null }[]
 }
 
 function playerAsset(row: PlayerInput, observedAt: number): DynastyPlayerAsset {
@@ -46,6 +47,7 @@ function playerAsset(row: PlayerInput, observedAt: number): DynastyPlayerAsset {
   return {
     kind: 'player', id: row.player_id, label: row.display_name, age: rankingFresh ? row.age : null,
     dynastyRank: rankingFresh ? row.five_year_rank : null, rankMovement: rankingFresh ? row.rank_change : null,
+    tradeValue: row.trade_value,
     marketRanks: { overall: rankingFresh ? row.five_year_rank : null, contend: rankingFresh ? row.three_year_rank : null },
     healthStatus: row.injury_status, productionFantasyPoints: row.avg_fantasy_points,
     projectionFantasyPoints: projectionFresh ? row.projection_fantasy_points : null, isRookie: row.years_exp === 0,
@@ -78,6 +80,7 @@ export function analyzeTradeEstimate(input: TradeEstimateInputs, observedAt: num
       if (!pick) throw new Error('A selected pick is missing from the frozen valuation inputs.')
       return { ...route, asset: { kind: 'pick', id: pick.id, label: `${pick.seasonYear - 1} Round ${pick.round} · ${pick.originalTeamName}`,
         seasonYear: pick.seasonYear, round: pick.round, slot: pick.slot, teams: input.teams,
+        valueBands: pick.valueBands,
         sources: [{ name: 'league draft picks', fetchedAt: null }] } }
     }
     return { ...route, asset: { kind: 'faab', id: `faab:${term.fromMemberId}:${term.toMemberId}`, label: `$${term.faabAmount} FAAB`,

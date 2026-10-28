@@ -14,12 +14,12 @@ BEGIN
   d:=public.create_waiver_claim_atomic(f.league_id,f.member_ids[2],a,NULL,f.user_ids[2],12);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_id=f.league_id),'claim leaves roster unchanged');
   PERFORM pg_temp.check_rules((SELECT sum(balance)=200 FROM faab_balances WHERE league_id=f.league_id),'claim leaves funds unchanged');
-  PERFORM pg_temp.check_rules((SELECT (process_date+time '03:00') AT TIME ZONE 'America/New_York'>now() FROM waiver_claims WHERE id=c),'claim targets a future run');
+  PERFORM pg_temp.check_rules((SELECT (process_date+time '00:00') AT TIME ZONE 'America/Los_Angeles'>now() FROM waiver_claims WHERE id=c),'claim targets a future run');
   SELECT count(*) INTO result_count FROM public.process_due_waiver_claims_atomic(current_date+7);
   PERFORM pg_temp.check_rules((SELECT status='pending' FROM waiver_claims WHERE id=c),'future process parameter cannot award early');
   PERFORM public.edit_waiver_claim_atomic(c,f.member_ids[1],f.user_ids[1],NULL,12);
   PERFORM pg_temp.check_rules((SELECT bid_amount=12 FROM waiver_claims WHERE id=c),'free agent claim is editable');
-  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id IN(c,d);
+  UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/Los_Angeles')::date-1 WHERE id IN(c,d);
   PERFORM pg_temp.reject_rules(format('SELECT public.edit_waiver_claim_atomic(%L,%L,%L,NULL,20)',c,f.member_ids[1],f.user_ids[1]),'%cutoff%','missed cutoff freezes bid');
   SELECT count(*) INTO result_count FROM public.process_due_waiver_claims_atomic(current_date+7);
   PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[1] FROM roster_players WHERE league_id=f.league_id AND player_id=a),'equal bids use rolling priority');

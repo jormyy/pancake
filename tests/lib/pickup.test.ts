@@ -32,7 +32,7 @@ describe('add-limit copy', () => {
     it('summarizes unknown, unlimited, reached, and open states', () => {
         expect(addLimitSummary(null)).toBe('Adds —/—')
         expect(addLimitSummary(reached({ weeklyAddLimit: null, weeklyAddCount: 9 }))).toBe('Adds 9/∞')
-        expect(addLimitSummary(reached(), BEFORE_RESET)).toBe(`Adds 7/7 · resets ${LABEL}`)
+        expect(addLimitSummary(reached(), BEFORE_RESET)).toBe('Adds 7/7 · resets Nov 1, 2026, 9:00 PM PT')
         expect(addLimitSummary(reached({ addLimitResetsAt: null, addLimitResetsLabel: null }), BEFORE_RESET)).toBe('Adds 7/7 · limit reached')
         expect(addLimitSummary(open(), BEFORE_RESET)).toBe('Adds 2/7')
     })

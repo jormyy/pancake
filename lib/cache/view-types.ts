@@ -1,6 +1,6 @@
 import type { NBAGameRow } from '@/lib/games'
 import type { ViewContext } from '@/lib/cache/screen-cache'
-import type { RosterPlayer, OwnedEntry } from '@/lib/roster'
+import type { RosterPlayer, OwnedEntry, PlayerRosterStatus, RosterOccupancy } from '@/lib/roster'
 import type { RosterAverage } from '@/lib/roster-stats'
 import type { TradePickItem, Trade, TradePageCursor, TradeBlockItem } from '@/lib/trades'
 import type { WaiverClaim } from '@/lib/waivers'
@@ -24,4 +24,8 @@ export type HomeView = { context: ViewContext; matchup: Matchup | null; myLineup
 export type TradesView = { context: ViewContext; trades: Trade[]; hasMore: boolean; nextCursor: TradePageCursor | null; pendingIncomingCount: number }
 export type TradeBlockView = RosterView & { items: TradeBlockItem[]; block: TradeBlockItem[] }
 export type ClaimEditorView = { context: ViewContext; player: PlayerDetailRow; roster: RosterPlayer[]; claims: WaiverClaim[]; priority: number | null; clearsAt: string | null; transactionState: MemberTransactionState; members: { id: string; user_id: string }[]; taxiExitIds: string[] }
-export type PlayerView = { context: ViewContext; player: PlayerDetailRow; availableSeasons: number[]; selectedSeason: number; averages: PlayerSeasonAverages | null; avgFantasyPoints: number | null; lines: PlayerSeasonLine[]; gameLog: PlayerGame[]; hasMoreGames: boolean; includesLive: boolean; liveGame: PlayerGame | null; fantasyPointsMap: Record<string, number>; nextProjection: LeagueProjectionRow | null; transactions: TransactionHistoryEntry[]; scoringSettings: unknown; roster: RosterView }
+export type PlayerView = { pickup?: PlayerPickup; context: ViewContext; player: PlayerDetailRow; availableSeasons: number[]; selectedSeason: number; averages: PlayerSeasonAverages | null; avgFantasyPoints: number | null; lines: PlayerSeasonLine[]; gameLog: PlayerGame[]; hasMoreGames: boolean; includesLive: boolean; liveGame: PlayerGame | null; fantasyPointsMap: Record<string, number>; nextProjection: LeagueProjectionRow | null; transactions: TransactionHistoryEntry[]; scoringSettings: unknown; roster: RosterView }
+
+type PlayerPickup = { status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }
+export type PlayerSection = 'games' | 'news' | 'history'
+export type PlayerSectionView = { context: ViewContext; lines?: PlayerSeasonLine[]; transactions?: TransactionHistoryEntry[]; hasMoreGames?: boolean; news?: { id: string; title: string; summary: string; source: string; url: string | null; published_at: string }[] }
