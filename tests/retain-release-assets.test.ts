@@ -32,6 +32,90 @@ async function exportRelease(label: string) {
   return root
 }
 
+const loaderPath = '_expo/static/js/web/timeline-80299833db34e21f0ac67fea46a72b25.js'
+const screenPath = (label: string) => `_expo/static/js/web/TimelineScreen-${label.repeat(32)}.js`
+const loader = (label: string) => `__d(function(g,r,i,a,m,e,d){"use strict";e.loadTimeline=function(){return r(d[2])(d[1],d.paths)}},815,{"0":12,"1":817,"2":10,"paths":{"817":"/${screenPath(label)}"}});`
+
+async function exportLoaderRelease(label: string, source = loader(label)) {
+  const root = await exportRelease(label)
+  await writeFile(path.join(root, 'dist', loaderPath), source)
+  await writeFile(path.join(root, 'dist', screenPath(label)), `globalThis.screen = '${label}'`)
+  for (const name of ['index.html', 'sign-in.html']) {
+    await writeFile(path.join(root, 'dist', name), `<link rel="manifest" href="/manifest.webmanifest"><script src="/${loaderPath}"></script>`)
+  }
+  return root
+}
+
+it('accepts identical same-path loader bytes', async () => {
+  const first = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
+  const second = await exportLoaderRelease('a')
+  const receipt = await retainReleaseAssets(second, path.join(first, 'dist'))
+  expect(receipt.files.map((file: { path: string }) => file.path)).not.toContain(loaderPath)
+  expect(await readFile(path.join(second, 'dist', loaderPath), 'utf8')).toBe(loader('a'))
+})
+
+it('ships the new same-path loader and retains its old referenced assets', async () => {
+  const first = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
+  const second = await exportLoaderRelease('b')
+  const options = { root: second, commitSha: 'b'.repeat(40), previousRelease: path.join(first, 'dist') }
+  const marker = await stampReleaseProvenance(options)
+  expect(await readFile(path.join(second, 'dist', loaderPath), 'utf8')).toBe(loader('b'))
+  expect(await readFile(path.join(second, 'dist', screenPath('a')), 'utf8')).toBe("globalThis.screen = 'a'")
+  const receipt = JSON.parse(await readFile(path.join(second, 'dist/release-compatibility.json'), 'utf8'))
+  expect(receipt.files.map((file: { path: string }) => file.path)).toContain(screenPath('a'))
+  expect(receipt.files.map((file: { path: string }) => file.path)).not.toContain(loaderPath)
+  const release = await readPwaRelease(path.join(second, 'dist'))
+  const currentLoader = marker.artifact.files.find((file: { path: string }) => file.path === loaderPath)!
+  expect(release.bootHashes[`/${loaderPath}`]).toBe(currentLoader.sha256)
+  expect(release.bootHashes).not.toHaveProperty(`/${screenPath('a')}`)
+  expect((await stampReleaseProvenance(options)).bundleDigest).toBe(marker.bundleDigest)
+})
+
+it('rejects a same-path loader with changes outside its referenced paths', async () => {
+  const first = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
+  const second = await exportLoaderRelease('b', loader('b').replace('r(d[2])', 'r(d[0])'))
+  await expect(retainReleaseAssets(second, path.join(first, 'dist'))).rejects.toThrow(/same path/)
+})
+
+it('rejects a same-path loader when an old referenced asset would be dropped', async () => {
+  const ancestor = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: ancestor, commitSha: 'a'.repeat(40) })
+  const first = await exportRelease('b')
+  await stampReleaseProvenance({ root: first, commitSha: 'b'.repeat(40), previousRelease: path.join(ancestor, 'dist') })
+  await writeFile(path.join(first, 'dist', loaderPath), loader('a'))
+  const receiptPath = path.join(first, 'dist/release-compatibility.json')
+  const receipt = JSON.parse(await readFile(receiptPath, 'utf8'))
+  receipt.files = receipt.files.filter((file: { path: string }) => file.path !== loaderPath)
+  await writeFile(receiptPath, JSON.stringify(receipt))
+  await stampReleaseProvenance({ root: first, commitSha: 'b'.repeat(40) })
+  const second = await exportLoaderRelease('c')
+  await expect(retainReleaseAssets(second, path.join(first, 'dist'))).rejects.toThrow(/old referenced asset is not retained/)
+  await expect(readFile(path.join(second, 'dist', screenPath('a')))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it.each([
+  ['module identifier', (source: string) => source.replace('},815,', '},816,')],
+  ['dependency key', (source: string) => source.replace('"817":"/', '"818":"/')],
+  ['text outside the paths map', (source: string) => source.replace('"use strict";', `"use strict";e.label="/${screenPath('b')}";`)],
+  ['unsafe asset path', (source: string) => source.replace('/_expo/static/js/web/', '/_expo/static/js/web/../web/')],
+] as const)('rejects same-path changes to %s', async (_label, change) => {
+  const first = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
+  const second = await exportLoaderRelease('b', change(loader('b')))
+  await expect(retainReleaseAssets(second, path.join(first, 'dist'))).rejects.toThrow(/same path/)
+})
+
+it('rejects a same-path loader when its new referenced asset is missing', async () => {
+  const first = await exportLoaderRelease('a')
+  await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
+  const second = await exportLoaderRelease('b')
+  await rm(path.join(second, 'dist', screenPath('b')))
+  await expect(retainReleaseAssets(second, path.join(first, 'dist'))).rejects.toThrow(/new referenced asset is missing/)
+})
+
 it('retains the prior route graph without precaching it and remains repeatable across releases', async () => {
   const first = await exportRelease('a')
   await stampReleaseProvenance({ root: first, commitSha: 'a'.repeat(40) })
