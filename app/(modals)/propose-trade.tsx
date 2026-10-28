@@ -3,6 +3,7 @@ import { useRosterLegality } from '@/hooks/use-roster-legality'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
+import { isTradeRosterLegal } from '@/lib/trade-legality-step'
 import { previewTradeRosters } from '@/lib/trade-roster-preview'
 import { TradeRosterPreviewList } from '@/components/trades/TradeRosterPreviewList'
 import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
@@ -344,6 +345,13 @@ export default function ProposeTradeScreen() {
             rosterMoves: rosterPlanDraft.rosterMoves?.filter(move => ownPlayers.has(move.playerId) && !offered.has(move.playerId)),
         }
     }, [items, myMemberId, composer.participantRosters, rosterPlanDraft])
+    const rosterPreviews = currentLeague ? previewTradeRosters(
+        participantIds.map(memberId => ({ memberId, teamName: composer.participantName(memberId) })),
+        composer.participantRosters, items, { [myMemberId]: rosterPlan },
+        { active: currentLeague.roster_size, ir: currentLeague.ir_slots, taxi: currentLeague.taxi_slots ?? 0 },
+    ) : []
+    const ownRosterPreview = rosterPreviews.find(team => team.memberId === myMemberId)
+    const ownRosterLegal = isTradeRosterLegal(ownRosterPreview)
     // Leaving drops a built trade, so ask first once anything is selected.
     const leave = () => {
         if (items.length === 0) back()
@@ -412,7 +420,7 @@ export default function ProposeTradeScreen() {
 
     const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: composer.retry })
     const handleSubmit = useCallback(async () => {
-        if (!canAct() || !ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit) return
+        if (!canAct() || !ownerIdentity || !ownsOwner(ownerIdentity) || submissionRef.current || !canSubmit || !ownRosterLegal) return
         const submission = { ownerIdentity, token: Symbol('trade-submission') }
         submissionRef.current = submission
         setSubmitting(true)
@@ -512,6 +520,7 @@ export default function ProposeTradeScreen() {
         rosterPlan,
         back,
         canSubmit,
+        ownRosterLegal,
         counterTradeId,
         currentLeague?.status,
         currentLeague?.trade_deadline,
@@ -610,15 +619,15 @@ export default function ProposeTradeScreen() {
                     actions={(
                         <Pressable
                             onPress={handleSubmit}
-                            style={[styles.submitButton, (!canSubmit || !reviewReady) && styles.submitButtonDisabled]}
-                            disabled={!canSubmit || !reviewReady}
+                            style={[styles.submitButton, (!canSubmit || !reviewReady || !ownRosterLegal) && styles.submitButtonDisabled]}
+                            disabled={!canSubmit || !reviewReady || !ownRosterLegal}
                             accessibilityRole="button"
-                            accessibilityState={{ disabled: !canSubmit || !reviewReady }}
+                            accessibilityState={{ disabled: !canSubmit || !reviewReady || !ownRosterLegal }}
                             accessibilityLabel="Confirm and send trade"
                             testID="trade-confirm-submit"
                             id="trade-confirm-submit"
                         >
-                            <Text style={[styles.submitText, (!canSubmit || !reviewReady) && styles.submitTextDisabled]}>Send</Text>
+                            <Text style={[styles.submitText, (!canSubmit || !reviewReady || !ownRosterLegal) && styles.submitTextDisabled]}>Send</Text>
                         </Pressable>
                     )}
                 />
@@ -629,11 +638,7 @@ export default function ProposeTradeScreen() {
                         <Button title="Edit assets" size="sm" variant="secondary" onPress={() => setReviewing(false)} />
                         {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
                         <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                        {currentLeague ? <TradeRosterPreviewList teams={previewTradeRosters(
-                            participantIds.map(memberId => ({ memberId, teamName: composer.participantName(memberId) })),
-                            composer.participantRosters, items, { [myMemberId]: rosterPlan },
-                            { active: currentLeague.roster_size, ir: currentLeague.ir_slots, taxi: currentLeague.taxi_slots ?? 0 },
-                        )} /> : null}
+                        <TradeRosterPreviewList teams={rosterPreviews} />
                         {currentLeague ? <TradeRosterPlanEditor
                             incoming={items.flatMap((item) => {
                                 if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
@@ -642,7 +647,7 @@ export default function ProposeTradeScreen() {
                                 return [{ ...item, fromTaxi: rosterPlayer?.is_on_taxi === true, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
                             })}
                             roster={(composer.participantRosters[myMemberId] ?? []).filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
-                            value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
+                            preview={ownRosterPreview} value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
                             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
                         <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
                             loading={tradeAnalysis.loading} />

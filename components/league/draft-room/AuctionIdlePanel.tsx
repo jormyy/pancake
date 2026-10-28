@@ -5,7 +5,7 @@ import { StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native'
 
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
-import { draftAgeLabel, draftPlayerMeta } from '@/lib/draft-display'
+import { draftPlayerMeta } from '@/lib/draft-display'
 import { NOMINATION_ORDER_MODE_LABELS } from '@/lib/draft'
 
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
@@ -66,8 +66,8 @@ export function AuctionIdlePanel({
                             onPress={() => controller.handleNominate(item.id)} disabled={controller.submittingNom || !controller.actionsReady || !controller.realtimeConnected} accessibilityRole="button"
                             accessibilityLabel={`Nominate ${item.display_name ?? 'player'}`}>
                             <PlayerRowContent name={item.display_name ?? 'Player'} nbaId={item.nba_id} team={item.nba_team}
-                                positions={item.position ? [item.position] : []} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}
-                                stats={draftPlayerMeta([item.dynasty_rank != null ? `#${item.dynasty_rank}` : null, draftAgeLabel(item.age)])} />
+                                positions={item.position ? [item.position] : []} age={item.age} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status}
+                                stats={draftPlayerMeta([item.dynasty_rank != null ? `#${item.dynasty_rank}` : null])} />
                             <Text style={styles.nominateLabel}>Nominate</Text>
                         </MotionPressable>
                     )} ListEmptyComponent={controller.searchError

@@ -42,6 +42,8 @@ it('mirrors names and badges outward from the centre headshots', async () => {
     const names = screen.root.findAllByProps({ testID: 'matchup-player-name' })
     expect(names).toHaveLength(2)
     expect(names.every(node => node.props.adjustsFontSizeToFit && node.props.numberOfLines === 1 && node.props.ellipsizeMode === 'clip')).toBe(true)
+    const detail = screen.root.findAllByProps({ testID: 'matchup-game-line' })
+    expect(Number(flatStyle(names[0].props.style).fontWeight)).toBeGreaterThan(Number(flatStyle(detail[0].props.style).fontWeight))
 })
 
 it('keeps earned points and game lines without per-player projections', async () => {
@@ -65,4 +67,28 @@ it.each([true, false])('reserves two fixed lines for game and no-game players at
     expect(bodies.map(node => flatStyle((node.children[1] as ReactTestInstance).props.style).height)).toEqual([16, 16])
     const scores = screen.root.findAllByType('MotionPressable' as React.ElementType).filter(node => String(node.props.accessibilityLabel).startsWith('Score breakdown'))
     expect(scores.every(node => flatStyle(node.props.style).justifyContent === 'center')).toBe(true)
+})
+
+it('separates matchup rows with the shared border tokens', async () => {
+    await act(async () => { screen = create(React.createElement(MatchupRow, rowProps())) })
+    const { borderWidth, colors } = await import('@/constants/tokens')
+    expect(screen.root.findAllByType('View' as React.ElementType).some(node => JSON.stringify(node.props.style).includes(`"borderBottomColor":"${colors.separator}"`) && JSON.stringify(node.props.style).includes(`"borderBottomWidth":${borderWidth.thin}`))).toBe(true)
+})
+
+it.each([
+    ['2026-10-28T23:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM'],
+    ['2026-10-28T23:00:42Z', 'America/New_York', 'Scheduled', 'TOR @ OKC 7:00 PM'],
+    ['2026-01-28T00:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM'],
+    ['2026-10-28T23:00:42Z', 'America/Los_Angeles', 'Final', 'TOR @ OKC Final'],
+    [null, 'America/Los_Angeles', 'Final', 'TOR @ OKC Final'],
+    [null, 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC'],
+    ['invalid', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC'],
+])('appends tip time or Final to the unchanged game line', async (gameTime, timezone, status, expected) => {
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...rowProps(), timezone,
+        teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false, gameTime, status }], ['OKC', { opponent: 'TOR', isHome: true, gameTime, status }]]),
+    })) })
+    const texts = screen.root.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(texts.filter(value => value === expected)).toHaveLength(2)
+    expect(screen.root.findAllByProps({ testID: 'matchup-game-line' }).every(line => line.props.adjustsFontSizeToFit && line.props.ellipsizeMode === 'clip' && flatStyle(line.props.style).textOverflow === 'clip')).toBe(true)
+    expect(texts.join(' ')).not.toMatch(/Age |Yr /)
 })

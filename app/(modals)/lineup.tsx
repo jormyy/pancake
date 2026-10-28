@@ -96,7 +96,7 @@ const StarterRow = memo(function StarterRow({
             {p ? (
                 <>
 <PlayerRowContent name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam} positions={p.eligiblePositions}
-                        yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
+                        playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} stats={starterMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                         {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
                     </Text>
@@ -157,7 +157,7 @@ const BenchRow = memo(function BenchRow({
             accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
         >
 <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
-                        yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
+                        playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
@@ -630,7 +630,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
+                <DaySelector timezone={currentLeague?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
             )}
 
             {lineupError && online ? (
@@ -738,7 +738,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                                         accessibilityLabel={player ? `${label} ${player.displayName}` : `Empty ${label.toLowerCase()} slot`}>
                                         <Text style={styles.slotLabel}>{label}</Text>
                                         {player ? <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
-                                            positions={player.eligiblePositions} yearsExp={player.yearsExp} careerGames={player.careerGames}
+                                            positions={player.eligiblePositions} playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames}
                                             injuryStatus={player.injuryStatus} /> : <Text style={styles.emptySlot}>Empty {label.toLowerCase()} slot</Text>}
                                     </View>
                                 )

@@ -8,7 +8,7 @@ import { strict as assert } from 'node:assert'
 
 let draftYear = 2025
 
-let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' | 'malformed-injury' | 'injuries-down' = 'good'
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' | 'malformed-injury' | 'injuries-down' | 'brown-collision' = 'good'
 
 const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
@@ -60,6 +60,9 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
   if (url.pathname.includes('/roster')) {
     const teamId = url.pathname.split('/teams/')[1]?.split('/')[0] ?? '0'
     const roster = goodRosterFor(teamId)
+    if (mode === 'brown-collision' && ['1', '2'].includes(teamId)) {
+      roster.athletes[0] = { ...roster.athletes[0], id: '3917376', firstName: 'Jaylen', lastName: 'Brown', fullName: 'Jaylen Brown' }
+    }
     if (mode === 'missing-experience') {
       const athletes = roster.athletes.map((athlete, index) => ({ ...athlete, experience: undefined,
         ...(index === 0 ? { draft: { year: draftYear } } : index === 1 ? { debutYear: 2024 } : {}),
@@ -236,6 +239,12 @@ Deno.test('ESPN current-season experience becomes completed seasons', async () =
   mode = 'good'
   const { records } = await fetchEspnPlayerListing()
   assert.equal(records[0].years_exp, 2)
+})
+
+Deno.test('Brown cannot appear under one ESPN identity on two rosters', async () => {
+  mode = 'brown-collision'
+  await expectRefusal('Brown across teams', /Duplicate ESPN athlete identity/)
+  mode = 'good'
 })
 
 Deno.test({

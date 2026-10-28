@@ -15,10 +15,19 @@ The server caches a quote for ten minutes by exact frozen inputs and model versi
 
 Submitting an offer attaches the displayed quote inside the same database transaction. The quote must belong to the sender and match the saved routes, league, and season. A stale or mismatched quote rejects the submission without writing an offer. Retrying an already completed request returns its original offer and quote.
 
-An older client can submit without a quote. The API attempts to create one before submission. If calculation fails, the normal validity checks still apply and the offer records that no estimate is available. A calculation failure never changes assets or bypasses a server rule.
+A client can submit without a quote.
+The offer commits before estimate calculation.
+The database queues `trade-estimate` work for that saved offer.
+The internal API worker reads saved routes and attaches a matching quote later.
+Until then, the saved offer has no estimate.
+A failed calculation leaves the valid offer intact and follows work-queue retries.
+Estimates never bypass roster, ownership, or trade-window checks.
+Trade publication also uses queued work after the write commits.
+Identical pending offers are rejected even when they use different request IDs.
 
 Inbox, sent offers, details, and history show the saved estimate.
-Saved estimate and sources loads the frozen calculation.
+The compact value row shows frozen sent and received values.
+It omits saved dates and source captions.
 Counters create a new quote for the new terms.
 
 ## Historical revaluation

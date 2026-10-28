@@ -29,5 +29,22 @@ test('replay jobs match the cron catalog installed by the migrations', async () 
     assert.throws(() => verifyCronCatalog(installed.filter(job => job.jobname !== name)), new RegExp(`Missing production cron job: ${name}`))
     assert.throws(() => verifyCronCatalog(installed.map(job => job.jobname === name ? { ...job, schedule: '0 0 * * *' } : job)), new RegExp(`Changed production cadence: ${name}`))
   }
-  assert.deepEqual(installed, productionJobs.map(job => ({ ...job, command: job.command.replace(/;$/, '') })))
+  assert.deepEqual(installed, productionJobs)
+})
+
+test('cron alterations preserve command separators and apply the latest named fields', () => {
+  const jobs = installedCronJobs([
+    { name: '003', source: "SELECT cron.alter_job(jobid, command := $$SET statement_timeout='5s'; SET lock_timeout='250ms'; SELECT dispatch_work();$$, schedule := '* * * * *') FROM cron.job WHERE jobname='work-dispatcher';" },
+    { name: '001', source: "SELECT cron.schedule('work-dispatcher','0 * * * *','SELECT dispatch_work()');" },
+    { name: '002', source: "SELECT cron.alter_job(jobid, schedule := '*/2 * * * *') FROM cron.job WHERE jobname='work-dispatcher';" },
+    { name: '004', source: "SELECT cron.alter_job(jobid, command := 'SET statement_timeout=''4s''; SELECT dispatch_work();') FROM cron.job WHERE jobname='work-dispatcher';" },
+  ])
+  assert.deepEqual(jobs, [{ jobname: 'work-dispatcher', schedule: '* * * * *', command: "SET statement_timeout='4s'; SELECT dispatch_work();" }])
+})
+
+test('unsupported cron alterations fail instead of keeping an obsolete command', () => {
+  assert.throws(() => installedCronJobs([
+    { name: '001', source: "SELECT cron.schedule('work-dispatcher','* * * * *','SELECT dispatch_work()');" },
+    { name: '002', source: "SELECT cron.alter_job(jobid, command := runtime_command()) FROM cron.job WHERE jobname='work-dispatcher';" },
+  ]), /Unsupported cron update in 002/)
 })

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { expect, it } from 'vitest'
+import { hasShellBackHeader } from '@/constants/navigation'
 import { LEAGUE_TABS, parseLeagueTab } from '@/lib/league/tabs'
 
 it('opens Standings by default and keeps league sections one tap away', () => {
@@ -24,4 +25,8 @@ it('uses the same horizontal section control as Trades', () => {
     for (const file of ['app/(tabs)/league.tsx', 'app/(tabs)/trades.tsx']) {
         expect(readFileSync(file, 'utf8')).toMatch(/<SegmentedControl\s+variant="tabs"\s+scrollable/)
     }
+})
+
+it('keeps the app header above the playoff bracket', () => {
+    expect(hasShellBackHeader('/bracket')).toBe(false)
 })

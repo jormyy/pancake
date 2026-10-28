@@ -25,14 +25,17 @@ SELECT jsonb_build_object(
   )) OR (n.nspname = 'private' AND p.proname IN (
     'sync_roster_linked_state', 'clear_future_unlocked_lineups', 'lineup_game_started',
     'claim_cron_dispatch', 'reconcile_edge_invocations', 'work_claim', 'work_enqueue', 'work_finish',
-    'work_execute', 'work_capture_outcome', 'work_enforce_lease', 'enqueue_scheduled_work'
+    'work_execute', 'work_capture_outcome', 'work_enforce_lease', 'enqueue_scheduled_work',
+    'attach_submitted_trade_estimate', 'defer_trade_event', 'publish_trade_changes', 'queue_trade_publication'
   ))),
   'triggers', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', t.tgname, 'enabled', t.tgenabled, 'definition', pg_get_triggerdef(t.oid),
     'functionSchema', n.nspname, 'functionName', p.proname
   ) ORDER BY t.tgname), '[]'::jsonb)
   FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE t.tgrelid = 'public.roster_players'::regclass AND NOT t.tgisinternal),
+  WHERE NOT t.tgisinternal AND (t.tgrelid = 'public.roster_players'::regclass
+    OR t.tgrelid = to_regclass('public.trade_estimate_quotes') AND t.tgname = 'attach_submitted_trade_estimate'
+    OR t.tgrelid = to_regclass('public.league_events') AND t.tgname = 'defer_trade_event')),
   'policies', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', policyname, 'permissive', permissive, 'roles', roles, 'command', cmd,
     'using', qual, 'check', with_check
@@ -46,14 +49,14 @@ SELECT jsonb_build_object(
     'serviceRoleSelect', has_table_privilege('service_role', c.oid, 'SELECT')
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_class c
   WHERE c.relnamespace IN ('public'::regnamespace,'private'::regnamespace) AND c.relkind IN ('r', 'p')
-    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations', 'web_push_subscriptions', 'league_events', 'work_items', 'work_kinds')),
+    AND c.relname IN ('waiver_wire_log', 'cron_dispatch_state', 'edge_invocations', 'web_push_subscriptions', 'league_events', 'work_items', 'work_kinds', 'trade_publications')),
   'indexes', (SELECT coalesce(jsonb_agg(jsonb_build_object(
     'name', c.relname, 'valid', i.indisvalid, 'ready', i.indisready, 'definition', pg_get_indexdef(c.oid)
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
   WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN (
     'profiles_push_token_lookup', 'idx_sync_runs_started_at', 'idx_projection_sync_runs_started_at',
     'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'idx_edge_invocations_reconciled_at',
-    'web_push_subscriptions_user_id_idx'
+    'web_push_subscriptions_user_id_idx', 'trades_pending_parties'
   )),
   'serviceRoleMissingReads', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')

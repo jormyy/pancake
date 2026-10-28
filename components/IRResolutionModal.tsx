@@ -30,7 +30,7 @@ function PlayerLine({ player, message, action }: { player: RosterPlayer; message
     return <View style={styles.row}>
         <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team}
             positions={p.eligible_positions?.length ? p.eligible_positions : p.position ? [p.position] : []}
-            yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} stats={message} />
+            birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} stats={message} />
         <View style={styles.actions}>{action}</View>
     </View>
 }

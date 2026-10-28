@@ -46,9 +46,9 @@ export function useTradeActions({
         }
     }, [identity])
 
-    const finishAction = useCallback(async (requestId: number, ownerIdentity: string, onComplete = onAction) => {
+    const finishAction = useCallback((requestId: number, ownerIdentity: string, onComplete = onAction) => {
         if (!mountedRef.current || requestSequence.current !== requestId || identityRef.current !== ownerIdentity) return
-        await onComplete()
+        void Promise.resolve().then(onComplete).catch(() => undefined)
     }, [onAction])
 
     const runTerminalAction = useCallback(async (
@@ -64,7 +64,7 @@ export function useTradeActions({
         setBusyTradeId(tradeId)
         try {
             await operation(tradeId, memberId)
-            await finishAction(requestId, ownerIdentity, onComplete)
+            finishAction(requestId, ownerIdentity, onComplete)
         } catch (error) {
             if (mountedRef.current && requestSequence.current === requestId && identityRef.current === ownerIdentity) {
                 const handled = operation === acceptTrade && await onRosterError?.(error)

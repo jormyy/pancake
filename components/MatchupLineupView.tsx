@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SectionBand } from '@/components/ui/SectionBand'
-import { MatchupColumnHeader, MatchupRow } from '@/components/MatchupRow'
+import { MatchupColumnHeader, MatchupRow, type MatchupGame } from '@/components/MatchupRow'
 import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import type { LineupPlayer, LineupMoveData, LineupSelection, LineupMoveTargetState } from '@/lib/lineup'
 import type { LiveStatLine } from '@/lib/games'
@@ -33,6 +33,7 @@ export function MatchupLineupView({
     liveTeams,
     scoringSettings,
     teamMatchups,
+    timezone,
     statColumns,
     onOpenDetails,
     onOpenPlayer,
@@ -42,6 +43,7 @@ export function MatchupLineupView({
     daySelector,
     autoSetControl,
     footer,
+    readOnly = false,
 }: {
     playerForecasts: Map<string, MatchupForecast['games'][number]>
     forecastStale: boolean
@@ -57,7 +59,8 @@ export function MatchupLineupView({
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
-    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    teamMatchups: Map<string, MatchupGame>
+    timezone?: string
     statColumns: StatColumn[] | null
     onOpenDetails: (row: DetailsRow) => void
     onOpenPlayer: (player: LineupPlayer) => void
@@ -67,6 +70,7 @@ export function MatchupLineupView({
     dense: boolean
     daySelector?: ReactNode
     autoSetControl?: ReactNode
+    readOnly?: boolean
     footer?: ReactNode
 }) {
     const noStarters = !myLineup.starters.some((slot) => slot.player) && !oppLineup.starters.some((slot) => slot.player)
@@ -179,11 +183,13 @@ export function MatchupLineupView({
                                         isSelected={selected?.kind === row.selKind && selected.index === row.selIndex}
                                         onTap={onTap}
                                         saving={saving}
+                                        readOnly={readOnly}
                                         playingTeams={playingTeams}
                                         liveStats={liveStats}
                                         liveTeams={liveTeams}
                                         scoringSettings={scoringSettings}
                                         teamMatchups={teamMatchups}
+                                        timezone={timezone}
                                         isExtraOppRow={row.isExtraOppRow}
                                         compact={compact}
                                         dense={dense}

@@ -1,6 +1,8 @@
-# Release 2 verification
+# Historical release 2 verification
 
 These checks pass on 2026-10-27 at source commit `80bd0cc3`.
+This is a historical result, not the current release contract.
+The [release 2.4 integration record](release-2.4-integration.md) supersedes its counts and migration head.
 
 | Check | Result |
 | --- | --- |

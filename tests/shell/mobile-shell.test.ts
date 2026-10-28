@@ -75,7 +75,7 @@ it('opens the switch with one league and keeps it when another league becomes av
 
 it.each([
     '/player/123', '/lineup', '/propose-trade', '/claim-player', '/team-roster', '/change-password',
-    '/commissioner-settings', '/create-league', '/join-league', '/bracket', '/draft', '/draft-room', '/rookie-draft-room', '/profile', '/notification-settings',
+    '/commissioner-settings', '/create-league', '/join-league', '/draft', '/draft-room', '/rookie-draft-room', '/profile', '/notification-settings',
 ])('keeps bottom navigation while removing the duplicate header on %s', async pathname => {
     state.pathname = pathname
     await render()
@@ -86,7 +86,7 @@ it.each([
     expect(style.paddingTop).toBe('env(safe-area-inset-top, 0px)')
 })
 
-it.each(['/', '/roster', '/players', '/trades', '/league'])('keeps the league header on %s', async pathname => {
+it.each(['/', '/roster', '/players', '/trades', '/league', '/bracket'])('keeps the league header on %s', async pathname => {
     state.pathname = pathname
     await render()
     expect(controls('Open menu')).toHaveLength(1)

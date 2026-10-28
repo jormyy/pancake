@@ -41,6 +41,23 @@ beforeEach(() => {
     mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => onConfirm())
 })
 
+it('keeps an accepted trade successful when the following refresh fails', async () => {
+    let latest!: ReturnType<typeof useTradeActions>
+    const onAction = vi.fn().mockRejectedValue(new Error('Internal server error'))
+    const Probe = () => {
+        latest = useTradeActions({ memberId: 'member-a', leagueId: 'league-a', onAction })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.accept(trade('committed')) })
+    expect(mocks.acceptTrade).toHaveBeenCalledOnce()
+    expect(onAction).toHaveBeenCalledOnce()
+    expect(mocks.showAlert).not.toHaveBeenCalled()
+    expect(latest.busyTradeId).toBeNull()
+    await act(async () => { renderer.unmount() })
+})
+
 const deferred = <Value,>() => {
     let resolve!: (value: Value) => void
     const promise = new Promise<Value>((done) => { resolve = done })
@@ -388,7 +405,7 @@ it('confirms named drops and submits the exact reviewed plan', async () => {
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(Probe)) })
     await act(async () => latest.accept(trade('planned')))
-    expect(mocks.confirmAction.mock.calls[0][1]).toContain('You must drop 1 player to accept\nDrops: Drop Player')
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('Drops: Drop Player')
     expect(mocks.acceptTrade).not.toHaveBeenCalled()
     await act(async () => confirm())
     expect(mocks.acceptTrade).toHaveBeenCalledWith('planned', 'member-a', plan)

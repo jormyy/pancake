@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { installedCronJobs } from './migration-cron.mjs'
 
-export const productionJobs = JSON.parse(readFileSync(new URL('./cron-jobs.json', import.meta.url), 'utf8'))
+const migrationDirectory = new URL('../../supabase/migrations/', import.meta.url)
+export const productionJobs = installedCronJobs(readdirSync(migrationDirectory)
+  .filter(name => /^\d+_.+\.sql$/.test(name))
+  .map(name => ({ name, source: readFileSync(new URL(name, migrationDirectory), 'utf8') })))
 
 function fieldMatches(field, value, maximum) {
   return field.split(',').some(part => {

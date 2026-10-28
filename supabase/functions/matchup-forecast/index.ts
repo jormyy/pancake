@@ -1,7 +1,8 @@
 import { supabase } from '../_shared/supabase.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
-import { computeForecast, type ForecastContext } from './compute.ts'
+import { computeForecast } from './compute.ts'
+import { loadForecastContext } from './context.ts'
 import type { Json } from '../_shared/database.ts'
 
 serveInternal('matchup-forecast', async req => {
@@ -12,10 +13,7 @@ serveInternal('matchup-forecast', async req => {
     const failures: string[] = []
     for (const claim of claims ?? []) {
       try {
-        const { data: context, error: contextError } = await supabase.rpc('get_matchup_forecast_context', { p_matchup_id: claim.matchup_id })
-        if (contextError) throw contextError
-        if (!context) throw new Error('Matchup context is unavailable.')
-        const input = context as unknown as ForecastContext
+        const input = await loadForecastContext(claim.matchup_id)
         const forecast = computeForecast(input)
         const now = Date.parse(input.observedAt)
         const nextTipoff = input.games.map(game => Date.parse(game.game_time ?? '')).filter(time => time > now).sort((a, b) => a - b)[0]

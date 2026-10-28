@@ -39,6 +39,8 @@ BEGIN
   SET LOCAL ROLE authenticated;
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.trade_estimate_quotes WHERE id=(quote->>'id')::uuid),'recipient reads the submitted quote');
   RESET ROLE;
+  PERFORM set_config('request.jwt.claim.sub','',true);
+  PERFORM public.withdraw_trade_atomic(offer,f.member_ids[1],f.user_ids[1]);
   UPDATE public.trade_estimate_quotes SET expires_at=now()-interval '1 second' WHERE id=(quote->>'id')::uuid;
   PERFORM pg_temp.reject_rules(format('SELECT public.submit_trade_offer_atomic(%L,%L,%L,%L,%L)',
     f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose',payload),

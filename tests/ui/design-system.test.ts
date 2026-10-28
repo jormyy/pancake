@@ -5,7 +5,7 @@ import { ModuleKind, transpileModule } from 'typescript'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
-import { componentTokens, controlSize } from '@/constants/tokens'
+import { componentTokens, controlSize, spacing } from '@/constants/tokens'
 import { PageHeader } from '@/components/ui/Page'
 import { PlayerRow } from '@/components/ui/PlayerRow'
 import { Badge } from '@/components/ui/Badge'
@@ -169,4 +169,11 @@ it('accepts shared tokens, runtime sizes and structural numbers', () => {
     expect(scanDesignSystem('const styles = { left: { flex: 1, minWidth: 0 }, right: { flex: 1 } }')).toEqual([])
     expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toEqual([])
     expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
+})
+
+it('separates section bars from their first content row with a spacing token', async () => {
+    await render(React.createElement(PageHeader, { tabs: React.createElement('Tabs') }))
+    const header = screen.root.findByProps({ testID: 'page-header-standard' })
+    const style = Object.assign({}, ...[header.props.style].flat(Infinity).filter(Boolean))
+    expect(style.marginBottom).toBe(spacing.md)
 })

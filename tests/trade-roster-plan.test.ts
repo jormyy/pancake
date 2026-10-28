@@ -16,22 +16,14 @@ afterEach(async () => {
 })
 
 describe('trade roster plan', () => {
-    it('keeps late drop choices behind a manager-controlled disclosure', async () => {
+    it('shows drop choices directly and saves the selected drop', async () => {
         const onChange = vi.fn()
-        const render = (roster: ReturnType<typeof rosterPlayer>[]) => React.createElement(TradeRosterPlanEditor, {
-            incoming, roster, value: emptyPlan, onChange,
-        })
-        await act(async () => { renderer = create(render([])) })
-        const before = JSON.stringify(renderer!.toJSON())
-        await act(async () => { renderer!.update(render([rosterPlayer()])) })
-        expect(JSON.stringify(renderer!.toJSON())).toEqual(before)
-        const toggle = renderer!.root.findByProps({ accessibilityLabel: 'Choose drops at trade completion' })
-        expect(toggle.props.accessibilityState.expanded).toBe(false)
-        await act(async () => toggle.props.onPress())
-        expect(renderer!.root.findAllByProps({ children: 'Drops happen at completion. They will stay on waivers until the first 3 AM ET run after 48 hours.' })).toHaveLength(1)
-        const drop = renderer!.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' })
-        await act(async () => drop.props.onPress())
-        expect(onChange).toHaveBeenCalledWith({ ...emptyPlan, dropPlayerIds: ['player-a'], rosterMoves: undefined })
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming, roster: [rosterPlayer()], value: emptyPlan, onChange,
+        })) })
+        await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' }).props.onPress())
+        expect(onChange).toHaveBeenCalledWith({ ...emptyPlan, dropPlayerIds: ['player-a'], rosterMoves: [] })
+        expect(JSON.stringify(renderer!.toJSON())).not.toContain('requires')
     })
 
     it('keeps existing drops visible and preserves them when changing placement', async () => {
@@ -39,8 +31,7 @@ describe('trade roster plan', () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming, roster: [rosterPlayer()], value: { ...emptyPlan, dropPlayerIds: ['player-a'] }, onChange,
         })) })
-        const toggle = renderer!.root.findByProps({ accessibilityLabel: 'Choose drops at trade completion' })
-        expect(toggle.findAllByProps({ children: '1 drop' })).toHaveLength(1)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' }).props.accessibilityState.checked).toBe(true)
         await act(async () => renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.onPress())
         expect(onChange).toHaveBeenCalledWith({ taxiPlayerIds: [], irPlayerIds: ['incoming'], dropPlayerIds: ['player-a'] })
     })
@@ -53,11 +44,11 @@ describe('trade roster plan', () => {
         })) })
         expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: active' })).toHaveLength(0)
         expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
-        expect(renderer!.root.findAllByProps({ children: 'Taxi · tenure retained' })).toHaveLength(1)
+        expect(renderer!.root.findAllByProps({ children: 'Taxi' })).toHaveLength(1)
         expect(onChange).not.toHaveBeenCalled()
     })
 
-    it('disables placements and explains missing slots', async () => {
+    it('disables placements without available slots', async () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming: [{ ...incoming[0], yearsExp: 0, nbaDraftNumber: 1 }],
             roster: [], value: emptyPlan, onChange: vi.fn(), allowIR: false, allowTaxi: false,
@@ -87,14 +78,14 @@ describe('trade roster plan', () => {
         expect(onChange).toHaveBeenLastCalledWith(emptyPlan)
     })
 
-    it('shows why an ineligible player cannot use inactive slots', async () => {
+    it('disables inactive slots for an ineligible player', async () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming: [{ ...incoming[0], injuryStatus: null }], roster: [], value: emptyPlan, onChange: vi.fn(),
         })) })
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.disabled).toBe(false)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
-        expect(renderer!.root.findAllByProps({ children: 'Active' })).toHaveLength(1)
+        expect(renderer!.root.findAllByProps({ children: 'Regular' })).toHaveLength(1)
     })
 
 })

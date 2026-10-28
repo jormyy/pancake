@@ -157,7 +157,8 @@ async function waitForB(aPid, bPid, settled) {
         WHERE waiting.pid=${bPid} AND holding.pid=${aPid}
           AND waiting.locktype='transactionid' AND NOT waiting.granted AND holding.granted))
       FROM pg_stat_activity a JOIN pg_stat_activity b ON b.pid=${bPid} WHERE a.pid=${aPid};`))
-    if (value.waitType === 'Lock' && value.waitEvent === 'transactionid' && value.waitsOnA && value.sameTransactionLock) {
+    if (value.waitType === 'Lock' && value.waitsOnA &&
+      (value.waitEvent === 'transactionid' && value.sameTransactionLock || value.waitEvent === 'advisory')) {
       assert.equal(settled(), false, 'B must remain pending before A ends')
       assert.equal(value.aState, 'idle in transaction')
       assert.equal(value.bState, 'active')
@@ -260,7 +261,7 @@ try {
       if (control === 'changed-terms-commit') {
         assert.equal(resultB.ok, false)
         assert.equal(resultB.sqlstate, '22023')
-        assert.match(resultB.message, /request key.*different trade terms/)
+        assert.match(resultB.message, /request key.*different trade terms|Request ID already belongs to another action/)
       } else {
         assert.equal(resultB.ok, true)
         assert.match(resultB.result, /^[0-9a-f-]{36}$/)
@@ -305,6 +306,9 @@ try {
       if (pendingB) await pendingB
       await a.close()
       await b.close()
+      await root.query(`SELECT public.withdraw_trade_atomic(trade.id,trade.proposer_member_id,member.user_id)
+        FROM public.trades trade JOIN public.league_members member ON member.id=trade.proposer_member_id
+        WHERE trade.league_id='${league}' AND trade.status='pending';`)
     }
   }
   // A successful receipt replays after real expiration. An uncommitted expired request does not persist.

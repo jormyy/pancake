@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Platform, type Text } from 'react-native'
 
-export function useFittedText(label: string, enabled = true) {
+export function useFittedText(label: string, enabled = true, inset = 0) {
     const ref = useRef<Text>(null)
     useLayoutEffect(() => {
         if (!enabled || Platform.OS !== 'web' || typeof document === 'undefined') return
@@ -13,7 +13,7 @@ export function useFittedText(label: string, enabled = true) {
         const fit = () => {
             if (disposed || !Number.isFinite(base)) return
             node.style.fontSize = original
-            const available = node.clientWidth
+            const available = Math.max(0, node.clientWidth - inset)
             const required = node.scrollWidth
             if (available > 0 && required > available) node.style.fontSize = `${base * available / required}px`
         }
@@ -23,6 +23,6 @@ export function useFittedText(label: string, enabled = true) {
         if (node.parentElement) observer?.observe(node.parentElement)
         void document.fonts?.ready.then(fit)
         return () => { disposed = true; observer?.disconnect(); node.style.fontSize = original }
-    }, [enabled, label])
+    }, [enabled, label, inset])
     return ref
 }

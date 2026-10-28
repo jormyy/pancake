@@ -6,6 +6,9 @@ BEGIN
   IF (SELECT paused FROM private.worker_controls WHERE id) THEN RETURN 0; END IF;
   IF NOT pg_try_advisory_xact_lock(hashtextextended('public.dispatch_work',0)) THEN RETURN 0; END IF;
   PERFORM private.enqueue_scheduled_work(now());
+  IF NOT EXISTS(SELECT 1 FROM private.work_items
+    WHERE status IN ('pending','failed') AND due_at<=now()
+      OR status='running' AND lease_until<=now()) THEN RETURN 0; END IF;
   LOOP
     EXIT WHEN v_count>=8 OR clock_timestamp()-v_started>=interval '2 seconds';
     SELECT * INTO v_item FROM private.work_claim(1);

@@ -158,7 +158,7 @@ function RosterTablePlayerItem({
                 <View style={styles.rosterTableSlot}><RosterSlotTag slotType={slotType} /></View>
                 <View style={styles.rosterTablePlayerCell}>
                     <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team} positions={positions}
-                        yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
+                        birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status}
                         stats={`${fmtStat(avgFpts)} FP · ${fmtStat(stats?.avg_minutes_played)} MIN`} />
                 </View>
                 <StatCell style={styles.rosterTableStat} value={avgFpts} highlight />

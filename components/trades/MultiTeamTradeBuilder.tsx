@@ -129,7 +129,7 @@ export function MultiTeamTradeBuilder({
             player: item.kind === 'player' ? {
                 name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,
                 positions: player?.players.eligible_positions ?? (player?.players.position ? [player.players.position] : []),
-                yearsExp: player?.players.years_exp, careerGames: player?.players.career_regular_season_games, injuryStatus: player?.players.injury_status,
+                birthdate: player?.players.birthdate, yearsExp: player?.players.years_exp, careerGames: player?.players.career_regular_season_games, injuryStatus: player?.players.injury_status,
                 stats: playerSeasonContextText({ avgFantasyPoints: avgMap.get(item.playerId), avgMinutesPlayed: avgStatsMap.get(item.playerId)?.avg_minutes_played }),
             } : undefined,
             detail: available ? null : 'Unavailable from this team',

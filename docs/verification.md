@@ -62,6 +62,31 @@ Run focused tests while iterating. Reserve full suites and heavy replay for the 
 A skipped check or missing metric is not a pass.
 Use negative controls to prove that a gate detects the protected failure.
 
+## Documentation checks
+
+Run these checks without a database connection:
+
+```sh
+npx vitest run tests/release-edge-compatibility.test.ts tests/e2e-release-contracts.test.ts tests/release-script.test.ts tests/e2e-surface-matrix.test.ts tests/e2e-attestation-head.test.ts tests/release-history-attestations.test.ts
+npm run check:surface-matrix
+node scripts/regenerate-release-history-attestations.mjs --check
+npx vitest run
+```
+
+Use Node 22 and installed dependencies.
+The release-note guard requires the exact release-order heading and database-first sequence.
+It rejects a missing baseline or latest migration.
+The RELEASE-DB guard also checks deferred notification SQL against current function sources.
+Surface checks reject missing routes, scenarios, and coverage references.
+Attestation checks reject changed migration bytes or an outdated head.
+The full suite must report zero failures.
+Conditional skips remain unexecuted coverage.
+
+Do not run the release command, remote recovery, or hosted checks during a documentation-only review.
+Keep `VERCEL_ENV` non-production and `PANCAKE_FETCH_PREDECESSOR` unset for any local build.
+Use a verified local export through `PANCAKE_PREVIOUS_RELEASE_ROOT` for update checks.
+This avoids the pinned production predecessor.
+
 ## Rule coverage
 
 | Behavior | Focused database commands |
@@ -123,6 +148,23 @@ The concurrency check includes a deliberately corrupted cache revision.
 See [trade estimates](trade-estimates.md), [matchup forecasts](matchup-forecasts.md), and [roster lifecycle](roster-lifecycle.md) for their contracts.
 Use the [simulator guide](season-simulator.md#fresh-replay-launch) for late-start historical acceptance and its unmeasured windows.
 
+## Forecast history budgets
+
+Run `npm run test:db:matchup-forecast-history` on the private stack.
+This checks scoring parity, the thirty-game bound, and calendar corrections.
+Restore production-shaped rosters and game histories before the timing check.
+Set `SUPABASE_DB_URL` and `PANCAKE_TEST_DB_PORT` to the private database.
+Run `npm run test:db:matchup-forecast-budget -- --matchup-id <id>` for each populated matchup.
+The check requires forty roster players, remaining games, and twenty player histories.
+It prepares player histories and missing projection dates before measuring three reads with generic plans.
+Each read must finish within 300 milliseconds, including planning, and meet the buffer budget.
+The buffer budget detects repeated game probes even on fast hardware.
+Run `psql "$SUPABASE_DB_URL" -X -v matchup_id=<id> -f tests/db/matchup-forecast-cache-parity.sql` for each restored matchup.
+This compares complete original and cached results inside one rolled-back transaction.
+It checks corrections, cache reuse, expiry, and private access.
+The worker prepares missing dates separately to keep each statement within its scheduled budget.
+Existing season totals update league projection values during stat ingestion.
+
 ## Capacity profile and paired scoring
 
 Follow the [benchmark recipe](../scripts/bench/README.md#screen-and-job-capacity-profile).
@@ -144,7 +186,8 @@ Those deployments do not replace coordinated database and Edge release gates.
 The [migration history](production-migration-history.md), [catalog contract](database-readiness-catalog.md), and [artifact contract](release-build-provenance.md) own those checks.
 A source check or catalog pass alone does not authorize a release.
 The attestation files define the historical anchor, recorded production phase, and approved candidate range.
-Final integration must refresh the candidate range before deployment.
+The checked-in candidate range ends at `20261116000500`, with 608 migrations.
+Recheck it against the reviewed source before deployment.
 The [migration history](production-migration-history.md#candidate-migrations) explains these boundaries.
 The ordered [database release steps](../supabase/RELEASE-DB.md) name the unpublished migrations and rollback checks.
 Release approval does not bypass an attestation failure.
@@ -236,7 +279,8 @@ The pre-fix control fails with a PostgreSQL deadlock; the fixed functions must p
 ## Scheduler test tools
 
 Current-schema tools use `private.enqueue_*`, work-item leases, and `dispatch_work`.
-The season replay keeps every dispatcher minute and delayed worker wakeup.
+The season replay keeps every dispatcher minute, half-minute hint drain, and worker wakeup.
+It derives installed cron expectations from repository migrations.
 It no longer skips separate scheduler ticks when source queues appear empty.
 Those separate ticks no longer exist in the current schema.
 
@@ -245,3 +289,57 @@ Its driver loads the reviewed 20260814 and 20261014 scheduler fixtures.
 Its report tool reads saved counters from those runs.
 Their old function names do not describe current-schema dependencies.
 The compatibility check verifies this boundary and continues checking current capacity profiling.
+
+## Third Home review
+
+Use the October 28 backup on a private migrated stack.
+Restore public data and the private ESPN listings and NBA game memberships.
+Keep cron jobs disabled while that data is present.
+
+```sh
+node tests/db/home-review-round3.mjs
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/player-roster-exact-identity.sql
+node tests/e2e/ux-round3.mjs --env=../evidence592/local-stack.env --url=http://127.0.0.1:59290 --output=../webkit592
+```
+
+Set `PANCAKE_TEST_DB_PORT` to the private database port before the SQL recipe.
+The browser recipe requires the private 592xx stack and a local release export.
+It checks Home, Bracket, the roster sheet, Players, and Waivers on iPhone 14 WebKit.
+The Home SQL recipe freezes view clocks at 9:21 PM Pacific inside a rolled-back transaction.
+The identity recipe rejects conflicting names and checks team changes and historical memberships.
+
+## Release 2.4 scope
+
+The [integration record](release-2.4-integration.md) preserves the merge results and earlier evidence.
+Its final app run records 3,960 passes, zero failures, and 38 skips.
+It also records 608 unique migrations and fresh-versus-upgrade artifact equality.
+A new documentation run does not repeat its database or browser measurements.
+
+The current release includes one-request screen views and versioned cache invalidation.
+It includes persistent request replay, worker pause and budgets, daily retention, and performance beacons.
+It also includes locked lineup history, linear rookie order, exact player identity, and deferred trade estimates.
+Use the focused recipes below before changing those behaviors:
+
+| Behavior | Local evidence |
+| --- | --- |
+| Cold view and cached return | `tests/screen-request-counts.test.ts` |
+| History lock and team timeline | `tests/db/historical-lineup-lock.sql`, `tests/db/timeline-lifecycle.sql` |
+| Linear order and PPG ties | `tests/db/linear-draft-order.sql` |
+| Legal trade acceptance | `tests/db/release2-trade-accept-capacity.sql`, `tests/db/trade-legality-drops.sql` |
+| Worker budgets and pause | `tests/db/dispatcher-contention.mjs`, `tests/db/io-write-reductions.sql` |
+| Exact source identity | `tests/db/player-roster-exact-identity.sql` |
+| Deferred trade work | `tests/db/trade-estimate-work.sql`, `tests/db/trade-publication.sql` |
+
+Database recipes require a disposable migrated local stack.
+A source-only pass does not establish a fresh database, browser, or production result.
+
+## Documentation review on 2026-10-28
+
+The local review compares `eb2b2168` with main at `6ad9b65e` and release 1 at `1e62824e`.
+Only documentation changes.
+The focused release, surface, and attestation tests pass all 741 tests.
+The surface checker reports 26 surfaces, five backgrounds, 20 data classes, and 22 functions.
+The attestation checker covers 608 migrations through `20261116000500`.
+The full Vitest run passes 3,960 tests with zero failures and 38 skips.
+No production endpoint is contacted.
+Database and browser evidence remains the earlier integration record.

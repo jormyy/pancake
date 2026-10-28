@@ -6,13 +6,14 @@ import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
+import { alpha, borderWidth, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
 import type { StatColumn } from '@/lib/score-breakdown'
 import { LivePulse, MotionPressable, MotionView } from '@/components/Motion'
 import { Avatar } from '@/components/Avatar'
+import { formatLeagueTime } from '@/lib/timezone'
 import { matchupName } from '@/components/player/matchup-name'
 
 const SLOT_W = componentTokens.matchupRow.slotWidth
@@ -21,6 +22,8 @@ const STAT_COL_W = componentTokens.matchupRow.statWidth
 const STAT_COL_WIDE_W = componentTokens.matchupRow.wideStatWidth
 const NAME_MIN_W = componentTokens.matchupRow.nameMinWidth
 const STABLE_PLACEHOLDER = '—'
+
+export type MatchupGame = { opponent: string; isHome: boolean; gameTime?: string | null; status?: string; timezone?: string }
 
 function statColumnsWidth(columns: StatColumn[]): number {
     return columns.reduce((total, column) => total + (column.wide ? STAT_COL_WIDE_W : STAT_COL_W), 0)
@@ -39,9 +42,12 @@ function emptySlotLabel(slotType: string): string {
     return 'No starter'
 }
 
-function matchupLine(team: string | null | undefined, matchup: { opponent: string; isHome: boolean } | undefined): string {
+function matchupLine(team: string | null | undefined, matchup: MatchupGame | undefined, timezone?: string): string {
     if (!team || !matchup) return ''
-    return matchup.isHome ? `${matchup.opponent} @ ${team}` : `${team} @ ${matchup.opponent}`
+    const game = matchup.isHome ? `${matchup.opponent} @ ${team}` : `${team} @ ${matchup.opponent}`
+    const time = matchup.gameTime ? formatLeagueTime(matchup.gameTime, matchup.timezone ?? timezone) : null
+    const suffix = matchup.status === 'Final' ? 'Final' : time && time !== 'unknown' ? time : null
+    return suffix ? `${game} ${suffix}` : game
 }
 
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
@@ -177,6 +183,7 @@ function PlayerSide({
     fpts,
     leading,
     matchup,
+    timezone,
     compact,
     dense,
     statColumns,
@@ -195,7 +202,8 @@ function PlayerSide({
     stats?: LiveStatLine
     fpts: number | null
     leading: boolean
-    matchup?: { opponent: string; isHome: boolean }
+    matchup?: MatchupGame
+    timezone?: string
     compact: boolean
     dense: boolean
     statColumns: StatColumn[] | null
@@ -203,6 +211,8 @@ function PlayerSide({
     onOpenDetails?: () => void
 }) {
     const nameRef = useFittedText(player ? matchupName(player.displayName) : '')
+    const detail = player ? matchupLine(player.nbaTeam, matchup, timezone) : ''
+    const detailRef = useFittedText(detail, true, 1)
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
     const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
@@ -226,7 +236,6 @@ function PlayerSide({
     } else {
         const playedToday = stats != null && !stats.didNotPlay
         const injury = player.injuryStatus ?? null
-        const detail = matchupLine(player.nbaTeam, matchup)
         // A ruled-out player's team can be live without him, so the tag would mislead.
         const sittingOut = !playedToday && injury?.toLowerCase() === 'out'
         block = (
@@ -255,9 +264,12 @@ function PlayerSide({
                             ...(!compact ? specificPositions(player.eligiblePositions).map((pos) => <PosTag key={pos} position={pos} />) : []),
                             <Text
                                 key="detail"
+                                ref={detailRef}
+                                testID="matchup-game-line"
+                                adjustsFontSizeToFit
                                 style={[styles.sideMeta, styles.detailText, { textAlign: left ? 'right' : 'left' }, matchup && styles.gameText, playedToday && !compact && styles.detailTextStats, isLive && styles.statLineLive]}
                                 numberOfLines={1}
-                                ellipsizeMode="tail"
+                                ellipsizeMode="clip"
                             >
                                 {detail || '\u00a0'}
                             </Text>,
@@ -297,12 +309,14 @@ type MatchupRowProps = {
     selIndex: number
     isSelected: boolean
     onTap: (sel: LineupSelection) => void
+    readOnly?: boolean
     saving: boolean
     playingTeams: Set<string>
     liveStats: Map<string, LiveStatLine>
     liveTeams: Set<string>
     scoringSettings: Record<string, number>
-    teamMatchups: Map<string, { opponent: string; isHome: boolean }>
+    teamMatchups: Map<string, MatchupGame>
+    timezone?: string
     isExtraOppRow?: boolean
     compact?: boolean
     dense?: boolean
@@ -323,11 +337,13 @@ function MatchupRowImpl({
     isSelected,
     onTap,
     saving,
+    readOnly = false,
     playingTeams,
     liveStats,
     liveTeams,
     scoringSettings,
     teamMatchups,
+    timezone,
     isExtraOppRow = false,
     compact = false,
     dense = false,
@@ -379,6 +395,7 @@ function MatchupRowImpl({
                     fpts={myFpts}
                     leading={!reserveSlot && myFpts != null && (oppFpts == null || myFpts > oppFpts)}
                     matchup={myPlayer?.nbaTeam ? teamMatchups.get(myPlayer.nbaTeam) : undefined}
+                    timezone={timezone}
                     compact={compact}
                     dense={dense}
                     statColumns={statColumns}
@@ -397,14 +414,14 @@ function MatchupRowImpl({
                     targetState === 'invalid' && styles.slotChipUnavailable,
                     saving && { opacity: 0.4 },
                 ]}
-                onPress={isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
-                disabled={saving || isExtraOppRow || targetState === 'invalid'}
+                onPress={readOnly || isExtraOppRow ? undefined : () => onTap({ kind: selKind, index: selIndex })}
+                disabled={readOnly || saving || isExtraOppRow || targetState === 'invalid'}
                 accessibilityRole="button"
                 accessibilityLabel={myPlayer
                     ? `Select ${slotType} slot, ${myPlayer.displayName}`
                     : `Select empty ${slotType} slot ${selIndex + 1}`}
                 accessibilityHint={targetState === 'valid' ? `Move the selected player to ${slotType}` : undefined}
-                accessibilityState={{ disabled: saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
+                accessibilityState={{ disabled: readOnly || saving || isExtraOppRow || targetState === 'invalid', selected: isSel }}
             >
                 <Text style={[styles.slotChipText, { color: isSel ? colors.primary : slotColor }]}>
                     {isExtraOppRow ? '—' : slotType}
@@ -426,6 +443,7 @@ function MatchupRowImpl({
                     fpts={oppFpts}
                     leading={!reserveSlot && oppFpts != null && (myFpts == null || oppFpts > myFpts)}
                     matchup={oppPlayer?.nbaTeam ? teamMatchups.get(oppPlayer.nbaTeam) : undefined}
+                    timezone={timezone}
                     compact={compact}
                     dense={dense}
                     statColumns={statColumns}
@@ -442,6 +460,8 @@ export const MatchupRow = memo(MatchupRowImpl)
 
 const styles = StyleSheet.create({
     matchupRow: {
+        borderBottomWidth: borderWidth.thin,
+        borderBottomColor: colors.separator,
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: componentTokens.matchupRow.paddingVertical,
@@ -488,9 +508,9 @@ const styles = StyleSheet.create({
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLeading: { color: colors.textPrimary },
     fptsLive: { color: colors.primaryDark },
-    sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
+    sideName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.xs, flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
+    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.xs, fontWeight: fontWeight.bold, flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textMuted },
     nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, height: componentTokens.matchupRow.nameLineHeight, maxWidth: '100%' },
@@ -499,7 +519,7 @@ const styles = StyleSheet.create({
     statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
     detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: componentTokens.matchupRow.gameLineHeight, maxWidth: '100%' },
     sideMeta: { ...textStyles.meta, fontSize: fontSize.xs },
-    detailText: { flex: 1, minWidth: 0 },
+    detailText: { flex: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
     detailTextStats: { color: colors.textMuted },
     lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: tracking.normal },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },

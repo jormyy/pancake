@@ -186,9 +186,15 @@ function buildEspnRecords(
 ): SourcePlayerRecord[] {
   const athleteName = (athlete: EspnAthlete) =>
     normalizeName(athlete.fullName ?? `${athlete.firstName ?? ''} ${athlete.lastName ?? ''}`)
+  const identities = new Set<string>()
   const nameCounts = new Map<string, number>()
   for (const roster of rosters) {
     for (const athlete of roster.athletes) {
+      if (identified(athlete)) {
+        const id = String(athlete.id)
+        if (identities.has(id)) throw new Error(`Duplicate ESPN athlete identity ${id}; refusing to write`)
+        identities.add(id)
+      }
       const name = athleteName(athlete)
       nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1)
     }

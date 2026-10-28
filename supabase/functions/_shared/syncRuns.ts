@@ -1,4 +1,4 @@
-import { errorMessage } from './responses.ts'
+import { errorMessage, logInternalError } from './responses.ts'
 import { supabase } from './supabase.ts'
 import { startLeaseHeartbeat } from './leaseHeartbeat.ts'
 import { withWorkContext, withoutWorkContext } from './workContext.ts'
@@ -19,6 +19,7 @@ export async function recordSyncRun<T>(
       const outcome = await run()
       invocation.rowsAffected = outcome.rowsAffected
       invocation.failure = outcome.failure ?? null
+      if (invocation.failure) logInternalError(functionName, new Error(invocation.failure))
       return outcome.result
     } catch (error) {
       invocation.failure = errorMessage(error)
@@ -29,19 +30,20 @@ export async function recordSyncRun<T>(
 
   try {
     const { result, rowsAffected, failure } = await run()
+    if (failure) logInternalError(functionName, new Error(failure))
     if (failure && !startedId) {
       // The run row could not be opened, so the summary has nowhere to land; say so.
-      console.error(`[${functionName}] run finished with failures but no sync_runs row could be recorded: ${failure}`)
+      logInternalError(functionName, new Error(`run finished with failures but no sync_runs row could be recorded: ${failure}`))
     }
     if (startedId && failure) {
       await finishSyncRun(startedId, { status: 'failed', rows_affected: rowsAffected, error: failure }).catch(
-        (updateError) => console.error(`[${functionName}] could not record partially failed sync run:`, updateError),
+        (updateError) => logInternalError(`${functionName}: could not record partially failed sync run`, updateError),
       )
       return result
     }
     if (startedId) {
       await finishSyncRun(startedId, { status: 'success', rows_affected: rowsAffected }).catch(
-        (updateError) => console.error(`[${functionName}] could not record successful sync run:`, updateError),
+        (updateError) => logInternalError(`${functionName}: could not record successful sync run`, updateError),
       )
     }
     return result
@@ -49,7 +51,7 @@ export async function recordSyncRun<T>(
     // Record the failure but never let the bookkeeping mask the sync error.
     if (startedId) {
       await finishSyncRun(startedId, { status: 'failed', error: errorMessage(error) }).catch(
-        (updateError) => console.error(`[${functionName}] could not record failed sync run:`, updateError),
+        (updateError) => logInternalError(`${functionName}: could not record failed sync run`, updateError),
       )
     }
     throw error
@@ -65,7 +67,7 @@ async function startSyncRun(functionName: string): Promise<string | null> {
       .abortSignal(AbortSignal.timeout(5000))
       .single()
     if (error) {
-      console.error(`[${functionName}] could not start sync run record:`, error)
+      logInternalError(`${functionName}: could not start sync run record`, error)
       return null
     }
     return data.id
@@ -133,6 +135,7 @@ export async function runEdgeInvocation(
     if (!response.ok && !invocation.failure) invocation.failure = `HTTP ${response.status}`
   } catch (error) {
     invocation.failure = errorMessage(error)
+    logInternalError(functionName, error)
     await finishInvocation(key, invocation)
     throw error
   } finally {
@@ -153,6 +156,6 @@ async function finishInvocation(key: string, invocation: InvocationRun): Promise
     }).abortSignal(AbortSignal.timeout(5000))
     if (error) throw error
   } catch (error) {
-    console.error(`[${invocation.functionName}] could not finish invocation:`, error)
+    logInternalError(`${invocation.functionName}: could not finish invocation`, error)
   }
 }

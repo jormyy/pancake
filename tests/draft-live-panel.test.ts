@@ -72,3 +72,12 @@ it('reserves the clock width and keeps borders the same size when the clock beco
     expect(flatten(screen.root.findAllByType('View' as React.ElementType)[0].props.style).borderWidth)
         .toBe(regularCard.borderWidth)
 })
+
+it('places age immediately before experience in the live draft player row', async () => {
+    controller.state!.openNomination!.player!.age = 25
+    controller.state!.openNomination!.player!.yearsExp = 3
+    await act(async () => { screen = create(tree()) })
+    const row = screen.root.findByProps({ testID: 'player-meta-line' })
+    const labels = row.findAllByType('Text' as React.ElementType).map(node => node.props.children)
+    expect(labels.slice(-2)).toEqual(['25', 'Yr 4'])
+})

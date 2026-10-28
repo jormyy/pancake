@@ -64,7 +64,7 @@ it.each(['member', 'league', 'owner'] as const)('hides private players on the fi
     expect(h.frames.length).toBeGreaterThan(0)
     expect(h.frames.every(frame => frame.myLineup === null && frame.matchup === null)).toBe(true)
 })
-it.each(['refresh', 'silent', 'focus', 'visibility', 'online'] as const)('rolls retained selection to the current ET day on %s', async trigger => {
+it.each(['refresh', 'silent', 'focus', 'visibility', 'online'] as const)('rolls retained selection to the current league day on %s', async trigger => {
     await h.render(); await act(async () => { await h.latest.setSelectedDate('2026-10-28') }); await h.render()
     vi.setSystemTime(new Date('2026-10-29T12:00:00Z'))
     await act(async () => {
@@ -77,8 +77,8 @@ it.each(['refresh', 'silent', 'focus', 'visibility', 'online'] as const)('rolls 
     expect(h.latest.selectedDate).toBe('2026-10-29')
     expect(h.latest.myLineup?.bench[0].playerId).toBe('2026-10-29')
 })
-it('rolls over at ET midnight and repeats on the next night', async () => {
-    vi.setSystemTime(new Date('2026-10-28T03:59:59.900Z'))
+it('rolls over at league midnight and repeats on the next night', async () => {
+    vi.setSystemTime(new Date('2026-10-28T06:59:59.900Z'))
     await h.render()
     await act(async () => { await vi.advanceTimersByTimeAsync(101) })
     expect(h.latest.selectedDate).toBe('2026-10-28')
@@ -86,7 +86,7 @@ it('rolls over at ET midnight and repeats on the next night', async () => {
     expect(h.latest.selectedDate).toBe('2026-10-29')
 })
 it('does not label an old held week as today after midnight', async () => {
-    vi.setSystemTime(new Date('2026-10-28T03:59:59.900Z'))
+    vi.setSystemTime(new Date('2026-10-28T06:59:59.900Z'))
     const old = held<ReturnType<typeof homePayload>>()
     boundary.read.mockReturnValueOnce(old.promise)
     await h.render()

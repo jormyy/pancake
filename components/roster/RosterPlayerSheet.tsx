@@ -68,7 +68,7 @@ export function RosterPlayerSheet({
                 <View style={styles.body}>
                     <View style={styles.identity}>
                         <PlayerRowContent name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
-                            yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
+                            birthdate={info.birthdate} yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
                             stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatPoints(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
                     </View>
 

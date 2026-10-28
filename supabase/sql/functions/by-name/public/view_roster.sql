@@ -10,7 +10,7 @@ BEGIN
     'taxi_start_season_year', r.taxi_start_season_year, 'acquired_via', r.acquired_via, 'players', jsonb_build_object(
       'id', p.id, 'display_name', p.display_name, 'nba_team', p.nba_team, 'position', p.position,
       'eligible_positions', p.eligible_positions, 'injury_status', p.injury_status, 'nba_id', p.nba_id,
-      'nba_draft_number', p.nba_draft_number, 'years_exp', p.years_exp, 'career_regular_season_games', p.career_regular_season_games))
+      'nba_draft_number', p.nba_draft_number, 'birthdate', p.birthdate, 'years_exp', p.years_exp, 'career_regular_season_games', p.career_regular_season_games))
       ORDER BY r.is_on_taxi, r.is_on_ir), '[]'),
     COALESCE(jsonb_object_agg(p.id::text, COALESCE(average.avg_fantasy_points, source_fantasy.avg_fantasy_points))
       FILTER (WHERE COALESCE(average.avg_fantasy_points, source_fantasy.avg_fantasy_points) IS NOT NULL), '{}'),

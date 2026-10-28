@@ -6,6 +6,8 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   __request_context jsonb;
 BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
   __request_context := private.request_begin('public.set_trade_roster_plan_atomic', jsonb_build_array(p_trade_id, p_member_id, p_user_id, p_taxi_player_ids, p_ir_player_ids, p_drop_player_ids, p_roster_moves), NULL, NULL);
   IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
   <<request_write>>
@@ -31,14 +33,18 @@ BEGIN
     RAISE EXCEPTION 'Placements and drops must be unique players.' USING ERRCODE = '22023';
   END IF;
   FOR v_member IN SELECT member_id FROM trade_participants WHERE trade_id = p_trade_id ORDER BY member_id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member::text));
+    IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_member::text)) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
   FOR v_player IN SELECT DISTINCT id FROM (
     SELECT unnest(v_all) id UNION SELECT player_id FROM trade_items WHERE trade_id = p_trade_id
   ) ids WHERE id IS NOT NULL ORDER BY id LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player::text));
+    IF NOT pg_try_advisory_xact_lock(hashtext(v_trade.league_id::text), hashtext(v_player::text)) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
-  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id AND status='pending' FOR UPDATE;
+  SELECT * INTO v_trade FROM trades WHERE id = p_trade_id AND status='pending' FOR NO KEY UPDATE NOWAIT;
   IF NOT FOUND OR v_trade.status <> 'pending' OR v_trade.expires_at <= now() THEN
     RAISE EXCEPTION 'Choose placements and drops while the trade is pending.';
   END IF;
@@ -71,5 +77,7 @@ BEGIN
 END request_write;
   PERFORM private.request_finish(__request_context, 'null'::jsonb);
   RETURN;
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
 END;
 $$;

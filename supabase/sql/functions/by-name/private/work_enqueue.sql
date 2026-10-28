@@ -2,6 +2,7 @@ CREATE OR REPLACE FUNCTION private.work_enqueue(p_kind text, p_key text, p_due_a
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_id bigint;
 BEGIN
+  IF EXISTS(SELECT 1 FROM private.work_items WHERE kind=p_kind AND key=p_key) THEN RETURN NULL; END IF;
   IF EXISTS (
     SELECT 1 FROM private.work_items
     WHERE kind=p_kind AND status IN ('pending','running','failed')

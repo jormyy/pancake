@@ -9,12 +9,15 @@ import { handlePlayersRoute } from './players.ts'
 import { handleProfileRoute } from './profile.ts'
 import { handleSyncRoute } from './sync.ts'
 import { handleTradeRoute } from './trades.ts'
+import { handleTradeActivationWork, handleTradeEstimateWork } from './tradeEstimateWork.ts'
 import { handleWaiverRoute } from './waivers.ts'
 import { handleVersionRoute } from './version/index.ts'
 import { handleViewRoute } from './views/index.ts'
 import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMetadata.ts'
 
 export function handleApiRoute(req: Request): Promise<Response> {
+  if (req.method === 'POST' && routePath(req) === '/trades/estimate-work') return handleTradeEstimateWork(req)
+  if (req.method === 'POST' && routePath(req) === '/trades/activation-work') return handleTradeActivationWork(req)
   return handleApiRequest(req, 'api', async () => {
     const path = routePath(req)
 

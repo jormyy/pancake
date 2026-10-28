@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_LEAGUE_TIMEZONE, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone } from '../../lib/timezone'
+import { todayLeague, endOfLeagueDayUTC, DEFAULT_LEAGUE_TIMEZONE, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone } from '../../lib/timezone'
 
 describe('league timezone formatting', () => {
   it('uses Los Angeles and accepts IANA timezone names', () => {
@@ -20,4 +20,13 @@ describe('league timezone formatting', () => {
     expect(formatLeagueTime('2026-03-08T10:30:00Z')).toBe('3:30 AM')
     expect(formatLeagueDate('invalid')).toBe('unknown')
   })
+})
+
+it('keeps Tuesday at 9:21 PM Pacific and flips at local midnight', () => {
+  expect(todayLeague(undefined, new Date('2026-10-28T04:21:00Z'))).toBe('2026-10-27')
+  expect(todayLeague('America/New_York', new Date('2026-10-28T04:21:00Z'))).toBe('2026-10-28')
+  expect(todayLeague(undefined, new Date('2026-10-28T07:00:00Z'))).toBe('2026-10-28')
+  expect(endOfLeagueDayUTC('2026-10-27')).toBe('2026-10-28T06:59:59.999Z')
+  expect(endOfLeagueDayUTC('2026-03-08')).toBe('2026-03-09T06:59:59.999Z')
+  expect(endOfLeagueDayUTC('2026-11-01')).toBe('2026-11-02T07:59:59.999Z')
 })

@@ -24,6 +24,7 @@ BEGIN
     RETURN;
   END IF;
   CASE v_item.kind
+    WHEN 'trade-publication' THEN PERFORM private.publish_trade_changes((v_payload->>'publicationId')::uuid);
     WHEN 'setup-season-rollover' THEN PERFORM private.roll_setup_league_seasons(now());
     WHEN 'daily-stat-corrections' THEN PERFORM public.queue_daily_stat_corrections();
     WHEN 'edge-invocation-reconcile' THEN PERFORM private.reconcile_edge_invocations();

@@ -173,7 +173,7 @@ export default function RookieDraftRoomScreen() {
                                         >
                                             <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
                                                 positions={rp.players?.position ? [rp.players.position] : []}
-                                                yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
                                         </MotionPressable>
                                     ))}
                                 </ScrollView>
@@ -209,7 +209,7 @@ export default function RookieDraftRoomScreen() {
                                 >
                                     <PlayerRowContent name={rp.players?.display_name ?? 'Player'} nbaId={rp.players?.nba_id} team={rp.players?.nba_team}
                                                 positions={rp.players?.position ? [rp.players.position] : []}
-                                                yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
+                                                birthdate={rp.players?.birthdate} yearsExp={rp.players?.years_exp} careerGames={rp.players?.career_regular_season_games} injuryStatus={rp.players?.injury_status} />
                                 </MotionPressable>
                             ))}
                         </ScrollView>
@@ -448,7 +448,7 @@ function ProspectRow({
             accessibilityLabel={canPick ? `${actionLabel} ${player.display_name}` : player.display_name}
         >
             <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team}
-                positions={player.position ? [player.position] : []} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
+                positions={player.position ? [player.position] : []} playerId={player.id} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status}
                 stats={player.nba_draft_number != null ? `NBA draft #${player.nba_draft_number}` : undefined} />
             {canPick && (
                 <Text style={styles.pickBtn}>{actionLabel}</Text>

@@ -47,7 +47,7 @@ export const REQUIRED_FULL_SWEEP_LABELS = [
   'auth-sign-in', 'auth-sign-up',
   'home', 'players', 'roster', 'trades', 'league', 'dynasty', 'profile',
   'create-league', 'join-league', 'commissioner-settings', 'lineup', 'bracket',
-  'claim-player', 'player-detail', 'propose-trade', 'team-roster',
+  'claim-player', 'player-detail', 'propose-trade', 'team-roster', 'other-matchup',
   'draft-room', 'rookie-draft-room', 'draft-launcher', 'change-password', 'notification-settings', 'not-found',
   ...NAVIGATION_SWEEP_ROUTES.map(([label]) => label),
 ]
@@ -651,6 +651,7 @@ const fetchSweepContext = async (env, state, user) => {
     ['change-password', '/change-password'],
     ['notification-settings', '/notification-settings'],
     ['lineup', '/lineup'],
+    ['other-matchup', '/matchup'],
     ['bracket', '/bracket'],
     ['draft-launcher', '/draft'],
     ['not-found', '/surface-contract-not-found'],

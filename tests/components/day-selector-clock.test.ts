@@ -26,9 +26,9 @@ const indicator = (label: string, width: number, height: number) => cell(label).
 afterEach(async () => { await act(async () => screen?.unmount()); vi.useRealTimers() })
 
 it.each([
-    ['2026-10-20T03:59:59Z', '2026-10-20T04:00:01Z', '2026-10-19', '2026-10-20', 'October 19', 'October 20'],
-    ['2026-11-02T04:59:59Z', '2026-11-02T05:00:01Z', '2026-11-01', '2026-11-02', 'November 1', 'November 2'],
-])('keeps today and past indicators consistent across the ET boundary at %s', async (before, after, oldDate, newDate, oldLabel, newLabel) => {
+    ['2026-10-20T06:59:59Z', '2026-10-20T07:00:01Z', '2026-10-19', '2026-10-20', 'October 19', 'October 20'],
+    ['2026-11-02T07:59:59Z', '2026-11-02T08:00:01Z', '2026-11-01', '2026-11-02', 'November 1', 'November 2'],
+])('keeps today and past indicators consistent across the league boundary at %s', async (before, after, oldDate, newDate, oldLabel, newLabel) => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date(before))
     fixture.dates = [oldDate, newDate]

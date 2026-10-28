@@ -32,3 +32,27 @@ export function formatLeagueDate(value: string | number | Date, timezone: string
 export function formatLeagueTime(value: string | number | Date, timezone: string = DEFAULT_LEAGUE_TIMEZONE): string {
   return formatLeagueDateTime(value, timezone, { hour: 'numeric', minute: '2-digit' })
 }
+
+export function todayLeague(timezone?: string | null, now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveLeagueTimezone(timezone), year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now)
+  const part = (type: string) => parts.find(value => value.type === type)!.value
+  return `${part('year')}-${part('month')}-${part('day')}`
+}
+
+export function endOfLeagueDayUTC(day: string, timezone?: string | null): string {
+  const next = new Date(`${day}T00:00:00Z`).getTime() + 86_400_000
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveLeagueTimezone(timezone), year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+  })
+  let midnight = next
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const parts = formatter.formatToParts(midnight)
+    const part = (type: string) => parts.find(value => value.type === type)!.value
+    const local = Date.parse(`${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}Z`)
+    midnight += next - local
+  }
+  return new Date(midnight - 1).toISOString()
+}

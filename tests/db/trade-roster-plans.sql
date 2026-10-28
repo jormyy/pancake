@@ -157,7 +157,7 @@ BEGIN
     PERFORM pg_temp.check_plan(before_rosters=after_rosters,'terminal '||v_terminal||' applies no roster plan');
   END LOOP;
   trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}');
-  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}');
+  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}',NULL,NULL,1,0);
   claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[3],users[1]);
   PERFORM accept_trade_atomic(trade,members[2]);
   UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade;

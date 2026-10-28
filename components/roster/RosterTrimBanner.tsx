@@ -45,7 +45,7 @@ export function RosterTrimBanner({
                         <View key={player.id} style={styles.row}>
                             <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team}
                                 positions={player.players.eligible_positions?.length ? player.players.eligible_positions : player.players.position ? [player.players.position] : []}
-                                yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
+                                birthdate={player.players.birthdate} yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                             <View style={styles.actions}>
                                 {(player.is_on_ir || player.is_on_taxi) && onActivate ? <Button title="Activate" size="sm" onPress={() => onActivate(player)} disabled={busy || dropDisabled} accessibilityLabel={`Activate ${player.players.display_name}`} /> : null}
                                 {irAvailable && !player.is_on_ir && isIREligible(player.players.injury_status) ? (

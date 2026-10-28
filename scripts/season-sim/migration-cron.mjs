@@ -5,12 +5,17 @@ const value = token => token.startsWith("'") ? token.slice(1, -1).replaceAll("''
 
 export function installedCronJobs(migrations) {
   const jobs = new Map()
-  const calls = new RegExp(`cron\\.(schedule|unschedule)\\(\\s*(${literal}|jobname|jobid)`, 'g')
+  const calls = new RegExp(`cron\\.(schedule|unschedule|alter_job)\\(\\s*(${literal}|jobname|jobid)`, 'g')
   for (const { name, source } of [...migrations].sort((a, b) => a.name.localeCompare(b.name))) {
     const sql = source.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
     for (const call of sql.matchAll(calls)) {
       const tail = sql.slice(call.index + call[0].length)
-      if (call[1] === 'schedule') {
+      if (call[1] === 'alter_job') {
+        const update = new RegExp(`^\\s*,\\s*((?:(?:schedule|command)\\s*:=\\s*(?:${literal})\\s*,?\\s*)+)\\)\\s*FROM\\s+cron\\.job\\s+WHERE\\s+jobname\\s*=\\s*(${literal})`, 'i').exec(tail)
+        assert.ok(update, `Unsupported cron update in ${name}`)
+        const job = jobs.get(value(update[2]))
+        if (job) for (const assignment of update[1].matchAll(new RegExp(`(schedule|command)\\s*:=\\s*(${literal})`, 'g'))) job[assignment[1]] = value(assignment[2])
+      } else if (call[1] === 'schedule') {
         const args = new RegExp(`^\\s*,\\s*(${literal})\\s*,\\s*(${literal})\\s*\\)`).exec(tail)
         assert.ok(args, `Unsupported cron schedule in ${name}`)
         const jobname = value(call[2])

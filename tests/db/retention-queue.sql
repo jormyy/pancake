@@ -43,7 +43,7 @@ BEGIN
     WHERE kind='work.succeeded' AND detail->>'work_id'=v_item.id::text),'retention keeps the queue completion event');
   PERFORM private.enqueue_scheduled_work('2004-06-22 10:01 UTC');
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='retention-prune'),'next UTC day gets a new retention item');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job),'retention and views share the sole dispatcher cron entry');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'retention and views share the sole dispatcher cron entry');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

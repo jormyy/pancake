@@ -19,9 +19,18 @@ See the [release order](../supabase/RELEASE-DB.md#release-order-for-this-release
 
 Historical model validation and observed limits belong in the release evidence. Synthetic projections must remain labeled. Browser emulation does not establish physical-device performance.
 
-The matchup screen retains a user-scoped cache. It reads the cached RPC when visible, on reconnect, and after relevant league changes. Public completion events are filtered to the current league and matchup. Hidden screens release their subscription. Account changes reject late results.
+The matchup screen reads the forecast within its complete cached screen view.
+Relevant league versions refresh that view while it is visible.
+Hidden screens defer reads, and account changes reject late results.
 
-The header separates earned points from projected final points. It shows win odds, coverage, calculation time, sources, and limited or stale status. Missing inputs never become zero points or 50% odds. Player rows show a projection separately from earned points; their accessible label includes source and source time. The player profile uses the existing next-game projection pipeline and shows its source and freshness.
+The header separates earned points from projected final points.
+Its compact summary shows projected totals and win odds.
+The saved payload retains coverage, source details, and freshness.
+Missing model inputs produce limited or unavailable odds.
+The screen can show a score-share fallback when saved odds are absent.
+That display fallback does not become a stored forecast.
+Player rows separate projections from earned points.
+The player profile uses the next-game projection pipeline without provider captions.
 
 ## Concurrent publication
 
@@ -41,3 +50,17 @@ node supabase/tests/db/matchup-forecast-concurrency.mjs
 
 Supply `SUPABASE_DB_URL` and `PANCAKE_TEST_DB_PORT` from the isolated local stack.
 The cache check covers membership, invalidation, claim tokens, expiry, and rejected stale publication. The check creates and deletes its own fixtures. It observes concurrent scoring and parallel completion. It checks stale results, expired tokens, retries, and account access. It also detects a deliberately corrupted cache revision.
+
+## Precomputed inputs
+
+The worker prepares missing player-history and projection inputs before the context read.
+Player history uses at most thirty completed played games before the requested date.
+Preparation runs in bounded batches and preserves the original scoring calculation.
+Stored season totals update projection inputs when player statistics change.
+Date, scoring settings, player identity, and source revisions separate cached inputs.
+Changed inputs invalidate the matching preparation state.
+The context reader checks readiness and cannot publish an obsolete revision.
+
+`test:db:matchup-forecast-history` checks the history bound and scoring parity.
+`test:db:matchup-forecast-budget` measures prepared reads on populated local fixtures.
+Preparation cost stays separate from warm context-read measurements.

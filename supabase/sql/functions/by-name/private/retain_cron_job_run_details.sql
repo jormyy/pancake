@@ -6,8 +6,8 @@ DECLARE v_count bigint;
 BEGIN
   WITH victims AS (
     SELECT r.runid FROM cron.job_run_details r
-    WHERE (r.status IN ('succeeded','failed') AND COALESCE(r.end_time,r.start_time)<p_now-CASE WHEN r.status='succeeded' THEN interval '7 days' ELSE interval '30 days' END)
-      OR (r.status NOT IN ('succeeded','failed') AND r.start_time<p_now-interval '30 days'
+    WHERE (r.status IN ('succeeded','failed') AND COALESCE(r.end_time,r.start_time)<p_now-interval '24 hours')
+      OR (r.status NOT IN ('succeeded','failed') AND r.start_time<p_now-interval '24 hours'
         AND NOT EXISTS(SELECT 1 FROM pg_catalog.pg_stat_activity active
           WHERE active.pid=r.job_pid AND active.backend_start<=r.start_time))
     ORDER BY r.runid LIMIT 5000 FOR UPDATE OF r SKIP LOCKED

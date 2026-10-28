@@ -13,7 +13,10 @@ export async function importPlayerChunk(source: 'espn' | 'sleeper', records: Sou
       for (const row of results) {
         if (row.action === 'updated') totals.updated++
         else if (row.action === 'inserted') totals.inserted++
-        else if (row.action === 'ambiguous') totals.ambiguousSkipped++
+        else if (row.action === 'ambiguous') {
+          totals.ambiguousSkipped++
+          totals.failures.push(`import record ${start + row.index} ${source} provider ${rows[row.index].provider_id}: ambiguous identity`)
+        }
       }
     } catch (error) {
       const message = errorMessage(error)

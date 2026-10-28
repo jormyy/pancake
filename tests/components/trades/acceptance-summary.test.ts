@@ -21,7 +21,7 @@ it.each([0, 1, 2])('renders compact acceptance text with %s required drops', asy
     expect(text).toContain('You give: $5 FAAB\nYou get: Incoming Player\nMatthew: 20/20 · IR 2/2 · Taxi 3/3')
     expect(text).toContain('Completes after review.')
     expect(text).not.toContain('Unrelated Roster Name')
-    if (count) expect(text).toContain(`You must drop ${count} ${count === 1 ? 'player' : 'players'} to accept`)
+    if (count) expect(text).toContain(`Drops: ${team.drops.map(player => player.name).join(', ')}`)
     else expect(text).not.toContain('must drop')
     await act(async () => screen.unmount())
 })

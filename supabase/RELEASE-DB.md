@@ -1,13 +1,28 @@
-# Release database contract
+# Release 2.4 database contract
 
 ## Release order for this release
 
 Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261113000200`, as reported by the release operator.
+This is a supplied checkpoint, not a live query from this documentation review.
+The recorded release 1 security catalog remains pinned at 564 migrations.
 The pinned predecessor is release 1 at `1e62824e43044d30007b9601a8a3993c576b6a7e`, using the orchestrator-supplied live bundle digest.
 Release 1 reaches production on 2026-10-27 from frontend commit `1e62824e43044d30007b9601a8a3993c576b6a7e`.
-Apply release 2 through repository head `20261114000300`, for 596 migrations.
+Apply release 2.4 through repository head `20261116000500`, for 608 migrations.
+Apply `20261116000100_review_screen_fields.sql` and `20261116000200_exact_player_rosters.sql` after the IO and forecast migrations.
+Home dates use league time. Scoring keeps NBA game dates.
+Roster views include birthdates for the player sheet.
 Keep published migrations unchanged.
+
+Forecast migrations move from `20261115000100` and `20261115000200` to `20261115000500` and `20261115000600`.
+Trade migrations move from `20261116000100`–`20261116000300` to `20261116000300`–`20261116000500`.
+These unpublished changes remove four timestamp collisions.
+The migration delta from `origin/main` at `6ad9b65e` contains 12 files, starting at `20261114000400`.
+The integration adds 11 migrations after `c3209ddc`.
+
+The private mini applies all 608 migrations on project `pt4bafabler24`, using ports `598xx`.
+The fresh installation and incremental upgrade produce identical generated artifacts.
+Production receives no reads or writes during this integration.
 
 | Migration | Change |
 | --- | --- |
@@ -43,12 +58,24 @@ Keep published migrations unchanged.
 | `20261114000100_bounded_worker_database_work.sql` | Bounds retention, refresh batches, active workers and database waits. |
 | `20261114000200_worker_pause_control.sql` | Adds the operator pause control before SQL dispatch claims. |
 | `20261114000300_bounded_dispatch_transactions.sql` | Limits dispatch transactions and avoids duplicate queue insertion waits. |
+| `20261114000400_player_birthdate_simulated_clock.sql` | Preserves birthdate bounds through the supported transaction clock. |
+| `20261115000100_io_idle_and_retention.sql` | Removes idle hint worker writes, bounds cron history, and tunes owned hot tables. |
+| `20261115000200_io_screen_content.sql` | Skips equal screen content and separates trade publication freshness. |
+| `20261115000300_io_coalesce_changes.sql` | Coalesces repeated league hint scopes and publication topics. |
+| `20261115000400_io_live_progress.sql` | Skips identical score and stat progress writes. |
+| `20261115000500_bounded_matchup_forecast_history.sql` | Bounds player history reads and preserves forecast scoring. |
+| `20261115000600_precomputed_forecast_inputs.sql` | Stores forecast inputs and updates season projections with stat changes. |
+| `20261116000100_review_screen_fields.sql` | Uses league dates on Home and includes roster birthdates. |
+| `20261116000200_exact_player_rosters.sql` | Rejects conflicting player identities and repairs impossible game teams. |
+| `20261116000300_async_trade_estimates.sql` | Queues trade estimates after the offer commits. |
+| `20261116000400_deduplicate_pending_trade_offers.sql` | Rejects repeated pending offers and bounds trade write locks. |
+| `20261116000500_defer_trade_publication.sql` | Queues trade events and screen updates after trade writes. |
 
 Freeze the reviewed source and record the current frontend and Edge artifacts before release.
 Refresh migration-range and database security attestations for this exact candidate.
 [Migration history](../docs/production-migration-history.md#candidate-migrations) defines the baseline and approval boundaries.
 
-Deploy these changed Edge functions after the database upgrade and before the frontend merge:
+Deploy all 21 changed Edge functions after the database upgrade and before the frontend merge:
 
 - `api`
 - `backfill`
@@ -75,10 +102,10 @@ Deploy these changed Edge functions after the database upgrade and before the fr
 The worker timeout repair changes shared invocation code.
 Redeploy every function in this list after the database upgrade.
 
-This list uses the release runner import graph against local `origin/main`.
+This list uses the release runner import graph against `origin/main` at `6ad9b65ef25d53fba5d60594023966fd954ea2cc`.
 It includes handlers that import changed shared code.
 `_shared` is not a deployable function.
-Apply the `20261112` and `20261113` migrations before these handlers and the release 2 frontend.
+Apply every pending migration through `20261116000500` before these handlers and the release 2.4 frontend.
 
 Apply each dependency before its consumer:
 
@@ -100,7 +127,10 @@ The work queue migration removes these scheduler entry points:
 
 Their scheduling duties move to `private.enqueue_*`, `private.work_items`, and `public.dispatch_work`.
 The migration replaces the old cron jobs with `work-dispatcher`.
-That single cron runs `SELECT public.dispatch_work()` every minute.
+That cron runs `public.dispatch_work()` every minute with outer statement and lock budgets.
+Release 2.4 also installs `io-hint-drain` every 30 seconds and `io-cron-history-retention` hourly at minute 12.
+Both maintenance jobs check the operator pause.
+The hint drain runs directly in SQL and adds no Edge invocation.
 Daily retention becomes queued work after 10:00 UTC; it does not add another cron.
 Update current test tools to use queue state, leases, and retry deadlines.
 Keep historical benchmark fixtures tied to their historical schemas.
@@ -173,27 +203,20 @@ If a phase fails, stop promotion and restore the recorded frontend and Edge arti
 Keep the migrated database, saved trade quotes, roster history, and corrected statistics.
 Scheduled FAAB remains authoritative; old instant-add calls still fail safely.
 An older client cannot restore immediate pickups.
-If forecast dispatch must stop, pause its work kind through a reviewed forward repair.
-Keep the dispatcher running for unrelated work.
+For an incident, use the operator pause below before changing scheduling.
+A narrower work-kind pause requires a reviewed forward repair.
+There is no general per-kind pause RPC.
 Repair forward through a reviewed migration and repeat compatibility checks before resuming.
 Do not reverse migrations or rewrite settled ownership and scores to recover an artifact.
 
-## Previous release order
+## Historical rollout reference
 
-Database, then Edge, then merge the frontend.
-The previous release adds `20261028000100_recheck_final_stats.sql`, then `20261028000200_fence_final_stat_revisions.sql`.
-It allows overdue final-game checks without another active game.
-It queues one seven-day correction window per Eastern date, starting after 06:20.
-The fenced worker processes that window one game at a time.
-Final snapshots carry publication times so older feeds cannot replace newer verified results.
-
-That rollout deploys `sync-players` for placeholder filtering.
-It also deploys `sync-stats`, `sync-scores`, `live-poll`, `backfill`, and `season-boundary` for revision-aware writes.
-These functions belong to the previous rollout; the current changed-function list appears above.
-
-`npm run test:db:stats-corrections` checks overdue finals, retry windows, daily idempotence, completed jobs, DST, and client grants.
-`npm run test:db:final-stat-revisions` checks revision ordering and atomic score and statistics writes.
-If correction dispatch must stop, unschedule `daily-stat-corrections` and retain the schema and corrected data.
+Release 1 includes the final-stat recheck and revision-fence migrations.
+Those changes remain in the schema.
+Their former `daily-stat-corrections` cron is removed by the work queue migration.
+Current corrections run as queued work through `dispatch_work`.
+Use the operator pause below for an incident.
+Do not unschedule a retired per-job cron.
 
 ## Rule references
 
@@ -205,11 +228,14 @@ If correction dispatch must stop, unschedule `daily-stat-corrections` and retain
 
 ## Next release
 
+This section contains deferred cleanup, not release 2.4 migration steps.
+The SQL below is not installed by this release.
+
 Drop `leagues.taxi_rule` after the deployed client and its rollback retire.
 Every league now uses NBA rookies or fewer than 65 career regular-season games.
 
-Add the dedicated `player_stats` topic and scoped `activity` inventory resource only after the deployed receiver accepts them.
-Keep this release's Players tab subscribed to `score` until that change ships.
+The current client accepts `player_stats` and scoped activity changes.
+Retain compatibility topics until older clients and their rollback artifacts retire.
 Drop `standings.waiver_priority` after old Edge writers and their rollback window retire.
 Live waiver order already uses `waiver_priorities`.
 
@@ -226,8 +252,9 @@ ALTER TABLE public.waiver_claims REPLICA IDENTITY DEFAULT;
 ALTER TABLE public.waiver_wire_log REPLICA IDENTITY DEFAULT;
 ```
 
-The merged migration range requires new release attestations before deployment.
-The published attestations retain the recorded production baseline.
+The checked-in attestations cover all 608 migrations through `20261116000500`.
+Recheck their source fingerprints before deployment.
+The published attestations retain the recorded release 1 baseline.
 
 Keep the Expo objects while the deployed Edge release or its rollback can use them.
 The client cannot update `profiles.push_token`; the service role keeps access.
@@ -467,11 +494,26 @@ Pause new scheduled work with the operator RPC:
 SELECT public.set_worker_paused(true, 'Investigating database load');
 ```
 
-Resume work after the database recovers:
+Inspect the saved control and queue before resuming:
+
+```sql
+SELECT * FROM private.worker_controls;
+SELECT * FROM public.work_dashboard();
+SELECT * FROM public.retention_dashboard();
+```
+
+Confirm that existing workers finish or lose their leases.
+Check failed work and invocation outcomes before retrying.
+Retain dead items for diagnosis.
+Do not delete queue rows to hide a failure.
+Resume only after the cause is understood and the relevant local checks pass:
 
 ```sql
 SELECT public.set_worker_paused(false, 'Database checks pass');
+SELECT * FROM public.work_dashboard();
 ```
+
+Confirm that due work starts and failure counts stop growing.
 
 Only the service role and database owner can call this RPC.
 The flag lives in the singleton `private.worker_controls` row.
@@ -507,3 +549,43 @@ Startup timeouts occur before SQL execution; retain full error context when inve
 Duplicate active work returns before insertion, using the existing active-work index.
 This avoids waiting on an unrelated lease update during a uniqueness check.
 The unique index still rejects concurrent duplicate inserts.
+
+Apply `20261114000400_player_birthdate_simulated_clock.sql` after the dispatcher transaction repair.
+The birthdate constraint uses `private.valid_player_birthdate(date)` with `now()::date`.
+This keeps both date bounds and lets the replay install its supported transaction clock.
+No Edge deployment is required.
+
+## Release 2.4 post-database checks
+
+The final twelve migrations run in this order:
+
+1. `20261114000400_player_birthdate_simulated_clock.sql`
+2. `20261115000100_io_idle_and_retention.sql`
+3. `20261115000200_io_screen_content.sql`
+4. `20261115000300_io_coalesce_changes.sql`
+5. `20261115000400_io_live_progress.sql`
+6. `20261115000500_bounded_matchup_forecast_history.sql`
+7. `20261115000600_precomputed_forecast_inputs.sql`
+8. `20261116000100_review_screen_fields.sql`
+9. `20261116000200_exact_player_rosters.sql`
+10. `20261116000300_async_trade_estimates.sql`
+11. `20261116000400_deduplicate_pending_trade_offers.sql`
+12. `20261116000500_defer_trade_publication.sql`
+
+Apply every earlier pending migration first.
+The latest supplied operator checkpoint has three additional pending worker safeguards before this list.
+The release 1 catalog requires the complete 44-migration suffix.
+The release planner determines the suffix from the verified applied prefix.
+Never infer the deployed prefix from this static document alone.
+
+Deploy the 21 Edge functions listed above after database checks pass.
+Verify the internal API estimate and activation workers with the new queue.
+Verify quote-free offers, deferred trade publication, and bounded forecast preparation.
+Recheck one-view screen reads, version delivery, receipt replay, and legal-roster acceptance.
+Use local fixtures for rehearsal; this documentation session authorizes no deployment.
+
+For rollback, restore the recorded frontend and compatible Edge artifacts.
+Keep the additive database, receipts, committed trades, player identity repairs, and lineup history.
+A pending queue item can require a current worker after an older Edge artifact returns.
+Pause scheduled work if that pairing fails, then use a reviewed forward repair.
+Verify old consumers against the upgraded schema before resuming.

@@ -1,221 +1,200 @@
 # Architecture
 
-Pancake separates browser presentation, shared calculations, and database rules. This document maps those boundaries and the data flow between them.
+Pancake separates screen rendering, shared calculations, and database rules.
+PostgreSQL owns authorization, roster legality, scoring, and committed state.
 
 ## Screen views
 
-Each screen can read one JSON row through its SQL function.
-The optional `GET /views/<screen>` route returns `{ ok, view }`.
-Existing client reads remain available until the client switches.
-Each function accepts `p_league_id`, `p_member_id`, and `p_params`.
-Profile also works without a league.
-The database checks the signed-in user against the member.
-Claims include only that member's bids.
-Cached trade analysis follows the trade's read policy.
-The Edge route forwards the user's bearer token to each view RPC.
+Screen loaders read one complete JSON view through `GET /views/<screen>`.
+The Edge API forwards the user's bearer token to member-scoped SQL reads.
+Most routes call one view function.
+Other-matchup views combine authorized reads on the server.
+The response is `{ ok, view }`.
+The browser restores Maps and Sets from JSON without extra reads.
+Authentication, league selection, and the shared change stream have separate reads.
 
-The table counts top-level JSON keys, including `context`.
-Each function returns one database row.
-Before counts are source estimates for cold reads, excluding auth and shared league selection.
-Ranges depend on populated rosters, claims, and live games.
-After counts describe the new contract; existing clients still use their current reads.
-Times are single SQL observations on a private fixture with three teams, one roster player, one game, one private trade, and one mock room.
-They exclude network time and do not establish a production latency bound.
-These observations precede the missing-calendar lineup fallback change.
-That change awaits a private database check.
-
-| Screen | SQL function | Fields | Before → after requests | SQL ms | Main payload |
-| --- | --- | ---: | --- | ---: | --- |
-| Home matchup | `view_home` | 13 | 12–16 → 1 | 6.17 | Matchup, both lineups, week days, league matchups, forecast, announcements, live stats, game state |
-| Roster | `view_roster` | 11 | 9–12 → 1 | 3.18 | Roster, picks, own claims, average maps, priority, FAAB, limits, slots, taxi exits |
-| Players and Waivers | `view_players` | 10 | 6–8 → 1 | 14.09 | Search page, ownership, waiver times, own pending claims, limits, visible totals |
-| Player page | `view_player` | 17 | 9–12 → 1 | 9.30 | Player, seasons, averages, game log, live game, fantasy map, projection, history, roster context |
-| Trades: offers | `view_trades` | 7 | 4–6 → 1 | 7.74 | Offers, cursor, block, members, incoming count |
-| Trades: history | `view_trades`, `tab=history` | 7 | 4–6 → 1 | 7.74* | Member history and cursor |
-| Trades: block | `view_trade_block` | 7 | 5–7 → 1 | 2.27 | Block assets, own roster, picks, average maps |
-| Trade details | `view_trade_details` | 5 | 4–7 → 1 | 9.66 | Trade, participants, routed assets, saved quote, roster plans, current analysis |
-| Trade analysis | `view_trade_analysis` | 5 | 1 → 1 | 2.89 | Stored revaluation and its stale flag |
-| League: standings | `view_standings` | 2 | 3 → 1 | 0.33 | Sorted regular-season records and totals |
-| League: activity | `view_activity` | 5 | 2–3 → 1 | 1.18 | Activity page, player metadata, announcements, offset |
-| League: picks | `view_picks` | 2 | 1 → 1 | 0.09 | Unused picks and both owner names |
-| League: settings | `view_settings` | 4 | 2 → 1 | 0.78 | League settings, waiver order, lineup templates |
-| League: draft rooms | `view_draft_rooms` | 3 | 1 → 1 | 0.93 | Mock rooms, participants, room state, current real drafts |
-| League tab wrapper | `view_league` | 2–5 | 1–3 → 1 | 0.28 | Selected tab's payload |
-| Lineup editor | `view_lineup` | 13 | 7–10 → 1 | 1.34 | Slots, reserves, week days, optimizer, games, live stats, started teams |
-| Claim editor | `view_claim_editor` | 13 | 8–12 → 1 | 19.27 | Player, roster, own claims, priority, clearing time, limits, members, taxi exits |
-| Auction room | `view_draft_room` | 11 | 5–7 → 1 | 1.82 | Draft, order, budgets, nominations, active bids, current nominator |
-| Rookie draft room | `view_draft_room` | 11 | 3–4 → 1 | 1.82* | Draft, order, picks, skipped picks, next pick |
-| Profile | `view_profile` | 3 | 1–2 → 1 | 0.44 | Public profile fields and own notification preferences |
-
-`*` marks a shared function timing; that tab or draft variant has no separate timing sample.
-The League wrapper accepts `results`, `history`, `picks`, `draftBoard`, `settings`, `draft`, and `mockRooms`.
-Trade history uses `tab=history` and the returned `nextCursor.token`.
-The token belongs to this view contract.
-Player and claim pages require `playerId`; trade pages require `tradeId`; draft rooms require `draftId`.
-List parameters include `limit`, `offset`, `query`, `position`, `teams`, `health`, `sortBy`, and `sortDir`.
-Player search also accepts inclusion, exclusion, playing-team, rookie, and availability filters.
-Lineups accept `date`, `weekNumber`, and `targetMemberId`.
-Season selection uses `seasonYear` or a league-owned `seasonId`.
-JSON objects replace client Maps; arrays replace Sets.
-The client can restore those containers without another request.
-
-Player pages return at most 100 season lines and initially show 15 games.
-Player search returns 20 rows by default and at most 50, with visible totals for that page.
-Claims include all pending entries and the last 20 resolved entries.
-Activity pages contain at most 100 rows and 50 announcements.
-Trade pages contain at most 99 trades and return a cursor.
-Room lists contain at most 60 mock rooms.
-Auction rooms include at most 500 nominations and 100 active bids.
-Roster, pick, slot, participant, and snake-pick arrays follow the league's stored limits.
-
-`standings_current`, `matchup_totals`, `player_season_averages`, and `trade_value_cache` store versioned results.
-The migration fills existing standings, totals, and averages before exposing the views.
-`matchup_forecasts` continues to store win odds.
-Standings exclude unfinished, voided, and playoff matchups.
-Offseason rosters use the latest league season.
-Player averages preserve the existing statistics and fantasy-average precision.
-Before a league rolls over, current NBA averages can use the existing stored totals as a fallback.
-Current-season player search reads stored averages instead of grouping game stats on each request.
-Trade revaluation uses the existing trade model and preserves its input version.
-An unsaved trade uses the Edge analysis route with `params.items` and returns the existing quote format.
-
-The minute job dispatches `refresh-views` when work is pending.
-Change hints, matchups, rosters, settings, members, seasons, trades, templates, and optimizer settings queue work.
-Each change advances the league-season version.
-Workers claim leases and compute trade values outside the publication transaction.
-Publication checks the lease token, claimed version, and complete valuation set.
-An old worker cannot overwrite newer inputs.
-Repeated refreshes preserve row values and timestamps.
-Expired leases retry after three minutes.
-Trade values expire within ten minutes and queue another refresh.
-Missing historical inputs produce an unavailable result; transport failures retry the job.
-Responses report the input version and stale state in `context`.
-
-The database recipes cover empty leagues, midweek scores, playoffs, offseason rosters, privacy, stale publication, and repeated refreshes.
-Search parity compares every result field across ten sort columns, both directions, and four health filters.
-A deliberately corrupted cached average must fail that comparison.
-The route check proves one view RPC for each of the 18 route names.
-The worker check compares its trade output against the existing model.
-
-```sh
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/view-screen-parity.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/view-player-search-parity.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/view-lineup-fallback.sql
-psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/refresh-screen-cache.sql
-deno test --allow-env --allow-net --allow-read supabase/functions/api/views.test.ts supabase/functions/refresh-views/work.test.ts
-npm run check:db-function-sources
-npm run check:db-function-catalog
-npm run check:database-types
-```
-
-Run database recipes and generation against the private local stack.
-Run `npm run check:edge-functions` without the database test environment, as described in the verification guide.
-The job also adds one entry to `supabase/config.toml` and the simulator's cron catalog.
-Database types, function ownership records, and release audit records come from the migrated private stack.
-
-## Code map
-
-| Concern | Source | Contract |
+| Screen | SQL reader | Contents |
 | --- | --- | --- |
-| Screens and navigation | `app/`, `components/`, `hooks/` | Expo Router and web components |
-| Public startup | `constants/boot-shell.ts`, `app/+html.tsx`, `public/sw.js` | [PWA and loading](pwa-live-data.md) |
-| Client data | `lib/` | Auth, PostgREST, RPCs, Edge API, and Realtime |
-| Edge API | `supabase/functions/api/` | [Backend boundaries](supabase-backend-route-inventory.md) |
-| Database rules | `supabase/sql/functions/by-name/` | Canonical function sources |
-| Published schema | `supabase/migrations/` | Immutable ordered migrations |
-| Shared rules | `core/`, `supabase/shared-src/` | Generated app, Edge, and SQL copies |
+| Home matchup | `view_home` | Teams, lineups, scores, game state, forecast, and league dates |
+| Other matchup | `view_home` plus server-side detail reads | Selected teams and day, with membership checks |
+| Roster | `view_roster` | Players, birthdates, picks, claims, limits, slots, FAAB, and priority |
+| Players and Waivers | `view_players` | Filtered player page, ownership, claims, and visible totals |
+| Player detail | `view_player` | Identity, seasons, games, projections, history, and roster context |
+| Trades and history | `view_trades` | Offers or history, members, and cursor |
+| Trade block | `view_trade_block` | Listings, roster, picks, and average maps |
+| Trade details | `view_trade_details` | Routes, participants, quote, roster plans, and current analysis |
+| Trade analysis | `view_trade_analysis` | Stored revaluation and stale state |
+| League | `view_league` | Selected section from standings, activity, picks, settings, or drafts |
+| Lineup editor | `view_lineup` | Slots, reserves, dates, optimizer settings, and game locks |
+| Claim editor | `view_claim_editor` | Player, roster, claims, clearing time, limits, and destinations |
+| Draft room | `view_draft_room` | Auction or rookie order, bids, picks, and current turn |
+| Profile | `view_profile` | Public profile and the user's notification preferences |
 
-Run `npm run check:edge-shared`, `npm run check:core-cjs`, and `npm run check:db-function-sources` to check source parity.
+Views check the current member and league.
+Profile also works without a league.
+Claims expose only the caller's bids.
+Trade analysis follows the trade's read policy.
+Parameters select the season, date, target member, detail ID, page, or search filters.
+The database returns bounded lists and cursors.
+Details and later pages load when requested.
 
-## Auth and saved content
+Home uses the league's calendar date and timezone.
+Scoring retains NBA game dates.
+Home shows the matchup in one vertical scroller.
+Other matchups open a separate detail page.
 
-The boot shell reads the configured project's session and logout markers before showing saved identity.
-An expired token does not authorize data reads.
-Online restoration waits for refresh while the page is visible.
-Membership reads confirm the saved league choice before actions become available.
-Sign-out and account changes clear private caches and fence late responses.
+## Versioned cache and push invalidation
 
-Saved screen content helps startup and route returns.
-It does not establish membership, locks, eligibility, or write permission.
-Each loader owns its freshness and refresh rules.
+The screen cache stores schema, scope, league version, saved time, and data.
+Keys include account, league, member, season, screen, and normalized parameters.
+Current-season lookups resolve to a stored season ID.
+The cache holds at most 48 entries and 4 MiB of JSON.
 
-## Change hints
+Saved content renders immediately.
+A clean cached screen reopens with zero screen requests before its background check.
+A cold screen reads one view without a separate version request.
+The rookie draft controller also checks the league version.
+Foreground return, reconnect, and background checks reconcile the shared league version.
+An unchanged version needs no new view.
+Changed topics invalidate affected views.
+Missing ranges require a fresh view.
+Hidden screens defer reads until active.
 
-`lib/league-changes.ts` shares one authenticated stream for the selected league.
-Topics cover lineups, rosters, scores, games, stats, inventory, and resources.
-Hints contain scope keys and revisions, not player rows or box scores.
-Clients read authoritative data after a change.
-Missing revisions, malformed details, overflow, and reconnects require broader reads.
-Hidden or offline consumers retain pending work until they can read again.
+`league_versions` advances once per changed league transaction.
+`league_changes` keeps the last 128 entries per league.
+`GET /version?league=<uuid>&since=<decimal>` returns the counter and changes.
+Counters travel as decimal strings.
+The existing authenticated `league_change_hints` stream carries version notifications.
+There is no second channel for version delivery.
 
-Inventory hints cover picks, claims, waiver entries, priority, FAAB, and season changes.
-Resource hints cover averages, projections, and scoring settings.
-Live stats read displayed players and keep a safety poll.
-The live fallback polls more often when the hint stream disconnects.
+Account changes clear private caches and reject late replies.
+League selection clears screen results before changing the selected member.
+Offline screens retain saved data and show an offline notice.
+The service worker caches public files separately from private screen data.
+See [loading](instant-loading.md) and [PWA behavior](pwa-live-data.md).
 
-## League rules
+## Stored results and background refresh
 
-Lineups distinguish starters from bench players. IR and taxi have separate capacity limits.
-Auto-set daily starts enabled for new teams. Later seasons preserve the manager's choice.
-See [lineup automation](pre-tipoff-lineups.md).
+`standings_current`, `matchup_totals`, `player_season_averages`, and `trade_value_cache` store screen results.
+Changes mark the league-season refresh queue dirty.
+`refresh-views` claims one season and computes at most 20 trade valuations per run.
+Incomplete valuation sets leave work for a later run.
+Publication checks the claim token and input version.
+An old worker cannot replace newer results.
 
-Commissioners can configure team limits, playoff entrants, and each playoff round's week length.
-Configured brackets use seeded elimination with first-round byes for top seeds.
-Odd-team leagues receive regular-season byes.
-Skipped regular weeks retain marked history and do not affect standings.
-See [roster, trade, and season rules](roster-lifecycle.md).
+Hash and exact-content comparisons skip unchanged cache writes.
+Trade publication freshness lives separately from the analysis JSON.
+Changed result fields publish a new league version.
+Refresh timestamps alone do not publish another version or restart refresh work.
+Views expose stale state while work remains pending.
+Trade values expire within ten minutes.
 
-The public activity feed shows completed transactions and announcements, without pending trade offers or trade-block changes.
-Private offers remain in Trades.
-Commissioner announcements appear in a dismissible Home banner and League > Activity.
-Home shows the newest announcement from another member in the last 14 days.
-It must be newer than the last dismissed announcement.
-Announcements that arrive while Home stays open appear on pull, retry, or return.
-Dismissal applies to that manager and league on the current device.
-Dismissal leaves the Activity entry available.
-Announcement reads preserve cached Home content and visible errors without layout shifts or flicker.
+## Idempotent writes
 
-## Season transitions
+The client gives each logical write one request UUID.
+Retries and offline replay preserve that UUID and the original input.
+`private.request_receipts` binds the result to the actor, function, and input hash.
+A repeated request returns its saved result without repeating effects.
+A changed actor or payload cannot reuse the receipt.
+Receipts expire after seven days.
 
-The season-boundary worker creates playoffs after the regular season finishes.
-Advancement waits for final results and the stat-correction grace period.
-Consumed rounds stay frozen.
-Rollover preserves history, resets season balances, and prepares the rookie draft and new schedule.
-An unrun rookie draft has a best-available fallback before the new season activates.
-Invalid calendars remain errors. An unpublished next calendar causes a retry.
+The persistent offline queue stores account, league, affected rows, input, and request ID.
+It stores no bearer token.
+Reconnect replays actions in order with the matching current account.
+A failed action blocks later actions until retry.
+Pending rows stay marked until the server accepts the action.
+The server rechecks membership, locks, ownership, and legality when it executes each write.
 
-The [historical simulator](season-simulator.md) exercises ingestion and season transitions.
-The [verification guide](verification.md) lists the focused database checks.
+## League rules and history
 
-## Claims and trade decisions
+Every available player enters through scheduled FAAB claims.
+There are no instant pickups.
+Awards commit ownership, conditional drops, FAAB, priority, and add counts together.
+Historical lineup locks survive roster moves and missing game metadata.
+Rookie drafts default to linear order.
+Tied records use higher points per game before the stored seed.
 
-Every available player enters through a scheduled FAAB claim.
-The database freezes claim changes at the daily cutoff and settles ownership, drops, balances, and priority together.
-Trade plans reserve assets and capacity across all accepted trades.
-Settlement checks resulting rosters before applying every transfer and retained-player move in one transaction.
-[Roster lifecycle](roster-lifecycle.md) owns those rules.
+Every trade requires legal resulting rosters before acceptance and settlement.
+Plans reserve outgoing assets, retained-player moves, drops, and incoming capacity.
+Settlement applies all participants' changes atomically.
+The Activity section records trade transitions with privacy rules for pending offers.
+Private team timelines project events from `league_events`.
+See [roster lifecycle](roster-lifecycle.md) and [drafts](draft.md).
 
-The Edge API computes trade estimates from database-owned league inputs and shared dynasty calculations.
-Offer submission attaches the frozen quote in the same transaction.
-Historical revaluation reads saved routes with current inputs and leaves the original quote unchanged.
-[Trade estimates](trade-estimates.md) owns quote expiry, authorization, and saved views.
+## Trade estimates and forecasts
 
-The `matchup-forecast` Edge worker computes shared forecasts outside screen loads.
-Database triggers queue changed inputs, and revision tokens reject obsolete results.
-Clients read member-authorized cached forecasts and show coverage and stale state.
-[Matchup forecasts](matchup-forecasts.md) owns model limits and publication locks.
+The Analyzer requests current estimates through the Edge API.
+A supplied valid quote attaches in the offer transaction.
+Without a quote, the offer commits first and queues an estimate.
+The internal estimate worker reads the saved routes and attaches the result later.
+Estimate failure leaves the valid offer intact.
+Identical pending offers are rejected separately from request replay.
+Trade event and screen publication can run after the trade write commits.
 
-## Projection data
-
-`get_league_projection_rows` supplies player views, lineup optimization, and matchup forecasts.
-Sleeper sync selects the scoring week containing today's Pacific date.
-A day outside every scoring week records a successful skip without fetching or changing projections.
-[Source monitoring](source-monitoring.md#projection-readers) owns provider precedence, freshness, and storage rules.
-[PWA behavior](pwa-live-data.md#player-detail) owns the player detail layout.
+The `matchup-forecast` worker computes shared forecasts outside screen loads.
+It prepares bounded player histories and projection inputs before reading the forecast context.
+Stored season totals update projection inputs when statistics change.
+Revision tokens reject old results.
+Expiry is the next known tipoff or six hours.
+See [trade estimates](trade-estimates.md) and [matchup forecasts](matchup-forecasts.md).
 
 ## Scheduled work
 
-Cron calls guarded database dispatch functions through pg_net.
-Workers record outcomes in sync records; reconciliation compares those outcomes with transport responses.
-Due-work gates skip idle calls. Leases and receipt tokens fence retries.
-See [source monitoring](source-monitoring.md) for schedules, retries, and retention.
+One SQL dispatcher owns the application work queue.
+`work-dispatcher` calls `public.dispatch_work()` each minute.
+Two maintenance cron entries drain hints every 30 seconds and prune cron history hourly.
+Old per-job Edge cron dispatchers are removed.
+
+The dispatcher checks the operator pause before enqueueing or claiming work.
+It claims one item at a time, with at most eight claims and eight active workers.
+It starts no new item after two seconds.
+The cron command sets a five-second statement budget and a 250 ms lock budget.
+Service-role statements have a three-second budget and a 250 ms lock budget.
+An advisory lock skips overlapping dispatch runs.
+
+Claims grant five-minute work leases.
+Workers renew every 30 seconds and at explicit work phases.
+Lease loss stops further writes.
+Retries back off from one minute to a fifteen-minute cap.
+The third failed attempt becomes dead work.
+Individual game and forecast claims retain their own ownership checks.
+
+`work_dashboard()` shows due, running, failed, and dead work.
+`set_worker_paused(true, reason)` stops new scheduled work.
+The pause does not cancel a running statement.
+The [operator runbook](../supabase/RELEASE-DB.md#worker-incident-controls) covers pause, inspection, and resume.
+
+## Events, retention, and beacons
+
+`league_events` stores product outcomes and terminal work outcomes.
+Global work events remain backend-only.
+Member-scoped readers protect failed claims and private trade details.
+Repeated terminal updates do not add duplicate events.
+
+Daily queued retention starts after 10:00 UTC.
+It skips locked rows and starts no new helper after two seconds.
+Most helpers delete at most 5,000 rows per call; session cleanup caps at 500.
+Cron history keeps 24 hours and preserves active executions.
+Request receipts keep seven days; performance beacons keep thirty days.
+Durable product history and failed work retain separate lifetime rules.
+`retention_dashboard()` reports rules, sizes, cleanup totals, and errors.
+
+The client batches sampled screen timings at `/beacons`.
+It sends at most once per minute and drops empty or offline batches.
+The endpoint accepts at most 20 samples per request.
+Backend-only summaries support performance review.
+[Source monitoring](source-monitoring.md) owns schedules and retention details.
+[IO audit](io-audit.md) records measured reductions and their limits.
+
+## Code map
+
+| Concern | Source |
+| --- | --- |
+| Screens and navigation | `app/`, `components/`, `hooks/` |
+| Client cache and transport | `lib/` |
+| Edge routes and workers | `supabase/functions/` |
+| Current SQL functions | `supabase/sql/functions/by-name/` |
+| Ordered schema changes | `supabase/migrations/` |
+| Shared calculations | `core/`, `supabase/shared-src/` |
+
+[Verification](verification.md) lists source, database, browser, and release checks.

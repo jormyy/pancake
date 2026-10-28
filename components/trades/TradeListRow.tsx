@@ -57,7 +57,7 @@ export const TradeBlockListingRow = memo(function TradeBlockListingRow({
         <View style={[styles.blockRow, !tile && styles.compactBlockRow, tile && styles.tile]}>
             {block.asset.kind === 'player' ? <View style={styles.blockInfo}>
                 <PlayerRowContent compact name={label} nbaId={block.asset.nbaId} team={block.asset.nbaTeam} positions={positions}
-                    yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} onTaxi={block.rosterLocation === 'taxi'}
+                    playerId={block.asset.playerId} yearsExp={block.asset.yearsExp} careerGames={block.asset.careerGames} injuryStatus={block.asset.injuryStatus} onTaxi={block.rosterLocation === 'taxi'}
                     metadata={<Text style={styles.blockMeta}>{block.teamName}{block.rosterLocation ? ` · ${block.rosterLocation === 'active' ? 'Active' : block.rosterLocation.toUpperCase()}` : ''}</Text>} stats={playerSeasonContextText(block.asset)} />
                 {mine ? <TradeBlockNoteEditor item={block} label={label}
                     disabled={disabled || blockBusyId === block.id} onSave={onSaveNote} />

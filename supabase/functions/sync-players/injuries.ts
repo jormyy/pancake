@@ -1,8 +1,9 @@
 import { supabase } from '../_shared/supabase.ts'
 import { fetchEspnInjuries } from '../_shared/playerSource.ts'
 import { normalizeName } from '../_shared/nameMatch.ts'
-import { errorMessage } from '../_shared/responses.ts'
+import { errorMessage, logInternalError } from '../_shared/responses.ts'
 import { fetchAllPlayers } from './players.ts'
+import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import { linkPlayerSources } from '../_shared/sourceLinks.ts'
 
 export async function syncInjuries(): Promise<{ updated: number; failure: string | null }> {
@@ -18,6 +19,8 @@ export async function syncInjuries(): Promise<{ updated: number; failure: string
     const name = normalizeName(player.display_name)
     counts.set(name, (counts.get(name) ?? 0) + 1)
   }
+  await renewCurrentWorkLease()
+  const writeDeadline = performance.now() + 5000
   let updated = 0
   const failures: string[] = []
   for (const player of players) {
@@ -26,12 +29,30 @@ export async function syncInjuries(): Promise<{ updated: number; failure: string
     const status = byId.get(player.espn_id!) ?? statuses.get(name) ?? null
     const details = detailsById.get(player.espn_id!) ?? (counts.get(name) === 1 ? detailsByName.get(name) : undefined) ?? { injury_reason: 'unknown', injury_expected_return: 'unknown' }
     if (status === player.injury_status && details.injury_reason === player.injury_reason && details.injury_expected_return === player.injury_expected_return) continue
-    let query = supabase.from('players').update({ injury_status: status, ...details })
-      .eq('id', player.id).eq('display_name', player.display_name)
-      .eq('espn_id', player.espn_id!).eq('nba_team', player.nba_team!)
-      .eq('injury_reason', player.injury_reason).eq('injury_expected_return', player.injury_expected_return)
-    query = player.injury_status === null ? query.is('injury_status', null) : query.eq('injury_status', player.injury_status)
-    const { data, error } = await query.select('id')
+    if (performance.now() >= writeDeadline) {
+      failures.push(`${player.id}: injury write budget exhausted`)
+      continue
+    }
+    const save = () => {
+      let query = supabase.from('players').update({ injury_status: status, ...details })
+        .eq('id', player.id).eq('display_name', player.display_name)
+        .eq('espn_id', player.espn_id!).eq('nba_team', player.nba_team!)
+        .eq('injury_reason', player.injury_reason).eq('injury_expected_return', player.injury_expected_return)
+      query = player.injury_status === null ? query.is('injury_status', null) : query.eq('injury_status', player.injury_status)
+      return query.select('id')
+    }
+    let result = await save()
+    for (let attempt = 0; result.error && ['55P03', '40P01', '40001'].includes(result.error.code) && attempt < 4; attempt++) {
+      logInternalError(`sync-player-injuries: retry ${attempt + 1}`, result.error)
+      await renewCurrentWorkLease()
+      const pause = Math.min(100 * 2 ** attempt, writeDeadline - performance.now())
+      if (pause <= 0) break
+      await new Promise(resolve => setTimeout(resolve, pause))
+      if (performance.now() >= writeDeadline) break
+      await renewCurrentWorkLease()
+      result = await save()
+    }
+    const { data, error } = result
     if (error) failures.push(`${player.id}: ${errorMessage(error)}`)
     else updated += data?.length ?? 0
   }

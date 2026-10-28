@@ -16,7 +16,7 @@ BEGIN
       'version', c.version, 'claimToken', c.claim_token, 'trades', COALESCE((
         SELECT jsonb_agg(jsonb_build_object('tradeId', trade.id, 'memberId', member.id, 'userId', member.user_id) ORDER BY trade.id)
         FROM (SELECT trade.id, trade.proposer_member_id FROM public.trades trade
-          LEFT JOIN public.trade_value_cache cached ON cached.trade_id = trade.id
+          LEFT JOIN private.trade_value_publications cached ON cached.trade_id = trade.id
           WHERE trade.league_season_id = c.league_season_id
             AND (cached.trade_id IS NULL OR cached.version < c.version OR cached.valid_until <= now())
           ORDER BY cached.version NULLS FIRST, trade.id LIMIT 20) trade
@@ -40,7 +40,7 @@ BEGIN
     PERFORM private.refresh_player_averages(queued.league_id, queued.league_season_id, queued.version);
     PERFORM private.refresh_trade_values(queued.league_id, queued.league_season_id, queued.version, COALESCE(p_params->'tradeValues', '[]'));
     completed := NOT EXISTS (SELECT 1 FROM public.trades trade
-      LEFT JOIN public.trade_value_cache cached ON cached.trade_id = trade.id
+      LEFT JOIN private.trade_value_publications cached ON cached.trade_id = trade.id
       WHERE trade.league_season_id = queued.league_season_id
         AND (cached.trade_id IS NULL OR cached.version < queued.version OR cached.valid_until <= now()));
   END IF;

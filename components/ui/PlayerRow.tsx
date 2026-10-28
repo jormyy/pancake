@@ -4,11 +4,12 @@ import { colors, componentTokens, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
 import { Badge } from '@/components/ui/Badge'
-import { playerAge } from '@/lib/player-context'
+import { usePlayerAge } from '@/hooks/use-player-age'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 
 export type PlayerRowProps = {
+    playerId?: string | null
     name: string
     nbaId?: string | null
     headshotUrl?: string | null
@@ -27,9 +28,9 @@ export type PlayerRowProps = {
     variant?: 'compact' | 'standard'
 }
 
-export function PlayerRow({ name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+export function PlayerRow({ playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
-    const displayAge = age ?? (birthdate ? playerAge(birthdate) : null)
+    const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
         <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}</View>

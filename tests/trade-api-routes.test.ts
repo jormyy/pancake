@@ -1,11 +1,13 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn() }))
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), estimate: vi.fn() }))
 vi.mock('../supabase/functions/_shared/supabase.ts', () => ({ supabase: { rpc: mocks.rpc } }))
+vi.mock('../supabase/functions/api/tradeEstimates.ts', () => ({ createTradeEstimate: mocks.estimate, revalueTrade: vi.fn() }))
 vi.mock('../supabase/functions/_shared/apiRuntime.ts', async (importOriginal) => ({
     ...await importOriginal<Record<string, unknown>>(),
     requireUser: async () => '22222222-2222-4222-8222-222222222222',
     requireOwnMember: async () => ({ leagueId: '66666666-6666-4666-8666-666666666666' }),
+    verifyOwnMember: async () => undefined,
 }))
 
 const apiPath = '../supabase/functions/api/trades.ts'
@@ -18,6 +20,23 @@ const playerId = '77777777-7777-4777-8777-777777777777'
 beforeEach(() => {
     vi.clearAllMocks()
     mocks.rpc.mockResolvedValue({ data: tradeId, error: null })
+    mocks.estimate.mockResolvedValue({ id: tradeId })
+})
+
+it.each(['propose', 'propose-multi', 'edit', 'counter'])('commits %s without building an estimate in the request', async action => {
+    const { handleTradeRoute } = await import(apiPath)
+    const path = action.startsWith('propose') ? `/trades/${action}` : `/trades/${tradeId}/${action}`
+    const response = await handleTradeRoute(new Request(`https://example.test${path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            memberId, requestId, recipientMemberId, leagueId: tradeId, leagueSeasonId: tradeId,
+            offerFaabAmount: 1, requestFaabAmount: 1, participantMemberIds: [memberId, recipientMemberId, tradeId],
+            items: [{ fromMemberId: memberId, toMemberId: recipientMemberId, faabAmount: 1 },
+                { fromMemberId: recipientMemberId, toMemberId: tradeId, faabAmount: 1 },
+                { fromMemberId: tradeId, toMemberId: memberId, faabAmount: 1 }],
+        }),
+    }), path)
+    expect(await response!.json()).toEqual({ ok: true, tradeId })
+    expect(mocks.estimate).not.toHaveBeenCalled()
 })
 
 const send = async (action: string, body: Record<string, unknown>) => {

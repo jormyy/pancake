@@ -45,7 +45,7 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
 
     return (
         <View style={[styles.txRow, { paddingHorizontal: padX }, isMe && styles.txRowMe]}>
-            <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
+            <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={item.eligiblePositions} playerId={item.playerId} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
                 stats={`${item.teamName}${isMe ? ' (you)' : ''}`} />
             <View style={styles.txRight}>
                 <Badge label={label} color={color} variant="soft" />

@@ -28,6 +28,7 @@ export default function ModalsLayout() {
             <Stack.Screen name="bracket" options={{ title: 'Playoff Bracket' }} />
             <Stack.Screen name="notification-settings" options={{ title: 'Notifications', headerShown: false }} />
             <Stack.Screen name="timeline" options={{ title: 'Timeline' }} />
+            <Stack.Screen name="matchup" options={{ headerShown: false }} />
             <Stack.Screen name="team-roster" options={{ headerShown: false }} />
         </Stack>
     )

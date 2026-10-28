@@ -5,7 +5,10 @@ Each document owns one contract or operating topic. Generated reports remain out
 ## Reference
 
 - [Interface design](interface-design.md): Phone spacing, lineup controls, Matchup interactions, news, player badges, and brand assets.
-- [Architecture](architecture.md): Code boundaries, authorization, change hints, and season transitions.
+- [Architecture](architecture.md): Screen views, versioned cache, receipts, workers, events, and retention.
+- [Rookie drafts](draft.md): Linear order, traded slots, and points-per-game ties.
+- [Player sources](player-sources.md): Birthdates, injuries, experience, and exact identity matching.
+- [IO audit](io-audit.md): Write reductions, final integration counts, and measurement limits.
 - [Database readiness catalog](database-readiness-catalog.md): Attested migration phases and database security checks.
 - [Dynasty decision tools](dynasty-decision-tools.md): Published ranks, value calculations, Trade Analyzer, and cache rules.
 - [Loading rules](instant-loading.md): Saved content, empty results, errors, and layout checks.
@@ -25,7 +28,8 @@ Each document owns one contract or operating topic. Generated reports remain out
 
 ## Related guides
 
-- [Database release steps](../supabase/RELEASE-DB.md): Production baseline, pending migrations, required Edge functions, verification, and recovery.
+- [Database release steps](../supabase/RELEASE-DB.md): Baselines, migration order, Edge deployment, operator pause, and rollback.
+- [Release 2.4 integration](release-2.4-integration.md): Preserved integration decisions and verification results.
 - [Installed iPhone checks](ios-simulator-testing.md): Home Screen installation, native interactions, and captures.
 - [Bounded replay acceptance](bounded-replay-acceptance.md): Limits of resumed historical evidence.
 - [Load comparison](../scripts/load/README.md): Isolated database workload measurements.

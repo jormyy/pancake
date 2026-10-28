@@ -71,7 +71,7 @@ BEGIN
     INTO v_league
     FROM leagues
    WHERE id = v_trade.league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.';
@@ -86,7 +86,7 @@ BEGIN
     FROM league_seasons AS season
    WHERE season.id = v_trade.league_season_id
      AND season.is_current = true
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Trades require the current season.'

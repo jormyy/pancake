@@ -5,6 +5,8 @@ import type { LineupPlayer } from '@/lib/lineup'
 import { saveHomeGameDisplay } from '@/lib/home-surface'
 import { clearSessionCaches } from '@/lib/session-cache-registry'
 import HomeScreen from '@/app/(tabs)/index'
+import { OtherMatchups } from '@/components/OtherMatchups'
+import type { LeagueWeekMatchup } from '@/lib/scoring'
 vi.mock('@/components/home/InlineLineupEditor', () => ({ InlineLineupEditor: 'InlineLineupEditor' }))
 vi.mock('@/components/home/DailyWaivers', () => ({ DailyWaivers: 'DailyWaivers' }))
 
@@ -13,6 +15,7 @@ vi.mock('@/components/MatchupForecastSummary', () => ({ MatchupForecastSummary: 
 
 const mocks = vi.hoisted(() => ({
     push: vi.fn(),
+    leagueMatchups: [] as LeagueWeekMatchup[],
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
@@ -41,7 +44,7 @@ vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     forecastState: { forecast: null, pending: false, error: false, stale: false },
     liveSnapshot: { todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() },
     matchup: { myMemberId: 'member', seasonId: 'season', seasonYear: 2027, weekNumber: 1 },
-    leagueMatchups: [], weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
+    leagueMatchups: mocks.leagueMatchups, weekDays: [{ date: '2026-10-11' }, { date: '2026-10-12' }], selectedDate: mocks.selectedDate,
     myLineup: mocks.lineupError ? null : mocks.lineup, oppLineup: mocks.lineupError ? null : mocks.lineup, lineupError: mocks.lineupError,
     setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
@@ -70,6 +73,7 @@ vi.mock('@/components/ScreenErrorFallback', () => ({ ScreenErrorFallback: 'Scree
 let screen: ReactTestRenderer
 beforeEach(() => {
     vi.clearAllMocks()
+    mocks.leagueMatchups = []
     mocks.announcementsLoaded = true
     mocks.announcements = []
     mocks.selectedDate = '2026-10-11'
@@ -317,4 +321,15 @@ it('keeps the score header day strip and rows inside one vertical scroller', asy
     expect(scrollers[0].findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
     expect(scrollers[0].findAllByType('DaySelector' as React.ElementType)).toHaveLength(1)
     expect(scrollers[0].findAllByType('MatchupRow' as React.ElementType).length).toBeGreaterThan(0)
+})
+
+it('places the current week strip below the lineup and opens a read-only matchup', async () => {
+    mocks.leagueMatchups = [{ id: 'other-matchup', homeMemberId: 'a', awayMemberId: 'b', homeTeamName: 'Owls', awayTeamName: 'Foxes', homePoints: 12, awayPoints: 10, isMine: false, isFinalized: false }]
+    await mount()
+    const scroll = screen.root.findByProps({ testID: 'matchup-page-scroll' })
+    const strip = scroll.findByType(OtherMatchups)
+    expect(strip.props.matchups).toEqual(mocks.leagueMatchups)
+    expect(scroll.findAllByProps({ accessibilityLabel: 'Open Owls versus Foxes' })).toHaveLength(1)
+    await act(async () => strip.props.onOpen('other-matchup'))
+    expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/matchup', params: { matchupId: 'other-matchup' } })
 })

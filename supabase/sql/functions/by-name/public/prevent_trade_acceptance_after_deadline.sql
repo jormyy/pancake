@@ -17,7 +17,7 @@ BEGIN
     INTO v_trade_deadline, v_league_status
     FROM leagues AS league
    WHERE league.id = NEW.league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.';

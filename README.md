@@ -11,9 +11,11 @@ Dynasty fantasy basketball, built for your iPhone.
 - Daily lineups with automatic pre-tipoff optimization.
 - Scheduled FAAB claims for every available player, with rolling priority.
 - Multi-team trades with roster plans.
-- Straight-to-IR and straight-to-taxi adds, with Rookie and Taxi player tags.
+- Scheduled claims with IR or taxi destinations, plus Rookie and Taxi player tags.
 - Live scoring, playoffs, and automatic season rollover.
-- Shared matchup forecasts and saved trade estimates with separate current revaluation.
+- Background matchup forecasts and trade estimates, with separate current revaluation.
+- One-request screen views, instant cached returns, and safe offline write replay.
+- Team timelines and private trade transitions in Activity.
 - Installable iPhone PWA with web push notifications.
 
 ## Stack
@@ -21,6 +23,9 @@ Dynasty fantasy basketball, built for your iPhone.
 Expo Router, React Native Web, and TypeScript power the client.
 Supabase provides Auth, Realtime, PostgreSQL, and Deno Edge Functions.
 PostgreSQL enforces league rules; `core/` shares calculations across runtimes.
+Home opens the matchup.
+League groups Standings, Activity, Picks, Draft, Bracket, and Settings.
+Trades groups Offers, Block, History, and Analyzer.
 See the [architecture](docs/architecture.md).
 
 ## Local development
@@ -63,7 +68,10 @@ Run focused checks while developing; regenerate release evidence for the reviewe
 ## Production releases
 
 Database, then Edge, then merge the frontend.
+Release 2.4 includes 608 migrations through `20261116000500`.
 Follow the ordered [database release steps](supabase/RELEASE-DB.md) before merging.
+Local builds do not fetch production assets by default.
+Use a verified local predecessor for local update checks.
 A merge to main also triggers a Vercel frontend deployment.
 The [release gates](docs/verification.md#release-gates) and [artifact contract](docs/release-build-provenance.md) define verification and rollback.
 

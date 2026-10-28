@@ -18,7 +18,7 @@ Every other roster-linked record falls into one of three classes.
 | `roster_transactions`, `waiver_wire_log`, succeeded `waiver_claims`, `league_activity` | history | Never deleted. A succeeded claim keeps its drop player. A player merge re-points the surviving identity and closes an open waiver entry whose player is rostered under it. |
 | `weekly_add_counts`, `faab_balances`, `waiver_priorities`, `standings` | member/season state | Not player-linked; unchanged. |
 | `nominations`, `bids`, `snake_draft_picks` | draft history | Unchanged. |
-| Client caches | derived | Refresh through the owning loader on focus and relevant changes; [architecture](architecture.md#change-hints) defines league hints. |
+| Client caches | derived | Refresh through the owning loader on focus and relevant changes; [architecture](architecture.md#versioned-cache-and-push-invalidation) defines league hints. |
 
 ## Enforcement
 
@@ -108,7 +108,9 @@ Transport retries keep that UUID and the original payload.
 The client retries a lost connection once, including a failure while reading the response body.
 A new action gets a new UUID.
 Queue records can restore the same UUID through `withPwaMutation` options.
-The current offline queue waits in memory and holds the PWA update guard.
+The offline queue persists input and request IDs without access tokens.
+It holds the PWA update guard while work remains pending.
+A failed replay blocks later actions until retry.
 
 The API requires `x-request-id` on POST requests.
 It forwards the ID with the verified user to database calls and internal lineup optimization.
@@ -182,8 +184,11 @@ Setup and the startup auction close trading.
 The server checks this window when managers propose, accept, or settle trades.
 A commissioner trade deadline blocks new offers after that date.
 Pending offers remain private to their parties.
-The public activity feed omits offers, counters, edits, expirations, and trade-block changes.
-Completed trades remain visible with participant names.
+Activity records offers, edits, counters, acceptance, rejection, withdrawal, veto, expiry, and completion.
+Pending trade transitions remain visible only to participants.
+Completed trades remain public within the league.
+Events retain player identity and names when ownership later changes.
+Trade-block changes stay out of the feed.
 New NBA rookies cannot enter free-agent adds or waiver claims before the league completes its rookie draft.
 
 ## Draft pick years
@@ -326,7 +331,9 @@ The review and acceptance views show each team's resulting roster and capacity.
 Every accepting manager confirms named drops. Acceptance submits the exact plan shown in that confirmation.
 Every participant must accept before settlement.
 League review settings select immediate processing, commissioner review, or member voting.
-Acceptance stores and checks the plan. It changes no roster.
+Acceptance stores and checks the plan.
+Immediate processing can settle the trade within that same call.
+Deferred review keeps the roster unchanged until settlement.
 Settlement checks every participant again, then applies all drops, moves, transfers, and FAAB changes in one transaction.
 A failed transaction restores assets, drops, placements, waiver entries, and tenure.
 Vetoes, rejection, withdrawal, and expiry apply no roster changes.
@@ -370,7 +377,8 @@ Migration does not assign new seed snapshots to existing seasons.
 ## Timeline
 
 Each team has one timeline from the league event log.
-Home opens it with one tap.
+The timeline remains available through its route and claim history links.
+Home has no timeline entry.
 Each claim and trade row opens its related history.
 Counteroffers and edits stay in the original offer's history.
 
@@ -401,5 +409,7 @@ No separate Edge route is required.
 `tests/db/timeline-lifecycle.sql` performs claims, a counter trade, an auto-set, and score finalization.
 It checks both managers' timelines and pages through the real events.
 `tests/db/timeline-producers.sql` covers three-team acceptance, settings, real picks, auction awards, retries, and private trade failures.
-`tests/lib/timeline/app-browser.mjs` signs in locally and checks the Home entry, recorded reasons, filters, and claim deep link.
+`tests/lib/timeline/app-browser.mjs` contains the earlier Home-entry browser fixture.
+That entry is removed from the current Home screen.
+Use the current navigation suite for entry-point verification.
 The browser smoke route list also includes Timeline.

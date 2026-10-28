@@ -52,10 +52,22 @@ BEGIN
     ) SELECT league_id,CASE WHEN count(*)<=16 THEN jsonb_agg(scope ORDER BY scope::text) END AS scopes
       FROM distinct_scopes GROUP BY league_id ORDER BY league_id
   $query$,v_rows,v_scopes) LOOP
+    IF current_setting('pancake.trade_write',true)='true' THEN
+      PERFORM private.queue_trade_publication(v_change.league_id,v_topic,TG_TABLE_NAME);
+      CONTINUE;
+    END IF;
     INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes)
       VALUES(v_change.league_id,v_topic,1,v_change.scopes)
-    ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,
-      scopes=EXCLUDED.scopes,updated_at=clock_timestamp();
+    ON CONFLICT(league_id,topic) DO UPDATE SET
+      revision=stored.revision+(stored.xmin<>pg_current_xact_id()::xid)::integer,
+      scopes=CASE WHEN stored.xmin<>pg_current_xact_id()::xid THEN EXCLUDED.scopes
+        WHEN stored.scopes IS NULL OR EXCLUDED.scopes IS NULL THEN NULL
+        WHEN (SELECT count(DISTINCT scope) FROM jsonb_array_elements(stored.scopes||EXCLUDED.scopes) scope)>16 THEN NULL
+        ELSE (SELECT jsonb_agg(scope ORDER BY scope::text) FROM
+          (SELECT DISTINCT scope FROM jsonb_array_elements(stored.scopes||EXCLUDED.scopes) scope) merged) END,
+      updated_at=clock_timestamp()
+    WHERE stored.xmin<>pg_current_xact_id()::xid
+      OR stored.scopes IS NOT NULL AND (EXCLUDED.scopes IS NULL OR NOT stored.scopes @> EXCLUDED.scopes);
   END LOOP;
   RETURN NULL;
 END;

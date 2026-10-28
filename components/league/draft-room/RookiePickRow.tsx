@@ -37,7 +37,7 @@ export function RookiePickRow({
             </View>
             {item.player ? (
                 <View style={styles.pickPlayerCell}>
-                    <PlayerRowContent name={item.player.displayName} nbaId={item.player.nbaId} team={item.player.nbaTeam} yearsExp={item.player.yearsExp} careerGames={item.player.careerGames} injuryStatus={item.player.injuryStatus}
+                    <PlayerRowContent name={item.player.displayName} nbaId={item.player.nbaId} team={item.player.nbaTeam} playerId={item.player.id} yearsExp={item.player.yearsExp} careerGames={item.player.careerGames} injuryStatus={item.player.injuryStatus}
                         positions={item.player.position ? [item.player.position] : []} />
                 </View>
             ) : isSkipped ? (

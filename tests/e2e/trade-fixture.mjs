@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { ownScenarioResource } from './scenario-resource-owner.mjs'
 
@@ -27,7 +28,14 @@ const createConfirmedUser = async (admin, user) => {
 
 /** @param {FixtureEnv} env @param {string} email @param {string} password */
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, {
+    auth: { persistSession: false },
+    global: { fetch: (input, init) => {
+      const headers = new Headers(init?.headers)
+      headers.set('x-request-id', randomUUID())
+      return fetch(input, { ...init, headers })
+    } },
+  })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client

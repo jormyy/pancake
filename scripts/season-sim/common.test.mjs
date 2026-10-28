@@ -113,3 +113,15 @@ test('fresh replay snapshots stay in their configured root, outside shared input
     assert.equal(configuration(env).snapshots,`${root}/snapshots`)
   }
 })
+
+test('the private repair replay accepts only its assigned root, project and block', () => {
+  const root = config.root.replace(/\/lanes\/[^/]+$/, '/lanes/fable-timeline/replay/run')
+  const env = { SEASON_SIM_ROOT: root, SEASON_SIM_PROJECT: 'pt4bafablefix', SEASON_SIM_PORT_PREFIX: '587' }
+  assert.equal(configuration(env).ports.api, 58721)
+  for (const changed of [
+    { SEASON_SIM_ROOT: root + '-other' },
+    { SEASON_SIM_PROJECT: 'pt4basim' },
+    { SEASON_SIM_PORT_PREFIX: '572' },
+    { SEASON_SIM_CONTAINER: 'supabase_db_other' },
+  ]) assert.throws(() => configuration({ ...env, ...changed }))
+})

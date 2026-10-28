@@ -32,6 +32,8 @@ const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric',
 
 export type TradeCardActions = {
     acting: boolean
+    acceptDisabled?: boolean
+    reviewBeforeAccept?: boolean
     onAccept: () => void
     onRosterPlan?: (plan: TradeRosterPlan) => void
     onTaxiDestination?: (playerId: string, value: boolean) => void
@@ -113,7 +115,7 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
         return (
             <View style={styles.assetRow}>
                 <PlayerRowContent compact name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
-                    yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
+                    playerId={item.playerId} yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
                     metadata={item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                     stats={showContext ? playerSeasonContextText(item) : undefined} />
             </View>
@@ -162,7 +164,7 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             toMemberId: item.toMemberId,
             label: item.playerName,
             player: { name: item.playerName, nbaId: item.nbaId, team: item.nbaTeam, positions: playerEligiblePositions(item),
-                yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus, stats: playerSeasonContextText(item) },
+                playerId: item.playerId, yearsExp: item.yearsExp, careerGames: item.careerGames, injuryStatus: item.injuryStatus, stats: playerSeasonContextText(item) },
             detail: [item.nbaTeam, ...playerEligiblePositions(item), item.toTaxi ? 'To taxi' : null].filter(Boolean).join(' · '),
         }
     }
@@ -209,7 +211,7 @@ export function TradeActionButtons({
     const opponent = model.opponentName
     const buttons: { key: string; label: string; primary?: boolean; a11y: string; onPress: () => void }[] = []
     if (model.canRespond) {
-        buttons.push({ key: 'accept', label: 'Accept', primary: true, a11y: `Accept trade with ${opponent}`, onPress: actions.onAccept })
+        buttons.push({ key: 'accept', label: actions.reviewBeforeAccept ? 'Review' : 'Accept', primary: true, a11y: `${actions.reviewBeforeAccept ? 'Review' : 'Accept'} trade with ${opponent}`, onPress: actions.onAccept })
         if (model.canReject) buttons.push({ key: 'reject', label: 'Reject', a11y: `Reject trade with ${opponent}`, onPress: actions.onReject })
         buttons.push({
             key: 'counter',
@@ -242,15 +244,15 @@ export function TradeActionButtons({
             {buttons.map((button) => (
                 <MotionPressable
                     key={button.key}
-                    style={[styles.actionBtn, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary]}
+                    style={[styles.actionBtn, button.primary ? styles.actionBtnPrimary : styles.actionBtnSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionBtnDisabled]}
                     onPress={button.onPress}
-                    disabled={actions.acting}
+                    disabled={actions.acting || button.key === 'accept' && actions.acceptDisabled}
                     accessibilityRole="button"
                     accessibilityLabel={button.a11y}
-                    accessibilityState={{ disabled: actions.acting }}
+                    accessibilityState={{ disabled: actions.acting || button.key === 'accept' && actions.acceptDisabled }}
                     {...ids(button.key)}
                 >
-                    <Text style={button.primary ? styles.actionTextPrimary : styles.actionTextSecondary}>{button.label}</Text>
+                    <Text style={[button.primary ? styles.actionTextPrimary : styles.actionTextSecondary, button.key === 'accept' && actions.acceptDisabled && styles.actionTextDisabled]}>{button.label}</Text>
                 </MotionPressable>
             ))}
         </View>
@@ -353,7 +355,7 @@ export function TradeCard({
             <TradeActionButtons
                 trade={trade}
                 model={model}
-                actions={{ acting: acting || decisionsDisabled, onAccept, onReject, onVeto, onWithdraw }}
+                actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw }}
                 withTestIds
             />
         </View>
@@ -421,6 +423,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    actionBtnDisabled: { backgroundColor: colors.bgMuted },
+    actionTextDisabled: { color: colors.textDisabled },
     actionBtnPrimary: { backgroundColor: colors.primary },
     actionBtnSecondary: { backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.border },
     actionTextPrimary: { color: colors.textWhite, fontWeight: fontWeight.bold, fontSize: fontSize.md },

@@ -1,6 +1,7 @@
 # Release build provenance
 
-Release artifacts record their source commit and content digest. This contract defines frontend and Edge identity, artifact recovery, and repeatable web exports.
+Release artifacts record their source commit and content digest.
+This contract defines artifact identity, recovery, and repeatable web exports.
 
 ## Frontend artifact
 
@@ -101,7 +102,8 @@ An open page can request an older route script after deployment. Keep the previo
 
 Before a production build, commit `release-predecessor.json` with `url`, `commitSha`, and `bundleDigest`. Use the previous production deployment's immutable URL and its verified release marker. The build recovers and verifies the complete artifact before copying its public assets. Production builds fail without this record or when its bytes do not match.
 
-Local and preview builds never fetch the pinned remote predecessor by default.
+Local and preview builds do not contact the pinned production predecessor by default.
+Keep `VERCEL_ENV` unset or non-production and leave `PANCAKE_FETCH_PREDECESSOR` unset for local work.
 Remote recovery requires `VERCEL_ENV=production` or `PANCAKE_FETCH_PREDECESSOR=1`.
 Production still requires the pinned predecessor file.
 For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the previous verified export directory. This replaces the remote predecessor for that build. Never use an export with a different API issuer as a production predecessor.
@@ -154,4 +156,8 @@ Its frontend source is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
 Its database head is `20261029000800`, with 564 migrations.
 This record identifies the source and schema.
 It does not invent an artifact digest or replace captured deployment evidence.
-Release 2 targets database head `20261109000900`, with 574 migrations.
+Release 2.4 targets database head `20261116000500`, with 608 migrations.
+`release-predecessor.json` pins release 1 and its supplied bundle digest:
+`e3aed52c354f3bdcbb256f055d89eb2c4d95670b791395e0c2197edae3d7d32d`.
+The pin records release evidence; reading it requires no production request.
+Use `PANCAKE_PREVIOUS_RELEASE_ROOT` for a verified local predecessor.

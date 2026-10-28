@@ -198,7 +198,7 @@ export default function DraftRoomScreen({ resolvedDraftId }: { resolvedDraftId?:
                                     {myPicks.map((pick, index) => (
                                         <View key={pick.id} style={[styles.myPickRow, index > 0 && styles.myPickDivider]}>
                                             <PlayerRowContent name={pick.player?.displayName ?? 'Unknown'} nbaId={pick.player?.nbaId} team={pick.player?.nbaTeam}
-                                                positions={pick.player?.position ? [pick.player.position] : []} yearsExp={pick.player?.yearsExp} careerGames={pick.player?.careerGames} injuryStatus={pick.player?.injuryStatus} />
+                                                positions={pick.player?.position ? [pick.player.position] : []} age={pick.player?.age} yearsExp={pick.player?.yearsExp} careerGames={pick.player?.careerGames} injuryStatus={pick.player?.injuryStatus} />
                                             <Text style={styles.myPickPrice}>${pick.finalPrice}</Text>
                                         </View>
                                     ))}

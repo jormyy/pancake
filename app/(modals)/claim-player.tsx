@@ -363,7 +363,7 @@ export default function ClaimPlayerScreen() {
                 <View style={styles.claimPlayerRow}>
                     <PlayerRowContent name={player?.display_name ?? '—'} nbaId={player?.nba_id} team={player?.nba_team}
                         positions={player?.eligible_positions?.length ? player.eligible_positions : player?.position ? [player.position] : []}
-                        yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status} />
+                        birthdate={player?.birthdate} yearsExp={player?.years_exp} careerGames={player?.career_regular_season_games} injuryStatus={player?.injury_status} />
                 </View>
                 <Text style={styles.claimFacts}>{claimFacts}</Text>
                 {renderIRChoice()}
@@ -423,7 +423,7 @@ export default function ClaimPlayerScreen() {
                 >
                     <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team}
                         positions={item.players.eligible_positions?.length ? item.players.eligible_positions : item.players.position ? [item.players.position] : []}
-                        yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status} />
+                        birthdate={item.players.birthdate} yearsExp={item.players.years_exp} careerGames={item.players.career_regular_season_games} injuryStatus={item.players.injury_status} />
                     <View style={[styles.check, isSelected && styles.checkSelected]}>
                         {isSelected && <MaterialIcons name="check" size={16} color={colors.onAccent} />}
                     </View>

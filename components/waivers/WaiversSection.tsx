@@ -9,7 +9,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { RosterClaimItem } from '@/components/roster/RosterItems'
 import { cancelWaiverClaim, claimProcessDateLabel, editWaiverClaim, reorderWaiverClaim, scheduledClaimRunAt, type WaiverClaim } from '@/lib/waivers'
-import { colors, controlSize, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, controlSize, spacing, textStyles } from '@/constants/tokens'
 
 export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFindPlayer: () => void }) {
     const { current, currentLeague } = useLeagueContext()
@@ -70,7 +70,7 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
         {!online ? <Text style={textStyles.meta}>Offline. Changes stay pending until you reconnect.</Text> : null}
         {error ? <View><Text accessibilityRole="alert" style={styles.error}>{error}</Text><Pressable style={styles.action} accessibilityRole="button" onPress={() => { void refresh() }}><Text style={styles.link}>Retry</Text></Pressable></View> : null}
         {loading && !visible ? <Text style={textStyles.meta}>Loading claims…</Text> : null}
-        <Text style={textStyles.sectionLabel}>Pending claims ({pending.length})</Text>
+        <Text style={[textStyles.sectionLabel, styles.pendingHeading]}>Pending claims ({pending.length})</Text>
         {pending.length ? pending.map(renderClaim) : visible ? <Text style={textStyles.meta}>No pending claims.</Text> : null}
         <Text style={textStyles.sectionLabel}>Recent results</Text>
         {results.length ? results.map(renderClaim) : visible ? <Text style={textStyles.meta}>No recent results.</Text> : null}
@@ -79,7 +79,8 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
 
 const styles = StyleSheet.create({
     root: { padding: spacing.lg, gap: spacing.md },
-    claim: { borderBottomWidth: 1, borderBottomColor: colors.borderLight },
+    claim: { borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator },
+    pendingHeading: { borderTopWidth: borderWidth.thin, borderTopColor: colors.separator, paddingTop: spacing.md },
     action: { minHeight: controlSize.minTouch, minWidth: controlSize.minTouch, justifyContent: 'center', alignSelf: 'flex-start' },
     link: { ...textStyles.body, color: colors.primaryDark },
     error: { ...textStyles.body, color: colors.dangerDark },

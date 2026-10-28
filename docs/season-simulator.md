@@ -28,7 +28,7 @@ Declared publication policies do not recreate every original schedule release.
 | Playoffs | Seeds, byes, round spans, advancement, and correction windows match independent calculations |
 | Champion | Final result, independent winner, and authenticated bracket agree before rollover |
 | Trades | Deadline rejections, ownership changes, roster plans, and completed transactions agree |
-| Rookie draft | Prior standings, snake order, traded pick ownership, expiry, and consumption agree |
+| Rookie draft | Prior standings, saved linear or snake order, traded picks, expiry, and consumption agree |
 | Rollover | Rosters, balances, calendars, and retained history match the transition rules |
 | Player reads | Paged search, displayed season, averages, and fantasy-point order match stored played games |
 
@@ -44,7 +44,9 @@ The replay has no daily direct stat or score override.
 A missing champion or rollover remains a failure.
 An authenticated commissioner can generate matchups during setup.
 The installer records the migrated cron catalog before disabling native jobs.
-The driver then runs the scheduled business minutes itself.
+The driver then runs each scheduled business wake itself.
+It includes the half-minute hint drain and hourly cron-history cleanup.
+Coincident cron wakes and worker timers settle at the same business time.
 
 Business time pauses during I/O.
 The discrete clock wakes worker timers at their business deadlines and preserves intervening cron minutes.
@@ -157,9 +159,12 @@ Omit that flag for a completed draft checkpoint.
 After validating one date, use `--through YYYY-MM-DD` for a bounded continuation.
 The report remains a recovered segment, never a fresh full replay.
 
-The clock installer maps supported `CURRENT_DATE` defaults to the simulated transaction date.
-Restoration returns those defaults exactly.
-Unsupported clock keywords stop installation.
+The clock installer replaces `now()`, `clock_timestamp()`, `transaction_timestamp()`, and `statement_timestamp()` on the disposable stack.
+It maps supported bare `CURRENT_DATE` public defaults to the simulated transaction date.
+Restoration returns the original functions and defaults exactly.
+Unsupported default forms stop installation.
+`CURRENT_TIMESTAMP`, `CURRENT_TIME`, `LOCALTIME`, and `LOCALTIMESTAMP` need explicit support before use.
+The clock audit reports these forms instead of assuming they follow replaced functions.
 `npm run test:db:simulator-clock-date-defaults` covers that boundary.
 
 ## Taxi acquisitions and legal rosters
@@ -215,3 +220,26 @@ REST session renewal forwards the token to the private Realtime channel immediat
 The probe removes its renewal listener during cleanup and requires a live subscription at final verification.
 If terminal delivery fails, retain that failure and reconcile stored state without replaying settled dates.
 An independent later subscription proves only its own recorded window.
+
+## Cron catalog and workspace limits
+
+`productionJobs` in `scripts/season-sim/cron.mjs` comes from ordered repository migrations.
+`migration-cron.mjs` applies `schedule`, `unschedule`, and supported `alter_job` commands to that catalog.
+There is no hand-maintained `cron-jobs.json`.
+The current catalog contains three jobs:
+
+| Job | Schedule | Work |
+| --- | --- | --- |
+| `work-dispatcher` | Every minute | Bounded SQL work dispatch |
+| `io-hint-drain` | Every 30 seconds | Direct SQL player and inventory hint drains |
+| `io-cron-history-retention` | Minute 12 each hour | Bounded cron-history pruning |
+
+The replay compares installed commands and schedules with migration-derived expectations.
+Do not substitute the removed per-worker cron jobs.
+Extra retained local jobs can remain in a lane's merged catalog.
+Their presence does not make them release requirements.
+
+The launcher accepts only the roots, projects, and ports allowed by `common.mjs` and the selected profile.
+A historical lane catalog can describe another schema or an earlier run.
+Do not copy its cron list or port settings into this checkout.
+A documentation or source-only test run does not establish a new season replay result.
