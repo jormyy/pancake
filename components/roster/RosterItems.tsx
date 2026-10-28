@@ -1,3 +1,4 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel, draftYear } from '@/lib/picks'
@@ -75,10 +76,11 @@ export const RosterClaimItem = memo(function RosterClaimItem({
     onEditBid: (claim: WaiverClaim, bidAmount: number) => Promise<boolean | undefined>
     onReorder: (id: string, direction: 'up' | 'down') => void
 }) {
+    const timezone = useLeagueTimezone()
     const taxiSlots = useContext(PlayerEligibilityContext)
     const taxiEligible = taxiSlots > 0 && isTaxiEligible(claim.playerYearsExp ?? null, claim.playerCareerGames ?? null)
     const isPending = claim.status === 'pending'
-    const editable = isPending && scheduledClaimRunAt(claim.processDate).getTime() > Date.now()
+    const editable = isPending && scheduledClaimRunAt(claim.processDate, timezone).getTime() > Date.now()
     const disabled = cancellingId !== null
     const usesFaab = waiverMode === 'faab'
     const [bidText, setBidText] = useState(String(claim.bidAmount ?? 0))
@@ -91,7 +93,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         : claim.status === 'pending' ? colors.info
         : colors.dangerDark
     const statusText = claim.status === 'pending'
-        ? `Processes ${scheduledClaimLabel(claim.processDate)}`
+        ? `Processes ${scheduledClaimLabel(claim.processDate, timezone)}`
         : claim.status === 'succeeded'
           ? 'Succeeded'
           : claim.status === 'failed_roster'

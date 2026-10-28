@@ -61,7 +61,13 @@ Game locks and trade or waiver reservations still apply.
 ## Continuous waivers
 
 Every available player requires a scheduled claim. No ordinary pickup changes ownership immediately.
-The worker awards claims at 03:00 America/New_York, including daylight saving changes.
+The worker awards claims at midnight in `leagues.timezone`, including daylight saving changes.
+The dispatcher creates one dated waiver task per timezone and checks due work each quarter hour.
+Daily trade-value work remains independent of those waiver tasks.
+The default timezone is `America/Los_Angeles`. Run labels show `12:00 AM PT` there.
+Commissioners can change the timezone. Open holds and pending claims then follow its midnight.
+Home, Roster, and waiver labels use that same league date.
+NBA scoring dates and weekly add boundaries retain their Eastern calendar rules.
 A claim submitted at the cutoff waits until the next daily run.
 Dropped players also complete their 48-hour hold before an eligible scheduled run.
 The server rejects instant-add RPCs and direct free-agent inserts with SQLSTATE `PA002`.

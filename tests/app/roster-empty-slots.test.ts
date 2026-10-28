@@ -272,7 +272,7 @@ describe('roster empty slots', () => {
         mocks.focusData.data = rosterData([player])
         await act(async () => { screen = create(React.createElement(RosterScreen)) })
         await act(async () => screen.root.findByType('RosterPlayerItem' as React.ElementType).props.onLongPress(player))
-        expect(confirmAction).toHaveBeenCalledWith('Drop Active?', 'They will stay on waivers until the first 3 AM ET run after 48 hours.', expect.any(Function), 'Drop')
+        expect(confirmAction).toHaveBeenCalledWith('Drop Active?', 'They will stay on waivers until the first league-local midnight after 48 hours.', expect.any(Function), 'Drop')
     })
 
     it.each(['active', 'offseason'])('uses real IR occupancy and blocks offseason IR moves in %s', async status => {

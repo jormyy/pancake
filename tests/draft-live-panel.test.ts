@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AuctionLivePanel } from '@/components/league/draft-room/AuctionLivePanel'
 import { formatCountdown } from '@/lib/format'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     Platform: { OS: 'web' }, View: 'View', Text: 'Text', TextInput: 'TextInput',

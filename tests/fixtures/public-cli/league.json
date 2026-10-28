@@ -1,0 +1,206 @@
+{
+  "resources": {
+    "league": {
+      "items": [
+        {
+          "id": "Public",
+          "name": "Public",
+          "seasonId": "Public",
+          "seasonYear": 1,
+          "weekNumber": 1,
+          "timezone": "Public",
+          "scoringSettings": {
+            "points": 1,
+            "rebounds": 1,
+            "assists": 1,
+            "steals": 1,
+            "blocks": 1,
+            "turnovers": 1,
+            "three_pointers_made": 1,
+            "field_goals_made": 1,
+            "field_goals_attempted": 1,
+            "free_throws_made": 1,
+            "free_throws_attempted": 1,
+            "double_double": 1,
+            "triple_double": 1
+          }
+        }
+      ]
+    },
+    "standings": {
+      "items": [
+        {
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "teamName": "First team",
+          "rank": 1,
+          "wins": 1,
+          "losses": 1,
+          "ties": 1,
+          "pointsFor": 1,
+          "pointsAgainst": 1,
+          "maxPointsFor": 1
+        },
+        {
+          "teamId": "22222222-2222-4222-8222-222222222222",
+          "teamName": "Second team",
+          "rank": 2,
+          "wins": 1,
+          "losses": 1,
+          "ties": 1,
+          "pointsFor": 1,
+          "pointsAgainst": 1,
+          "maxPointsFor": 1
+        }
+      ]
+    },
+    "rosters": {
+      "items": [
+        {
+          "id": "Public",
+          "teamId": "11111111-1111-4111-8111-111111111111",
+          "isOnIR": false,
+          "isOnTaxi": false,
+          "player": {
+            "id": "Public",
+            "name": "Public",
+            "nbaTeam": "Public",
+            "position": "Public",
+            "injuryStatus": "Public"
+          }
+        }
+      ]
+    },
+    "matchups": {
+      "items": [
+        {
+          "id": "Public",
+          "seasonId": "Public",
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "Public",
+          "awayTeamId": "Public",
+          "homeTeamName": "Public",
+          "awayTeamName": "Public",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "Public"
+        }
+      ]
+    },
+    "scores": {
+      "items": [
+        {
+          "id": "Public",
+          "seasonId": "Public",
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "Public",
+          "awayTeamId": "Public",
+          "homeTeamName": "Public",
+          "awayTeamName": "Public",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "Public"
+        }
+      ]
+    },
+    "schedule": {
+      "items": [
+        {
+          "id": "Public",
+          "seasonId": "Public",
+          "weekNumber": 1,
+          "endWeekNumber": 1,
+          "homeTeamId": "Public",
+          "awayTeamId": "Public",
+          "homeTeamName": "Public",
+          "awayTeamName": "Public",
+          "homePoints": 1,
+          "awayPoints": 1,
+          "finalized": false,
+          "winnerTeamId": "Public"
+        }
+      ]
+    },
+    "transactions": {
+      "items": [
+        {
+          "id": "Public",
+          "teamId": "Public",
+          "teamName": "Public",
+          "playerId": "Public",
+          "playerName": "Public",
+          "occurredAt": "Public",
+          "targetTeamName": "Public",
+          "type": "fa_add"
+        }
+      ]
+    },
+    "draft-results": {
+      "items": [
+        {
+          "id": "Public",
+          "draftId": "Public",
+          "draftType": "Public",
+          "overallPick": 1,
+          "round": 1,
+          "teamId": "Public",
+          "teamName": "Public",
+          "pickedAt": "Public",
+          "price": 1,
+          "player": {
+            "id": "Public",
+            "name": "Public",
+            "nbaTeam": "Public",
+            "position": "Public",
+            "injuryStatus": "Public"
+          }
+        }
+      ]
+    },
+    "player-stats": {
+      "items": [
+        {
+          "id": "Public",
+          "name": "Public",
+          "nbaTeam": "Public",
+          "position": "Public",
+          "seasonYear": 1,
+          "gamesPlayed": 1,
+          "fantasyPoints": 1,
+          "points": 1,
+          "rebounds": 1,
+          "assists": 1,
+          "steals": 1,
+          "blocks": 1,
+          "turnovers": 1,
+          "minutes": 1
+        }
+      ]
+    },
+    "projections": {
+      "items": [
+        {
+          "id": "Public",
+          "name": "Public",
+          "nbaTeam": "Public",
+          "position": "Public",
+          "date": "Public",
+          "source": "Public",
+          "fetchedAt": "Public",
+          "status": "Public",
+          "fantasyPoints": 1,
+          "points": 1,
+          "rebounds": 1,
+          "assists": 1,
+          "steals": 1,
+          "blocks": 1,
+          "turnovers": 1,
+          "minutes": 1
+        }
+      ]
+    }
+  }
+}

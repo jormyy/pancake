@@ -1,3 +1,5 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { useMemo, useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { colors, radii, spacing, textStyles } from '@/constants/tokens'
@@ -29,6 +31,7 @@ export function HomeAnnouncementOnEntry({ loaded, revision = 0, ...props }: Bann
 }
 
 export function HomeAnnouncementBanner({ announcements, ownerId, memberId, leagueId, padX }: BannerProps) {
+    const timezone = useLeagueTimezone()
     const key = `pancake-announcements-dismissed:${ownerId}:${leagueId}`
     const saved = useMemo(() => readDismissed(key), [key])
     const [dismissed, setDismissed] = useState({ key, publishedAt: saved })
@@ -38,7 +41,7 @@ export function HomeAnnouncementBanner({ announcements, ownerId, memberId, leagu
         .find(row => row.author_member_id !== memberId && Date.parse(row.published_at) >= cutoff
             && (!publishedAt || Date.parse(row.published_at) > Date.parse(publishedAt)))
     if (!announcement) return null
-    const date = new Date(announcement.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/New_York' })
+    const date = formatLeagueDateTime(announcement.published_at, timezone)
     const dismiss = () => {
         const next = announcement.published_at
         setDismissed({ key, publishedAt: next })

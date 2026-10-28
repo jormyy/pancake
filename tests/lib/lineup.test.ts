@@ -29,7 +29,7 @@ it('sends Today to the server and returns its result without client roster reads
 
 it('sends the remaining week dates in one server request', async () => {
     await request(null)
-    expect(mocks.getWeekDays).toHaveBeenCalledExactlyOnceWith(20, 2026)
+    expect(mocks.getWeekDays).toHaveBeenCalledExactlyOnceWith(20, 2026, 'America/Los_Angeles')
     expect(apiPost).toHaveBeenCalledExactlyOnceWith(endpoint, { ...owner, dates: ['2026-04-22', '2026-04-23', '2026-04-24', '2026-04-25', '2026-04-26'] })
 })
 
@@ -60,3 +60,5 @@ it('reports a server failure to the caller', async () => {
     vi.mocked(apiPost).mockRejectedValueOnce(new Error('Server offline'))
     await expect(request('2026-04-22')).rejects.toThrow('Server offline')
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-04-22' }))

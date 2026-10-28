@@ -10,8 +10,9 @@ export type NBAGameRow = {
     home_score: number
     away_score: number
     status: string        // 'Scheduled' | 'InProgress' | 'Final'
-    game_status_text: string | null  // 'Q3 5:23' | 'Halftime' | 'Final' | '7:30 pm ET'
+    game_status_text: string | null  // 'Q3 5:23' | 'Halftime' | 'Final'
     game_date: string
+    game_time?: string | null
 }
 
 export type LiveStatLine = {

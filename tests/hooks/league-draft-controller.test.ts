@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useLeagueDraftController } from '@/hooks/use-league-draft-controller'
 import type { Draft } from '@/lib/draft'
 import { setSessionOwner } from '@/lib/session-cache-registry'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 const mocks = vi.hoisted(() => ({
     confirmAction: vi.fn(),

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderCounts as renders } from './helpers/native-component-mocks'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { playerRow } from './helpers/fixtures'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 // Render budget for list rows: when one row starts an add, only that row (and
 // the row that stopped) may re-render. Every row re-rendering on each state

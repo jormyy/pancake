@@ -561,7 +561,7 @@ SELECT pg_temp.checkpoint('season 1: rollover');
 CREATE FUNCTION pg_temp.run_rookie_draft(p_league uuid, p_commissioner uuid, p_first_rookie int, p_listed_pick uuid, p_taxi_member uuid DEFAULT NULL) RETURNS uuid LANGUAGE plpgsql AS $$
 DECLARE v_draft uuid; v_member uuid; v_rookie int := p_first_rookie; v_status text; v_overall int := 0; v_total int; v_to_taxi boolean;
 BEGIN
-  PERFORM pg_temp.act_as(NULL);
+  PERFORM pg_temp.act_as(p_commissioner);
   PERFORM public.start_rookie_draft_atomic(p_league, 2, false, 60, 'commissioner_pick');
   SELECT id INTO v_draft FROM public.drafts WHERE league_id = p_league AND draft_type = 'snake' AND status = 'in_progress';
   PERFORM pg_temp.assert(v_draft IS NOT NULL, 'rookie draft did not start');

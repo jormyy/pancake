@@ -1,3 +1,4 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
@@ -39,6 +40,7 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
     stacked = false,
     historyListHeight,
 }: Props) {
+    const timezone = useLeagueTimezone()
     const budgetsCard = budgets.length === 0 ? (
         <View style={styles.empty}><Text style={styles.emptyText}>Budgets appear when the draft starts.</Text></View>
     ) : (
@@ -75,7 +77,7 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
                             <View style={[styles.historyRow, index > 0 && styles.divider]}>
                                 <PlayerRowContent name={item.player?.displayName ?? 'Unknown'} nbaId={item.player?.nbaId}
                                     team={item.player?.nbaTeam} age={item.player?.age} yearsExp={item.player?.yearsExp} careerGames={item.player?.careerGames} injuryStatus={item.player?.injuryStatus} positions={item.player?.position ? [item.player.position] : []}
-                                    stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid'])} />
+                                    stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt, timezone), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid'])} />
                                 {item.status === 'sold' ? <Text style={styles.historyPrice}>${item.finalPrice}</Text> : null}
                                 {item.status === 'no_bid' ? <Text style={styles.historyNoBid}>FA</Text> : null}
                             </View>

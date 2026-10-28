@@ -48,3 +48,5 @@ it('keeps a failed partial read from changing the prior snapshot and permits an 
  state.claims.mockResolvedValue(new Set())
  expect([...(await loadPlayerSupport('member','league',{previous,resources:['claims']})).pendingClaimIds]).toEqual([])
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => state.day }))

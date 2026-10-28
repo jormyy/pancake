@@ -76,10 +76,20 @@ BEGIN
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-21 10:00:07 UTC','retention-prune'),'retention retains Sunday UTC time');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-22 10:00 UTC','retention-prune'),'retention includes Monday');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 13:17 UTC','pg-net-response-vacuum'),'response vacuum retains hourly minute seventeen');
+  DELETE FROM public.edge_invocations;
+  PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:05 UTC','edge-invocation-reconcile'),'idle reconciliation does not enqueue work');
+  INSERT INTO public.edge_invocations(function_name) VALUES('schedule-fixture');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 13:05 UTC','edge-invocation-reconcile'),'reconciliation retains five-minute cadence');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:06 UTC','edge-invocation-reconcile'),'reconciliation excludes intermediate minutes');
-  PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 13:00 UTC','player-stats-hints'),'score hints run every minute');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='league-inventory-hint-drain'),'inventory hints retain both half-minute drains');
+  UPDATE public.edge_invocations SET reconciled_at=now(),worker_status='running';
+  PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 13:10 UTC','edge-invocation-reconcile'),'running workers retain five-minute reconciliation');
+  PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:11 UTC','edge-invocation-reconcile'),'running reconciliation excludes intermediate minutes');
+  UPDATE public.edge_invocations SET worker_status='succeeded';
+  PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:15 UTC','edge-invocation-reconcile'),'completed invocations do not enqueue reconciliation');
+  PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:00 UTC','player-stats-hints'),'score hints avoid leased queue work');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='league-inventory-hint-drain'),'inventory hints avoid leased queue work');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain' AND schedule='30 seconds'
+    AND command LIKE '%private.flush_player_stats_hints()%' AND command LIKE '%private.flush_league_inventory_hints(1000)%'),'direct hint drains retain their half-minute cadence');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:00 UTC','sync-schedule'),'schedule retains its five-minute offset');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:05 UTC','sync-schedule'),'schedule starts at six-oh-five ET');
   DELETE FROM private.work_items;

@@ -1,3 +1,4 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
 import { isIREligible } from '@pancake/core'
 import type { RosterOccupancy } from '@/lib/roster'
 import type { MemberTransactionState } from '@/lib/league'
@@ -36,15 +37,15 @@ export function addLimitBlockedReason(state: AddLimitSource | null | undefined, 
     return getAddLimitStatus(state, now)?.message ?? null
 }
 
-/** Compact header status: "Adds 7/7 · resets Mon, Nov 2 at 12:00 AM ET", "Adds 7/7 · new week", "Adds 2/∞", or "Adds —/—" before state loads. */
-export function addLimitSummary(state: AddLimitSource | null | undefined, now = Date.now()): string {
+/** Compact header status: "Adds 7/7 · new week", "Adds 2/∞", or "Adds —/—" before state loads. */
+export function addLimitSummary(state: AddLimitSource | null | undefined, now = Date.now(), timezone?: string): string {
     if (!state) return 'Adds —/—'
     const status = getAddLimitStatus(state, now)
     if (!status) return `Adds ${state.weeklyAddCount}/∞`
     const base = `Adds ${status.used}/${status.limit}`
     if (status.weekEnded) return `${base} · new week`
     if (status.message == null) return base
-    return status.resetsLabel ? `${base} · resets ${status.resetsLabel}` : `${base} · limit reached`
+    return state.addLimitResetsAt ? `${base} · resets ${formatLeagueDateTime(state.addLimitResetsAt, timezone)}` : `${base} · limit reached`
 }
 
 type ReportOptions = {

@@ -30,7 +30,7 @@ beforeEach(() => {
 afterEach(async () => { if (renderer) await act(async () => renderer?.unmount()); renderer = undefined; vi.unstubAllGlobals() })
 
 it('renders the entire saved player view on the first render while the current read remains pending', async () => {
-    saveScreenView(screenScope('player', 'league', 'member', { playerId: 'player', seasonYear: currentSeasonYear() }), payload(), '1')
+    saveScreenView(screenScope('player', 'league', 'member', { playerId: 'player', seasonYear: currentSeasonYear(), section: 'overview' }), payload(), '1')
     state.read.mockReturnValue(new Promise(() => {}))
     await act(async () => { renderer = create(React.createElement(Probe)) })
     expect(renders[0]).toEqual({ player: 'First paint', points: 24, games: 1 })
@@ -38,7 +38,7 @@ it('renders the entire saved player view on the first render while the current r
     expect(latest.gameLogLoading).toBe(false)
     expect(latest.avgFantasyPoints).toBe(35)
     expect(latest.projectionSettled).toBe(true)
-    expect(latest.transactionsSettled).toBe(true)
+    expect(latest.transactionsSettled).toBe(false)
 })
 it('never gives the next account the prior cached averages', async () => {
     await act(async () => { renderer = create(React.createElement(Probe)) })

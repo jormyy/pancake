@@ -63,3 +63,5 @@ it.each([false, true])('ignores a confirmation after the lineup date changes wit
     await act(async () => mocks.confirm.mock.calls[0][2]())
     expect(mocks.activate).not.toHaveBeenCalled()
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-24' }))

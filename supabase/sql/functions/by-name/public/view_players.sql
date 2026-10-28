@@ -25,7 +25,7 @@ BEGIN
     exclude_ids := exclude_ids || ARRAY(SELECT key::uuid FROM jsonb_each(ownership));
     IF p_params->>'availability' = 'free_agents' THEN exclude_ids := exclude_ids || ARRAY(SELECT key::uuid FROM jsonb_each(waivers)); END IF;
   END IF;
-  SELECT COALESCE(jsonb_agg(to_jsonb(player)), '[]') INTO players FROM public.view_player_search(
+  SELECT COALESCE(jsonb_agg(to_jsonb(player) || jsonb_build_object('dynasty_rank', (SELECT dynasty_rank FROM public.players WHERE id = player.id))), '[]') INTO players FROM public.view_player_search(
     p_query := COALESCE(p_params->>'query', ''), p_position := COALESCE(p_params->>'position', 'ALL'),
     p_teams := ARRAY(SELECT jsonb_array_elements_text(COALESCE(p_params->'teams', '[]'))), p_league_id := p_league_id,
     p_playing_teams := CASE WHEN p_params->>'playing' = 'today' THEN ARRAY(SELECT home_team FROM public.nba_games WHERE game_date = (context->>'today')::date UNION SELECT away_team FROM public.nba_games WHERE game_date = (context->>'today')::date) WHEN p_params ? 'playingTeams' THEN ARRAY(SELECT jsonb_array_elements_text(p_params->'playingTeams')) END,

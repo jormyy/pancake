@@ -4,7 +4,7 @@ vi.mock('react-native', () => ({ Platform: { OS: 'ios' } }))
 vi.mock('@/lib/supabase', () => ({ readStoredAuthState: () => ({ session: state.admitted ? {
     user: { id: state.owner }, access_token: `header.${btoa(JSON.stringify({ iss: 'https://own.example/auth/v1' }))}.signature`,
 } : null }) }))
-vi.mock('@/lib/session-cache-registry', () => ({ sessionOwner: () => state.owner, sessionGeneration: () => state.generation, clearSessionCaches: () => {} }))
+vi.mock('@/lib/session-cache-registry', () => ({ onSessionCachesCleared: () => {}, sessionOwner: () => state.owner, sessionGeneration: () => state.generation, clearSessionCaches: () => {} }))
 import { clearPersistentCaches, readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 import { readLineupSnapshot, saveLineupSnapshot, discardLineupSnapshot, updateLineupOptimizerSnapshot } from '@/lib/lineup/snapshot'
 
@@ -54,11 +54,13 @@ describe('private matching-day Lineup snapshots', () => {
         saveLineupSnapshot(scope, 1, value)
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
     })
-    it('expires at ET midnight rather than relabeling yesterday as today', () => {
+    it('expires at league-local midnight and preserves the evening snapshot', () => {
         saveLineupSnapshot(scope, 1, value)
         vi.setSystemTime(new Date('2026-10-09T03:59:59Z'))
         expect(readLineupSnapshot(scope, scope.day)).toBeDefined()
-        vi.setSystemTime(new Date('2026-10-09T04:00:00Z'))
+        vi.setSystemTime(new Date('2026-10-09T04:21:00Z'))
+        expect(readLineupSnapshot(scope, scope.day)).toBeDefined()
+        vi.setSystemTime(new Date('2026-10-09T07:01:00Z'))
         expect(readLineupSnapshot(scope, scope.day)).toBeUndefined()
         expect(readLineupSnapshot({ ...scope, day: '2026-10-09' }, '2026-10-09')).toBeUndefined()
     })

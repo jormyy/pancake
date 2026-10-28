@@ -1,6 +1,7 @@
 CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_min integer:=extract(minute FROM p_now AT TIME ZONE 'UTC')::int;
+  v_waiver record; v_waiver_day date; v_waiver_due timestamptz;
   v_utc timestamp:=p_now AT TIME ZONE 'UTC'; v_key text:=date_trunc('minute',p_now)::text;
 BEGIN
   PERFORM private.enqueue_close_expired_nominations(p_now);
@@ -12,8 +13,14 @@ BEGIN
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN
     PERFORM private.enqueue_daily('sync-players',6,0,p_now);
+    PERFORM private.enqueue_daily('sync-trade-values',7,15,p_now);
     PERFORM private.enqueue_player_injuries(p_now);
-    PERFORM private.enqueue_daily('process-waivers',3,0,p_now);
+    FOR v_waiver IN SELECT DISTINCT coalesce(timezone, 'America/Los_Angeles') AS timezone
+      FROM public.leagues WHERE status IN ('active', 'playoffs', 'offseason') LOOP
+      v_waiver_day := (p_now AT TIME ZONE v_waiver.timezone)::date;
+      v_waiver_due := v_waiver_day::timestamp AT TIME ZONE v_waiver.timezone;
+      PERFORM private.work_enqueue('process-waivers', v_waiver.timezone || ':' || v_waiver_day::text, v_waiver_due, jsonb_build_object('timezone', v_waiver.timezone, 'date', v_waiver_day));
+    END LOOP;
     PERFORM private.enqueue_season_boundary(p_now);
     PERFORM private.enqueue_projection_sync(p_now);
     IF (p_now AT TIME ZONE 'America/New_York')::time>=time '06:20' AND EXISTS(

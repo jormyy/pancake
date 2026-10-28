@@ -60,3 +60,7 @@ describe('player-search weekly availability refresh', () => {
         await act(async () => { renderer.unmount() })
     })
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => 'today' }))
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
+vi.mock('@/hooks/use-league-day', () => ({ useLeagueDay: () => 'today' }))

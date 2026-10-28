@@ -19,7 +19,7 @@ vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: (scope: Record<string
     return { data: state.data, error: state.error, refresh: state.refresh }
 } }))
 vi.mock('@/lib/waivers', () => ({
-    claimProcessDateLabel: () => 'Wed, Oct 28 · 3 AM ET', scheduledClaimLabel: (day: string) => `${day} · 3 AM ET`, scheduledClaimRunAt: (day: string) => new Date(`${day}T07:00:00Z`),
+    claimProcessDateLabel: () => 'Wed, Oct 28 · 12:00 AM PT', scheduledClaimLabel: (day: string) => `${day} · 12:00 AM PT`, scheduledClaimRunAt: (day: string) => new Date(`${day}T07:00:00Z`),
 }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer
@@ -39,7 +39,7 @@ it('shows pending claims, the saved run date, and available FAAB', async () => {
     state.data = { claims: [{ id: 'claim', status: 'pending', playerId: 'player', playerName: 'Test Player', processDate: '2099-10-28' }], transactionState: { faabBalance: 73 }, waiverPriority: 2 }
     await mount()
     expect(text()).toContain('1 pending claim')
-    expect(text()).toContain('2099-10-28 · 3 AM ET')
+    expect(text()).toContain('2099-10-28 · 12:00 AM PT')
     expect(text()).toContain('FAAB left $73')
     await act(async () => screen.root.findByProps({ title: 'Edit claim: Test Player' }).props.onPress())
     expect(state.push).toHaveBeenCalledWith({ pathname: '/(modals)/claim-player', params: { playerId: 'player', claimId: 'claim' } })

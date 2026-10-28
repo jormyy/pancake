@@ -1,0 +1,18 @@
+{
+  "name": "@pancake/cli",
+  "version": "1.0.0",
+  "description": "Read public Pancake league data from scripts and agents.",
+  "type": "module",
+  "bin": {
+    "pancake": "bin/pancake.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "bin",
+    "schemas",
+    "README.md"
+  ],
+  "license": "UNLICENSED"
+}

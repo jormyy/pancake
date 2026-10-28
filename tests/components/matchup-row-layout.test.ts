@@ -76,9 +76,9 @@ it('separates matchup rows with the shared border tokens', async () => {
 })
 
 it.each([
-    ['2026-10-28T23:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM'],
-    ['2026-10-28T23:00:42Z', 'America/New_York', 'Scheduled', 'TOR @ OKC 7:00 PM'],
-    ['2026-01-28T00:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM'],
+    ['2026-10-28T23:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM PT'],
+    ['2026-10-28T23:00:42Z', 'America/New_York', 'Scheduled', 'TOR @ OKC 7:00 PM ET'],
+    ['2026-01-28T00:00:42Z', 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC 4:00 PM PT'],
     ['2026-10-28T23:00:42Z', 'America/Los_Angeles', 'Final', 'TOR @ OKC Final'],
     [null, 'America/Los_Angeles', 'Final', 'TOR @ OKC Final'],
     [null, 'America/Los_Angeles', 'Scheduled', 'TOR @ OKC'],

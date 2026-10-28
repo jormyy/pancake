@@ -5,7 +5,8 @@ import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { spacing, textStyles } from '@/constants/tokens'
 import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
-import { todayET } from '@/lib/shared/dates'
+import { useLeagueDay } from '@/hooks/use-league-day'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
 import { supabase } from '@/lib/supabase'
 
@@ -15,7 +16,7 @@ type Reason = 'Skipped' | 'Bye' | null
 type ReasonCache = { day: string; reason: Reason; savedAt: number }
 
 export function WeekOffNotice({ leagueId, onBrowse }: { leagueId: string | undefined; onBrowse: () => void }) {
-    const day = todayET()
+    const day = useLeagueDay(leagueTimezone(leagueId))
     const cacheKey = `pancake:week-off:v1:${leagueId}:${day}`
     const cached = useMemo(() => readPersistentCache<ReasonCache>(cacheKey), [cacheKey])
     const saved = cached?.day === day ? cached : undefined

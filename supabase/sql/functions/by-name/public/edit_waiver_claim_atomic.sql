@@ -128,7 +128,7 @@ BEGIN
 
   PERFORM private.assert_weekly_add_available(v_claim.league_id, v_claim.league_season_id, p_member_id);
 
-  IF (v_claim.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+  IF (v_claim.process_date + time '00:00') AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles') <= now() THEN
     RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
   END IF;
   IF EXISTS (SELECT 1 FROM roster_players WHERE league_id=v_claim.league_id AND league_season_id=v_claim.league_season_id AND player_id=v_claim.player_id) THEN

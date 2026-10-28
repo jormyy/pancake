@@ -58,6 +58,73 @@ BEGIN
     RAISE EXCEPTION 'NBA draft picks must be unique.' USING ERRCODE = '22023';
   END IF;
 
+  IF p_source = 'nba_cdn' AND EXISTS (SELECT FROM jsonb_array_elements(p_records) r WHERE r ? 'identity_only') THEN
+    IF EXISTS (SELECT FROM jsonb_array_elements(p_records) r
+      WHERE r->'identity_only' IS DISTINCT FROM 'true'::jsonb
+        OR jsonb_typeof(r->'provider_id') IS DISTINCT FROM 'string' OR btrim(r->>'provider_id') = ''
+        OR jsonb_typeof(r->'display_name') IS DISTINCT FROM 'string'
+        OR private.player_import_name_key(r->>'display_name') = ''
+        OR EXISTS (SELECT FROM jsonb_object_keys(r) k WHERE NOT k = ANY(
+          ARRAY['provider_id','display_name','nba_game_id','nba_team','metadata','identity_only']))) THEN
+      RAISE EXCEPTION 'Invalid stat player identity.' USING ERRCODE = '22023';
+    END IF;
+    FOR v_record IN SELECT value FROM jsonb_array_elements(p_records) LOOP
+      v_provider := v_record->>'provider_id';
+      v_name := btrim(v_record->>'display_name');
+      v_metadata := coalesce(v_record->'metadata','{}'::jsonb);
+      IF jsonb_typeof(v_metadata) IS DISTINCT FROM 'object' OR EXISTS (
+        SELECT FROM jsonb_object_keys(v_metadata) k WHERE NOT k = ANY(ARRAY['position','years_exp'])) THEN
+        RAISE EXCEPTION 'Unsupported stat player metadata.' USING ERRCODE = '22023';
+      END IF;
+      v_game_id := NULL;
+      IF v_record ? 'nba_game_id' THEN
+        IF jsonb_typeof(v_record->'nba_game_id') IS DISTINCT FROM 'string' THEN
+          RAISE EXCEPTION 'Invalid NBA game identity.' USING ERRCODE = '22023';
+        END IF;
+        SELECT id INTO v_game_id FROM public.nba_games WHERE nba_game_id=v_record->>'nba_game_id';
+        IF NOT FOUND THEN RAISE EXCEPTION 'Unknown NBA game identity.' USING ERRCODE = '22023'; END IF;
+      END IF;
+      IF v_record ? 'nba_team' AND (v_game_id IS NULL OR jsonb_typeof(v_record->'nba_team') IS DISTINCT FROM 'string'
+        OR private.player_identity_team(v_record->>'nba_team') IS NULL OR btrim(v_record->>'nba_team')='') THEN
+        RAISE EXCEPTION 'A box side needs its NBA game and a team code.' USING ERRCODE = '22023';
+      END IF;
+      IF v_provider='196295686' AND lower(v_name)<>'dillon jones' THEN
+        RAISE EXCEPTION 'Unexpected name for NBA CDN identity %: %',v_provider,v_name USING ERRCODE='23514';
+      END IF;
+      IF v_provider IN ('196295686','1641794') AND lower(v_name)='dillon jones' THEN v_provider:='1641794'; END IF;
+      SELECT id INTO v_id FROM public.players WHERE nba_id=v_provider;
+      IF v_id IS NULL AND v_provider='1641794' AND lower(v_name)='dillon jones' THEN
+        SELECT id INTO v_id FROM public.players WHERE nba_id='196295686' AND lower(btrim(display_name))='dillon jones';
+      END IF;
+      v_action:='updated';
+      IF v_id IS NULL THEN
+        BEGIN
+          INSERT INTO public.players(first_name,last_name,nba_id,position,eligible_positions,years_exp)
+          VALUES(split_part(v_name,' ',1),substr(v_name,length(split_part(v_name,' ',1))+2),v_provider,
+            (v_metadata->>'position')::public.nba_position,
+            CASE WHEN v_metadata->>'position' IS NULL THEN '{}'::text[] ELSE ARRAY[v_metadata->>'position'] END,
+            (v_metadata->>'years_exp')::integer)
+          RETURNING id INTO v_id;
+          v_action:='inserted';
+        EXCEPTION WHEN unique_violation THEN
+          SELECT id INTO v_id FROM public.players WHERE nba_id=v_provider;
+          IF v_id IS NULL THEN RAISE; END IF;
+        END;
+      END IF;
+      IF v_id=ANY(v_ids) THEN RAISE EXCEPTION 'Duplicate stat player identity.' USING ERRCODE='22023'; END IF;
+      v_ids:=array_append(v_ids,v_id);
+      IF v_game_id IS NOT NULL AND v_record ? 'nba_team' THEN
+        INSERT INTO private.player_game_memberships(player_id,game_id,nba_team)
+        VALUES(v_id,v_game_id,private.player_identity_team(v_record->>'nba_team'))
+        ON CONFLICT(player_id,game_id) DO UPDATE SET nba_team=EXCLUDED.nba_team
+        WHERE player_game_memberships.nba_team IS DISTINCT FROM EXCLUDED.nba_team;
+      END IF;
+      v_results:=v_results||jsonb_build_array(jsonb_build_object('index',v_index,'player_id',v_id,'action',v_action));
+      v_index:=v_index+1;
+    END LOOP;
+    RETURN jsonb_build_object('results',v_results,'stale_draft_numbers_cleared',0);
+  END IF;
+
   -- Acquire before any name/provider read or player row lock. A subsequent
   -- READ COMMITTED statement sees the importer that just released this lock.
   PERFORM pg_advisory_xact_lock(1347174745, 1);

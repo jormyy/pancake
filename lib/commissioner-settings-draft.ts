@@ -1,8 +1,10 @@
+import { DEFAULT_LEAGUE_TIMEZONE, resolveLeagueTimezone } from '@/lib/timezone'
 import type { TradeVetoMode } from '@/types/app'
 import type { LeagueSettingsUpdate, WaiverMode } from '@/lib/league'
 import type { LeagueStatus } from '@/types/database'
 
 export type CommissionerSettingsDraft = {
+    timezone?: string
     teamLimit?: string
     taxiMaxSeasons?: string
     allowInactiveTrades?: boolean
@@ -27,6 +29,7 @@ export type CommissionerSettingsDraft = {
 }
 
 export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
+    timezone: DEFAULT_LEAGUE_TIMEZONE,
     scoring: {},
     slots: {},
     rosterSize: '',
@@ -47,6 +50,7 @@ export const EMPTY_COMMISSIONER_SETTINGS_DRAFT: CommissionerSettingsDraft = {
 }
 
 const DRAFT_SCALAR_FIELDS = [
+    'timezone',
     'teamLimit', 'taxiMaxSeasons', 'allowInactiveTrades', 'playoffEntrants', 'playoffRoundCount',
     'rosterSize',
     'irSlots',
@@ -180,6 +184,9 @@ export function buildCommissionerSettingsChange(
     }
 
     const updates: LeagueSettingsUpdate = {}
+    const timezone = (draft.timezone ?? DEFAULT_LEAGUE_TIMEZONE).trim()
+    if (resolveLeagueTimezone(timezone) !== timezone) return { error: 'Choose a valid IANA timezone, such as America/Los_Angeles.' }
+    if (timezone !== (baseline.timezone ?? DEFAULT_LEAGUE_TIMEZONE)) updates.timezone = timezone
     if (draft.teamLimit !== baseline.teamLimit) {
         const count = parseStrictInteger(draft.teamLimit ?? '')
         if (count == null || count < 2) return { error: 'Team limit must be at least 2.' }

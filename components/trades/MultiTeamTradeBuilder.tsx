@@ -1,3 +1,5 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { formatLeagueDateTime } from '@/lib/timezone'
 import { playerSeasonContextText } from '@/lib/player-context'
 import { pickLabel } from '@/lib/picks'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -82,6 +84,7 @@ export function MultiTeamTradeBuilder({
     activeParticipantId: controlledActiveId,
     onActiveParticipantChange,
 }: MultiTeamTradeBuilderProps) {
+    const timezone = useLeagueTimezone()
     const { width } = useWindowDimensions()
     const [contentWidth, setContentWidth] = useState(Math.min(width, 900))
     const shellContentWidth = width >= breakpoints.compact ? width - layout.sidebarWidth : width
@@ -204,7 +207,7 @@ export function MultiTeamTradeBuilder({
                 />
                 {showTerms ? <View style={styles.reviewTerms}>
                     <Text style={styles.reviewTermsValue}>
-                        {expiresAt ? `Expires ${new Date(expiresAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'No expiry'}
+                        {expiresAt ? `Expires ${formatLeagueDateTime(expiresAt, timezone)}` : 'No expiry'}
                     </Text>
                     {notes.trim() ? <>
                         <Text style={styles.reviewTermsLabel}>NOTE</Text>

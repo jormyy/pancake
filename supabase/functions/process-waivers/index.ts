@@ -11,22 +11,17 @@ serveInternal('process-waivers', async () => {
 })
 
 async function processWaiverClaims(): Promise<number> {
-  const today = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/New_York',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
+  const throughDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
 
   const rows = await drainDueClaims<WaiverProcessRow>(async () => {
     const { data, error } = await supabase.rpc('process_due_waiver_claims_atomic', {
-      p_process_date: today,
+      p_process_date: throughDate,
       p_limit: PROCESS_BATCH_LIMIT,
     })
     if (error) throw error
     return data ?? []
   }, async () => {
-    const { data, error } = await supabase.rpc('count_due_waiver_claims', { p_process_date: today })
+    const { data, error } = await supabase.rpc('count_due_waiver_claims', { p_process_date: throughDate })
     if (error) throw error
     return data ?? 0
   })

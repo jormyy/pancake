@@ -1,3 +1,4 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
 import { useCallback, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
@@ -15,8 +16,6 @@ import {
     type TradeCardContext,
 } from '@/components/trades/TradeCard'
 import { colors, fontSize, fontWeight, foundation, radii, spacing, textStyles } from '@/constants/tokens'
-
-const DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }
 
 /**
  * The whole trade: every asset with its season context, the multi-team routing,
@@ -37,11 +36,11 @@ export function TradeDetailsPanel({
 }) {
     const { currentLeague } = useLeagueContext()
     const { trade, myMemberId } = context
-    const model = tradeCardModel(context)
+    const model = tradeCardModel({ ...context, timezone: currentLeague?.timezone })
     const [rosterValidity, setRosterValidity] = useState<{ trade: typeof trade; memberId: string; legal: boolean } | null>(null)
     const onValidityChange = useCallback((legal: boolean) => setRosterValidity({ trade, memberId: myMemberId, legal }), [trade, myMemberId])
     const acceptDisabled = Boolean(currentLeague && actions.onRosterPlan && (rosterValidity?.trade !== trade || rosterValidity.memberId !== myMemberId || !rosterValidity.legal))
-    const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${new Date(trade.proposedAt).toLocaleString([], DATE)}`
+    const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${formatLeagueDateTime(trade.proposedAt, currentLeague?.timezone)}`
 
     return (
         <View style={styles.root}>

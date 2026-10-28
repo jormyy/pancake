@@ -127,8 +127,8 @@ const releases = <Call extends { source: string }>(calls: Call[]) => calls.filte
 Deno.test('a complete refresh releases with every listed player after every import chunk', async () => {
   const result = await runSync()
   assert.equal(result.status, 200, JSON.stringify(result.body))
-  assert.deepEqual(result.calls.map((call) => call.source), ['espn', 'espn', 'espn_release'])
-  assert.deepEqual(result.sequence, ['espn', 'espn', 'player index', 'dedup', 'espn_release'])
+  assert.deepEqual(result.calls.map((call) => call.source), [...Array(13).fill('espn'), 'espn_release'])
+  assert.deepEqual(result.sequence, [...Array(13).fill('espn'), 'player index', 'dedup', 'espn_release'])
   assert.deepEqual([...releases(result.calls)[0].ids].sort(), players.map((player) => player.id).sort())
   assert.equal(result.body.released, 2)
   assert.deepEqual(result.body.releaseHeld, { unproven: 1, unclaimed: 2 })
@@ -159,7 +159,7 @@ for (const [label, feed, status, blocker] of incomplete) {
 Deno.test('the NBA index step maps and merges before the release reads the rows', async () => {
   const result = await runSync({ index: 'mapped' })
   assert.equal(result.status, 200, JSON.stringify(result.body))
-  assert.deepEqual(result.sequence, ['espn', 'espn', 'player index', 'nba_index', 'dedup', 'espn_release'])
+  assert.deepEqual(result.sequence, [...Array(13).fill('espn'), 'player index', 'nba_index', 'dedup', 'espn_release'])
   assert.equal(result.body.nbaIdsMapped, 1)
   assert.equal(result.body.released, 2)
   assert.equal(result.run?.rows_affected, 634 + 2 + 1)
@@ -183,7 +183,7 @@ for (const [label, index, error] of [['an NBA index that answers 404', 'missing'
     const result = await runSync({ index })
     assert.equal(result.status, 500)
     assert.deepEqual(releases(result.calls), [])
-    assert.deepEqual(result.sequence, ['espn', 'espn', 'player index'])
+    assert.deepEqual(result.sequence, [...Array(13).fill('espn'), 'player index'])
     assert.equal(result.run?.status, 'failed')
     assert.match(result.run?.error ?? '', error)
   })

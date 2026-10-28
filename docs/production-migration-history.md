@@ -241,3 +241,42 @@ The ordered history has no duplicate versions.
 The candidate adds 12 migrations after `origin/main` at `6ad9b65e` and 11 after integration base `c3209ddc`.
 Integration uses private mini project `pt4bafabler24` and ports `598xx`.
 It performs no production access.
+
+## Release 2.5 candidate
+
+Release 2.5 starts from release 2.4 source `d267428f` at 608 migrations.
+It adds 13 migrations and ends at `20261123000100`, for 621 total migrations.
+The fixed 329-migration audit anchor leaves 292 approved migrations.
+The recorded 564-migration release 1 security baseline leaves a 57-migration candidate suffix.
+The release planner derives the actual pending suffix from verified applied history.
+The older supplied operator checkpoint does not establish the current production head.
+This integration makes no production request.
+
+| Migration | Change |
+| --- | --- |
+| `20261117000100_player_link_identity_index.sql` | Indexes player links for identity resolution. |
+| `20261117000200_stat_player_resolution.sql` | Resolves stat identities without locking player rows. |
+| `20261118000100_public_cli.sql` | Adds share tokens, public reads, limits, and audit retention. |
+| `20261118000200_public_matchup_state.sql` | Preserves void flags and multiweek matchup ranges in public reads. |
+| `20261118000300_public_stats_seasons.sql` | Reads player statistics from seasons before league creation. |
+| `20261120000100_onenumber_trade_values.sql` | Adds value storage, review matching, publication, and daily work. |
+| `20261120000200_trade_value_readers.sql` | Supplies stored values to player profiles and trade details. |
+| `20261120000300_trade_value_cache_refresh.sql` | Refreshes league readers after value publication or review. |
+| `20261121000001_league_midnight_waivers.sql` | Processes scheduled claims at each league midnight. |
+| `20261121000004_reschedule_waivers_timezone.sql` | Moves pending claims and drop holds when league time changes. |
+| `20261121000005_league_local_view_day.sql` | Uses the league date in shared screen context. |
+| `20261122000100_player_views.sql` | Splits player sections and improves dynasty sorting. |
+| `20261123000100_release25_player_values_and_schedule.sql` | Preserves league-midnight waivers, daily values, and both profile formats. |
+
+The incoming branches have no timestamp collisions; their migration versions stay unchanged.
+The final migration combines daily value scheduling with league-midnight waiver work.
+It also preserves stored values in compact and legacy player profiles.
+The function source checks detect both overwritten definitions before that repair.
+The combined behavior test fails before the repair and passes afterward.
+
+Private project `pt4bafabler25` uses ports `582xx` with cron launch disabled.
+The incremental upgrade and fresh 621-migration installation produce identical generated artifacts.
+Those artifacts are both attestations, `supabase/sql/function-catalog.json`, and `types/database.ts`.
+The generator preserves the recorded production baseline and historical aliases.
+[Release contract](../supabase/RELEASE-DB.md) owns deployment order and the complete Edge function list.
+[Integration evidence](release-2.5-integration.md) owns executed counts and changed files.

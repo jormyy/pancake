@@ -69,7 +69,7 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF (v_claim.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+  IF (v_claim.process_date + time '00:00') AT TIME ZONE coalesce((SELECT timezone FROM leagues WHERE id=v_claim.league_id), 'America/Los_Angeles') <= now() THEN
     RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
   END IF;
 

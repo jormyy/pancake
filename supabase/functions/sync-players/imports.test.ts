@@ -101,7 +101,7 @@ for (const source of ['espn', 'sleeper']) {
     assert.equal(result.imported.length, 633)
     assert.equal(new Set(result.imported).size, 633)
     assert.ok(!result.imported.includes(providerId))
-    assert.ok(result.imports.length <= 20, `${result.imports.length} RPCs exceed the bounded split workload`)
+    assert.ok(result.imports.length <= 25, `${result.imports.length} RPCs exceed the bounded split workload`)
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
     assert.equal(result.runs.at(-1)?.rows_affected, result.imported.length)
@@ -112,12 +112,13 @@ for (const source of ['espn', 'sleeper']) {
 
   Deno.test(`${source}: a non-identity error still fails the chunk without splitting`, async () => {
     const result = await runSync(source, new Set(['1123']), true)
-    assert.equal(result.imports.length, 2)
-    assert.equal(result.imported.length, 134)
+    assert.equal(result.imports.length, 13)
+    assert.ok(result.imports.every(batch => batch.length <= 50))
+    assert.equal(result.imported.length, 584)
     assert.equal(result.response.status, 500)
     assert.equal(result.runs.at(-1)?.status, 'failed')
     assert.equal(result.runs.at(-1)?.rows_affected, result.imported.length)
-    assert.match(result.runs.at(-1)?.error ?? '', /import chunk 0: Resolve .* players: Player metadata is invalid/)
+    assert.match(result.runs.at(-1)?.error ?? '', /import chunk \d+: Resolve .* players: Player metadata is invalid/)
   })
 
   Deno.test(`${source}: multiple identity conflicts each report their provider ID without duplicate imports`, async () => {
@@ -136,9 +137,10 @@ for (const source of ['espn', 'sleeper']) {
     assert.match(result.runs.at(-1)?.error ?? '', /sync-players had 2 failure\(s\)/)
   })
 
-  Deno.test(`${source}: healthy chunks keep the existing RPC volume and successful run status`, async () => {
+  Deno.test(`${source}: healthy chunks bound each transaction and keep the successful run status`, async () => {
     const result = await runSync(source, new Set())
-    assert.equal(result.imports.length, 2)
+    assert.equal(result.imports.length, 13)
+    assert.ok(result.imports.every(batch => batch.length <= 50))
     assert.equal(result.imported.length, 634)
     assert.equal(new Set(result.imported).size, 634)
     assert.equal(result.response.status, 200)

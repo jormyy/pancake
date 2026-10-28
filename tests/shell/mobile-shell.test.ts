@@ -260,3 +260,11 @@ it('opens account and league settings directly from the menu', async () => {
     expect(state.push).toHaveBeenCalledExactlyOnceWith('/profile')
     expect(controls('Invite link')).toHaveLength(0)
 })
+
+it('returns from another matchup to the own matchup through Home', async () => {
+    state.pathname = '/matchup'
+    await render()
+    await act(async () => controls('Matchup')[0].props.onPress())
+    expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/')
+    expect(state.push).not.toHaveBeenCalled()
+})

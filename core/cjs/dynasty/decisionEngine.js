@@ -5,7 +5,7 @@ exports.valueDynastyAsset = valueDynastyAsset;
 exports.valueDynastyAssets = valueDynastyAssets;
 exports.analyzeDynastyTrade = analyzeDynastyTrade;
 const formula_1 = require("../scoring/formula");
-exports.DYNASTY_TRADE_MODEL_VERSION = 'dynasty-accounting-v2';
+exports.DYNASTY_TRADE_MODEL_VERSION = 'dynasty-accounting-v3';
 exports.DYNASTY_STRATEGIES = ['overall', 'contend', 'rebuild'];
 exports.DYNASTY_STRATEGY_WEIGHTS = {
     overall: { production: 0.35, projection: 0.25, market: 0.25, age: 0.15 },
@@ -68,6 +68,7 @@ function fantasyPoints(stats, direct, settings) {
     return finite(direct) ? direct : null;
 }
 function valuePlayer(context, asset) {
+    const storedValue = finite(asset.tradeValue) && asset.tradeValue >= 0 && asset.tradeValue <= 1000 ? asset.tradeValue : null;
     const productionPoints = fantasyPoints(asset.productionStats, asset.productionFantasyPoints, context.scoringSettings);
     const projectionPoints = fantasyPoints(asset.projectionStats, asset.projectionFantasyPoints, context.scoringSettings);
     const production = finite(productionPoints) ? clamp(productionPoints / 65, 0, 1.15) : 0.45;
@@ -84,15 +85,15 @@ function valuePlayer(context, asset) {
             projection * weights.projection +
             strategyMarket * weights.market +
             age * weights.age);
-        return [strategy, round(clamp(raw * health * movement, 0, 1000))];
+        return [strategy, storedValue ?? round(clamp(raw * health * movement, 0, 1000))];
     }));
-    const missingInputs = [
+    const missingInputs = storedValue != null ? [] : [
         !finite(productionPoints) ? 'current production' : null,
         !finite(projectionPoints) ? 'projection' : null,
         !finite(asset.dynastyRank) ? 'dynasty rank' : null,
         !finite(asset.age) ? 'age' : null,
     ].filter((value) => value != null);
-    const confidence = clamp(1 - missingInputs.length * 0.13 - (asset.sources?.some((source) => !source.fetchedAt) ? 0.05 : 0), 0.35, 1);
+    const confidence = storedValue != null ? 1 : clamp(1 - missingInputs.length * 0.13 - (asset.sources?.some((source) => !source.fetchedAt) ? 0.05 : 0), 0.35, 1);
     const spread = 0.12 + missingInputs.length * 0.08 + (asset.isRookie ? 0.08 : 0);
     const ranges = Object.fromEntries(exports.DYNASTY_STRATEGIES.map(strategy => [strategy, {
             low: round(Math.max(0, values[strategy] * (1 - spread))),
@@ -103,11 +104,11 @@ function valuePlayer(context, asset) {
         kind: asset.kind,
         label: asset.label,
         values,
-        ranges,
+        ranges: storedValue != null ? {} : ranges,
         components: {
             production: round(production * 1000),
             projection: round(projection * 1000),
-            market: round(market * 1000),
+            market: storedValue ?? round(market * 1000),
             age: round(age * 1000),
             healthMultiplier: health,
             movementMultiplier: movement,
@@ -120,7 +121,7 @@ function valuePlayer(context, asset) {
         sources: asset.sources ?? [],
         confidence: roundOne(confidence),
         missingInputs,
-        assumptions: [
+        assumptions: storedValue != null ? [] : [
             'Current production and projection use the active league scoring settings.',
             'Health changes value by no more than 12%.',
             'Rank movement changes value by no more than 4%.',
@@ -149,8 +150,14 @@ function valuePick(context, asset) {
     const knownSlot = finite(asset.slot) && asset.slot >= 1 && asset.slot <= teams ? Math.trunc(asset.slot) : null;
     const values = {};
     const ranges = {};
+    const bands = asset.valueBands && Object.values(asset.valueBands).every(value => finite(value) && value >= 0 && value <= 1000) ? asset.valueBands : null;
     for (const strategy of exports.DYNASTY_STRATEGIES) {
-        if (knownSlot != null) {
+        if (bands) {
+            values[strategy] = knownSlot == null ? bands.mid : knownSlot <= Math.ceil(teams / 3) ? bands.early : knownSlot <= Math.ceil(teams * 2 / 3) ? bands.mid : bands.late;
+            if (knownSlot == null)
+                ranges[strategy] = { low: bands.late, high: bands.early };
+        }
+        else if (knownSlot != null) {
             values[strategy] = pickValue(asset, strategy, context, knownSlot);
         }
         else {
@@ -178,7 +185,7 @@ function valuePick(context, asset) {
         sources: asset.sources ?? [],
         confidence: roundOne(confidence),
         missingInputs: knownSlot == null ? ['pick slot'] : [],
-        assumptions: [
+        assumptions: bands ? [] : [
             `Pick value decays from season ${context.seasonYear}.`,
             knownSlot == null ? `The range uses slots 1 through ${teams}.` : `The value uses known slot ${knownSlot}.`,
         ],

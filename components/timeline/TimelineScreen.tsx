@@ -9,7 +9,7 @@ export default function TimelineScreen() {
     const { current, currentLeague, membershipValidated, membershipError } = useLeagueContext()
     const activity = useBrowserReadActivity()
     const selectedFilter: TimelineFilter = filter === 'claims' || filter === 'trades' || filter === 'lineups' || filter === 'scores' ? filter : 'all'
-    return <TeamTimelineScreen leagueId={currentLeague?.id ?? null} memberId={memberId ?? current?.id ?? null}
+    return <TeamTimelineScreen timezone={currentLeague?.timezone} leagueId={currentLeague?.id ?? null} memberId={memberId ?? current?.id ?? null}
         entityId={entityId} filter={selectedFilter} showTitle={false}
         teamName={!memberId || memberId === current?.id ? current?.team_name ?? undefined : undefined}
         enabled={membershipValidated && !membershipError && activity.active} />

@@ -448,3 +448,6 @@ verify_jwt = false
 
 [functions.refresh-views]
 verify_jwt = false
+
+[functions.sync-trade-values]
+verify_jwt = false

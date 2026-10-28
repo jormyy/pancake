@@ -1,0 +1,1461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": 1,
+  "resources": {
+    "league": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:league",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:league"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "league"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "seasonId",
+              "seasonYear",
+              "weekNumber",
+              "timezone",
+              "scoringSettings"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League identifier."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League display name."
+              },
+              "seasonId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Selected league season identifier."
+              },
+              "seasonYear": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Selected season starting year."
+              },
+              "weekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Current scoring week."
+              },
+              "timezone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League time zone."
+              },
+              "scoringSettings": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "points",
+                  "rebounds",
+                  "assists",
+                  "steals",
+                  "blocks",
+                  "turnovers",
+                  "three_pointers_made",
+                  "field_goals_made",
+                  "field_goals_attempted",
+                  "free_throws_made",
+                  "free_throws_attempted",
+                  "double_double",
+                  "triple_double"
+                ],
+                "properties": {
+                  "points": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "rebounds": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "assists": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "steals": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "blocks": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "turnovers": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "three_pointers_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "field_goals_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "field_goals_attempted": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "free_throws_made": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "free_throws_attempted": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "double_double": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  },
+                  "triple_double": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Fantasy points per recorded event."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "standings": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:standings",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:standings"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "standings"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "teamId",
+              "teamName",
+              "rank",
+              "wins",
+              "losses",
+              "ties",
+              "pointsFor",
+              "pointsAgainst",
+              "maxPointsFor"
+            ],
+            "properties": {
+              "teamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Team identifier, not a user identifier."
+              },
+              "teamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Team display name."
+              },
+              "rank": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Published standing order."
+              },
+              "wins": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Finalized wins."
+              },
+              "losses": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Finalized losses."
+              },
+              "ties": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Finalized ties."
+              },
+              "pointsFor": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Total fantasy points scored."
+              },
+              "pointsAgainst": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Total fantasy points allowed."
+              },
+              "maxPointsFor": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Maximum possible fantasy points."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "rosters": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:rosters",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:rosters"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "rosters"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "teamId",
+              "isOnIR",
+              "isOnTaxi",
+              "player"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Roster entry identifier."
+              },
+              "teamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Team identifier, not a user identifier."
+              },
+              "isOnIR": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Injured reserve designation."
+              },
+              "isOnTaxi": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Taxi squad designation."
+              },
+              "player": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "name",
+                  "nbaTeam",
+                  "position",
+                  "injuryStatus"
+                ],
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Public player identifier."
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Player display name."
+                  },
+                  "nbaTeam": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "NBA team abbreviation."
+                  },
+                  "position": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Primary position."
+                  },
+                  "injuryStatus": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Published injury status."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "matchups": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:matchups",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:matchups"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "matchups"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "seasonId",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Matchup identifier."
+              },
+              "seasonId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League season identifier."
+              },
+              "weekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "First scoring week."
+              },
+              "endWeekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Last scoring week."
+              },
+              "homeTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team identifier, not a user identifier."
+              },
+              "awayTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team identifier, not a user identifier."
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team display name."
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team display name."
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published home score."
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published away score."
+              },
+              "finalized": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Whether scores are final."
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Winning team identifier; null for unresolved or tied games."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "scores": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:scores",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:scores"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "scores"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "seasonId",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Matchup identifier."
+              },
+              "seasonId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League season identifier."
+              },
+              "weekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "First scoring week."
+              },
+              "endWeekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Last scoring week."
+              },
+              "homeTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team identifier, not a user identifier."
+              },
+              "awayTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team identifier, not a user identifier."
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team display name."
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team display name."
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published home score."
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published away score."
+              },
+              "finalized": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Whether scores are final."
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Winning team identifier; null for unresolved or tied games."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "schedule": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:schedule",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:schedule"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "schedule"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "seasonId",
+              "weekNumber",
+              "endWeekNumber",
+              "homeTeamId",
+              "awayTeamId",
+              "homeTeamName",
+              "awayTeamName",
+              "homePoints",
+              "awayPoints",
+              "finalized",
+              "winnerTeamId"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Matchup identifier."
+              },
+              "seasonId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "League season identifier."
+              },
+              "weekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "First scoring week."
+              },
+              "endWeekNumber": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Last scoring week."
+              },
+              "homeTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team identifier, not a user identifier."
+              },
+              "awayTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team identifier, not a user identifier."
+              },
+              "homeTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Home team display name."
+              },
+              "awayTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Away team display name."
+              },
+              "homePoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published home score."
+              },
+              "awayPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Published away score."
+              },
+              "finalized": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "Whether scores are final."
+              },
+              "winnerTeamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Winning team identifier; null for unresolved or tied games."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "transactions": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:transactions",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:transactions"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "transactions"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "teamId",
+              "teamName",
+              "playerId",
+              "playerName",
+              "occurredAt",
+              "targetTeamName",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Completed move identifier."
+              },
+              "teamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Team identifier, not a user identifier."
+              },
+              "teamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Team display name."
+              },
+              "playerId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player identifier."
+              },
+              "playerName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player display name."
+              },
+              "occurredAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Completion time in ISO 8601 format."
+              },
+              "targetTeamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Other team display name."
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fa_add",
+                  "fa_drop",
+                  "waiver_add",
+                  "waiver_drop",
+                  "trade_in",
+                  "trade_out",
+                  "draft_won",
+                  "carry_over",
+                  "trade_completed"
+                ],
+                "description": "Completed move type."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "draft-results": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:draft-results",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:draft-results"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "draft-results"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "draftId",
+              "draftType",
+              "overallPick",
+              "round",
+              "teamId",
+              "teamName",
+              "pickedAt",
+              "price",
+              "player"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Stable draft result identifier."
+              },
+              "draftId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Draft identifier."
+              },
+              "draftType": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Auction or snake draft."
+              },
+              "overallPick": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Overall snake pick or auction nomination order."
+              },
+              "round": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Snake draft round; null for auctions."
+              },
+              "teamId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Winning team identifier, not a user identifier."
+              },
+              "teamName": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Winning team display name."
+              },
+              "pickedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Selection or nomination time."
+              },
+              "price": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Settled auction price; null for snake drafts."
+              },
+              "player": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "name",
+                  "nbaTeam",
+                  "position",
+                  "injuryStatus"
+                ],
+                "properties": {
+                  "id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Public player identifier."
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Player display name."
+                  },
+                  "nbaTeam": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "NBA team abbreviation."
+                  },
+                  "position": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Primary position."
+                  },
+                  "injuryStatus": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Published injury status."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "player-stats": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:player-stats",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:player-stats"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "player-stats"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "nbaTeam",
+              "position",
+              "seasonYear",
+              "gamesPlayed",
+              "fantasyPoints",
+              "points",
+              "rebounds",
+              "assists",
+              "steals",
+              "blocks",
+              "turnovers",
+              "minutes"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player identifier."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player display name."
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "NBA team abbreviation."
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Primary position."
+              },
+              "seasonYear": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Statistics season starting year."
+              },
+              "gamesPlayed": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Recorded games played."
+              },
+              "fantasyPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average fantasy points per game under league scoring."
+              },
+              "points": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average points per game."
+              },
+              "rebounds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average rebounds per game."
+              },
+              "assists": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average assists per game."
+              },
+              "steals": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average steals per game."
+              },
+              "blocks": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average blocks per game."
+              },
+              "turnovers": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average turnovers per game."
+              },
+              "minutes": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Average minutes per game."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    },
+    "projections": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "urn:pancake:public:v1:projections",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "version",
+        "resource",
+        "items",
+        "nextCursor"
+      ],
+      "properties": {
+        "$schema": {
+          "const": "urn:pancake:public:v1:projections"
+        },
+        "version": {
+          "const": 1
+        },
+        "resource": {
+          "const": "projections"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "name",
+              "nbaTeam",
+              "position",
+              "date",
+              "source",
+              "fetchedAt",
+              "status",
+              "fantasyPoints",
+              "points",
+              "rebounds",
+              "assists",
+              "steals",
+              "blocks",
+              "turnovers",
+              "minutes"
+            ],
+            "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player identifier."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Player display name."
+              },
+              "nbaTeam": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "NBA team abbreviation."
+              },
+              "position": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Primary position."
+              },
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Projection game date."
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Published projection source."
+              },
+              "fetchedAt": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Source fetch time in ISO 8601 format."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Published projection status."
+              },
+              "fantasyPoints": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected fantasy points under league scoring."
+              },
+              "points": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected points."
+              },
+              "rebounds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected rebounds."
+              },
+              "assists": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected assists."
+              },
+              "steals": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected steals."
+              },
+              "blocks": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected blocks."
+              },
+              "turnovers": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected turnovers."
+              },
+              "minutes": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Projected minutes."
+              }
+            }
+          }
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Opaque continuation cursor; null ends the list."
+        }
+      }
+    }
+  }
+}

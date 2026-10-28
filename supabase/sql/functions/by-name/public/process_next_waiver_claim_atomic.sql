@@ -57,10 +57,10 @@ BEGIN
          AND claim_season.is_current = true
        WHERE candidate.status = 'pending'
          AND candidate.process_date <= p_process_date
-         AND (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()
+         AND (candidate.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles') <= now()
          AND NOT EXISTS (SELECT 1 FROM waiver_wire_log held WHERE held.league_id=candidate.league_id
            AND held.league_season_id=candidate.league_season_id AND held.player_id=candidate.player_id
-           AND held.cleared_at IS NULL AND held.clears_at > (candidate.process_date + time '03:00') AT TIME ZONE 'America/New_York')
+           AND held.cleared_at IS NULL AND held.clears_at > (candidate.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles'))
        GROUP BY candidate.league_id, candidate.league_season_id, candidate.player_id
     ), league_candidates AS (
       SELECT DISTINCT ON (candidate_groups.league_id, candidate_groups.league_season_id)
@@ -104,10 +104,10 @@ BEGIN
          AND claim_season.is_current = true
        WHERE wc.status = 'pending'
          AND wc.process_date <= p_process_date
-         AND (wc.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()
+         AND (wc.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles') <= now()
          AND NOT EXISTS (SELECT 1 FROM waiver_wire_log held WHERE held.league_id=wc.league_id
            AND held.league_season_id=wc.league_season_id AND held.player_id=wc.player_id
-           AND held.cleared_at IS NULL AND held.clears_at > (wc.process_date + time '03:00') AT TIME ZONE 'America/New_York')
+           AND held.cleared_at IS NULL AND held.clears_at > (wc.process_date + time '00:00') AT TIME ZONE coalesce(claim_league.timezone, 'America/Los_Angeles'))
          AND wc.league_id = v_target_league_id
          AND wc.league_season_id = v_target_season_id
        ORDER BY
@@ -135,10 +135,10 @@ BEGIN
          AND wc.league_id = v_target_league_id AND wc.league_season_id = v_target_season_id
          AND wc.member_id = v_claim.member_id AND wc.player_id = v_claim.player_id
          AND wc.process_date <= p_process_date
-         AND (wc.process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now()
+         AND (wc.process_date + time '00:00') AT TIME ZONE coalesce((SELECT timezone FROM leagues WHERE id=wc.league_id), 'America/Los_Angeles') <= now()
          AND NOT EXISTS (SELECT 1 FROM waiver_wire_log held WHERE held.league_id=wc.league_id
            AND held.league_season_id=wc.league_season_id AND held.player_id=wc.player_id
-           AND held.cleared_at IS NULL AND held.clears_at > (wc.process_date + time '03:00') AT TIME ZONE 'America/New_York')
+           AND held.cleared_at IS NULL AND held.clears_at > (wc.process_date + time '00:00') AT TIME ZONE coalesce((SELECT timezone FROM leagues WHERE id=wc.league_id), 'America/Los_Angeles'))
        FOR UPDATE;
       IF NOT FOUND THEN
         RAISE EXCEPTION 'Waiver candidate changed.' USING ERRCODE = 'PW001';

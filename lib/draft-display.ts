@@ -1,11 +1,9 @@
+import { formatLeagueTime } from '@/lib/timezone'
 export function draftPlayerMeta(parts: (string | null | undefined)[]): string {
     return parts.filter(Boolean).join(' · ') || '—'
 }
 
-export function draftEventTime(value: string | null | undefined): string | null {
+export function draftEventTime(value: string | null | undefined, timezone?: string): string | null {
     if (!value) return null
-    return new Date(value).toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-    })
+    return formatLeagueTime(value, timezone)
 }

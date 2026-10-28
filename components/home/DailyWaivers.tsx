@@ -21,12 +21,12 @@ export function DailyWaivers() {
         ? screenScope('roster', leagueId, memberId, {}, user.id) : null, authorized)
     const pending = data?.claims.filter(claim => claim.status === 'pending') ?? []
     const nextClaim = [...pending].sort((a, b) => a.processDate.localeCompare(b.processDate))[0]
-    const runDue = nextClaim && scheduledClaimRunAt(nextClaim.processDate).getTime() <= Date.now()
+    const runDue = nextClaim && scheduledClaimRunAt(nextClaim.processDate, currentLeague?.timezone).getTime() <= Date.now()
     return (
         <View style={styles.panel} accessibilityLabel="Today's waivers">
             <Text style={textStyles.sectionLabel} accessibilityRole="header">Waivers</Text>
             <Text style={textStyles.body}>{data ? `${pending.length} pending claim${pending.length === 1 ? '' : 's'}` : 'Claims unavailable'}</Text>
-            <Text style={textStyles.body}>{runDue ? 'Claims are due for processing' : `Next run ${nextClaim ? scheduledClaimLabel(nextClaim.processDate) : claimProcessDateLabel(null)}`}</Text>
+            <Text style={textStyles.body}>{runDue ? 'Claims are due for processing' : `Next run ${nextClaim ? scheduledClaimLabel(nextClaim.processDate, currentLeague?.timezone) : claimProcessDateLabel(null, new Date(), currentLeague?.timezone)}`}</Text>
             <Text style={textStyles.body}>{currentLeague?.waiver_mode === 'faab'
                 ? `FAAB left $${data?.transactionState?.faabBalance ?? '—'}`
                 : `Waiver priority #${data?.waiverPriority ?? '—'}`}</Text>

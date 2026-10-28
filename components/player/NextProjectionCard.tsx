@@ -1,9 +1,10 @@
+import { formatLeagueTime, todayLeague } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { useEffect, useState } from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { colors, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import type { LeagueProjectionRow } from '@/lib/projections'
-import { todayET } from '@/lib/shared/dates'
 import type { PlayerGame } from './season-data'
 
 type Props = {
@@ -15,6 +16,7 @@ type Props = {
 }
 
 export function NextProjectionCard({ projection, loading = false, reserveSpace = false, liveGame, liveFantasyPoints }: Props) {
+    const timezone = useLeagueTimezone()
     const activity = useBrowserReadActivity()
     const [, updateTime] = useState(0)
     const tipoff = projection?.next_game_time ? new Date(projection.next_game_time).getTime() : null
@@ -26,13 +28,13 @@ export function NextProjectionCard({ projection, loading = false, reserveSpace =
         return () => clearTimeout(timer)
     }, [tipoff, activity.active, activity.revision])
     const unstarted = projection && projection.next_game_date && (tipoff != null && Number.isFinite(tipoff)
-        ? tipoff > Date.now() : projection.next_game_date > todayET())
+        ? tipoff > Date.now() : projection.next_game_date > todayLeague(timezone))
     const next = unstarted ? projection : null
     if (!liveGame && !next) return reserveSpace ? <View style={styles.slot} testID="player-projection-slot" aria-hidden /> : null
-    const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00`) : null
-    const weekday = date?.toLocaleDateString('en-US', { weekday: 'short' })
+    const date = next ? new Date(tipoff != null && Number.isFinite(tipoff) ? tipoff : `${next.next_game_date}T12:00:00Z`) : null
+    const weekday = date?.toLocaleDateString('en-US', { weekday: 'short', timeZone: next?.next_game_time ? timezone : 'UTC' })
     const time = next?.next_game_time && tipoff != null && Number.isFinite(tipoff)
-        ? date?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : null
+        ? formatLeagueTime(date!, timezone) : null
     const summary = liveGame
         ? `Live ${liveGame.opponent} · ${liveFantasyPoints != null ? `${liveFantasyPoints.toFixed(1)} FP` : `${liveGame.points} PTS`} so far`
         : [[next?.next_game_opponent, weekday, time].filter(Boolean).join(' '), next?.projection_fantasy_points == null ? '— proj' : `${next.projection_fantasy_points.toFixed(1)} proj`].join(' · ')

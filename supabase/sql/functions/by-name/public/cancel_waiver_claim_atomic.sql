@@ -43,7 +43,7 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  IF (v_process_date + time '03:00') AT TIME ZONE 'America/New_York' <= now() THEN
+  IF (v_process_date + time '00:00') AT TIME ZONE coalesce((SELECT league.timezone FROM leagues league JOIN waiver_claims claim ON claim.league_id=league.id WHERE claim.id=p_claim_id), 'America/Los_Angeles') <= now() THEN
     RAISE EXCEPTION 'The claim cutoff has passed. Wait for the scheduled result.' USING ERRCODE='P0001';
   END IF;
 

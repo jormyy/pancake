@@ -10,14 +10,16 @@ export function resolveLeagueTimezone(timezone?: string | null): string {
   }
 }
 
-function formatLeagueDateTime(
+export function formatLeagueDateTime(
   value: string | number | Date,
   timezone: string = DEFAULT_LEAGUE_TIMEZONE,
-  options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short' },
+  options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' },
 ): string {
   const date = value instanceof Date ? value : new Date(value)
   if (!Number.isFinite(date.getTime())) return 'unknown'
-  return new Intl.DateTimeFormat('en-US', { ...options, timeZone: resolveLeagueTimezone(timezone) }).format(date)
+  const zone = resolveLeagueTimezone(timezone)
+  const formatted = new Intl.DateTimeFormat('en-US', { ...options, timeZone: zone }).format(date)
+  return options.hour || options.timeStyle ? `${formatted} ${leagueTimezoneLabel(zone, date)}` : formatted
 }
 
 export function formatLeagueDate(value: string | number | Date, timezone: string = DEFAULT_LEAGUE_TIMEZONE): string {
@@ -55,4 +57,43 @@ export function endOfLeagueDayUTC(day: string, timezone?: string | null): string
     midnight += next - local
   }
   return new Date(midnight - 1).toISOString()
+}
+
+export function leagueTimezoneLabel(timezone?: string | null, now: Date = new Date()): string {
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: resolveLeagueTimezone(timezone), timeZoneName: 'shortGeneric' })
+    .formatToParts(now).find(part => part.type === 'timeZoneName')?.value
+  if (label && !label.includes(' ')) return label
+  return new Intl.DateTimeFormat('en-US', { timeZone: resolveLeagueTimezone(timezone), timeZoneName: 'short' })
+    .formatToParts(now).find(part => part.type === 'timeZoneName')?.value ?? resolveLeagueTimezone(timezone)
+}
+
+export function startOfLeagueDayUTC(day: string, timezone?: string | null): Date {
+  const previous = new Date(Date.parse(`${day}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+  return new Date(Date.parse(endOfLeagueDayUTC(previous, timezone)) + 1)
+}
+
+export function leagueDateTimeInput(value: Date, timezone?: string | null): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveLeagueTimezone(timezone), year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(value)
+  const part = (type: string) => parts.find(value => value.type === type)!.value
+  return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`
+}
+
+export function parseLeagueDateTime(value: string, timezone?: string | null): Date | null {
+  const normalized = value.trim().replace('T', ' ')
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(normalized)) return null
+  const target = Date.parse(`${normalized.replace(' ', 'T')}:00Z`)
+  if (!Number.isFinite(target)) return null
+  const [day, time] = normalized.split(' ')
+  const [hour, minute] = time.split(':').map(Number)
+  let result = new Date(startOfLeagueDayUTC(day, timezone).getTime() + (hour * 60 + minute) * 60_000)
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const displayed = leagueDateTimeInput(result, timezone)
+    if (displayed === normalized) return result
+    const local = Date.parse(`${displayed.replace(' ', 'T')}:00Z`)
+    result = new Date(result.getTime() + target - local)
+  }
+  return null
 }

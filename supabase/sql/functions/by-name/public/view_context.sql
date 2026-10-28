@@ -1,13 +1,14 @@
 CREATE OR REPLACE FUNCTION public.view_context(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE member public.league_members%ROWTYPE; league public.leagues%ROWTYPE; season public.league_seasons%ROWTYPE;
-  today date := (now() AT TIME ZONE 'America/New_York')::date; week integer; context_version bigint; dirty boolean;
+  today date; week integer; context_version bigint; dirty boolean;
 BEGIN
   IF jsonb_typeof(p_params) IS DISTINCT FROM 'object' THEN RAISE EXCEPTION 'View parameters must be an object.' USING ERRCODE = '22023'; END IF;
   SELECT * INTO member FROM public.league_members WHERE id = p_member_id AND league_id = p_league_id AND user_id = auth.uid();
   IF NOT FOUND THEN RAISE EXCEPTION 'This screen is not available.' USING ERRCODE = '42501'; END IF;
   SELECT * INTO league FROM public.leagues WHERE id = p_league_id AND deleted_at IS NULL;
   IF NOT FOUND THEN RAISE EXCEPTION 'This screen is not available.' USING ERRCODE = '42501'; END IF;
+  today := (now() AT TIME ZONE COALESCE(league.timezone, 'America/Los_Angeles'))::date;
   SELECT * INTO season FROM public.league_seasons WHERE league_id = p_league_id
     AND (p_params->>'seasonId' IS NULL OR id = (p_params->>'seasonId')::uuid)
     ORDER BY is_current DESC, season_year DESC LIMIT 1;

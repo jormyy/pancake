@@ -285,3 +285,5 @@ it('clears an index selection when the lineup changes and keeps it when unchange
         expect(mocks.plan).not.toHaveBeenCalled()
     } finally { await act(async () => { renderer.unmount() }) }
 })
+
+vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-07-09' }))

@@ -12,7 +12,8 @@ import {
     type LineupMoveData,
 } from '@/lib/lineup'
 import { activateRosterPlayerWithLineup, toggleIR } from '@/lib/roster'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
@@ -50,7 +51,7 @@ export function useLineupActions({
     actionContext: LineupActionContext | null | undefined
     actionOwner?: Pick<LineupActionContext, 'memberId' | 'leagueId' | 'seasonId'> | null
     myLineup: LineupMoveData | null
-    league: { roster_size?: number; taxi_slots?: number } | null
+    league: { roster_size?: number; taxi_slots?: number; timezone?: string } | null
     selectedDate: string
     startedTeams: Set<string>
     reloadLineup: (date: string) => Promise<void>
@@ -127,7 +128,7 @@ export function useLineupActions({
 
     const handleTap = useCallback(async (newSel: LineupSelection) => {
         if (autoSetting || saving) return
-        if (selectedDate < todayET()) {
+        if (selectedDate < todayLeague(league?.timezone ?? leagueTimezone(actionOwner?.leagueId))) {
             showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
             setSelected(null)
             return
@@ -222,7 +223,7 @@ export function useLineupActions({
                 if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
             } else await execute()
         } finally { releaseUpdate() }
-    }, [selectedDate, selected, actionContext, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
+    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return

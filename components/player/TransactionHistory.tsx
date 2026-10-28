@@ -1,3 +1,5 @@
+import { formatLeagueDateTime } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 import { useRef, useState } from 'react'
 import { getPlayerTransactionHistory } from '@/lib/players'
@@ -5,11 +7,6 @@ import type { TransactionHistoryEntry } from '@/lib/players'
 import { colors, fontSize, fontWeight, spacing, radii, table, textStyles } from '@/constants/tokens'
 
 const PAGE_SIZE = 20
-
-function fmtDate(dateStr: string): string {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
 
 type Props = {
     playerId: string
@@ -19,6 +16,7 @@ type Props = {
 }
 
 export function TransactionHistory({ playerId, leagueId, transactions: initial, showHeading = true }: Props) {
+    const timezone = useLeagueTimezone()
     const resourceKey = `${leagueId}:${playerId}`
     const [resource, setResource] = useState({
         key: resourceKey,
@@ -87,7 +85,7 @@ export function TransactionHistory({ playerId, leagueId, transactions: initial, 
                         <Text style={styles.label}>{tx.label}</Text>
                         <Text style={styles.team}>{tx.teamName}</Text>
                     </View>
-                    <Text style={styles.date}>{fmtDate(tx.occurredAt)}</Text>
+                    <Text style={styles.date}>{formatLeagueDateTime(tx.occurredAt, timezone)}</Text>
                 </View>
             ))}
             {current.hasMore && (

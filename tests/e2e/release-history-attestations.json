@@ -2349,6 +2349,97 @@
       "statementCount": 26,
       "statementsSha256": "f7d806e521e0bdbb961fbd2120675b7e1c86ada413f20cc1d2fba596eb7757d6",
       "sha256": "c6821ba5b906750eed8185bd17a7e1a4e12ab9d79e76a78d4f2be031d11bb338"
+    },
+    {
+      "name": "player_link_identity_index",
+      "version": "20261117000100",
+      "statementCount": 2,
+      "statementsSha256": "644128f6aa1ab49a1598bf3360e2adf0bc8b9fc006c7e7ce68750836336321cc",
+      "sha256": "1258a4a2664ece61b3504e34480557230fbfd54ab000187aa218ddeb23d2396a"
+    },
+    {
+      "name": "stat_player_resolution",
+      "version": "20261117000200",
+      "statementCount": 2,
+      "statementsSha256": "002b0fa7bf36ac5f2d4b6fc1824972ee20adeab51e378377f7a49fddbcb3a546",
+      "sha256": "a0ad301b92799cedb5fbc6df1bf293a3d2c5c9276b65d8b8a93bb230f5462ac1"
+    },
+    {
+      "name": "public_cli",
+      "version": "20261118000100",
+      "statementCount": 17,
+      "statementsSha256": "46480f4cdf7b131e9cabca9fbb9bc0026ddbc54638664043fec2b95c444d2d73",
+      "sha256": "ac086a76b856101d33f97073f32b730e65a844d691e803a3248d49e65e07a3f4"
+    },
+    {
+      "name": "public_matchup_state",
+      "version": "20261118000200",
+      "statementCount": 1,
+      "statementsSha256": "e621e478ab97de964bba59db2b47d1c0560a35c96b20b8f820ea4ef4ade11cb8",
+      "sha256": "ae53b1e7b28e5472f92310726ce1a8ffd5274cb56ff097d13684213fdc29b571"
+    },
+    {
+      "name": "public_stats_seasons",
+      "version": "20261118000300",
+      "statementCount": 1,
+      "statementsSha256": "a8946c175388ed3121dc35abdc532713173775ab16b2e5c4dbb358983f667abe",
+      "sha256": "56f2c9993ce758549d50bc687eb379c6210d8fa2deb64a38f569c18bf0443045"
+    },
+    {
+      "name": "onenumber_trade_values",
+      "version": "20261120000100",
+      "statementCount": 48,
+      "statementsSha256": "d3b2c3dd21002f6b300ba8f337e9fc9f7d421a6a330bf1fe4aa7afecd68b4a95",
+      "sha256": "de5b5f6a2f1fb36b9593594a53b760ed0caab91f4fcd7758cf4deeaf81845d28"
+    },
+    {
+      "name": "trade_value_readers",
+      "version": "20261120000200",
+      "statementCount": 2,
+      "statementsSha256": "136f9b5e312fdcfd3a753c1d5bb7ed7c5c92d9633c85aab6679c3b94686a516e",
+      "sha256": "4ec782baae05edd461ae2d4b10c15617255fcb2abab06ac0a6a8473bb2e8a879"
+    },
+    {
+      "name": "trade_value_cache_refresh",
+      "version": "20261120000300",
+      "statementCount": 6,
+      "statementsSha256": "c29685414ab5b3f3754f83824ba4a4dbc5def546f8401e732c387fd66e7115de",
+      "sha256": "e48dc5bd8a1b1e44f6ea54af35830be565a51440a31f5b4fda8f3cab2b040d63"
+    },
+    {
+      "name": "league_midnight_waivers",
+      "version": "20261121000001",
+      "statementCount": 13,
+      "statementsSha256": "8ddf8db8cd6ffd0e23e1fbf4f617c624f426a62e22ffcf1ea50235552435fbfa",
+      "sha256": "201435c192a2e52438c3a9932599becbb35f6aea98a2730d4d0339f5aeaebdad"
+    },
+    {
+      "name": "reschedule_waivers_timezone",
+      "version": "20261121000004",
+      "statementCount": 4,
+      "statementsSha256": "e75fd9f0939d0b1a45667e9581b30ea6c6bf4a5d01ce38ed2063cb7e1d76b1b9",
+      "sha256": "bc5c35b136364f1f9d28462f1093dbf8c2121c6c4d6136e2ddd075a594dc381e"
+    },
+    {
+      "name": "league_local_view_day",
+      "version": "20261121000005",
+      "statementCount": 3,
+      "statementsSha256": "6f8837ccc37ce0b7d59d3e5bec08a6c0b21b50cb368e8e2c199b80320afbf4e9",
+      "sha256": "0623fa17b4a2d948ab7fdb5cb289248333381f48b63f1553cbeef40d7c4de456"
+    },
+    {
+      "name": "player_views",
+      "version": "20261122000100",
+      "statementCount": 3,
+      "statementsSha256": "39c3f667cfcc1c7675449fa276ad953fa0fde52fccc171eefc6074ee17d75252",
+      "sha256": "a4f292737d5e474498e65455811944901a829417dec2f480f40539b7dad0fce5"
+    },
+    {
+      "name": "release25_player_values_and_schedule",
+      "version": "20261123000100",
+      "statementCount": 4,
+      "statementsSha256": "06d0feec6cef5a795a6941ab65eec00dd5f0555b6c0045f49b7a7406d6f648c1",
+      "sha256": "f576270ae6bc5d0925792bf17b47852f21804bfe9305489f79179f559521c0ee"
     }
   ]
 }

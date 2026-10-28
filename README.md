@@ -81,3 +81,17 @@ Start with the [documentation index](docs/README.md).
 Use the [browser guide](tests/e2e/README.md) for local UI checks.
 
 Brand assets and phone display rules: [Interface design](docs/interface-design.md).
+
+## Public CLI
+
+Read shared league results with the Node 22 `pancake` CLI.
+A commissioner creates, rotates, or revokes the league share token.
+
+```sh
+npm install -g ./packages/pancake-cli
+pancake describe
+pancake standings --json
+```
+
+Set `PANCAKE_API_URL` and `PANCAKE_TOKEN` before reading a league.
+See [Public CLI](docs/public-cli.md) for schemas, filters, scripts, privacy rules, and private operator reporting.

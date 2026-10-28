@@ -13,6 +13,7 @@ import { headerPlayer } from '@/tests/helpers/fixtures'
 import type { GameLogEntry, PlayerSeasonAverages } from '@/lib/players'
 import type { LeagueProjectionRow } from '@/lib/projections'
 import { controlSize } from '@/constants/tokens'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({
     View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView',

@@ -1,3 +1,5 @@
+import { useLeagueDay } from '@/hooks/use-league-day'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { useBrowserReadActivity } from '@/hooks/use-browser-read-activity'
 import { useIsFocused } from '@react-navigation/native'
 import { usePanelActivity } from '@/contexts/panel-activity'
@@ -7,6 +9,7 @@ import { sessionGeneration } from '@/lib/session-cache-registry'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 
 export function useScreenView<T>(scope: ScreenScope | null, enabled = true, options: { autoLoad?: boolean } = {}) {
+    useLeagueDay(leagueTimezone(scope?.leagueId))
     const focused = useIsFocused()
     const panelActive = usePanelActivity()
     const activity = useBrowserReadActivity()

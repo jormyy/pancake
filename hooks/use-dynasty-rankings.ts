@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useFocusEffect } from '@react-navigation/native'
 import { leagueResourceAffects, leagueSnapshotRevision, listenForLeagueChanges } from '@/lib/league-changes'
 import { sessionGeneration } from '@/lib/session-cache-registry'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 import { usePanelActivity } from '@/contexts/panel-activity'
 import {
     dynastyDecisionCacheKey,
@@ -10,9 +11,12 @@ import {
     dynastyEngineContext,
     dynastyScoringSignature,
     getDynastyDecisionInputs,
+    getDynastyPickValues,
+    dynastyPickBands,
     getUnmatchedRookieRankings,
     playerAssetFromDecisionInput,
     type DynastyDecisionInput,
+    type DynastyPickValue,
     type UnmatchedRookieRanking,
 } from '@/lib/dynasty-decisions'
 import { getCurrentSeason, currentSeasonYear } from '@/lib/shared/season'
@@ -23,7 +27,7 @@ import type { Json } from '@/types/database'
 import {
     valueDynastyAsset,
     type DynastyAssetResult,
-} from '@pancake/core'
+} from '@/core/src/dynasty/decisionEngine'
 
 const STALE_MS = 5 * 60_000
 const MAX_RANKINGS = 600
@@ -35,6 +39,7 @@ export type DynastyRankingView = 'five-year' | 'three-year' | 'rookies-picks'
 type DynastyRankingsCache = {
     inputs: DynastyDecisionInput[]
     unmatchedRookies: UnmatchedRookieRanking[]
+    pickValues?: DynastyPickValue[]
     savedAt: number
     seasonYear: number
     revision?: string | null
@@ -52,7 +57,7 @@ type UseDynastyRankingsArgs = {
 
 function freshSource(cache: DynastyRankingsCache, leagueId: string) {
     const revision = leagueSnapshotRevision(leagueId, 'daily')
-    return revision !== null && cache.revision === revision && cache.day === todayET()
+    return revision !== null && cache.revision === revision && cache.day === todayLeague(leagueTimezone(leagueId))
 }
 
 function playerRow(row: DynastyDecisionInput, result: DynastyAssetResult): DynastyRankPlayer {
@@ -113,21 +118,26 @@ function futurePickRows(
     seasonYear: number,
     scoringSettings: Json | null | undefined,
     teamCount: number,
+    pickValues: DynastyPickValue[],
 ): DynastyRankPlayer[] {
     const context = dynastyEngineContext(leagueId, seasonYear, scoringSettings)
     const rows: DynastyRankPlayer[] = []
     for (let distance = 1; distance <= FUTURE_PICK_YEARS; distance += 1) {
         for (let round = 1; round <= FUTURE_PICK_ROUNDS; round += 1) {
             const year = seasonYear + distance
+            const valueBands = dynastyPickBands(pickValues, year - 1, round)
+            const fetchedAt = pickValues.find(value => value.draft_year === year - 1 && value.round === round)?.fetched_at ?? null
+            const source = valueBands ? 'Stored dynasty values' : 'Pancake deterministic pick curve'
             const result = valueDynastyAsset(context, {
                 kind: 'pick',
                 id: `pick-band:${year}:${round}`,
-                label: `${year} Round ${round}`,
+                label: `${year - 1} Round ${round}`,
                 seasonYear: year,
                 round,
                 slot: null,
                 teams: Math.max(teamCount, 4),
-                sources: [{ name: 'Pancake deterministic pick curve', fetchedAt: null }],
+                valueBands,
+                sources: [{ name: source, fetchedAt }],
             })
             rows.push({
                 rankingId: result.assetId,
@@ -157,11 +167,11 @@ function futurePickRows(
                 blocks: null,
                 turnovers: null,
                 comment: null,
-                rankSource: 'Pancake deterministic pick curve',
+                rankSource: source,
                 scoringFormat: 'custom',
                 sourceUrl: null,
                 sourceMetadata: null,
-                rankFetchedAt: new Date(0).toISOString(),
+                rankFetchedAt: fetchedAt ?? new Date(0).toISOString(),
                 isDraftPick: true,
                 strategyValues: result.values,
                 valueRange: result.ranges.overall ?? null,
@@ -260,6 +270,7 @@ function rankedRows(
     scoringSettings: Json | null | undefined,
     teamCount: number,
     query: string,
+    pickValues: DynastyPickValue[],
 ): DynastyRankPlayer[] {
     const context = dynastyEngineContext(leagueId, seasonYear, scoringSettings)
     const playerRows = inputRows.map((row) => {
@@ -270,7 +281,7 @@ function rankedRows(
         ? [
             ...playerRows.filter((row) => row.sourceRanks?.rookie != null || row.isRookie),
             ...unmatchedRookieRows(unmatchedRookies, leagueId, seasonYear, scoringSettings),
-            ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount),
+            ...futurePickRows(leagueId, seasonYear, scoringSettings, teamCount, pickValues),
         ]
         : playerRows.filter((row) => sourceRankForView(row, view) != null)
     const normalized = query.trim().toLocaleLowerCase()
@@ -320,6 +331,7 @@ export function useDynastyRankings({
     })
     const [inputs, setInputs] = useState<DynastyDecisionInput[]>(initialCache?.inputs ?? [])
     const [unmatchedRookies, setUnmatchedRookies] = useState<UnmatchedRookieRanking[]>(initialCache?.unmatchedRookies ?? [])
+    const [pickValues, setPickValues] = useState<DynastyPickValue[]>(initialCache?.pickValues ?? [])
     const [seasonYear, setSeasonYear] = useState(initialCache?.seasonYear ?? currentSeasonYear())
     const [loading, setLoading] = useState(!initialCache)
     const [refreshing, setRefreshing] = useState(false)
@@ -327,7 +339,7 @@ export function useDynastyRankings({
     const [ownerScope, setOwnerScope] = useState(scopeIdentity)
     const requestSeqRef = useRef(0)
     const lastLoadedAtRef = useRef(initialCache && freshSource(initialCache, leagueId) ? initialCache.savedAt : 0)
-    const lastDayRef = useRef(todayET())
+    const lastDayRef = useRef(todayLeague(leagueTimezone(leagueId)))
     const currentSeasonRef = useRef<string | null>(null)
     const activeKeyRef = useRef(initialCache && userId && memberId && leagueId
         ? dynastyDecisionCacheKey({
@@ -354,6 +366,7 @@ export function useDynastyRankings({
             setOwnerScope(scopeIdentity)
             setInputs([])
             setUnmatchedRookies([])
+            setPickValues([])
             hasDataRef.current = false
             setLoading(false)
             return
@@ -364,6 +377,7 @@ export function useDynastyRankings({
             activeKeyRef.current = ''
             setInputs([])
             setUnmatchedRookies([])
+            setPickValues([])
             hasDataRef.current = false
             lastLoadedAtRef.current = 0
             setLoading(true)
@@ -383,7 +397,7 @@ export function useDynastyRankings({
         force ||= resumeNeededRef.current
         resumeNeededRef.current = false
         const sourceRevision = leagueSnapshotRevision(leagueId, 'daily')
-        const day = todayET()
+        const day = todayLeague(leagueTimezone(leagueId))
         const pending = inFlightRef.current
         if (pending?.identity === identity && pending.requestId === requestSeqRef.current) {
             if (!force || (pending.force && pending.epoch === networkEpochRef.current && pending.sourceRevision === sourceRevision)) return pending.promise
@@ -413,6 +427,7 @@ export function useDynastyRankings({
                 if (cached && (!force || !hasDataRef.current)) {
                     setInputs(cached.inputs)
                     setUnmatchedRookies(cached.unmatchedRookies)
+                    setPickValues(cached.pickValues ?? [])
                     setSeasonYear(cached.seasonYear)
                     hasDataRef.current = true
                     lastLoadedAtRef.current = freshSource(cached, leagueId) ? cached.savedAt : 0
@@ -420,6 +435,7 @@ export function useDynastyRankings({
                 } else if (previousKey !== cacheKey) {
                     setInputs([])
                     setUnmatchedRookies([])
+                    setPickValues([])
                     hasDataRef.current = false
                     lastLoadedAtRef.current = 0
                 }
@@ -432,7 +448,7 @@ export function useDynastyRankings({
                 }
                 setLoading(!hasData)
                 setRefreshing(hasData)
-                const [inputs, unmatchedRookies] = await Promise.all([
+                const [inputs, unmatchedRookies, pickValues] = await Promise.all([
                     getDynastyDecisionInputs({
                         leagueId,
                         memberId,
@@ -440,16 +456,18 @@ export function useDynastyRankings({
                         limit: MAX_RANKINGS,
                     }),
                     getUnmatchedRookieRankings(),
+                    getDynastyPickValues(leagueId),
                 ])
                 if (requestSeqRef.current !== requestId || activeKeyRef.current !== cacheKey || epoch !== networkEpochRef.current || sessionGeneration() !== generation) return
                 const savedAt = Date.now()
                 setInputs(inputs)
                 setUnmatchedRookies(unmatchedRookies)
+                setPickValues(pickValues)
                 setSeasonYear(seasonYear)
                 hasDataRef.current = true
-                lastLoadedAtRef.current = day === todayET() && sourceRevision !== null && sourceRevision === leagueSnapshotRevision(leagueId, 'daily') ? savedAt : 0
+                lastLoadedAtRef.current = day === todayLeague(leagueTimezone(leagueId)) && sourceRevision !== null && sourceRevision === leagueSnapshotRevision(leagueId, 'daily') ? savedAt : 0
                 lastDayRef.current = day
-                const cacheValue = { inputs, unmatchedRookies, savedAt, seasonYear, day, revision: sourceRevision }
+                const cacheValue = { inputs, unmatchedRookies, pickValues, savedAt, seasonYear, day, revision: sourceRevision }
                 writePersistentCache<DynastyRankingsCache>(cacheKey, cacheValue)
                 writePersistentCache<DynastyRankingsCache>(dynastyDecisionLatestCacheKey({
                     userId, memberId, leagueId, scoringSignature,
@@ -477,14 +495,14 @@ export function useDynastyRankings({
         return () => {
             requestSeqRef.current += 1
         }
-    }, [load])
+    }, [load, leagueId])
 
     useFocusEffect(useCallback(() => {
         focusedRef.current = true
         if (resumeNeededRef.current) {
             resumeNeededRef.current = false
             void load(true)
-        } else if ((lastDayRef.current !== todayET() || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load()
+        } else if ((lastDayRef.current !== todayLeague(leagueTimezone(leagueId)) || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load()
         return () => {
             focusedRef.current = false
             if (inFlightRef.current) {
@@ -493,7 +511,7 @@ export function useDynastyRankings({
                 inFlightRef.current = null
             }
         }
-    }, [load]))
+    }, [load, leagueId]))
 
     useEffect(() => {
         if (typeof window === 'undefined' || typeof document === 'undefined') return
@@ -501,7 +519,7 @@ export function useDynastyRankings({
             if (!focusedRef.current || document.visibilityState === 'hidden' || navigator.onLine === false) return
             const force = resumeNeededRef.current || failedRef.current
             resumeNeededRef.current = false
-            if (force || (lastDayRef.current !== todayET() || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load(force)
+            if (force || (lastDayRef.current !== todayLeague(leagueTimezone(leagueId)) || Date.now() - lastLoadedAtRef.current >= STALE_MS)) void load(force)
         }
         const online = () => {
             const previous = lastOnlineRef.current
@@ -534,7 +552,7 @@ export function useDynastyRankings({
             window.removeEventListener('focus', resume)
             document.removeEventListener('visibilitychange', visibility)
         }
-    }, [load])
+    }, [load, leagueId])
 
     useEffect(() => {
         if (!scopeReady) return
@@ -560,7 +578,8 @@ export function useDynastyRankings({
         scoringSettings,
         teamCount,
         query,
-    ), [inputs, leagueId, query, scoringSettings, seasonYear, teamCount, unmatchedRookies, view])
+        pickValues,
+    ), [inputs, leagueId, pickValues, query, scoringSettings, seasonYear, teamCount, unmatchedRookies, view])
     return useMemo(() => ({
         query,
         setQuery,

@@ -23,7 +23,8 @@ import { getErrorMessage } from '@/lib/shared/errors'
 import { getLineupMoveTargetState, LineupContext, LineupPlayer, LineupSlot, WeekDay, type LineupMoveTargetState } from '@/lib/lineup'
 import { setLineupOptimizerEnabled } from '@/lib/lineup/optimizerSettings'
 
-import { endOfETDayUTC, todayET } from '@/lib/shared/dates'
+import { todayLeague, resolveLeagueTimezone } from '@/lib/timezone'
+import { useLeagueDay } from '@/hooks/use-league-day'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { readStoredAuthState } from '@/lib/supabase'
@@ -189,19 +190,16 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     const memberId = current?.id
     const leagueId = currentLeague?.id
     const leagueRevision = JSON.stringify(currentLeague)
-    const [currentDay, setCurrentDay] = useState(todayET)
+    const timezone = resolveLeagueTimezone(currentLeague?.timezone)
+    const currentDay = useLeagueDay(timezone)
     const snapshotScope = useMemo(() => userId && memberId && leagueId
         ? { ownerId: userId, memberId, leagueId, day: currentDay } : null,
     [userId, memberId, leagueId, currentDay])
 
     const [ctx, setCtx] = useState<LineupContext | null>(null)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
-    // selectedDate is overwritten by load() with lineupCtx.today (ET) once
-    // the lineup context loads. The initial value is read by useLiveStats
-    // (which queries nba_games by ET-keyed game_date) before then — use
-    // todayET so the very first poll/query lines up with the backend.
     const [selectedDate, setSelectedDate] = useState<string>(
-        () => todayET(),
+        () => todayLeague(timezone),
     )
     const [starters, setStarters] = useState<LineupSlot[]>([])
     const [dataDate, setDataDate] = useState(selectedDate)
@@ -240,8 +238,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
 
     const requestIsCurrent = useCallback((requestId: number, generation: number) =>
         activeOwnerRef.current === ownerKey && lineupLoadSeqRef.current === requestId && browserReadsAllowed()
-        && currentDay === todayET() && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
-    [ownerKey, userId, currentDay])
+        && currentDay === todayLeague(timezone) && generation === sessionGeneration() && readStoredAuthState().session?.user.id === userId,
+    [ownerKey, userId, currentDay, timezone])
 
     const applySnapshot = useCallback((value: Pick<LineupSnapshot, 'context' | 'date' | 'days' | 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi' | 'optimizerEnabled'>, saved: boolean) => {
         setDataOwnerKey(ownerKey)
@@ -385,8 +383,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 }
                 return
             }
-            const day = todayET()
-            if (day !== currentDay) setCurrentDay(day)
+            const day = todayLeague(timezone)
+            if (day !== currentDay) return
             else {
                 const lastRead = lastReadRef.current
                 if (lastRead?.ownerKey === ownerKey && lastRead.generation === sessionGeneration()
@@ -397,19 +395,17 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                 void load()
             }
         }
-        const timer = setTimeout(() => setCurrentDay(todayET()), Math.max(1, Date.parse(endOfETDayUTC(currentDay)) - Date.now() + 1))
         window.addEventListener('focus', refresh)
         window.addEventListener('pageshow', refresh)
         window.addEventListener('offline', refresh)
         document.addEventListener('visibilitychange', refresh)
         return () => {
-            clearTimeout(timer)
             window.removeEventListener('focus', refresh)
             window.removeEventListener('pageshow', refresh)
             window.removeEventListener('offline', refresh)
             document.removeEventListener('visibilitychange', refresh)
         }
-    }, [currentDay, load, leagueId, ownerKey, leagueRevision])
+    }, [currentDay, load, leagueId, ownerKey, leagueRevision, timezone])
 
     const ownsLineup = dataOwnerKey === ownerKey
     const visibleCtx = ownsLineup ? ctx : null
@@ -613,7 +609,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <LineupControls
                     actions={[
-                        { title: 'Today', label: 'Auto-set today', onPress: () => { void doAutoSet(todayET()) } },
+                        { title: 'Today', label: 'Auto-set today', onPress: () => { void doAutoSet(todayLeague(timezone)) } },
                         { title: 'This week', label: 'Auto-set this week', onPress: () => { void doAutoSet(null) } },
                         { title: 'Rest of season', label: 'Auto-set rest of season', onPress: () => { void doAutoSet(null, true) } },
                     ]}

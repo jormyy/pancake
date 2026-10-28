@@ -1,3 +1,4 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { StyleSheet, Text, TextInput, View } from 'react-native'
 import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
@@ -19,6 +20,7 @@ export function AuctionLivePanel({
     memberId?: string
     compact: boolean
 }) {
+    const timezone = useLeagueTimezone()
     const state = controller.state
     const nomination = state?.openNomination
     if (!state || !nomination) return null
@@ -125,7 +127,7 @@ export function AuctionLivePanel({
                         </View>
                         <View style={styles.historyInfo}>
                             <Text style={styles.historyTeam} numberOfLines={1}>{bid.teamName}</Text>
-                            <Text style={styles.historyMeta}>{draftEventTime(bid.placedAt) ?? 'Just now'}</Text>
+                            <Text style={styles.historyMeta}>{draftEventTime(bid.placedAt, timezone) ?? 'Just now'}</Text>
                         </View>
                         <Text style={[styles.historyAmount, high && styles.historyAmountHigh]}>${bid.amount}</Text>
                     </View>

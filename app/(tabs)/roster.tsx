@@ -541,7 +541,7 @@ export default function RosterScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
         confirmAction(
             `Drop ${item.players.display_name}?`,
-            'They will stay on waivers until the first 3 AM ET run after 48 hours.',
+            'They will stay on waivers until the first league-local midnight after 48 hours.',
             async () => {
                 if (!isCurrentAction(generation, identity)) return
                 await rosterRecoveryRunnerRef.current(async () => {

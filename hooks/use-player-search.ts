@@ -11,10 +11,12 @@ import { applyVisiblePlayerTotals, type PlayerRow, type VisiblePlayerTotals } fr
 import type { OwnedEntry } from '@/lib/roster'
 import { getWeekDays, type WeekDay } from '@/lib/lineup'
 import { getCurrentWeekNumber } from '@/lib/shared/week'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { useLeagueDay } from '@/hooks/use-league-day'
 import { currentSeasonYear } from '@/lib/shared/season'
 import { activePlayerFilterCount, type PlayerAvailabilityFilter, type PlayerPlayingFilter, type PlayerSearchHealthFilter } from '@/lib/player-search-state'
-import { PLAYER_SEARCH_SORT_OPTIONS, type PlayerSearchSortDir, type PlayerSearchSortMode } from '@/lib/player-search-sort'
+import { PLAYER_SEARCH_SORT_OPTIONS, readPlayerSort, savePlayerSort, compareDynastyPlayers, type PlayerSearchSortDir, type PlayerSearchSortMode } from '@/lib/player-search-sort'
 import type { ScoringSettings } from '@pancake/core'
 
 export const SORT_OPTIONS = PLAYER_SEARCH_SORT_OPTIONS
@@ -25,6 +27,8 @@ function playerScoringSettings(value: unknown): ScoringSettings | null {
     return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1])))
 }
 export function useWeeklyAvailability(enabled: boolean, active = true) {
+    const timezone = useLeagueTimezone()
+    const leagueDay = useLeagueDay(timezone)
     const [weekDays, setWeekDays] = useState<WeekDay[]>([])
     const [loading, setLoading] = useState(enabled)
     const [error, setError] = useState<Error | null>(null)
@@ -48,14 +52,14 @@ export function useWeeklyAvailability(enabled: boolean, active = true) {
         const load = async (includeSchedule: boolean) => {
             if ((typeof navigator !== 'undefined' && navigator.onLine === false)
                 || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return
-            if (!includeSchedule && loadedDate === todayET()) return
+            if (!includeSchedule && loadedDate === todayLeague(timezone)) return
             const requestId = ++requestSequence
             setLoading(true)
             const seasonYear = currentSeasonYear()
-            const today = todayET()
+            const today = todayLeague(timezone)
             try {
                 const days = includeSchedule || loadedDate !== today
-                    ? await getCurrentWeekNumber(seasonYear).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear))
+                    ? await getCurrentWeekNumber(seasonYear, timezone).then((weekNum) => getWeekDays(weekNum ?? 1, seasonYear, timezone))
                     : null
                 if (cancelled || requestSequence !== requestId) return
                 loadedDate = today
@@ -82,9 +86,9 @@ export function useWeeklyAvailability(enabled: boolean, active = true) {
             requestSequence += 1
             subscription.remove()
         }
-    }, [enabled, active, retryToken])
+    }, [enabled, active, retryToken, leagueDay, timezone])
 
-    return { weekDays, loading, error, retry, isSnapshot: loadedDay !== todayET() || loading || Boolean(error) }
+    return { weekDays, loading, error, retry, isSnapshot: loadedDay !== todayLeague(timezone) || loading || Boolean(error) }
 }
 
 export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, OwnedEntry>, _waiverIds: Set<string>, currentMemberId?: string, options: { enabled?: boolean; online?: boolean; focused?: boolean; ownerId?: string; admitted?: boolean; initialLiveStats?: boolean; scoringSettings?: unknown } = {}) {
@@ -93,8 +97,9 @@ export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, 
     const [position, setPosition] = useState('ALL')
     const [selectedTeams, setSelectedTeams] = useState<string[]>([])
     const [playingFilter, setPlayingFilter] = useState<PlayerPlayingFilter>('all')
-    const [sortMode, setSortMode] = useState<PlayerSearchSortMode>('fpts')
-    const [sortDir, setSortDir] = useState<PlayerSearchSortDir>('desc')
+    const [sortMode, setSortMode] = useState<PlayerSearchSortMode>(() => readPlayerSort().mode)
+    const [sortDir, setSortDir] = useState<PlayerSearchSortDir>(() => readPlayerSort().dir)
+    useEffect(() => { savePlayerSort({ mode: sortMode, dir: sortDir }) }, [sortMode, sortDir])
     const [health, setHealth] = useState<PlayerSearchHealthFilter>('all')
     const [availabilityFilter, setAvailabilityFilter] = useState<PlayerAvailabilityFilter>('free_agents')
     const [rookiesOnly, setRookiesOnly] = useState(false)
@@ -133,10 +138,10 @@ export function usePlayerSearch(leagueId: string | null, _ownedMap: Map<string, 
     }, [scope, enabled])
     const scoring = useMemo(() => playerScoringSettings(options.scoringSettings), [options.scoringSettings])
     const totals = useMemo(() => new Map((view.data?.visibleTotals ?? []).map(row => [row.player_id, row])), [view.data])
-    const players = useMemo(() => selected.players.map(player => {
+    const players = useMemo(() => (sortMode === 'dynasty' ? [...selected.players].sort(compareDynastyPlayers) : selected.players).map(player => {
         const row = totals.get(player.id)
         return row ? applyVisiblePlayerTotals(player, row, scoring) : player
-    }), [selected.players, totals, scoring])
+    }), [selected.players, totals, scoring, sortMode])
     const support = useMemo(() => view.data ? playerSupportData(view.data) : null, [view.data])
     const totalsSnapshot = useMemo<PlayerTotalsSnapshot>(() => ({ key: JSON.stringify([JSON.stringify([options.ownerId, currentMemberId, leagueId]), leagueId, players[0]?.stats_season_year ?? seasonYear ?? currentSeasonYear()]), rows: new Map(players.map(player => [player.id, { row: totals.get(player.id) ?? null, readAt: Date.now() }])) }), [players, totals, options.ownerId, currentMemberId, leagueId, seasonYear])
     const activeFilterCount = useMemo(() => activePlayerFilterCount({ query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear }), [query, position, selectedTeams, playingFilter, availabilityFilter, rookiesOnly, health, sortMode, seasonYear])

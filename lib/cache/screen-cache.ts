@@ -1,10 +1,11 @@
+import { rememberLeagueTimezone } from '@/lib/league-timezones'
 import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { compareLeagueVersions, leagueVersionSnapshot, readLeagueVersion, subscribeLeagueVersion, type LeagueVersionSnapshot } from '@/lib/league-version'
 import { API_URL } from '@/lib/shared/api-url'
 
 export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
 export type ScreenScope = { accountId: string; leagueId?: string | null; memberId?: string | null; seasonId?: string | null; screen: ScreenName; params?: Record<string, unknown> }
-export type ViewContext = { pendingIncomingCount?: number; leagueId: string; memberId: string; seasonId: string | null; seasonYear: number; weekNumber: number | null; today: string; version: number | string | null; stale: boolean }
+export type ViewContext = { league?: { timezone?: string | null }; pendingIncomingCount?: number; leagueId: string; memberId: string; seasonId: string | null; seasonYear: number; weekNumber: number | null; today: string; version: number | string | null; stale: boolean }
 export type ScreenEnvelope<T> = { schema: 1; scope: ScreenScope; lookupScope?: ScreenScope; version: string; savedAt: number; value: T; dirty: boolean }
 const prefix = 'pancake:screen-view:v1:'
 const maxBytes = 4 * 1024 * 1024
@@ -69,6 +70,7 @@ export function saveScreenView<T>(scope: ScreenScope, value: T, version: string)
     restore()
     const key = screenCacheKey(scope)
     const context = value && typeof value === 'object' && 'context' in value ? value.context as ViewContext | null : null
+    if (context?.leagueId && context.league) rememberLeagueTimezone(context.leagueId, context.league.timezone)
     const resolvedScope = context?.seasonId ? { ...scope, seasonId: context.seasonId } : scope
     const entry: ScreenEnvelope<T> = { schema: 1, scope: resolvedScope, lookupScope: scope, value, version, savedAt: Date.now(), dirty: false }
     const serialized = JSON.stringify(entry)

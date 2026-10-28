@@ -36,6 +36,8 @@ DECLARE
   v_bid_amount int := COALESCE(p_bid_amount, 0);
   v_claim_order int;
   v_balance int;
+  v_run_date date;
+  v_run_at timestamptz;
 BEGIN
   IF p_to_ir AND p_to_taxi THEN
     RAISE EXCEPTION 'Choose IR or taxi, not both.' USING ERRCODE='P0001';
@@ -185,6 +187,12 @@ BEGIN
      AND league_season_id = v_season_id
      AND status = 'pending';
 
+  v_run_date := (greatest(v_waiver_log.clears_at, now()) AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles'))::date;
+  v_run_at := v_run_date::timestamp AT TIME ZONE coalesce(v_league.timezone, 'America/Los_Angeles');
+  IF v_run_at <= now() OR v_run_at < v_waiver_log.clears_at THEN
+    v_run_date := v_run_date + 1;
+  END IF;
+
   INSERT INTO waiver_claims (
     league_id,
     league_season_id,
@@ -205,7 +213,7 @@ BEGIN
     p_player_id,
     p_drop_player_id,
     v_priority,
-    (private.next_waiver_run(v_waiver_log.clears_at, now()) AT TIME ZONE 'America/New_York')::date,
+    v_run_date,
     v_bid_amount,
     v_claim_order,
     COALESCE(p_to_ir, false),

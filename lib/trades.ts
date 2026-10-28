@@ -66,7 +66,7 @@ type TradeFaabItem = {
     toMemberId?: string | null
 }
 
-export type TradeItem = TradePlayerItem | TradePickItem | TradeFaabItem
+export type TradeItem = (TradePlayerItem | TradePickItem | TradeFaabItem) & { tradeValue?: number | null }
 export type RoutedTradeItem = TradeItem & { fromMemberId: string; toMemberId: string }
 
 type TradeParticipant = {

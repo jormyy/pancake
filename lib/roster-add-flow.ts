@@ -32,9 +32,10 @@ export async function loadPickupState(
     pickupHint = false,
 ): Promise<{ status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }> {
     assertReadActive(canRead)
-    const scope = screenScope('player', leagueId, memberId, { playerId, seasonYear: currentSeasonYear() })
+    const scope = screenScope('player', leagueId, memberId, { playerId, seasonYear: currentSeasonYear(), section: 'overview' })
     const view = cachedScreenView<PlayerView>(scope)?.value ?? await readScreenView<PlayerView>(scope)
     assertReadActive(canRead)
+    if (view.pickup) return view.pickup
     const own = view.roster.roster.find(row => row.players.id === playerId)
     const claimPending = view.roster.claims.some(claim => claim.playerId === playerId && claim.status === 'pending')
     const ownership = (view as PlayerView & { ownership?: { memberId: string; teamName: string; isOnTaxi: boolean } | null; clearsAt?: string | null }).ownership

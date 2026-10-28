@@ -1,3 +1,5 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { leagueDateTimeInput, parseLeagueDateTime } from '@/lib/timezone'
 import { useEffect, useRef, useState } from 'react'
 import {
     createMockDraftRoom,
@@ -12,19 +14,6 @@ import type { NominationOrderMode, RookieTimerExpiryBehavior } from '@/lib/draft
 import type { DraftTimerOption, RookieRoundOption } from '@/lib/draft-options'
 import { showAlert } from '@/lib/alert'
 
-function defaultRoomDateInput(): string {
-    const date = new Date(Date.now() + 30 * 60 * 1000)
-    const pad = (value: number) => String(value).padStart(2, '0')
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
-function parseRoomDateInput(value: string): string | null {
-    const normalized = value.trim().replace(' ', 'T')
-    if (!normalized) return null
-    const parsed = new Date(normalized)
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
-}
-
 type MockRoomControllerOptions = {
     leagueId: string | undefined
     memberId: string | undefined
@@ -32,7 +21,12 @@ type MockRoomControllerOptions = {
     openDraftRoom: (draftId: string, draftType: string) => void
 }
 
+function defaultRoomDateInput(timezone: string): string {
+    return leagueDateTimeInput(new Date(Date.now() + 30 * 60_000), timezone)
+}
+
 export function useMockRoomsController(options: MockRoomControllerOptions) {
+    const timezone = useLeagueTimezone()
     const ownerKey = options.leagueId && options.memberId
         ? `${options.leagueId}:${options.memberId}`
         : null
@@ -50,7 +44,7 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
     const [stateOwnerKey, setStateOwnerKey] = useState(ownerKey)
     const [roomName, setRoomName] = useState('')
     const [roomDraftType, setRoomDraftType] = useState<MockDraftRoomKind>('auction')
-    const [roomScheduledAt, setRoomScheduledAt] = useState(defaultRoomDateInput)
+    const [roomScheduledAt, setRoomScheduledAt] = useState(() => defaultRoomDateInput(timezone))
     const [mockNominationMode, setMockNominationMode] = useState<NominationOrderMode>('user_nominated')
     const [mockDraftTimerSeconds, setMockDraftTimerSeconds] = useState<DraftTimerOption>(60)
     const [mockRookieRounds, setMockRookieRounds] = useState<RookieRoundOption>(3)
@@ -73,12 +67,12 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
         setMockDraftTimerSeconds(60)
         setMockRookieRounds(3)
         setMockRookieTimerExpiryBehavior('auto_pick')
-        setRoomScheduledAt(defaultRoomDateInput())
+        setRoomScheduledAt(defaultRoomDateInput(timezone))
         return () => {
             generationRef.current += 1
             activeActionRef.current = null
         }
-    }, [ownerKey])
+    }, [ownerKey, timezone])
 
     const beginAction = (kind: Action['kind']): Action | null => {
         if (!ownerKey || activeOwnerKeyRef.current !== ownerKey) return null
@@ -101,7 +95,7 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
 
     const handleCreateMockRoom = async () => {
         if (!options.leagueId || !options.memberId || stateOwnerKey !== ownerKey) return
-        const scheduledAt = parseRoomDateInput(roomScheduledAt)
+        const scheduledAt = parseLeagueDateTime(roomScheduledAt, timezone)?.toISOString()
         if (!scheduledAt) {
             showAlert('Invalid start time', 'Use a date and time like 2026-07-01 19:30.')
             return
@@ -122,7 +116,7 @@ export function useMockRoomsController(options: MockRoomControllerOptions) {
             })
             if (!ownsAction(action)) return
             setRoomName('')
-            setRoomScheduledAt(defaultRoomDateInput())
+            setRoomScheduledAt(defaultRoomDateInput(timezone))
             await options.refreshRooms()
             return ownsAction(action)
         } catch (error) {

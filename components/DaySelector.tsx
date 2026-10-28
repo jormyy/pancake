@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
-import { todayLeague } from '@/lib/timezone'
+import { useLeagueDay } from '@/hooks/use-league-day'
 import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
@@ -34,7 +34,7 @@ export function DaySelector({
     disabled?: boolean
     timezone?: string | null
 }) {
-    const today = todayLeague(timezone)
+    const today = useLeagueDay(timezone)
     return (
         <View style={[styles.content, compact && styles.contentCompact]}>
             {days.map((day) => {

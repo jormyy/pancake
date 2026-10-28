@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { todayLeague, endOfLeagueDayUTC, DEFAULT_LEAGUE_TIMEZONE, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone } from '../../lib/timezone'
+import { todayLeague, endOfLeagueDayUTC, DEFAULT_LEAGUE_TIMEZONE, formatLeagueDate, formatLeagueTime, resolveLeagueTimezone, leagueDateTimeInput, parseLeagueDateTime } from '../../lib/timezone'
 
 describe('league timezone formatting', () => {
   it('uses Los Angeles and accepts IANA timezone names', () => {
@@ -16,8 +16,8 @@ describe('league timezone formatting', () => {
     expect(formatLeagueDate('2026-02-30')).toBe('unknown')
   })
   it('handles daylight saving transitions', () => {
-    expect(formatLeagueTime('2026-03-08T09:30:00Z')).toBe('1:30 AM')
-    expect(formatLeagueTime('2026-03-08T10:30:00Z')).toBe('3:30 AM')
+    expect(formatLeagueTime('2026-03-08T09:30:00Z')).toBe('1:30 AM PT')
+    expect(formatLeagueTime('2026-03-08T10:30:00Z')).toBe('3:30 AM PT')
     expect(formatLeagueDate('invalid')).toBe('unknown')
   })
 })
@@ -29,4 +29,13 @@ it('keeps Tuesday at 9:21 PM Pacific and flips at local midnight', () => {
   expect(endOfLeagueDayUTC('2026-10-27')).toBe('2026-10-28T06:59:59.999Z')
   expect(endOfLeagueDayUTC('2026-03-08')).toBe('2026-03-09T06:59:59.999Z')
   expect(endOfLeagueDayUTC('2026-11-01')).toBe('2026-11-02T07:59:59.999Z')
+})
+
+it('parses draft start input in league time and rejects nonexistent local times', () => {
+  expect(leagueDateTimeInput(new Date('2026-10-28T04:21:00Z'))).toBe('2026-10-27 21:21')
+  expect(parseLeagueDateTime('2026-10-27 21:21')?.toISOString()).toBe('2026-10-28T04:21:00.000Z')
+  expect(parseLeagueDateTime('2026-10-27 21:21', 'Asia/Tokyo')?.toISOString()).toBe('2026-10-27T12:21:00.000Z')
+  expect(parseLeagueDateTime('2026-03-08 02:30')).toBeNull()
+  expect(parseLeagueDateTime('2026-11-01 01:30')?.toISOString()).toBe('2026-11-01T08:30:00.000Z')
+  expect(parseLeagueDateTime('2026-02-30 09:00')).toBeNull()
 })

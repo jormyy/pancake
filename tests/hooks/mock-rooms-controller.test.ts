@@ -3,6 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useMockRoomsController } from '@/hooks/use-mock-rooms-controller'
 import type { MockDraftRoom } from '@/lib/mockDraftRooms'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 const mocks = vi.hoisted(() => ({
     createMockDraftRoom: vi.fn(),

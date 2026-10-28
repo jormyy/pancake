@@ -39,16 +39,6 @@ export function yearShort(year: number): string {
     return `'${String(year).slice(2)}`
 }
 
-/** ISO string → "2h ago", "3d ago", etc. */
-export function timeAgo(iso: string): string {
-    const diffMs = Date.now() - new Date(iso).getTime()
-    const mins = Math.floor(diffMs / 60_000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
-}
-
 /** Fantasy points to one decimal, em-dash when absent: 12.3 → "12.3", null → "—" */
 export function formatPoints(value: number | null | undefined): string {
     return value == null ? '—' : value.toFixed(1)

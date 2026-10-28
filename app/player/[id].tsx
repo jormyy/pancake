@@ -6,7 +6,8 @@ import { PlayerHeader, type PlayerHeaderAction } from '@/components/player/Playe
 import { SeasonSelector } from '@/components/player/SeasonSelector'
 import { StatsOverview } from '@/components/player/StatsOverview'
 import { readPlayerHeader } from '@/components/player/navigation'
-import { PlayerHistory } from '@/components/player/PlayerHistory'
+import { TransactionHistory } from '@/components/player/TransactionHistory'
+import { PlayerSection } from '@/components/player/PlayerSection'
 import { NextProjectionCard } from '@/components/player/NextProjectionCard'
 import { breakpoints, colors, fontSize, fontWeight, layout, spacing, textStyles } from '@/constants/tokens'
 import { BackButton, Page, usePageMetrics } from '@/components/ui'
@@ -24,6 +25,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import {
     ScrollView,
+    Pressable,
+    Linking,
     StyleSheet,
     Text,
     View,
@@ -67,11 +70,11 @@ export default function PlayerDetailScreen() {
         player: loadedPlayer, loading, canRead, readEpoch, isCurrentRead, rosterRevision, includesLive, liveGame,
         playerError,
         availableSeasons, selectedSeason, handleSeasonSelect,
-        seasonAverages, seasonLoading, seasonError, gameLogLoading, gameLogError, retrySeason,
+        seasonAverages, seasonLoading, seasonError, gameLogLoading, gameLogError,
         gameLog, hasMoreGames, loadMoreGames,
         fantasyPointsMap, avgFantasyPoints,
         nextProjection, projectionError, projectionSettled,
-        transactions, transactionsError,
+        transactions, transactionsError, opened, toggleSection, news, newsLoading, newsError, historyLoading, retryGames, retryNews, retryHistory,
     } = usePlayerScreenData(id, leagueId, { ownerKey: current?.id ? JSON.stringify([sessionOwner(), current.id]) : undefined, authorized: membershipValidated, scoringSettings: currentLeague?.scoring_settings })
 
     const isCurrent = useCallback((generation: number, identity: string | null) =>
@@ -159,7 +162,7 @@ export default function PlayerDetailScreen() {
         const requestedOwner = ownerIdentity
         confirmAction(
             `Drop ${player.display_name}?`,
-            'They will stay on waivers until the first 3 AM ET run after 48 hours.',
+            'They will stay on waivers until the first league-local midnight after 48 hours.',
             async () => {
                 if (!isCurrent(generation, requestedOwner)) return
                 setDropping(true)
@@ -183,7 +186,7 @@ export default function PlayerDetailScreen() {
         dynasty_rank: null, headshot_url: null, nba_id: null, years_exp: null, status: null,
     }
     const showFantasy = leagueId != null
-    const showTransactions = leagueId != null && transactions.length > 0
+    const showTransactions = leagueId != null
     const action: PlayerHeaderAction | null = !rosterStatus && rosterStatusError ? {
         label: 'Retry', onPress: () => { void loadRosterStatus() }, disabled: !membershipValidated || !online, busy: false,
     } : rosterStatus?.status === 'free_agent' || rosterStatus?.status === 'on_waivers' ? {
@@ -205,6 +208,8 @@ export default function PlayerDetailScreen() {
         transactionsError ? 'Transaction history could not refresh.' : null,
     ].filter((message): message is string => message != null)
 
+    const injuryDetails = loadedPlayer?.injury_status && (loadedPlayer.injury_reason || loadedPlayer.injury_expected_return)
+        ? [loadedPlayer.injury_status, loadedPlayer.injury_reason, loadedPlayer.injury_expected_return].filter(Boolean).join(' · ') : null
     const statColumns = 5
     const seasonControl = availableSeasons.length > 1 ? (
         <SeasonSelector
@@ -236,20 +241,32 @@ export default function PlayerDetailScreen() {
             loading={gameLogLoading}
             fantasyPointsMap={showFantasy ? fantasyPointsMap : null}
             hasMore={hasMoreGames}
-            loadingMore={false}
+            loadingMore={gameLogLoading && gameLog.length > 0}
+            loadOnScroll={false}
             onLoadMore={loadMoreGames}
             error={gameLogError}
-            onRetry={retrySeason}
+            onRetry={() => { void retryGames(true) }}
         />
     )
     const historySection = showTransactions ? (
-        <PlayerHistory
-            key={ownerIdentity}
-            playerId={id}
-            leagueId={leagueId!}
-            transactions={transactions}
-        />
+        <PlayerSection title="League history" expanded={opened.history === true} onToggle={() => toggleSection('history')}>
+            {historyLoading ? <Text style={textStyles.meta}>Loading history…</Text> : transactionsError ? <Pressable onPress={() => { void retryHistory(true) }}><Text>Retry history</Text></Pressable> : <TransactionHistory key={ownerIdentity} playerId={id} leagueId={leagueId!} transactions={transactions} showHeading={false} />}
+        </PlayerSection>
     ) : null
+
+    const lazySections = <>
+        <PlayerSection title="Game log" expanded={opened.games === true} onToggle={() => toggleSection('games')}>
+            {gameLogSection}
+        </PlayerSection>
+        <PlayerSection title="News" expanded={opened.news === true} onToggle={() => toggleSection('news')}>
+            {newsLoading ? <Text style={textStyles.meta}>Loading news…</Text> : newsError ? <Pressable onPress={() => { void retryNews(true) }}><Text>Retry news</Text></Pressable> : news.length === 0 ? <Text style={textStyles.meta}>No recent news.</Text> : news.map(item => <Pressable key={item.id} accessibilityRole={item.url ? 'link' : undefined} disabled={!item.url} onPress={() => { if (item.url && /^https?:\/\//.test(item.url)) void Linking.openURL(item.url) }} style={styles.newsItem}>
+                <Text style={textStyles.rowTitle}>{item.title}</Text>
+                <Text style={textStyles.body}>{item.summary}</Text>
+                <Text style={textStyles.meta}>{item.source}</Text>
+            </Pressable>)}
+        </PlayerSection>
+        {historySection}
+    </>
 
     return (
         <>
@@ -270,21 +287,20 @@ export default function PlayerDetailScreen() {
                         compact={usableWidth < 600}
                     />
                     <View style={styles.body}>
+                        {injuryDetails ? <Text style={textStyles.meta}>{injuryDetails}</Text> : null}
                         {twoColumn ? (
                             <View style={styles.columns}>
                                 <View style={styles.sideColumn}>
                                     {profile}
                                 </View>
                                 <View style={styles.mainColumn}>
-                                    {gameLogSection}
-                                    {historySection}
+                                    {lazySections}
                                 </View>
                             </View>
                         ) : (
                             <>
                                 {profile}
-                                {gameLogSection}
-                                {historySection}
+                                {lazySections}
                             </>
                         )}
                         {dataWarnings.map(message => <Text key={message} style={styles.warningText}>{message}</Text>)}
@@ -328,6 +344,7 @@ export default function PlayerDetailScreen() {
 export { ScreenErrorFallback as ErrorBoundary } from '@/components/ScreenErrorFallback'
 
 const styles = StyleSheet.create({
+    newsItem: { paddingVertical: spacing.md, gap: spacing.xs },
     scroll: { width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center', paddingTop: spacing.sm, paddingBottom: spacing['2xl'], gap: spacing.md },
     body: { gap: spacing.md },
     initialSlot: { flex: 1, minHeight: 0 },

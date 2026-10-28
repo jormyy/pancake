@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261116000500",
+  "candidateVersion": "20261123000100",
   "common": {
     "functions": [
       {
@@ -616,7 +616,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "eb6696b624c2cef1b84617e36c7d80112b3258c7356db0d1e013e47c28e50649",
+          "bodySha256": "f37112815e0ad9452f2634467188d1eb15c088addd89f63bb7970e0620a4118d",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -876,7 +876,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_claim_id uuid, p_member_id uuid, p_user_id uuid, p_drop_player_id uuid DEFAULT NULL::uuid, p_bid_amount integer DEFAULT 0, p_claim_order integer DEFAULT NULL::integer, p_to_ir boolean DEFAULT NULL::boolean, p_to_taxi boolean DEFAULT NULL::boolean",
-          "bodySha256": "4bb454f711d945624fc58a2d8f02a8508b6f1fc9d222cf59b15f8617905ca6f3",
+          "bodySha256": "a2c7cd00742ed7da1e9e58287ee0f3b3b14dae24f34db82b0c666de896c04857",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1897,6 +1897,58 @@
     {
       "filename": "20261116000500_defer_trade_publication.sql",
       "sha256": "c6821ba5b906750eed8185bd17a7e1a4e12ab9d79e76a78d4f2be031d11bb338"
+    },
+    {
+      "filename": "20261117000100_player_link_identity_index.sql",
+      "sha256": "1258a4a2664ece61b3504e34480557230fbfd54ab000187aa218ddeb23d2396a"
+    },
+    {
+      "filename": "20261117000200_stat_player_resolution.sql",
+      "sha256": "a0ad301b92799cedb5fbc6df1bf293a3d2c5c9276b65d8b8a93bb230f5462ac1"
+    },
+    {
+      "filename": "20261118000100_public_cli.sql",
+      "sha256": "ac086a76b856101d33f97073f32b730e65a844d691e803a3248d49e65e07a3f4"
+    },
+    {
+      "filename": "20261118000200_public_matchup_state.sql",
+      "sha256": "ae53b1e7b28e5472f92310726ce1a8ffd5274cb56ff097d13684213fdc29b571"
+    },
+    {
+      "filename": "20261118000300_public_stats_seasons.sql",
+      "sha256": "56f2c9993ce758549d50bc687eb379c6210d8fa2deb64a38f569c18bf0443045"
+    },
+    {
+      "filename": "20261120000100_onenumber_trade_values.sql",
+      "sha256": "de5b5f6a2f1fb36b9593594a53b760ed0caab91f4fcd7758cf4deeaf81845d28"
+    },
+    {
+      "filename": "20261120000200_trade_value_readers.sql",
+      "sha256": "4ec782baae05edd461ae2d4b10c15617255fcb2abab06ac0a6a8473bb2e8a879"
+    },
+    {
+      "filename": "20261120000300_trade_value_cache_refresh.sql",
+      "sha256": "e48dc5bd8a1b1e44f6ea54af35830be565a51440a31f5b4fda8f3cab2b040d63"
+    },
+    {
+      "filename": "20261121000001_league_midnight_waivers.sql",
+      "sha256": "201435c192a2e52438c3a9932599becbb35f6aea98a2730d4d0339f5aeaebdad"
+    },
+    {
+      "filename": "20261121000004_reschedule_waivers_timezone.sql",
+      "sha256": "bc5c35b136364f1f9d28462f1093dbf8c2121c6c4d6136e2ddd075a594dc381e"
+    },
+    {
+      "filename": "20261121000005_league_local_view_day.sql",
+      "sha256": "0623fa17b4a2d948ab7fdb5cb289248333381f48b63f1553cbeef40d7c4de456"
+    },
+    {
+      "filename": "20261122000100_player_views.sql",
+      "sha256": "a4f292737d5e474498e65455811944901a829417dec2f480f40539b7dad0fce5"
+    },
+    {
+      "filename": "20261123000100_release25_player_values_and_schedule.sql",
+      "sha256": "f576270ae6bc5d0925792bf17b47852f21804bfe9305489f79179f559521c0ee"
     }
   ],
   "preMigration": {

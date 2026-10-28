@@ -561,6 +561,36 @@ export type Database = {
           },
         ]
       }
+      dynasty_pick_values: {
+        Row: {
+          derived: boolean
+          draft_year: number
+          fetched_at: string
+          round: number
+          source: string
+          tier: string
+          trade_value: number
+        }
+        Insert: {
+          derived: boolean
+          draft_year: number
+          fetched_at: string
+          round: number
+          source?: string
+          tier: string
+          trade_value: number
+        }
+        Update: {
+          derived?: boolean
+          draft_year?: number
+          fetched_at?: string
+          round?: number
+          source?: string
+          tier?: string
+          trade_value?: number
+        }
+        Relationships: []
+      }
       dynasty_rankings: {
         Row: {
           age: number | null
@@ -588,6 +618,7 @@ export type Database = {
           source_url: string | null
           steals: number | null
           three_pointers_made: number | null
+          trade_value: number | null
           turnovers: number | null
           updated_at: string
         }
@@ -617,6 +648,7 @@ export type Database = {
           source_url?: string | null
           steals?: number | null
           three_pointers_made?: number | null
+          trade_value?: number | null
           turnovers?: number | null
           updated_at?: string
         }
@@ -646,6 +678,7 @@ export type Database = {
           source_url?: string | null
           steals?: number | null
           three_pointers_made?: number | null
+          trade_value?: number | null
           turnovers?: number | null
           updated_at?: string
         }
@@ -1501,6 +1534,55 @@ export type Database = {
             foreignKeyName: "league_seasons_league_id_fkey"
             columns: ["league_id"]
             isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
+      league_share_tokens: {
+        Row: {
+          created_at: string
+          league_id: string
+          revoked_at: string | null
+          token_hash: string
+          window_reads: number
+          window_started_at: string
+        }
+        Insert: {
+          created_at?: string
+          league_id: string
+          revoked_at?: string | null
+          token_hash: string
+          window_reads?: number
+          window_started_at?: string
+        }
+        Update: {
+          created_at?: string
+          league_id?: string
+          revoked_at?: string | null
+          token_hash?: string
+          window_reads?: number
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "league_share_tokens_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: true
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "league_share_tokens_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: true
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "league_share_tokens_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: true
             referencedRelation: "v_player_avg_fantasy_points"
             referencedColumns: ["league_id"]
           },
@@ -3062,6 +3144,52 @@ export type Database = {
         }
         Relationships: []
       }
+      public_read_log: {
+        Row: {
+          hour: string
+          league_id: string
+          reads: number
+          rejected: number
+          resource: string
+        }
+        Insert: {
+          hour: string
+          league_id: string
+          reads?: number
+          rejected?: number
+          resource: string
+        }
+        Update: {
+          hour?: string
+          league_id?: string
+          reads?: number
+          rejected?: number
+          resource?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_read_log_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_read_log_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+          {
+            foreignKeyName: "public_read_log_league_id_fkey"
+            columns: ["league_id"]
+            isOneToOne: false
+            referencedRelation: "v_player_avg_fantasy_points"
+            referencedColumns: ["league_id"]
+          },
+        ]
+      }
       roster_players: {
         Row: {
           acquired_at: string
@@ -4139,6 +4267,56 @@ export type Database = {
           },
         ]
       }
+      trade_value_reviews: {
+        Row: {
+          candidate_ids: string[]
+          fetched_at: string
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_player_id: string | null
+          source_id: string
+          source_name: string
+          source_positions: string[]
+          source_team: string
+          trade_value: number
+        }
+        Insert: {
+          candidate_ids?: string[]
+          fetched_at: string
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_player_id?: string | null
+          source_id: string
+          source_name: string
+          source_positions: string[]
+          source_team: string
+          trade_value: number
+        }
+        Update: {
+          candidate_ids?: string[]
+          fetched_at?: string
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_player_id?: string | null
+          source_id?: string
+          source_name?: string
+          source_positions?: string[]
+          source_team?: string
+          trade_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_value_reviews_resolved_player_id_fkey"
+            columns: ["resolved_player_id"]
+            isOneToOne: false
+            referencedRelation: "players"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_vetos: {
         Row: {
           id: string
@@ -5193,6 +5371,10 @@ export type Database = {
           total_items: number
         }[]
       }
+      claim_trade_value_sync: {
+        Args: { p_request_id: string }
+        Returns: boolean
+      }
       cleanup_trade_estimate_quotes: { Args: never; Returns: number }
       clear_push_token_for_user_atomic: {
         Args: { p_token: string; p_user_id: string }
@@ -5594,7 +5776,19 @@ export type Database = {
           ranking_source: string
           rookie_rank: number
           three_year_rank: number
+          trade_value: number
           years_exp: number
+        }[]
+      }
+      get_dynasty_pick_values: {
+        Args: { p_league_id: string }
+        Returns: {
+          draft_year: number
+          fetched_at: string
+          round: number
+          source: string
+          tier: string
+          trade_value: number
         }[]
       }
       get_league_activity_feed: {
@@ -5786,6 +5980,7 @@ export type Database = {
         Args: { p_trade_id: string; p_user_id: string }
         Returns: Json
       }
+      get_trade_value_sync_state: { Args: never; Returns: Json }
       get_visible_player_totals: {
         Args: {
           p_league_id: string
@@ -6024,9 +6219,29 @@ export type Database = {
         Returns: string
       }
       prune_unbounded_history: { Args: never; Returns: Json }
+      public_prune_read_log: { Args: never; Returns: number }
+      public_read: {
+        Args: { p_params?: Json; p_resource: string; p_token: string }
+        Returns: Json
+      }
+      public_share_token: {
+        Args: { p_action?: string; p_league_id: string }
+        Returns: Json
+      }
       publish_nba_schedule_atomic: {
         Args: { p_games: Json; p_season_year: number; p_weeks: Json }
         Returns: number
+      }
+      publish_trade_values: {
+        Args: {
+          p_fetched_at: string
+          p_mode: string
+          p_picks: Json
+          p_request_id?: string
+          p_rows: Json
+          p_source_body: string
+        }
+        Returns: Json
       }
       queue_daily_stat_corrections: {
         Args: { p_now?: string }
@@ -6149,6 +6364,10 @@ export type Database = {
       resolve_player_imports_atomic: {
         Args: { p_records: Json; p_source: string }
         Returns: Json
+      }
+      resolve_trade_value_review: {
+        Args: { p_player_id: string; p_source_id: string }
+        Returns: undefined
       }
       resume_draft_atomic: {
         Args: { p_actor_user_id?: string; p_draft_id: string }
@@ -6463,6 +6682,13 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      trade_value_review_overrides: {
+        Args: never
+        Returns: {
+          resolved_player_id: string
+          source_id: string
+        }[]
       }
       try_live_poll_lease: {
         Args: { p_lock_key: number; p_ttl_seconds?: number }

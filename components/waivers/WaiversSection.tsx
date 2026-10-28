@@ -56,7 +56,7 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
             onCancel={id => { if (memberId) void mutate(id, () => cancelWaiverClaim(id, memberId)) }}
             onEditBid={async (item, bidAmount) => { if (memberId) return mutate(item.id, () => editWaiverClaim(item.id, memberId, { dropPlayerId: item.dropPlayerId, bidAmount })) }}
             onReorder={(id, direction) => { if (memberId) void mutate(id, () => reorderWaiverClaim(id, memberId, direction)) }} />
-        {claim.status === 'pending' && scheduledClaimRunAt(claim.processDate).getTime() > Date.now() ? <Pressable style={styles.action} accessibilityRole="button" accessibilityLabel={`Edit claim and drop for ${claim.playerName}`}
+        {claim.status === 'pending' && scheduledClaimRunAt(claim.processDate, currentLeague?.timezone).getTime() > Date.now() ? <Pressable style={styles.action} accessibilityRole="button" accessibilityLabel={`Edit claim and drop for ${claim.playerName}`}
             disabled={Boolean(busyId)} onPress={() => router.push({ pathname: '/(modals)/claim-player', params: { playerId: claim.playerId, claimId: claim.id } })}>
             <Text style={styles.link}>Edit claim and drop</Text>
         </Pressable> : null}
@@ -64,7 +64,7 @@ export function WaiversSection({ active, onFindPlayer }: { active: boolean; onFi
     return <ScrollView contentContainerStyle={styles.root}>
         <Text style={textStyles.sectionLabel}>Waivers</Text>
         <Text style={textStyles.body}>{currentLeague?.waiver_mode === 'faab' ? `Available FAAB $${visible?.state?.faabBalance ?? '—'}` : 'Rolling waiver priority'} · Priority #{visible?.priority ?? '—'}</Text>
-        <Text style={textStyles.meta}>Next run {claimProcessDateLabel(null)}</Text>
+        <Text style={textStyles.meta}>Next run {claimProcessDateLabel(null, new Date(), currentLeague?.timezone)}</Text>
         {visible?.state ? <Text style={textStyles.meta}>Pickups {visible.state.weeklyAddCount}/{visible.state.weeklyAddLimit ?? '∞'} this week</Text> : null}
         <Pressable style={styles.action} accessibilityRole="button" onPress={onFindPlayer}><Text style={styles.link}>Find a player to claim</Text></Pressable>
         {!online ? <Text style={textStyles.meta}>Offline. Changes stay pending until you reconnect.</Text> : null}

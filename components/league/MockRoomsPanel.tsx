@@ -1,3 +1,5 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { formatLeagueDateTime, leagueTimezoneLabel } from '@/lib/timezone'
 import { Badge } from '@/components/ui/Badge'
 import { useEffect, useState } from 'react'
 import { useUnsentFormUpdate } from '@/hooks/use-unsent-form-update'
@@ -33,14 +35,8 @@ const ROOM_STATUS_LABELS: Record<MockDraftRoomStatus, string> = {
     completed: 'Completed',
 }
 
-function formatRoomTime(value: string | null): string {
-    if (!value) return 'Now'
-    return new Date(value).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-    })
+function formatRoomTime(value: string | null, timezone: string): string {
+    return value ? formatLeagueDateTime(value, timezone) : 'Now'
 }
 
 function roomTypeLabel(type: MockDraftRoomKind) {
@@ -51,12 +47,12 @@ function roomSectionAccessibilityLabel(status: MockDraftRoomStatus, count: numbe
     return `${ROOM_STATUS_LABELS[status]} mock rooms, ${countLabel(count, 'room')}`
 }
 
-function roomCardAccessibilityLabel(room: MockDraftRoom) {
+function roomCardAccessibilityLabel(room: MockDraftRoom, timezone: string) {
     const startBlockedCopy = roomStartBlockedCopy(room)
     const parts = [
         room.roomName,
         `${ROOM_STATUS_LABELS[room.roomStatus]} ${roomTypeLabel(room.draftType)} mock room`,
-        `starts ${formatRoomTime(room.scheduledAt)}`,
+        `starts ${formatRoomTime(room.scheduledAt, timezone)}`,
         `creator ${room.creatorTeamName}`,
         `${room.participants.length} joined`,
     ]
@@ -197,6 +193,7 @@ function RoomCard({
     onStart: (room: MockDraftRoom) => void
     onDelete: (room: MockDraftRoom) => void
 }) {
+    const timezone = useLeagueTimezone()
     // Live rooms cannot be deleted mid-session; abandoned ones expire daily.
     const deletable = room.isCreator && room.roomStatus !== 'live'
     const action = (
@@ -232,16 +229,16 @@ function RoomCard({
             key={room.id}
             style={[styles.roomCard, compact && styles.roomCardCompact]}
             role="listitem"
-            aria-label={roomCardAccessibilityLabel(room)}
+            aria-label={roomCardAccessibilityLabel(room, timezone)}
             accessibilityRole="text"
-            accessibilityLabel={roomCardAccessibilityLabel(room)}
+            accessibilityLabel={roomCardAccessibilityLabel(room, timezone)}
         >
             <View style={[styles.roomCardTop, compact && styles.roomCardTopCompact]}>
                 <View style={styles.roomTitleWrap}>
                     <Text style={styles.roomTitle} numberOfLines={1}>{room.roomName}</Text>
                     {compact ? null : (
                         <Text style={styles.roomMeta} numberOfLines={1}>
-                            {room.draftType === 'snake' ? 'Rookie' : 'Auction'} - {formatRoomTime(room.scheduledAt)}
+                            {room.draftType === 'snake' ? 'Rookie' : 'Auction'} - {formatRoomTime(room.scheduledAt, timezone)}
                         </Text>
                     )}
                 </View>
@@ -321,6 +318,7 @@ export function MockRoomsPanel({
     onStartRoom: (room: MockDraftRoom) => void
     onDeleteRoom: (room: MockDraftRoom) => void
 }) {
+    const timezone = useLeagueTimezone()
     const { viewportHeight } = useWebViewport()
     const { padX } = usePageMetrics()
     const compactComposer = viewportHeight < 500
@@ -433,7 +431,7 @@ export function MockRoomsPanel({
                     style={styles.textInput}
                     value={roomScheduledAt}
                     onChangeText={onRoomScheduledAtChange}
-                    placeholder="YYYY-MM-DD HH:mm"
+                    placeholder={`YYYY-MM-DD HH:mm (${leagueTimezoneLabel(timezone)})`}
                     placeholderTextColor={colors.inputPlaceholder}
                     autoCapitalize="none"
                     accessibilityLabel="Mock room start time"

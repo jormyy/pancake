@@ -1,6 +1,7 @@
 import { leagueSnapshotRevision } from '@/lib/league-changes'
 import { onSessionCachesCleared, sessionGeneration } from '@/lib/session-cache-registry'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
+import { leagueTimezone } from '@/lib/league-timezones'
 
 type Entry = { leagueId: string; promise: Promise<unknown>; savedAt: number; settled: boolean }
 const entries = new Map<string, Entry>()
@@ -21,14 +22,14 @@ export function readLeagueDaily<Value>(leagueId: string, resourceKey: string, re
     const revision = leagueSnapshotRevision(leagueId, 'daily')
     if (!revision) return read()
     const generation = sessionGeneration()
-    const day = todayET()
+    const day = todayLeague(leagueTimezone(leagueId))
     const key = JSON.stringify([generation, leagueId, day, revision, resourceKey])
     const existing = entries.get(key)
     if (existing && Date.now() - existing.savedAt < MAX_AGE) return existing.promise as Promise<Value>
     const entry: Entry = { leagueId, promise: Promise.resolve(), savedAt: Date.now(), settled: false }
     entry.promise = read().then(value => {
         entry.settled = true
-        if (generation !== sessionGeneration() || day !== todayET() || revision !== leagueSnapshotRevision(leagueId, 'daily')) {
+        if (generation !== sessionGeneration() || day !== todayLeague(leagueTimezone(leagueId)) || revision !== leagueSnapshotRevision(leagueId, 'daily')) {
             if (entries.get(key) === entry) entries.delete(key)
         } else entry.savedAt = Date.now()
         return value

@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import type { MockDraftRoom } from '@/lib/mockDraftRooms'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('@/components/ui/ScreenStatusOverlay', () => ({ ScreenStatusScrollView: 'ScrollView' }))
 vi.mock('@/hooks/use-web-viewport', () => ({ useWebViewport: () => ({ viewportHeight: 900 }) }))

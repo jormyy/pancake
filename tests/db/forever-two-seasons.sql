@@ -1,6 +1,7 @@
 BEGIN;
 SET LOCAL statement_timeout = '60s';
 SET LOCAL lock_timeout = '250ms';
+SET LOCAL request.jwt.claim.role = 'service_role';
 SET LOCAL app.supabase_url = 'http://127.0.0.1:60421';
 SET LOCAL app.edge_internal_token = 'forever-local-recipe';
 ALTER TABLE public.notification_outbox DISABLE TRIGGER notif_draft_immediate_wake;

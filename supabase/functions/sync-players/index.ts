@@ -12,7 +12,7 @@ import { completeRosterCycle, releaseUnlistedPlayers, type HeldReleases, type Li
 
 const SLEEPER_BASE_URL = Deno.env.get('SLEEPER_BASE_URL') ?? 'https://api.sleeper.app/v1'
 const SLEEPER_URL = `${SLEEPER_BASE_URL}/players/nba`
-const CHUNK = 500
+const CHUNK = 50
 
 // ESPN is the primary keyless source; Sleeper is a dormant fallback kept
 // behind this flag (its commercial API moved behind negotiated licensing).
@@ -33,7 +33,7 @@ serveInternal('sync-players', async (req) => {
     const cycle = imported.listing ? await completeRosterCycle(imported.listing.records, imported.listing.gaps, [...imported.failures, ...nbaIds.failures], nbaIds, startedAt) : { released: 0, failure: null }
     players.released += cycle.released
     if (cycle.failure) players.failures.push(cycle.failure)
-    const sleeper = await syncSleeperLinks()
+    const sleeper = await syncSleeperLinks(Math.max(0, 100000 - (performance.now() - started)))
     const news = await syncDynastyNews()
     const career = await syncCareerGames(new Date(), { budgetMs: Math.max(0, 110000 - (performance.now() - started)) })
     const failures = [...players.failures, ...nbaIds.failures, ...sleeper.failures, ...news.failures, ...career.failures]
@@ -52,6 +52,8 @@ serveInternal('sync-players', async (req) => {
         injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
         sleeperIdsLinked: sleeper.linked,
+        identityRefreshDeferred: sleeper.deferred,
+        birthdatesUpdated: sleeper.birthdatesUpdated,
         merged: nbaIds.merged,
         careerGamesUpdated: career.updated,
         careerUnverified: career.unverified,
@@ -59,7 +61,7 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + news.upserted + career.updated,
+      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + sleeper.birthdatesUpdated + news.upserted + career.updated,
       failure,
     }
   }, req)

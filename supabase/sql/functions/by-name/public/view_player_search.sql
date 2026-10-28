@@ -191,6 +191,7 @@ filtered_base AS (
     p.headshot_url,
     p.nba_id,
     p.years_exp,
+    p.dynasty_rank,
     p.career_regular_season_games,
     p.birthdate,
     p.injury_reason,
@@ -239,6 +240,8 @@ paged_base AS (
       filtered_base.*,
       row_number() OVER (
         ORDER BY
+          CASE WHEN p_sort_by = 'dynasty' THEN filtered_base.dynasty_rank END ASC NULLS LAST,
+          CASE WHEN p_sort_by = 'dynasty' AND filtered_base.dynasty_rank IS NULL THEN filtered_base.avg_fantasy_points END DESC NULLS LAST,
           CASE WHEN p_sort_by = 'fpts' AND p_sort_dir = 'asc' THEN filtered_base.avg_fantasy_points END ASC NULLS LAST,
           CASE WHEN p_sort_by = 'fpts' AND p_sort_dir <> 'asc' THEN filtered_base.avg_fantasy_points END DESC NULLS LAST,
           CASE WHEN p_sort_by = 'min' AND p_sort_dir = 'asc' THEN COALESCE(filtered_base.avg_minutes_played, 0) END ASC,

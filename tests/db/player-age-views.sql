@@ -12,7 +12,7 @@ BEGIN
  PERFORM set_config('request.jwt.claim.sub',owner::text,true);
  SELECT to_jsonb(p) INTO value FROM public.view_player_search(p_include_player_ids:=ARRAY[player],p_season_year:=2129) p;
  IF value->>'birthdate' IS DISTINCT FROM birthday::text OR (value->>'age')::int IS DISTINCT FROM 24 THEN RAISE EXCEPTION 'Player search omits birthdate or miscounts age before birthday'; END IF;
- IF (public.view_player(league,member,jsonb_build_object('playerId',player))->'player'->>'age')::int IS DISTINCT FROM 24 THEN RAISE EXCEPTION 'Player profile omits age'; END IF;
+ IF public.view_player(league,member,jsonb_build_object('playerId',player))->'player'->>'birthdate' IS DISTINCT FROM birthday::text THEN RAISE EXCEPTION 'Player profile omits birthdate'; END IF;
  UPDATE players SET birthdate=birthday-1 WHERE id=player;
  SELECT to_jsonb(p) INTO value FROM public.view_player_search(p_include_player_ids:=ARRAY[player],p_season_year:=2129) p;
  IF (value->>'age')::int IS DISTINCT FROM 25 THEN RAISE EXCEPTION 'Player age does not change on birthday'; END IF;

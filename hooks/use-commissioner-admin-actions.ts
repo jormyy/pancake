@@ -7,7 +7,7 @@ import { invalidateWeekNumberCache } from '@/lib/shared/week'
 import { deleteLeague } from '@/lib/league'
 import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
 import {
     ARCHIVE_LEAGUE_DESCRIPTION,
     commissionerLifecyclePolicy,
@@ -69,7 +69,7 @@ export function useCommissionerAdminActions({
     }, [])
 
     const resetOffered = useRef(false)
-    resetOffered.current = Boolean(scheduleStart && scheduleStart > todayET())
+    resetOffered.current = Boolean(scheduleStart && scheduleStart > todayLeague(league?.timezone))
 
     const runAdmin = useCallback(async (
         path: string,
@@ -102,7 +102,7 @@ export function useCommissionerAdminActions({
         ) : undefined
         const scheduleActions: CommissionerAction[] = [
             { id: 'generate-schedule', label: 'Generate Season Schedule', onPress: () => generateSchedule(false) },
-            ...(scheduleStart && scheduleStart > todayET() ? [{
+            ...(scheduleStart && scheduleStart > todayLeague(league?.timezone) ? [{
                 id: 'reset-schedule' as const,
                 label: 'Reset & Regenerate Schedule',
                 intent: 'danger' as const,

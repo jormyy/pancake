@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { TransactionHistory } from '@/components/player/TransactionHistory'
 import type { TransactionHistoryEntry } from '@/lib/players'
+vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 const getPlayerTransactionHistory = vi.hoisted(() => vi.fn())
 

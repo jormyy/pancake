@@ -1,3 +1,5 @@
+import { useLeagueTimezone } from '@/hooks/use-league-timezone'
+import { formatLeagueDate } from '@/lib/timezone'
 import { NewsRow } from './NewsRow'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { newsFeedReady, updateNewsCache, type DynastyNewsCache, type NewsFeed } from '@/components/dynasty/news-cache'
@@ -51,11 +53,11 @@ function playerAvatarUri(player: DynastyRankPlayer): string | null {
     return proxiedNbaHeadshotUrl(player.nbaId) ?? playerHeadshotUrl(player.nbaId) ?? player.headshotUrl
 }
 
-function formatDate(value: string | null): string {
+function formatDate(value: string | null, timezone?: string): string {
     if (!value) return 'Not synced'
     const timestamp = Date.parse(value)
     if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Not synced'
-    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).replace(' ', '\u00a0')
+    return formatLeagueDate(timestamp, timezone).replace(' ', '\u00a0')
 }
 
 function playerPositions(player: DynastyRankPlayer): string[] {
@@ -122,6 +124,7 @@ const RankingRow = memo(RankingRowImpl)
  * Players page owns the heading and the section tabs.
  */
 export function DynastyHub({ section }: { section: DynastySection }) {
+    const timezone = useLeagueTimezone()
     const router = useRouter()
     const { padX } = usePageMetrics()
     const { user } = useAuth()
@@ -273,7 +276,7 @@ export function DynastyHub({ section }: { section: DynastySection }) {
                                 ) : (
                                     activeNews.map((item, index) => (
                                         <View key={item.id}>
-                                            <NewsRow item={item} dateLabel={formatDate(item.publishedAt)} />
+                                            <NewsRow item={item} dateLabel={formatDate(item.publishedAt, timezone)} />
                                             {index < activeNews.length - 1 ? <View style={styles.separator} /> : null}
                                         </View>
                                     ))
