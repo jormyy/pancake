@@ -12,9 +12,7 @@ import { startOrigin } from './origin.mjs'
 export async function startRuntime(at, { resume = false } = {}) {
   const keys = localKeys()
   process.env.SUPABASE_URL = keys.API_URL
-  const databaseUrl = new URL(keys.DB_URL)
-  databaseUrl.searchParams.set('sslmode', 'disable')
-  process.env.SUPABASE_DB_URL = databaseUrl.href
+  process.env.SUPABASE_DB_URL = keys.DB_URL
   const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
   const token = randomBytes(32).toString('hex')
   const clockAudit = JSON.parse(await sql(await readFile(new URL('./clock-audit.sql', import.meta.url), 'utf8')))

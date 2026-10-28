@@ -6,7 +6,7 @@ Database, then Edge, then merge the frontend.
 Production currently stops at migration `20261113000200`, as reported by the release operator.
 The pinned predecessor is release 1 at `1e62824e43044d30007b9601a8a3993c576b6a7e`, using the orchestrator-supplied live bundle digest.
 Release 1 reaches production on 2026-10-27 from frontend commit `1e62824e43044d30007b9601a8a3993c576b6a7e`.
-Apply release 2 through repository head `20261114000200`, for 595 migrations.
+Apply release 2 through repository head `20261114000300`, for 596 migrations.
 Keep published migrations unchanged.
 
 | Migration | Change |
@@ -42,6 +42,7 @@ Keep published migrations unchanged.
 | `20261113000200_worker_lease_phases.sql` | Gives workers five-minute leases and avoids renewal lock waits. |
 | `20261114000100_bounded_worker_database_work.sql` | Bounds retention, refresh batches, active workers and database waits. |
 | `20261114000200_worker_pause_control.sql` | Adds the operator pause control before SQL dispatch claims. |
+| `20261114000300_bounded_dispatch_transactions.sql` | Limits dispatch transactions and avoids duplicate queue insertion waits. |
 
 Freeze the reviewed source and record the current frontend and Edge artifacts before release.
 Refresh migration-range and database security attestations for this exact candidate.
@@ -487,3 +488,22 @@ Incomplete valuation sets keep the season dirty for continuation.
 
 Apply `20261114000100_bounded_worker_database_work.sql`, then `20261114000200_worker_pause_control.sql`.
 Deploy `refresh-views` after these migrations.
+
+## Dispatcher transaction budget
+
+Apply `20261114000300_bounded_dispatch_transactions.sql` after the worker safeguards.
+This change needs no Edge deployment.
+Each dispatch claims one item at a time, with at most eight claims.
+It starts no new item after two seconds.
+The existing cron command keeps its five-second statement limit and 250 ms lock limit.
+Unclaimed items remain pending; no lease starts before an item can run.
+A blocked item records its error before the transaction commits.
+The dispatcher advisory lock skips overlapping runs.
+Run `npm run test:db:dispatcher-contention` on an idle private stack.
+The recipe holds worker rows and the HTTP queue while it checks bounded dispatch and overlap.
+A queued HTTP backlog alone does not prove insertion contention.
+Startup timeouts occur before SQL execution; retain full error context when investigating a failed statement.
+
+Duplicate active work returns before insertion, using the existing active-work index.
+This avoids waiting on an unrelated lease update during a uniqueness check.
+The unique index still rejects concurrent duplicate inserts.

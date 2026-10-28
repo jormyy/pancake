@@ -2258,6 +2258,13 @@
       "statementCount": 8,
       "statementsSha256": "78c6765a538185dcdf2c0944d35477dd246bdf6691279ed81734855adc53bb7c",
       "sha256": "889ad5c3271956cb3b3ba662df9f083df315caa57e18bff5064970487326f91b"
+    },
+    {
+      "name": "bounded_dispatch_transactions",
+      "version": "20261114000300",
+      "statementCount": 2,
+      "statementsSha256": "9ed9448a7e6a5dcccd631aa168887ee1e5100c2851e7332e4205d74ed5161bba",
+      "sha256": "20938785008bc1c0a727bfe109301a5ec7aa40b2c486be92dfbd0471af6d4cb9"
     }
   ]
 }

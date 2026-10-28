@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261114000200",
+  "candidateVersion": "20261114000300",
   "common": {
     "functions": [
       {
@@ -696,7 +696,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_kind text, p_key text, p_due_at timestamp with time zone DEFAULT now(), p_payload jsonb DEFAULT '{}'::jsonb, p_league_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "a5b53f93e8b7b1138c3fb9573dd221aa864a403490d808993eed972a267b3ed0",
+          "bodySha256": "386b7089538893fae86f7b6e92f495111b6436f9903dad6de45b46d1ce48fd56",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -756,7 +756,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "b879f49630c362d8a60060b39c975031df606da130d32e3ef3495606d25a41ad",
+          "bodySha256": "b63a21bdf9c8fc57d524a71869401c6667fad49205d70ff9cd866362ebaa863a",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1735,6 +1735,10 @@
     {
       "filename": "20261114000200_worker_pause_control.sql",
       "sha256": "889ad5c3271956cb3b3ba662df9f083df315caa57e18bff5064970487326f91b"
+    },
+    {
+      "filename": "20261114000300_bounded_dispatch_transactions.sql",
+      "sha256": "20938785008bc1c0a727bfe109301a5ec7aa40b2c486be92dfbd0471af6d4cb9"
     }
   ],
   "preMigration": {
