@@ -27,7 +27,11 @@ BEGIN
     game_status_text=CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)
       AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)
       THEN v_game.game_status_text ELSE p_status_text END,live_scoreboard_elapsed_seconds=p_elapsed_seconds,updated_at=clock_timestamp()
-    WHERE id=p_game_id;
+    WHERE id=p_game_id AND ROW(status,home_score,away_score,game_status_text,live_scoreboard_elapsed_seconds)
+      IS DISTINCT FROM ROW(p_status,p_home_score,p_away_score,
+        CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)
+          AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)
+          THEN v_game.game_status_text ELSE p_status_text END,p_elapsed_seconds);
   RETURN true;
 END;
 $$;

@@ -116,7 +116,9 @@
     "components/ui/index.ts",
     "tests/e2e/navigation-walkthrough.mjs",
     "tests/ui/release-design-capture.mjs",
-    "tests/lib/timeline/browser/{main.tsx,safe-area.ts,supabase.ts,vite.config.mjs}"
+    "tests/lib/timeline/browser/{main.tsx,safe-area.ts,supabase.ts,vite.config.mjs}",
+    "tests/db/home-review-round3.mjs",
+    "tests/e2e/{trade-legality-browser,ui-round4,ux-round3}.mjs"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

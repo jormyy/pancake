@@ -1,6 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { expect, it, vi } from 'vitest'
+import { compactBadgeTokens } from '@/components/ui/Badge'
 import { INJURY_COLORS } from '@/constants/tokens'
 import { Badge, InjuryBadge } from '@/components/Badge'
 import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
@@ -8,13 +9,17 @@ import { PlayerHeader } from '@/components/player/PlayerHeader'
 import { PlayerSearchItem } from '@/components/PlayerSearchItem'
 import { ReadOnlyRosterPlayerItem } from '@/components/roster/RosterItems'
 import { RosterPlayerSheet } from '@/components/roster/RosterPlayerSheet'
-import { AssetList } from '@/components/trades/TradeCard'
+import { clearSessionCaches, setSessionOwner } from '@/lib/session-cache-registry'
+import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import type { TradeItem } from '@/lib/trades'
+import { AssetList, tradeFlowItem } from '@/components/trades/TradeCard'
 import { playerRow, rosterPlayer } from '../helpers/fixtures'
 
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))
 vi.mock('@/components/Avatar', () => ({ Avatar: 'Avatar' }))
 vi.mock('@/components/Motion', () => ({ MotionView: 'View', MotionPressable: 'Pressable' }))
-vi.mock('@/lib/supabase', () => ({ supabase: {} }))
+const ageQueries = vi.hoisted(() => ({ read: vi.fn() }))
+vi.mock('@/lib/supabase', () => ({ supabase: { from: () => ({ select: () => ({ in: ageQueries.read }) }) } }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 vi.mock('@/components/ui/Sheet', () => ({ Sheet: ({ children }: React.PropsWithChildren) => React.createElement('View', null, children) }))
@@ -108,4 +113,73 @@ it.each(['Day-To-Day', 'day-to-day', 'DTD', 'dtd', 'GTD', ' gtd '])('renders %s 
     expect(badge.props.accessibilityLabel).toBe('Day-To-Day')
     expect(badge.props.color).toBe(INJURY_COLORS.Out)
     await act(async () => screen.unmount())
+})
+
+
+it('uses the same smaller token for every compact status badge', async () => {
+    const screen = await render(React.createElement(PlayerSearchItem, {
+        item: playerRow({ years_exp: 0, career_regular_season_games: 1, injury_status: 'DTD' }),
+        currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
+    }))
+    const badges = screen.root.findAllByType(Badge).filter(node => ['DTD', 'R', 'T:1'].includes(node.props.label))
+    expect(badges).toHaveLength(3)
+    expect(badges.map(node => node.props.size)).toEqual(['compact', 'compact', 'compact'])
+    await act(async () => screen.unmount())
+})
+
+it('places known age immediately before experience in the roster sheet', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-28T12:00:00Z'))
+    try {
+        const source = rosterPlayer()
+        source.players.birthdate = '2001-10-29'
+        const screen = await render(React.createElement(RosterPlayerSheet, { player: source, actions: [], onClose: () => {} }))
+        const values = labels(screen)
+        expect(values.slice(-2)).toEqual(['24', 'Yr 3'])
+        await act(async () => screen.unmount())
+    } finally { vi.useRealTimers() }
+})
+
+
+it.each(['DTD', 'O', 'OUT', 'IR', 'R', 'T:1'])('renders %s below the game-line size with the compact token', async label => {
+    const screen = await render(React.createElement(Badge, { label, size: 'compact' }))
+    const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
+    const text = screen.root.findByType('Text' as React.ElementType)
+    const container = screen.root.findAllByType('View' as React.ElementType)[0]
+    expect(flat(container.props.style).minHeight).toBe(compactBadgeTokens.minHeight)
+    expect(flat(text.props.style).fontSize).toBe(compactBadgeTokens.fontSize)
+    expect(compactBadgeTokens.minHeight).toBe(12)
+    expect(compactBadgeTokens.fontSize).toBe(9)
+    await act(async () => screen.unmount())
+})
+
+
+it('places age before experience in trade cards, listings and routed trade rows', async () => {
+    const { TradeBlockListingRow } = await import('@/components/trades/TradeListRow')
+    const item: Extract<TradeItem, { kind: 'player' }> = { kind: 'player', playerId: 'trade', playerName: 'Trade player', nbaTeam: 'BOS', position: 'PG', yearsExp: 2, fromMemberId: 'me', toMemberId: 'other' }
+    ageQueries.read.mockResolvedValue({ data: [{ id: 'trade', birthdate: '2001-10-29' }], error: null })
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-28T12:00:00Z'))
+    setSessionOwner('age-surface-test')
+    clearSessionCaches()
+    try {
+        const flow = tradeFlowItem(item, 0)!
+        const screen = await render(React.createElement(React.Fragment, null,
+            React.createElement(AssetList, { items: [item], label: 'Receive' }),
+            React.createElement(TradeBlockListingRow, {
+                item: { _type: 'blockItem', item: { id: 'listing', memberId: 'other', teamName: 'Other', asset: item, note: null, updatedAt: '2026-10-28T12:00:00Z' } },
+                myMemberId: 'me', blockBusyId: null, onRemove: () => {}, onSaveNote: async () => true,
+            }),
+            React.createElement(PlayerRowContent, flow.player!),
+        ))
+        const rows = screen.root.findAllByProps({ testID: 'player-meta-line' })
+        expect(rows).toHaveLength(3)
+        expect(rows.map(row => row.findAllByType(Badge).map(badge => badge.props.label).slice(-2))).toEqual(Array(3).fill(['24', 'Yr 3']))
+        expect(ageQueries.read).toHaveBeenCalledWith('id', ['trade'])
+        await act(async () => screen.unmount())
+    } finally {
+        setSessionOwner(null)
+        clearSessionCaches()
+        vi.useRealTimers()
+    }
 })

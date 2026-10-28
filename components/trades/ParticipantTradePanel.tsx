@@ -114,7 +114,7 @@ export function ParticipantTradePanel({
                         return (
                             <View key={`player:${playerId}`} style={styles.selectedRouteRow}>
                                 <PlayerRowContent name={player.players.display_name} nbaId={player.players.nba_id} team={player.players.nba_team} positions={player.players.eligible_positions ?? []}
-                                    yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
+                                    birthdate={player.players.birthdate} yearsExp={player.players.years_exp} careerGames={player.players.career_regular_season_games} injuryStatus={player.players.injury_status} />
                                 <RouteOptions
                                     destinationIds={participant.destinationIds}
                                     selectedId={participant.playerDestinationIds[playerId]}

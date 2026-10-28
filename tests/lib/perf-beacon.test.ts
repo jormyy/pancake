@@ -39,6 +39,17 @@ describe('production timing beacons', () => {
         expect(send).toHaveBeenCalledTimes(2)
     })
 
+    it('sends no further writes when the painted screen stays unchanged', async () => {
+        const { paint, send } = setup()
+        const screen = paint()
+        screen.painted([resource])
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(send).toHaveBeenCalledTimes(1)
+        expect(send.mock.calls[0][0]).toHaveLength(1)
+        await vi.advanceTimersByTimeAsync(600_000)
+        expect(send).toHaveBeenCalledTimes(1)
+    })
+
     it('drops queued and new rows offline without retries', async () => {
         const { paint, send, offline, client } = setup()
         paint(); offline(); client.drop(); paint()

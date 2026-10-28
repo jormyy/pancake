@@ -14,21 +14,20 @@ let screen: ReactTestRenderer
 const texts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join(''))
 afterEach(async () => act(async () => screen?.unmount()))
 
-it.each([0, 1, 2])('reports %s required drops from the displayed roster counts', async excess => {
+it.each([0, 1, 2])('keeps capacity lines compact with %s excess players', async excess => {
     const team: TradeRosterPreview = { memberId: 'partner', teamName: 'Team 006', limits: { active: 20, ir: 2, taxi: 3 },
         roster: Array.from({ length: 20 + excess }, (_, i) => ({ playerId: String(i), name: `Player ${i}`, location: 'active' })), drops: [], moves: [], error: null }
     await act(async () => { screen = create(React.createElement(TradeRosterPreviewList, { teams: [team] })) })
     expect(texts()).toContain(`Team 006: ${20 + excess}/20 · IR 0/2 · Taxi 0/3`)
-    if (excess) expect(texts()).toContain(`Team 006 must drop ${excess} ${excess === 1 ? 'player' : 'players'} to accept.`)
-    else expect(texts().join(' ')).not.toContain('must drop')
+    expect(texts().join(' ')).not.toContain('must drop')
 })
 
-it('counts overflow across each shown roster group', async () => {
+it('shows each roster group without a second legality step', async () => {
     const team: TradeRosterPreview = { memberId: 'partner', teamName: 'Team 006', limits: { active: 0, ir: 0, taxi: 0 }, roster: [
         { playerId: 'a', name: 'A', location: 'active' }, { playerId: 'b', name: 'B', location: 'ir' }, { playerId: 'c', name: 'C', location: 'taxi' },
     ], drops: [], moves: [], error: null }
     await act(async () => { screen = create(React.createElement(TradeRosterPreviewList, { teams: [team] })) })
-    expect(texts()).toContain('Team 006 must drop 3 players to accept.')
+    expect(texts()).toEqual(['Resulting rosters', 'Team 006: 1/0 · IR 1/0 · Taxi 1/0'])
 })
 
 it('keeps complete asset values and range on one line', async () => {

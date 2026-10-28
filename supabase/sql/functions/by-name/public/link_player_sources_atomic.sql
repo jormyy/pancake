@@ -22,6 +22,11 @@ BEGIN
     v_id:=NULL; v_action:='updated';
     SELECT p.id INTO v_id FROM public.players p WHERE CASE p_source
       WHEN 'espn' THEN p.espn_id WHEN 'nba' THEN p.nba_id ELSE p.sleeper_id END=v_source_id FOR UPDATE;
+    IF p_source IN ('espn','sleeper') AND v_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM public.players p WHERE p.id=v_id
+        AND private.player_import_name_key(p.display_name) IS DISTINCT FROM private.player_import_name_key(v_name)
+        AND private.player_identity_name(p.display_name) IS DISTINCT FROM private.player_identity_name(v_name)
+    ) THEN v_id:=NULL; v_action:='ambiguous'; END IF;
     IF v_id IS NOT NULL THEN
       SELECT * INTO v_player FROM public.players WHERE id=v_id FOR UPDATE;
       SELECT array_agg(p.id ORDER BY p.id) INTO v_ids FROM public.players p

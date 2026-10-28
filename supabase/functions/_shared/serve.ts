@@ -1,5 +1,5 @@
 import { requireInternalFunctionAuth } from './auth.ts'
-import { internalServerError } from './responses.ts'
+import { internalServerError, logInternalError } from './responses.ts'
 import { runEdgeInvocation } from './syncRuns.ts'
 import { withWorkContext } from './workContext.ts'
 
@@ -18,9 +18,11 @@ export function serveInternal(
       const requestId = req.headers.get('x-request-id')
       const requestActor = req.headers.get('x-request-actor')
       const run = () => runEdgeInvocation(scope, req, handler)
-      return requestId && requestActor
+      const response = requestId && requestActor
         ? await withWorkContext({ signal: req.signal, requestId, requestActor }, run)
         : await run()
+      if (response.status >= 500) logInternalError(scope, new Error(`Worker returned HTTP ${response.status}`))
+      return response
     } catch (error) {
       return internalServerError(scope, error)
     }

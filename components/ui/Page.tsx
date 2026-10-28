@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
         borderBottomColor: colors.borderLight,
     },
     // Tabs sit on the bottom border; titles and back controls center in the row.
-    headerTabs: { alignItems: 'center', ...componentTokens.pageHeader.tabs },
+    headerTabs: { alignItems: 'center', ...componentTokens.pageHeader.tabs, marginBottom: spacing.md },
     headerCentered: { alignItems: 'center', minHeight: componentTokens.pageHeader.standard.minHeight, paddingVertical: componentTokens.pageHeader.standard.paddingVertical },
     headerCompact: { minHeight: componentTokens.pageHeader.compact.minHeight, paddingVertical: componentTokens.pageHeader.compact.paddingVertical },
     titleCompact: { ...componentTokens.pageHeader.compact.title },

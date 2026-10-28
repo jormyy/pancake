@@ -10,6 +10,7 @@ export type TradeVetoMode = 'disabled' | 'commissioner' | 'member_vote'
 export interface LeagueInfo {
     id: string
     name: string
+    timezone?: string
     invite_code: string | null
     status: LeagueStatus
     commissioner_id: string

@@ -11,5 +11,5 @@ export function tradeAcceptanceSummary(trade: Trade, teams: TradeRosterPreview[]
         .map(item => item.kind === 'player' ? item.playerName : item.kind === 'pick' ? `${pickLabel(item.seasonYear, item.round)} pick` : `$${item.amount} FAAB`).join(', ') || 'nothing'
     const drops = teams.find(team => team.memberId === memberId)?.drops ?? []
     return [`You give: ${assets('fromMemberId')}`, `You get: ${assets('toMemberId')}`, ...teams.map(tradeCapacityLine),
-        ...(drops.length ? [`You must drop ${drops.length} ${drops.length === 1 ? 'player' : 'players'} to accept`, `Drops: ${drops.map(player => player.name).join(', ')}`] : []), 'Completes after review.'].join('\n')
+        ...(drops.length ? [`Drops: ${drops.map(player => player.name).join(', ')}`] : []), 'Completes after review.'].join('\n')
 }

@@ -17,11 +17,15 @@ BEGIN
   -- Roster mutations take team locks, then player locks, before row locks.
   FOR v_id IN SELECT DISTINCT id FROM unnest(p_member_ids) AS id WHERE id IS NOT NULL ORDER BY id
   LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_id::text));
+    IF NOT pg_try_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_id::text)) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
   FOR v_id IN SELECT DISTINCT id FROM unnest(p_player_ids) AS id WHERE id IS NOT NULL ORDER BY id
   LOOP
-    PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_id::text));
+    IF NOT pg_try_advisory_xact_lock(hashtext(p_league_id::text), hashtext(v_id::text)) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
 END;
 $$;

@@ -1,6 +1,6 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
-import { afterEach } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { useMatchupData } from '@/hooks/use-matchup-data'
 import type { HomeView } from '@/lib/cache/view-types'
 import type { Matchup } from '@/lib/scoring'
@@ -27,3 +27,5 @@ export function homeHarness(observe?: (value: ReturnType<typeof useMatchupData>)
     afterEach(unmount)
     return { get latest() { return latest }, frames, render, unmount, surface: () => resolveHomeSurface({ leagueStatus: 'active', hasMatchup: Boolean(latest.matchup), loading: latest.matchupLoading, error: latest.error, emptyConfirmed: latest.emptyConfirmed }) }
 }
+
+vi.mock('@/hooks/use-matchup-game-times', () => ({ useMatchupGameTimes: () => null }))

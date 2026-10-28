@@ -31,7 +31,7 @@ BEGIN
   PERFORM pg_temp.check_rules(finalized_version>initial_version AND (SELECT dirty FROM private.screen_refresh_queue WHERE league_season_id=f.season_id),'finalization queues a new standings version');
   PERFORM pg_temp.check_rules((SELECT wins=0 FROM standings_current WHERE member_id=f.member_ids[1]),'current standings wait for the refresh worker');
   PERFORM public.dispatch_work();
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job),'only the minute dispatcher owns scheduling');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'only the minute dispatcher owns scheduling');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM edge_invocations invocation JOIN private.work_items work ON work.id=invocation.work_item_id
     WHERE invocation.function_name='refresh-views' AND work.kind='refresh-views'),'single dispatcher invokes the correlated refresh worker');
   SELECT value INTO claim FROM jsonb_array_elements(public.view_refresh_work(p_params:='{"operation":"claim","limit":10}')) WHERE value->>'seasonId'=f.season_id::text;

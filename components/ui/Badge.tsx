@@ -1,5 +1,13 @@
 import { View, Text, StyleSheet, type StyleProp, type ViewStyle, type TextStyle } from 'react-native'
-import { colors, componentTokens, radii, textStyles } from '@/constants/tokens'
+import { colors, componentTokens, radii, spacing, textStyles } from '@/constants/tokens'
+
+export const compactBadgeTokens = {
+    minHeight: textStyles.tableHeader.lineHeight,
+    paddingHorizontal: spacing.xxs,
+    paddingVertical: 0,
+    fontSize: 9,
+    lineHeight: textStyles.tableHeader.lineHeight,
+}
 
 type Variant = 'solid' | 'soft'
 
@@ -12,7 +20,7 @@ type Props = {
     textColor?: string
     variant?: Variant
     inline?: boolean
-    size?: 'standard' | 'inline' | 'count' | 'status' | 'ownership' | 'small' | 'outlined'
+    size?: 'compact' | 'standard' | 'inline' | 'count' | 'status' | 'ownership' | 'small' | 'outlined'
     style?: StyleProp<ViewStyle>
     textStyle?: StyleProp<TextStyle>
     maxWidth?: number
@@ -41,6 +49,7 @@ export function Badge({
             style={[
                 styles.badge,
                 inline && styles.inline,
+                size === 'compact' && styles.compact,
                 inline && String(label ?? '').length === 1 && styles.inlineCircle,
                 variant === 'solid' && { backgroundColor: color },
                 size === 'count' && styles.count,
@@ -58,7 +67,7 @@ export function Badge({
             {variant === 'soft' ? (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: color, opacity: componentTokens.badge.tintOpacity }]} />
             ) : null}
-            <Text style={[styles.text, inline && styles.inlineText, (size === 'count' || size === 'small') && styles.countText, { color: fg }, textStyle]}>
+            <Text style={[styles.text, inline && styles.inlineText, size === 'compact' && styles.compactText, (size === 'count' || size === 'small') && styles.countText, { color: fg }, textStyle]}>
                 {label}
             </Text>
         </View>
@@ -71,6 +80,8 @@ const styles = StyleSheet.create({
         borderCurve: 'continuous',
         overflow: 'hidden',
     },
+    compact: { minHeight: compactBadgeTokens.minHeight, paddingHorizontal: compactBadgeTokens.paddingHorizontal, paddingVertical: compactBadgeTokens.paddingVertical, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+    compactText: { fontSize: compactBadgeTokens.fontSize, lineHeight: compactBadgeTokens.lineHeight },
     inline: { ...componentTokens.badge.inline, justifyContent: 'center', flexShrink: 0 },
     inlineCircle: { minWidth: componentTokens.badge.inline.minHeight, paddingHorizontal: 0, borderRadius: radii.full, alignItems: 'center' },
     ownership: { minHeight: componentTokens.badge.ownership.minHeight, paddingHorizontal: componentTokens.badge.ownership.paddingHorizontal, paddingVertical: componentTokens.badge.ownership.paddingVertical, borderRadius: componentTokens.badge.ownership.borderRadius, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },

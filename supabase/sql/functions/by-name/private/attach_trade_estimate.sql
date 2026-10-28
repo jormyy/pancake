@@ -3,7 +3,8 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE quote public.trade_estimate_quotes%ROWTYPE; trade public.trades%ROWTYPE; terms jsonb;
 BEGIN
   IF p_quote_id IS NULL THEN
-    INSERT INTO public.trade_estimates(trade_id,unavailable_reason) VALUES(p_trade_id,'No saved estimate was available when these terms were submitted.');
+    INSERT INTO public.trade_estimates(trade_id,unavailable_reason) VALUES(p_trade_id,'The trade estimate is being prepared.');
+    PERFORM private.work_enqueue('trade-estimate',p_trade_id::text,now(),jsonb_build_object('tradeId',p_trade_id));
     RETURN;
   END IF;
   SELECT * INTO quote FROM public.trade_estimate_quotes WHERE id=p_quote_id;

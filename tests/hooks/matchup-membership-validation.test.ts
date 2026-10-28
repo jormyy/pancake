@@ -4,7 +4,7 @@ import { act } from 'react-test-renderer'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { saveScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const h = homeHarness()
@@ -21,7 +21,7 @@ it('waits for membership validation before confirming a fresh empty answer', asy
     expect(h.surface()).toBe('empty')
 })
 it.each([null, homePayload().matchup])('restores the authorized cached answer %j during revalidation', async matchup => {
-    saveScreenView(screenScope('home', 'league', 'member', { date: todayET() }, 'account'), { ...homePayload(), matchup }, '1')
+    saveScreenView(screenScope('home', 'league', 'member', { date: todayLeague() }, 'account'), { ...homePayload(), matchup }, '1')
     await h.render({ validated: false })
     expect(boundary.read).not.toHaveBeenCalled()
     expect(h.surface()).toBe(matchup ? 'matchup' : 'empty')

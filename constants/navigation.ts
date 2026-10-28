@@ -17,7 +17,6 @@ export const SHELL_BACK_HEADER_ROUTES = [
     '/commissioner-settings',
     '/create-league',
     '/join-league',
-    '/bracket',
     '/draft',
     '/draft-room',
     '/rookie-draft-room',

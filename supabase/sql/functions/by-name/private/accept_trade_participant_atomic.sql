@@ -25,6 +25,8 @@ DECLARE
   v_taxi_incoming int;
   v_taxi_held int;
 BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
   -- Read first, lock parties and players in the order every roster mutation
   -- uses, then lock the trade row: a drop that expires this offer holds the
   -- member and player locks while it updates the trade, so taking the trade
@@ -72,10 +74,12 @@ BEGIN
      WHERE participant.trade_id = p_trade_id
      ORDER BY participant.member_id ASC
   LOOP
-    PERFORM pg_advisory_xact_lock(
+    IF NOT pg_try_advisory_xact_lock(
       hashtext(v_trade.league_id::text),
       hashtext(v_member_lock::text)
-    );
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
 
   FOR v_lock_player_id IN
@@ -84,10 +88,12 @@ BEGIN
       UNION SELECT unnest(drop_player_ids) FROM trade_participants WHERE trade_id=p_trade_id
     ) touched ORDER BY player_id ASC
   LOOP
-    PERFORM pg_advisory_xact_lock(
+    IF NOT pg_try_advisory_xact_lock(
       hashtext(v_trade.league_id::text),
       hashtext(v_lock_player_id::text)
-    );
+    ) THEN
+      RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
+    END IF;
   END LOOP;
 
   -- Accepted completion owns its trade row before team locks. A stale pending
@@ -97,7 +103,7 @@ BEGIN
     FROM trades
    WHERE id = p_trade_id
      AND status = 'pending'::trade_status
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
@@ -134,7 +140,7 @@ BEGIN
     INTO v_league
     FROM leagues
    WHERE id = v_trade.league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.';
@@ -149,7 +155,7 @@ BEGIN
     FROM league_seasons AS season
    WHERE season.id = v_trade.league_season_id
      AND season.is_current = true
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Trades require the current season.'
@@ -266,6 +272,10 @@ BEGIN
     END IF;
   END IF;
 
+  IF v_all_accepted THEN
+    PERFORM private.work_enqueue('trade-activation',p_trade_id::text,now(),jsonb_build_object('tradeId',p_trade_id));
+  END IF;
+
   RETURN jsonb_build_object(
     'expired', false,
     'isMultiTeam', COALESCE(v_trade.is_multi_team, false),
@@ -278,5 +288,7 @@ BEGIN
        WHERE participant.trade_id = p_trade_id
     )
   );
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
 END;
 $$;

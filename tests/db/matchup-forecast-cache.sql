@@ -12,7 +12,7 @@ BEGIN
     VALUES(matchup,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2],100,90);
   PERFORM pg_temp.check_rules((SELECT dirty FROM private.matchup_forecast_queue WHERE matchup_id=matchup),'new matchup queues a shared forecast');
   DELETE FROM private.matchup_forecast_queue WHERE matchup_id=matchup;
-  PERFORM public.invoke_matchup_forecasts_if_due();
+  PERFORM private.enqueue_matchup_forecasts();
   PERFORM pg_temp.check_rules((SELECT dirty FROM private.matchup_forecast_queue WHERE matchup_id=matchup),'scheduler discovers newly eligible periods without a viewer');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.claim_matchup_forecasts(integer)','EXECUTE'),'clients cannot claim forecast work');
   PERFORM pg_temp.check_rules(NOT has_table_privilege('authenticated','public.matchup_forecasts','INSERT'),'clients cannot forge cached forecasts');

@@ -19,7 +19,11 @@ BEGIN
   ON CONFLICT (league_season_id, member_id) DO UPDATE SET team_name = EXCLUDED.team_name,
     wins = EXCLUDED.wins, losses = EXCLUDED.losses, ties = EXCLUDED.ties,
     points_for = EXCLUDED.points_for, points_against = EXCLUDED.points_against, max_points_for = EXCLUDED.max_points_for,
-    version = EXCLUDED.version, refreshed_at = now() WHERE cached.version < EXCLUDED.version;
+    version = EXCLUDED.version, refreshed_at = now() WHERE cached.version < EXCLUDED.version
+      AND (md5((to_jsonb(cached)-ARRAY['version','refreshed_at'])::text)
+        IS DISTINCT FROM md5((to_jsonb(EXCLUDED)-ARRAY['version','refreshed_at'])::text)
+        OR (to_jsonb(cached)-ARRAY['version','refreshed_at'])
+          IS DISTINCT FROM (to_jsonb(EXCLUDED)-ARRAY['version','refreshed_at']));
   RETURN true;
 END;
 $$;

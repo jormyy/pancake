@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
             trade_deadline: null,
             waiver_mode: 'faab',
             allow_inactive_trades: false,
+            roster_size: 20,
             ir_slots: 2,
             taxi_slots: 3,
         },
@@ -79,8 +80,8 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         participantIds: mocks.participantIds,
         participantName: vi.fn(),
         participantRosters: {
-            'member-a': ['player-a', 'drop', 'keep-drop'].map(id => ({ players: { id, display_name: id } })),
-            'member-b': ['player-b', 'incoming-taxi', 'incoming-ir'].map(id => ({ players: { id, display_name: id } })),
+            'member-a': ['player-a', 'drop', 'keep-drop'].map(id => ({ players: { id, display_name: id, injury_status: 'Out' } })),
+            'member-b': ['player-b', 'incoming-taxi', 'incoming-ir'].map(id => ({ players: { id, display_name: id, injury_status: 'Out' } })),
         },
         participantViews: mocks.participantIds.map((memberId) => ({ memberId })),
         prefillFromTrade: mocks.prefillFromTrade,
@@ -199,6 +200,7 @@ beforeEach(() => {
             trade_deadline: null,
             waiver_mode: 'faab',
             allow_inactive_trades: false,
+            roster_size: 20,
             ir_slots: 2,
             taxi_slots: 3,
         },
@@ -556,6 +558,7 @@ describe('propose trade async ownership', () => {
                 trade_deadline: null,
                 waiver_mode: 'faab',
             allow_inactive_trades: false,
+            roster_size: 20,
             ir_slots: 2,
             taxi_slots: 3,
             },
@@ -855,4 +858,41 @@ it('opens roster resolution before sending a proposal from an ineligible taxi ro
     expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
     expect(renderer.root.findByType('IRResolutionModal' as React.ElementType).props.ineligibleIR).toEqual([taxi])
     await act(async () => renderer.unmount())
+})
+
+it('disables Send until the proposer chooses enough drops while leaving the recipient plan for acceptance', async () => {
+    mocks.context.currentLeague.roster_size = 1
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+    const send = () => screen.root.findByProps({ testID: 'trade-confirm-submit' })
+    expect(send().props.disabled).toBe(true)
+    await act(async () => send().props.onPress())
+    expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
+    const editor = () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType)
+    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop'] }))
+    expect(send().props.disabled).toBe(true)
+    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop', 'keep-drop'] }))
+    expect(send().props.disabled).toBe(false)
+    await act(async () => send().props.onPress())
+    expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan.dropPlayerIds).toEqual(['drop', 'keep-drop'])
+    await act(async () => screen.unmount())
+})
+
+it('disables Send for IR and Taxi overflow until the incoming player returns to Regular', async () => {
+    mocks.context.currentLeague.ir_slots = 0
+    mocks.context.currentLeague.taxi_slots = 0
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
+    const send = () => screen.root.findByProps({ testID: 'trade-confirm-submit' })
+    const editor = () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType)
+    expect(send().props.disabled).toBe(false)
+    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: ['player-b'], dropPlayerIds: [] }))
+    expect(send().props.disabled).toBe(true)
+    await act(async () => editor().props.onChange({ taxiPlayerIds: ['player-b'], irPlayerIds: [], dropPlayerIds: [] }))
+    expect(send().props.disabled).toBe(true)
+    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }))
+    expect(send().props.disabled).toBe(false)
+    await act(async () => screen.unmount())
 })

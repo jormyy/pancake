@@ -104,7 +104,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
             <View style={styles.claimTop}>
                 <PendingMutationBadge rowId={claim.id} />
                 <PlayerRowContent name={claim.playerName} nbaId={claim.playerNbaId} team={claim.playerTeam} positions={claim.playerPosition ? [claim.playerPosition] : []} injuryStatus={claim.playerInjuryStatus}
-                    yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames}
+                    playerId={claim.playerId} yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames}
                     stats={<View>
                         <Text style={styles.meta} numberOfLines={2}>{[
                             claim.toTaxi ? 'To taxi' : claim.toIr ? 'To IR' : null,

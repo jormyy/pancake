@@ -213,14 +213,14 @@ function TradesScreen() {
                 return <TradeOfferRow item={item} myMemberId={myMemberId} tab={tab}
                     tradeVetoMode={currentLeague?.trade_veto_mode ?? 'member_vote'}
                     isCommissioner={isCommissioner} acting={tradeActions.busyTradeId !== null} decisionsDisabled={decisionsDisabled}
-                    onAccept={tradeActions.accept} onReject={tradeActions.reject}
+                    onAccept={openTradeDetails} onReject={tradeActions.reject}
                     onVeto={tradeActions.veto} onWithdraw={tradeActions.withdraw}
                     onAnalyze={openAnalyzer} selected={split && item.trade.id === openTrade?.id} brief={split}
                     onOpen={openTradeDetails} />
         }
     }, [blockAvgMap, blockAvgStatsMap, blockBusyId, decisionsDisabled, currentLeague?.trade_veto_mode, gridColumns, handleListPick, handleListPlayer,
         handleRemoveBlockItem, handleSaveBlockNote, isCommissioner, listedPickIds, listedPlayerIds, myMemberId, myTeamName,
-        openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.accept, tradeActions.busyTradeId, tradeActions.reject,
+        openAnalyzer, openTrade?.id, openTradeDetails, split, tab, tradeActions.busyTradeId, tradeActions.reject,
         tradeActions.veto, tradeActions.withdraw])
 
     const activeTabLoading = tab === 'block' ? !blockDisplayReady || (picksLoading && picks === null)

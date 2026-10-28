@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFile } from 'node:fs/promises'
 import path from 'node:path'
 import { season, config, originUrl, assertTarget, miniRoot, writeJson } from './common.mjs'
@@ -21,7 +21,13 @@ export function actionClient(keys) {
    */
   async function request(origin, route, token, body, expected = 200, method) {
     assertTarget(origin, new URL(origin).port === String(config.ports.edge) ? 'edge' : 'api')
-    const response = await fetch(`${origin}${route}`, { method: method ?? (body ? 'POST' : 'GET'), headers: { apikey: keys.ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' }, body: body ? JSON.stringify(body) : undefined, redirect: 'error' })
+    const verb = method ?? (body ? 'POST' : 'GET')
+    const headers = new Headers({ apikey: keys.ANON_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=representation' })
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(verb.toUpperCase())) {
+      const supplied = body && typeof body === 'object' ? ('p_request_id' in body ? body.p_request_id : 'requestId' in body ? body.requestId : undefined) : undefined
+      headers.set('x-request-id', typeof supplied === 'string' ? supplied : randomUUID())
+    }
+    const response = await fetch(`${origin}${route}`, { method: verb, headers, body: body ? JSON.stringify(body) : undefined, redirect: 'error' })
     const text = await response.text()
     const data = text ? JSON.parse(text) : null
     await appendFile(path.join(miniRoot, 'evidence/user-actions.jsonl'), `${JSON.stringify({ provenance: 'SYNTHETIC', route, status: response.status, expected, realAt: new Date().toISOString() })}\n`)
@@ -40,7 +46,11 @@ export function actionClient(keys) {
   /** @param {number | number[]} [expected] */
   const rpc = async (user, name, body, expected = 200) => request(keys.API_URL, `/rest/v1/rpc/${name}`, await refresh(user), body, expected)
   /** @param {number | number[]} [expected] */
-  const api = async (user, route, body, expected = 200) => request(originUrl('edge'), `/functions/v1/api${route}`, await refresh(user), body, expected)
+  const api = async (user, route, body, expected = 200) => {
+    const payload = body && typeof body === 'object' && !Array.isArray(body)
+      ? { ...body, requestId: body.p_request_id ?? body.requestId ?? randomUUID() } : body
+    return request(originUrl('edge'), `/functions/v1/api${route}`, await refresh(user), payload, expected)
+  }
   const rest = async (user, query) => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user))
   const restWrite = async (user, query, body, method = 'POST') => request(keys.API_URL, `/rest/v1/${query}`, await refresh(user), body, 200, method)
   const onTokenRefresh = listener => {
@@ -51,7 +61,7 @@ export function actionClient(keys) {
 }
 
 export function officialLeagueSettings(settings, pastWeeks) {
-  return pastWeeks == null ? settings : { ...settings, skipped_weeks: [...new Set([...(settings.skipped_weeks ?? []), ...pastWeeks])].sort((a, b) => a - b) }
+  return pastWeeks == null ? settings : { ...settings, skipped_weeks: [...new Set([...(settings.skipped_weeks ?? []), ...pastWeeks.filter(week => week < settings.playoff_start_week)])].sort((a, b) => a - b) }
 }
 
 export async function createLeagueActions(keys, date, teamCount = 2, options = {}) {

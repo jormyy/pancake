@@ -28,14 +28,15 @@ Deno.env.set('SUPABASE_URL', `http://127.0.0.1:${(server.addr as Deno.NetAddr).p
 Deno.env.set('PANCAKE_SUPABASE_SECRET_KEY', 'sb_secret_test')
 const { handleTradeRoute } = await import('./trades.ts')
 
-Deno.test('accept returns success when post-trade activation fails', async () => {
+Deno.test('accept returns its committed trade without running activation', async () => {
   const path = `/trades/${trade}/accept`
   const response = await handleTradeRoute(new Request(`http://localhost${path}`, {
     method: 'POST', headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
     body: JSON.stringify({ memberId: member }),
   }), path)
   assert.equal(response?.status, 200)
-  assert.equal(activationCalls, 1)
+  assert.equal(activationCalls, 0)
+  assert.deepEqual(await response?.json(), { ok: true, tradeId: trade })
 })
 
 Deno.test('trade worker drains notifications and receipts after activation fails', async () => {

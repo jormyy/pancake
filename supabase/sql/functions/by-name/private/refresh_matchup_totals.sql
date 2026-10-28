@@ -8,7 +8,11 @@ BEGIN
   FROM public.matchups WHERE league_id = p_league_id AND league_season_id = p_season_id AND NOT is_voided
   ON CONFLICT (matchup_id) DO UPDATE SET home_points = EXCLUDED.home_points, away_points = EXCLUDED.away_points,
     home_max_possible_points = EXCLUDED.home_max_possible_points, away_max_possible_points = EXCLUDED.away_max_possible_points,
-    version = EXCLUDED.version, refreshed_at = now() WHERE cached.version < EXCLUDED.version;
+    version = EXCLUDED.version, refreshed_at = now() WHERE cached.version < EXCLUDED.version
+      AND (md5((to_jsonb(cached)-ARRAY['version','refreshed_at'])::text)
+        IS DISTINCT FROM md5((to_jsonb(EXCLUDED)-ARRAY['version','refreshed_at'])::text)
+        OR (to_jsonb(cached)-ARRAY['version','refreshed_at'])
+          IS DISTINCT FROM (to_jsonb(EXCLUDED)-ARRAY['version','refreshed_at']));
   DELETE FROM public.matchup_totals cached WHERE cached.league_season_id = p_season_id AND cached.version < p_version
     AND NOT EXISTS (SELECT 1 FROM public.matchups matchup WHERE matchup.id = cached.matchup_id AND NOT matchup.is_voided);
   RETURN true;

@@ -21,6 +21,10 @@ export function configuration(env = process.env) {
     assert.equal(prefix,'582','The replacement replay uses block 582')
     assert.equal(project,'pt4basim6','Block 582 belongs only to the replacement replay')
     assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-t6'),'The replacement replay uses its separate root')
+  }else if(prefix==='587'||project==='pt4bafablefix'){
+    assert.equal(prefix,'587','The private repair stack uses block 587')
+    assert.equal(project,'pt4bafablefix','Block 587 belongs only to the private repair stack')
+    assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/replay/run'),'The private repair stack uses its own replay root')
   }else assert.match(prefix, /^57[2-5]$/, 'Use an assigned task port block')
   const container = env.SEASON_SIM_CONTAINER ?? `supabase_db_${project}`
   assert.equal(container, `supabase_db_${project}`, 'Container must belong to the configured project')

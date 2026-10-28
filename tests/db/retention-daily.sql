@@ -62,11 +62,11 @@ BEGIN
 
   INSERT INTO cron.job_run_details(jobid,runid,command,status,start_time,end_time)
   SELECT 98609,9860900000+ordinal,'SELECT 1',status,v_now-age,v_now-age
-  FROM (VALUES(1,'succeeded',interval '8 days'),(2,'succeeded',interval '7 days'),
-    (3,'failed',interval '31 days'),(4,'failed',interval '30 days'),(5,'running',interval '90 days')) cases(ordinal,status,age);
+  FROM (VALUES(1,'succeeded',interval '25 hours'),(2,'succeeded',interval '24 hours'),
+    (3,'failed',interval '25 hours'),(4,'failed',interval '24 hours'),(5,'running',interval '90 days')) cases(ordinal,status,age);
   INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,category,delivered_at)
     SELECT 'retention-daily-'||ordinal,f.member_ids[1],'lineup_empty','Retention','Retention','lineup',v_now-interval '61 days'
-    FROM generate_series(1,20003) ordinal;
+    FROM generate_series(1,5003) ordinal;
   INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,category,delivered_at)
     VALUES('retention-daily-boundary',f.member_ids[1],'lineup_empty','Retention','Retention','lineup',v_now-interval '60 days'),
       ('retention-daily-pending',f.member_ids[1],'lineup_empty','Retention','Retention','lineup',NULL);
@@ -76,7 +76,7 @@ BEGIN
       (v_live_run,'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',v_monday,v_now,'success');
   INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,fetched_at,source_player_name,normalized_player_name,match_status)
     SELECT v_run,'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',ordinal,v_now,'Fixture','fixture','unmatched'
-    FROM generate_series(1,10003) ordinal;
+    FROM generate_series(1,5003) ordinal;
   INSERT INTO public.fantasypros_projection_rows(run_id,projection_type,source_url,source_row_number,fetched_at,source_player_name,normalized_player_name,match_status)
     VALUES(v_live_run,'daily','https://www.fantasypros.com/nba/projections/daily-overall.php',1,v_now,'Fixture','fixture','unmatched');
   INSERT INTO public.sleeper_projection_rows(player_id,source_game_id,sleeper_id,season_year,week_number,game_date,team,opponent,
@@ -117,9 +117,9 @@ BEGIN
       v_entry.relation_name||' first prune reports exact deletions');
   END LOOP;
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.projection_sync_runs WHERE id=v_run)
-    AND (SELECT count(*)=3 FROM public.fantasypros_projection_rows WHERE run_id=v_run),'projection children obey 10000-row budget before parent deletion');
+    AND (SELECT count(*)=3 FROM public.fantasypros_projection_rows WHERE run_id=v_run),'projection children obey 5000-row budget before parent deletion');
   PERFORM pg_temp.check_rules((SELECT count(*)=3 FROM public.notification_outbox WHERE dedupe_key LIKE 'retention-daily-%'
-    AND delivered_at<v_now-interval '60 days'),'notification prune obeys 20000-row budget');
+    AND delivered_at<v_now-interval '60 days'),'notification prune obeys 5000-row budget');
   PERFORM pg_temp.check_rules((SELECT count(*)=5 FROM public.sync_runs WHERE function_name='retention-daily'),
     'success and failure cutoffs preserve exact boundary and unfinished rows');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.sync_runs WHERE id=md5('retention-daily-latest')::uuid),
@@ -175,7 +175,7 @@ BEGIN
     'retention summary has one row per pruned table');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.retention_dashboard()','EXECUTE')
     AND NOT has_function_privilege('anon','private.run_retention(timestamptz)','EXECUTE'),'retention and dashboard require backend access');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job),'one dispatcher cron entry owns daily retention scheduling');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'one dispatcher cron entry owns daily retention scheduling');
 END;
 $$;
 SELECT count(*) AS passed FROM rules_checks;

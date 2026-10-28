@@ -1,34 +1,39 @@
-import { readScreenView } from '@/lib/cache/screen-cache'
-import { screenScope } from '@/lib/cache/screen-scope'
+import { isTradeRosterLegal } from '@/lib/trade-legality-step'
 import { useEffect, useState } from 'react'
-import { type RosterPlayer } from '@/lib/roster'
-import { type Trade, type TradeRosterPlan, type TradeRosterPreview } from '@/lib/trades'
+import { getRoster, type RosterPlayer } from '@/lib/roster'
+import { getTradeRosterPreview, type Trade, type TradeRosterPlan, type TradeRosterPreview } from '@/lib/trades'
 import { TradeRosterPreviewList } from './TradeRosterPreviewList'
 import { useLeagueContext } from '@/contexts/league-context'
 import { Text } from 'react-native'
 import { TradeRosterPlanEditor } from './TradeRosterPlanEditor'
 
-export function PendingTradeRosterPlan({ trade, memberId, onChange, disabled }: {
+export function PendingTradeRosterPlan({ trade, memberId, onChange, onValidityChange, disabled }: {
     trade: Trade
     memberId: string
     onChange: (plan: TradeRosterPlan) => void
+    onValidityChange: (legal: boolean) => void
     disabled: boolean
 }) {
     const { currentLeague } = useLeagueContext()
     const leagueId = currentLeague?.id
+    const [loadedTrade, setLoadedTrade] = useState<Trade | null>(null)
     const [preview, setPreview] = useState<TradeRosterPreview[]>([])
     const [roster, setRoster] = useState<RosterPlayer[]>([])
     const [error, setError] = useState<string | null>(null)
     useEffect(() => {
         if (!leagueId) return
         let cancelled = false
+        setLoadedTrade(null)
         setPreview([])
         setError(null)
-        readScreenView<{ roster: RosterPlayer[]; rosterPreview: TradeRosterPreview[] }>(screenScope('trade-details', leagueId, memberId, { tradeId: trade.id })).then(({ roster: rows, rosterPreview: teams }) => {
-            if (!cancelled) { setRoster(rows); setPreview(teams) }
+        Promise.all([getRoster(memberId, leagueId), getTradeRosterPreview(trade.id)]).then(([rows, teams]) => {
+            if (!cancelled) { setRoster(rows); setPreview(teams); setLoadedTrade(trade) }
         }).catch(() => { if (!cancelled) setError('Could not load drop choices. Reopen the trade to retry.') })
         return () => { cancelled = true }
     }, [leagueId, memberId, trade])
+    useEffect(() => {
+        onValidityChange(loadedTrade === trade && preview.some(team => team.memberId === memberId) && preview.every(isTradeRosterLegal) && !error)
+    }, [loadedTrade, trade, preview, error, memberId, onValidityChange])
     if (!currentLeague) return null
     const incoming = trade.routedItems.filter((item) => item.toMemberId === memberId)
     const offered = new Set(trade.routedItems.flatMap((item) => item.kind === 'player' ? [item.playerId] : []))
@@ -42,7 +47,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onChange, disabled }: 
         {error ? <Text>{error}</Text> : null}
         <TradeRosterPreviewList teams={preview} />
         <TradeRosterPlanEditor incoming={incoming} roster={roster.filter((player) => !offered.has(player.players.id))}
-            value={plan} onChange={onChange} disabled={disabled || preview.length === 0}
+            preview={preview.find(team => team.memberId === memberId)} value={plan} onChange={plan => { onValidityChange(false); onChange(plan) }} disabled={disabled || preview.length === 0}
             unavailableMoves={preview.find((team) => team.memberId === memberId)?.unavailableMoves}
             unavailableDestinations={preview.find((team) => team.memberId === memberId)?.unavailableDestinations}
             allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} />

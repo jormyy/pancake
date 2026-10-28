@@ -9,9 +9,6 @@ BEGIN
   PERFORM private.enqueue_pre_tipoff_optimizer(p_now);
   PERFORM private.enqueue_matchup_forecasts(p_now);
   PERFORM private.enqueue_screen_views(p_now);
-  PERFORM private.work_enqueue('player-stats-hints',v_key,p_now);
-  PERFORM private.work_enqueue('league-inventory-hint-drain',v_key,p_now,'{"delay":0}');
-  PERFORM private.work_enqueue('league-inventory-hint-drain',v_key||':30',p_now,'{"delay":30}');
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN
     PERFORM private.enqueue_daily('sync-players',6,0,p_now);
@@ -28,7 +25,10 @@ BEGIN
   END IF;
   IF v_min%15=5 THEN PERFORM private.enqueue_daily('sync-schedule',6,5,p_now); END IF;
   IF v_min=0 THEN PERFORM private.enqueue_rankings(p_now); END IF;
-  IF v_min%5=0 THEN PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now); END IF;
+  IF v_min%5=0 AND EXISTS(SELECT 1 FROM public.edge_invocations
+    WHERE reconciled_at IS NULL OR worker_status='running') THEN
+    PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);
+  END IF;
   IF v_min=17 THEN PERFORM private.work_enqueue('pg-net-response-vacuum',date_trunc('hour',p_now)::text,p_now,'{"action":"vacuum"}'); END IF;
   IF v_min=0 AND extract(hour FROM v_utc)=13 AND
     ((extract(month FROM v_utc)=6 AND extract(day FROM v_utc)>=20) OR

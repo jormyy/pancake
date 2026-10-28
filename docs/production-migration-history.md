@@ -25,7 +25,7 @@ The following contain temporary helper-name changes:
 | `20260627000025` | Cleanup renames cycle18/cycle23 helpers | Cleanup renames legacy helpers |
 
 Both sequences converge to the same three `_unchecked` helpers.
-The preflight checks seven live function bodies, signatures, settings, and effective grants.
+During an authorized deployment, preflight checks seven live function bodies, signatures, settings, and effective grants.
 It rejects remaining old helpers or calls to old names.
 
 Approved replacements change the expected convergence body only after their migration appears in history:
@@ -146,7 +146,7 @@ Frontend rollback retains these database changes.
 [Source monitoring](source-monitoring.md) owns projection and retention behavior.
 [Verification](verification.md#sleeper-projections-and-weekly-cleanup) owns the focused checks.
 
-The approved release 2 candidate ends at `20261114000300`, with 596 migrations.
+The release 2.4 candidate ends at `20261116000500`, with 608 migrations.
 The audit baseline stays at `20261005000003`, with 329 migrations.
 Release 1 reaches production on 2026-10-27 at `20261029000800`, with 564 migrations.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
@@ -169,10 +169,10 @@ Both paths have equal migration names, statement counts, stored-SQL fingerprints
 An intermediate state at `20261011000010` matches its expected mix of helper definitions.
 The upgrade from that state also matches the fresh installation through `20261029000800`.
 
-## Release 2 candidate
+## Release 2.4 candidate
 
-Release 2 adds 31 migrations after the deployed release 1 head.
-The audited range contains 266 migrations after the fixed 329-row baseline.
+Release 2.4 adds 44 migrations after the recorded release 1 head.
+The audited range contains 279 migrations after the fixed 329-row baseline.
 
 | Migration | Change |
 | --- | --- |
@@ -207,12 +207,37 @@ The audited range contains 266 migrations after the fixed 329-row baseline.
 | `20261113000200` | Gives workers five-minute leases and avoids renewal lock waits. |
 | `20261114000100` | Bounds retention, refresh batches, active workers and database waits. |
 | `20261114000200` | Adds the operator pause control before SQL dispatch claims. |
-| `20261114000300` | Limits dispatch transactions and skips existing active work before queue insertion. |
+| `20261114000300` | Limits dispatch transactions and avoids duplicate queue insertion waits. |
+| `20261114000400` | Preserves birthdate bounds through the supported transaction clock. |
+| `20261115000100` | Removes idle hint worker writes, bounds cron history, and tunes owned hot tables. |
+| `20261115000200` | Skips equal screen content and separates trade publication freshness. |
+| `20261115000300` | Coalesces repeated league hint scopes and publication topics. |
+| `20261115000400` | Skips identical score and stat progress writes. |
+| `20261115000500` | Bounds player history reads and preserves forecast scoring. |
+| `20261115000600` | Stores forecast inputs and updates season projections with stat changes. |
+| `20261116000100` | Uses league dates on Home and includes roster birthdates. |
+| `20261116000200` | Rejects conflicting player identities and repairs impossible game teams. |
+| `20261116000300` | Queues trade estimates after the offer commits. |
+| `20261116000400` | Rejects repeated pending offers and bounds trade write locks. |
+| `20261116000500` | Queues trade events and screen updates after trade writes. |
 
-A private local stack applies the release 1 prefix, then the complete release 2 suffix.
-Both security catalogs come from that stack.
-The final migration history contains 596 rows through `20261114000300`.
+The recorded pre-migration security catalog stays pinned to release 1 at 564 migrations.
+The private mini applies the integrated migrations, then rebuilds all 608 migrations from empty.
+Both paths produce identical migration attestations, security attestations, function catalogs, and database types.
+The final migration history contains 608 rows through `20261116000500`.
 The shared attestation supplies the soak and immediate preflight ranges.
 
-Production reaches `20261111000100` before the worker timeout repair, as reported by the release operator.
-The historical pre-migration catalog still records release 1.
+The latest supplied operator report places production at `20261113000200`.
+This documentation review makes no live production query.
+The recorded pre-migration catalog still describes release 1 at `20261029000800`.
+These are different checkpoints.
+The planner validates the actual applied prefix before choosing the pending suffix.
+
+Release 2.4 keeps IO migrations at `20261115000100`–`20261115000400`.
+Forecast migrations use `20261115000500`–`20261115000600`.
+UI migrations keep `20261116000100`–`20261116000200`.
+Trade migrations use `20261116000300`–`20261116000500`.
+The ordered history has no duplicate versions.
+The candidate adds 12 migrations after `origin/main` at `6ad9b65e` and 11 after integration base `c3209ddc`.
+Integration uses private mini project `pt4bafabler24` and ports `598xx`.
+It performs no production access.

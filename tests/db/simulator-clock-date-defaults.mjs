@@ -23,12 +23,34 @@ const literal = value => `'${value.replaceAll("'", "''")}'`
 const jobs = JSON.parse(sql("SELECT COALESCE(json_agg(j),'[]') FROM (SELECT jobname,schedule,command,active FROM cron.job ORDER BY jobname) j"))
 let installed = false
 try {
+  const audit = () => {
+    const result = execute(['-f', 'scripts/season-sim/clock-audit.sql'])
+    assert.equal(result.status, 0, result.stderr)
+    return JSON.parse(result.stdout.trim())
+  }
+  const beforeAudit = audit()
+  for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) {
+    assert.equal(beforeAudit[form].objects.filter(object => !(form === 'current_date' && object.kind === 'default')).length, 0, `Uncovered SQL clock form: ${form}`)
+  }
+  checks.push('runtime-clock-audit-before-install')
   sql(`CREATE TABLE public.${table}(label text,day date DEFAULT CURRENT_DATE)`)
   const before = defaults()
   const native = sql("SELECT pg_get_functiondef('pg_catalog.now()'::regprocedure)")
   const result = file('clock', '2001-01-01T01:00:00Z')
   assert.equal(result.status, 0, result.stderr)
   installed = true
+  const installedAudit = audit()
+  for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) assert.equal(installedAudit[form].occurrences, 0, `Uncovered installed SQL clock form: ${form}`)
+  for (const [form, entry] of Object.entries(installedAudit)) if (form.startsWith('season_sim_native_')) assert.equal(entry.occurrences, 0, `Native clock binding remains: ${form}`)
+  checks.push('runtime-clock-audit-after-install')
+  for (const birthdate of ['1899-12-31', '2001-01-02']) {
+    const rejected = execute(['-c', `INSERT INTO public.players(first_name,last_name,position,birthdate) VALUES('Clock','Bounds','PG',DATE ${literal(birthdate)})`])
+    assert.notEqual(rejected.status, 0)
+    assert.match(rejected.stderr, /players_birthdate_check/)
+    checks.push(`birthdate-rejects-${birthdate}`)
+  }
+  assert.equal(sql("BEGIN; SET LOCAL ROLE service_role; INSERT INTO public.players(first_name,last_name,position,birthdate) VALUES('Clock','Today','PG',DATE '2001-01-01') RETURNING birthdate; ROLLBACK;"), '2001-01-01')
+  checks.push('birthdate-accepts-simulated-today-for-worker')
   for (const [zone, expected] of [['UTC', '2001-01-01'], ['America/Los_Angeles', '2000-12-31']]) {
     assert.equal(sql(`SET TIME ZONE ${literal(zone)}; INSERT INTO public.${table}(label) VALUES(${literal(zone)}) RETURNING day`), expected)
     checks.push(`frozen-date-${zone}`)

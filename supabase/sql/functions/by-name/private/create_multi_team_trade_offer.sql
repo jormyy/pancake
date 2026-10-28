@@ -29,6 +29,8 @@ DECLARE
   v_faab record;
   v_champion_finalized boolean := false;
 BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
   IF p_items IS NULL OR jsonb_typeof(p_items) <> 'array' THEN
     RAISE EXCEPTION 'Multi-team trade items must be a JSON array.'
       USING ERRCODE = '22023';
@@ -116,7 +118,7 @@ BEGIN
     INTO v_league
     FROM leagues
    WHERE id = p_league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.';
@@ -341,5 +343,7 @@ BEGIN
   );
 
   RETURN v_trade_id;
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
 END;
 $$;

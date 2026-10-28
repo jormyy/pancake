@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Platform } from 'react-native'
 import { WeekDay } from '@/lib/lineup'
-import { todayET } from '@/lib/shared/dates'
+import { todayLeague } from '@/lib/timezone'
 import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, tints, uiColors } from '@/constants/tokens'
 import { MotionPressable } from '@/components/Motion'
 
@@ -25,14 +25,16 @@ export function DaySelector({
     onSelect,
     compact = false,
     disabled = false,
+    timezone,
 }: {
     days: WeekDay[]
     selectedDate: string
     onSelect: (date: string) => void
     compact?: boolean
     disabled?: boolean
+    timezone?: string | null
 }) {
-    const today = todayET()
+    const today = todayLeague(timezone)
     return (
         <View style={[styles.content, compact && styles.contentCompact]}>
             {days.map((day) => {

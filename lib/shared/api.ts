@@ -1,5 +1,5 @@
 import { configureMutationReplay, pendingMutations, mutationRowIds } from '@/lib/cache/mutation-queue'
-import { refreshScreenVersions } from '@/lib/cache/screen-cache'
+import { invalidateScreenViews, refreshScreenVersions } from '@/lib/cache/screen-cache'
 import { sessionOwner , sessionGeneration } from '@/lib/session-cache-registry'
 import { supabase } from '@/lib/supabase'
 import { RequestError } from '@/lib/shared/errors'
@@ -90,8 +90,19 @@ export async function apiPost<T = unknown>(
     const rowIds = [...mutationRowIds(body), ...(path.match(/[0-9a-f]{8}-[0-9a-f-]{27}/gi) ?? [])]
     if (accountId && (typeof navigator !== 'undefined' && navigator.onLine === false || pendingMutations(accountId).length > 0)) return withPwaMutation(`API ${path}`, () => sendApiPost<T>(path, payload, { ...options, requestId: id }), { requestId: id, queued: { accountId, leagueId, rowIds, path, body: payload } })
     const result = await withPwaMutation(`API ${path}`, () => sendApiPost<T>(path, payload, { ...options, requestId: id }), { requestId: id, waitForOnline: true })
-    await refreshScreenVersions(leagueId ?? undefined)
+    await refreshAfterMutation(path, leagueId)
     return result
+}
+
+async function refreshAfterMutation(path: string, leagueId: string | null): Promise<void> {
+    if (path.startsWith('/trades/')) {
+        void Promise.resolve().then(() => {
+            invalidateScreenViews(leagueId ?? undefined)
+            return refreshScreenVersions(leagueId ?? undefined)
+        }).catch(() => undefined)
+        return
+    }
+    await refreshScreenVersions(leagueId ?? undefined)
 }
 
 async function sendApiPost<T>(path: string, body: string, options: ApiRequestOptions): Promise<T> {
@@ -139,6 +150,6 @@ async function sendApiPost<T>(path: string, body: string, options: ApiRequestOpt
 
 configureMutationReplay(async mutation => {
     const result = await withPwaMutation(`API ${mutation.path}`, () => sendApiPost(mutation.path, mutation.body, { requestId: mutation.id, expectedUserId: mutation.accountId }), { requestId: mutation.id })
-    await refreshScreenVersions(mutation.leagueId ?? undefined)
+    await refreshAfterMutation(mutation.path, mutation.leagueId)
     return result
 })

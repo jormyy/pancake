@@ -16,7 +16,7 @@ BEGIN
   END IF;
   IF v_game.status='Final' OR v_game.live_stats_elapsed_seconds>p_elapsed_seconds THEN RETURN 0; END IF;
   v_changed := public.save_game_stats_atomic(p_game_id,p_provider_game_id,p_stats,false);
-  UPDATE public.nba_games SET live_stats_elapsed_seconds=p_elapsed_seconds WHERE id=p_game_id;
+  UPDATE public.nba_games SET live_stats_elapsed_seconds=p_elapsed_seconds WHERE id=p_game_id AND live_stats_elapsed_seconds IS DISTINCT FROM p_elapsed_seconds;
   RETURN v_changed;
 END;
 $$;

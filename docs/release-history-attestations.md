@@ -11,10 +11,10 @@ It also preserves the recorded pre-migration security catalog.
 | --- | --- | --- |
 | Audit baseline | `20261005000003` | 329 |
 | Deployed release 1 | `20261029000800` | 564 |
-| Approved release 2 candidate | `20261112000200` | 591 |
+| Release 2.4 candidate | `20261116000500` | 608 |
 
-The approved range contains 262 migrations after the audit baseline.
-The deployed release 1 phase has 27 pending migrations.
+The approved range contains 279 migrations after the audit baseline.
+The deployed release 1 phase has 44 pending migrations.
 Release 1 reaches production on 2026-10-27.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
 
@@ -51,3 +51,8 @@ It then applies all 27 candidate migrations and records the 591-row history and 
 The earlier production catalog remains in `historicalPhases`.
 Advance `preMigration` only with a catalog captured at the exact deployed version.
 The generator then preserves that catalog during candidate refreshes.
+
+The release 2.4 integration refresh uses private mini project `pt4bafabler24`, database port `59822`.
+A fresh installation matches the incremental upgrade across all four generated artifacts.
+The history contains 608 migrations and 279 entries after the fixed audit baseline.
+The recorded pre-migration catalog remains at 564 migrations.

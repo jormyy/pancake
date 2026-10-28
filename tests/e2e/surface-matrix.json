@@ -5,6 +5,80 @@
   "inventoryRule": "Every app TSX route except layouts and +html must have one surface row.",
   "surfaces": [
     {
+      "id": "other-matchup",
+      "routeLabel": "other-matchup",
+      "source": "app/(modals)/matchup.tsx",
+      "path": "/matchup?matchupId=:matchupId",
+      "functionIds": [
+        "matchup-live",
+        "realtime-convergence"
+      ],
+      "navigation": {
+        "entryFromHome": "Other matchups strip",
+        "tapsFromHome": 1,
+        "firstView": "Read-only matchup, records, points, forecast, days, starters and bench",
+        "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"
+      },
+      "contracts": {
+        "cache": {
+          "mode": "required",
+          "dataClassIds": [
+            "app-shell",
+            "matchup-lineup",
+            "live-stats"
+          ],
+          "proofIds": [
+            "browser.surface_online",
+            "browser.performance"
+          ]
+        },
+        "freshness": {
+          "mode": "required",
+          "dataClassIds": [
+            "matchup-lineup",
+            "live-stats"
+          ],
+          "proofIds": [
+            "browser.performance",
+            "browser.surface_reconnect"
+          ]
+        },
+        "realtime": {
+          "mode": "required",
+          "dataClassIds": [
+            "matchup-lineup",
+            "live-stats"
+          ],
+          "proofIds": [
+            "realtime.delivery",
+            "browser.performance"
+          ]
+        },
+        "autoUpdate": {
+          "mode": "required",
+          "dataClassIds": [
+            "matchup-lineup",
+            "live-stats"
+          ],
+          "proofIds": [
+            "realtime.delivery",
+            "browser.surface_reconnect"
+          ]
+        },
+        "pwa": {
+          "mode": "required",
+          "dataClassIds": [
+            "app-shell",
+            "matchup-lineup"
+          ],
+          "proofIds": [
+            "browser.surface_offline",
+            "pwa.cache_update"
+          ]
+        }
+      }
+    },
+    {
       "id": "auth-sign-in",
       "routeLabel": "auth-sign-in",
       "source": "app/(auth)/sign-in.tsx",

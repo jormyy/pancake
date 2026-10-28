@@ -261,6 +261,7 @@ function PlayerSearchSection() {
             : 'Rolling waivers'
         : ''
     const averageLabel = playerAverageLabel(search.results.players[0]?.stats_season_year)
+    const summaryLoading = !playerSupportReady || (search.results.players.length === 0 && search.results.loading)
     const summaryLine = [resultCountLabel, averageLabel, addLimitSummary(transactionState), waiverLine].filter(Boolean).join(' · ')
     const filterControls = (variant: 'chip' | 'field') => (
         <>
@@ -366,11 +367,11 @@ function PlayerSearchSection() {
                                     <Text style={localStyles.clearButtonText}>Clear</Text>
                                 </Pressable>
                             ) : null}
-                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }}>{resultCountLabel ? summaryLine : ''}</Text>
+                            <Text style={[localStyles.summary, localStyles.summaryWide, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: summaryLoading ? 0 : 1 }]} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>{resultCountLabel ? summaryLine : ''}</Text>
                         </>
                     )}
                 </View>
-                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: listIsInitialLoading ? 0 : 1 }]} aria-busy={listIsInitialLoading} accessibilityState={{ busy: listIsInitialLoading }}>{resultCountLabel ? summaryLine : ''}</Text> : null}
+                {compactToolbar ? <Text style={[localStyles.summary, { minWidth: 240, minHeight: textStyles.body.lineHeight, opacity: summaryLoading ? 0 : 1 }]} aria-busy={summaryLoading} accessibilityState={{ busy: summaryLoading }}>{resultCountLabel ? summaryLine : ''}</Text> : null}
                 {addBlockedReason ? (
                     <Text
                         style={localStyles.addLimitNotice}

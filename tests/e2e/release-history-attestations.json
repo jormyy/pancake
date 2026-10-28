@@ -2265,6 +2265,90 @@
       "statementCount": 2,
       "statementsSha256": "9ed9448a7e6a5dcccd631aa168887ee1e5100c2851e7332e4205d74ed5161bba",
       "sha256": "20938785008bc1c0a727bfe109301a5ec7aa40b2c486be92dfbd0471af6d4cb9"
+    },
+    {
+      "name": "player_birthdate_simulated_clock",
+      "version": "20261114000400",
+      "statementCount": 5,
+      "statementsSha256": "3437bc0d6b4476165367e40f2aa756ab0afc65613d0ff2c9e1f60a4e74465626",
+      "sha256": "36903fbe80705ef73a37ec474cd58076601d86857edb6ec2a41a0b8734b6fbf1"
+    },
+    {
+      "name": "io_idle_and_retention",
+      "version": "20261115000100",
+      "statementCount": 24,
+      "statementsSha256": "c96a8d7374e38fabad3beda194e4b4fb0ed838baa75fa3a2b61e8361f198802f",
+      "sha256": "88b8746bf6f8a641fba5484e02ca38c3e9de638b13dd79b698aa5dd0f5ea8ef4"
+    },
+    {
+      "name": "io_screen_content",
+      "version": "20261115000200",
+      "statementCount": 20,
+      "statementsSha256": "e4dbbad75b0a9c159838e926c0ff223c9bea6d5ce3c4531de1ea787bd6888304",
+      "sha256": "cba69786a4a5af41f0e29050ac070829319638273b81fa47e022625d1a4c0068"
+    },
+    {
+      "name": "io_coalesce_changes",
+      "version": "20261115000300",
+      "statementCount": 2,
+      "statementsSha256": "3bf29ee40f506a69f5706c9232148bf6a32b72b37075aaa2841bc1f0f6076687",
+      "sha256": "01352aed14c7357d02996e79f63677a2622a7d8b112e2377c4f6bff4b9fa3150"
+    },
+    {
+      "name": "io_live_progress",
+      "version": "20261115000400",
+      "statementCount": 2,
+      "statementsSha256": "7393d00dd20dbe2f540addab2136f593d0da6b3833c0407961757198b1f888b9",
+      "sha256": "544956be5545465da76d9e76f9f874f71fc1155a3e1d7547eec135b5f628bed4"
+    },
+    {
+      "name": "bounded_matchup_forecast_history",
+      "version": "20261115000500",
+      "statementCount": 1,
+      "statementsSha256": "7819ff689c1cd555511537ce0732c9eac89143db6d8fc51e518d4d60b079eb4d",
+      "sha256": "bb2d910b9f2553a1801eb9e4363cfb59620d3ed5b837de18cf079af2a2ee70eb"
+    },
+    {
+      "name": "precomputed_forecast_inputs",
+      "version": "20261115000600",
+      "statementCount": 28,
+      "statementsSha256": "2bb65ef8c9f87178dd7456dafce96cc18fc85cf5745c499a1706d21a13630726",
+      "sha256": "2c6ea4b5c8f5330361cbdd77d57cee24afbc74b5887bdd5f533d61437a6ce690"
+    },
+    {
+      "name": "review_screen_fields",
+      "version": "20261116000100",
+      "statementCount": 3,
+      "statementsSha256": "90ca34c268efd6b3fa8883b65ff3d83b4a91dc3839f51e0537f9b275a850f3d6",
+      "sha256": "42db924b7d02e362db0730ab1c8b18bb1864abc2440e1cc59d6263ad197de6d3"
+    },
+    {
+      "name": "exact_player_rosters",
+      "version": "20261116000200",
+      "statementCount": 6,
+      "statementsSha256": "88632b9e1a1171bcde921b64459099df98680e8ec2ffaf874da17aae56b79c6a",
+      "sha256": "8a77d099ff735a665dda819fbabfe39acdc59de9e7293e80242b4c656e3c95df"
+    },
+    {
+      "name": "async_trade_estimates",
+      "version": "20261116000300",
+      "statementCount": 9,
+      "statementsSha256": "db00b247e6cf1ca3c7483a785cd8b9aebcf4fdb6af73efdb29dee9d5984ba501",
+      "sha256": "c3f47924ec2dadf7ca6ba5e0ea9d56306bd9c3b88f5311fc60f9405c36af518b"
+    },
+    {
+      "name": "deduplicate_pending_trade_offers",
+      "version": "20261116000400",
+      "statementCount": 6,
+      "statementsSha256": "664ae3e2e0ec7b3dd69d86a8ce4b3abbe9c3ddddd5e4d142828d3fd27087aeba",
+      "sha256": "40b1463e94d075ebbed2e429cbff901ec598aaae63fadca5b2f2a8b5959764fe"
+    },
+    {
+      "name": "defer_trade_publication",
+      "version": "20261116000500",
+      "statementCount": 26,
+      "statementsSha256": "f7d806e521e0bdbb961fbd2120675b7e1c86ada413f20cc1d2fba596eb7757d6",
+      "sha256": "c6821ba5b906750eed8185bd17a7e1a4e12ab9d79e76a78d4f2be031d11bb338"
     }
   ]
 }

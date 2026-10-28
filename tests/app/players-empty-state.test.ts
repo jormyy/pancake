@@ -108,3 +108,13 @@ it('shows pagination progress without removing the existing players', async () =
     expect(screen!.root.findAllByType('PlayerSearchItem' as React.ElementType)).toHaveLength(1)
     expect(screen!.root.findAllByProps({ children: 'Loading more players…' }).length).toBeGreaterThan(0)
 })
+
+it('shows the summary with saved rows during background refresh', async () => {
+    state.support.data = { ...(state.support.data as object), transactionState: { waiverMode: 'faab', faabBalance: 100 } }
+    state.search = { ...state.search, players: Array.from({ length: 20 }, (_, id) => ({ id: String(id), stats_season_year: 2027 })), refreshing: true }
+    await render()
+    const summary = screen!.root.findAllByType('Text' as React.ElementType).find(node => String(node.props.children).includes('20 players'))!
+    expect(summary).toBeDefined()
+    expect(summary.props.style.flat().find((style: { opacity?: number }) => style.opacity !== undefined).opacity).toBe(1)
+    expect(summary.props.children).toContain('FAAB $100')
+})

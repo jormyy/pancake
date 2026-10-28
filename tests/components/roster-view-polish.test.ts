@@ -144,3 +144,11 @@ it('keeps offline claim actions available for the merged mutation queue', async 
     expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith('claim', 'member')
     expect(mocks.view.refresh).toHaveBeenCalledExactlyOnceWith(true)
 })
+
+it('separates the pending heading and each claim with shared borders', async () => {
+    await act(async () => { screen = create(React.createElement(WaiversSection, { active: true, onFindPlayer: vi.fn() })) })
+    const { borderWidth, colors } = await import('@/constants/tokens')
+    const heading = screen.root.findAllByType('Text' as React.ElementType).find(node => JSON.stringify(node.props.children).includes('Pending claims'))!
+    expect(heading.props.style).toContainEqual(expect.objectContaining({ borderTopWidth: borderWidth.thin, borderTopColor: colors.separator }))
+    expect(screen.root.findByType('RosterClaimItem' as React.ElementType).parent!.props.style).toEqual(expect.objectContaining({ borderBottomWidth: borderWidth.thin, borderBottomColor: colors.separator }))
+})

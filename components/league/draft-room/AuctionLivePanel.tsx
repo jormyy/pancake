@@ -4,7 +4,7 @@ import { TaxiAcquisitionChoice } from '@/components/TaxiAcquisitionChoice'
 
 import { MotionPressable } from '@/components/Motion'
 import { colors, controlSize, fontFamily, fontSize, fontWeight, radii, spacing, textStyles, tints, tracking } from '@/constants/tokens'
-import { draftAgeLabel, draftEventTime } from '@/lib/draft-display'
+import { draftEventTime } from '@/lib/draft-display'
 import { formatCountdown } from '@/lib/format'
 import type { useAuctionDraftRoomController } from '@/hooks/useAuctionDraftRoomController'
 
@@ -50,8 +50,7 @@ export function AuctionLivePanel({
                     <Text style={styles.cardLabel}>On the block</Text>
                     <View style={styles.playerRow}>
                         <PlayerRowContent name={nomination.player?.displayName ?? 'Unknown Player'} nbaId={nomination.player?.nbaId}
-                            team={nomination.player?.nbaTeam} yearsExp={nomination.player?.yearsExp} careerGames={nomination.player?.careerGames} injuryStatus={nomination.player?.injuryStatus} positions={nomination.player?.position ? [nomination.player.position] : []}
-                            stats={draftAgeLabel(nomination.player?.age)} />
+                            team={nomination.player?.nbaTeam} age={nomination.player?.age} yearsExp={nomination.player?.yearsExp} careerGames={nomination.player?.careerGames} injuryStatus={nomination.player?.injuryStatus} positions={nomination.player?.position ? [nomination.player.position] : []} />
                     </View>
                 </View>
                 <View style={[styles.bidPanel, compact && styles.bidPanelCompact]}

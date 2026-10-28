@@ -1,9 +1,9 @@
 import { supabase } from '../_shared/supabase.ts'
 import { chooseBestAssignments } from './assignments.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
-import { withWorkContext } from '../_shared/workContext.ts'
+import { renewCurrentWorkLease, withWorkContext } from '../_shared/workContext.ts'
 import { runBounded } from '../_shared/runBounded.ts'
-import { errorMessage } from '../_shared/responses.ts'
+import { errorMessage, logInternalError } from '../_shared/responses.ts'
 
 export type TipoffContext = {
   date: string
@@ -98,37 +98,54 @@ export async function processPreTipoff(body: Record<string, unknown>) {
         if (workError) throw workError
         if (!settings?.length) break
         await runBounded(settings.map(setting => async () => {
-          if (controller.signal.aborted) return
-          try {
-            const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
-              p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
-            })
-            if (error) throw error
-            if (!data) throw new Error('Tipoff context is no longer available')
-            const context = data as unknown as TipoffContext
-            if (context.date !== date) throw new Error('Tipoff date changed during optimization')
-            const playerIds = tipoffPlayers(context).map(player => player.playerId)
-            const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
-              p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
-              p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
-            }) : { data: [], error: null }
-            if (projections.error) throw projections.error
-            const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
-              p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
-              p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
-              p_assignments: tipoffAssignments(context, projections.data ?? []),
-            })
-            if (applyError) throw applyError
-            if (changed) optimized++
-          } catch (error) {
-            excluded.push(setting.member_id)
-            failures.push(`${setting.member_id}: ${errorMessage(error)}`)
+          for (let attempt = 0; attempt < 5; attempt++) {
+            if (controller.signal.aborted) return
+            try {
+              const { data, error } = await supabase.rpc('get_pre_tipoff_lineup_context', {
+                p_league_id: setting.league_id, p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+              })
+              if (error) throw error
+              if (!data) throw new Error('Tipoff context is no longer available')
+              const context = data as unknown as TipoffContext
+              if (context.date !== date) throw new Error('Tipoff date changed during optimization')
+              const playerIds = tipoffPlayers(context).map(player => player.playerId)
+              const projections = playerIds.length ? await supabase.rpc('get_league_projection_rows', {
+                p_league_id: setting.league_id, p_season_year: context.seasonYear, p_game_date: date,
+                p_view: 'today', p_player_ids: playerIds, p_limit: playerIds.length, p_offset: 0,
+              }) : { data: [], error: null }
+              if (projections.error) throw projections.error
+              const { data: changed, error: applyError } = await supabase.rpc('apply_pre_tipoff_lineup', {
+                p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
+                p_league_season_id: setting.league_season_id, p_member_id: setting.member_id,
+                p_assignments: tipoffAssignments(context, projections.data ?? []),
+              })
+              if (applyError) throw applyError
+              if (changed) optimized++
+              return
+            } catch (error) {
+              const code = error && typeof error === 'object' && 'code' in error ? error.code : null
+              if (attempt < 4 && ['55P03', '40P01', '40001'].includes(String(code)) && !controller.signal.aborted) {
+                logInternalError(`lineup-optimizer: retry ${attempt + 1}`, error)
+                try {
+                  await renewCurrentWorkLease()
+                  await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+                  await renewCurrentWorkLease()
+                } catch (leaseError) {
+                  controller.abort(leaseError)
+                  return
+                }
+                continue
+              }
+              excluded.push(setting.member_id)
+              failures.push(`${setting.member_id}: ${errorMessage(error)}`)
+              return
+            }
           }
-        }), 4)
+        }), 1)
       }
     })
   } catch (error) {
-    failures.push(errorMessage(error))
+    failures.push(...(error instanceof AggregateError ? error.errors.map(errorMessage) : [errorMessage(error)]))
   } finally {
     clearTimeout(deadline)
     heartbeat.stop()

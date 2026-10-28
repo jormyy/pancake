@@ -1,6 +1,5 @@
 import type { Json } from '../_shared/database.ts'
 import { supabase } from '../_shared/supabase.ts'
-import { activateLeagueAfterTrade } from '../_shared/tradeActivation.ts'
 import { createTradeEstimate, revalueTrade } from './tradeEstimates.ts'
 import {
   MAX_TRADE_EXPIRATION_DAYS,
@@ -255,35 +254,16 @@ function multiTeamTradeItemsJson(items: MultiTeamTradeItemPayload[]): Json {
   return encodedItems
 }
 
-function twoTeamEstimateItems(payload: TradeAssetPayload, sender: string, recipient: string): Json {
-  const items: MultiTeamTradeItemPayload[] = [
-    ...payload.offerPlayerIds.map(playerId => ({ fromMemberId: sender, toMemberId: recipient, playerId })),
-    ...payload.requestPlayerIds.map(playerId => ({ fromMemberId: recipient, toMemberId: sender, playerId })),
-    ...payload.offerPickIds.map(pickId => ({ fromMemberId: sender, toMemberId: recipient, pickId })),
-    ...payload.requestPickIds.map(pickId => ({ fromMemberId: recipient, toMemberId: sender, pickId })),
-    ...(payload.offerFaabAmount ? [{ fromMemberId: sender, toMemberId: recipient, faabAmount: payload.offerFaabAmount }] : []),
-    ...(payload.requestFaabAmount ? [{ fromMemberId: recipient, toMemberId: sender, faabAmount: payload.requestFaabAmount }] : []),
-  ]
-  return multiTeamTradeItemsJson(items)
-}
-
-async function submissionEstimate(userId: string, memberId: string, body: Record<string, unknown>, items: () => Json | Promise<Json>): Promise<JsonObject> {
+function submissionEstimate(body: Record<string, unknown>): JsonObject {
   const provided = optionalUuidField(body, 'estimateId')
-  if (provided) return { estimateId: provided }
-  try {
-    const quote = await createTradeEstimate(userId, memberId, await items())
-    return { estimateId: quote.id }
-  } catch (error) {
-    console.error('Trade estimate unavailable during submission', { error })
-    return {}
-  }
+  return provided ? { estimateId: provided } : {}
 }
 
 async function proposeTrade(userId: string, body: Record<string, unknown>): Promise<{ tradeId: string }> {
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
   const payload = tradeAssetPayload(body)
-  const estimate = await submissionEstimate(userId, memberId, body, () => twoTeamEstimateItems(payload, memberId, uuidField(body, 'recipientMemberId')))
+  const estimate = submissionEstimate(body)
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose',
@@ -304,7 +284,7 @@ async function proposeMultiTeamTrade(userId: string, body: Record<string, unknow
   const memberId = uuidField(body, 'memberId')
   await verifyOwnMember(userId, memberId)
   const payload = multiTeamTradePayload(body, memberId)
-  const estimate = await submissionEstimate(userId, memberId, body, () => multiTeamTradeItemsJson(payload.items))
+  const estimate = submissionEstimate(body)
 
   const { data: tradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: 'propose-multi',
@@ -339,11 +319,6 @@ async function acceptTrade(userId: string, tradeId: string, body: Record<string,
   if (error) throwDb(error)
   const result = parseMultiTeamAcceptResult(data)
   if (result.expired) throw new ValidationError('This trade offer has expired.')
-  try {
-    await activateLeagueAfterTrade(tradeId)
-  } catch (error) {
-    console.error('Post-trade activation failed', { tradeId, error })
-  }
 }
 
 async function rejectTrade(userId: string, tradeId: string, body: Record<string, unknown>): Promise<void> {
@@ -396,12 +371,7 @@ async function replaceTrade(
   await requireOwnMember(userId, memberId)
   const payload = tradeAssetPayload(body)
 
-  const estimate = await submissionEstimate(userId, memberId, body, async () => {
-    const { data: source, error } = await supabase.from('trades').select('proposer_member_id,recipient_member_id').eq('id', tradeId).single()
-    if (error) throwDb(error)
-    const recipient = action.action === 'counter' ? source.proposer_member_id : source.recipient_member_id
-    return twoTeamEstimateItems(payload, memberId, recipient)
-  })
+  const estimate = submissionEstimate(body)
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
@@ -426,7 +396,7 @@ async function replaceMultiTeamTrade(
   const memberId = uuidField(body, 'memberId')
   await requireOwnMember(userId, memberId)
   const payload = multiTeamTradePayload(body, memberId)
-  const estimate = await submissionEstimate(userId, memberId, body, () => multiTeamTradeItemsJson(payload.items))
+  const estimate = submissionEstimate(body)
 
   const { data: newTradeId, error } = await supabase.rpc('submit_trade_offer_atomic', {
     p_user_id: userId, p_request_id: uuidField(body, 'requestId'), p_member_id: memberId, p_action: action.action,
@@ -584,7 +554,7 @@ export async function handleTradeRoute(req: Request, path: string): Promise<Resp
   }
   if (action.action === 'accept') {
     await acceptTrade(userId, action.tradeId, body)
-    return json({ ok: true })
+    return json({ ok: true, tradeId: action.tradeId })
   }
   if (action.action === 'reject') {
     await rejectTrade(userId, action.tradeId, body)

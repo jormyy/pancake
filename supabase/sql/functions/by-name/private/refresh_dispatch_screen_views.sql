@@ -7,7 +7,8 @@ BEGIN
   ORDER BY season.id ON CONFLICT DO NOTHING;
   UPDATE private.screen_refresh_queue queued SET version = version + 1, dirty = true, available_at = now(), changed_at = now()
   WHERE NOT queued.dirty AND EXISTS (
-    SELECT 1 FROM public.trade_value_cache cached WHERE cached.league_season_id = queued.league_season_id AND cached.valid_until <= now());
+    SELECT 1 FROM public.trade_value_cache cached JOIN private.trade_value_publications published USING(trade_id)
+      WHERE cached.league_season_id = queued.league_season_id AND published.valid_until <= now());
   IF EXISTS (SELECT 1 FROM private.screen_refresh_queue WHERE dirty AND available_at <= now()
     AND (claimed_at IS NULL OR claimed_at < now() - interval '3 minutes')) THEN
     PERFORM public.invoke_edge_function('refresh-views');

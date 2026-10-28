@@ -44,7 +44,7 @@ export function ActivationOverflowModal({
                 {activePlayers.map((p) => (
                     <View key={p.rosterPlayerId} style={styles.row}>
                         <PlayerRowContent name={p.displayName} nbaId={p.nbaId} team={p.nbaTeam}
-                            positions={p.eligiblePositions} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} />
+                            positions={p.eligiblePositions} playerId={p.playerId} yearsExp={p.yearsExp} careerGames={p.careerGames} injuryStatus={p.injuryStatus} />
                         <View style={styles.actions}>
                             {allowIR && (irSlots === undefined || myLineup.ir.length - (pending.source === 'ir' ? 1 : 0) < irSlots) && isIREligible(p.injuryStatus) ? (
                                 <Button

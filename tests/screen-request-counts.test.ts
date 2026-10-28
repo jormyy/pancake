@@ -12,6 +12,7 @@ import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
 import { usePlayerSearch } from '@/hooks/use-player-search'
 import { useRookieDraftRoomController } from '@/hooks/useRookieDraftRoomController'
 import { useProfileResource } from '@/hooks/use-profile-resource'
+import { playerRow, memberTransactionState } from './helpers/fixtures'
 import type { ScreenName } from '@/lib/cache/screen-cache'
 const state = vi.hoisted(() => ({ requests: [] as string[], clears: [] as (() => void)[], userId: 'account' }))
 vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) } }))
@@ -25,7 +26,7 @@ vi.mock('@/lib/rookieDraft', () => ({ subscribeToRookieDraft: () => ({}), unsubs
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const context = { leagueId: 'league', memberId: 'member', seasonId: 'season', seasonYear: 2027, today: '2026-10-27', version: '1', weekNumber: 1 }
-const payload = { context, draft: { id: 'draft', status: 'paused', leagueId: 'league', leagueSeasonId: 'season', isCurrentSeason: true }, orders: [], nextPick: null, prospects: [], matchup: null, selectedDate: '2026-10-27', weekDays: [], leagueMatchups: [], myLineup: null, oppLineup: null, liveStats: {}, teamMatchups: {}, startedTeams: [], todaysGames: [], announcements: [], forecast: null, roster: [], picks: [], claims: [], items: [], trades: [], hasMore: false, nextCursor: null, avgMap: {}, avgStatsMap: {}, ownedMap: {}, waiverClearsAt: {}, waiverIds: [], pendingClaimIds: [], players: [], visibleTotals: [], profile: null, preferences: {}, lines: [], availableSeasons: [2027], averages: null, player: { nba_team: null }, transactions: [], rows: [], standings: [], waiverOrder: [], rooms: [] }
+const payload = { context, draft: { id: 'draft', status: 'paused', leagueId: 'league', leagueSeasonId: 'season', isCurrentSeason: true }, orders: [], nextPick: null, prospects: [], matchup: null, selectedDate: '2026-10-27', weekDays: [], leagueMatchups: [], myLineup: null, oppLineup: null, liveStats: {}, teamMatchups: {}, startedTeams: [], todaysGames: [], announcements: [], forecast: null, transactionState: memberTransactionState({ faabBalance: 100, weeklyAddCount: 0, weeklyAddLimit: 2 }), roster: [], picks: [], claims: [], items: [], trades: [], hasMore: false, nextCursor: null, avgMap: {}, avgStatsMap: {}, ownedMap: {}, waiverClearsAt: {}, waiverIds: [], pendingClaimIds: [], players: [], visibleTotals: [], profile: null, preferences: {}, lines: [], availableSeasons: [2027], averages: null, player: { nba_team: null }, transactions: [], rows: [], standings: [], waiverOrder: [], rooms: [] }
 beforeEach(() => {
     for (const clear of state.clears) clear()
     clearScreenViews(); state.requests = []
@@ -67,4 +68,24 @@ describe('screen view request budgets', () => {
         expect(state.requests, `${name} reopens before background refresh`).toEqual([])
         await act(async () => { renderer.unmount() })
     })
+})
+
+it('returns the Players summary with the first screen response', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
+        const url = new URL(input)
+        state.requests.push(url.pathname)
+        return new Response(JSON.stringify({ ok: true, view: { ...payload, players: Array.from({ length: 20 }, (_, id) => playerRow({ id: String(id) })) } }))
+    }))
+    let latest!: ReturnType<typeof usePlayerSearch>
+    const frames: ReturnType<typeof usePlayerSearch>[] = []
+    const Probe = () => { latest = usePlayerSearch('league', new Map(), new Set(), 'member', { ownerId: 'account' }); frames.push(latest); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    expect(state.requests).toEqual(['/functions/v1/api/views/players'])
+    expect(latest.support?.transactionState).toMatchObject({ faabBalance: 100, weeklyAddLimit: 2, weeklyAddCount: 0 })
+    expect(latest.results.players).toHaveLength(20)
+    const painted = frames.filter(frame => frame.results.players.length > 0)
+    expect(painted.length).toBeGreaterThan(0)
+    expect(painted.every(frame => frame.support?.transactionState.faabBalance === 100)).toBe(true)
+    await act(async () => renderer.unmount())
 })

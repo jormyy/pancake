@@ -22,3 +22,26 @@ Deno.test('a healthy scoreboard discovers a live game during its scheduled polli
     deepStrictEqual(writes, ['active-id', 'late-id'])
   } finally { globalThis.fetch = nativeFetch }
 })
+
+Deno.test('live scores update beside a verified final box with different scoreboard scores', async () => {
+  const nativeFetch = globalThis.fetch
+  const writes: string[] = []
+  globalThis.fetch = (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    equal(url.pathname, '/rest/v1/rpc/save_live_scoreboard_atomic')
+    const body = JSON.parse(String(init?.body))
+    writes.push(body.p_game_id)
+    if (body.p_game_id === 'verified-final') return Promise.resolve(Response.json({ code: 'PT409', message: 'A versioned snapshot is required for verified game data.' }, { status: 409 }))
+    equal(body.p_home_score, 14)
+    return Promise.resolve(Response.json(true))
+  }
+  try {
+    const game: NBAGame = { gameId: '0022600101', gameStatus: 3, gameStatusText: 'Final', homeTeam: { teamTricode: 'BOS', score: 120 }, awayTeam: { teamTricode: 'NYK', score: 110 } }
+    const live: NBAGame = { gameId: '0022600102', gameStatus: 2, gameStatusText: 'Q1', period: 1, gameClock: 'PT06M00.00S', homeTeam: { teamTricode: 'UTA', score: 14 }, awayTeam: { teamTricode: 'LAC', score: 12 } }
+    await saveScoreboardGames([game, live], [
+      { id: 'verified-final', nba_game_id: game.gameId, status: 'Final', home_score: 121, away_score: 111, game_status_text: 'Final' },
+      { id: 'active-id', nba_game_id: live.gameId, status: 'InProgress', home_score: 10, away_score: 9, game_status_text: 'Q1' },
+    ])
+    deepStrictEqual(writes, ['active-id'])
+  } finally { globalThis.fetch = nativeFetch }
+})

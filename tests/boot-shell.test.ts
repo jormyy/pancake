@@ -128,8 +128,12 @@ describe('boot shell', () => {
     })
 
     it.each(['/player/123', '/profile', '/lineup', '/propose-trade', '/claim-player', '/team-roster',
-        '/change-password', '/commissioner-settings', '/create-league', '/join-league', '/bracket', '/draft-room', '/rookie-draft-room'])('reserves only the back header on boot: %s', pathname => {
+        '/change-password', '/commissioner-settings', '/create-league', '/join-league', '/draft-room', '/rookie-draft-room'])('reserves only the back header on boot: %s', pathname => {
         expect(runBootScript(pathname, membershipStorage()).attributes['data-back-header']).toBe('1')
+    })
+
+    it('keeps app chrome on the bracket from first paint', () => {
+        expect(runBootScript('/bracket', membershipStorage()).attributes['data-back-header']).toBeUndefined()
     })
 
     it('keeps the one-league title plain from the first paint', () => {

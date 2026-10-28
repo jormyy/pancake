@@ -1,4 +1,5 @@
-import { json, requireUser, throwDb } from '../../_shared/apiRuntime.ts'
+import { otherMatchupView } from './other-matchup.ts'
+import { assertUuid, json, NotFoundError, requireUser, throwDb } from '../../_shared/apiRuntime.ts'
 import { screenViews, viewClient, viewRequest, type ScreenView } from '../../_shared/views.ts'
 import { createTradeEstimate } from '../tradeEstimates.ts'
 
@@ -19,5 +20,28 @@ export async function handleViewRoute(request: Request, path: string): Promise<R
   }
   const { data, error } = await client.rpc(screenViews[name], args)
   if (error) throwDb(error)
+  if (name === 'home' && args.p_params && typeof args.p_params === 'object' && !Array.isArray(args.p_params) && args.p_params.matchupId !== undefined) {
+    assertUuid(String(args.p_params.matchupId), 'matchupId')
+    const view = await otherMatchupView(data as Record<string, unknown>, String(args.p_params.matchupId), async (resource, params) => {
+      if (resource === 'matchup') {
+        const result = await client.from('matchups').select('week_number,end_week_number,winner_member_id')
+          .eq('id', String(params.id)).eq('league_id', args.p_league_id).eq('is_voided', false).single()
+        if (result.error) throwDb(result.error)
+        return result.data
+      }
+      if (resource === 'forecast') {
+        const result = await client.rpc('get_matchup_forecast', { p_matchup_id: String(params.p_matchup_id) })
+        if (result.error) throwDb(result.error)
+        return result.data
+      }
+      const result = await client.rpc(resource === 'lineup' ? 'view_lineup' : 'view_standings', {
+        ...args, p_params: { ...args.p_params as Record<string, never>, ...params } as typeof args.p_params,
+      })
+      if (result.error) throwDb(result.error)
+      return result.data
+    })
+    if (!view) throw new NotFoundError('This matchup is not available this week.')
+    return json({ ok: true, view })
+  }
   return json({ ok: true, view: data })
 }

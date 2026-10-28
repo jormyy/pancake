@@ -51,7 +51,7 @@ function PlayerRow({
             id={testID}
         >
             <PlayerRowContent compact name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
-                yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
+                birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
                 stats={<View>
                     <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>
                     {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}

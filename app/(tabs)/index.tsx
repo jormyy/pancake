@@ -1,3 +1,4 @@
+import { OtherMatchups } from '@/components/OtherMatchups'
 import { MatchupLineupView } from '@/components/MatchupLineupView'
 import { useScrollRestoration } from '@/lib/scroll-restoration'
 import { MatchupForecastSummary } from '@/components/MatchupForecastSummary'
@@ -51,7 +52,7 @@ export default function HomeScreen() {
     const dense = height < 620
     const { openDraftRoom } = useDraftRoomLauncher(league?.id, { notifyOnError: true })
 
-    const { matchup, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
+    const { matchup, leagueMatchups, weekDays, selectedDate, setSelectedDate, myLineup, oppLineup, matchupLoading, matchupRefreshing, lineupLoading, lineupError, loadMyLineup, loadLineups, matchupRef, error, refresh, emptyConfirmed, forecastState, liveSnapshot, timezone } = useMatchupData(current, user, league, membershipValidated, membershipError, refreshMemberships)
     const playerForecasts = useMemo(() => new Map((forecastState.forecast?.games ?? [])
         .filter(game => game.date === selectedDate)
         .map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
@@ -201,6 +202,7 @@ export default function HomeScreen() {
                             liveTeams={liveTeams}
                             scoringSettings={scoringSettings}
                             teamMatchups={teamMatchups}
+                            timezone={timezone}
                             statColumns={showStatColumns ? statColumns : null}
                             onOpenDetails={setDetailsRow}
                             onOpenPlayer={player => router.push({ pathname: '/player/[id]', params: { id: player.playerId } })}
@@ -212,7 +214,7 @@ export default function HomeScreen() {
                             compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
-                                <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
+                                <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                             ) : null}
                             autoSetControl={
                                 <Button
@@ -226,8 +228,9 @@ export default function HomeScreen() {
                             }
                         />
                     ) : weekDays.length > 0 ? (
-                        <DaySelector days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
+                        <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
                     ) : null}
+                    <OtherMatchups matchups={leagueMatchups} onOpen={id => router.push({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
                     </View>
                 </View>
             ) : homeSurface === 'draft' ? (

@@ -3,7 +3,7 @@ RETURNS void LANGUAGE plpgsql SET search_path = public AS $$
 DECLARE v_trade trades%ROWTYPE; v_league leagues%ROWTYPE; v_team record; v_count record;
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id = p_trade_id;
-  SELECT * INTO v_league FROM leagues WHERE id = v_trade.league_id FOR UPDATE;
+  SELECT * INTO v_league FROM leagues WHERE id = v_trade.league_id FOR NO KEY UPDATE NOWAIT;
   PERFORM 1 FROM players player
     WHERE player.id IN (SELECT player_id FROM trade_items WHERE trade_id=p_trade_id
       UNION SELECT roster.player_id FROM roster_players roster JOIN trade_participants participant ON participant.member_id=roster.member_id

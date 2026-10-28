@@ -1,4 +1,5 @@
 import { strict as assert } from 'node:assert'
+import { withWorkContext } from '../_shared/workContext.ts'
 
 for (const [key, value] of Object.entries({
   SUPABASE_URL: 'http://database.invalid',
@@ -21,11 +22,15 @@ try {
 const injury = (displayName: string, status = 'Out') => ({ status, athlete: { displayName } })
 const player = (id: string, display_name: string, injury_status: string | null = null) => ({ id, display_name, injury_status, espn_id: id, nba_team: 'BOS', injury_reason: 'unknown', injury_expected_return: 'unknown' })
 
-async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token') {
+async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token', patchErrors: { code: string; message: string }[] = []) {
   const originalFetch = globalThis.fetch
+  const originalError = console.error
+  const logs: string[] = []
+  console.error = (...values) => { logs.push(JSON.stringify(values)) }
   const requests: string[] = []
   const writes: { id: string | null; body: Record<string, unknown> }[] = []
   const runs: Record<string, unknown>[] = []
+  const writeFilters: string[] = []
   globalThis.fetch = async (input, init) => {
     const request = new Request(input, init)
     const url = new URL(request.url)
@@ -54,6 +59,9 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') {
       writes.push({ id: url.searchParams.get('id'), body: await request.json() })
+      writeFilters.push(url.search)
+      const error = patchErrors.shift()
+      if (error) return Response.json(error, { status: 500 })
       return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     }
     return Response.json(players)
@@ -62,9 +70,10 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
     const response = await handler!(new Request('http://function.invalid', {
       method: 'POST', headers: { ...(token ? { 'x-internal-function-token': token } : {}), 'content-type': 'application/json' }, body: JSON.stringify(body),
     }))
-    return { response, result: await response.json(), requests, writes, runs }
+    return { response, result: await response.json(), requests, writes, runs, logs, writeFilters }
   } finally {
     globalThis.fetch = originalFetch
+    console.error = originalError
   }
 }
 
@@ -166,4 +175,52 @@ for (const [token, status] of [[null, 401], ['wrong-token', 403]] as const) {
 Deno.test('injury details update even when the status stays Out', async () => {
   const result = await refresh({ injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Afternoon Scratch' }, details: { type: 'Ankle', detail: 'Sprain', returnDate: '2026-11-02' } }] }] }, [player('scratch', 'Afternoon Scratch', 'Out')])
   assert.deepEqual(result.writes, [{ id: 'eq.scratch', body: { injury_status: 'Out', injury_reason: 'Ankle: Sprain', injury_expected_return: '2026-11-02' } }])
+})
+
+Deno.test('a returned injury failure logs its message and worker stack', async () => {
+  const result = await refresh({ injuries: [] })
+  assert.equal(result.response.status, 500)
+  assert.ok(result.logs.some(log => log.includes('no mapped statuses') && log.includes('syncRuns.ts')))
+})
+
+Deno.test('a thrown injury failure logs its message and stack but keeps the HTTP body generic', async () => {
+  const result = await refresh(new Response('unavailable', { status: 500 }))
+  assert.equal(result.response.status, 500)
+  assert.equal(result.result.error, 'Internal server error')
+  assert.ok(result.logs.some(log => log.includes('ESPN injuries 500') && log.includes('playerSource.ts')))
+})
+
+Deno.test('a concurrent database lock retries the same guarded injury update', async () => {
+  const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [player('scratch', 'Afternoon Scratch')], {}, 'fixture-token', [{ code: '55P03', message: 'canceling statement due to lock timeout' }])
+  assert.equal(result.response.status, 200)
+  assert.equal(result.result.updated, 1)
+  assert.equal(result.writes.length, 2)
+  assert.deepEqual(result.writes[0], result.writes[1])
+  assert.equal(result.writeFilters[0], result.writeFilters[1])
+  assert.ok(result.writeFilters[1].includes('injury_status=is.null'))
+})
+
+Deno.test('a permanent injury write failure is reported without retrying', async () => {
+  const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [player('scratch', 'Afternoon Scratch')], {}, 'fixture-token', [{ code: '23514', message: 'check constraint failed' }])
+  assert.equal(result.response.status, 500)
+  assert.equal(result.writes.length, 1)
+  assert.equal(result.result.updated, 0)
+  assert.match(result.result.failure, /check constraint failed/)
+})
+
+Deno.test('persistent injury contention stops after five attempts and stays failed', async () => {
+  const result = await refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [player('scratch', 'Afternoon Scratch')], {}, 'fixture-token', Array.from({ length: 5 }, () => ({ code: '55P03', message: 'canceling statement due to lock timeout' })))
+  assert.equal(result.response.status, 500)
+  assert.equal(result.writes.length, 5)
+  assert.match(result.result.failure, /lock timeout/)
+})
+
+Deno.test('a lost work lease prevents another injury write attempt', async () => {
+  let renewals = 0
+  const result = await withWorkContext({ signal: new AbortController().signal, renewLease: async () => {
+    if (++renewals > 1) throw new Error('Work lease lost')
+  } }, () => refresh({ injuries: [{ injuries: [injury('Afternoon Scratch')] }] }, [player('scratch', 'Afternoon Scratch')], {}, 'fixture-token', [{ code: '55P03', message: 'canceling statement due to lock timeout' }]))
+  assert.equal(result.response.status, 500)
+  assert.equal(result.writes.length, 1)
+  assert.ok(result.logs.some(log => log.includes('Work lease lost')))
 })

@@ -20,6 +20,10 @@ export async function createTradeEstimate(userId: string, memberId: string, item
     p_user_id: userId, p_member_id: memberId, p_items: items,
   })
   if (error) throwDb(error)
+  return saveEstimate(userId, memberId, inputs)
+}
+
+async function saveEstimate(userId: string, memberId: string, inputs: Json): Promise<TradeEstimateQuote> {
   const analysis = analyzeTradeEstimate(inputs as unknown as TradeEstimateInputs, Date.now())
   const { data: quote, error: saveError } = await supabase.rpc('save_trade_estimate_quote', {
     p_user_id: userId, p_member_id: memberId, p_inputs: inputs,
@@ -27,6 +31,26 @@ export async function createTradeEstimate(userId: string, memberId: string, item
   })
   if (saveError) throwDb(saveError)
   return quote as unknown as TradeEstimateQuote
+}
+
+export async function createSubmittedTradeEstimate(tradeId: string): Promise<void> {
+  const { data: snapshot, error: snapshotError } = await supabase.from('trade_estimates').select('quote_id').eq('trade_id', tradeId).single()
+  if (snapshotError) throwDb(snapshotError)
+  if (snapshot.quote_id) return
+  const { data: trade, error: tradeError } = await supabase.from('trades').select('proposer_member_id').eq('id', tradeId).single()
+  if (tradeError) throwDb(tradeError)
+  const { data: member, error: memberError } = await supabase.from('league_members').select('user_id').eq('id', trade.proposer_member_id).single()
+  if (memberError) throwDb(memberError)
+  const { data, error } = await supabase.rpc('get_trade_revaluation_inputs', {
+    p_user_id: member.user_id, p_member_id: trade.proposer_member_id, p_trade_id: tradeId,
+  })
+  if (error) throwDb(error)
+  const inputs = { ...(data as Record<string, Json>) }
+  delete inputs.revaluationTradeId
+  delete inputs.inputVersion
+  delete inputs.observedAt
+  inputs.submittedTradeId = tradeId
+  await saveEstimate(member.user_id, trade.proposer_member_id, inputs)
 }
 
 export async function revalueTrade(userId: string, memberId: string, tradeId: string) {

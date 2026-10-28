@@ -35,8 +35,11 @@ DECLARE
   v_rows int;
   v_league leagues%ROWTYPE;
   v_balance int;
+  v_terms jsonb;
   v_champion_finalized boolean := false;
 BEGIN
+  PERFORM set_config('pancake.trade_write','true',true);
+  PERFORM set_config('lock_timeout','100ms',true);
   IF cardinality(v_offer_player_ids) + cardinality(v_request_player_ids) +
      cardinality(v_offer_pick_ids) + cardinality(v_request_pick_ids) +
      (CASE WHEN v_offer_faab_amount > 0 THEN 1 ELSE 0 END) +
@@ -88,11 +91,33 @@ BEGIN
     v_offer_player_ids || v_request_player_ids
   );
 
+  SELECT private.canonical_trade_estimate_terms(jsonb_agg(jsonb_build_object(
+    'fromMemberId',route.sender,'toMemberId',route.receiver,'playerId',route.player_id,
+    'pickId',route.pick_id,'faabAmount',route.faab_amount))) INTO v_terms
+  FROM (
+    SELECT p_proposer_member_id sender,p_recipient_member_id receiver,player_id,NULL::uuid pick_id,0 faab_amount FROM unnest(v_offer_player_ids) player_id
+    UNION ALL SELECT p_recipient_member_id,p_proposer_member_id,player_id,NULL::uuid,0 FROM unnest(v_request_player_ids) player_id
+    UNION ALL SELECT p_proposer_member_id,p_recipient_member_id,NULL::uuid,pick_id,0 FROM unnest(v_offer_pick_ids) pick_id
+    UNION ALL SELECT p_recipient_member_id,p_proposer_member_id,NULL::uuid,pick_id,0 FROM unnest(v_request_pick_ids) pick_id
+    UNION ALL SELECT p_proposer_member_id,p_recipient_member_id,NULL::uuid,NULL::uuid,v_offer_faab_amount WHERE v_offer_faab_amount>0
+    UNION ALL SELECT p_recipient_member_id,p_proposer_member_id,NULL::uuid,NULL::uuid,v_request_faab_amount WHERE v_request_faab_amount>0
+  ) route;
+  IF EXISTS(SELECT 1 FROM trades pending WHERE pending.league_id=p_league_id
+    AND pending.league_season_id=p_league_season_id AND pending.status='pending'
+    AND (pending.expires_at IS NULL OR pending.expires_at>now())
+    AND pending.proposer_member_id=p_proposer_member_id AND pending.recipient_member_id=p_recipient_member_id
+    AND pending.id IS DISTINCT FROM p_edited_from_trade_id AND pending.id IS DISTINCT FROM p_countered_from_trade_id
+    AND v_terms=(SELECT private.canonical_trade_estimate_terms(jsonb_agg(jsonb_build_object(
+      'fromMemberId',item.from_member_id,'toMemberId',item.to_member_id,'playerId',item.player_id,
+      'pickId',item.pick_id,'faabAmount',item.faab_amount))) FROM trade_items item WHERE item.trade_id=pending.id)) THEN
+    RAISE EXCEPTION 'An identical offer is already pending. Open that trade instead.' USING ERRCODE='P0001';
+  END IF;
+
   SELECT *
     INTO v_league
     FROM leagues
    WHERE id = p_league_id
-   FOR UPDATE;
+   FOR NO KEY UPDATE NOWAIT;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'League not found.';
@@ -345,5 +370,7 @@ BEGIN
   );
 
   RETURN v_trade_id;
+EXCEPTION WHEN lock_not_available THEN
+  RAISE EXCEPTION 'The league is busy. Try this trade again.' USING ERRCODE='PT001';
 END;
 $$;

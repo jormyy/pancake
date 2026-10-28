@@ -92,7 +92,7 @@ BEGIN
   PERFORM public.dispatch_work();
   PERFORM pg_temp.check_queue('one worker error schedules its own retry',(SELECT status='failed' AND attempts=1 FROM private.work_items WHERE id=v_id));
   PERFORM pg_temp.check_queue('one worker error does not roll back healthy work',(SELECT status='succeeded' FROM private.work_items WHERE kind='player-stats-hints' AND key='after-error'));
-  PERFORM pg_temp.check_queue('only the dispatcher is scheduled',(SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job));
+  PERFORM pg_temp.check_queue('only the dispatcher is scheduled',(SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')));
 END;
 $$;
 SELECT count(*) AS passed_checks FROM queue_checks;

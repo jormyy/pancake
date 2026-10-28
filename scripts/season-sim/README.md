@@ -27,7 +27,10 @@ Only loopback HTTP and PostgreSQL targets in the configured block pass the guard
 The production project reference always fails.
 The database helper checks the configured container and its database port before its first query.
 Port suffixes are API 21, database 22, origin 80, router 81, inspector 83, and fault target 89.
-Assigned blocks are 572–575. Block 581 belongs only to the supplemental project and 582 only to the replacement replay.
+Assigned blocks are 572–575.
+Block 581 belongs to the supplemental project, and 582 belongs to the replacement replay.
+Block 587 belongs to the guarded private repair project.
+Each special block requires its matching root and project from `common.mjs`.
 The installer changes configuration only inside the mini copy.
 It disables cron launch before applying migrations.
 It saves the installed cron catalog before unscheduling jobs.
@@ -67,7 +70,8 @@ node scripts/season-sim/index.mjs --replay
 node scripts/season-sim/report.mjs
 ```
 
-The replay calls every intervening minute of the recorded business cron schedule.
+The replay derives cron expectations from the ordered migrations.
+It calls every scheduled business wake, including the half-minute hint drain and hourly cron-history cleanup.
 It pauses business time during I/O and wakes worker timers at their business deadlines.
 Internal live-work reads and worker completion trigger authenticated score probes.
 The morning and season-end paths contain no direct score or stat sync calls.
@@ -80,8 +84,10 @@ The private Realtime probe follows `hooks/use-matchup-data.ts` and watches match
 The independent score oracle uses stored player stat rows and locked starters.
 Weekly checks require every expected matchup and member standing.
 Playoff ties use higher maximum possible points, then home.
-Rookie order uses the latest prior standings: rows present first, wins ascending, points ascending, then member ID.
-Snake order uses the actual member count and traded pick owners.
+Rookie drafts default to linear order from prior standings.
+Worse records pick first; ties use higher points per game, then the stored seed.
+Saved snake drafts retain their chosen order.
+Traded picks keep their original slot and current owner.
 
 ## Segments
 

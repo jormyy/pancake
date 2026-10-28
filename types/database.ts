@@ -5736,6 +5736,10 @@ export type Database = {
         }
         Returns: Json
       }
+      get_prepared_matchup_forecast_context: {
+        Args: { p_matchup_id: string }
+        Returns: Json
+      }
       get_score_sync_games: {
         Args: {
           p_end_date: string
@@ -5908,6 +5912,10 @@ export type Database = {
           p_user_id: string
         }
         Returns: undefined
+      }
+      prepare_matchup_forecast_inputs: {
+        Args: { p_game_date?: string; p_matchup_id: string }
+        Returns: Json
       }
       process_due_accepted_trades_atomic: {
         Args: { p_limit?: number }

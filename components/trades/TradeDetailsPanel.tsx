@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useLeagueContext } from '@/contexts/league-context'
@@ -37,6 +38,9 @@ export function TradeDetailsPanel({
     const { currentLeague } = useLeagueContext()
     const { trade, myMemberId } = context
     const model = tradeCardModel(context)
+    const [rosterValidity, setRosterValidity] = useState<{ trade: typeof trade; memberId: string; legal: boolean } | null>(null)
+    const onValidityChange = useCallback((legal: boolean) => setRosterValidity({ trade, memberId: myMemberId, legal }), [trade, myMemberId])
+    const acceptDisabled = Boolean(currentLeague && actions.onRosterPlan && (rosterValidity?.trade !== trade || rosterValidity.memberId !== myMemberId || !rosterValidity.legal))
     const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${new Date(trade.proposedAt).toLocaleString([], DATE)}`
 
     return (
@@ -76,8 +80,8 @@ export function TradeDetailsPanel({
 
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
             <SavedTradeEstimate trade={trade} myMemberId={context.myMemberId} />
-            {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} disabled={actions.acting} /> : null}
-            <TradeActionButtons trade={trade} model={model} actions={actions} />
+            {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} onValidityChange={onValidityChange} disabled={actions.acting} /> : null}
+            <TradeActionButtons trade={trade} model={model} actions={{ ...actions, acceptDisabled }} />
             <MotionPressable
                 style={styles.analyze}
                 onPress={onAnalyze}

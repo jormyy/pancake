@@ -55,7 +55,7 @@ BEGIN
           AND week.week_number = (context->>'weekNumber')::integer)
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object('date', day, 'dayLabel', substring('SMTWTFS', extract(dow FROM day)::integer + 1, 1),
-    'dateNum', extract(day FROM day), 'isToday', day = today,
+    'dateNum', extract(day FROM day), 'isToday', day = (now() AT TIME ZONE COALESCE(context->'league'->>'timezone', 'America/Los_Angeles'))::date,
     'hasGames', EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year = (context->>'seasonYear')::integer AND g.game_date = day),
     'playingTeams', COALESCE((SELECT jsonb_agg(team ORDER BY game_id, side) FROM (
       SELECT g.id AS game_id, 0 AS side, g.home_team AS team FROM public.nba_games g WHERE g.game_date = day AND g.season_year = (context->>'seasonYear')::integer

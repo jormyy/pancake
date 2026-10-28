@@ -18,7 +18,7 @@ export async function saveScoreboardGames(games: NBAGame[], work: StoredScoreboa
   }
   for (const game of games) {
     const stored = storedGames.get(game.gameId)
-    if (!stored) continue
+    if (!stored || stored.status === 'Final') continue
     const status = mapGameStatus(game.gameStatus)
     const home = game.homeTeam.score ?? 0
     const away = game.awayTeam.score ?? 0

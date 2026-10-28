@@ -265,7 +265,15 @@ BEGIN
         SELECT id INTO v_id FROM players WHERE
           CASE p_source WHEN 'espn' THEN espn_id WHEN 'sleeper' THEN sleeper_id ELSE nba_id END = v_provider;
       END IF;
-      IF v_id IS NULL THEN
+      IF p_source IN ('espn', 'sleeper') AND v_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM players WHERE id=v_id
+          AND private.player_import_name_key(display_name) IS DISTINCT FROM private.player_import_name_key(v_name)
+          AND private.player_identity_name(display_name) IS DISTINCT FROM private.player_identity_name(v_name)
+      ) THEN
+        v_id := NULL;
+        v_action := 'ambiguous';
+      END IF;
+      IF v_id IS NULL AND v_action <> 'ambiguous' THEN
         v_matches := NULL;
         IF v_team IS NOT NULL AND p_source IN ('espn', 'sleeper', 'nba_cdn') THEN
           SELECT array_agg(id) INTO v_matches FROM players
@@ -366,6 +374,7 @@ BEGIN
             ON CONFLICT (player_id) DO UPDATE SET nba_team = EXCLUDED.nba_team, listed_at = EXCLUDED.listed_at,
               team_since = CASE WHEN player_espn_listings.nba_team IS NOT DISTINCT FROM EXCLUDED.nba_team
                 THEN coalesce(player_espn_listings.team_since, player_espn_listings.listed_at) ELSE EXCLUDED.team_since END;
+            PERFORM private.repair_player_game_teams(v_id);
           END IF;
         ELSIF p_source = 'nba_cdn' THEN
           UPDATE players SET nba_id = v_provider,position=coalesce(position,(v_metadata->>'position')::nba_position),

@@ -6,7 +6,7 @@ import { FlashList } from '@shopify/flash-list'
 import { MotionView } from '@/components/Motion'
 import { SegmentedControl } from '@/components/ui'
 import { colors, fontSize, fontWeight, radii, spacing, table, textStyles } from '@/constants/tokens'
-import { draftAgeLabel, draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
+import { draftEventTime, draftPlayerMeta } from '@/lib/draft-display'
 
 import type { DraftBudget, DraftNomination } from '@/lib/draft'
 import type { DraftTab } from '@/hooks/useAuctionDraftRoomController'
@@ -74,8 +74,8 @@ export const AuctionDraftSidePanel = memo(function AuctionDraftSidePanel({
                         return (
                             <View style={[styles.historyRow, index > 0 && styles.divider]}>
                                 <PlayerRowContent name={item.player?.displayName ?? 'Unknown'} nbaId={item.player?.nbaId}
-                                    team={item.player?.nbaTeam} yearsExp={item.player?.yearsExp} careerGames={item.player?.careerGames} injuryStatus={item.player?.injuryStatus} positions={item.player?.position ? [item.player.position] : []}
-                                    stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid', draftAgeLabel(item.player?.age)])} />
+                                    team={item.player?.nbaTeam} age={item.player?.age} yearsExp={item.player?.yearsExp} careerGames={item.player?.careerGames} injuryStatus={item.player?.injuryStatus} positions={item.player?.position ? [item.player.position] : []}
+                                    stats={draftPlayerMeta([`#${item.nominationOrder}`, draftEventTime(item.nominatedAt), item.status === 'sold' ? winnerTeam ?? '—' : 'No bid'])} />
                                 {item.status === 'sold' ? <Text style={styles.historyPrice}>${item.finalPrice}</Text> : null}
                                 {item.status === 'no_bid' ? <Text style={styles.historyNoBid}>FA</Text> : null}
                             </View>

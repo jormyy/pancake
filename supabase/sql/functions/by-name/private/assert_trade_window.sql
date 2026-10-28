@@ -5,7 +5,7 @@ SET search_path = ''
 AS $$
 DECLARE v_status public.league_status;
 BEGIN
-  SELECT status INTO v_status FROM public.leagues WHERE id=p_league_id FOR UPDATE;
+  SELECT status INTO v_status FROM public.leagues WHERE id=p_league_id FOR NO KEY UPDATE NOWAIT;
   IF v_status='setup' OR EXISTS (
     SELECT 1 FROM public.drafts draft
     JOIN public.league_seasons season ON season.id=draft.league_season_id AND season.is_current

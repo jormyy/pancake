@@ -1,6 +1,7 @@
 # Database performance
 
-These contracts define scoring reuse, bounded reads, and local capacity measurements. Recovery preserves database objects and current source data.
+These contracts define scoring reuse, bounded reads, and local capacity measurements.
+Recovery preserves database objects and current source data.
 
 ## Scoring
 
@@ -16,9 +17,9 @@ It creates no persistent snapshot.
 Trade veto reads check `private.can_read_trade(trade_id)` directly for each veto row.
 They retain the existing participant and league access rules.
 
-Health-filtered player search reuses score rows within its statement.
-Other searches keep the direct view path.
-This adds no stored cache or new source authority.
+Current-season player search reads stored player averages through the screen view.
+Historical searches retain their season-specific calculations.
+The database remains the source of scoring and ownership.
 
 ## Measurements
 

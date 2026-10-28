@@ -2,6 +2,7 @@ import '../helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
+import { RosterPlayerSheet } from '@/components/roster/RosterPlayerSheet'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
 import { rosterPlayer } from '../helpers/fixtures'
@@ -60,4 +61,13 @@ it.each([true, false])('describes the add destination accurately with active roo
     await act(async () => screen.root.findAllByType('Pressable' as React.ElementType).find(node => node.props.accessibilityLabel === 'Add to taxi')!.props.onPress())
     expect(taxi).toHaveBeenCalledOnce()
     expect(add).not.toHaveBeenCalled()
+})
+
+it('shows age before experience in the roster player sheet', async () => {
+    const player = rosterPlayer()
+    player.players = { ...player.players, birthdate: '1990-01-01', years_exp: 10 }
+    await act(async () => { screen = create(React.createElement(RosterPlayerSheet, { player, actions: [], onClose: vi.fn() })) })
+    const text = JSON.stringify(screen.toJSON())
+    expect(text).toContain('Yr 11')
+    expect(text.indexOf('36')).toBeLessThan(text.indexOf('Yr 11'))
 })

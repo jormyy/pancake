@@ -5,7 +5,7 @@ BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   SELECT * INTO trade FROM public.trades WHERE id = (p_params->>'tradeId')::uuid AND league_id = p_league_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('context', context, 'trade', NULL, 'analysis', NULL); END IF;
-  analysis_context := public.view_context(p_league_id, p_member_id, jsonb_build_object('seasonId', trade.league_season_id));
+  analysis_context := public.view_context(p_league_id, p_member_id, jsonb_build_object('seasonId', trade.league_season_id,'tradeId',trade.id));
   SELECT COALESCE(jsonb_agg(jsonb_build_object('memberId', participant.member_id, 'teamName', COALESCE(member.team_name, 'Unknown'),
     'sortOrder', participant.sort_order, 'isInitiator', participant.is_initiator, 'acceptedAt', participant.accepted_at,
     'dropPlayerIds', participant.drop_player_ids, 'rosterMoves', participant.roster_moves)
@@ -54,7 +54,6 @@ BEGIN
     'rosterPreview', CASE WHEN COALESCE((p_params->>'includeRosterPreview')::boolean, true)
       THEN public.view_trade_preview(p_league_id, p_member_id, p_params) END,
     'analysis', (SELECT revaluation FROM public.trade_value_cache WHERE trade_id = trade.id),
-    'analysisStale', COALESCE((SELECT valid_until <= now() OR version <> (analysis_context->>'version')::bigint
-      OR (analysis_context->>'stale')::boolean FROM public.trade_value_cache WHERE trade_id = trade.id), true));
+    'analysisStale', COALESCE((analysis_context->>'tradeAnalysisStale')::boolean,true));
 END;
 $$;

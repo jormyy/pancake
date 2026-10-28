@@ -142,6 +142,7 @@ export async function fetchUserLeagues(userId: string) {
         id,
         name,
         invite_code,
+        timezone,
         status,
         commissioner_id,
         auction_budget,

@@ -40,7 +40,7 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                     {irOptions.map(rp => (
                         <View key={rp.id} style={styles.row}>
                             <PlayerRowContent name={rp.players.display_name} nbaId={rp.players.nba_id} team={rp.players.nba_team} positions={rp.players.eligible_positions ?? []}
-                                yearsExp={rp.players.years_exp} careerGames={rp.players.career_regular_season_games} injuryStatus={rp.players.injury_status} />
+                                birthdate={rp.players.birthdate} yearsExp={rp.players.years_exp} careerGames={rp.players.career_regular_season_games} injuryStatus={rp.players.injury_status} />
                             <Button title="Move to IR" size="sm" onPress={() => onMoveToIR(rp)}
                                 disabled={dropping !== null} loading={dropping === rp.id}
                                 accessibilityLabel={`Move ${rp.players.display_name} to IR and add player`} />
@@ -56,7 +56,7 @@ export function DropPlayerPickerModal({ visible, title, roster, dropping, onDrop
                         <View key={rp.id} style={styles.row}>
                             <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team}
                                 positions={p.eligible_positions?.length ? p.eligible_positions : p.position ? [p.position] : []}
-                                yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} />
+                                birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status} />
                             <Button
                                 title="Drop"
                                 size="sm"

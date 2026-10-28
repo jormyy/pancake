@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261114000300",
+  "candidateVersion": "20261116000500",
   "common": {
     "functions": [
       {
@@ -546,6 +546,26 @@
     "post-migration": {
       "functions": [
         {
+          "name": "attach_submitted_trade_estimate",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "6c1c8a0a40be5b639cba2012c62b1c1befc288b6970f7752709595da55357491",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
           "name": "clear_future_unlocked_lineups",
           "owner": "postgres",
           "config": [
@@ -566,6 +586,26 @@
           "authenticatedExecute": true
         },
         {
+          "name": "defer_trade_event",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "a6e273e825f3fc290f857d676e221d8ce587454216384d7626a1da48edf9e27c",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
           "name": "enqueue_scheduled_work",
           "owner": "postgres",
           "config": [
@@ -576,7 +616,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "cb17f9e5e139317d24f86f5207078f155ddf501227e20f275aa6ae43ffc55add",
+          "bodySha256": "eb6696b624c2cef1b84617e36c7d80112b3258c7356db0d1e013e47c28e50649",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -604,6 +644,46 @@
           "identityArguments": "p_player_id uuid, p_game_date date",
           "serviceRoleExecute": true,
           "authenticatedExecute": true
+        },
+        {
+          "name": "publish_trade_changes",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "void",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_publication_id uuid",
+          "bodySha256": "ab9fb9674916196c4dcf4da4596fc59853bd6817f77dc26089058da369a3b855",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_publication_id uuid",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "queue_trade_publication",
+          "owner": "postgres",
+          "config": [
+            "search_path=\"\""
+          ],
+          "result": "void",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "p_league_id uuid, p_topic text DEFAULT 'trade'::text, p_source text DEFAULT 'trades'::text, p_event jsonb DEFAULT NULL::jsonb",
+          "bodySha256": "502b4b35822008cd68a4faad0c924b9662efc2b1598410736ab01cb39fdbcdd8",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "p_league_id uuid, p_topic text, p_source text, p_event jsonb",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
         },
         {
           "name": "reconcile_edge_invocations",
@@ -696,7 +776,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_kind text, p_key text, p_due_at timestamp with time zone DEFAULT now(), p_payload jsonb DEFAULT '{}'::jsonb, p_league_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "386b7089538893fae86f7b6e92f495111b6436f9903dad6de45b46d1ce48fd56",
+          "bodySha256": "2d7f1e6ca5fd0185fff84239be7db5c28545354a13d5814fe448f6ef3d364410",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -716,7 +796,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "34d3b796bf8503f27ae58b7600d96230d4872e4d8b5b4d442c940f5bb6422ecf",
+          "bodySha256": "8a195a5afe2a717e2fb1019b5872f0ac7d3485e1b1d8ce4afd4f213c4171cdc6",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -756,7 +836,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "b63a21bdf9c8fc57d524a71869401c6667fad49205d70ff9cd866362ebaa863a",
+          "bodySha256": "30248b3dd832f4067a774997c0b4982498656556c1be5e7e3d32e718b7acb565",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -888,6 +968,20 @@
       ],
       "triggers": [
         {
+          "name": "attach_submitted_trade_estimate",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER attach_submitted_trade_estimate AFTER INSERT ON public.trade_estimate_quotes FOR EACH ROW EXECUTE FUNCTION private.attach_submitted_trade_estimate()",
+          "functionName": "attach_submitted_trade_estimate",
+          "functionSchema": "private"
+        },
+        {
+          "name": "defer_trade_event",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER defer_trade_event BEFORE INSERT ON public.league_events FOR EACH ROW EXECUTE FUNCTION private.defer_trade_event()",
+          "functionName": "defer_trade_event",
+          "functionSchema": "private"
+        },
+        {
           "name": "league_version_delete",
           "enabled": "O",
           "definition": "CREATE TRIGGER league_version_delete AFTER DELETE ON public.roster_players REFERENCING OLD TABLE AS version_old_rows FOR EACH STATEMENT EXECUTE FUNCTION private.league_version_capture('roster', 'league')",
@@ -947,6 +1041,15 @@
         },
         {
           "rls": true,
+          "name": "trade_publications",
+          "forceRls": false,
+          "policies": 0,
+          "anonSelect": false,
+          "serviceRoleSelect": false,
+          "authenticatedSelect": false
+        },
+        {
+          "rls": true,
           "name": "work_items",
           "forceRls": false,
           "policies": 0,
@@ -964,7 +1067,14 @@
           "authenticatedSelect": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        {
+          "name": "trades_pending_parties",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX trades_pending_parties ON public.trades USING btree (league_id, league_season_id, proposer_member_id, recipient_member_id) WHERE (status = 'pending'::trade_status)"
+        }
+      ]
     }
   },
   "sourceMigrations": [
@@ -1739,6 +1849,54 @@
     {
       "filename": "20261114000300_bounded_dispatch_transactions.sql",
       "sha256": "20938785008bc1c0a727bfe109301a5ec7aa40b2c486be92dfbd0471af6d4cb9"
+    },
+    {
+      "filename": "20261114000400_player_birthdate_simulated_clock.sql",
+      "sha256": "36903fbe80705ef73a37ec474cd58076601d86857edb6ec2a41a0b8734b6fbf1"
+    },
+    {
+      "filename": "20261115000100_io_idle_and_retention.sql",
+      "sha256": "88b8746bf6f8a641fba5484e02ca38c3e9de638b13dd79b698aa5dd0f5ea8ef4"
+    },
+    {
+      "filename": "20261115000200_io_screen_content.sql",
+      "sha256": "cba69786a4a5af41f0e29050ac070829319638273b81fa47e022625d1a4c0068"
+    },
+    {
+      "filename": "20261115000300_io_coalesce_changes.sql",
+      "sha256": "01352aed14c7357d02996e79f63677a2622a7d8b112e2377c4f6bff4b9fa3150"
+    },
+    {
+      "filename": "20261115000400_io_live_progress.sql",
+      "sha256": "544956be5545465da76d9e76f9f874f71fc1155a3e1d7547eec135b5f628bed4"
+    },
+    {
+      "filename": "20261115000500_bounded_matchup_forecast_history.sql",
+      "sha256": "bb2d910b9f2553a1801eb9e4363cfb59620d3ed5b837de18cf079af2a2ee70eb"
+    },
+    {
+      "filename": "20261115000600_precomputed_forecast_inputs.sql",
+      "sha256": "2c6ea4b5c8f5330361cbdd77d57cee24afbc74b5887bdd5f533d61437a6ce690"
+    },
+    {
+      "filename": "20261116000100_review_screen_fields.sql",
+      "sha256": "42db924b7d02e362db0730ab1c8b18bb1864abc2440e1cc59d6263ad197de6d3"
+    },
+    {
+      "filename": "20261116000200_exact_player_rosters.sql",
+      "sha256": "8a77d099ff735a665dda819fbabfe39acdc59de9e7293e80242b4c656e3c95df"
+    },
+    {
+      "filename": "20261116000300_async_trade_estimates.sql",
+      "sha256": "c3f47924ec2dadf7ca6ba5e0ea9d56306bd9c3b88f5311fc60f9405c36af518b"
+    },
+    {
+      "filename": "20261116000400_deduplicate_pending_trade_offers.sql",
+      "sha256": "40b1463e94d075ebbed2e429cbff901ec598aaae63fadca5b2f2a8b5959764fe"
+    },
+    {
+      "filename": "20261116000500_defer_trade_publication.sql",
+      "sha256": "c6821ba5b906750eed8185bd17a7e1a4e12ab9d79e76a78d4f2be031d11bb338"
     }
   ],
   "preMigration": {
