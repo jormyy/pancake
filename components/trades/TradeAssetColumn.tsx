@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
 
 
-import { colors, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
@@ -50,10 +50,10 @@ function PlayerRow({
             testID={testID}
             id={testID}
         >
-            <PlayerRowContent name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+            <PlayerRowContent compact name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
                 yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
                 stats={<View>
-                    <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Remove the earlier route to select this player.' : statText}</Text>
+                    <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>
                     {selected && destinationLabel ? <Text style={styles.routeMeta} numberOfLines={1}>To {destinationLabel}</Text> : null}
                 </View>} />
             {selected && (
@@ -100,7 +100,7 @@ function PickRow({
                     {pickLabel(pick.seasonYear, pick.round)}
                 </Text>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
-                {blocked && !selected ? <Text style={styles.playerContext}>Remove the earlier route to select this pick.</Text> : null}
+                {blocked && !selected ? <Text style={styles.playerContext}>Already routed</Text> : null}
                 {selected && destinationLabel ? (
                     <Text style={styles.routeMeta} numberOfLines={1}>
                         To {destinationLabel}
@@ -247,8 +247,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: spacing.xl,
-        paddingVertical: spacing.md,
-        gap: spacing.lg,
+        minHeight: componentTokens.playerRow.compact.minHeight,
+        paddingVertical: componentTokens.playerRow.compact.paddingVertical,
+        gap: componentTokens.playerRow.compact.gap,
         borderBottomWidth: 1,
         borderBottomColor: colors.separator,
     },

@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     requestTradeEstimate: vi.fn(),
 }))
 
-vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: (scope: unknown) => mocks.requestTradeEstimate(scope).then((quote: unknown) => ({ quote })) }))
+vi.mock('@/lib/shared/api', () => ({ apiPost: (path: string, body: unknown) => mocks.requestTradeEstimate(path, body).then((quote: unknown) => ({ quote })) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
 vi.mock('@/contexts/panel-activity', () => ({ usePanelActivity: () => true }))
 vi.mock('@/lib/league-changes', () => ({ deferLeagueRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }), listenForLeagueChanges: () => () => {} }))
@@ -63,7 +63,7 @@ it('coalesces rapid player changes into one forecast request after 300 ms', asyn
     expect(latest.analysis).toBeNull()
     expect(latest.loading).toBe(true)
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
-    expect(mocks.requestTradeEstimate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trade-analysis', memberId: 'member-a', params: expect.objectContaining({ items: [expect.objectContaining({ playerId: 'player-2' })] }) }))
+    expect(mocks.requestTradeEstimate).toHaveBeenCalledExactlyOnceWith('/trades/estimate', expect.objectContaining({ memberId: 'member-a', items: [expect.objectContaining({ playerId: 'player-2' })] }))
     await act(async () => { renderer.unmount() })
 })
 

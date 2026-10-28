@@ -33,7 +33,7 @@ it.each([[0, null, 2, ['R', 'T:—']], [0, 65, 2, ['R', 'T:65']], [2, 0, 2, ['T:
         item: playerRow({ years_exp: years, career_regular_season_games: games }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }), slots)
-    expect(labels(screen)).toEqual(expected)
+    expect(labels(screen)).toEqual([...expected, ...(years == null ? [] : [`Yr ${years + 1}`])])
     await act(async () => screen.unmount())
 })
 
@@ -56,13 +56,13 @@ it('keeps names separate from accessible abbreviated status tags', async () => {
         item: playerRow({ display_name: 'A very long player name', years_exp: 0, injury_status: 'Out' }),
         currentMemberId: 'member', ownedMap: new Map(), waiverIds: new Set<string>(), isAdding: false, onAdd: () => {}, onPress: () => {},
     }))
-    expect(labels(screen)).toEqual(['O', 'R', 'T:—'])
+    expect(labels(screen)).toEqual(['O', 'R', 'T:—', 'Yr 1'])
     const tags = screen.root.findAllByType(Badge)
-    expect(tags.map(tag => tag.props.accessibilityLabel)).toEqual(['Out', 'Rookie', 'Taxi eligible, career games unknown'])
+    expect(tags.map(tag => tag.props.accessibilityLabel)).toEqual(['Out', 'Rookie', 'Taxi eligible, career games unknown', undefined])
     const name = screen.root.findByProps({ testID: 'player-name-line' })
     expect(name.findAllByType(Badge)).toHaveLength(0)
     const metadata = screen.root.findByProps({ testID: 'player-meta-line' })
-    expect(metadata.findAllByType(Badge)).toHaveLength(3)
+    expect(metadata.findAllByType(Badge)).toHaveLength(4)
     await act(async () => screen.unmount())
 })
 

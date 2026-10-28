@@ -72,7 +72,7 @@ function PlayerSearchItemImpl({
 
     const statusBadge = currentMemberId && (!isFA || showStats) ? (
         <Badge size="ownership" variant="solid"
-            color={showStats ? 'transparent' : isMe ? colors.successLight : isWaiver ? colors.infoLight : colors.bgMuted}
+            color={showStats ? colors.transparent : isMe ? colors.successLight : isWaiver ? colors.infoLight : colors.bgMuted}
             textColor={isMe ? colors.successDark : isWaiver ? uiColors.waiverText : colors.textMuted}
             style={[styles.statusBadge, !showStats && styles.statusBadgeNarrow]}
             label={isMe ? 'Mine' : isOther ? owned!.teamName : isWaiver ? `W · ${claimProcessWeekdayLabel(waiverClearsAt)}` : 'FA'}
@@ -104,7 +104,7 @@ function PlayerSearchItemImpl({
             >
                 <PendingMutationBadge rowId={item.id} />
                 <PlayerRowContent compact={!showStats} name={item.display_name} nbaId={item.nba_id} team={item.nba_team} positions={getEligiblePositions(item)}
-                    yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
+                    age={item.age} birthdate={item.birthdate} yearsExp={item.years_exp} careerGames={item.career_regular_season_games} injuryStatus={item.injury_status} onTaxi={owned?.isOnTaxi} metadata={showStats ? statusBadge : undefined} stats={summary} />
 
             </Pressable>
             <View style={styles.addCol}>

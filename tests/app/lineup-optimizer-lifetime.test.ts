@@ -160,7 +160,7 @@ it('shows one panel with direct actions and an accessible preference', async () 
     expect(screen.root.findByProps({ accessibilityRole: 'switch' }).props.accessibilityLabel).toBe('Keep lineup updated automatically')
     expect(screen.root.findAllByType('AutoSetModal' as React.ElementType)).toHaveLength(0)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })).toHaveLength(0)
-    expect(screen.root.findByType('PageHeader' as React.ElementType).props.compact).toBe(true)
+    expect(screen.root.findAllByType('PageHeader' as React.ElementType)).toHaveLength(_mode === 'inline' ? 0 : 1)
 })
 
 it('reads the saved preference again after reopening the page', async () => {

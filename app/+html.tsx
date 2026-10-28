@@ -1,7 +1,7 @@
 import { ScrollViewStyleReset } from 'expo-router/html'
 import { usePathname } from 'expo-router'
 import { type PropsWithChildren } from 'react'
-import { colors, fontFamily, shadows, webChrome } from '@/constants/tokens'
+import { colors, fontFamily, shadows, webChrome, fontSize, lineHeight, radii, spacing } from '@/constants/tokens'
 import { Asset } from 'expo-asset'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { FontDisplay, useFonts } from 'expo-font'
@@ -52,14 +52,14 @@ if (window.isSecureContext) {
       var notice = document.getElementById('pancake-update-notice') || document.createElement('div');
       notice.id = 'pancake-update-notice';
       notice.setAttribute('role', 'status');
-      notice.style.cssText = 'position:fixed;bottom:80px;left:16px;right:16px;z-index:10000;padding:16px;border-radius:12px;background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font:14px system-ui';
+      notice.style.cssText = 'position:fixed;bottom:${spacing['6xl'] * 2}px;left:${spacing.xl}px;right:${spacing.xl}px;z-index:10000;padding:${spacing.xl}px;border-radius:${radii.xl}px;background:${colors.bgCard};color:${colors.textPrimary};box-shadow:${shadows.lg};font:${fontSize['2md']}px system-ui';
       notice.textContent = held() ? 'An update is ready. Finish your current work, then reload.' :
         navigator.onLine === false ? 'Reconnect to update this screen.' :
         retry ? 'Update could not finish. Reload to retry.' : assetMissed ? 'Updating…' : 'An update is ready. Reload to continue.';
       var button = document.createElement('button');
       button.textContent = 'Reload';
       button.disabled = held();
-      button.style.cssText = 'margin-left:12px;padding:8px 12px;font:inherit';
+      button.style.cssText = 'margin-left:${spacing.lg}px;padding:${spacing.md}px ${spacing.lg}px;font:inherit';
       button.addEventListener('click', function () { reloadScreen(); });
       notice.appendChild(button);
       document.body.appendChild(notice);
@@ -223,7 +223,7 @@ const POINTER_FOCUS_SCRIPT = `
 })();
 `
 const FOCUS_CSS = 'input:focus,textarea:focus{outline:none;}html[data-pointer] :focus{outline:none;}'
-const SHELL_GEOMETRY_CSS = `.pbs-side .pbs-league{height:68px;flex-shrink:0}.pbs-side .pbs-league-name{font-family:${fontFamily.displayMedium};line-height:18px}.pbs-side .pbs-league-meta{line-height:14px}.pbs-brand-title{font-family:${fontFamily.display}}`
+const SHELL_GEOMETRY_CSS = `.pbs-side .pbs-league{height:68px;flex-shrink:0}.pbs-side .pbs-league-name{font-family:${fontFamily.displayMedium};line-height:${lineHeight.body}px}.pbs-side .pbs-league-meta{line-height:${lineHeight.meta}px}.pbs-brand-title{font-family:${fontFamily.display}}`
 const documentFonts = {
     ...criticalFonts,
     ...Object.fromEntries(Object.entries(MaterialIcons.font).map(([name, uri]) => [name, { uri, display: FontDisplay.BLOCK }])),

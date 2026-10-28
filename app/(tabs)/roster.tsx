@@ -894,12 +894,12 @@ export default function RosterScreen() {
 
             <DeferredContent ready={data != null} busy={loading || refreshing}>
             {roster.length === 0 && loading ? <View style={{ flex: 1, minHeight: 320 }} aria-busy accessibilityState={{ busy: true }} /> : (
-                <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : 0 }]}>
+                <View style={[styles.body, twoPane && styles.bodyTwoPane, { paddingHorizontal: twoPane ? padX : spacing.none }]}>
                     <View style={styles.main}>
                         <ScrollView
                             ref={listRef}
                             {...scrollRestoration}
-                            contentContainerStyle={[styles.listContent, { paddingHorizontal: twoPane ? 0 : padX }]}
+                            contentContainerStyle={[styles.listContent, { paddingHorizontal: twoPane ? spacing.none : padX }]}
                         >
                             {roster.length === 0 ? (
                                 <EmptyState

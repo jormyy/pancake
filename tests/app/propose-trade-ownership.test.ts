@@ -168,7 +168,7 @@ vi.mock('@/components/trades/TradeRosterPlanEditor', () => ({ TradeRosterPlanEdi
 vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: 'MultiTeamTradeBuilder' }))
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
-vi.mock('@/components/ui', () => ({ ErrorBanner: () => null }))
+vi.mock('@/components/ui', () => ({ Button: 'Button', ErrorBanner: () => null }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: () => null }))
 
 vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))

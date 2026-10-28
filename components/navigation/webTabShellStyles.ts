@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native'
-import { brand, colors, controlSize, fontFamily, fontSize, fontWeight, layout, motion, radii, shadows, spacing, textStyles, webBackgrounds, webOverlays, type WebOnlyViewStyle } from '@/constants/tokens'
+import { brand, colors, controlSize, fontFamily, fontSize, fontWeight, layout, motion, radii, shadows, spacing, textStyles, webBackgrounds, webOverlays, type WebOnlyViewStyle, tracking } from '@/constants/tokens'
 
 const MOBILE_TOPBAR_HEIGHT = layout.shell.topbarHeight
 const MOBILE_BOTTOMBAR_HEIGHT = layout.shell.bottomBarHeight
@@ -65,7 +65,7 @@ export const styles = StyleSheet.create({
         fontFamily: fontFamily.display,
         fontWeight: fontWeight.extrabold,
         color: brand.on,
-        letterSpacing: 0,
+        letterSpacing: tracking.none,
     },
 
     leagueSwitchWrap: {
@@ -108,7 +108,7 @@ export const styles = StyleSheet.create({
     leagueSwitchWrapLight: {
         // The sidebar spacing below the switcher misaligns the fixed-height
         // mobile top bar; the topbar centers a strict 44px control instead.
-        marginBottom: 0,
+        marginBottom: spacing.none,
     },
     leagueSwitchLight: {
         minHeight: controlSize.minTouch,
@@ -134,10 +134,10 @@ export const styles = StyleSheet.create({
     // Full-screen layer for the open league menu; its backdrop catches outside taps.
     leagueMenuLayer: {
         position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
+        top: spacing.none,
+        right: spacing.none,
+        bottom: spacing.none,
+        left: spacing.none,
         zIndex: 1000,
     } as unknown as WebOnlyViewStyle,
     // Positioned by the switcher from its measured place on screen.
@@ -296,31 +296,31 @@ export const styles = StyleSheet.create({
     // the safe-area insets or standalone-PWA launches put the top bar under the
     // notch and the bottom tabs under the home indicator.
     contentCompact: {
-        paddingTop: `var(--pancake-mobile-topbar-height, calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px)))`,
-        paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
+        paddingTop: `var(--pancake-mobile-topbar-height, calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, ${spacing.none}px)))`,
+        paddingBottom: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, ${spacing.none}px))`,
     } as unknown as WebOnlyViewStyle,
 
     contentWithBackHeader: {
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingTop: `env(safe-area-inset-top, ${spacing.none}px)`,
     } as unknown as WebOnlyViewStyle,
 
     mobileTopbar: {
         position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
+        top: spacing.none,
+        left: spacing.none,
+        right: spacing.none,
         zIndex: 50,
-        minHeight: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, 0px))`,
-        paddingTop: `calc(${spacing.xs}px + env(safe-area-inset-top, 0px))`,
+        minHeight: `calc(${MOBILE_TOPBAR_HEIGHT}px + env(safe-area-inset-top, ${spacing.none}px))`,
+        paddingTop: `calc(${spacing.xs}px + env(safe-area-inset-top, ${spacing.none}px))`,
         paddingBottom: spacing.xs,
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
-        paddingLeft: `calc(${spacing.lg}px + env(safe-area-inset-left, 0px))`,
-        paddingRight: `calc(${spacing.lg}px + env(safe-area-inset-right, 0px))`,
+        paddingLeft: `calc(${spacing.lg}px + env(safe-area-inset-left, ${spacing.none}px))`,
+        paddingRight: `calc(${spacing.lg}px + env(safe-area-inset-right, ${spacing.none}px))`,
         backgroundColor: colors.bgCard,
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        backdropFilter: 'blur(2${spacing.none}px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(2${spacing.none}px) saturate(180%)',
         borderBottomWidth: 1,
         borderBottomColor: colors.borderLight,
         boxShadow: shadows.sm,
@@ -340,15 +340,15 @@ export const styles = StyleSheet.create({
     },
     mobileBottomNav: {
         position: 'fixed',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        left: spacing.none,
+        right: spacing.none,
+        bottom: spacing.none,
         zIndex: 50,
-        height: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, 0px))`,
+        height: `calc(${MOBILE_BOTTOMBAR_HEIGHT}px + env(safe-area-inset-bottom, ${spacing.none}px))`,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
-        paddingBottom: `calc(${spacing.xs}px + env(safe-area-inset-bottom, 0px))`,
+        paddingBottom: `calc(${spacing.xs}px + env(safe-area-inset-bottom, ${spacing.none}px))`,
         backgroundColor: webOverlays.mobileBottomNav,
         borderTopWidth: 1,
         borderTopColor: colors.borderLight,

@@ -3,17 +3,14 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@pancake/core'
-import { colors, fontSize, fontWeight, radii, spacing, textStyles } from '@/constants/tokens'
+import { borderWidth, colors, componentTokens, fontSize, fontWeight, spacing, textStyles, lineHeight } from '@/constants/tokens'
 
 export function TradeAnalysisSummary({
     analysis,
     players = [],
     participantName,
     loading = false,
-    cached = false,
     inset = true,
-    calculatedAt,
-    saved = false,
 }: {
     analysis: DynastyTradeAnalysis | null
     players?: RosterPlayer[]
@@ -28,40 +25,30 @@ export function TradeAnalysisSummary({
     if (!analysis) return null
 
     return (
-        <DeferredContent ready={!loading} style={{ flex: 0, minHeight: 64 }}>
+        <DeferredContent ready={!loading} style={{ flex: 0, minHeight: componentTokens.tradeAnalyzer.pendingHeight }}>
         <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
-            <View style={styles.headingRow}>
-                <Text style={styles.title}>{saved ? 'Estimate saved with these terms' : 'Estimated trade value'}</Text>
-                <Text style={[styles.confidence, loading && { opacity: 0 }]}>Input quality {Math.round(analysis.confidence * 100)}%{cached ? ' · cached' : ''}</Text>
-            </View>
-            {calculatedAt ? <Text style={styles.detail}>{new Date(calculatedAt).toLocaleString()}</Text> : null}
             <View style={styles.teamGrid}>
                 {analysis.teams.map((team) => (
                     <View key={team.memberId} style={styles.teamCard}>
                         <Text style={styles.teamName}>{participantName(team.memberId)}</Text>
-                        <Text style={[styles.value, team.impact < 0 && styles.valueNegative]}>Net value {signed(team.impact)}</Text>
-                        <Text style={styles.detail}>Current production {signed(team.shortTermPoints)}</Text>
-                        <Text style={styles.detail}>Long-term value {signed(team.longTermValue)}</Text>
-                        <Text style={styles.detail}>Sent {team.valuesSent} · Received {team.valuesReceived}</Text>
-                        <Text style={styles.detail}>Roster slots {signed(team.rosterSlotEffect)} · Replacement {signed(team.replacementEffect)}</Text>
-                        <Text style={styles.detail}>Package effect {signed(team.packageEffect)}</Text>
+                        <Text style={styles.detail}>{team.valuesSent} vs {team.valuesReceived}</Text>
+                        <Text style={[styles.value, team.impact < 0 && styles.valueNegative]}>{signed(team.impact)}</Text>
                     </View>
                 ))}
             </View>
-            <Text style={styles.subhead}>Asset details</Text>
             {analysis.assets.map((asset) => {
                 const player = players.find(item => item.players.id === asset.assetId)?.players
                 return (
                 <View key={`${asset.kind}:${asset.assetId}`} style={styles.assetRow}>
                     <View style={styles.assetHeading}>
-                        {asset.kind === 'player' ? <PlayerRowContent name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
+                        {asset.kind === 'player' ? <PlayerRowContent compact name={asset.label} nbaId={player?.nba_id} team={player?.nba_team}
                             positions={player?.eligible_positions ?? (player?.position ? [player.position] : [])}
-                            injuryStatus={player?.injury_status} /> : <View style={styles.assetCopy}>
+                            injuryStatus={player?.injury_status}
+                            stats={<Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit>{assetValueLine(asset, analysis.strategy)}</Text>} /> : <View style={styles.assetCopy}>
                             <Text style={styles.assetName} numberOfLines={1}>{asset.label}</Text>
+                            <Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit>{assetValueLine(asset, analysis.strategy)}</Text>
                         </View>}
-                        <Text style={styles.confidence}>{Math.round(asset.confidence * 100)}%</Text>
                     </View>
-                    <Text style={styles.assetValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{assetValueLine(asset, analysis.strategy)}</Text>
                 </View>
                 )
             })}
@@ -82,18 +69,14 @@ function signed(value: number): string {
 
 const styles = StyleSheet.create({
     inset: { margin: spacing.xl },
-    root: { padding: spacing.xl, gap: spacing.md, backgroundColor: colors.bgCard, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.xl },
-    headingRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm },
-    title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: colors.textPrimary },
-    confidence: { ...textStyles.meta, fontWeight: fontWeight.semibold },
-    teamGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-    teamCard: { flexGrow: 1, flexBasis: 210, minWidth: 0, padding: spacing.lg, gap: spacing.xxs, backgroundColor: colors.bgMuted, borderRadius: radii.lg },
-    teamName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    root: { gap: spacing.md },
+    teamGrid: { gap: spacing.xs },
+    teamCard: { flexDirection: 'row', alignItems: 'center', minHeight: componentTokens.playerRow.compact.minHeight, paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal, gap: spacing.md, width: '100%' },
+    teamName: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
     value: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
     valueNegative: { color: colors.dangerDark },
-    detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: 18 },
-    subhead: { ...textStyles.sectionLabel, marginTop: spacing.xs },
-    assetRow: { gap: spacing.xxs, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.borderLight },
+    detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: lineHeight.body },
+    assetRow: { gap: spacing.xxs, paddingVertical: spacing.sm, borderTopWidth: borderWidth.thin, borderTopColor: colors.borderLight },
     assetHeading: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
     assetValue: { ...textStyles.meta, fontSize: fontSize.xs, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
     assetCopy: { flex: 1, minWidth: 0 },

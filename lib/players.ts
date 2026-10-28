@@ -24,6 +24,8 @@ export type PlayerRow = {
     headshot_url: string | null
     nba_id: string | null
     years_exp: number | null
+    age?: number | null
+    birthdate?: string | null
     career_regular_season_games?: number | null
     playing_now?: boolean
     stats_season_year?: number | null
@@ -75,6 +77,7 @@ type PlayerDetailSourceRow = Pick<
     | 'headshot_url'
     | 'nba_id'
     | 'years_exp'
+    | 'birthdate'
     | 'career_regular_season_games'
     | 'status'
 >
@@ -103,6 +106,7 @@ const PLAYER_DETAIL_SELECT = `
     headshot_url,
     nba_id,
     years_exp,
+    birthdate,
     career_regular_season_games,
     status
 `

@@ -194,6 +194,7 @@ export const foundation = {
 // ── Semantic tokens ─────────────────────────────────────────────
 
 export const colors = {
+    transparent: 'transparent',
     // Text
     textPrimary:     webColor('text-primary', palette.espresso),
     textSecondary:   webColor('text-secondary', palette.mocha),
@@ -253,6 +254,7 @@ export const colors = {
 // ── Spacing ─────────────────────────────────────────────────────
 
 export const spacing = {
+    none: 0,
     xxs: halfUnit(1),
     xs: unit(1),
     sm: halfUnit(3),
@@ -276,6 +278,8 @@ export const borderWidth = {
 } as const
 
 export const radii = {
+    none: 0,
+    xxs: halfUnit(1),
     xs: unit(1),
     sm: halfUnit(3),
     md: unit(2),
@@ -296,6 +300,7 @@ export const fontSize = {
     '2sm': TYPE_SCALE[2],
     sm: TYPE_SCALE[3],
     md: TYPE_SCALE[4],
+    '2md': 14,
     lg: TYPE_SCALE[5],
     '2lg': TYPE_SCALE[6],
     xl: TYPE_SCALE[7],
@@ -326,6 +331,23 @@ export const fontFamily = {
         Platform.OS === 'web'
             ? `Outfit_500Medium, ${WEB_SANS_FALLBACK}`
             : 'Outfit_500Medium',
+} as const
+
+export const lineHeight = {
+    meta: 14,
+    body: 18,
+    control: 20,
+    roomy: 22,
+    title: 24,
+    display: 42,
+} as const
+
+export const tracking = {
+    none: 0,
+    tight: 0.3,
+    normal: 0.4,
+    label: 0.5,
+    wide: 1,
 } as const
 
 export const fontWeight = {
@@ -541,18 +563,6 @@ export const uiColors = {
     waiverText: webColor('ui-waiver-text', palette.purple600),
 } as const
 
-export const scoreboardColors = {
-    background: brand.surface,
-    card: brand.surfaceDeep,
-    textMuted: brand.onFaint,
-    accent: palette.maple200,
-    accentSoft: palette.maple100,
-    hidden: webOverlays.scoreboardHidden,
-    border: webOverlays.scoreboardBorder,
-    statusMuted: webOverlays.scoreboardMuted,
-    statusFinal: webOverlays.scoreboardFaint,
-    liveGlow: webOverlays.liveGlow,
-} as const
 
 // ── Motion ──────────────────────────────────────────────────────
 // Named durations (ms) for transitions/micro-interactions. Honor
@@ -606,7 +616,12 @@ export const componentTokens = {
         actionWidth: controlSize.minTouch,
         statCount: 10,
     },
+    tradeAnalyzer: { builderWidth: unit(225), teamTabWidth: unit(24), pendingHeight: unit(16) },
     matchupRow: {
+        rowHeight: unit(14),
+        nameLineHeight: unit(9),
+        compactNameLineHeight: unit(6),
+        gameLineHeight: unit(4),
         slotWidth: 52,
         pointsWidth: 64,
         statWidth: 34,
@@ -634,6 +649,10 @@ export const componentTokens = {
         label: { ...textStyles.body, color: colors.primaryDark, fontWeight: fontWeight.semibold, textAlign: 'center' as const },
     },
     daySelector: {
+        dotSize: 5,
+        dotRadius: 3,
+        dashRadius: 1,
+        indicatorOffset: 1,
         standard: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, gap: spacing.sm },
         compact: { paddingHorizontal: 0, paddingVertical: spacing.xxs, gap: spacing.xxs },
         target: controlSize.minTouch,

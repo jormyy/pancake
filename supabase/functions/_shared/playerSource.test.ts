@@ -8,7 +8,7 @@ import { strict as assert } from 'node:assert'
 
 let draftYear = 2025
 
-let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' | 'season-numbers' | 'malformed-injury' | 'injuries-down' = 'good'
+let mode: 'good' | 'league' | 'few-teams' | 'garbage' | 'down' | 'empty-rosters' | 'missing-injuries' | 'empty-injuries' | 'reshaped-injuries' | 'unmapped-injuries' | 'missing-experience' | 'malformed-injury' | 'injuries-down' = 'good'
 
 const ESPN_LEAGUE = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'GS', 'HOU', 'IND', 'LAC', 'LAL', 'MEM',
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
@@ -66,10 +66,6 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
       }))
       return Response.json({ athletes, season: { year: 2026 } })
     }
-    if (mode === 'season-numbers') {
-      const seasons = [0, 2, 24]
-      return Response.json({ athletes: roster.athletes.map((athlete, index) => ({ ...athlete, experience: { years: seasons[index % 3] } })) })
-    }
     return Response.json(mode === 'empty-rosters' ? { athletes: [] } : roster)
   }
   if (url.pathname.endsWith('/injuries')) {
@@ -78,10 +74,6 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
     if (mode === 'missing-injuries') return Response.json({})
     if (mode === 'empty-injuries') return Response.json({ injuries: [] })
     if (mode === 'reshaped-injuries') return Response.json({ data: [] })
-    if (mode === 'season-numbers') {
-      return Response.json({ injuries: [{ injuries: [{ status: 'Out', athlete: { id: '77', displayName: 'Season Two', team: { abbreviation: 'BOS' },
-        position: { abbreviation: 'G' }, experience: { years: 2 } } }] }] })
-    }
     if (mode === 'unmapped-injuries') return Response.json({ injuries: [{ injuries: [{ status: 'Unknown', athlete: { displayName: 'Player' } }] }] })
     return Response.json({
       injuries: [{
@@ -98,7 +90,7 @@ const upstream = Deno.serve({ hostname: '127.0.0.1', port: 0, onListen() {} }, (
 
 Deno.env.set('ESPN_SITE_BASE_URL', `http://127.0.0.1:${(upstream.addr as Deno.NetAddr).port}`)
 
-const { espnListingGaps, fetchEspnInjuries, fetchEspnPlayerListing, mapEspnTeam } = await import('./playerSource.ts')
+const { espnListingGaps, fetchEspnPlayerListing, mapEspnTeam } = await import('./playerSource.ts')
 
 async function expectRefusal(label: string, pattern: RegExp) {
   try {
@@ -174,14 +166,6 @@ for (const degraded of ['missing-injuries', 'reshaped-injuries', 'empty-injuries
     assert.equal(listing.failure, null)
   })
 }
-
-Deno.test('ESPN season numbers become completed seasons', async () => {
-  mode = 'season-numbers'
-  const { records } = await fetchEspnPlayerListing()
-  assert.deepEqual(['ath-1-0', 'ath-1-1', 'ath-1-2'].map(id => records.find(record => record.espn_id === id)?.years_exp), [0, 1, 23])
-  const { identities } = await fetchEspnInjuries()
-  assert.equal(identities[0]?.years_exp, 1)
-})
 
 Deno.test('missing source experience derives a rookie from draft year and a veteran from NBA debut', async () => {
   mode = 'missing-experience'

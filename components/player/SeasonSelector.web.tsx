@@ -40,7 +40,7 @@ export function SeasonSelector({ seasons, selectedSeason, onSelect }: Props) {
             </select>
             <span
                 aria-hidden="true"
-                style={{ position: 'absolute', right: spacing.md, top: 0, bottom: 0, display: 'flex', alignItems: 'center', pointerEvents: 'none' }}
+                style={{ position: 'absolute', right: spacing.md, top: spacing.none, bottom: spacing.none, display: 'flex', alignItems: 'center', pointerEvents: 'none' }}
             >
                 <MaterialIcons name="expand-more" size={controlSize.icon.md} color={colors.textMuted} />
             </span>

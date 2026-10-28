@@ -7,7 +7,7 @@ import { PlayerEligibilityContext } from '@/contexts/player-eligibility-context'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { memo, useContext, useEffect, useState, type ReactNode } from 'react'
 import { View, Text, StyleSheet, TextInput, Switch } from 'react-native'
-import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors } from '@/constants/tokens'
+import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, table, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { isIREligible, RosterPlayer } from '@/lib/roster'
 import { getEligiblePositions } from '@/lib/players'
 import { TradePickItem } from '@/lib/trades'
@@ -255,7 +255,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                 <RosterSlotTag slotType={slotType} />
                 <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
+                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 
@@ -304,7 +304,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
         >
             <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
+                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
         </MotionPressable>
@@ -340,7 +340,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                 <RosterSlotTag slotType="TX" />
                 <PendingMutationBadge rowId={player.id} />
                 <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
+                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
 
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
     slotTagBench: { borderColor: colors.border, borderStyle: 'dashed' as const },
     slotTagIR: { backgroundColor: colors.dangerLight, borderColor: uiColors.dangerBorder },
     slotTagTaxi: { backgroundColor: colors.infoLight, borderColor: colors.info },
-    slotTagText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
+    slotTagText: { fontSize: fontSize['2xs'], fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
     slotTagTextStarter: { color: colors.primaryDark },
     slotTagTextBench: { color: colors.textSecondary },
     slotTagTextIR: { color: colors.dangerDark },

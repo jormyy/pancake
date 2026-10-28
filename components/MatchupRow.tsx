@@ -1,3 +1,4 @@
+import { useFittedText } from '@/components/ui/useFittedText'
 import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import { memo, type ReactNode } from 'react'
 import { View, Text, StyleSheet, Platform } from 'react-native'
@@ -5,7 +6,7 @@ import { LineupPlayer, type LineupSelection, type LineupMoveTargetState } from '
 import { LiveStatLine } from '@/lib/games'
 import { computeLiveFantasyPoints } from '@/lib/scoring'
 import { POSITION_COLORS } from '@/constants/positions'
-import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors, tracking } from '@/constants/tokens'
 import { PosTag } from '@/components/PosTag'
 import { InjuryBadge } from '@/components/Badge'
 import { formatPoints, playerHeadshotUrl } from '@/lib/format'
@@ -46,7 +47,7 @@ function matchupLine(team: string | null | undefined, matchup: { opponent: strin
 function LineupAvatar({ player, compact = false, dense = false }: { player: LineupPlayer; compact?: boolean; dense?: boolean }) {
     const size = dense || compact ? componentTokens.matchupRow.compactAvatar : componentTokens.matchupRow.standardAvatar
     return (
-        <View testID="matchup-player-avatar" style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + 2) / 2 }]}>
+        <View testID="matchup-player-avatar" style={[styles.lineupAvatarFrame, { width: compact ? size : size + 2, height: compact ? size : size + 2, borderRadius: (size + radii.xxs) / 2 }]}>
             <Avatar
                 name={player.displayName}
                 uri={playerHeadshotUrl(player.nbaId && /^\d+$/.test(player.nbaId) ? player.nbaId : null) ?? undefined}
@@ -56,19 +57,6 @@ function LineupAvatar({ player, compact = false, dense = false }: { player: Line
             />
         </View>
     )
-}
-
-function detailLine(
-    team: string | null | undefined,
-    matchup: { opponent: string; isHome: boolean } | undefined,
-    stats: LiveStatLine | undefined,
-    compact: boolean,
-    includeStats: boolean,
-): string {
-    const game = matchupLine(team, matchup)
-    if (compact || !stats || !includeStats) return game
-    const summary = stats.didNotPlay ? 'DNP' : `${stats.points}/${stats.rebounds}/${stats.assists}`
-    return [game, summary].filter(Boolean).join(' · ')
 }
 
 // G and F only restate PG/SG and SF/PF; rows keep the space for the game line.
@@ -214,6 +202,7 @@ function PlayerSide({
     onOpenPlayer?: () => void
     onOpenDetails?: () => void
 }) {
+    const nameRef = useFittedText(player ? matchupName(player.displayName) : '')
     const left = side === 'left'
     const align = left ? 'flex-end' : 'flex-start'
     const mirror = (items: ReactNode[]) => (left ? items : [...items].reverse())
@@ -227,18 +216,17 @@ function PlayerSide({
                         {placeholderOnly ? STABLE_PLACEHOLDER : compact ? 'Empty' : emptySlotLabel(slotType)}
                     </Text>
                 </View>
-                {!dense && !compact ? (
+                {(
                     <View style={[styles.detailRow, { justifyContent: align }]}>
-                        <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{STABLE_PLACEHOLDER}</Text>
+                        <Text style={styles.sideMeta} numberOfLines={1} ellipsizeMode="clip">{'\u00a0'}</Text>
                     </View>
-                ) : null}
+                )}
             </>
         )
     } else {
         const playedToday = stats != null && !stats.didNotPlay
         const injury = player.injuryStatus ?? null
-        const detail = detailLine(player.nbaTeam, matchup, stats, compact, statColumns == null)
-        const summary = compact && stats ? stats.didNotPlay ? 'DNP' : `${stats.points}/${stats.rebounds}/${stats.assists}` : null
+        const detail = matchupLine(player.nbaTeam, matchup)
         // A ruled-out player's team can be live without him, so the tag would mislead.
         const sittingOut = !playedToday && injury?.toLowerCase() === 'out'
         block = (
@@ -248,6 +236,8 @@ function PlayerSide({
                         <InjuryBadge key="injury" status={injury} />,
                         <Text
                             key="name"
+                            ref={nameRef}
+                            adjustsFontSizeToFit
                             testID="matchup-player-name"
                             style={[styles.sideName, compact && styles.sideNameCompact, dense && styles.sideNameDense, !hasGame && styles.noGameName]}
                             numberOfLines={1}
@@ -258,7 +248,7 @@ function PlayerSide({
                         <LineupAvatar key="avatar" player={player} compact={compact} dense={dense} />,
                     ])}
                 </View>
-                {(!dense || compact) && (detail || !compact) ? (
+                {(
                     <View style={[styles.detailRow, { justifyContent: align }]}>
                         {mirror([
                             isLive && !sittingOut ? <LiveTag key="live" dotOnly={compact} /> : null,
@@ -269,12 +259,11 @@ function PlayerSide({
                                 numberOfLines={1}
                                 ellipsizeMode="tail"
                             >
-                                {detail}
+                                {detail || '\u00a0'}
                             </Text>,
                         ])}
                     </View>
-                ) : null}
-                {summary ? <Text style={styles.statSummary} numberOfLines={1}>{summary}</Text> : null}
+                )}
             </>
         )
     }
@@ -459,7 +448,7 @@ const styles = StyleSheet.create({
         gap: componentTokens.matchupRow.gap,
     },
     matchupRowCompact: {
-        paddingVertical: 0,
+        paddingVertical: spacing.none,
         gap: spacing.xxs,
     },
     matchupRowDense: {
@@ -477,8 +466,8 @@ const styles = StyleSheet.create({
     rowSideRight: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', paddingRight: spacing.sm },
     rowSideCompact: { paddingLeft: spacing.xxs, paddingRight: spacing.xxs },
     scoreTarget: { minWidth: controlSize.minTouch, minHeight: controlSize.minTouch, justifyContent: 'center' },
-    scoreTargetCompact: { alignSelf: 'flex-end', justifyContent: 'flex-end', paddingBottom: spacing.xs },
-    playerBlock: { flex: 1, minWidth: 0, minHeight: componentTokens.matchupRow.minHeight, justifyContent: 'center', gap: spacing.xxs },
+    scoreTargetCompact: { alignSelf: 'center', justifyContent: 'center' },
+    playerBlock: { flex: 1, minWidth: 0, height: componentTokens.matchupRow.rowHeight, minHeight: componentTokens.matchupRow.rowHeight, justifyContent: 'center', gap: spacing.xxs },
     playerBlockCompact: { minHeight: controlSize.minTouch + spacing.lg },
     playerBlockDense: { minHeight: controlSize.minTouch },
     fptsNum: {
@@ -493,26 +482,26 @@ const styles = StyleSheet.create({
     },
     fptsNumCompact: { width: controlSize.minTouch, fontSize: fontSize.md },
     fptsNumDense: { width: 54, fontSize: fontSize.lg },
-    fptsRight: { textAlign: 'right', marginRight: 0, marginLeft: spacing.sm },
-    fptsLeftCompact: { marginRight: 0 },
-    fptsRightCompact: { marginLeft: 0 },
+    fptsRight: { textAlign: 'right', marginRight: spacing.none, marginLeft: spacing.sm },
+    fptsLeftCompact: { marginRight: spacing.none },
+    fptsRightCompact: { marginLeft: spacing.none },
     fptsPlaceholder: { color: colors.textPlaceholder },
     fptsLeading: { color: colors.textPrimary },
     fptsLive: { color: colors.primaryDark },
     sideName: { fontSize: fontSize.md, fontWeight: fontWeight.semibold, color: colors.textPrimary, flexShrink: 1 },
     emptySlotText: { fontSize: fontSize['2sm'], fontWeight: fontWeight.medium, color: colors.textPlaceholder },
-    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.xs, flexShrink: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
+    sideNameCompact: { ...textStyles.rowTitle, fontSize: fontSize.xs, flexShrink: 1, minWidth: 0, ...(Platform.OS === 'web' ? { textOverflow: 'clip' as const } : {}) },
     sideNameDense: { fontSize: fontSize['2sm'] },
     noGameName: { color: colors.textMuted },
-    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 28, maxWidth: '100%' },
-    nameRowCompact: { maxWidth: undefined, minHeight: controlSize.badge.height, gap: spacing.xxs, flexShrink: 0 },
+    nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, height: componentTokens.matchupRow.nameLineHeight, maxWidth: '100%' },
+    nameRowCompact: { maxWidth: '100%', minWidth: 0, height: componentTokens.matchupRow.compactNameLineHeight, gap: spacing.xxs, flexShrink: 1 },
     gameText: { color: colors.textPrimary, fontWeight: fontWeight.semibold },
     statSummary: { ...textStyles.meta, fontSize: fontSize['2xs'], lineHeight: textStyles.tableHeader.lineHeight },
-    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, minHeight: textStyles.meta.lineHeight, maxWidth: '100%' },
+    detailRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, height: componentTokens.matchupRow.gameLineHeight, maxWidth: '100%' },
     sideMeta: { ...textStyles.meta, fontSize: fontSize.xs },
     detailText: { flex: 1, minWidth: 0 },
     detailTextStats: { color: colors.textMuted },
-    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: 0.4 },
+    lockedBadge: { fontSize: fontSize['2xs'], fontWeight: fontWeight.bold, color: uiColors.successTextLive, letterSpacing: tracking.normal },
     liveBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
     statLineLive: { color: colors.primaryDark, fontWeight: fontWeight.semibold },
     slotChipCenter: {
@@ -534,7 +523,7 @@ const styles = StyleSheet.create({
     slotChipSelected: { borderWidth: 1.5, borderColor: colors.primary },
     slotChipTarget: { borderWidth: 2, borderColor: colors.success, backgroundColor: colors.successLight },
     slotChipUnavailable: { opacity: 0.25 },
-    slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: 0.3 },
+    slotChipText: { fontSize: fontSize.xs, fontWeight: fontWeight.extrabold, letterSpacing: tracking.tight },
     statCells: { flexDirection: 'row', alignItems: 'center', flexShrink: 0 },
     statCell: {
         fontSize: fontSize.sm,
@@ -548,6 +537,6 @@ const styles = StyleSheet.create({
     columnHeader: { paddingVertical: spacing.xs, borderBottomWidth: 1, borderBottomColor: colors.separator },
     columnLabel: { ...textStyles.sectionLabel, fontSize: fontSize['2xs'], textAlign: 'center' },
     columnLabelFpts: { width: FPTS_W, marginRight: spacing.sm, textAlign: 'left' },
-    columnLabelRight: { marginRight: 0, marginLeft: spacing.sm, textAlign: 'right' },
+    columnLabelRight: { marginRight: spacing.none, marginLeft: spacing.sm, textAlign: 'right' },
     playerBlockSpacer: { flex: 1, minWidth: NAME_MIN_W },
 })

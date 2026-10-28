@@ -101,6 +101,9 @@ An open page can request an older route script after deployment. Keep the previo
 
 Before a production build, commit `release-predecessor.json` with `url`, `commitSha`, and `bundleDigest`. Use the previous production deployment's immutable URL and its verified release marker. The build recovers and verifies the complete artifact before copying its public assets. Production builds fail without this record or when its bytes do not match.
 
+Local and preview builds never fetch the pinned remote predecessor by default.
+Remote recovery requires `VERCEL_ENV=production` or `PANCAKE_FETCH_PREDECESSOR=1`.
+Production still requires the pinned predecessor file.
 For an isolated local update check, set `PANCAKE_PREVIOUS_RELEASE_ROOT` to the previous verified export directory. This replaces the remote predecessor for that build. Never use an export with a different API issuer as a production predecessor.
 
 The generated `release-compatibility.json` records the retained files and their source. They stay lazy and remain outside the startup precache. Each build retains one predecessor's own assets. It excludes assets inherited by that predecessor, old HTML, and old service workers. Conflicting immutable paths fail the build. Changing the predecessor requires a clean export.

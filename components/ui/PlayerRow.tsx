@@ -3,6 +3,8 @@ import { StyleSheet, Text, View } from 'react-native'
 import { colors, componentTokens, textStyles } from '@/constants/tokens'
 import { PlayerAvatar } from '@/components/player/PlayerAvatar'
 import { PlayerEligibilityTags } from '@/components/player/PlayerEligibilityTags'
+import { Badge } from '@/components/ui/Badge'
+import { playerAge } from '@/lib/player-context'
 import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 
@@ -12,6 +14,8 @@ export type PlayerRowProps = {
     headshotUrl?: string | null
     team?: string | null
     positions?: readonly string[]
+    age?: number | null
+    birthdate?: string | null
     yearsExp?: number | null
     careerGames?: number | null
     onTaxi?: boolean
@@ -23,8 +27,9 @@ export type PlayerRowProps = {
     variant?: 'compact' | 'standard'
 }
 
-export function PlayerRow({ name, nbaId, headshotUrl, team, positions = [], yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+export function PlayerRow({ name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
+    const displayAge = age ?? (birthdate ? playerAge(birthdate) : null)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
     return <View style={[styles.row, compact && styles.compactRow]} testID="player-row-content">
         <View testID="player-row-avatar">{headshotUrl ? <Avatar name={name} uri={headshotUrl} size={avatarSize} /> : <PlayerAvatar name={name} nbaId={nbaId} size={avatarSize} />}</View>
@@ -34,6 +39,8 @@ export function PlayerRow({ name, nbaId, headshotUrl, team, positions = [], year
                 {team ? <Text style={styles.team} numberOfLines={1}>{team}</Text> : null}
                 {positions.map(position => <PosTag key={position} position={position} />)}
                 <PlayerEligibilityTags yearsExp={yearsExp} careerGames={careerGames} injuryStatus={injuryStatus} onTaxi={onTaxi} />
+                {displayAge != null ? <Badge inline label={`${displayAge}`} accessibilityLabel={`Age ${displayAge}`} color={colors.textMuted} /> : null}
+                {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
                 {metadata}
             </View>
             {stats != null ? <View style={styles.stats} testID="player-stats-line">

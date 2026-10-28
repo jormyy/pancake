@@ -527,9 +527,9 @@ const styles = StyleSheet.create({
     },
     roomCardCompact: {
         minHeight: controlSize.minTouch,
-        paddingVertical: 0,
+        paddingVertical: spacing.none,
         paddingHorizontal: spacing.lg,
-        gap: 0,
+        gap: spacing.none,
         justifyContent: 'center',
     },
     roomCardTop: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },

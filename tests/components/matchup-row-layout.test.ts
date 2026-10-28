@@ -1,5 +1,5 @@
 import React from 'react'
-import { act, create, type ReactTestRenderer } from 'react-test-renderer'
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MatchupRow } from '@/components/MatchupRow'
 
@@ -15,7 +15,7 @@ vi.mock('@/lib/scoring', () => ({ computeLiveFantasyPoints: () => 0 }))
 let screen: ReactTestRenderer
 afterEach(async () => { await act(async () => screen?.unmount()) })
 
-it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Jackson', 'IOS67'], ['Shai Gilgeous-Alexander', 'Gilgeous-A', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
+it.each([['Gary Trent Jr.', 'G. Trent', '1629018'], ['Jaren Jackson III', 'J. Jackson', 'IOS67'], ['Shai Gilgeous-Alexander', 'Gilgeous-Alexander', null]])('keeps %s identifiable on a phone', async (displayName, expected, nbaId) => {
     await act(async () => {
         screen = create(React.createElement(MatchupRow, {
             myPlayer: { rosterPlayerId: 'roster', playerId: 'player', displayName, position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId },
@@ -41,7 +41,7 @@ it('mirrors names and badges outward from the centre headshots', async () => {
     expect(order[1]).toEqual([expect.any(Function), 'Text', 'InjuryBadge'])
     const names = screen.root.findAllByProps({ testID: 'matchup-player-name' })
     expect(names).toHaveLength(2)
-    expect(names.every(node => node.props.numberOfLines === 1 && node.props.ellipsizeMode === 'clip')).toBe(true)
+    expect(names.every(node => node.props.adjustsFontSizeToFit && node.props.numberOfLines === 1 && node.props.ellipsizeMode === 'clip')).toBe(true)
 })
 
 it('keeps earned points and game lines without per-player projections', async () => {
@@ -52,4 +52,17 @@ it('keeps earned points and game lines without per-player projections', async ()
     expect(texts.filter(value => value === 'TOR @ OKC')).toHaveLength(2)
     expect(texts.join(' ')).not.toContain('Proj')
     expect(texts.join(' ')).not.toContain('23.4')
+})
+
+const flatStyle = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean))
+it.each([true, false])('reserves two fixed lines for game and no-game players at compact=%s', async compact => {
+    const props = rowProps()
+    await act(async () => { screen = create(React.createElement(MatchupRow, { ...props, compact, teamMatchups: new Map([['TOR', { opponent: 'OKC', isHome: false }]]) })) })
+    const bodies = screen.root.findAllByType('MotionPressable' as React.ElementType).filter(node => String(node.props.accessibilityLabel).startsWith('Open '))
+    expect(bodies).toHaveLength(2)
+    expect(bodies.map(node => flatStyle(node.props.style).height)).toEqual([56, 56])
+    expect(bodies.map(node => node.children.length)).toEqual([2, 2])
+    expect(bodies.map(node => flatStyle((node.children[1] as ReactTestInstance).props.style).height)).toEqual([16, 16])
+    const scores = screen.root.findAllByType('MotionPressable' as React.ElementType).filter(node => String(node.props.accessibilityLabel).startsWith('Score breakdown'))
+    expect(scores.every(node => flatStyle(node.props.style).justifyContent === 'center')).toBe(true)
 })

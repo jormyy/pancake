@@ -1,3 +1,4 @@
+import { compactPlayerName } from '@/lib/compact-player-name'
 /** Shared formatting utilities — consolidated from multiple screens */
 
 import { API_URL } from '@/lib/shared/api'
@@ -30,9 +31,7 @@ export function playerHeadshotUrl(nbaId: string | null | undefined): string | nu
 
 /** "Damian Lillard" → "D. Lillard" */
 export function shortName(name: string): string {
-    const parts = name.trim().split(/\s+/)
-    if (parts.length < 2) return name
-    return `${parts[0][0]}. ${parts.slice(1).join(' ')}`
+    return compactPlayerName(name)
 }
 
 /** 2025 → "'25" */

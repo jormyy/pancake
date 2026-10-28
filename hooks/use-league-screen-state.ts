@@ -14,7 +14,7 @@ export function useLeagueScreenState() {
     const { push } = router
     const params = useLocalSearchParams<{ tab?: string }>()
     const { current, currentLeague, isCommissioner, loading: leagueLoading, membershipValidated } = useLeagueContext()
-    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab))
+    const [tab, setTab] = useState<LeagueSection>(() => parseLeagueTab(params.tab) === 'bracket' ? 'results' : parseLeagueTab(params.tab))
     const [sharing, setSharing] = useState(false)
     const tabResources = useLeagueTabResources(currentLeague?.id, current?.id, tab, membershipValidated)
     const draft = useLeagueDraftController(currentLeague?.id, { memberId: current?.id, authorized: membershipValidated, view: useMemo(() => ({ draft: tabResources.activeDraft, loaded: tabResources.activeDraftLoaded, error: tabResources.activeDraftError }), [tabResources.activeDraft, tabResources.activeDraftLoaded, tabResources.activeDraftError]) })
@@ -24,9 +24,14 @@ export function useLeagueScreenState() {
         refreshRooms: tabResources.refreshMockRooms,
         openDraftRoom: draft.openDraftRoom,
     })
-    useEffect(() => { setTab(parseLeagueTab(params.tab)) }, [params.tab])
+    useEffect(() => {
+        const next = parseLeagueTab(params.tab)
+        if (next === 'bracket') { push('/(modals)/bracket'); return }
+        setTab(next)
+    }, [params.tab, push])
 
     const handleTabChange = (nextTab: LeagueSection) => {
+        if (nextTab === 'bracket') { push('/(modals)/bracket'); return }
         setTab(nextTab)
         // setParams (not push) keeps the current screen instance mounted, so the
         // pill tab bar keeps its scroll position instead of resetting to the start.

@@ -310,9 +310,9 @@ it('rejects a changed return contract and accepts normalized return types', () =
 })
 
 function deployedHintReceiver() {
-    const source = git('show', 'origin/main:lib/league-changes.ts').replace(/^import .*$/gm, 'const onSessionCachesCleared = () => {}')
+    const source = 'const onSessionCachesCleared = () => {};\n' + git('show', 'origin/main:lib/league-changes.ts').replace(/^import .*$/gm, '')
     const exports: Record<string, unknown> = {}
-    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports })
+    runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports, onSessionCachesCleared: () => {} })
     return exports.leagueChangeReceiver as (league: string, receive: (change: Record<string, unknown>) => void) => (row: Record<string, unknown>) => boolean
 }
 
@@ -327,8 +327,15 @@ it.skipIf(!available)('emits only hint topics and inventory resources accepted b
     const season = '22222222-2222-4222-8222-222222222222'
     const receiver = deployedHintReceiver()
     for (const topic of topics) {
-        const consume = receiver(league, () => {})
-        expect.soft(consume({ league_id: league, topic, revision: 1, scopes: null, details: null }), topic).toBe(true)
+        const fixtures = topic === 'version' ? [
+            [{ version: '1', topic: 'roster', scope: { league_id: league }, created_at: '2026-10-27T00:00:00Z' }],
+            [{ version: '1', topic: 'roster', scope: {}, created_at: '2026-10-27T12:00:00Z' }],
+            [{ version: '1', topic: 'roster', scope: { season_id: season }, created_at: '2026-10-27T12:00:00Z' }],
+        ] : [null]
+        for (const details of fixtures) {
+            const consume = receiver(league, () => {})
+            expect.soft(consume({ league_id: league, topic, revision: 1, scopes: null, details }), topic).toBe(true)
+        }
     }
     for (const resource of resources) {
         const changes: Record<string, unknown>[] = []

@@ -1,6 +1,6 @@
 BEGIN;
 DO $$
-DECLARE owner uuid:=gen_random_uuid(); other uuid:=gen_random_uuid(); league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); draft uuid; snake uuid; room uuid; actual uuid; original jsonb;
+DECLARE owner uuid:=gen_random_uuid(); other uuid:=gen_random_uuid(); league uuid:=gen_random_uuid(); season uuid:=gen_random_uuid(); draft uuid; snake uuid; room uuid; actual uuid; original jsonb; prior_season uuid:=gen_random_uuid();
 BEGIN
  INSERT INTO auth.users(id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  SELECT id,'authenticated','authenticated',id||'@example.test','x',now(),'{}','{}',now(),now() FROM unnest(ARRAY[owner,other]) id;
@@ -8,8 +8,14 @@ BEGIN
  VALUES(league,'Linear draft',league::text,owner,'offseason',2,ARRAY[1]);
  INSERT INTO league_members(id,league_id,user_id,role,team_name) VALUES(owner,league,owner,'commissioner','First'),(other,league,other,'manager','Second');
  INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(season,league,2128,true);
+ INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(prior_season,league,2127,false);
+ INSERT INTO standings(league_id,league_season_id,member_id,week_number,wins,losses,ties,points_for)
+ VALUES(league,prior_season,owner,1,2,2,0,300),(league,prior_season,other,1,1,1,0,200);
  PERFORM set_config('request.jwt.claim.sub',owner::text,true);
  draft:=(public.start_rookie_draft_atomic(league,3,true)->>'id')::uuid;
+ IF (SELECT member_id FROM draft_orders WHERE draft_id=draft AND position=1) IS DISTINCT FROM other THEN
+  RAISE EXCEPTION 'Equal records must rank higher points per game first';
+ END IF;
  IF EXISTS(SELECT 1 FROM snake_draft_picks a JOIN snake_draft_picks b ON b.draft_id=a.draft_id AND b.pick_in_round=a.pick_in_round WHERE a.draft_id=draft AND a.member_id<>b.member_id) THEN
   RAISE EXCEPTION 'Default rookie draft changes slots between rounds';
  END IF;

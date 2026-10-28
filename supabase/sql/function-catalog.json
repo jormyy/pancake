@@ -104,6 +104,7 @@
     "private.lock_roster_activation(uuid,text,uuid)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.lock_trade_offer_assets(uuid,uuid[],uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.log_league_activity(uuid,uuid,text,text,text,uuid,uuid,uuid,uuid,uuid,jsonb)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.log_trade_transition_activity()": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.maintain_player_season_totals()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.make_snake_pick_atomic_internal(uuid,uuid,uuid,boolean,boolean)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.multi_team_trade_participants(uuid,uuid[])": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

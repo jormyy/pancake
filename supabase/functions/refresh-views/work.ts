@@ -1,3 +1,4 @@
+import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { revalueTrade } from '../api/tradeEstimates.ts'
 import type { Json } from '../_shared/database.ts'
@@ -11,6 +12,7 @@ type RefreshClaim = {
 }
 
 export async function refreshViews() {
+  await renewCurrentWorkLease()
   const { data, error } = await supabase.rpc('view_refresh_work', { p_params: { operation: 'claim', limit: 5 } })
   if (error) throw error
   const claims = data as unknown as RefreshClaim[]
@@ -21,6 +23,7 @@ export async function refreshViews() {
     try {
       const tradeValues: { tradeId: string; revaluation: unknown }[] = []
       for (const trade of claim.trades) {
+        await renewCurrentWorkLease()
         try {
           tradeValues.push({ tradeId: trade.tradeId, revaluation: await revalueTrade(trade.userId, trade.memberId, trade.tradeId) })
         } catch (error) {
@@ -28,6 +31,7 @@ export async function refreshViews() {
           tradeValues.push({ tradeId: trade.tradeId, revaluation: { tradeId: trade.tradeId, unavailableReason: error.message } })
         }
       }
+      await renewCurrentWorkLease()
       const { data: saved, error: saveError } = await supabase.rpc('view_refresh_work', {
         p_league_id: claim.leagueId,
         p_params: { ...params, operation: 'complete', tradeValues } as unknown as Json,

@@ -145,3 +145,12 @@ export function rookiePickOrder(order, round, format = 'linear') {
   if (!['linear', 'snake'].includes(format) || !Number.isInteger(round) || round < 1) throw new Error('Invalid rookie draft order')
   return format === 'snake' && round % 2 === 0 ? [...order].reverse() : [...order]
 }
+
+export function rookieOrder(members, standings, seed = null) {
+  return members.map(memberId => {
+    const latest = standings.filter(row => row.member_id === memberId).sort((a, b) => b.week_number - a.week_number)[0]
+    const games = Math.max(Number(latest?.wins ?? 0) + Number(latest?.losses ?? 0) + Number(latest?.ties ?? 0), 1)
+    const tie = seed ? createHash('md5').update(seed + memberId).digest('hex') : memberId
+    return { memberId, hasStandings: latest ? 1 : 0, rate: (Number(latest?.wins ?? 0) + 0.5 * Number(latest?.ties ?? 0)) / games, points: Number(latest?.points_for ?? 0) / games, tie }
+  }).sort((a, b) => b.hasStandings - a.hasStandings || a.rate - b.rate || b.points - a.points || a.tie.localeCompare(b.tie) || a.memberId.localeCompare(b.memberId)).map(row => row.memberId)
+}

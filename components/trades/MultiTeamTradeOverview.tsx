@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
         paddingTop: spacing.xl,
         gap: spacing.md,
     },
-    containerCompact: { paddingHorizontal: 0, paddingTop: spacing.sm },
+    containerCompact: { paddingHorizontal: spacing.none, paddingTop: spacing.sm },
     teamGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -142,8 +142,8 @@ const styles = StyleSheet.create({
     teamCompact: {
         borderWidth: 0,
         borderTopWidth: 1,
-        borderRadius: 0,
-        paddingHorizontal: 0,
+        borderRadius: radii.none,
+        paddingHorizontal: spacing.none,
     },
     teamHeader: {
         minHeight: 36,

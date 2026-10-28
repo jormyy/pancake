@@ -1,3 +1,4 @@
+import { useFittedText } from '@/components/ui/useFittedText'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { StyleSheet, Text, View } from 'react-native'
 import { Sheet } from '@/components/ui/Sheet'
@@ -33,6 +34,7 @@ function sideStatus(side: Side): string {
 }
 
 function PlayerHead({ side, total, align }: { side: Side; total: number | null; align: 'left' | 'right' }) {
+    const nameRef = useFittedText(side.player ? shortName(side.player.displayName) : '')
     const right = align === 'right'
     return (
         <View style={[styles.head, right && styles.headRight]}>
@@ -45,7 +47,7 @@ function PlayerHead({ side, total, align }: { side: Side; total: number | null; 
                     size={controlSize.avatar.md}
                 />
             ) : null}
-            <Text style={[textStyles.rowTitle, right && styles.textRight]} numberOfLines={1}>
+            <Text ref={nameRef} style={[textStyles.rowTitle, { maxWidth: '100%' }, right && styles.textRight]} numberOfLines={1} adjustsFontSizeToFit ellipsizeMode="clip">
                 {side.player ? shortName(side.player.displayName) : '—'}
             </Text>
             <Text style={[textStyles.meta, right && styles.textRight]} numberOfLines={1}>{sideStatus(side)}</Text>

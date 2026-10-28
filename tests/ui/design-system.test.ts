@@ -1,3 +1,4 @@
+import { designSystemViolations, scanDesignSystem } from '../../scripts/check-design-system.mjs'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { ModuleKind, transpileModule } from 'typescript'
@@ -33,9 +34,7 @@ afterEach(async () => { await act(async () => screen?.unmount()); vi.doUnmock('@
 
 it('preserves the shipped phone and lineup measurements', async () => {
     await render(React.createElement(PageHeader, { compact: true, title: 'Lineup', onBack: vi.fn(), backLabel: 'Close lineup' }))
-    expect(flatten(screen.root.findByType('View' as React.ElementType).props.style).minHeight).toBe(49)
-    expect(flatten(screen.root.findByType('Text' as React.ElementType).props.style).fontSize).toBe(16)
-    expect(screen.root.findByType('Pressable' as React.ElementType).props.accessibilityLabel).toBe('Close lineup')
+    expect(screen.toJSON()).toBeNull()
     expect(controlSize.field.fontSize).toBe(16)
     expect(componentTokens.playerRow.compact.avatarSize).toBe(28)
     expect(componentTokens.playerRow.standard.avatarSize).toBe(32)
@@ -47,6 +46,7 @@ it.each([false, true])('keeps full player names and metadata at compact=%s', asy
     await render(React.createElement(PlayerRow, { name: 'A Very Long Player Name That Must Remain Visible', team: 'LAL', compact }))
     const name = screen.root.findByProps({ testID: 'player-name-line' })
     expect(name.props.numberOfLines).toBeUndefined()
+    expect(name.props.children).toBe('A Very Long Player Name That Must Remain Visible')
     expect(screen.root.findByType('Avatar' as React.ElementType).props.size).toBe(compact ? 28 : 32)
     expect(flatten(screen.root.findByProps({ testID: 'player-meta-line' }).props.style).flexWrap).toBe('wrap')
 })
@@ -127,4 +127,46 @@ it('moves every title header after one base header token edit', async () => {
         .map(node => flatten(node.props.style).minHeight)
     expect(source.layout.pageHeaderHeight).toBe(64)
     expect(heights).toEqual([64, 64, 57])
+})
+
+it.each(['Trade analysis', 'Propose trade', 'Claim player', 'Lineup', 'Team roster', 'Bracket', 'Draft', 'Settings'])('omits the web title row for %s', async title => {
+    await render(React.createElement(PageHeader, { title, onBack: () => {} }))
+    expect(screen.toJSON()).toBeNull()
+})
+
+it('keeps modal actions while removing the title and back button', async () => {
+    await render(React.createElement(PageHeader, { title: 'Settings', onBack: () => {}, actions: React.createElement('Action') }))
+    expect(screen.root.findAllByType('Action' as React.ElementType)).toHaveLength(1)
+    expect(screen.root.findAllByType('Text' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(0)
+})
+
+it('requires shared design tokens throughout app and feature components', () => {
+    expect(designSystemViolations()).toEqual([])
+})
+it.each([
+    'const style = { color: "#ff0000" }',
+    'const style = { backgroundColor: "rgba(0,0,0,0.5)" }',
+    'const style = { color: "white" }',
+    'const style = { fontSize: 16 }',
+    'const style = { fontSize: \"16px\" }',
+    'const shade = \"rebeccapurple\"; const style = { color: shade }',
+    'const style = { [\"padding\"]: 16 }',
+    'const style = { padding: 2 * 8 }',
+    'const style = { color: `rgba(255,0,0,${opacity})` }',
+    'const style = { borderTopLeftRadius: 8 }',
+    'const style = { padding: 0, marginTop: 12, gap: 4 }',
+    'const gap = 12; const style = { columnGap: gap }',
+    'const style = { paddingBottom: inset + 16 }',
+    'const style = { fontSize: compact ? 12 : 16 }',
+    '<Text fontSize={16} />',
+    'const css = `padding: 12px 8px; border-radius: 4px; font-size: 16px`',
+])('rejects a raw design literal: %s', source => {
+    expect(scanDesignSystem(source, 'components/Fixture.tsx').length).toBeGreaterThan(0)
+})
+it('accepts shared tokens, runtime sizes and structural numbers', () => {
+    expect(scanDesignSystem('const style = { padding: spacing.md, margin: spacing.lg * 2, fontSize: fontSize.lg, borderRadius: radii.md, color: colors.primary, flex: 1, opacity: 0.5, top: insets.top }')).toEqual([])
+    expect(scanDesignSystem('const styles = { left: { flex: 1, minWidth: 0 }, right: { flex: 1 } }')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: 16 }', 'components/ui/Fixture.tsx')).toEqual([])
+    expect(scanDesignSystem('const style = { padding: 16 }', 'constants/tokens.ts')).toEqual([])
 })

@@ -120,7 +120,7 @@ describe('trade screen read model', () => {
     })
 
     it('redirects removed trade sections to their current sections', () => {
-        for (const alias of ['picks', 'analyzer']) expect(normalizeTradeTab(alias)).toBe('offers')
+        for (const alias of ['picks']) expect(normalizeTradeTab(alias)).toBe('offers')
         for (const alias of ['leagueBlock', 'my-block']) expect(normalizeTradeTab(alias)).toBe('block')
     })
 

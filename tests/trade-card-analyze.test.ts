@@ -55,10 +55,9 @@ describe('TradeCard analyze action', () => {
         expect(onAnalyze).toHaveBeenCalledTimes(1)
     })
 
-    it('opens the timeline for this trade and team', async () => {
+    it('omits the timeline link from the compact card', async () => {
         const tree = await renderCard()
-        await act(async () => { tree.root.findByProps({ accessibilityLabel: 'What happened?' }).props.onPress() })
-        expect(timelineNavigation.push).toHaveBeenCalledWith({ pathname: '/timeline', params: { memberId: 'member-a', entityId: completed.id, filter: 'trades' } })
+        expect(tree.root.findAllByProps({ accessibilityLabel: 'What happened?' })).toHaveLength(0)
     })
 
     it('is disabled while another trade action is in flight', async () => {

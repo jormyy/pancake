@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-type WorkContext = { signal: AbortSignal; livePollHolder?: string; workInvocation?: string; requestId?: string; requestActor?: string }
+type WorkContext = { signal: AbortSignal; renewLease?: () => Promise<void>; livePollHolder?: string; workInvocation?: string; requestId?: string; requestActor?: string }
 const workContext = new AsyncLocalStorage<WorkContext>()
 
 export function withWorkContext<T>(context: WorkContext, run: () => Promise<T>): Promise<T> {
@@ -14,6 +14,13 @@ export function withoutWorkContext<T>(run: () => T): T {
 
 function currentWorkContext(): WorkContext | undefined {
   return workContext.getStore()
+}
+
+export async function renewCurrentWorkLease(): Promise<void> {
+  const context = currentWorkContext()
+  context?.signal.throwIfAborted()
+  await context?.renewLease?.()
+  context?.signal.throwIfAborted()
 }
 
 export function setRequestActor(actor: string): void {

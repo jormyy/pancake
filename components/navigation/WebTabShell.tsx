@@ -481,8 +481,15 @@ function MobileBottomNav() {
 
 function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
     const router = useRouter()
-    const menuItems = [{ key: 'league', label: 'League', icon: 'emoji-events' as IconName,
-        onPress: () => router.dismissTo('/league'), active: false, loading: false }]
+    const { currentLeague, isCommissioner } = useLeagueContext()
+    const menuItems = [
+        { key: 'settings', label: 'League settings', icon: 'settings' as IconName, onPress: () => router.push('/league?tab=settings') },
+        ...(isCommissioner ? [{ key: 'commissioner', label: 'Commissioner tools', icon: 'admin-panel-settings' as IconName, onPress: () => router.push('/(modals)/commissioner-settings') }] : []),
+        { key: 'invite', label: 'Invite link', icon: 'group-add' as IconName, onPress: () => { void import('@/lib/invite-share').then(({ shareInviteMessage }) => shareInviteMessage(`Join my Pancake league! Use invite code: ${currentLeague?.invite_code}`)) } },
+        { key: 'notifications', label: 'Notification settings', icon: 'notifications-active' as IconName, onPress: () => router.push('/(modals)/notification-settings') },
+        { key: 'profile', label: 'Profile', icon: 'person' as IconName, onPress: () => router.push('/profile') },
+    ]
+
 
     return (
         <Sheet visible={visible} accessibilityLabel="Menu" onClose={onClose}>
@@ -493,15 +500,12 @@ function MobileMenuSheet({ visible, onClose }: { visible: boolean; onClose: () =
                         item.onPress()
                         onClose()
                     }}
-                    style={[styles.sheetItem, item.active && styles.sheetItemActive]}
-                    disabled={item.loading}
+                    style={styles.sheetItem}
                     accessibilityRole="button"
                     accessibilityLabel={item.label}
-                    accessibilityState={{ selected: item.active }}
-                    {...(item.active ? ARIA_CURRENT_PAGE : null)}
                 >
-                    <MaterialIcons name={item.icon} size={controlSize.icon.md} color={item.active ? colors.primaryDark : colors.textSecondary} />
-                    <Text style={[styles.sheetItemText, item.active && styles.sheetItemTextActive]}>{item.label}</Text>
+                    <MaterialIcons name={item.icon} size={controlSize.icon.md} color={colors.textSecondary} />
+                    <Text style={styles.sheetItemText}>{item.label}</Text>
                     <MaterialIcons name="chevron-right" size={controlSize.icon.md} color={colors.textPlaceholder} />
                 </Pressable>
             ))}

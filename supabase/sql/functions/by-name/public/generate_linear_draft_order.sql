@@ -36,7 +36,7 @@ BEGIN
         ORDER BY
           has_standings DESC,
           win_rate ASC,
-          points_per_game ASC,
+          points_per_game DESC,
           md5(v_draft.order_seed::text || member_id::text) ASC,
           member_id ASC
       )::int AS position

@@ -12,10 +12,10 @@ vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 let screen: ReactTestRenderer
 
 afterEach(async () => { await act(async () => screen?.unmount()); push.mockClear() })
-it.each([[0, '/players?section=players'], [1, '/players?section=waivers'], [12, '/players?section=waivers']] as const)('opens the correct section for %s claims', async (count, route) => {
+it.each([[0, '/players?section=players'], [1, '/players?section=waivers'], [2, '/players?section=waivers']] as const)('opens the correct section for %s claims', async (count, route) => {
     await act(async () => { screen = create(React.createElement(ClaimsPill, { count })) })
     const button = screen.root.findByType(Button)
-    expect(button.props.title).toBe(String(count))
+    expect(button.props.title).toBe(`${count} ${count === 1 ? 'Waiver' : 'Waivers'}`)
     expect(button.props.style.minHeight).toBeGreaterThanOrEqual(44)
     expect(button.props.style.minWidth).toBeGreaterThanOrEqual(44)
     await act(async () => button.props.onPress())

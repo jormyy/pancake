@@ -11,10 +11,10 @@ It also preserves the recorded pre-migration security catalog.
 | --- | --- | --- |
 | Audit baseline | `20261005000003` | 329 |
 | Deployed release 1 | `20261029000800` | 564 |
-| Approved release 2 candidate | `20261111000100` | 589 |
+| Approved release 2 candidate | `20261112000200` | 591 |
 
-The approved range contains 260 migrations after the audit baseline.
-The deployed release 1 phase has 25 pending migrations.
+The approved range contains 262 migrations after the audit baseline.
+The deployed release 1 phase has 27 pending migrations.
 Release 1 reaches production on 2026-10-27.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
 
@@ -47,7 +47,7 @@ Release seasons also retain smoke and performance reports.
 
 The 2026-10-27 refresh uses private mini project `pt4bafablefix`, database port `58722`.
 The stack first records the release 1 catalog at 564 migrations.
-It then applies all 25 candidate migrations and records the 589-row history and final catalog.
+It then applies all 27 candidate migrations and records the 591-row history and final catalog.
 The earlier production catalog remains in `historicalPhases`.
 Advance `preMigration` only with a catalog captured at the exact deployed version.
 The generator then preserves that catalog during candidate refreshes.

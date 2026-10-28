@@ -144,7 +144,6 @@ it('shows the first matchup with complete game data and retains it through reval
     mocks.freshness = 'fresh'
     mocks.games = [{ home_team: 'DEN', away_team: 'LAL', status: 'InProgress' }]
     await act(async () => screen.update(React.createElement(HomeScreen)))
-    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Toggle matchup details' }).props.onPress())
     expect(rows('PG')).toHaveLength(1)
     mocks.freshness = 'refreshing'
     await act(async () => screen.update(React.createElement(HomeScreen)))
@@ -194,7 +193,7 @@ it('replaces old rows with one error and leaves the day selector active', async 
     expect(mocks.loadLineups).toHaveBeenCalledWith({ id: 'matchup' }, '2026-10-11')
 })
 
-it('keeps a warm matchup visible and reveals the initial announcement when its read finishes', async () => {
+it('keeps a warm matchup visible and omits announcements when their read finishes', async () => {
     mocks.announcementsLoaded = false
     await mount()
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
@@ -203,25 +202,21 @@ it('keeps a warm matchup visible and reveals the initial announcement when its r
     mocks.announcementsLoaded = true
     await act(async () => screen.update(React.createElement(HomeScreen)))
     expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
-    const banner = screen.root.findByProps({ testID: 'home-announcement' })
-    expect(banner.findAllByType('Text' as React.ElementType).map(node => node.props.children).join(' ')).toContain('Set your lineup today.')
-    await act(async () => banner.findByProps({ accessibilityLabel: 'Dismiss announcement' }).props.onPress())
     expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
-    expect(screen.root.findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
 })
 
-it('pulls fresh Home data and announcements without remounting the loaded matchup', async () => {
+it('pulls fresh Home data without remounting the loaded matchup', async () => {
     await mount()
     const card = screen.root.findByType('ScoreCard' as React.ElementType)
     const pull = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)?.props.refreshControl
     expect(pull).toBeDefined()
     await act(async () => { await pull.props.onRefresh() })
     expect(mocks.refreshHome).toHaveBeenCalledOnce()
-    expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+    expect(mocks.refreshAnnouncements).not.toHaveBeenCalled()
     expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
 })
 
-it('refreshes Home and announcements from the web pull gesture', async () => {
+it('refreshes Home from the web pull gesture', async () => {
     await mount()
     const scroll = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)!
     expect(scroll.props.onTouchStart).toEqual(expect.any(Function))
@@ -231,7 +226,7 @@ it('refreshes Home and announcements from the web pull gesture', async () => {
         scroll.props.onTouchEnd()
     })
     expect(mocks.refreshHome).toHaveBeenCalledOnce()
-    expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
+    expect(mocks.refreshAnnouncements).not.toHaveBeenCalled()
 })
 
 it('renders the cached score card offline without an announcement read', async () => {
@@ -252,7 +247,7 @@ it('keeps the first Home layout when a later announcement read returns a banner'
     expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
 })
 
-it('shows a new announcement from pull refresh without remounting the matchup', async () => {
+it('keeps announcements off Home after pull refresh without remounting the matchup', async () => {
     await mount()
     const card = screen.root.findByType('ScoreCard' as React.ElementType)
     mocks.refreshAnnouncements.mockImplementationOnce(async () => {
@@ -260,11 +255,11 @@ it('shows a new announcement from pull refresh without remounting the matchup', 
     })
     const pull = screen.root.findAllByType('ScrollView' as React.ElementType).find(node => node.props.refreshControl)!.props.refreshControl
     await act(async () => pull.props.onRefresh())
-    expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+    expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
     expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
 })
 
-it('re-snapshots announcements when Home returns to the foreground', async () => {
+it('keeps announcements off Home when it returns to the foreground', async () => {
     const page = new EventTarget()
     let hidden = false
     Object.defineProperty(page, 'visibilityState', { get: () => hidden ? 'hidden' : 'visible' })
@@ -279,8 +274,8 @@ it('re-snapshots announcements when Home returns to the foreground', async () =>
         await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
         hidden = false
         await act(async () => { page.dispatchEvent(new Event('visibilitychange')) })
-        expect(mocks.refreshAnnouncements).toHaveBeenCalledOnce()
-        expect(screen.root.findByProps({ testID: 'home-announcement' })).toBeDefined()
+        expect(mocks.refreshAnnouncements).not.toHaveBeenCalled()
+        expect(screen.root.findAllByProps({ testID: 'home-announcement' })).toHaveLength(0)
         expect(screen.root.findByType('ScoreCard' as React.ElementType)).toBe(card)
     } finally {
         await act(async () => screen.unmount())
@@ -302,12 +297,24 @@ it('routes player identity to the profile and points to the scoring sheet', asyn
     expect(mocks.push).toHaveBeenCalledTimes(1)
 })
 
-it('leads with the matchup, shared inline editor, and today’s waivers', async () => {
+it('shows the matchup and lineup immediately without daily cards or a toggle', async () => {
     await mount(false)
     const types = screen.root.findAll(node => typeof node.type === 'string').map(node => String(node.type))
-    expect(types.indexOf('ScoreCard')).toBeLessThan(types.indexOf('InlineLineupEditor'))
-    expect(types.indexOf('InlineLineupEditor')).toBeLessThan(types.indexOf('DailyWaivers'))
-    expect(screen.root.findAllByType('MatchupRow' as React.ElementType)).toHaveLength(0)
-    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Toggle matchup details' }).props.onPress())
+    expect(types).toContain('ScoreCard')
+    expect(types).not.toContain('InlineLineupEditor')
+    expect(types).not.toContain('DailyWaivers')
+    expect(types).not.toContain('TimelineEntry')
+    expect(types).not.toContain('Scoreboard')
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Toggle matchup details' })).toHaveLength(0)
     expect(rows('BE')).toHaveLength(3)
+})
+
+it('keeps the score header day strip and rows inside one vertical scroller', async () => {
+    await act(async () => { screen = create(React.createElement(HomeScreen)) })
+    const scrollers = screen.root.findAllByType('ScrollView' as React.ElementType).filter(node => !node.props.horizontal)
+    expect(scrollers).toHaveLength(1)
+    expect(scrollers[0].props.stickyHeaderIndices).toBeUndefined()
+    expect(scrollers[0].findAllByType('ScoreCard' as React.ElementType)).toHaveLength(1)
+    expect(scrollers[0].findAllByType('DaySelector' as React.ElementType)).toHaveLength(1)
+    expect(scrollers[0].findAllByType('MatchupRow' as React.ElementType).length).toBeGreaterThan(0)
 })

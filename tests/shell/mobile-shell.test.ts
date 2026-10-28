@@ -250,3 +250,13 @@ it('keeps primary navigation ordered and reachable before and after the app moun
     await act(async () => controls('League').at(-1)!.props.onPress())
     expect(state.dismissTo).toHaveBeenCalledWith('/league')
 })
+
+it('opens account and league settings directly from the menu', async () => {
+    await render()
+    await act(async () => controls('Open menu')[0].props.onPress())
+    for (const label of ['League settings', 'Invite link', 'Notification settings', 'Profile']) expect(controls(label)).toHaveLength(1)
+    expect(controls('Commissioner tools')).toHaveLength(0)
+    await act(async () => controls('Profile')[0].props.onPress())
+    expect(state.push).toHaveBeenCalledExactlyOnceWith('/profile')
+    expect(controls('Invite link')).toHaveLength(0)
+})

@@ -1,6 +1,6 @@
 import { SignInForm, SignUpForm } from '@/components/auth/AuthForms'
 import { AUTH_DOCUMENT_ID } from '@/components/auth/AuthHydrationFrame'
-import { colors } from '@/constants/tokens'
+import { colors, spacing } from '@/constants/tokens'
 
 const ignoreChange = () => {}
 const releaseOnError = `
@@ -19,7 +19,7 @@ export function AuthDocumentForm({ pathname }: { pathname: string }) {
     }
     return (
         <>
-            <div id={AUTH_DOCUMENT_ID} inert aria-busy style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', backgroundColor: colors.bgScreen, zIndex: 1 }}>
+            <div id={AUTH_DOCUMENT_ID} inert aria-busy style={{ position: 'fixed', inset: spacing.none, display: 'flex', flexDirection: 'column', backgroundColor: colors.bgScreen, zIndex: 1 }}>
                 {pathname === '/sign-in'
                     ? <SignInForm {...fields} restorationNotice={null} />
                     : <SignUpForm {...fields} username="" displayName="" setUsername={ignoreChange} setDisplayName={ignoreChange} />}

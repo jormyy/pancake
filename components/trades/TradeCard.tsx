@@ -1,4 +1,3 @@
-import { TimelineEntry } from '@/components/timeline/TimelineEntry'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
 import { pickLabel } from '@/lib/picks'
@@ -113,7 +112,7 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
         const positions = playerEligiblePositions(item)
         return (
             <View style={styles.assetRow}>
-                <PlayerRowContent name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
+                <PlayerRowContent compact name={item.playerName} nbaId={item.nbaId} team={item.nbaTeam} positions={positions}
                     yearsExp={item.yearsExp} careerGames={item.careerGames} injuryStatus={item.injuryStatus}
                     metadata={item.toTaxi ? <Text style={styles.assetMeta}>To taxi</Text> : null}
                     stats={showContext ? playerSeasonContextText(item) : undefined} />
@@ -139,9 +138,9 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
     )
 }
 
-export function AssetList({ items, label, showContext = true }: { items: TradeItem[]; label: string; showContext?: boolean }) {
+export function AssetList({ items, label, showContext = true, stacked = false }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean }) {
     return (
-        <View style={styles.assetBlock}>
+        <View style={[styles.assetBlock, stacked && styles.stackedAssetBlock]}>
             <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
             {items.length === 0 ? (
                 <Text style={styles.assetEmpty}>Nothing</Text>
@@ -298,7 +297,6 @@ export function TradeCard({
     /** Shows the full trade: a side pane on wide screens, a sheet on phones. */
     onOpen?: () => void
 }) {
-    const router = useRouter()
     const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner })
 
     // The summary is the press target, not the whole card, so the header and
@@ -306,9 +304,9 @@ export function TradeCard({
     const summary = (
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
-            <View style={styles.sides}>
-                <AssetList items={model.receives} label={model.receiveLabel} showContext={!brief && !trade.isMultiTeam} />
-                <AssetList items={model.gives} label={model.giveLabel} showContext={!brief && !trade.isMultiTeam} />
+            <View style={[styles.sides, tab === 'history' && { flexDirection: 'column' }]}>
+                <AssetList items={model.receives} label={model.receiveLabel} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                <AssetList items={model.gives} label={model.giveLabel} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
             </View>
             {trade.notes && !brief ? <Text style={styles.notes} numberOfLines={2}>“{trade.notes}”</Text> : null}
         </>
@@ -336,7 +334,6 @@ export function TradeCard({
                 </View>
             </View>
 
-            <TimelineEntry memberId={myMemberId} entityId={trade.id} filter="trades" onOpen={destination => router.push({ pathname: '/timeline', params: destination })} />
             {onOpen ? (
                 <MotionPressable
                     style={styles.summary}
@@ -351,7 +348,7 @@ export function TradeCard({
                 </MotionPressable>
             ) : <View style={styles.summary}>{summary}</View>}
 
-            <SavedTradeEstimate trade={trade} />
+            <SavedTradeEstimate trade={trade} myMemberId={myMemberId} />
 
             <TradeActionButtons
                 trade={trade}
@@ -369,9 +366,9 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         borderRadius: radii.xl,
         borderCurve: 'continuous' as const,
-        padding: spacing.lg,
+        padding: spacing.sm,
         backgroundColor: colors.bgCard,
-        gap: spacing.md,
+        gap: spacing.xs,
     },
     cardSelected: { borderColor: colors.primary, borderWidth: 1.5 },
     cardHeader: {
@@ -395,6 +392,7 @@ const styles = StyleSheet.create({
     meta: { ...textStyles.meta },
     sides: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
     assetBlock: { flexGrow: 1, flexBasis: 200, minWidth: 0, gap: spacing.xs },
+    stackedAssetBlock: { flexGrow: 0, flexBasis: 'auto' },
     assetLabel: { ...textStyles.sectionLabel },
     assetEmpty: { ...textStyles.meta, color: colors.textPlaceholder },
     assetRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 32 },

@@ -2216,6 +2216,34 @@
       "statementCount": 26,
       "statementsSha256": "7e471725ec9bb214f27ab520219b79e86df06043dc3291552fd3eba9cc8b98d6",
       "sha256": "fb2883f0d0b3bbf9cfc1bfa6c5ac98bc9b6b307a7206daab2235539f69596eb6"
+    },
+    {
+      "name": "rookie_ppg_tiebreak",
+      "version": "20261112000100",
+      "statementCount": 1,
+      "statementsSha256": "8a040d34b361a1889318aca96c9272875571537b5a40c080f36703e96088b2a8",
+      "sha256": "291a6d9c0e07703c911d1600535b103899a77a1e8d438055794b2a4a9595f36a"
+    },
+    {
+      "name": "trade_activity_transitions",
+      "version": "20261112000200",
+      "statementCount": 6,
+      "statementsSha256": "5b73c4fc4262086f9e4686b67dfff6d2f62ba761a5871f68f2cbe3aeaed49273",
+      "sha256": "0bb1a2ce80c12cd8f8afd0a0e2e4a3c3069ee0a0c1bfeb71ca55a9bd5029f426"
+    },
+    {
+      "name": "bounded_notification_claim",
+      "version": "20261113000100",
+      "statementCount": 1,
+      "statementsSha256": "2544f2921bcc9b6e4412c100de05b00f53c9db5afb7ac13dc7ff0e93bcc6cb4c",
+      "sha256": "077acf97add851fdbeb460648c153d4605aacde8c1dd647273d9cb5d469602ae"
+    },
+    {
+      "name": "worker_lease_phases",
+      "version": "20261113000200",
+      "statementCount": 2,
+      "statementsSha256": "31b4212810e0791e4f3430022c7fccc6f4c688e447d318a34629d177c4327af4",
+      "sha256": "5759145af6c56febdeca0fa75f53ac747c48a207533bae6431c389709f386374"
     }
   ]
 }

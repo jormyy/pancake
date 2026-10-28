@@ -273,7 +273,7 @@ it('ignores a saved roster plan after the member changes', async () => {
 
 it.each([
     ['disabled', 24, true], ['member_vote', 0, true], ['commissioner', 0, true], ['member_vote', 24, false],
-] as const)('confirms acceptance with its assets and execution timing: %s / %s', async (tradeVetoMode, tradeVetoWindowHours, immediate) => {
+] as const)('confirms acceptance with its assets and execution timing: %s / %s', async (tradeVetoMode, tradeVetoWindowHours, _immediate) => {
     let confirm!: () => Promise<void>
     mocks.confirmAction.mockImplementation((_title, _message, onConfirm) => { confirm = onConfirm })
     mocks.acceptTrade.mockResolvedValue(undefined)
@@ -292,9 +292,9 @@ it.each([
     expect(message).toContain('Incoming')
     expect(message).toContain('2026 Round 1 pick')
     expect(message).toContain('$5 FAAB')
-    expect(message.includes('This trade completes immediately.')).toBe(immediate)
-    expect(message).toContain('Resulting rosters:')
-    expect(message).toContain('Regular 0/20')
+    expect(message).toContain('Completes after review.')
+    expect(message).toContain('You get:')
+    expect(message).toContain('A: 0/20 · IR 0/2 · Taxi 0/3')
     await act(async () => { await confirm() })
     expect(mocks.acceptTrade).toHaveBeenCalledExactlyOnceWith('offer', 'member-a', { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [] })
     expect(onAction).toHaveBeenCalledOnce()
@@ -332,7 +332,7 @@ it('does not promise immediate completion while another participant has not acce
     offer.isMultiTeam = true
     offer.participants = [{ memberId: 'third', teamName: 'Third', sortOrder: 2, isInitiator: false, acceptedAt: null }]
     await act(async () => latest.accept(offer))
-    expect(mocks.confirmAction.mock.calls[0][1]).toContain('when everyone accepts')
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('Completes after review.')
     expect(mocks.confirmAction.mock.calls[0][1]).not.toContain('immediately')
     await act(async () => renderer.unmount())
 })
@@ -360,7 +360,7 @@ it('keeps acceptance timing conditional when a player game has started', async (
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(Probe)) })
     await act(async () => latest.accept(trade('game')))
-    expect(mocks.confirmAction.mock.calls[0][1]).toContain('when everyone accepts')
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('Completes after review.')
     expect(mocks.confirmAction.mock.calls[0][1]).not.toContain('immediately')
     await act(async () => renderer.unmount())
 })
@@ -388,7 +388,7 @@ it('confirms named drops and submits the exact reviewed plan', async () => {
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(Probe)) })
     await act(async () => latest.accept(trade('planned')))
-    expect(mocks.confirmAction.mock.calls[0][1]).toContain('Confirm these drops at settlement: Drop Player.')
+    expect(mocks.confirmAction.mock.calls[0][1]).toContain('You must drop 1 player to accept\nDrops: Drop Player')
     expect(mocks.acceptTrade).not.toHaveBeenCalled()
     await act(async () => confirm())
     expect(mocks.acceptTrade).toHaveBeenCalledWith('planned', 'member-a', plan)

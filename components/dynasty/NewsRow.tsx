@@ -17,7 +17,6 @@ export function NewsRow({ item, dateLabel }: { item: DynastyNewsItem; dateLabel:
             accessibilityLabel={item.title}
         >
             <View style={styles.newsTopLine}>
-                <Text style={styles.newsSource}>{item.source}</Text>
                 <Text style={styles.newsDate}>{dateLabel}</Text>
             </View>
             <Text style={styles.newsTitle}>{item.title}</Text>
