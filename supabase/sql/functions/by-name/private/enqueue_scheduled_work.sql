@@ -35,6 +35,7 @@ BEGIN
     WHERE reconciled_at IS NULL OR worker_status='running') THEN
     PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);
   END IF;
+  IF v_min=0 THEN PERFORM private.enqueue_rankings(p_now); END IF;
   IF v_min=17 THEN PERFORM private.work_enqueue('pg-net-response-vacuum',date_trunc('hour',p_now)::text,p_now,'{"action":"vacuum"}'); END IF;
   IF v_min=0 AND extract(hour FROM v_utc)=13 AND
     ((extract(month FROM v_utc)=6 AND extract(day FROM v_utc)>=20) OR

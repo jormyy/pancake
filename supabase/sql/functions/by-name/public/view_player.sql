@@ -46,8 +46,10 @@ BEGIN
       SELECT team_name INTO owner_name FROM public.league_members WHERE id = own.member_id;
       SELECT max(clears_at) INTO waiver_time FROM public.waiver_wire_log WHERE league_id = p_league_id AND player_id = player.id AND cleared_at IS NULL AND clears_at > now() AND league_season_id = (context->>'seasonId')::uuid;
       RETURN jsonb_build_object('context', context, 'player', to_jsonb(player) || jsonb_build_object('display_name', COALESCE(player.display_name, concat_ws(' ', player.first_name, player.last_name)),
-        'trade_value', (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
-          AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1)),
+        'five_year_points', (SELECT ranking.points FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+          AND ranking.source='hashtagbasketball.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1),
+        'three_year_points', (SELECT ranking.points FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+          AND ranking.source='hashtagbasketball.com/points-3' ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1)),
         'availableSeasons', COALESCE((SELECT jsonb_agg(season_year ORDER BY season_year DESC) FROM (
           SELECT season_year FROM public.mv_player_season_averages WHERE player_id = player.id UNION SELECT public.current_season_year_et()) years), '[]'),
         'averages', CASE WHEN COALESCE((average->>'games_played')::integer, 0) > 0 THEN jsonb_build_object(
@@ -114,8 +116,10 @@ BEGIN
       FROM jsonb_array_elements(lines) line;
   END IF;
   RETURN jsonb_build_object('context', context, 'player', to_jsonb(player) || jsonb_build_object('display_name', COALESCE(player.display_name, concat_ws(' ', player.first_name, player.last_name)),
-    'trade_value', (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
-      AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1)),
+    'five_year_points', (SELECT ranking.points FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+          AND ranking.source='hashtagbasketball.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1),
+        'three_year_points', (SELECT ranking.points FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+          AND ranking.source='hashtagbasketball.com/points-3' ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1)),
     'availableSeasons', COALESCE((SELECT jsonb_agg(season_year ORDER BY season_year DESC) FROM (
       SELECT season_year FROM public.mv_player_season_averages WHERE player_id = player.id
       UNION SELECT public.current_season_year_et()) years), '[]'),

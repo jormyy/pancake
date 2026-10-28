@@ -84,6 +84,16 @@ describe('season dropdown', () => {
 
 describe('player decision summary', () => {
     beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-24T18:00:00Z')) })
+    it('renders both Hashtag point forecasts and the dynasty rank from the player view', async () => {
+        const player = { ...headerPlayer({ dynasty_rank: 21 }), five_year_points: 10, three_year_points: 12, trade_value: 999.9 }
+        await render(React.createElement(PlayerHeader, { player, rosterStatus: null, leagueActive: false }))
+        const labels = screen.root.findByProps({ testID: 'player-summary-line' }).findAllByType(Badge).map(node => node.props.label)
+        expect(labels).toContain('Dynasty #21')
+        expect(labels).toContain('5-year points 10')
+        expect(labels).toContain('3-year points 12')
+        expect(labels).not.toContain('Value 999.9')
+    })
+
     it.each([
         [{ status: 'free_agent' as const }, 'Free agent', ['Add Player A']],
         [{ status: 'on_waivers' as const, logId: 'waiver', clearsAt: '2099-01-01' }, 'On waivers', ['Claim Player A']],

@@ -51,10 +51,6 @@ BEGIN
     trade_value=EXCLUDED.trade_value,fetched_at=EXCLUDED.fetched_at,updated_at=clock_timestamp();
   DELETE FROM public.dynasty_rankings WHERE source='onenumberhoops.com'
     AND source_rank NOT IN(SELECT rank FROM pg_temp.trade_value_players);
-  UPDATE public.players player SET dynasty_rank=row.rank,dynasty_rank_source='onenumberhoops.com',dynasty_rank_fetched_at=p_fetched_at
-    FROM pg_temp.trade_value_players row WHERE player.id=row.player_id;
-  UPDATE public.players SET dynasty_rank=NULL,dynasty_rank_source=NULL,dynasty_rank_fetched_at=NULL
-    WHERE dynasty_rank_source='onenumberhoops.com' AND id NOT IN(SELECT player_id FROM pg_temp.trade_value_players WHERE player_id IS NOT NULL);
   DELETE FROM public.trade_value_reviews WHERE resolved_player_id IS NULL
     AND source_id NOT IN(SELECT source_id FROM pg_temp.trade_value_players WHERE player_id IS NULL);
   INSERT INTO public.trade_value_reviews(source_id,source_name,source_team,source_positions,trade_value,reason,candidate_ids,fetched_at)

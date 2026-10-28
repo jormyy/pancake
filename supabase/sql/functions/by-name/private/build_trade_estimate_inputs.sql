@@ -53,10 +53,8 @@ BEGIN
     ORDER BY average.avg_fantasy_points DESC,average.player_id LIMIT 5
   ) candidate;
   PERFORM set_config('request.jwt.claim.sub',p_user_id::text,true);
-  SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO player_rows
-    FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,player_ids,'',100,0) p;
-  SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO replacement_rows
-    FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,replacement_ids,'',5,0) p;
+  player_rows:=private.trade_value_player_inputs(league.id,p_member_id,season.season_year,player_ids,100);
+  replacement_rows:=private.trade_value_player_inputs(league.id,p_member_id,season.season_year,replacement_ids,5);
   IF EXISTS(SELECT 1 FROM jsonb_array_elements(terms) item WHERE item->>'pickId' IS NOT NULL) THEN
     SELECT COALESCE(jsonb_agg(to_jsonb(value)),'[]'::jsonb) INTO pick_values FROM public.get_dynasty_pick_values(league.id) value;
   END IF;

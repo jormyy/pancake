@@ -2475,6 +2475,20 @@
       "statementCount": 4,
       "statementsSha256": "b8b26d2144f4272808f4d94926f001f76c44652a823ea566b536e638db0fd73a",
       "sha256": "e94d5e6b8455cc9e5105c10adc5c946017e7eb30c26a040e7744ef08dd2b9d18"
+    },
+    {
+      "name": "restore_hashtag_rankings",
+      "version": "20261129000100",
+      "statementCount": 25,
+      "statementsSha256": "0d96c46040c06532596bc30eee273b950673f08fbff6989db33658e7f85ee4e7",
+      "sha256": "b9df795722df683e35c45e8a5a54184374781d9fa0c770818f9ef2d5b17fd433"
+    },
+    {
+      "name": "player_page_speed",
+      "version": "20261130000100",
+      "statementCount": 5,
+      "statementsSha256": "885efda2f3fb264f31b0c0ec2dcdfa7480f06afc9ea46e14526ca015ef926c1e",
+      "sha256": "c0a8fda96f94e6cb357abf4a63bfc791b86a570ea6e5803a107240316ef7540e"
     }
   ]
 }

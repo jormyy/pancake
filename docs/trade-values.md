@@ -28,10 +28,10 @@ An abandoned claim expires after three minutes.
 
 `dynasty_rankings.trade_value` holds the scaled player values.
 Ranks and production statistics retain their meanings.
-The existing dynasty input function prefers OneNumberHoops and returns its numeric value.
+Ranking screens read Hashtag Basketball ranks and point forecasts.
 Frozen trade inputs include pick value bands and their fetch time.
-The old ranking worker and schedule are removed.
-The retired endpoint returns HTTP 410 and performs no work.
+The Hashtag ranking worker and hourly schedule are restored.
+Trade publication does not change shared Hashtag player ranks.
 
 `dynasty_pick_values` holds 18 source picks and nine derived third-round bases.
 `get_dynasty_pick_values` applies the league floor when reading those bases.
@@ -132,13 +132,15 @@ Migration attestations come from a clean local rebuild.
 
 ## Display readers
 
-Players rankings and player profiles show the stored player value.
+Ranking screens and player profiles use Hashtag Basketball.
+Future rookie picks use the original ranking curve.
+See [the source map](dynasty-rankings-restoration.md) for each reader.
 The trade analyzer uses the same value without age, health, or scoring adjustments.
 Each strategy uses the same source number.
-Ranking assets without imported values contribute zero.
+Trade assets without imported values contribute zero.
 Trade estimates use zero for missing source values.
 
-Pick readers use the stored early, middle, and late values.
+Trade pick readers use the stored early, middle, and late values.
 Known slots select their corresponding third of the draft order.
 Unknown slots use their predicted value and show the early-to-late range.
 Pick labels use the draft year rather than the following season year.
@@ -289,9 +291,9 @@ This history version keeps the original and prior estimate snapshots.
 Stale source hashes cannot publish predictions or queue that re-analysis.
 The daily work key prevents duplicate refreshes for the same source and day.
 
-The hourly ranking enqueue, legacy work kind, scraper, and scraper tests are removed.
-The legacy write RPC returns a retirement result without changing values.
-This lets an already deployed worker finish during a database-first rollout.
+The Hashtag work kind, hourly wake, scraper, writer, fixtures, and tests are restored.
+The ranking writer updates only its own source rows.
+Its five-year view also maintains shared player ranks.
 News, projections, and trade estimates remain.
 
 Earlier branch backup checks price 90 picks and refresh three trades.

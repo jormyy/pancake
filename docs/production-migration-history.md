@@ -308,3 +308,34 @@ The audit anchor, historical aliases, and recorded production catalog remain unc
 No production metadata or application data is read during this integration.
 [Release contract](../supabase/RELEASE-DB.md) owns rollout order and all five changed Edge functions.
 [Integration evidence](release-2.6-integration.md) owns executed counts and changed files.
+
+## Release 2.6.3 candidate
+
+The integration starts at `045f2d09`, the release 2.6.2 source.
+The supplied production head is `20261128000100`, with 626 migrations.
+The private stack applies that complete prefix before either candidate migration.
+The two candidates reach `20261130000100`, with 628 migrations.
+Their versions have zero collisions.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261129000100_restore_hashtag_rankings.sql` | Restores Hashtag ranking writes, screen sources, and hourly scheduling. Preserves trade calculations. |
+| 2 | `20261130000100_player_page_speed.sql` | Keeps Hashtag sources and computes fantasy averages once per dynasty read. |
+
+The fixed audit anchor stays at 329 migrations through `20261005000003`.
+The approved range contains 299 migrations.
+The recorded security baseline stays at 564 migrations through `20261029000800`.
+Its candidate suffix contains 64 migrations.
+Historical aliases and the recorded pre-migration catalog stay unchanged.
+
+The private project is `pt4bafabler263`, with ports `592xx`.
+Both attestations, the function catalog, and database types regenerate from that database.
+The ordered upgrade and a fresh 628-migration install produce identical bytes for all four artifacts.
+The generated database types remain unchanged.
+The function catalog restores two private helpers.
+The release preserves function arguments, output columns, grants, and all 18 paired JSON snapshots.
+No production service receives a request.
+[Release contract](../supabase/RELEASE-DB.md#release-263) owns rollout and rollback.
+Only the restored `sync-rankings` Edge function changes against `origin/main` at `045f2d09`.
+It requires deployment after both migrations and before the frontend.
+[Integration evidence](release-2.6.3-integration.md) owns executed counts and every changed file.

@@ -346,9 +346,13 @@ it.skipIf(!available)('emits only hint topics and inventory resources accepted b
     }
 })
 
+function documentedProductionHead(notes: string) {
+    return notes.match(/(?:Production currently stops at migration|The supplied production head is) `([0-9]+)`/)?.[1]
+}
+
 function requiresDatabaseFirst(mainMigrations: string, clientSource: string, notes: string, newestMigration: string) {
     const section = notes.match(/^## Release order for this release\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1]
-    const productionHead = section?.match(/Production currently stops at migration `([0-9]+)`/)?.[1]
+    const productionHead = section ? documentedProductionHead(section) : undefined
     if (!section || !productionHead || newestMigration > productionHead && !section.includes(newestMigration)) return true
     const functions = latestFunctionDefinitionsInSource(mainMigrations)
     const newRpc = [...rpcNames(clientSource)].some(name => !functions.has(name))
@@ -364,8 +368,10 @@ it.skipIf(!available)('documents database-first release order for new client dep
     const baseNotes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
     const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
         .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n`)
-    const productionHead = notes.match(/Production currently stops at migration `([0-9]+)`/)?.[1] ?? ''
+    const playerReadNotes = readFileSync('docs/db-health.md', 'utf8')
+        .match(/^## Player read release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
+    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n`)
+    const productionHead = documentedProductionHead(notes) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
     const newest = migrations.at(-1)!.split('_')[0]
     const main = migrations.filter(file => file.split('_')[0] <= productionHead)
@@ -375,7 +381,7 @@ it.skipIf(!available)('documents database-first release order for new client dep
     expect(requiresDatabaseFirst(main, source, notes, newest)).toBe(false)
     expect(requiresDatabaseFirst(main, source, notes.replace(/^## Release order for this release$/m, '## Removed'), newest)).toBe(true)
     expect(requiresDatabaseFirst(main, source, notes.replaceAll(newest, 'removed'), newest)).toBe(true)
-    expect(requiresDatabaseFirst(main, source, notes.replace(productionHead, 'missing'), newest)).toBe(true)
+    expect(requiresDatabaseFirst(main, source, notes.replaceAll(productionHead, 'missing'), newest)).toBe(true)
 })
 
 function droppedObjectCalls(migration: string, consumers: { file: string; source: string; quotedNames?: boolean }[]) {
