@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION private.retain_sync_runs(p_now timestamptz DEFAULT now())
 RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms'
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms' SET statement_timeout = '3s'
 AS $$
 DECLARE v_count bigint; v_total bigint:=0; v_outcome integer; v_condition text; v_age interval;
 BEGIN
@@ -28,7 +28,7 @@ BEGIN
           AND r.id IS DISTINCT FROM (SELECT newest.id FROM public.sync_runs newest
             WHERE newest.function_name=r.function_name AND %1$s
             ORDER BY newest.started_at DESC,newest.id DESC LIMIT 1)
-        ORDER BY r.finished_at,r.id LIMIT 10000 FOR UPDATE OF r SKIP LOCKED
+        ORDER BY r.finished_at,r.id LIMIT 5000 FOR UPDATE OF r SKIP LOCKED
       ) DELETE FROM public.sync_runs r USING victims v WHERE r.id=v.id
     $query$,v_condition) USING p_now,v_age;
     GET DIAGNOSTICS v_count=ROW_COUNT;

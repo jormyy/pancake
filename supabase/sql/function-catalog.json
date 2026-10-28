@@ -428,6 +428,7 @@
     "public.set_veto_window()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.set_waiver_clears_at()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.set_weekly_lineup_week_number_from_date()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "public.set_worker_paused(boolean,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.start_auction_draft_atomic(uuid,text,boolean,integer,integer,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.start_edge_invocation(uuid,text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "public.start_mock_draft_room_atomic(uuid,uuid,uuid)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},

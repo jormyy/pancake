@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION private.run_retention(p_now timestamptz DEFAULT now())
 RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms'
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms' SET statement_timeout = '3s'
 AS $$
 DECLARE
   v_rule record; v_entry record; v_counts jsonb; v_result jsonb:='{}'::jsonb;
@@ -15,7 +15,7 @@ BEGIN
     WHERE rules.worker IS NOT NULL
     ORDER BY status.last_checked_at NULLS FIRST,rules.run_order,rules.relation_name
   LOOP
-    EXIT WHEN clock_timestamp()-v_started>=interval '5 seconds';
+    EXIT WHEN clock_timestamp()-v_started>=interval '2 seconds';
     BEGIN
       EXECUTE format('SELECT private.%I($1)',v_rule.worker) INTO v_counts USING p_now;
       FOR v_entry IN SELECT key,value::bigint AS removed FROM jsonb_each_text(v_counts) LOOP
