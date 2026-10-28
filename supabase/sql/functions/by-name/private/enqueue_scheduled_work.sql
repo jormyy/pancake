@@ -31,7 +31,6 @@ BEGIN
     END IF;
   END IF;
   IF v_min%15=5 THEN PERFORM private.enqueue_daily('sync-schedule',6,5,p_now); END IF;
-  IF v_min=0 THEN PERFORM private.enqueue_rankings(p_now); END IF;
   IF v_min%5=0 AND EXISTS(SELECT 1 FROM public.edge_invocations
     WHERE reconciled_at IS NULL OR worker_status='running') THEN
     PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);

@@ -1,0 +1,58 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`imported trade scoring > keeps the complete estimate shape and source values 1`] = `
+{
+  "assets": [
+    {
+      "assetId": "string",
+      "assumptions": [],
+      "components": {
+        "age": "number",
+        "healthMultiplier": "number",
+        "longTermValue": "number",
+        "market": "number",
+        "movementMultiplier": "number",
+        "package": "number",
+        "production": "number",
+        "projection": "number",
+        "replacement": "number",
+        "rosterSlot": "number",
+        "shortTermPoints": "number",
+      },
+      "confidence": "number",
+      "kind": "string",
+      "label": "string",
+      "missingInputs": [],
+      "ranges": {},
+      "sources": [],
+      "values": {
+        "contend": "number",
+        "overall": "number",
+        "rebuild": "number",
+      },
+    },
+  ],
+  "assumptions": [
+    "string",
+  ],
+  "confidence": "number",
+  "missingInputs": [
+    "string",
+  ],
+  "sources": [],
+  "strategy": "string",
+  "teams": [
+    {
+      "impact": "number",
+      "longTermValue": "number",
+      "memberId": "string",
+      "packageEffect": "number",
+      "replacementEffect": "number",
+      "rosterSlotEffect": "number",
+      "shortTermPoints": "number",
+      "valuesReceived": "number",
+      "valuesSent": "number",
+    },
+  ],
+}
+`;

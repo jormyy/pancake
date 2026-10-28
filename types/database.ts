@@ -299,6 +299,13 @@ export type Database = {
           is_used: boolean
           league_id: string
           original_owner_id: string
+          predicted_at: string | null
+          predicted_tier_odds: Json | null
+          predicted_trade_value: number | null
+          predicted_value_bands: Json | null
+          prediction_details: Json | null
+          prediction_source_sha256: string | null
+          prediction_version: string | null
           rookie_draft_id: string | null
           round: number
           season_year: number
@@ -311,6 +318,13 @@ export type Database = {
           is_used?: boolean
           league_id: string
           original_owner_id: string
+          predicted_at?: string | null
+          predicted_tier_odds?: Json | null
+          predicted_trade_value?: number | null
+          predicted_value_bands?: Json | null
+          prediction_details?: Json | null
+          prediction_source_sha256?: string | null
+          prediction_version?: string | null
           rookie_draft_id?: string | null
           round: number
           season_year: number
@@ -323,6 +337,13 @@ export type Database = {
           is_used?: boolean
           league_id?: string
           original_owner_id?: string
+          predicted_at?: string | null
+          predicted_tier_odds?: Json | null
+          predicted_trade_value?: number | null
+          predicted_value_bands?: Json | null
+          prediction_details?: Json | null
+          prediction_source_sha256?: string | null
+          prediction_version?: string | null
           rookie_draft_id?: string | null
           round?: number
           season_year?: number
@@ -3896,6 +3917,45 @@ export type Database = {
           },
         ]
       }
+      trade_estimate_history: {
+        Row: {
+          formula_version: string
+          quote_id: string | null
+          recorded_at: string
+          snapshot: Json
+          trade_id: string
+        }
+        Insert: {
+          formula_version: string
+          quote_id?: string | null
+          recorded_at?: string
+          snapshot: Json
+          trade_id: string
+        }
+        Update: {
+          formula_version?: string
+          quote_id?: string | null
+          recorded_at?: string
+          snapshot?: Json
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_estimate_history_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "trade_estimate_quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_estimate_history_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_estimate_quotes: {
         Row: {
           analysis: Json
@@ -5440,6 +5500,10 @@ export type Database = {
         Args: { p_claim_token: string; p_id: string }
         Returns: boolean
       }
+      complete_pick_prediction_refresh: {
+        Args: { p_source_version: string }
+        Returns: boolean
+      }
       complete_player_career_base_atomic: {
         Args: {
           p_base?: number
@@ -5692,6 +5756,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      fail_trade_value_sync: {
+        Args: {
+          p_request_id: string
+          p_retry?: number
+          p_retry_date?: string
+          p_schedule_retry?: boolean
+        }
+        Returns: number
+      }
       finalize_score_week_atomic: {
         Args: {
           p_finalized_at?: string
@@ -5922,6 +5995,11 @@ export type Database = {
         Args: { p_league_id: string; p_member_id: string }
         Returns: number
       }
+      get_pick_prediction_inputs: {
+        Args: { p_league_id: string }
+        Returns: Json
+      }
+      get_pick_prediction_leagues: { Args: never; Returns: string[] }
       get_pre_tipoff_lineup_context: {
         Args: {
           p_league_id: string
@@ -5958,6 +6036,14 @@ export type Database = {
       }
       get_trade_estimate_inputs: {
         Args: { p_items: Json; p_member_id: string; p_user_id: string }
+        Returns: Json
+      }
+      get_trade_estimate_reanalysis_batch: {
+        Args: { p_run?: string }
+        Returns: string[]
+      }
+      get_trade_estimate_reanalysis_inputs: {
+        Args: { p_run?: string; p_trade_id: string }
         Returns: Json
       }
       get_trade_page_refs: {
@@ -6247,6 +6333,10 @@ export type Database = {
         Args: { p_now?: string }
         Returns: string
       }
+      queue_trade_estimate_reanalysis: {
+        Args: { p_run?: string }
+        Returns: number
+      }
       rebuild_nba_calendar_atomic: {
         Args: { p_season_year: number }
         Returns: number
@@ -6432,6 +6522,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_pick_predictions: {
+        Args: { p_league_id: string; p_rows: Json; p_source_version: string }
+        Returns: number
+      }
       save_trade_estimate_quote: {
         Args: {
           p_analysis: Json
@@ -6441,6 +6535,15 @@ export type Database = {
           p_user_id: string
         }
         Returns: Json
+      }
+      save_trade_estimate_reanalysis: {
+        Args: {
+          p_analysis: Json
+          p_inputs: Json
+          p_run?: string
+          p_trade_id: string
+        }
+        Returns: string
       }
       search_players: {
         Args: {

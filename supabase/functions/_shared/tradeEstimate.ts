@@ -1,4 +1,5 @@
-import { analyzeDynastyTrade, valueDynastyAsset, type DynastyPlayerAsset, type DynastyTradeRoute } from './dynastyEngine.ts'
+import { analyzeDynastyTrade, type DynastyPlayerAsset, type DynastyTradeRoute } from './dynastyEngine.ts'
+import { valueDynastyAsset } from './dynastyEngineTradeValues.ts'
 
 type PlayerInput = {
   player_id: string

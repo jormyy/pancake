@@ -150,16 +150,17 @@ export function thirdRoundTradeValue(secondRoundValue: number, replacementValue:
 
 
 export type TradeValueStore = {
-  claim: (requestId: string) => Promise<boolean>
-  cached: () => Promise<unknown>
-  players: () => Promise<TradeValuePlayer[]>
-  overrides: () => Promise<Record<string, string>>
-  publish: (payload: { rows: unknown[]; picks: unknown[]; source: string; fetchedAt: string; mode: string; requestId: string | null }) => Promise<Record<string, unknown>>
+  claim: (requestId: string, signal: AbortSignal) => Promise<boolean>
+  fail: (requestId: string, retry: number, retryDate: string | null, scheduleRetry: boolean, signal: AbortSignal) => Promise<unknown>
+  cached: (signal: AbortSignal) => Promise<unknown>
+  players: (signal: AbortSignal) => Promise<TradeValuePlayer[]>
+  overrides: (signal: AbortSignal) => Promise<Record<string, string>>
+  publish: (payload: { rows: unknown[]; picks: unknown[]; source: string; fetchedAt: string; mode: string; requestId: string | null }, signal: AbortSignal) => Promise<Record<string, unknown>>
 }
 
 export function cachedTradeValueSnapshot(state: { fetched_at: string | null; last_request_at: string | null; matched: number | null }) {
   if (!state.fetched_at || (state.last_request_at && Date.parse(state.last_request_at) > Date.parse(state.fetched_at))) {
-    throw new Error('The daily source attempt did not publish a snapshot; import a CSV or retry on the next day')
+    throw new Error('The daily source attempt did not publish a snapshot; a retry is pending or a CSV import is needed')
   }
   return { fetchedAt: state.fetched_at, matched: state.matched }
 }
@@ -187,39 +188,86 @@ export function robotsAllowsTradeValues(text: string): boolean {
   return rules[0]?.allow ?? true
 }
 
-async function sourceText(url: string, fetcher: typeof fetch): Promise<string> {
-  let response: Response
+class TradeValueFetchError extends Error {}
+
+async function abortable<T>(run: () => Promise<T>, signal: AbortSignal): Promise<T> {
+  signal.throwIfAborted()
+  let abort: () => void = () => {}
   try {
-    response = await fetcher(url, { redirect: 'error', headers: { 'User-Agent': 'Pancake/1.0 (authorized daily value sync)' }, signal: AbortSignal.timeout(25000) })
-  } catch (error) {
-    throw new Error(`OneNumberHoops ${new URL(url).pathname} fetch failed: ${error instanceof Error ? error.message : String(error)}`)
+    return await Promise.race([run(), new Promise<never>((_, reject) => {
+      abort = () => reject(signal.reason)
+      signal.addEventListener('abort', abort, { once: true })
+      if (signal.aborted) abort()
+    })])
+  } finally {
+    signal.removeEventListener('abort', abort)
   }
-  if (!response.ok) throw new Error(`OneNumberHoops HTTP ${response.status}; use the CSV import until the next daily attempt`)
-  const text = await response.text()
-  if (text.length > 2_000_000) throw new Error('OneNumberHoops response exceeds the size limit')
-  return text
 }
 
-export async function syncTradeValues(store: TradeValueStore, input: { format?: string; content?: string } = {}, fetcher: typeof fetch = fetch) {
+async function sourceText(url: string, fetcher: typeof fetch, signal: AbortSignal): Promise<string> {
+  try {
+    return await abortable(async () => {
+      const response = await fetcher(url, { redirect: 'error', headers: { 'User-Agent': 'Pancake/1.0 (authorized daily value sync)' }, signal })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const text = await response.text()
+      if (text.length > 2_000_000) throw new Error('response exceeds the size limit')
+      return text
+    }, signal)
+  } catch (error) {
+    throw new TradeValueFetchError(`OneNumberHoops ${new URL(url).pathname} fetch failed: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+async function liveSource(fetcher: typeof fetch, signal: AbortSignal): Promise<string> {
+  const robots = await sourceText('https://www.onenumberhoops.com/robots.txt', fetcher, AbortSignal.any([signal, AbortSignal.timeout(5_000)]))
+  if (!robotsAllowsTradeValues(robots)) throw new Error('OneNumberHoops robots.txt blocks the value endpoint; use the CSV import')
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await sourceText(TRADE_VALUE_URL, fetcher, AbortSignal.any([signal, AbortSignal.timeout(75_000)]))
+    } catch (error) {
+      if (attempt === 1 || signal.aborted) throw error
+      await abortable(() => new Promise(resolve => setTimeout(resolve, 1_000)), signal)
+    }
+  }
+}
+
+export async function syncTradeValues(store: TradeValueStore, input: { format?: string; content?: string; retry?: number; retryDate?: string } = {}, fetcher: typeof fetch = fetch) {
   const mode = input.format ?? 'live'
   if (!['live', 'csv', 'json'].includes(mode)) throw new Error('Import format must be live, csv, or json')
-  let content: string
+  const retry = input.retry ?? 0
+  if (!Number.isInteger(retry) || retry < 0 || retry > 4) throw new Error('Retry must be an integer from zero through four')
+  if (input.retryDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.retryDate)) throw new Error('Retry date must use YYYY-MM-DD')
+  const signal = AbortSignal.timeout(115_000)
+  const sourceSignal = AbortSignal.any([signal, AbortSignal.timeout(110_000)])
   const requestId = mode === 'live' ? crypto.randomUUID() : null
-  if (requestId) {
-    if (!await store.claim(requestId)) return { cached: true, snapshot: await store.cached() }
-    const robots = await sourceText('https://www.onenumberhoops.com/robots.txt', fetcher)
-    if (!robotsAllowsTradeValues(robots)) throw new Error('OneNumberHoops robots.txt blocks the value endpoint; use the CSV import')
-    content = await sourceText(TRADE_VALUE_URL, fetcher)
-  } else {
-    if (typeof input.content !== 'string' || input.content.length > 2_000_000) throw new Error('Import content is required and must be at most 2 MB')
-    content = input.content
+  let claimed = false
+  try {
+    let content: string
+    if (requestId) {
+      claimed = await abortable(() => store.claim(requestId, signal), signal)
+      if (!claimed) return { cached: true, snapshot: await abortable(() => store.cached(signal), signal) }
+      content = await liveSource(fetcher, sourceSignal)
+    } else {
+      if (typeof input.content !== 'string' || input.content.length > 2_000_000) throw new Error('Import content is required and must be at most 2 MB')
+      content = input.content
+    }
+    const values = mode === 'csv' ? parseTradeValuesCsv(content) : parseTradeValues(content)
+    const players = await abortable(() => store.players(signal), signal)
+    const overrides = await abortable(() => store.overrides(signal), signal)
+    const matches = matchTradeValues(values, players, overrides)
+    const rows = matches.map(row => ({ source_id: row.sourceId, name: row.name, team: row.team, positions: row.positions,
+      rank: row.rank, value: row.value, age: row.age, player_id: row.playerId, reason: row.reason, candidate_ids: row.candidateIds }))
+    const picks = values.filter(row => row.kind === 'pick').map(row => ({ year: row.year, round: row.round, tier: row.tier, value: row.value }))
+    return await abortable(() => store.publish({ rows, picks, source: content, fetchedAt: new Date().toISOString(), mode, requestId }, signal), signal)
+  } catch (error) {
+    if (requestId && claimed) {
+      const cleanupSignal = AbortSignal.timeout(5_000)
+      try {
+        await abortable(() => store.fail(requestId, retry, input.retryDate ?? null, error instanceof TradeValueFetchError, cleanupSignal), cleanupSignal)
+      } catch (cleanupError) {
+        throw new Error(`${error instanceof Error ? error.message : String(error)}; retry cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`)
+      }
+    }
+    throw error
   }
-  const values = mode === 'csv' ? parseTradeValuesCsv(content) : parseTradeValues(content)
-  const players = await store.players()
-  const overrides = await store.overrides()
-  const matches = matchTradeValues(values, players, overrides)
-  const rows = matches.map(row => ({ source_id: row.sourceId, name: row.name, team: row.team, positions: row.positions,
-    rank: row.rank, value: row.value, age: row.age, player_id: row.playerId, reason: row.reason, candidate_ids: row.candidateIds }))
-  const picks = values.filter(row => row.kind === 'pick').map(row => ({ year: row.year, round: row.round, tier: row.tier, value: row.value }))
-  return await store.publish({ rows, picks, source: content, fetchedAt: new Date().toISOString(), mode, requestId })
 }

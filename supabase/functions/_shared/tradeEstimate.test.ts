@@ -22,10 +22,10 @@ Deno.test('frozen FAAB accounting is exact, stable, and reversible', () => {
   assert.deepEqual(analyzeTradeEstimate(input, observedAt).teams.map(team => team.impact), [-10, 10])
 })
 
-Deno.test('known pick position and future-year discount use the frozen official team count', () => {
+Deno.test('known pick positions use imported bands and the frozen official team count', () => {
   const input = fixture()
   input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: null, pickId: 'pick', faabAmount: 0 }]
-  input.picks = [{ id: 'pick', seasonYear: 2027, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original' }]
+  input.picks = [{ id: 'pick', seasonYear: 2027, round: 1, slot: 1, ownerId: 'a', originalOwnerId: 'c', originalTeamName: 'Original', valueBands: { early: 716, mid: 557, late: 397 } }]
   assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].label, '2026 Round 1 · Original')
   assert.equal(analyzeTradeEstimate(input, observedAt).assets[0].values.overall, 716)
   input.picks[0].slot = null
@@ -34,7 +34,7 @@ Deno.test('known pick position and future-year discount use the frozen official 
   assert.deepEqual(unknown.ranges.overall, { low: 397, high: 716 })
 })
 
-Deno.test('future and stale evidence is excluded without turning the player into zero value', () => {
+Deno.test('missing imported values contribute zero without an old formula fallback', () => {
   const input = fixture()
   input.terms = [{ fromMemberId: 'a', toMemberId: 'b', playerId: 'player', pickId: null, faabAmount: 0 }]
   input.players = [{ player_id: 'player', display_name: 'Player', ranking_fetched_at: '2026-01-01T00:00:00Z',
@@ -42,10 +42,9 @@ Deno.test('future and stale evidence is excluded without turning the player into
     three_year_rank: 1, rank_change: 0, injury_status: 'Out', avg_fantasy_points: null, projection_fantasy_points: 99,
     years_exp: 0, ranking_source: 'fixture' }]
   const result = analyzeTradeEstimate(input, observedAt)
-  assert.ok(result.assets[0].values.overall > 0)
-  assert.ok(result.missingInputs.includes('dynasty rank'))
-  assert.ok(result.missingInputs.includes('projection'))
-  assert.equal(result.assets[0].components.healthMultiplier, 0.88)
+  assert.equal(result.assets[0].values.overall, 0)
+  assert.ok(result.missingInputs.includes('imported player value'))
+  assert.equal(result.assets[0].components.healthMultiplier, 1)
   input.players = []
   assert.throws(() => analyzeTradeEstimate(input, observedAt), /missing from the frozen/)
 })

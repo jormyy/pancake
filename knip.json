@@ -118,7 +118,8 @@
     "tests/ui/release-design-capture.mjs",
     "tests/lib/timeline/browser/{main.tsx,safe-area.ts,supabase.ts,vite.config.mjs}",
     "tests/db/home-review-round3.mjs",
-    "tests/e2e/{trade-legality-browser,ui-round4,ux-round3}.mjs"
+    "tests/e2e/{trade-legality-browser,ui-round4,ux-round3}.mjs",
+    "tests/e2e/trade-reanalysis-backup.mjs"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

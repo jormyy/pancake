@@ -10,6 +10,7 @@ import { handleProfileRoute } from './profile.ts'
 import { handleSyncRoute } from './sync.ts'
 import { handleTradeRoute } from './trades.ts'
 import { handleTradeActivationWork, handleTradeEstimateWork } from './tradeEstimateWork.ts'
+import { handlePickPredictionWork } from './pickPredictionWork.ts'
 import { handleWaiverRoute } from './waivers.ts'
 import { handleVersionRoute } from './version/index.ts'
 import { handleViewRoute } from './views/index.ts'
@@ -19,6 +20,7 @@ import { EDGE_ARTIFACT_DIGEST, RELEASE_COMMIT_SHA } from '../_shared/releaseMeta
 export async function handleApiRoute(req: Request): Promise<Response> {
   const publicResponse = await handlePublicRoute(req, routePath(req))
   if (publicResponse) return publicResponse
+  if (req.method === 'POST' && routePath(req) === '/trades/pick-values-work') return handlePickPredictionWork(req)
   if (req.method === 'POST' && routePath(req) === '/trades/estimate-work') return handleTradeEstimateWork(req)
   if (req.method === 'POST' && routePath(req) === '/trades/activation-work') return handleTradeActivationWork(req)
   return handleApiRequest(req, 'api', async () => {

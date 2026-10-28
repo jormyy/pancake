@@ -1,13 +1,25 @@
 # Trade estimates
 
 The trade editor requests an estimate from `POST /trades/estimate`. The server reads the current league season, scoring, roster depth, team count, and FAAB budget.
-It also reads ownership, rankings, production, and projections. It uses the same dynasty engine as the other dynasty tools.
+It also reads ownership, imported values, production, and projections.
+Trade scoring uses the shared OneNumberHoops rules.
+Stored pick predictions supply unknown-slot values.
+Daily value publication refreshes picks before versioned trade re-analysis.
+Original quotes and earlier history remain unchanged.
 
 Each request names the exact asset routes. A player or pick appears once. A FAAB amount appears once per sender and receiver. The server rejects assets that the sender no longer owns. Estimates do not replace the trade validity checks.
 
-The engine reports raw sent and received values separately from package, roster-slot, and replacement adjustments. Known pick slots use the recorded draft slot. Unknown slots carry a range. Future picks receive the engine's time discount. Player ranges are sensitivity bands, not statistical confidence intervals or market prices.
+The engine reports raw values and package adjustments separately.
+Roster-slot and replacement adjustments are zero.
+Known pick slots use the recorded tier.
+Unknown slots use stored predicted values and their source bands.
+Future pick odds move toward the middle tier with distance.
+Imported player values have no age, health, strategy, or scoring adjustment.
 
-Rankings older than 90 days or dated in the future do not contribute. External projections expire after 36 hours; internal projections expire after eight days. The existing projection pipeline controls the season-average fallback. Missing inputs remain visible and do not silently make a player worth zero.
+The model reads the stored imported values.
+Missing imported player or pick values contribute zero and remain visible in missing inputs.
+Projection and production inputs retain their own freshness rules.
+They do not replace a missing imported value in trade scoring.
 
 Replacement value uses the five highest-production available players in the current league season. If none are available, a documented estimate uses league size and roster depth. FAAB value uses the budget and available-player production. These are model assumptions that need judgment checks against plausible trades.
 

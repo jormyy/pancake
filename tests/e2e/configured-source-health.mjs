@@ -15,7 +15,7 @@ const runRows = querySupabaseDb('local', 'configured source runs', `
     FROM public.sync_runs
    WHERE function_name IN (
      'sync-schedule', 'source:nba-cdn-scoreboard', 'sync-stats',
-     'sync-players', 'sync-player-injuries', 'sync-rankings', 'sync-draft-order'
+     'sync-players', 'sync-player-injuries', 'sync-trade-values', 'sync-draft-order'
    )
    ORDER BY started_at DESC
 `)
@@ -114,7 +114,6 @@ const fantasyAttemptsFresh = projectionRows.length === 3 && projectionRows.every
 const fantasyStatusesExpected = projectionRows.every((row) =>
   row.status === 'success' || (offseason && row.status === 'skipped'),
 )
-const rankingRun = latestRun('sync-rankings')
 const draftRun = latestRun('sync-draft-order')
 
 const observations = [
@@ -175,19 +174,6 @@ const observations = [
       projectionRows.map((row) => `${row.projection_type}: ${row.error_message ?? 'no error'}`).join(' | ') || 'No attempts.',
     ),
     recovery: recoveryGate('Unavailable and changed markup return zero rows; a saved valid response parses on the next attempt.'),
-  },
-  {
-    id: 'hashtag-basketball',
-    freshness: successRun('sync-rankings', 8 * 24),
-    completeness: dimension(
-      Number(metrics.hashtag_rows) >= 300 ? 'pass' : 'fail',
-      `latest points view has ${metrics.hashtag_rows} rows; fetched_at=${metrics.latest_hashtag_fetch}.`,
-    ),
-    failures: dimension(
-      rankingRun?.status === 'success' ? 'pass' : 'fail',
-      `Latest ranking attempt is ${rankingRun?.status ?? 'missing'}; row floors and selected-view checks fail closed.`,
-    ),
-    recovery: recoveryGate('Changed markup returns zero rows; the saved valid response parses after the degraded case.'),
   },
   {
     id: 'nba-draft-order',

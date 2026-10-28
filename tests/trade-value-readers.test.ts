@@ -24,7 +24,7 @@ describe('stored dynasty value readers', () => {
     const row = { player_id: 'player', display_name: 'Player', trade_value: 456.7, five_year_rank: 3 } as DynastyDecisionInput
     expect(playerAssetFromDecisionInput(row).tradeValue).toBe(456.7)
   })
-  it('reads complete pick bands and retains the old curve when bands are absent', () => {
+  it('reads complete pick bands and gives missing source bands zero', () => {
     const rows = ['early', 'mid', 'late'].map((tier, index) => ({ draft_year: 2027, round: 1, tier, trade_value: [750.1, 496.7, 391.4][index] })) as DynastyPickValue[]
     const bands = dynastyPickBands(rows, 2027, 1)
     const pick = { kind: 'pick' as const, id: 'pick', label: 'Pick', seasonYear: 2028, round: 1, slot: null, teams: 12 }
@@ -32,7 +32,7 @@ describe('stored dynasty value readers', () => {
     expect(valueDynastyAsset(context, { ...pick, slot: 1, valueBands: bands }).values.overall).toBe(750.1)
     expect(valueDynastyAsset(context, { ...pick, slot: 12, valueBands: bands }).values.overall).toBe(391.4)
     expect(dynastyPickBands(rows, 2030, 1)).toBeNull()
-    expect(valueDynastyAsset(context, { ...pick, valueBands: null }).values).toEqual(valueDynastyAsset(context, pick).values)
+    expect(valueDynastyAsset(context, { ...pick, valueBands: null }).values).toEqual({ overall: 0, contend: 0, rebuild: 0 })
   })
   it('prefers current trade-card values and falls back to saved asset values', () => {
     const trade = { proposerMemberId: 'a', routedItems: [

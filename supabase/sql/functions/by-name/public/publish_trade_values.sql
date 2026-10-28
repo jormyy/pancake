@@ -73,6 +73,8 @@ BEGIN
   INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes,details)
     SELECT id,'resources',1,NULL,NULL FROM public.leagues WHERE deleted_at IS NULL
     ON CONFLICT(league_id,topic) DO UPDATE SET revision=stored.revision+1,scopes=NULL,details=NULL,updated_at=clock_timestamp();
+  PERFORM private.work_enqueue('pick-predictions',to_char(p_fetched_at AT TIME ZONE 'America/New_York','YYYY-MM-DD')||':'||encode(extensions.digest(p_source_body,'sha256'),'hex'),now(),
+    jsonb_build_object('sourceVersion',encode(extensions.digest(p_source_body,'sha256'),'hex')));
   RETURN jsonb_build_object('players',450,'matched',v_matched,'unmatched',450-v_matched,'picks',18,'derivedPicks',9);
 END;
 $$;

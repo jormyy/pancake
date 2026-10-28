@@ -135,6 +135,41 @@ test('draft source absence requires the full native failure before declared avai
   assert.equal(classifyOutcome(worker, { ...evidence, providers: wrongRoute }).kind, 'unexpected')
 })
 
+test('successful player sync accounts for deferred identities alongside career gaps', () => {
+  const worker = outcome('sync-players', {
+    status_code: 200, worker_status: 'success', sync_status: 'success', sync_error: null,
+    content: JSON.stringify({ ok: true, inserted: 576, identityRefreshDeferred: true, injuryWarnings: 0, careerUnverified: 486 }),
+  })
+  const identities = receipt(worker, 'sleeper-identities', `${originUrl('replay')}/sleeper/players/nba`)
+  const retry = receipt(worker, 'sleeper-identities', identities.original, { requestId: 'identity-retry' })
+  const biography = receipt(worker, 'espn-career-biography', `${originUrl('replay')}/career/athletes/123`)
+  const stats = receipt(worker, 'espn-career-stats', `${originUrl('replay')}/career/athletes/123/stats?seasontype=2`, { status: 200 })
+  assert.deepEqual(classify(worker, [identities, retry]), { kind: 'known-source-gap', gaps: ['sleeper-identities'] })
+  assert.deepEqual(classify(worker, [identities, retry, biography, stats]), {
+    kind: 'known-source-gap', gaps: ['sleeper-identities', 'espn-career-stats', 'espn-career-biography'],
+  })
+})
+
+test('successful player identity gaps require a true deferral marker and exact receipts', () => {
+  const body = { ok: true, identityRefreshDeferred: true, injuryWarnings: 0 }
+  const worker = outcome('sync-players', {
+    status_code: 200, worker_status: 'success', sync_status: 'success', sync_error: null,
+    content: JSON.stringify(body),
+  })
+  const identities = receipt(worker, 'sleeper-identities', `${originUrl('replay')}/sleeper/players/nba`)
+  for (const marker of [undefined, false, 'true', 1, null]) {
+    assert.deepEqual(classify({ ...worker, content: JSON.stringify({ ...body, identityRefreshDeferred: marker }) }, [identities]), {
+      kind: 'unexpected', reason: 'Unaccounted provider gap',
+    })
+  }
+  for (const overrides of [{ status: 200 }, { status: 502 }, { invocation: 'other-worker' }, { originReceipt: null }]) {
+    assert.equal(classify(worker, [{ ...identities, ...overrides }]).kind, 'unexpected')
+  }
+  for (const overrides of [{ worker_status: 'failed' }, { sync_status: 'failed' }, { status_code: 500 }, { sync_error: 'Injected worker fault' }, { content: JSON.stringify({ ...body, ok: false }) }]) {
+    assert.equal(classify({ ...worker, ...overrides }, [identities]).kind, 'unexpected')
+  }
+})
+
 test('player career source gaps require independent exact receipts and unverified careers', () => {
   const failure = 'sync-players had 1 failure(s): Sleeper identities: Sleeper players 503'
   const worker = outcome('sync-players', { sync_error: failure, content: JSON.stringify({ failure, injuryWarnings: 0, careerUnverified: 4 }) })

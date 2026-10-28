@@ -13,9 +13,10 @@ It also preserves the recorded pre-migration security catalog.
 | Deployed release 1 | `20261029000800` | 564 |
 | Release 2.4 candidate | `20261116000500` | 608 |
 | Release 2.5 candidate | `20261123000100` | 621 |
+| Release 2.6 candidate | `20261124000400` | 625 |
 
-The current approved range contains 292 migrations after the audit baseline.
-The deployed release 1 phase has 44 pending migrations.
+The current approved range contains 296 migrations after the audit baseline.
+The recorded release 1 phase has 61 pending migrations.
 Release 1 reaches production on 2026-10-27.
 Its frontend commit is `1e62824e43044d30007b9601a8a3993c576b6a7e`.
 
@@ -62,3 +63,9 @@ The release 2.5 refresh uses private project `pt4bafabler25`, database port `582
 Its 621-row history includes every merged migration and the final function-reconciliation migration.
 The incremental upgrade and fresh installation produce identical attestations, function catalogs, and database types.
 The audit anchor and recorded pre-migration catalog stay unchanged.
+
+The release 2.6 refresh uses private project `pt4bafabler26`, database port `58622`.
+The upgrade applies four migrations after the supplied 621-migration head.
+The resulting history contains 625 migrations and 296 entries after the fixed audit anchor.
+All four generated artifacts match between the incremental upgrade and a fresh installation.
+The recorded pre-migration catalog stays at 564 migrations.

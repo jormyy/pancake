@@ -3,7 +3,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   league public.leagues%ROWTYPE; season public.league_seasons%ROWTYPE; terms jsonb;
   v_item jsonb; seen text[]:='{}'; identity text; player_ids uuid[]; replacement_ids uuid[];
-  player_rows jsonb; replacement_rows jsonb; picks jsonb; balances jsonb;
+  player_rows jsonb; replacement_rows jsonb; picks jsonb; balances jsonb; pick_values jsonb:='[]'::jsonb;
   previous_user text:=current_setting('request.jwt.claim.sub',true); teams integer;
 BEGIN
   SELECT l.* INTO league FROM public.leagues l JOIN public.league_members m ON m.league_id=l.id
@@ -57,12 +57,15 @@ BEGIN
     FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,player_ids,'',100,0) p;
   SELECT COALESCE(jsonb_agg(to_jsonb(p) ORDER BY p.player_id),'[]'::jsonb) INTO replacement_rows
     FROM public.get_dynasty_forecast_inputs(league.id,p_member_id,season.season_year,replacement_ids,'',5,0) p;
+  IF EXISTS(SELECT 1 FROM jsonb_array_elements(terms) item WHERE item->>'pickId' IS NOT NULL) THEN
+    SELECT COALESCE(jsonb_agg(to_jsonb(value)),'[]'::jsonb) INTO pick_values FROM public.get_dynasty_pick_values(league.id) value;
+  END IF;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id',pick.id,'seasonYear',pick.season_year,'round',pick.round,
     'ownerId',pick.current_owner_id,'originalOwnerId',pick.original_owner_id,'originalTeamName',member.team_name,
     'slot',slot.pick_in_round,
-    'valueBands',(SELECT jsonb_object_agg(value.tier,value.trade_value) FROM public.get_dynasty_pick_values(league.id) value
-      WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round),
-    'valueFetchedAt',(SELECT max(value.fetched_at) FROM public.get_dynasty_pick_values(league.id) value
+    'valueBands',COALESCE((SELECT jsonb_object_agg(value.tier,CASE WHEN value.tier='mid' AND slot.pick_in_round IS NULL THEN COALESCE(pick.predicted_trade_value,value.trade_value) ELSE value.trade_value END) FROM jsonb_to_recordset(pick_values) AS value(draft_year integer,round integer,tier text,trade_value numeric,fetched_at timestamptz)
+      WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round),CASE WHEN slot.pick_in_round IS NULL AND pick.predicted_trade_value IS NOT NULL THEN jsonb_set(pick.predicted_value_bands,'{mid}',to_jsonb(pick.predicted_trade_value)) ELSE pick.predicted_value_bands END),
+    'valueFetchedAt',(SELECT max(value.fetched_at) FROM jsonb_to_recordset(pick_values) AS value(draft_year integer,round integer,tier text,trade_value numeric,fetched_at timestamptz)
       WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round)) ORDER BY pick.id),'[]'::jsonb) INTO picks
   FROM public.draft_picks pick JOIN public.league_members member ON member.id=pick.original_owner_id
   LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id

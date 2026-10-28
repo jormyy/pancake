@@ -45,7 +45,7 @@ BEGIN
   END;
   PERFORM set_config('request.headers','{}',true);
   PERFORM pg_temp.check_rules(failed,'expired workers cannot reserve a source fetch');
-  UPDATE private.trade_value_sync_state SET last_request_at=NULL WHERE id;
+  UPDATE private.trade_value_sync_state SET request_id=NULL,last_request_at=NULL,fetched_at=clock_timestamp()-interval '1 day' WHERE id;
   PERFORM pg_temp.check_rules(public.claim_trade_value_sync(gen_random_uuid()),'first daily claim succeeds');
   PERFORM pg_temp.check_rules(NOT public.claim_trade_value_sync(gen_random_uuid()),'second daily claim is cached');
   UPDATE private.trade_value_sync_state SET last_request_at=clock_timestamp()-interval '1 day' WHERE id;

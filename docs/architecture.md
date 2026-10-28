@@ -157,6 +157,10 @@ Workers renew every 30 seconds and at explicit work phases.
 Lease loss stops further writes.
 Retries back off from one minute to a fifteen-minute cap.
 The third failed attempt becomes dead work.
+Value-source failures use up to four separate retries, each 30 minutes later.
+The retry RPC releases the daily claim and preserves the source error.
+Successful daily values queue pick predictions before versioned trade re-analysis.
+The former ranking work kind and hourly gate are removed.
 Individual game and forecast claims retain their own ownership checks.
 
 `work_dashboard()` shows due, running, failed, and dead work.

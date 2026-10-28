@@ -17,8 +17,6 @@ import { generateAllMatchups } from './matchups.ts'
 import { todayET } from '../_shared/date.ts'
 import { statsSyncRange } from '../_shared/statsSyncJob.ts'
 
-const DYNASTY_RANKING_VIEWS = ['POINT_3', 'ROOKIE', 'POINT_5'] as const
-
 async function requireAdminUser(req: Request): Promise<void> {
   const userId = await requireUser(req)
   requireAdmin(userId)
@@ -60,13 +58,6 @@ async function syncBackfill(body: Record<string, unknown>): Promise<unknown> {
   })
 }
 
-async function syncRankings(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const requested = optionalStringField(body, 'view')?.toUpperCase() ?? 'POINT_5'
-  if (!DYNASTY_RANKING_VIEWS.some((view) => view === requested)) {
-    throw new Error(`Unknown ranking view: ${requested}`)
-  }
-  return await invokeInternalFunction('sync-rankings', { view: requested }) as Record<string, unknown>
-}
 
 async function backfillProgress(jobId: string): Promise<unknown> {
   const { data, error } = await supabase
@@ -129,7 +120,7 @@ export async function handleSyncRoute(req: Request, path: string): Promise<Respo
   if (path === '/sync/scores') return json(await invokeInternalFunction('sync-scores'))
   if (path === '/sync/schedule') return json(await invokeInternalFunction('sync-schedule'))
   if (path === '/sync/players') return json(await invokeInternalFunction('sync-players'))
-  if (path === '/sync/rankings') return json(await syncRankings(body))
+  if (path === '/sync/rankings') return json(await invokeInternalFunction('sync-trade-values', {}))
   if (path === '/sync/projections') return json(await invokeInternalFunction('sync-projections'))
   if (path === '/sync/draft-order') return json(await invokeInternalFunction('sync-draft-order', body))
   if (path === '/sync/backfill') return json(await syncBackfill(body))
