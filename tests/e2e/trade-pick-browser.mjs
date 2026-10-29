@@ -38,8 +38,8 @@ async function runTradePickBrowser(output, stage = 'before', state = 'pending') 
             await card.waitFor({ state: 'visible', timeout: 30000 })
             await card.scrollIntoViewIfNeeded()
             const expected = [
-                `2028 Round 1 (orig. Mike's Minions) — from ${viewer.from} → to ${viewer.to}`,
-                `2027 Round 2 (orig. Mike's Minions) — from ${viewer.from} → to ${viewer.to}`,
+                `2029 Round 1 (orig. Mike's Minions) — from ${viewer.from} → to ${viewer.to}`,
+                `2028 Round 2 (orig. Mike's Minions) — from ${viewer.from} → to ${viewer.to}`,
             ]
             const cardText = await card.innerText()
             if (stage === 'after') for (const label of expected) assert.ok(cardText.includes(label), label)

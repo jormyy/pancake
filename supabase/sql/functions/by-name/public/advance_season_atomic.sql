@@ -49,7 +49,7 @@ BEGIN
     v_current_season.season_year + 1,
     public.current_season_year_et(now())
   );
-  v_far_year := v_new_year + 3;
+  v_far_year := v_new_year + v_league.future_pick_years;
 
   UPDATE draft_picks SET is_used=true,used_at=now()
     WHERE league_id=p_league_id AND season_year<v_new_year AND NOT is_used;

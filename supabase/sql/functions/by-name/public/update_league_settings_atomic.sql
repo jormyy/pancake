@@ -43,6 +43,8 @@ DECLARE
   v_trade_veto_mode text;
   v_trade_veto_window_hours int;
   v_trade_veto_threshold_percent int;
+  v_future_pick_years int;
+  v_required_pick_years int;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated.'
@@ -68,6 +70,25 @@ BEGIN
   IF NOT private.is_commissioner(p_league_id) THEN
     RAISE EXCEPTION 'Only the league commissioner can change settings.'
       USING ERRCODE = '42501';
+  END IF;
+
+  IF p_settings ? 'future_pick_years' THEN
+    IF jsonb_typeof(p_settings->'future_pick_years') <> 'number'
+      OR (p_settings->>'future_pick_years') !~ '^[0-9]+$'
+      OR (p_settings->>'future_pick_years')::numeric NOT BETWEEN 1 AND 10 THEN
+      RAISE EXCEPTION 'Future draft years must be a whole number between 1 and 10.' USING ERRCODE='22023';
+    END IF;
+    v_future_pick_years := (p_settings->>'future_pick_years')::int;
+    IF v_future_pick_years < v_league.future_pick_years THEN
+      SELECT max(pick.season_year-season.season_year) INTO v_required_pick_years
+      FROM public.draft_picks pick JOIN public.league_seasons season ON season.league_id=pick.league_id AND season.is_current
+      WHERE pick.league_id=p_league_id AND (
+        pick.current_owner_id<>pick.original_owner_id
+        OR EXISTS (SELECT 1 FROM public.trade_items item WHERE item.pick_id=pick.id));
+      IF v_future_pick_years < v_required_pick_years THEN
+        RAISE EXCEPTION 'Future draft years cannot be lower than % because a pick in that year has been traded or included in a trade.',v_required_pick_years USING ERRCODE='22023';
+      END IF;
+    END IF;
   END IF;
 
   IF p_settings ? 'timezone' AND (jsonb_typeof(p_settings->'timezone')<>'string' OR NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name=p_settings->>'timezone')) THEN
@@ -282,7 +303,8 @@ BEGIN
   END IF;
 
   UPDATE public.leagues
-     SET timezone = CASE WHEN p_settings ? 'timezone' THEN p_settings->>'timezone' ELSE timezone END,
+     SET future_pick_years = COALESCE(v_future_pick_years, future_pick_years),
+         timezone = CASE WHEN p_settings ? 'timezone' THEN p_settings->>'timezone' ELSE timezone END,
          rookie_draft_order = CASE WHEN p_settings ? 'rookie_draft_order' THEN p_settings->>'rookie_draft_order' ELSE rookie_draft_order END,
          team_limit = CASE WHEN p_settings ? 'team_limit' THEN (p_settings->>'team_limit')::int ELSE team_limit END,
          taxi_rule = 'rookies_or_64_games',
@@ -310,6 +332,10 @@ BEGIN
          trade_veto_window_hours = COALESCE(v_trade_veto_window_hours, trade_veto_window_hours),
          trade_veto_threshold_percent = COALESCE(v_trade_veto_threshold_percent, trade_veto_threshold_percent)
    WHERE id = p_league_id;
+
+  IF v_future_pick_years IS NOT NULL AND v_future_pick_years <> v_league.future_pick_years THEN
+    PERFORM private.reconcile_future_picks(p_league_id);
+  END IF;
 
   IF p_settings ? 'skipped_weeks' THEN
     IF jsonb_typeof(p_settings->'skipped_weeks')<>'array' OR EXISTS (

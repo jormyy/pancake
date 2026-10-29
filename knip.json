@@ -41,7 +41,7 @@
     "scripts/season-sim/{audit-identities,plan-audit}.mjs",
     "scripts/bench/{compare,dispatch-concurrency,lineup-concurrency,pre-tipoff,prepare-schedule,profile-span-certificates,report-metrics,verify-tipoffs}.ts",
     "scripts/bench/{profile-env,profile-psql}.mjs",
-    "tests/db/{screen-view-costs,unpartition-player-stats,unpartition-migration}.mjs",
+    "tests/db/{screen-view-costs,unpartition-player-stats,unpartition-migration,slow-screens,slow-screen-addendum}.mjs",
     "scripts/mutation/notif/{round3,run}.ts",
     "scripts/mutation/post/feature-browser.mjs",
     "scripts/mutation/post/{check,report,run,setup}.mjs",
@@ -123,7 +123,10 @@
     "tests/e2e/trade-reanalysis-backup.mjs",
     "scripts/perf-lab/{mini,edge,regenerate}.mjs",
     "tests/perf-lab/*.mjs",
-    "tests/e2e/perf-lab-globals.d.ts"
+    "tests/e2e/perf-lab-globals.d.ts",
+    "tests/e2e/future-pick-mini.mjs",
+    "tests/e2e/future-pick-web.mjs",
+    "tests/e2e/future-pick-browser.mjs"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

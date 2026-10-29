@@ -2,6 +2,10 @@
 
 ## Release order for this release
 
+Database, then Edge, then merge the frontend.
+Apply `20261214000700_future_pick_years.sql` before clients read the future pick setting.
+The existing Edge settings endpoint accepts the new JSON field without an Edge code change.
+
 The supplied production head is `20261211000400`, with 683 migrations.
 Pause trade dispatch, apply `20261212000100_trade_revaluation_inputs_fast.sql`, then deploy `refresh-views`.
 Resume dispatch when both versions agree.
@@ -41,6 +45,25 @@ The change preserves screen and worker JSON and requires no client release.
 The [screen benchmark](../tests/db/unpartition-player-stats.md) records read measurements.
 The [migration follow-up](../tests/db/unpartition-migration.md) records quarter-CPU timings and failure recovery.
 This rehearsal makes no production request.
+
+### Slow screen reads after release 2.8
+
+Apply `20261214000500_slow_screens.sql` as one transaction.
+It changes six function bodies. Signatures, grants, and tables stay the same.
+The pending trade count and player projection query reuse PL/pgSQL plans.
+The roster uses a generic plan. Trade lists request only card and block fields.
+The full trade details and trade block responses retain their existing defaults.
+
+The [private benchmark](../tests/db/slow-screens.md) records fresh and warm calls at one and quarter CPU.
+It compares serialized JSON for three managers on a live day and an off day.
+Run its SQL timing guard and the screen, player search, and projection recipes before rollout.
+No data backfill or worker pause is needed for these read function changes.
+
+Follow with `20261214000501_slow_screen_addendum.sql` for player details, the full trade block, and revaluation inputs.
+It also batches trade cards through `get_trade_cards`, which verifies the caller and every requested trade.
+Only authenticated and service roles may execute that helper.
+The worker retains its three-second statement cap. Its fresh benchmark guard is 300 ms.
+The [addendum results](../tests/db/slow-screens.md#production-addendum-1910-utc) include a full forty-card page and exact JSON checks.
 
 ## Release 2.6 historical contract
 
@@ -1097,3 +1120,40 @@ Lint, application types, test types, function sources, and the live catalog pass
 The catalog and both attestations regenerate through their generators.
 The full Vitest suite is not repeated after the addendum, following the instruction to defer it until before a push.
 No push is performed.
+
+## Future draft years
+
+Apply `20261214000700_future_pick_years.sql` before releasing the client.
+League rules use typed columns, so `leagues.future_pick_years` follows that convention.
+The default remains 3. Commissioners can choose 1 through 10 during any season.
+Increasing the setting creates each member's own three rounds for the additional years.
+Lowering blocks years containing transferred picks or trade references.
+Cleanup keeps used picks, assigned picks, activity references, and every foreign key reference.
+The migration changes only OFFICIAL LEAGUE `faab8d8f-6a60-4bbc-8f5d-44050b652cdd` to 5.
+It inserts missing 2031 and 2032 assets without changing existing picks.
+Existing league version triggers publish setting and inventory changes to clients.
+Repeated migration runs preserve pick IDs and ownership.
+
+The external value source publishes three draft classes.
+For later classes, the SQL reader extends each round and tier using its last annual value ratio.
+The ratio is bounded between 0.5 and 1, with 0.9 when the previous value is absent or zero.
+The fourth class is the third class times that ratio; the fifth repeats that decay.
+Round 3 retains the existing replacement value floor after decay.
+Source values and timestamps remain unchanged. The imported three-class source contract stays intact.
+The existing strategy model already compounds annual decay without a year limit.
+Pick predictions and trade estimates both consume the extended SQL value bands.
+
+Changed functions: `public.create_league`, `public.join_league_by_invite_code`,
+`public.advance_season_atomic`, `private.assert_trade_window`,
+`public.update_league_settings_atomic`, `public.view_picks`,
+`public.get_dynasty_pick_values`, `public.get_pick_prediction_inputs`,
+`private.trade_revaluation_input_version`, and new helper `private.reconcile_future_picks`.
+`private.roll_setup_league_seasons` already shifts all existing assets with no fixed window.
+
+Pick labels display the stored pick year directly, matching the requested 2028–2032 window.
+Valuation source keys still use the prior summer NBA draft year.
+`private.expire_pending_trades_for_lost_asset` uses the same stored year in notices.
+
+Commissioners edit the rule in a dedicated Future draft picks card with its own Save button.
+It loads the saved column directly and uses the existing configuration RPC.
+The form stays within app, components, and lib; no hook change is required.

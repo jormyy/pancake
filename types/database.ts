@@ -833,6 +833,66 @@ export type Database = {
         }
         Relationships: []
       }
+      edge_invocations_y2026m09: {
+        Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
+          error_message: string | null
+          function_name: string
+          id: number
+          invocation_key: string | null
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+          sync_run_id: string | null
+          work_item_id: number | null
+          work_lease_token: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
+        }
+        Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Relationships: []
+      }
       edge_invocations_y2026m10: {
         Row: {
           dispatch_claimed_at: string | null
@@ -2021,6 +2081,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           faab_starting_budget: number
+          future_pick_years: number
           id: string
           invite_code: string | null
           ir_slots: number
@@ -2056,6 +2117,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           faab_starting_budget?: number
+          future_pick_years?: number
           id?: string
           invite_code?: string | null
           ir_slots?: number
@@ -2091,6 +2153,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           faab_starting_budget?: number
+          future_pick_years?: number
           id?: string
           invite_code?: string | null
           ir_slots?: number
@@ -3306,102 +3369,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      player_game_stats_default: {
-        Row: {
-          assists: number | null
-          blocks: number | null
-          created_at: string
-          defensive_rebounds: number | null
-          did_not_play: boolean
-          double_double: boolean | null
-          field_goals_attempted: number | null
-          field_goals_made: number | null
-          free_throws_attempted: number | null
-          free_throws_made: number | null
-          game_date: string | null
-          game_id: string
-          id: string
-          is_home: boolean | null
-          minutes_played: number | null
-          offensive_rebounds: number | null
-          personal_fouls: number | null
-          player_id: string
-          plus_minus: number | null
-          points: number | null
-          rebounds: number | null
-          season_year: number
-          steals: number | null
-          three_pointers_attempted: number | null
-          three_pointers_made: number | null
-          triple_double: boolean | null
-          turnovers: number | null
-          updated_at: string
-          week_number: number
-        }
-        Insert: {
-          assists?: number | null
-          blocks?: number | null
-          created_at?: string
-          defensive_rebounds?: number | null
-          did_not_play?: boolean
-          double_double?: boolean | null
-          field_goals_attempted?: number | null
-          field_goals_made?: number | null
-          free_throws_attempted?: number | null
-          free_throws_made?: number | null
-          game_date?: string | null
-          game_id: string
-          id?: string
-          is_home?: boolean | null
-          minutes_played?: number | null
-          offensive_rebounds?: number | null
-          personal_fouls?: number | null
-          player_id: string
-          plus_minus?: number | null
-          points?: number | null
-          rebounds?: number | null
-          season_year: number
-          steals?: number | null
-          three_pointers_attempted?: number | null
-          three_pointers_made?: number | null
-          triple_double?: boolean | null
-          turnovers?: number | null
-          updated_at?: string
-          week_number: number
-        }
-        Update: {
-          assists?: number | null
-          blocks?: number | null
-          created_at?: string
-          defensive_rebounds?: number | null
-          did_not_play?: boolean
-          double_double?: boolean | null
-          field_goals_attempted?: number | null
-          field_goals_made?: number | null
-          free_throws_attempted?: number | null
-          free_throws_made?: number | null
-          game_date?: string | null
-          game_id?: string
-          id?: string
-          is_home?: boolean | null
-          minutes_played?: number | null
-          offensive_rebounds?: number | null
-          personal_fouls?: number | null
-          player_id?: string
-          plus_minus?: number | null
-          points?: number | null
-          rebounds?: number | null
-          season_year?: number
-          steals?: number | null
-          three_pointers_attempted?: number | null
-          three_pointers_made?: number | null
-          triple_double?: boolean | null
-          turnovers?: number | null
-          updated_at?: string
-          week_number?: number
-        }
-        Relationships: []
       }
       player_projections: {
         Row: {
@@ -6722,6 +6689,14 @@ export type Database = {
         Returns: {
           week_number: number
         }[]
+      }
+      get_trade_cards: {
+        Args: {
+          p_league_id: string
+          p_member_id: string
+          p_trade_ids: string[]
+        }
+        Returns: Json
       }
       get_trade_estimate_inputs: {
         Args: { p_items: Json; p_member_id: string; p_user_id: string }

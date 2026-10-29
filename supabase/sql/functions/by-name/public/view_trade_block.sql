@@ -26,7 +26,10 @@ BEGIN
     LEFT JOIN public.v_player_avg_fantasy_points source_fantasy ON average.player_id IS NULL AND source_fantasy.league_id = p_league_id
       AND source_fantasy.player_id = item.player_id AND source_fantasy.season_year = public.current_season_year_et()
   WHERE item.league_id = p_league_id AND (context->'season'->>'is_current')::boolean AND (player.id IS NOT NULL OR pick.id IS NOT NULL);
-  roster := public.view_roster(p_league_id, p_member_id, p_params - 'targetMemberId');
+  IF COALESCE((p_params->>'blockOnly')::boolean, false) THEN
+    RETURN jsonb_build_object('block', items);
+  END IF;
+  roster := public.view_roster(p_league_id, p_member_id, (p_params - 'targetMemberId') || jsonb_build_object('inventoryOnly', true));
   RETURN jsonb_build_object('context', context, 'block', items, 'items', items, 'roster', roster->'roster', 'picks', roster->'picks',
     'avgMap', roster->'avgMap', 'avgStatsMap', roster->'avgStatsMap');
 END;

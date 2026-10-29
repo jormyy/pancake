@@ -1,3 +1,4 @@
+import { FuturePickYearsSetting } from '@/components/commissioner/FuturePickYearsSetting'
 import { NotificationAnnouncementComposer } from '@/components/settings/NotificationAnnouncementComposer'
 import {
     View,
@@ -284,6 +285,8 @@ export default function CommissionerSettingsScreen() {
                         </Pressable>
                         <Text style={styles.settingHint}>Team count locks after setup. Taxi rules apply at acquisition and season rollover. Expired tenure promotes the player; roster overflow needs resolution.</Text>
                     </View>
+
+                    <FuturePickYearsSetting disabled={!authorityReady || saving || busyAction !== null} />
 
                     <Text style={styles.sectionTitle} role="heading" aria-level={2} accessibilityRole="header">Playoffs</Text>
                     <View style={styles.card}>

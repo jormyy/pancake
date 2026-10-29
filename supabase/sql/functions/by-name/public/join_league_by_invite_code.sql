@@ -101,7 +101,7 @@ BEGIN
 
   INSERT INTO public.draft_picks (league_id, season_year, round, original_owner_id, current_owner_id)
   SELECT v_league.id, year_value, round_value, v_member_id, v_member_id
-  FROM generate_series(v_season_year + 1, v_season_year + 3) AS year_value
+  FROM generate_series(v_season_year + 1, v_season_year + v_league.future_pick_years) AS year_value
   CROSS JOIN generate_series(1, 3) AS round_value
   ON CONFLICT (league_id, season_year, round, original_owner_id) DO NOTHING;
 
