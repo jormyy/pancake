@@ -42,7 +42,9 @@ BEGIN
   UPDATE trades SET status='pending' WHERE id=offer;
   UPDATE leagues SET trade_deadline=today-1 WHERE id=league;
   PERFORM pg_temp.reject_deadline(format('UPDATE trades SET status=''accepted'' WHERE id=%L',offer),'acceptance locks the next ET date');
+  UPDATE trades SET status='withdrawn' WHERE id=offer;
   PERFORM pg_temp.reject_deadline(format('SELECT propose_trade_atomic(%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[],%L,%L)',league,season,members[1],members[2],ARRAY[asset]::text,ARRAY[other_asset]::text),'new offers lock the next ET date');
+  UPDATE trades SET status='pending' WHERE id=offer;
   UPDATE leagues SET status='playoffs' WHERE id=league;
   PERFORM pg_temp.reject_deadline(format('UPDATE trades SET status=''accepted'' WHERE id=%L',offer),'playoff acceptance stays locked before champion');
   INSERT INTO matchups(league_id,league_season_id,week_number,matchup_type,home_member_id,away_member_id,is_finalized,winner_member_id)

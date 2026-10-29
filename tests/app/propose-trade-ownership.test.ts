@@ -1,7 +1,6 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { rosterPlayer } from '../helpers/fixtures'
 import type { RosterPlayer } from '@/lib/roster'
 import ProposeTradeScreen from '@/app/(modals)/propose-trade'
 import { RequestError } from '@/lib/shared/errors'
@@ -14,6 +13,7 @@ type MockTradeItem =
 
 const mocks = vi.hoisted(() => ({
     roster: [] as RosterPlayer[],
+    preview: vi.fn(),
     userId: 'user-a',
     selectedAssetsAvailable: true,
     assetsLoaded: true,
@@ -106,6 +106,8 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
 vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
     useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
 }))
+vi.mock('@/components/trades/TradeRosterPreviewList', () => ({ TradeRosterPreviewList: 'TradeRosterPreviewList' }))
+vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: mocks.preview }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/roster', () => ({ getRoster: async () => mocks.roster }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ takeTradeAnalyzerDraft: () => null }))
@@ -183,6 +185,7 @@ const deferred = <Value,>() => {
 }
 
 beforeEach(() => {
+    mocks.preview.mockResolvedValue([{ memberId: 'member-a', legal: true, reasons: [], error: null }])
     mocks.roster = []
     mocks.assetsLoaded = true
     vi.clearAllMocks()
@@ -620,10 +623,10 @@ describe('unsent trade across a page reload', () => {
         const first = await mount()
         await act(async () => first.root.findByProps({ testID: 'trade-submit' }).props.onPress())
         const plan = { taxiPlayerIds: [], irPlayerIds: ['player-b'], dropPlayerIds: ['drop'] }
-        await act(async () => first.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.onChange(plan))
+        await act(async () => first.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0].props.onChange(plan))
         const second = await reload(first)
         await act(async () => second.root.findByProps({ testID: 'trade-submit' }).props.onPress())
-        expect(second.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(plan)
+        expect(second.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0].props.value).toEqual(plan)
         await act(async () => second.unmount())
     })
 
@@ -800,7 +803,7 @@ it.each(['two', 'multi'])('prunes removed placements and offered drops before th
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
     if (form === 'multi') await act(async () => screen.root.findByProps({ testID: 'trade-mode-multi' }).props.onPress())
     await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
-    const editor = () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType)
+    const editor = () => screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0]
     await act(async () => editor().props.onChange({ taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir', 'player-b'], dropPlayerIds: ['drop', 'keep-drop', 'not-mine'] }))
     mocks.tradeItems = mocks.tradeItems.filter(item => item.kind !== 'player' || !['incoming-taxi', 'incoming-ir'].includes(item.playerId))
     mocks.tradeItems.push({ kind: 'player', fromMemberId: 'member-a', toMemberId: 'member-b', playerId: 'drop' })
@@ -839,60 +842,71 @@ it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s m
         await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
         const expected = { taxiPlayerIds: ['incoming-taxi'], irPlayerIds: ['incoming-ir'], dropPlayerIds: ['keep-drop'], rosterMoves: [] }
         await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
-        expect(renderer.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.value).toEqual(expected)
+        expect(renderer.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0].props.value).toEqual(expected)
         await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
         expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan).toEqual(expected)
     } finally { await act(async () => renderer?.unmount()) }
 })
 
 
-it('opens roster resolution before sending a proposal from an ineligible taxi roster', async () => {
-    const taxi = rosterPlayer({ is_on_taxi: true })
-    taxi.players = { ...taxi.players, years_exp: 2, career_regular_season_games: 65 }
-    mocks.roster = [taxi]
+it('keeps the draft when SQL reports an ineligible taxi player', async () => {
+    const reason = { rule: 'taxi_eligibility', message: 'Team A must move Player A from taxi.' }
+    mocks.preview.mockResolvedValue([{ memberId: 'member-a', legal: false, reasons: [reason], error: reason.message }])
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
     await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
     await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
     expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
-    expect(mocks.submitMultiTeamTradeComposer).not.toHaveBeenCalled()
-    expect(renderer.root.findByType('IRResolutionModal' as React.ElementType).props.ineligibleIR).toEqual([taxi])
+    expect(renderer.root.findByType('TradeRosterPreviewList' as React.ElementType).props.teams[0].reasons).toEqual([reason])
     await act(async () => renderer.unmount())
 })
 
-it('disables Send until the proposer chooses enough drops while leaving the recipient plan for acceptance', async () => {
-    mocks.context.currentLeague.roster_size = 1
+it('waits for SQL to approve both rosters and preserves selected drops', async () => {
+    mocks.preview.mockResolvedValue([{ memberId: 'member-b', legal: false, error: 'Team B is full.', reasons: [] }])
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
     await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
     const send = () => screen.root.findByProps({ testID: 'trade-confirm-submit' })
-    expect(send().props.disabled).toBe(true)
+    await act(async () => screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0].props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop'] }))
     await act(async () => send().props.onPress())
     expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
-    const editor = () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType)
-    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop'] }))
-    expect(send().props.disabled).toBe(true)
-    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['drop', 'keep-drop'] }))
-    expect(send().props.disabled).toBe(false)
+    expect(screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[0].props.value.dropPlayerIds).toEqual(['drop'])
+    mocks.preview.mockResolvedValue([{ memberId: 'member-a', legal: true, error: null, reasons: [] }])
     await act(async () => send().props.onPress())
-    expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan.dropPlayerIds).toEqual(['drop', 'keep-drop'])
+    expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlan.dropPlayerIds).toEqual(['drop'])
     await act(async () => screen.unmount())
 })
 
-it('disables Send for IR and Taxi overflow until the incoming player returns to Regular', async () => {
-    mocks.context.currentLeague.ir_slots = 0
-    mocks.context.currentLeague.taxi_slots = 0
+it('saves the sender-selected destination for the other team in the terms', async () => {
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
     await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
-    const send = () => screen.root.findByProps({ testID: 'trade-confirm-submit' })
-    const editor = () => screen.root.findByType('TradeRosterPlanEditor' as React.ElementType)
-    expect(send().props.disabled).toBe(false)
-    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: ['player-b'], dropPlayerIds: [] }))
-    expect(send().props.disabled).toBe(true)
-    await act(async () => editor().props.onChange({ taxiPlayerIds: ['player-b'], irPlayerIds: [], dropPlayerIds: [] }))
-    expect(send().props.disabled).toBe(true)
-    await act(async () => editor().props.onChange({ taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }))
-    expect(send().props.disabled).toBe(false)
+    await act(async () => screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[1].props.onChange({ taxiPlayerIds: [], irPlayerIds: ['player-a'], dropPlayerIds: [] }))
+    await act(async () => screen.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
+    expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlans['member-b'].irPlayerIds).toEqual(['player-a'])
     await act(async () => screen.unmount())
+})
+
+it('reopens the saved trade editor offline without fetching members or enabling Send', async () => {
+    mocks.params = {}
+    let screen!: ReactTestRenderer
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    expect(screen.root.findByProps({ testID: 'trade-participant-member-b' })).toBeTruthy()
+    await act(async () => screen.unmount())
+    mocks.getLeagueMembers.mockClear()
+    mocks.getCurrentSeasonId.mockClear()
+    mocks.context.online = false
+    activity.active = false
+    activity.epoch += 1
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    try {
+        expect(screen.root.findByProps({ testID: 'trade-participant-member-b' })).toBeTruthy()
+        expect(screen.root.findByProps({ testID: 'trade-submit' }).props.disabled).toBe(true)
+        expect(mocks.getLeagueMembers).not.toHaveBeenCalled()
+        expect(mocks.getCurrentSeasonId).not.toHaveBeenCalled()
+    } finally { await act(async () => screen.unmount()) }
+    mocks.userId = 'another-user'
+    await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
+    try { expect(screen.root.findAllByProps({ testID: 'trade-participant-member-b' })).toHaveLength(0) }
+    finally { await act(async () => screen.unmount()) }
 })

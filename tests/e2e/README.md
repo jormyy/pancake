@@ -75,7 +75,7 @@ node tests/e2e/browser-ci-scenario.mjs --scenario=smoke
 | `npm run e2e:browser-auth` | Sign-in, session persistence, and sign-out |
 | `npm run e2e:browser-gameplay` | Auction bid persistence |
 | `npm run e2e:browser-lineup` | Manual moves and cross-session agreement |
-| `npm run e2e:browser-lineup-auto-set` | Manual Auto-set actions |
+| `npm run e2e:browser-lineup-auto-set` | Manual lineup editor entry |
 | `npm run e2e:browser-lineup-locked` | Locked and invalid move rejection |
 | `npm run e2e:browser-waiver` | Claim submission |
 | `npm run e2e:browser-trade` | Trade scenarios selected by flags |

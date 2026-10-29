@@ -31,6 +31,7 @@ Assigned blocks are 572–575.
 Block 581 belongs to the supplemental project, and 582 belongs to the replacement replay.
 Block 587 belongs to the guarded private repair project.
 Each special block requires its matching root and project from `common.mjs`.
+The database audit uses `pt4bafabledb`, block `574`, and the `fable-timeline/db` root.
 The installer changes configuration only inside the mini copy.
 It disables cron launch before applying migrations.
 It saves the installed cron catalog before unscheduling jobs.
@@ -38,6 +39,32 @@ The task supplies native PostgreSQL 17 clients and the guarded Docker socket.
 Local credentials come only from the configured stack's `supabase status -o env`.
 Real opening recovery uses a guarded `next-season-start` snapshot and preserves completed preseason work.
 Keep failed feature exports and their source receipt before revalidating the repaired opening state.
+
+## Database audit window
+
+The database window uses the restored backup's current-season calendar.
+It maps the existing historical same-team boxes and play-by-play onto that calendar.
+Every mapped player line is labeled `SYNTHETIC`.
+The source manifest and each target-to-template mapping stay in the window receipt.
+Preparation refuses dates that already contain player stats.
+
+Use the private audit environment and Node 22 on the mini:
+
+```sh
+export SEASON_SIM_YEAR=2027
+node scripts/season-sim/database-window.mjs --prepare 2026-10-29
+export SEASON_SIM_FIXTURES="$SEASON_SIM_ROOT/window-fixtures"
+export SEASON_SIM_DATABASE_WINDOW="$SEASON_SIM_ROOT/database-window.json"
+node scripts/season-sim/database-window.mjs --run
+```
+
+The runner fixes the workload at two days within one season.
+It uses the existing dispatcher, timers, handlers, score oracles, waiver scenarios, trades, and Realtime checks.
+It does not skip cadence ticks or change acceptance checks.
+The window permits an absent next-season fixture, but refuses any attempt to serve that missing season.
+Full and official replays still require their existing source inputs.
+Results appear in `evidence/database-window-result.json` only after both days pass.
+The runner restores native database clocks on exit.
 
 ## Fixture collection
 
@@ -71,7 +98,7 @@ node scripts/season-sim/report.mjs
 ```
 
 The replay derives cron expectations from the ordered migrations.
-It calls every scheduled business wake, including the half-minute hint drain and hourly cron-history cleanup.
+It calls every scheduled business wake, including the minute hint drain and hourly cron-history cleanup.
 It pauses business time during I/O and wakes worker timers at their business deadlines.
 Internal live-work reads and worker completion trigger authenticated score probes.
 The morning and season-end paths contain no direct score or stat sync calls.

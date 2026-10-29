@@ -29,10 +29,10 @@ BEGIN
         AND own_preview->>'error' IS NOT NULL,location||' '||method||' preview exposes one required drop');
       IF method='plain' THEN
         PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),
-          CASE WHEN location='taxi' THEN '%taxi%' ELSE 'Rules team 2 must change its trade plan to meet the % limit.' END,location||' plain acceptance rejects overflow');
+          CASE WHEN location='taxi' THEN '%taxi%' ELSE 'Rules team 2: % is % over the limit of %' END,location||' plain acceptance rejects overflow');
       ELSE
         PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_with_plan_atomic(%L,%L,%L,%L,%L,%L)',offer,f.member_ids[2],f.user_ids[2],taxi,ir,'{}'),
-          CASE WHEN location='taxi' THEN '%taxi%' ELSE 'Rules team 2 must change its trade plan to meet the % limit.' END,location||' atomic plan rejects overflow');
+          CASE WHEN location='taxi' THEN '%taxi%' ELSE 'Rules team 2: % is % over the limit of %' END,location||' atomic plan rejects overflow');
       END IF;
       PERFORM pg_temp.check_rules((SELECT status='pending' FROM trades WHERE id=offer)
         AND (SELECT accepted_at IS NULL AND cardinality(drop_player_ids)=0 FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[2]),

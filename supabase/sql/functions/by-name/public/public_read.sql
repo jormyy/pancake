@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION public.public_read(p_token text, p_resource text, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '1s' AS $$
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '1s' SET statement_timeout='3s' AS $$
 DECLARE
   share public.league_share_tokens%ROWTYPE;
   member public.league_members%ROWTYPE;
@@ -28,7 +28,12 @@ BEGIN
   IF p_resource NOT IN ('league','standings','rosters','matchups','scores','schedule','transactions','draft-results','player-stats','projections') THEN
     RETURN jsonb_build_object('status', 404);
   END IF;
-  DELETE FROM public.public_read_log WHERE league_id = share.league_id AND hour < date_trunc('hour', now()) - interval '7 days';
+  WITH expired AS (
+    SELECT hour,resource FROM public.public_read_log
+    WHERE league_id=share.league_id AND hour<date_trunc('hour',now())-interval '7 days'
+    ORDER BY hour,resource LIMIT 5000 FOR UPDATE SKIP LOCKED
+  ) DELETE FROM public.public_read_log row USING expired
+    WHERE row.league_id=share.league_id AND row.hour=expired.hour AND row.resource=expired.resource;
   INSERT INTO public.public_read_log(league_id, hour, resource, reads, rejected)
     VALUES (share.league_id, date_trunc('hour', now()), p_resource, 1, CASE WHEN share.window_reads > 60 THEN 1 ELSE 0 END)
     ON CONFLICT (league_id, hour, resource) DO UPDATE SET reads = public.public_read_log.reads + 1,

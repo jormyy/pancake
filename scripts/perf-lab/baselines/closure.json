@@ -1,0 +1,45 @@
+{
+  "closed": true,
+  "closedAt": "2026-10-28T21:22:50.402Z",
+  "source": "21cca2b6b0c28f26f8c416a220a4621581e1a51c",
+  "fingerprint": "09e6fa83c4b23283716f2f2e9a7fd26dfc3a848a3a3d1b0eb77dbd68c31cedb5",
+  "summary": "Baseline closed under the revised closure rule. All current screen adapters pass. The replay records a forecast worker lock timeout (55P03): four gates pass, forecasts fails, and four final checks are not reached. No full-run performance gain is claimed.",
+  "adapters": {
+    "passed": 56,
+    "total": 56,
+    "screens": 40
+  },
+  "screenStates": {
+    "measured": 120,
+    "total": 120
+  },
+  "matrix": {
+    "passed": 56,
+    "total": 17112,
+    "controls": {
+      "webkit": {
+        "measured": 11,
+        "total": 1153
+      }
+    }
+  },
+  "replay": {
+    "runId": "6cd60674-ffb2-4dd0-a13a-032d5205a7d4",
+    "source": "d6aff88e1803d86fe69a0b90a680b4f9b6329c3e",
+    "profile": "control",
+    "gates": {
+      "liveTicks": true,
+      "overnightFinalization": false,
+      "preTipoff": false,
+      "waivers": false,
+      "tradeProposed": true,
+      "tradeCountered": true,
+      "tradeAccepted": true,
+      "forecasts": false,
+      "realtime": false
+    },
+    "cause": "matchup-forecast returns HTTP 500 after PostgreSQL 55P03 cancels a statement at its lock timeout. Five matchup forecasts finish; one fails. The replay stops during the first scored day before finalization and final realtime assertions. The blocking transaction is not identified by this capture.",
+    "cleanup": true
+  },
+  "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/audits/closure-audit.json"
+}

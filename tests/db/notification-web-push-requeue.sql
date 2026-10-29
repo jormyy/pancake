@@ -1,4 +1,8 @@
 BEGIN;
+UPDATE public.leagues SET deleted_at=now() WHERE deleted_at IS NULL;
+UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
+DELETE FROM public.notification_outbox;
+DELETE FROM private.work_items WHERE kind='process-trades';
 \ir rules-support.sql
 SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
 SELECT set_config('app.edge_internal_token','release-push-test',true);
@@ -39,10 +43,11 @@ BEGIN
   UPDATE public.notification_outbox SET claimed_at=NULL,claim_token=NULL WHERE notification_outbox.id=fixture.notice_id;
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.claim_notification_outbox_atomic(200) claimed
     WHERE claimed.id=fixture.notice_id), 'web delivery does not reclaim an Expo ticket');
-  SELECT count(*) INTO invocations FROM public.edge_invocations WHERE function_name='process-trades';
-  PERFORM public.invoke_process_trades_if_due();
-  PERFORM pg_temp.check_rules((SELECT count(*)=invocations+1 FROM public.edge_invocations WHERE function_name='process-trades'),
-    'pending receipts wake the deployed Edge worker');
+  DELETE FROM private.work_items WHERE kind='process-trades';
+  SELECT count(*) INTO invocations FROM private.work_items WHERE kind='process-trades';
+  PERFORM private.enqueue_process_trades(now());
+  PERFORM pg_temp.check_rules((SELECT count(*)=invocations+1 FROM private.work_items WHERE kind='process-trades'),
+    'pending receipts enqueue receipt work');
   SELECT * INTO STRICT row FROM public.claim_notification_receipts_atomic(200) claimed WHERE claimed.id=fixture.notice_id;
   PERFORM pg_temp.check_rules(public.defer_notification_receipt_state_atomic(row.id,row.claim_token,'provider pending',60,true)='deferred',
     'the deployed Edge can defer pending receipts');

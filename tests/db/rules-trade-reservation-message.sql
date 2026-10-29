@@ -21,7 +21,7 @@ BEGIN
   PERFORM public.set_trade_roster_plan_atomic(offer, f.member_ids[1], f.user_ids[1], '{}', '{}', ARRAY[players[1]]);
   PERFORM set_config('request.jwt.claim.sub', f.user_ids[1]::text, true);
   PERFORM pg_temp.reject_rules(format('SELECT public.drop_player_atomic(%L)', roster),
-    'This asset is reserved by a pending or accepted trade.', 'pending planned drops receive an accurate reservation message');
+    'Locked by trade %', 'pending planned drops receive an accurate reservation message');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

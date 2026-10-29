@@ -1,5 +1,6 @@
 BEGIN;
 \ir rules-support.sql
+\ir trade-values-fixture.sql
 DO $$
 DECLARE rows jsonb; picks jsonb; fetched timestamptz; snapshot_hash text; outcome jsonb; failed boolean;
 BEGIN

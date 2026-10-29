@@ -22,6 +22,7 @@ DECLARE
   v_balance int;
   v_item_faab_amount int;
   v_previous_flag text;
+  v_previous_applied_trade text;
   v_drop record;
   v_move record;
 BEGIN
@@ -93,7 +94,12 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
-  PERFORM private.validate_trade_rosters(p_trade_id);
+  BEGIN
+    PERFORM private.validate_trade_rosters(p_trade_id);
+  EXCEPTION WHEN SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
+    PERFORM public.hold_trade_for_legality_atomic(p_trade_id,NULL);
+    RETURN;
+  END;
 
   FOR v_from_member, v_item_faab_amount IN
     SELECT
@@ -180,6 +186,8 @@ BEGIN
   -- A reserved pick may only change hands through this completion; the
   -- draft_picks guard and the trade status guard honour this mark.
   v_previous_flag := private.begin_trade_lifecycle_write();
+  v_previous_applied_trade:=COALESCE(current_setting('pancake.applied_trade_id',true),'');
+  PERFORM set_config('pancake.applied_trade_id',p_trade_id::text,true);
     FOR v_drop IN SELECT roster.* FROM trade_participants participant JOIN roster_players roster
       ON roster.member_id=participant.member_id AND roster.league_season_id=v_trade.league_season_id
         AND roster.player_id=ANY(participant.drop_player_ids)
@@ -198,10 +206,11 @@ BEGIN
       RAISE EXCEPTION 'A planned roster move waits for the player game slate to end.' USING ERRCODE='PT002';
     END IF;
     PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_move.member_id,v_move.player_id,'trade',p_trade_id);
-    UPDATE roster_players SET is_on_ir=v_move.destination='ir',is_on_taxi=false WHERE id=v_move.id;
+    UPDATE roster_players SET is_on_ir=v_move.destination='ir',is_on_taxi=v_move.destination='taxi',
+      taxi_start_season_year=CASE WHEN v_move.destination='taxi' THEN private.taxi_start_year(v_trade.league_id,v_move.player_id,(SELECT season_year FROM league_seasons WHERE id=v_trade.league_season_id)) ELSE taxi_start_season_year END WHERE id=v_move.id;
     INSERT INTO roster_transactions(league_id,league_season_id,member_id,player_id,transaction_type,related_trade_id)
       VALUES(v_trade.league_id,v_trade.league_season_id,v_move.member_id,v_move.player_id,
-        CASE WHEN v_move.destination='ir' THEN 'ir_designate' WHEN v_move.is_on_taxi THEN 'taxi_return' ELSE 'ir_return' END,p_trade_id);
+        CASE WHEN v_move.destination='taxi' THEN 'taxi_designate' WHEN v_move.destination='ir' THEN 'ir_designate' WHEN v_move.is_on_taxi THEN 'taxi_return' ELSE 'ir_return' END,p_trade_id);
   END LOOP;
 
   WITH changed_claims AS (
@@ -247,9 +256,7 @@ BEGIN
     v_to_member := v_item.to_member_id;
 
     IF v_item.player_id IS NOT NULL THEN
-      IF v_item.to_taxi OR v_league.allow_inactive_trades THEN
-        PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_to_member,v_item.player_id,'trade',p_trade_id);
-      END IF;
+      PERFORM private.authorize_taxi_acquisition(v_trade.league_id,v_trade.league_season_id,v_to_member,v_item.player_id,'trade',p_trade_id);
       BEGIN
       UPDATE roster_players
          SET member_id = v_to_member,
@@ -332,7 +339,8 @@ BEGIN
   UPDATE trades
      SET status = 'completed',
          completed_at = now(),
-         completion_failure_reason = NULL
+         completion_failure_reason = NULL,
+         legality_issues = '[]'
    WHERE id = p_trade_id
      AND status = 'accepted';
 
@@ -344,6 +352,7 @@ BEGIN
   FOR v_member_lock IN SELECT member_id FROM trade_participants WHERE trade_id=p_trade_id ORDER BY member_id LOOP
     PERFORM private.assert_accepted_trade_capacity(v_trade.league_id,v_trade.league_season_id,v_member_lock);
   END LOOP;
+  PERFORM set_config('pancake.applied_trade_id',v_previous_applied_trade,true);
   PERFORM private.end_trade_lifecycle_write(v_previous_flag);
 
   PERFORM private.log_league_activity(

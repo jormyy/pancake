@@ -10,7 +10,7 @@ BEGIN
     WHERE status IN ('pending','failed') AND due_at<=now()
       OR status='running' AND lease_until<=now()) THEN RETURN 0; END IF;
   LOOP
-    EXIT WHEN v_count>=8 OR clock_timestamp()-v_started>=interval '2 seconds';
+    EXIT WHEN v_count>=4 OR clock_timestamp()-v_started>=interval '2 seconds';
     SELECT * INTO v_item FROM private.work_claim(1);
     EXIT WHEN NOT FOUND;
     BEGIN

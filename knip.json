@@ -119,7 +119,10 @@
     "tests/lib/timeline/browser/{main.tsx,safe-area.ts,supabase.ts,vite.config.mjs}",
     "tests/db/home-review-round3.mjs",
     "tests/e2e/{trade-legality-browser,ui-round4,ux-round3}.mjs",
-    "tests/e2e/trade-reanalysis-backup.mjs"
+    "tests/e2e/trade-reanalysis-backup.mjs",
+    "scripts/perf-lab/{mini,edge,regenerate}.mjs",
+    "tests/perf-lab/*.mjs",
+    "tests/e2e/perf-lab-globals.d.ts"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

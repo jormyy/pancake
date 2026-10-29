@@ -60,8 +60,8 @@ BEGIN
   IF (SELECT status FROM trades WHERE id=good)<>'completed' THEN
     RAISE EXCEPTION 'The valid unrelated trade did not complete';
   END IF;
-  IF (SELECT status FROM trades WHERE id=bad)<>'expired' THEN
-    RAISE EXCEPTION 'The permanently invalid taxi trade did not expire';
+  IF NOT EXISTS(SELECT 1 FROM trades WHERE id=bad AND status='accepted' AND jsonb_array_length(legality_issues)>0) THEN
+    RAISE EXCEPTION 'The invalid taxi trade is not held for roster repair';
   END IF;
 END;
 $$;

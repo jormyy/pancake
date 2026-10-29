@@ -343,3 +343,39 @@ The attestation checker covers 608 migrations through `20261116000500`.
 The full Vitest run passes 3,960 tests with zero failures and 38 skips.
 No production endpoint is contacted.
 Database and browser evidence remains the earlier integration record.
+
+## Database recipe triage
+
+The [triage report](../tests/db/TRIAGE.md) lists all 47 inherited failures, their first errors, and their actions.
+It also lists additional failures, all 14 deletions, and three minimal product bug reproductions.
+The trade-proposal parent is stale because its version publishes through deferred work.
+Its corrected parent runs all five fragments and proves 126 committed writes.
+
+`npm run test:db` discovers every retained top-level SQL recipe.
+Its parents run all 11 included SQL fragments.
+The runner includes three calendar modes, two notification modes, and the existing held-lock harness.
+The standard command also runs its existing pick fixture harness.
+The full command needs 87.148 seconds on the private mini with Node 22.
+No nightly split is needed.
+The stack applies all 628 migrations through `20261130000100`.
+
+| Check | Command | Final evidence |
+| --- | --- | --- |
+| Retained SQL | `npm run test:db` | 280 cases pass; zero failures |
+| Included version writes | Same command | 126 committed write proofs; all five fragments execute |
+| Invalid target settings | Same command | 29 recipes reject invalid configuration |
+| Runner failure controls | `npm run test:db:runner` | Three checks pass, including injected assertion failures and wrong bug errors |
+| Existing pick fixture | Included in `npm run test:db` | One API fixture check passes |
+| Product bug reproductions | `npm run test:db:bugs` | Three exact failures reproduce; no product fixes |
+| Runner compatibility | `npx vitest run tests/db-recipes.test.ts` | 13 checks pass |
+| Quality | `npm run check:quality` | All checks pass with Node 22 |
+
+Known bug checks require each documented SQL error and fail when that defect no longer reproduces.
+An unrelated error also fails the command.
+See `tests/db/known-bugs.json` for each extracted assertion and its source recipe.
+Run a reproduction directly with `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f <repro-path>`.
+Each currently exits 3.
+
+The former broader API and ingestion chain remains available as `npm run test:db:integration`.
+This triage does not run that full integration chain.
+The private stack stops after verification.

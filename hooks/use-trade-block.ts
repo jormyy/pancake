@@ -8,8 +8,8 @@ import { isTradeableRosterPlayer } from '@/lib/trade-assets'
 import { sessionOwner } from '@/lib/session-cache-registry'
 import { EMPTY_AVG_MAP, EMPTY_STATS_MAP } from '@/lib/roster-stats'
 
-export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean; allowInactive?: boolean } = {}) {
-    const owner = sessionOwner()
+export function useTradeBlock(memberId: string, leagueId: string, canMutate = true, options: { visible?: boolean; allowInactive?: boolean; accountId?: string | null } = {}) {
+    const owner = options.accountId === undefined ? sessionOwner() : options.accountId
     const view = useScreenView<TradeBlockView>(owner && memberId && leagueId ? screenScope('trade-block', leagueId, memberId, {}, owner) : null, options.visible !== false)
     const refreshView = view.refresh
     const data = useMemo(() => view.data ? rosterViewData(view.data) : undefined, [view.data])

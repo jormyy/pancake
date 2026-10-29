@@ -29,19 +29,19 @@ BEGIN
     '{}', '{}', '{}', '{}', NULL, NULL, 1, 80);
   PERFORM public.accept_trade_atomic(held, f.member_ids[1]);
 
-  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L,NULL,NULL,80,1)',
+  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L,NULL,NULL,81,1)',
     f.league_id, f.season_id, f.member_ids[1], f.member_ids[3], '{}', '{}', '{}', '{}'),
     '%available balance%', 'a new offer cannot spend accepted FAAB');
-  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L,NULL,NULL,1,80)',
+  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L,NULL,NULL,1,81)',
     f.league_id, f.season_id, f.member_ids[3], f.member_ids[1], '{}', '{}', '{}', '{}'),
     '%available balance%', 'a requested amount cannot spend accepted FAAB');
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_multi_team_trade_atomic(%L,%L,%L,%L,%L)',
-    f.league_id, f.season_id, f.member_ids[1], ARRAY[f.member_ids[2], f.member_ids[3]], items),
+    f.league_id, f.season_id, f.member_ids[1], ARRAY[f.member_ids[2], f.member_ids[3]], jsonb_set(items,'{0,faabAmount}','81')),
     '%available balance%', 'a multi-team offer cannot spend accepted FAAB');
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)', pending, f.member_ids[3]),
-    '%enough FAAB%', 'an older offer cannot accept reserved FAAB');
+    '%budget is short%', 'an older offer cannot accept reserved FAAB');
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)', multi, f.member_ids[3]),
-    '%enough FAAB%', 'a multi-team acceptance checks all senders');
+    '%budget is short%', 'a multi-team acceptance checks all senders');
   PERFORM pg_temp.reject_rules(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L,50,1)',
     f.league_id, f.member_ids[1], players[2], f.user_ids[1]),
     '%FAAB%', 'a new claim cannot spend reserved FAAB');

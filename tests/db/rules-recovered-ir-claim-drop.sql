@@ -29,13 +29,18 @@ BEGIN
         IF recovered THEN UPDATE public.players SET injury_status = NULL WHERE id = v_players[1]; END IF;
         PERFORM set_config('request.jwt.claim.sub', f.user_ids[1]::text, true);
         IF compound THEN
-          PERFORM public.activate_roster_player_with_overflow_atomic(injured, 'ir', active, 'drop');
+          PERFORM pg_temp.reject_rules(format('SELECT public.activate_roster_player_with_overflow_atomic(%L,%L,%L,%L)',injured,'ir',active,'drop'),'%Locked by waiver claim%','a pending claim blocks compound drops '||f.league_id);
+        ELSE
+          PERFORM pg_temp.reject_rules(format('SELECT public.drop_player_atomic(%L)',active),'%Locked by waiver claim%','a pending claim blocks ordinary drops '||f.league_id);
+        END IF;
+        PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.waiver_claims WHERE id=claim AND status='pending' AND drop_player_id=v_players[2]),'a rejected drop preserves its pending claim '||f.league_id);
+        PERFORM public.cancel_waiver_claim_atomic(claim,f.member_ids[1],f.user_ids[1]);
+        IF compound THEN
+          PERFORM public.activate_roster_player_with_overflow_atomic(injured,'ir',active,'drop');
         ELSE
           PERFORM public.drop_player_atomic(active);
         END IF;
-        PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.waiver_claims WHERE id = claim
-          AND status = 'pending' AND drop_player_id IS NULL AND processed_at IS NULL AND failure_reason IS NULL),
-          'claim survives recovered IR drop with inactive trades ' || allow_inactive || ' and activation ' || compound || ' and recovered ' || recovered);
+        PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.roster_players WHERE id=active),'cancelling the claim releases its drop player '||f.league_id);
         PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.notification_outbox
           WHERE dedupe_key = 'trade_claim_cancelled:' || claim),
           'ordinary drop sends no cancellation with inactive trades ' || allow_inactive || ' and activation ' || compound || ' and recovered ' || recovered);

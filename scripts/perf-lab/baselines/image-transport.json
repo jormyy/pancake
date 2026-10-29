@@ -1,0 +1,17 @@
+{
+  "before": {
+    "source": "3d7f773136f81e75789f8019918bb6f2dbde675e",
+    "requests": 54,
+    "bytesDown": 5307653,
+    "blocked": 4,
+    "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/lab/history/3293c246-1ebf-4129-b0b0-63c14c422d6d"
+  },
+  "after": {
+    "source": "a739d7bffa92e9b07e3c6b88e800fce0d46543fa",
+    "requests": 55,
+    "bytesDown": 5371546,
+    "blocked": 0,
+    "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/lab/history/bfaacb98-56fc-46b2-ac87-dd3b58e315ff"
+  },
+  "imageBytes": 63736
+}

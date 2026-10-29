@@ -39,6 +39,7 @@ type ForecastGameDetail = {
   source: string | null
   sourceAt: string | null
   remainingFraction: number | null
+  substituted?: boolean
 }
 export type ForecastContext = {
   matchupId: string
@@ -49,6 +50,7 @@ export type ForecastContext = {
   teams: { memberId: string; currentPoints: number }[]
   roster: Player[]
   games: Game[]
+  seasonAverages?: { player_id: string; avg_fantasy_points: number | null }[]
   history: { player_id: string; scores: number[] }[]
   projections: Projection[]
   lineups: { member_id: string; player_id: string; game_date: string; slot_type: string; is_auto_set: boolean }[]
@@ -80,22 +82,31 @@ export function computeForecast(context: ForecastContext) {
   const gameDetails: ForecastGameDetail[] = []
   const estimates: ForecastGame[] = []
   const history = new Map(context.history.map(row => [row.player_id, sampleScoringVariation(row.scores)]))
+  const averages = new Map((context.seasonAverages ?? []).map(row => [row.player_id, row.avg_fantasy_points]))
   const previous = new Map((context.previous?.games ?? []).map(row => [`${row.playerId}:${row.gameId}`, row]))
   const projections = new Map(context.projections.map(row => [`${row.player_id}:${row.requested_date}`, row]))
   const relevantGames = context.games.filter(game => !['Postponed', 'Cancelled'].includes(game.status))
   const playerGame = (player: Player, date: string) => relevantGames.find(game => game.game_date === date &&
     (game.home_team === player.nba_team || game.away_team === player.nba_team))
   const projectionFor = (player: Player, game: Game) => {
+    const isStarted = started(game, now)
     const frozen = previous.get(`${player.player_id}:${game.id}`)
-    if (started(game, now)) return frozen ?? null
+    if (isStarted && frozen?.projection != null && Number.isFinite(frozen.projection)) return frozen
     const row = projections.get(`${player.player_id}:${game.game_date}`)
-    if (!row || row.projection_fantasy_points === null) {
-      const variation = history.get(player.player_id)
-      return variation ? { projection: variation.mean, source: 'Recent games', sourceAt: null } : null
+    if (row?.projection_fantasy_points != null && Number.isFinite(row.projection_fantasy_points) &&
+      row.projection_date === game.game_date && row.projection_is_fresh &&
+      (row.projection_fetched_at === null || Date.parse(row.projection_fetched_at) <= now)) {
+      return { projection: row.projection_fantasy_points, source: row.projection_source_label, sourceAt: row.projection_fetched_at, substituted: isStarted }
     }
-    if (row.projection_date !== game.game_date || !row.projection_is_fresh ||
-      row.projection_fetched_at !== null && Date.parse(row.projection_fetched_at) > now) return null
-    return { projection: row.projection_fantasy_points, source: row.projection_source_label, sourceAt: row.projection_fetched_at }
+    if (isStarted) {
+      const scores = context.history.find(row => row.player_id === player.player_id)?.scores ?? []
+      const mean = scores.length ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0
+      return { projection: mean, source: scores.length ? 'Recent games' : 'Zero estimate', sourceAt: null, substituted: true }
+    }
+    const average = averages.get(player.player_id)
+    return average != null && Number.isFinite(average)
+      ? { projection: average, source: 'Season average estimate', sourceAt: null }
+      : { projection: 0, source: 'Zero estimate', sourceAt: null }
   }
   for (const date of [...new Set(relevantGames.map(game => game.game_date))]) {
     for (const team of context.teams) {
@@ -132,17 +143,21 @@ export function computeForecast(context: ForecastContext) {
       const fraction = remaining(game)
       const projection = projectionFor(player, game)
       const variation = history.get(player.player_id)
+      if (projection.substituted || projection.source?.endsWith('estimate') || projection.source === 'Recent games') missing.add(`Projection substituted: ${player.player_id}:${game.id}`)
+      if (!variation) missing.add(`Scoring history unavailable: ${player.player_id}`)
       if (fraction === null) missing.add(`Live progress unavailable: ${game.id}`)
       if (game.status !== 'InProgress' && started(game, now)) missing.add(`Game status unavailable: ${game.id}`)
       gameDetails.push({ gameId: game.id, playerId: player.player_id, memberId: player.member_id,
         date: game.game_date, projection: projection?.projection ?? null, source: projection?.source ?? null,
-        sourceAt: projection?.sourceAt ?? null, remainingFraction: fraction })
+        sourceAt: projection?.sourceAt ?? null, remainingFraction: fraction,
+        ...(projection.substituted ? { substituted: true } : {}) })
       estimates.push({ gameId: game.id, playerId: player.player_id, memberId: player.member_id,
-        expectedPoints: projection?.projection !== null && projection && fraction !== null ? projection.projection * fraction : null,
+        expectedPoints: projection.projection! * (fraction ?? 1),
         variance: variation && fraction !== null ? variation.variance * fraction : null, completed: false, eligible: true })
     }
   }
   if (!context.isFinalized && context.today <= context.weekEnd && context.games.length === 0) missing.add('Schedule unavailable')
-  return { ...estimateMatchup(context.teams, estimates, [...missing]), games: gameDetails,
+  const estimate = estimateMatchup(context.teams, estimates.map(game => ({ ...game, variance: game.variance ?? 0 })))
+  return { ...estimate, status: missing.size ? 'limited' as const : estimate.status, missingInputs: [...missing].sort(), games: gameDetails,
     lineupBasis: 'Saved lineups and enabled automatic lineups' }
 }

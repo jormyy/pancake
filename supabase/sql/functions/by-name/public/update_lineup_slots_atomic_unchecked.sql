@@ -96,10 +96,11 @@ BEGIN
       CONTINUE;
     END IF;
 
-    INSERT INTO public.lineup_slot_templates (league_id, slot_type, slot_count)
+    INSERT INTO public.lineup_slot_templates AS existing (league_id, slot_type, slot_count)
     VALUES (p_league_id, v_slot_type, v_slot_count)
     ON CONFLICT (league_id, slot_type)
-    DO UPDATE SET slot_count = EXCLUDED.slot_count;
+    DO UPDATE SET slot_count = EXCLUDED.slot_count
+      WHERE existing.slot_count IS DISTINCT FROM EXCLUDED.slot_count;
   END LOOP;
 END;
 $$;

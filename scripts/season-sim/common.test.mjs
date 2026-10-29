@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import { assertTarget, config, configuration, dates, etDate, historicalSummary, scheduleEntries } from './common.mjs'
 import { databaseEnvironment } from './local-stack.mjs'
+
+test('the database audit binds its exact root, project, and port block', () => {
+  const env = { SEASON_SIM_ROOT: path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-timeline/db'),
+    SEASON_SIM_PROJECT: 'pt4bafabledb', SEASON_SIM_PORT_PREFIX: '574' }
+  assert.equal(configuration(env).ports.db, 57422)
+  for (const changed of [{ SEASON_SIM_ROOT: env.SEASON_SIM_ROOT + '-other' },
+    { SEASON_SIM_PROJECT: 'pt4bafableux' }, { SEASON_SIM_PORT_PREFIX: '589' },
+    { SEASON_SIM_CONTAINER: 'supabase_db_pt4bafableux' }]) {
+    assert.throws(() => configuration({ ...env, ...changed }))
+  }
+})
 
 test('database connections cannot inherit a different host or service', () => {
   const poisoned = { PGHOSTADDR: '198.51.100.1', PGSERVICE: 'wrong-service', PGSERVICEFILE: '/missing-service', PGSSLMODE: 'require' }

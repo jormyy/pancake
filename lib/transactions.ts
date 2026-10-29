@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { getPlayerRowMetadata, getEligiblePositions } from '@/lib/players'
+import type { TradePickItem } from '@/lib/trades'
 
 export { TRANSACTION_LABELS, activityEventCategory } from '@/lib/shared/transaction-labels'
 
@@ -23,6 +24,19 @@ export type TransactionRow = {
     isSystem?: boolean
     title?: string
     body?: string | null
+    tradePicks?: (TradePickItem & { fromTeamName: string; toTeamName: string })[]
+}
+
+type ActivityTradePick = NonNullable<TransactionRow['tradePicks']>[number]
+
+function isActivityTradePick(value: unknown): value is ActivityTradePick {
+    if (!value || typeof value !== 'object') return false
+    const pick = value as Partial<ActivityTradePick>
+    return pick.kind === 'pick' && typeof pick.pickId === 'string'
+        && typeof pick.seasonYear === 'number' && typeof pick.round === 'number'
+        && typeof pick.originalTeamName === 'string' && typeof pick.fromMemberId === 'string'
+        && typeof pick.toMemberId === 'string' && typeof pick.fromTeamName === 'string'
+        && typeof pick.toTeamName === 'string'
 }
 
 export async function getLeagueTransactions(
@@ -46,6 +60,7 @@ export async function getLeagueTransactions(
         is_system: boolean
         title: string | null
         body: string | null
+        trade_picks?: unknown
     }
 
     const { data, error } = await supabase.rpc('get_league_activity_feed', {
@@ -76,5 +91,6 @@ export async function getLeagueTransactions(
         isSystem: row.is_system,
         title: row.title ?? undefined,
         body: row.body ?? null,
+        tradePicks: Array.isArray(row.trade_picks) ? row.trade_picks.filter(isActivityTradePick) : [],
     }))
 }

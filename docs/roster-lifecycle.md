@@ -419,3 +419,27 @@ It checks both managers' timelines and pages through the real events.
 That entry is removed from the current Home screen.
 Use the current navigation suite for entry-point verification.
 The browser smoke route list also includes Timeline.
+
+## Pending asset locks
+
+A sent trade locks its outgoing players and picks.
+A recipient's requested assets stay available until that recipient accepts.
+An edit or counteroffer can replace its source offer without breaking that offer's reservation.
+Pending roster plans also lock their planned drops and moves.
+Pending waiver claims lock the claimed player and their selected drop.
+Each lock ends when its trade or claim reaches a terminal state.
+
+Locked assets cannot leave the roster, change IR or taxi placement, change lineup slots, or enter another trade.
+An unchanged lineup remains valid.
+Managers cancel the pending action before they change its assets.
+Errors name the trade or claim that holds the asset.
+The waiver editor keeps its own selected drop available.
+Other pending actions stay locked in that editor.
+Settlement can apply its own plan without releasing another action's locks.
+A successful waiver award cancels other claims that need the same drop.
+
+`private.locked_assets` supplies each lock and its reason.
+Roster, lineup, and waiver snapshots include those locks in the same request.
+The trade asset controls use the roster snapshot.
+Lock changes publish a league version before deferred trade activity finishes.
+The phone shows a lock badge, the server reason, and a link to the pending action.

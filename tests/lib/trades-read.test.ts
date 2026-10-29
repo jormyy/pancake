@@ -55,6 +55,19 @@ beforeEach(() => {
 })
 
 describe('trade read enrichment', () => {
+    it('preserves saved taxi moves when reading a trade', async () => {
+        const row = (await mocks.maybeSingle()).data
+        row.trade_participants = [{
+            member_id: 'member-a', accepted_at: null, is_initiator: true, sort_order: 0,
+            league_members: { team_name: 'A' }, drop_player_ids: [],
+            roster_moves: [{ playerId: 'rookie', destination: 'taxi' }],
+        }]
+        mocks.maybeSingle.mockResolvedValue({ data: row, error: null })
+        mocks.getRosterStatsMaps.mockResolvedValue({ avgMap: new Map(), avgStatsMap: new Map() })
+        expect((await getTradeById('trade-a', 'member-a'))?.participants[0].rosterMoves)
+            .toEqual([{ playerId: 'rookie', destination: 'taxi' }])
+    })
+
     it('returns canonical trade data when optional averages fail', async () => {
         mocks.getRosterStatsMaps.mockRejectedValue(new Error('averages offline'))
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})

@@ -109,7 +109,7 @@ function TradesScreen() {
         refresh: load,
         loadMore: loadMoreOffers,
         updateRosterPlan,
-    } = useTradesFeed(myMemberId, leagueId, online && tab === 'offers' && focused, { autoLoad: true })
+    } = useTradesFeed(myMemberId, leagueId, online && tab === 'offers' && focused, { autoLoad: true, accountId: user?.id ?? null })
     const {
         trades: historyTrades,
         hasData: historyHasData,
@@ -118,7 +118,7 @@ function TradesScreen() {
         error: historyError,
         refresh: refreshHistoryFeed,
         loadMore: loadMoreHistory,
-    } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history')
+    } = useTradeHistoryFeed(myMemberId, leagueId, tab === 'history', user?.id ?? null)
     const decisionsDisabled = online && (tradesSnapshot || Boolean(tradesError))
     const rosterLegality = useRosterLegality({ memberId: myMemberId, leagueId, rosterSize: currentLeague?.roster_size ?? 20, irSlots: currentLeague?.ir_slots ?? 2, onChanged: load })
     const tradeActions = useTradeActions({
@@ -148,7 +148,7 @@ function TradesScreen() {
         removeItem: handleRemoveBlockItem,
         setNote: handleSaveBlockNote,
         picks: blockPicks,
-    } = useTradeBlock(myMemberId, leagueId, true, { visible: focused && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false })
+    } = useTradeBlock(myMemberId, leagueId, true, { visible: focused && tab === 'block', allowInactive: currentLeague?.allow_inactive_trades ?? false, accountId: user?.id ?? null })
     const listedPlayerIds = useMemo(() => new Set(blockItems.flatMap((block) =>
         block.memberId === myMemberId && block.asset.kind === 'player' ? [block.asset.playerId] : [],
     )), [blockItems, myMemberId])

@@ -1,12 +1,16 @@
 CREATE OR REPLACE FUNCTION public.view_roster(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
-DECLARE context jsonb; roster jsonb; averages jsonb; stats jsonb; slots jsonb; assignments jsonb;
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE asset_locks jsonb; context jsonb; roster jsonb; averages jsonb; stats jsonb; slots jsonb; assignments jsonb;
   target uuid := COALESCE((p_params->>'targetMemberId')::uuid, p_member_id); transaction_state jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('assetKind',asset_kind,'assetId',asset_id,
+    'sourceKind',source_kind,'sourceId',source_id,'reason',reason) ORDER BY source_kind,source_id), '[]'::jsonb)
+    INTO asset_locks FROM private.locked_assets(p_league_id,(context->>'seasonId')::uuid,p_member_id)
+    WHERE target=p_member_id;
   IF NOT EXISTS (SELECT 1 FROM public.league_members WHERE id = target AND league_id = p_league_id) THEN
     RAISE EXCEPTION 'This roster is not available.' USING ERRCODE = '42501'; END IF;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('id', r.id, 'is_on_ir', r.is_on_ir, 'is_on_taxi', r.is_on_taxi,
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('assetLocks', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock WHERE lock->>'assetKind'='player' AND lock->>'assetId'=p.id::text),'[]'), 'id', r.id, 'is_on_ir', r.is_on_ir, 'is_on_taxi', r.is_on_taxi,
     'taxi_start_season_year', r.taxi_start_season_year, 'acquired_via', r.acquired_via, 'players', jsonb_build_object(
       'id', p.id, 'display_name', p.display_name, 'nba_team', p.nba_team, 'position', p.position,
       'eligible_positions', p.eligible_positions, 'injury_status', p.injury_status, 'nba_id', p.nba_id,
@@ -30,8 +34,8 @@ BEGIN
     WHERE league_id = p_league_id AND member_id = target AND league_season_id = (context->>'seasonId')::uuid
       AND game_date = COALESCE((p_params->>'date')::date, (context->>'today')::date);
   transaction_state := public.view_transaction_state(p_league_id, p_member_id, p_params);
-  RETURN jsonb_build_object('context', context, 'roster', roster,
-    'picks', COALESCE((SELECT jsonb_agg(jsonb_build_object('kind', 'pick', 'pickId', pick->'id', 'seasonYear', pick->'seasonYear',
+  RETURN jsonb_build_object('lockedAssets', asset_locks, 'context', context, 'roster', roster,
+    'picks', COALESCE((SELECT jsonb_agg(jsonb_build_object('assetLocks', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock WHERE lock->>'assetKind'='pick' AND lock->>'assetId'=pick->>'id'),'[]'), 'kind', 'pick', 'pickId', pick->'id', 'seasonYear', pick->'seasonYear',
       'round', pick->'round', 'originalTeamName', pick->'originalTeamName')) FROM jsonb_array_elements(
       public.view_picks(p_league_id, p_member_id, p_params || jsonb_build_object('targetMemberId', target))->'picks') pick), '[]'),
     'claims', public.view_claims(p_league_id, p_member_id, p_params)->'claims', 'avgMap', averages, 'avgStatsMap', stats,

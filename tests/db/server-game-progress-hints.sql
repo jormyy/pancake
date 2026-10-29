@@ -20,8 +20,9 @@ BEGIN
     RAISE EXCEPTION 'Internal game progress emits a client hint';
   END IF;
   UPDATE nba_games SET status='Final' WHERE id=v_game;
-  IF (SELECT revision FROM league_change_hints WHERE league_id=v_league AND topic='game') <= v_revision THEN
-    RAISE EXCEPTION 'A visible game change does not emit a hint';
+  IF NOT EXISTS(SELECT 1 FROM league_change_hints WHERE league_id=v_league AND topic='game'
+    AND revision=v_revision AND scopes @> jsonb_build_array(jsonb_build_object('date','2026-01-05'))) THEN
+    RAISE EXCEPTION 'A visible game change loses its coalesced hint';
   END IF;
 END $$;
 ROLLBACK;

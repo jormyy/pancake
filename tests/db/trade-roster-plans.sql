@@ -13,6 +13,11 @@ CREATE FUNCTION pg_temp.fail_plan(command text,expected text,label text) RETURNS
 DECLARE message text;
 BEGIN
   BEGIN EXECUTE command; EXCEPTION WHEN OTHERS THEN message:=SQLERRM; END;
+  IF message IS NULL AND command LIKE 'SELECT complete_accepted_trade_atomic(%' THEN
+    SELECT string_agg(issue->>'message',' ') INTO message FROM trades
+      CROSS JOIN LATERAL jsonb_array_elements(legality_issues) issue
+      WHERE id=substring(command FROM '[0-9a-f-]{36}')::uuid AND status='accepted';
+  END IF;
   PERFORM pg_temp.check_plan(message ~ expected,label||COALESCE(' ['||message||']',' [unexpected success]'));
 END;
 $$;
@@ -75,36 +80,36 @@ BEGIN
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters,'proposal performs no drop placement or tenure change');
   PERFORM pg_temp.check_plan((SELECT to_taxi FROM trade_items WHERE trade_id=trade AND player_id=v_players[1]),'taxi asset automatically retains taxi destination');
-  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[])',league,season,members[1],members[2],ARRAY[v_players[4]]::text,ARRAY[v_players[2]]::text),'reserved|planned drop','pending planned drop cannot enter another trade');
+  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[])',league,season,members[1],members[2],ARRAY[v_players[4]]::text,ARRAY[v_players[2]]::text),'Locked by trade|reserved|planned drop','pending planned drop cannot enter another trade');
   INSERT INTO waiver_wire_log(id,league_id,league_season_id,player_id,dropped_by_member_id,clears_at)
   VALUES(wire,league,season,v_players[6],members[3],now()+interval '48 hours');
-  PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[4],users[1]),'reserved|planned drop','trade planned drop blocks waiver drop');
+  PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[4],users[1]),'Locked by trade|reserved|planned drop','trade planned drop blocks waiver drop');
   other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[2]],'{}','{}');
-  PERFORM pg_temp.fail_plan(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,ARRAY[]::uuid[],%L,%L)',trade,members[1],users[1],ARRAY[v_players[2]]::text,ARRAY[v_players[3]]::text),'another trade|reserved','pending trade asset blocks planned drop');
+  PERFORM pg_temp.fail_plan(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,ARRAY[]::uuid[],%L,%L)',trade,members[1],users[1],ARRAY[v_players[2]]::text,ARRAY[v_players[3]]::text),'Locked by trade|another trade|reserved','pending trade asset blocks planned drop');
   PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);
   claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[3],users[1]);
   PERFORM pg_temp.fail_plan(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,ARRAY[]::uuid[],%L,%L)',trade,members[1],users[1],ARRAY[v_players[2]]::text,ARRAY[v_players[3]]::text),'waiver|reserved','waiver drop blocks trade planned drop');
   PERFORM cancel_waiver_claim_atomic(claim,members[1],users[1]);
   UPDATE leagues SET roster_size=1,ir_slots=0,taxi_slots=0 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'total roster limit','acceptance rejects total overflow');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'total roster is .* over the limit','acceptance rejects total overflow');
   UPDATE leagues SET taxi_slots=1 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'IR limit','acceptance rejects IR overflow');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'IR is .* over the limit','acceptance rejects IR overflow');
   UPDATE leagues SET ir_slots=1,taxi_slots=0 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'taxi limit','acceptance rejects taxi overflow');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'taxi is .* over the limit','acceptance rejects taxi overflow');
   UPDATE leagues SET taxi_slots=1 WHERE id=league;
   UPDATE trade_items SET to_ir=false WHERE trade_id=trade AND to_member_id=members[1] AND player_id=v_players[2];
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'active roster limit','acceptance rejects legacy active overflow');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',trade,members[2]),'Regular roster is .* over the limit','acceptance rejects legacy active overflow');
   PERFORM set_trade_roster_plan_atomic(trade,members[1],users[1],'{}',ARRAY[v_players[2]],ARRAY[v_players[4]]);
   PERFORM accept_trade_with_plan_atomic(trade,members[2],users[2],ARRAY[v_players[1]],'{}','{}');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters AND (SELECT trades.status='accepted' FROM trades WHERE id=trade),'acceptance reserves plan without applying it');
   UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade;
   UPDATE leagues SET ir_slots=0,taxi_slots=0 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'total roster limit','changed total limit refuses settlement');
+  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'total roster is .* over the limit','changed total limit refuses settlement');
   UPDATE leagues SET taxi_slots=1 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'IR limit','changed IR limit refuses settlement');
+  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'IR is .* over the limit','changed IR limit refuses settlement');
   UPDATE leagues SET ir_slots=1,taxi_slots=0 WHERE id=league;
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'taxi limit','changed taxi limit refuses settlement');
+  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'taxi is .* over the limit','changed taxi limit refuses settlement');
   UPDATE leagues SET taxi_slots=1 WHERE id=league;
   UPDATE league_seasons SET season_year=8301 WHERE id=season;
   PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'tenure limit','taxi tenure cap revalidated at settlement');
@@ -113,12 +118,12 @@ BEGIN
   PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'fewer than 65','taxi games crossing65 refuses settlement');
   UPDATE public.players SET career_regular_season_games=64 WHERE id=v_players[1];
   UPDATE public.players SET injury_status=NULL WHERE id=v_players[2];
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'IR players must','injury change refuses settlement');
+  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'cannot use IR','injury change refuses settlement');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters,'failed injury check leaves all assets drops placements and tenure intact');
   UPDATE public.players SET injury_status='Out' WHERE id=v_players[2];
   INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via) VALUES(league,season,members[2],v_players[6],'draft');
-  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'active roster limit','waiver pickup making receiver full refuses settlement');
+  PERFORM pg_temp.fail_plan(format('SELECT complete_accepted_trade_atomic(%L)',trade),'Regular roster is .* over the limit','waiver pickup making receiver full refuses settlement');
   DELETE FROM roster_players WHERE league_season_id=season AND player_id=v_players[6];
   SELECT player_id INTO fail_player FROM trade_items WHERE trade_id=trade AND player_id IS NOT NULL ORDER BY created_at,id OFFSET 1 LIMIT 1;
   PERFORM set_config('dynasty.fail_player',fail_player::text,true);
@@ -128,14 +133,13 @@ BEGIN
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters AND (SELECT last_value=2 FROM pg_temp.plan_transfer_attempts) AND NOT EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_season_id=season AND player_id=v_players[4]),'mid settlement failure rolls back drops and waiver entries');
   UPDATE leagues SET roster_size=2 WHERE id=league;
-  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[2]],'{}','{}');
+  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[])',league,season,members[1],members[2],ARRAY[v_players[3]]::text,ARRAY[v_players[2]]::text),'Locked by trade','accepted asset cannot enter another offer');
   claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[3],users[1]);
   UPDATE leagues SET roster_size=1 WHERE id=league;
   PERFORM complete_accepted_trade_atomic(trade);
   PERFORM pg_temp.check_plan((SELECT member_id=members[2] AND is_on_taxi AND taxi_start_season_year=8299 FROM roster_players WHERE league_season_id=season AND player_id=v_players[1]),'completion transfers taxi with unchanged tenure');
   PERFORM pg_temp.check_plan((SELECT member_id=members[1] AND is_on_ir FROM roster_players WHERE league_season_id=season AND player_id=v_players[2]),'IR asset trades straight into receiver IR');
   PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=season AND player_id=v_players[4]) AND EXISTS(SELECT 1 FROM waiver_wire_log WHERE league_season_id=season AND player_id=v_players[4] AND clears_at >= placed_on_waivers_at+interval '48 hours' AND clears_at < placed_on_waivers_at+interval '73 hours' AND (clears_at AT TIME ZONE 'America/New_York')::time = '03:00'::time),'planned drop enters waivers at the first eligible 3 AM ET run');
-  PERFORM pg_temp.check_plan((SELECT trades.status='expired' AND completion_failure_reason IS NOT NULL FROM trades WHERE id=other_trade),'overlapping pending trade invalidated with explicit reason');
   PERFORM pg_temp.check_plan((SELECT status='pending' FROM waiver_claims WHERE id=claim),'unaffected waiver claim survives unrelated trade');
   PERFORM cancel_waiver_claim_atomic(claim,members[1],users[1]);
   FOR v_terminal IN SELECT unnest(ARRAY['rejected','withdrawn','expired','vetoed']) LOOP
@@ -157,22 +161,21 @@ BEGIN
     PERFORM pg_temp.check_plan(before_rosters=after_rosters,'terminal '||v_terminal||' applies no roster plan');
   END LOOP;
   trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}');
-  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}',NULL,NULL,1,0);
-  claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[3],users[1]);
+  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[],NULL,NULL,1,0)',league,season,members[1],members[2],ARRAY[v_players[3]]::text,ARRAY[v_players[5]]::text),'Locked by trade','duplicate outgoing offer rejected before acceptance');
+  PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[3],users[1]),'Locked by trade','pending outgoing asset cannot become a waiver drop');
   PERFORM accept_trade_atomic(trade,members[2]);
   UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade;
   PERFORM complete_accepted_trade_atomic(trade);
-  PERFORM pg_temp.check_plan((SELECT status='cancelled' AND failure_reason LIKE '%left this roster%' AND processed_at IS NOT NULL FROM waiver_claims WHERE id=claim),'completion cancels dependent waiver claim with visible reason');
-  PERFORM pg_temp.check_plan(EXISTS(SELECT 1 FROM notification_outbox WHERE dedupe_key='trade_claim_cancelled:'||claim),'dependent claim cancellation enters transactional notification outbox');
-  PERFORM pg_temp.check_plan((SELECT trades.status='expired' AND completion_failure_reason IS NOT NULL FROM trades WHERE id=other_trade),'completion invalidates overlapping pending asset offer');
   other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[5]],ARRAY[v_players[3]],'{}','{}');
+  PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[5],users[1]),'Locked by trade','outgoing offer reserves the drop until cancellation');
+  PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);
   claim:=create_waiver_claim_atomic(league,members[1],v_players[6],v_players[5],users[1]);
   UPDATE waiver_wire_log SET clears_at=now()-interval '1 minute' WHERE id=wire;
   UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
   UPDATE waiver_wire_log SET clears_at=now()-interval '2 days' WHERE league_season_id=season AND player_id=(SELECT player_id FROM waiver_claims WHERE id=claim);
   PERFORM process_next_waiver_claim_atomic((SELECT process_date FROM waiver_claims WHERE id=claim));
   PERFORM pg_temp.check_plan((SELECT status='succeeded' FROM waiver_claims WHERE id=claim),'real waiver pickup settles its drop and add');
-  PERFORM pg_temp.check_plan((SELECT trades.status='expired' AND completion_failure_reason IS NOT NULL FROM trades WHERE id=other_trade),'waiver completion invalidates dependent pending trade with explicit reason');
+  PERFORM pg_temp.check_plan((SELECT trades.status='withdrawn' FROM trades WHERE id=other_trade),'waiver award preserves the cancelled trade');
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)
   VALUES(v_picks[1],league,8301,1,members[3],members[3]),(v_picks[2],league,8301,2,members[3],members[3]);
   trade:=propose_trade_atomic(league,season,members[1],members[3],ARRAY[v_players[2]],'{}','{}',ARRAY[v_picks[1]]);
@@ -193,7 +196,7 @@ BEGIN
   PERFORM pg_temp.check_plan(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=v_players[7]),'capacity failure keeps the waived player unowned');
   other_trade:=propose_trade_atomic(league,season,members[1],members[3],ARRAY[v_players[6]],'{}','{}',ARRAY[v_picks[2]]);
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO before_rosters FROM roster_players roster WHERE league_season_id=season;
-  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',other_trade,members[3]),'reserve roster capacity','second acceptance cannot fill reserved receipt space');
+  PERFORM pg_temp.fail_plan(format('SELECT accept_trade_atomic(%L,%L)',other_trade,members[3]),'accepted trades reserve','second acceptance cannot fill reserved receipt space');
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters,'rejected second acceptance has no partial effect');
   PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);

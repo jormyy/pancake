@@ -1,0 +1,56 @@
+[
+  {
+    "espnId": "3913180",
+    "nbaId": 1629726,
+    "name": "Garrison Mathews",
+    "gameId": "0022400001",
+    "espnGameId": "401703370",
+    "summarySha256": "ce08f748c342088552d08c6a796466a54e7c8775f1f9c05a0fd0545b456ad316",
+    "boxSha256": "4bf4ba3978a60dc05407e4cfde8dfadb6a5fc8a22ba42785d0d3b110c8a10e03"
+  },
+  {
+    "espnId": "3138161",
+    "nbaId": 1628998,
+    "name": "Cody Martin",
+    "gameId": "0022400003",
+    "espnGameId": "401703372",
+    "summarySha256": "d3ce9099845942335af5d2ba29336f466e9b1ba8880ea51cbd60f31e33729a17",
+    "boxSha256": "34813dfe02675f26060fd12e41e69487bb50c3c6a7e32f25e0f389f6e92ca0d5"
+  },
+  {
+    "espnId": "4279532",
+    "nbaId": 1630649,
+    "name": "Stanley Umude",
+    "gameId": "0022400005",
+    "espnGameId": "401703374",
+    "summarySha256": "cc805799bda219b63f0611c4e2d166f27e44dfe2c4ae0458538f2b91d369e76e",
+    "boxSha256": "341c1131132643eaa9286df69d1aa23ef481a0f293c10c6839040f789ba245f0"
+  },
+  {
+    "espnId": "3059310",
+    "nbaId": 1628420,
+    "name": "Monte Morris",
+    "gameId": "0022400006",
+    "espnGameId": "401703375",
+    "summarySha256": "91eab7aedf99df9154cbd6ebbe5bc7e45f754f4222036d42585e9995c2d16759",
+    "boxSha256": "27f9d2faeb9ef8684d8069d126b8a359921824a6cde491d52610915a835b3a62"
+  },
+  {
+    "espnId": "4432817",
+    "nbaId": 1630548,
+    "name": "Johnny Juzang",
+    "gameId": "0022400006",
+    "espnGameId": "401703375",
+    "summarySha256": "91eab7aedf99df9154cbd6ebbe5bc7e45f754f4222036d42585e9995c2d16759",
+    "boxSha256": "27f9d2faeb9ef8684d8069d126b8a359921824a6cde491d52610915a835b3a62"
+  },
+  {
+    "espnId": "4395620",
+    "nbaId": 1641816,
+    "name": "Hunter Tyson",
+    "gameId": "0022400017",
+    "espnGameId": "401703386",
+    "summarySha256": "73888f21b65944263d673f9df1f5b2e5f4338f78a25d4c981f725c39a5ed836c",
+    "boxSha256": "1277e002cb5d635565d478806ddef142eb525ca4eebea3074612360f3dbc107a"
+  }
+]

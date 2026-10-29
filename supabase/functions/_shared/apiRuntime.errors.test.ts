@@ -53,7 +53,7 @@ Deno.test('a server failure masks the message and carries no code', async () => 
   expect(body.code, undefined, 'code')
 })
 
-for (const code of ['PT001', 'PT002']) {
+for (const code of ['PT001', 'PT002', 'PT409']) {
   for (const wrapped of [false, true]) {
     Deno.test(`${code} ${wrapped ? 'wrapped' : 'raw'} rule rejection keeps its message`, async () => {
       const failure = { code, message: 'The league rules do not allow this change.' }

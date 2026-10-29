@@ -106,14 +106,13 @@ export function PageHeader({
     const { padX } = usePageMetrics()
     const small = variant ? variant === 'compact' : compact
     const hideTitle = Boolean(title && onBack && !tabs)
-    if (hideTitle && !actions && Platform.OS === 'web') return titleIsPageHeading ? <Text style={srOnly} role="heading" aria-level={1}>{title}</Text> : null
     const headingProps = titleIsPageHeading
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
         <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, small && styles.headerCompact, { paddingHorizontal: padX }]}>
             {hideTitle && titleIsPageHeading ? <Text style={srOnly} {...headingProps}>{title}</Text> : null}
-            {onBack && Platform.OS !== 'web' ? <View style={styles.headerBack}><BackButton onPress={onBack} label={hideTitle ? 'Close' : backLabel} icon={hideTitle ? 'close' : 'arrow-back'} /></View> : null}
+            {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={Platform.OS === 'web' ? backLabel : hideTitle ? 'Close' : backLabel} icon={hideTitle ? 'close' : 'arrow-back'} /></View> : null}
             <View style={styles.headerMain}>
                 {tabs ?? (title && !hideTitle ? (
                     <>

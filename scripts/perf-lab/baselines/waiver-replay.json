@@ -1,0 +1,66 @@
+{
+  "cause": "The preceding countertrade adds one FAAB to the claimant. A bid of 101 equals the resulting balance and is valid.",
+  "before": {
+    "runId": "d6a6c8cf-482c-4378-af6c-e153b6b7eea4",
+    "source": "bd99f3d4",
+    "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/captured/d6a6c8cf-482c-4378-af6c-e153b6b7eea4/waiver-diagnostics.jsonl",
+    "request": {
+      "leagueId": "d515e1b6-1334-472a-99b0-262865ed8d03",
+      "memberId": "0a15bbbc-54d4-4a86-a86d-40d3bea732e9",
+      "playerId": "4345e079-5283-4790-942b-c6ac3dcad907",
+      "bidAmount": 101,
+      "requestId": "4bfa6f85-9ce7-4805-948d-ab820235b9eb"
+    },
+    "requestId": "4bfa6f85-9ce7-4805-948d-ab820235b9eb",
+    "startingBudget": 100,
+    "availableBudget": 101,
+    "bid": 101,
+    "status": 200,
+    "response": {
+      "ok": true
+    },
+    "receipt": {
+      "actor": "9d46de2b-75fe-4c40-8017-5ed59c0f2eea",
+      "result": "ef4455b3-6423-412c-a07c-a97b418fe311",
+      "function": "public.create_waiver_claim_atomic",
+      "inputHash": "6e2480030b6a7a5cd94be59b606395e1",
+      "requestId": "4bfa6f85-9ce7-4805-948d-ab820235b9eb"
+    }
+  },
+  "after": {
+    "runId": "078d4e5d-41b9-4e15-aa01-ffb9a631e6ab",
+    "source": "e347bb6979a258592acf8ec95dc63fe3187cffa2",
+    "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/captured/078d4e5d-41b9-4e15-aa01-ffb9a631e6ab/waiver-diagnostics.jsonl",
+    "request": {
+      "leagueId": "dd1f4aa1-feff-4f9d-8b9f-78c096255827",
+      "memberId": "0129415e-a50c-4b04-bd40-7428c1dff912",
+      "playerId": "79636c4e-7712-4b20-9128-aebca4f552a3",
+      "bidAmount": 102,
+      "requestId": "32c8e7d7-33f4-4075-a39d-3018477e8d13"
+    },
+    "requestId": "32c8e7d7-33f4-4075-a39d-3018477e8d13",
+    "startingBudget": 100,
+    "availableBudget": 101,
+    "bid": 102,
+    "status": 400,
+    "response": {
+      "ok": false,
+      "error": "FAAB bid exceeds your available balance.",
+      "code": "P0001",
+      "requestId": "a3ae905d-4ebf-4ddf-9a67-ae78705cd71b"
+    },
+    "receipt": null,
+    "validBid": {
+      "bid": 80,
+      "status": 200,
+      "receipt": {
+        "actor": "888de61a-5b83-44bb-b390-22dcfe472e76",
+        "result": "ef6f95a8-e06f-4bcc-8a98-c23ffaafa4a5",
+        "function": "public.create_waiver_claim_atomic",
+        "inputHash": "d21d25b405c4e4c7fb34749cd9a6d3fb",
+        "requestId": "8bd39995-baeb-4f70-afae-fccf7373059f"
+      },
+      "actorMatchesMember": true
+    }
+  }
+}

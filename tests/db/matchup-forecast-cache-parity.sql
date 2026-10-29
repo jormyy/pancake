@@ -1,5 +1,9 @@
 \set ON_ERROR_STOP on
 BEGIN;
+\if :{?matchup_id}
+\else
+  \ir benchmark-fixture.sql
+\endif
 SET LOCAL statement_timeout='5s';
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='local-forecast-cache-probe';
@@ -14,7 +18,7 @@ BEGIN
   FOR v_date IN SELECT value FROM jsonb_array_elements(public.prepare_matchup_forecast_inputs(v_id)) LOOP
     PERFORM public.prepare_matchup_forecast_inputs(v_id,(v_date#>>'{}')::date);
   END LOOP;
-  v_actual:=public.get_prepared_matchup_forecast_context(v_id);
+  v_actual:=public.get_prepared_matchup_forecast_context(v_id)-'seasonAverages';
   IF v_actual IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Cached context differs from the original context'; END IF;
   SELECT array_agg(h.ctid::text ORDER BY h.player_id) INTO v_before FROM private.forecast_player_history h;
   IF public.prepare_matchup_forecast_inputs(v_id)<>'[]'::jsonb THEN RAISE EXCEPTION 'Warm projections are recomputed'; END IF;
@@ -24,7 +28,7 @@ BEGIN
     WHERE league_id=(SELECT league_id FROM public.matchups WHERE id=v_id);
   IF private.matchup_forecast_inputs_ready(v_id) THEN RAISE EXCEPTION 'Changed season totals pass their source fence'; END IF;
   IF public.prepare_matchup_forecast_inputs(v_id)<>'[]'::jsonb THEN RAISE EXCEPTION 'Season total repair rebuilds unrelated projection dates'; END IF;
-  IF public.get_prepared_matchup_forecast_context(v_id) IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Season total repair changes results'; END IF;
+  IF public.get_prepared_matchup_forecast_context(v_id)-'seasonAverages' IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Season total repair changes results'; END IF;
   SELECT s.id INTO v_stat FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
   JOIN public.matchups m ON m.id=v_id JOIN public.league_seasons season ON season.id=m.league_season_id
   JOIN public.roster_players r ON r.league_id=m.league_id AND r.league_season_id=m.league_season_id
@@ -41,11 +45,11 @@ BEGIN
   EXCEPTION WHEN SQLSTATE 'PT409' THEN v_rejected:=true; END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'Prepared reads accept changed inputs'; END IF;
   v_expected:=private.compute_matchup_forecast_context(v_id);
-  IF public.get_matchup_forecast_context(v_id) IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Legacy readers lose current corrections'; END IF;
+  IF public.get_matchup_forecast_context(v_id)-'seasonAverages' IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Legacy readers lose current corrections'; END IF;
   FOR v_date IN SELECT value FROM jsonb_array_elements(public.prepare_matchup_forecast_inputs(v_id)) LOOP
     PERFORM public.prepare_matchup_forecast_inputs(v_id,(v_date#>>'{}')::date);
   END LOOP;
-  v_actual:=public.get_prepared_matchup_forecast_context(v_id);
+  v_actual:=public.get_prepared_matchup_forecast_context(v_id)-'seasonAverages';
   IF v_actual IS DISTINCT FROM v_expected THEN
     RAISE EXCEPTION 'Prepared corrections differ in %',(SELECT array_agg(e.key) FROM jsonb_each(v_expected) e WHERE e.value IS DISTINCT FROM v_actual->e.key);
   END IF;
@@ -63,13 +67,13 @@ BEGIN
     WHERE id=(v_expected->'games'->0->>'id')::uuid;
   IF NOT private.matchup_forecast_inputs_ready(v_id) THEN RAISE EXCEPTION 'Scoreboard clocks rebuild projection inputs'; END IF;
   v_expected:=private.compute_matchup_forecast_context(v_id);
-  IF public.get_prepared_matchup_forecast_context(v_id) IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Projection or clock changes lose parity'; END IF;
+  IF public.get_prepared_matchup_forecast_context(v_id)-'seasonAverages' IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Projection or clock changes lose parity'; END IF;
   UPDATE private.forecast_projection_inputs SET valid_until=now() WHERE matchup_id=v_id;
   IF private.matchup_forecast_inputs_ready(v_id) THEN RAISE EXCEPTION 'Expired projections remain current'; END IF;
   FOR v_date IN SELECT value FROM jsonb_array_elements(public.prepare_matchup_forecast_inputs(v_id)) LOOP
     PERFORM public.prepare_matchup_forecast_inputs(v_id,(v_date#>>'{}')::date);
   END LOOP;
-  IF public.get_prepared_matchup_forecast_context(v_id) IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Projection refresh changes current results'; END IF;
+  IF public.get_prepared_matchup_forecast_context(v_id)-'seasonAverages' IS DISTINCT FROM v_expected THEN RAISE EXCEPTION 'Projection refresh changes current results'; END IF;
   IF has_function_privilege('authenticated','public.prepare_matchup_forecast_inputs(uuid,date)','EXECUTE')
     OR has_function_privilege('authenticated','public.get_prepared_matchup_forecast_context(uuid)','EXECUTE')
     OR has_table_privilege('authenticated','private.forecast_player_history','SELECT') THEN

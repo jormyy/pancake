@@ -30,7 +30,7 @@ BEGIN
   UPDATE private.screen_refresh_queue SET available_at=now()+interval '1 minute' WHERE league_season_id=f.season_id;
   PERFORM private.enqueue_screen_views();
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='refresh-views'),'future view retries remain gated');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'view refresh adds no second cron entry');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'view refresh adds no second cron entry');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

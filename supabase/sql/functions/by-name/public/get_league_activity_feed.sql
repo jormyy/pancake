@@ -26,7 +26,8 @@ RETURNS TABLE (
   years_exp int,
   career_regular_season_games int,
   participant_team_names text[],
-  player_mentions jsonb
+  player_mentions jsonb,
+  trade_picks jsonb
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -80,7 +81,8 @@ BEGIN
       player.years_exp,
       player.career_regular_season_games,
       ARRAY[]::text[] AS participant_team_names,
-      CASE WHEN player.id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(jsonb_build_object('id',player.id,'name',player.display_name)) END AS player_mentions
+      CASE WHEN player.id IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(jsonb_build_object('id',player.id,'name',player.display_name)) END AS player_mentions,
+      '[]'::jsonb AS trade_picks
     FROM roster_transactions AS tx
     JOIN current_season ON current_season.id = tx.league_season_id
     LEFT JOIN league_members AS member ON member.id = tx.member_id
@@ -116,7 +118,21 @@ BEGIN
           WHERE participant.trade_id = activity.related_trade_id),
           array_remove(ARRAY[actor.team_name::text, target.team_name::text], NULL))
       ELSE ARRAY[]::text[] END AS participant_team_names,
-      COALESCE(activity.metadata->'player_mentions','[]'::jsonb) AS player_mentions
+      COALESCE(activity.metadata->'player_mentions','[]'::jsonb) AS player_mentions,
+      CASE WHEN activity.event_type = 'trade_completed' THEN COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'kind', 'pick', 'pickId', pick.id, 'seasonYear', pick.season_year, 'round', pick.round,
+          'originalTeamName', COALESCE(original.team_name, 'Unknown team'),
+          'fromMemberId', item.from_member_id, 'toMemberId', item.to_member_id,
+          'fromTeamName', COALESCE(sender.team_name, 'Unknown team'),
+          'toTeamName', COALESCE(recipient.team_name, 'Unknown team')) ORDER BY item.id)
+        FROM public.trade_items item
+        JOIN public.draft_picks pick ON pick.id = item.pick_id AND pick.league_id = activity.league_id
+        LEFT JOIN public.league_members original ON original.id = pick.original_owner_id AND original.league_id = activity.league_id
+        LEFT JOIN public.league_members sender ON sender.id = item.from_member_id AND sender.league_id = activity.league_id
+        LEFT JOIN public.league_members recipient ON recipient.id = item.to_member_id AND recipient.league_id = activity.league_id
+        WHERE item.trade_id = activity.related_trade_id AND item.league_id = activity.league_id
+      ), '[]'::jsonb) ELSE '[]'::jsonb END AS trade_picks
     FROM league_activity AS activity
     JOIN current_season
       ON activity.league_season_id = current_season.id
@@ -148,7 +164,8 @@ BEGIN
     feed.years_exp,
     feed.career_regular_season_games,
     feed.participant_team_names,
-    feed.player_mentions
+    feed.player_mentions,
+    feed.trade_picks
   FROM feed
   ORDER BY feed.occurred_at DESC, feed.id DESC
   LIMIT v_limit

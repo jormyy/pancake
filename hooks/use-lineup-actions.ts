@@ -5,7 +5,6 @@ import { sessionOwner } from '@/lib/session-cache-registry'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     setPlayerSlotMoves,
-    autoSetLineup,
     planLineupMove,
     type LineupPlayer,
     type LineupSelection,
@@ -16,7 +15,7 @@ import { todayLeague } from '@/lib/timezone'
 import { leagueTimezone } from '@/lib/league-timezones'
 // RN's Alert.alert is a silent no-op on web; showAlert/confirmAction route
 // through the in-app feedback system on every platform.
-import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
+import { showAlert } from '@/lib/alert'
 import { confirmRosterActivation } from '@/lib/roster-activation-confirm'
 import { getErrorMessage } from '@/lib/shared/errors'
 
@@ -58,7 +57,6 @@ export function useLineupActions({
 }) {
     const [selected, setSelected] = useState<LineupSelection | null>(null)
     const [saving, setSaving] = useState(false)
-    const [autoSetting, setAutoSetting] = useState(false)
     const [autoSetModalVisible, setAutoSetModalVisible] = useState(false)
     const [activationOverflowPending, setActivationOverflowPending] = useState<PendingActivation | null>(null)
     const [activationOverflowSaving, setActivationOverflowSaving] = useState(false)
@@ -73,7 +71,7 @@ export function useLineupActions({
     const draftScopeRef = useRef(draftScope)
     draftScopeRef.current = draftScope
     const busy = useRef(false)
-    busy.current = saving || autoSetting || autoSetModalVisible || !!activationOverflowPending || activationOverflowSaving || restoredScope !== draftScope
+    busy.current = saving || autoSetModalVisible || !!activationOverflowPending || activationOverflowSaving || restoredScope !== draftScope
     const canRecover = useCallback(() => recoveryReady.current && !busy.current, [])
     const hasSelection = selected !== null
     useEffect(() => hasSelection ? holdPwaUpdate('lineup selection', canRecover) : undefined, [hasSelection, canRecover])
@@ -88,7 +86,6 @@ export function useLineupActions({
         mutationGenerationRef.current += 1
     }
     const ownsActionState = stateOwnerIdentity === ownerIdentity
-    const autoSetDisabled = !actionContext || !league || autoSetting || saving || activationOverflowSaving
     const mutationIsCurrent = (generation: number, identity: string | null) =>
         mutationGenerationRef.current === generation && activeOwnerRef.current === identity
 
@@ -98,7 +95,6 @@ export function useLineupActions({
         setStateOwnerIdentity(ownerIdentity)
         setSelected(null)
         setSaving(false)
-        setAutoSetting(false)
         setAutoSetModalVisible(false)
         setActivationOverflowPending(null)
         setActivationOverflowSaving(false)
@@ -127,7 +123,7 @@ export function useLineupActions({
     }, [draftScope, restoredScope, myLineup, selected, draftKind, startedTeams])
 
     const handleTap = useCallback(async (newSel: LineupSelection) => {
-        if (autoSetting || saving) return
+        if (saving) return
         if (selectedDate < todayLeague(league?.timezone ?? leagueTimezone(actionOwner?.leagueId))) {
             showAlert('Past lineup', 'Lineups for past days cannot be changed.', 'info')
             setSelected(null)
@@ -223,7 +219,7 @@ export function useLineupActions({
                 if (reserve) confirmRosterActivation({ source: 'taxi', reserveName: reserve.displayName }, execute)
             } else await execute()
         } finally { releaseUpdate() }
-    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, autoSetting, saving])
+    }, [selectedDate, selected, actionContext, actionOwner?.leagueId, myLineup, league, startedTeams, reloadLineup, ownerIdentity, saving])
 
     async function resolveOverflow(freeAction: 'drop' | 'ir', rosterPlayerId: string) {
         if (!activationOverflowPending || !actionContext) return
@@ -285,48 +281,6 @@ export function useLineupActions({
     const handleOverflowDrop = (id: string) => resolveOverflow('drop', id)
     const handleOverflowMoveToIR = (id: string) => resolveOverflow('ir', id)
 
-    async function doAutoSet(date: string | null, restOfSeason?: boolean, retryDates?: string[]) {
-        if (autoSetDisabled || !actionContext) return
-        const mutationGeneration = mutationGenerationRef.current
-        const mutationOwner = ownerIdentity
-        if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-            setAutoSetModalVisible(false)
-            setSelected(null)
-            setAutoSetting(true)
-        }
-        try {
-            const result = await autoSetLineup(
-                actionContext.memberId, actionContext.leagueId, actionContext.seasonId,
-                actionContext.weekNumber, actionContext.seasonYear, date, restOfSeason, retryDates,
-            )
-            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            const refreshed = await reloadSavedLineup(() => reloadLineup(selectedDate), () => mutationIsCurrent(mutationGeneration, mutationOwner))
-            if (!mutationIsCurrent(mutationGeneration, mutationOwner)) return
-            if (result?.failed) {
-                confirmAction(
-                    'Lineup partly optimized',
-                    `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.${refreshed ? '' : ' Refresh to see saved changes.'}`,
-                    () => { void doAutoSet(date, restOfSeason, result.results.filter((entry) => entry.status === 'failed').map((entry) => entry.date)) },
-                    'Retry failed dates',
-                    false,
-                )
-            } else if (refreshed && result && result.dates === 0) {
-                showAlert(restOfSeason ? 'Season is over' : 'No remaining dates', restOfSeason
-                    ? 'There are no remaining dates this season to optimize.'
-                    : 'There are no remaining dates in this selection to optimize.', 'info')
-            } else if (refreshed) {
-                showSuccess('Done', `Lineup set for ${restOfSeason ? 'the rest of the season' : date ? 'today' : 'the rest of the week'}.`)
-            }
-        } catch (e) {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) {
-                await reloadLineup(selectedDate).catch(() => undefined)
-                if (mutationIsCurrent(mutationGeneration, mutationOwner)) showAlert('Auto-set failed', getErrorMessage(e) ?? String(e))
-            }
-        } finally {
-            if (mutationIsCurrent(mutationGeneration, mutationOwner)) setAutoSetting(false)
-        }
-    }
-
     function handleAutoSet() {
         setAutoSetModalVisible(true)
     }
@@ -336,8 +290,6 @@ export function useLineupActions({
         selected: ownsActionState ? selected : null,
         setSelected,
         saving: ownsActionState ? saving : false,
-        autoSetting: ownsActionState ? autoSetting : false,
-        autoSetDisabled,
         autoSetModalVisible: ownsActionState ? autoSetModalVisible : false,
         setAutoSetModalVisible,
         activationOverflowPending: ownsActionState ? activationOverflowPending : null,
@@ -346,7 +298,6 @@ export function useLineupActions({
         handleTap,
         handleOverflowDrop,
         handleOverflowMoveToIR,
-        doAutoSet,
         handleAutoSet,
     }
 }

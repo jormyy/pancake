@@ -3,11 +3,16 @@ import { randomUUID } from 'node:crypto'
 import { season } from './common.mjs'
 import { sql, sqlJson } from './local-stack.mjs'
 
+export function futureRecipientPick(picks,seasonYear){
+  return picks.filter(pick=>pick.season_year>seasonYear).sort((a,b)=>a.season_year-b.season_year||a.round-b.round||a.id.localeCompare(b.id))[0]?.id??null
+}
+
 export function tradeScenarios(c, report, move) {
   const [a, b] = c.users
   const settings = values => c.rpc(a, 'update_league_settings_atomic', { p_league_id: c.leagueId, p_settings: values })
   const propose = async (pickIds, expected = 200) => {
-    const requested = await sql(`SELECT p.id FROM draft_picks p WHERE p.league_id='${c.leagueId}' AND p.season_year=${season.year + 4} AND p.current_owner_id='${b.memberId}' AND NOT p.is_used AND NOT EXISTS(SELECT 1 FROM trade_items i JOIN trades t ON t.id=i.trade_id WHERE i.pick_id=p.id AND t.status IN ('pending','accepted')) ORDER BY p.round LIMIT 1`)
+    const available=await sqlJson(`SELECT coalesce(json_agg(json_build_object('id',p.id,'season_year',p.season_year,'round',p.round)),'[]') FROM draft_picks p WHERE p.league_id='${c.leagueId}' AND p.current_owner_id='${b.memberId}' AND NOT p.is_used AND NOT EXISTS(SELECT 1 FROM trade_items i JOIN trades t ON t.id=i.trade_id WHERE i.pick_id=p.id AND t.status IN ('pending','accepted'))`,'Available recipient pick assets')
+    const requested=futureRecipientPick(available,c.seasonYear??season.year)
     assert.ok(requested, 'Trade requires a real recipient asset')
     return c.api(a, '/trades/propose', { requestId: randomUUID(), leagueId: c.leagueId, leagueSeasonId: c.leagueSeasonId, memberId: a.memberId, recipientMemberId: b.memberId, offerPickIds: pickIds, requestPickIds: [requested] }, expected)
   }

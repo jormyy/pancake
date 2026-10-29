@@ -434,7 +434,19 @@ BEGIN
             eligible_positions = CASE WHEN (p_source='espn' AND cardinality(v_row.eligible_positions) > 0) OR jsonb_typeof(v_metadata->'eligible_positions') IS DISTINCT FROM 'array'
               THEN v_row.eligible_positions ELSE ARRAY(SELECT jsonb_array_elements_text(coalesce(v_metadata->'eligible_positions', '[]'))) END,
             updated_at = clock_timestamp()
-          WHERE id = v_id;
+          WHERE id = v_id AND
+            (espn_id,sleeper_id,first_name,last_name,nba_team,status,injury_status,years_exp,birthdate,position,eligible_positions)
+            IS DISTINCT FROM
+            (CASE WHEN p_source='espn' THEN v_provider ELSE espn_id END,
+             CASE WHEN p_source='sleeper' THEN v_provider ELSE sleeper_id END,
+             v_first,v_last,v_metadata->>'nba_team',v_metadata->>'status',
+             CASE WHEN v_metadata ? 'injury_status' THEN v_metadata->>'injury_status' ELSE injury_status END,
+             coalesce((v_metadata->>'years_exp')::int,years_exp),coalesce((v_metadata->>'birthdate')::date,birthdate),
+             CASE WHEN p_source='espn' THEN coalesce(v_row.position,(v_metadata->>'position')::nba_position)
+               ELSE coalesce((v_metadata->>'position')::nba_position,v_row.position) END,
+             CASE WHEN (p_source='espn' AND cardinality(v_row.eligible_positions)>0)
+               OR jsonb_typeof(v_metadata->'eligible_positions') IS DISTINCT FROM 'array'
+               THEN v_row.eligible_positions ELSE ARRAY(SELECT jsonb_array_elements_text(coalesce(v_metadata->'eligible_positions','[]'))) END);
           IF p_source = 'espn' THEN
             INSERT INTO player_espn_listings(player_id, nba_team, listed_at, team_since)
             VALUES (v_id, v_metadata->>'nba_team', clock_timestamp(), clock_timestamp())
@@ -466,7 +478,8 @@ BEGIN
           IF EXISTS (SELECT 1 FROM players WHERE id = v_id AND coalesce(years_exp, 0) > 0) THEN
             RAISE EXCEPTION 'Draft pick % matches an experienced player; refusing to replace the draft board.', v_pick USING ERRCODE = '23514';
           END IF;
-          UPDATE players SET years_exp = 0, nba_draft_number = v_pick, updated_at = clock_timestamp() WHERE id = v_id;
+          UPDATE players SET years_exp = 0, nba_draft_number = v_pick, updated_at = clock_timestamp()
+          WHERE id = v_id AND (years_exp,nba_draft_number) IS DISTINCT FROM (0,v_pick);
           v_ids := array_append(v_ids, v_id);
         END IF;
       END IF;

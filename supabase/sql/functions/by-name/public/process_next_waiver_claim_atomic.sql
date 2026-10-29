@@ -363,6 +363,10 @@ BEGIN
        WHERE id = v_claim.id;
 
       IF v_drop_roster_id IS NOT NULL THEN
+        UPDATE waiver_claims AS sibling SET status='cancelled', processed_at=now(),
+          failure_reason='The selected drop player was used by another successful waiver claim.'
+          WHERE sibling.league_id=v_claim.league_id AND sibling.league_season_id=v_claim.league_season_id
+            AND sibling.member_id=v_claim.member_id AND sibling.status='pending' AND sibling.drop_player_id=v_claim.drop_player_id;
         PERFORM private.release_roster_player_to_waivers(
           v_drop_roster_id,
           v_claim.league_id,
@@ -511,7 +515,7 @@ BEGIN
       SELECT true, failed.id, failed.member_id, failed.player_id, failed.status, failed.failure_reason
         FROM failed;
       RETURN;
-    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' THEN
+    EXCEPTION WHEN SQLSTATE 'PA008' OR SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
       RETURN QUERY SELECT * FROM private.fail_waiver_claim(
         v_claim.id,
         v_claim.league_id,

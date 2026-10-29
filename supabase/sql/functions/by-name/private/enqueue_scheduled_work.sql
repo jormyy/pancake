@@ -14,6 +14,7 @@ BEGIN
   IF v_min%15=0 THEN
     PERFORM private.enqueue_daily('sync-players',6,0,p_now);
     PERFORM private.enqueue_daily('sync-trade-values',7,15,p_now);
+    PERFORM private.enqueue_daily('missing-final-stats',6,30,p_now);
     PERFORM private.enqueue_player_injuries(p_now);
     FOR v_waiver IN SELECT DISTINCT coalesce(timezone, 'America/Los_Angeles') AS timezone
       FROM public.leagues WHERE status IN ('active', 'playoffs', 'offseason') LOOP
@@ -36,6 +37,9 @@ BEGIN
     PERFORM private.work_enqueue('edge-invocation-reconcile',v_key,p_now);
   END IF;
   IF v_min=0 THEN PERFORM private.enqueue_rankings(p_now); END IF;
+  IF v_min>=17 THEN
+    PERFORM private.work_enqueue('public-read-retention',date_trunc('hour',p_now)::text,p_now);
+  END IF;
   IF v_min=17 THEN PERFORM private.work_enqueue('pg-net-response-vacuum',date_trunc('hour',p_now)::text,p_now,'{"action":"vacuum"}'); END IF;
   IF v_min=0 AND extract(hour FROM v_utc)=13 AND
     ((extract(month FROM v_utc)=6 AND extract(day FROM v_utc)>=20) OR

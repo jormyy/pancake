@@ -5,7 +5,8 @@ import { acquireJoinableDraft, type Draft } from '@/lib/draft'
 import { useLeagueContext } from '@/contexts/league-context'
 import { showAlert } from '@/lib/alert'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { onSessionCachesCleared } from '@/lib/session-cache-registry'
+import { onSessionCachesCleared, sessionOwner } from '@/lib/session-cache-registry'
+import { readPersistentCache, writePersistentCache } from '@/lib/persistent-cache'
 
 const draftLaunchCache = new Map<string, { draft: Draft | null }>()
 onSessionCachesCleared(() => draftLaunchCache.clear())
@@ -18,12 +19,14 @@ const NO_DRAFT_ROUTE = '/draft'
 
 export function useDraftRoomLauncher(
     leagueId: string | undefined,
-    options: { notifyOnError?: boolean; renderAuctionInline?: boolean; scopeKey?: string } = {},
+    options: { notifyOnError?: boolean; renderAuctionInline?: boolean; scopeKey?: string; accountId?: string | null } = {},
 ) {
     const router = useRouter()
     const { current } = useLeagueContext()
     const memberId = options.scopeKey ?? (current?.leagues.id === leagueId ? current?.id : undefined)
-    const activity = useDraftActivity(JSON.stringify([leagueId ?? null, memberId ?? null]))
+    const accountId = options.accountId === undefined ? sessionOwner() : options.accountId
+    const cacheKey = accountId && leagueId && memberId ? `pancake:draft-launcher:v1:${JSON.stringify([accountId, leagueId, memberId])}` : null
+    const activity = useDraftActivity(JSON.stringify([accountId, leagueId ?? null, memberId ?? null]))
     const { identity: resourceKey, epoch, capture, canRead, isCurrent } = activity
     const pendingRef = useRef<{ key: string; fallbackOnMissing: boolean } | null>(null)
     const activeResourceKeyRef = useRef(resourceKey)
@@ -37,7 +40,7 @@ export function useDraftRoomLauncher(
         draft: Draft | null
         checked?: boolean
     } | null>(() => {
-        const cached = draftLaunchCache.get(resourceKey)
+        const cached = draftLaunchCache.get(resourceKey) ?? (cacheKey ? readPersistentCache<{ draft: Draft | null }>(cacheKey) : null)
         return cached ? { key: resourceKey, ...cached, checked: true, loading: false, error: null } : null
     })
 
@@ -54,6 +57,13 @@ export function useDraftRoomLauncher(
         const capturedKey = resourceKey
         if (activeResourceKeyRef.current !== capturedKey) return Promise.resolve<LaunchResult>('stale')
         if (!canRead()) {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                const cached = draftLaunchCache.get(capturedKey) ?? (cacheKey ? readPersistentCache<{ draft: Draft | null }>(cacheKey) : null)
+                pendingRef.current = null
+                setRequest({ key: capturedKey, draft: cached?.draft ?? null, checked: true, loading: false, error: cached ? null : 'Offline. Open this draft room online first.' })
+                if (cached?.draft?.draftType === 'snake') router.push({ pathname: '/(modals)/rookie-draft-room', params: { draftId: cached.draft.id } })
+                return Promise.resolve<LaunchResult>(cached ? cached.draft ? 'opened' : 'missing' : 'error')
+            }
             pendingRef.current = { key: capturedKey, fallbackOnMissing }
             setRequest(previous => previous?.key === capturedKey
                 ? { ...previous, loading: true, error: null }
@@ -88,6 +98,7 @@ export function useDraftRoomLauncher(
                 }
                 pendingRef.current = null
                 draftLaunchCache.set(capturedKey, { draft })
+                if (cacheKey) writePersistentCache(cacheKey, { draft })
                 setRequest({ key: capturedKey, loading: false, error: null, draft, checked: true })
                 if (!draft) {
                     if (fallbackOnMissing && !options.renderAuctionInline) router.dismissTo(NO_DRAFT_ROUTE)
@@ -117,7 +128,7 @@ export function useDraftRoomLauncher(
         })()
         inFlightRef.current = { key: capturedKey, epoch: readEpoch, promise, release: read.release }
         return promise
-    }, [leagueId, memberId, resourceKey, options.renderAuctionInline, options.notifyOnError, router, canRead, capture, isCurrent])
+    }, [leagueId, memberId, resourceKey, options.renderAuctionInline, options.notifyOnError, router, canRead, capture, isCurrent, cacheKey])
 
     useEffect(() => {
         if (pendingRef.current?.key !== resourceKey) { pendingRef.current = null; return }

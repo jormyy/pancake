@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.98.0'
 import type { Database } from '../../_shared/database.ts'
 
 Deno.test({
-  name: 'committed league versions reach the authenticated shared stream exactly once',
+  name: 'committed league versions reach the authenticated polling endpoint exactly once',
   ignore: !Deno.env.get('SUPABASE_DB_URL'),
   sanitizeOps: false,
   sanitizeResources: false,
@@ -19,17 +19,10 @@ Deno.test({
     const league = crypto.randomUUID()
     const member = crypto.randomUUID()
     let user: string | undefined
-    let channel: ReturnType<typeof client.channel> | undefined
-    const events: Record<string, unknown>[] = []
     const sql = async (command: string, expected = 0) => {
       const result = await new Deno.Command('psql', { args: [db, '-XqAt', '-v', 'ON_ERROR_STOP=1', '-c', command], stdout: 'piped', stderr: 'piped' }).output()
       assert.equal(result.code, expected, new TextDecoder().decode(result.stderr))
       return new TextDecoder().decode(result.stdout).trim()
-    }
-    const until = async (ready: () => boolean) => {
-      const end = Date.now() + 15_000
-      while (!ready() && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 20))
-      assert.ok(ready(), 'version event arrives')
     }
     try {
       const email = `version-${league}@example.test`
@@ -45,25 +38,11 @@ Deno.test({
       const joined = await admin.from('league_members').insert({ id: member, league_id: league, user_id: user, role: 'commissioner' })
       assert.ifError(joined.error)
       const before = BigInt(await sql(`SELECT version FROM public.league_versions WHERE league_id='${league}'`))
-      channel = client.channel(`league-changes:${league}:${user}`, { config: { private: true } })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'league_change_hints', filter: `league_id=eq.${league}` }, payload => {
-          if (payload.eventType !== 'DELETE' && payload.new.topic === 'version') events.push(payload.new)
-        })
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error('Shared stream did not join')), 15_000)
-        channel!.subscribe(status => {
-          if (status === 'SUBSCRIBED') { clearTimeout(timer); resolve() }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timer); reject(new Error(status)) }
-        })
-      })
+      assert.equal(await sql("SELECT count(*) FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='league_change_hints'"), '0')
       await sql(`BEGIN; UPDATE public.leagues SET name='Changed version fixture' WHERE id='${league}'; UPDATE public.league_members SET team_name='Changed team' WHERE id='${member}'; COMMIT`)
       const expected = (before + 1n).toString()
       assert.equal(await sql(`SELECT version FROM public.league_versions WHERE league_id='${league}'`), expected)
       assert.equal(await sql(`SELECT revision FROM public.league_change_hints WHERE league_id='${league}' AND topic='version'`), expected)
-      await until(() => events.some(event => Array.isArray(event.details) && event.details[0].version === expected))
-      await new Promise(resolve => setTimeout(resolve, 250))
-      assert.equal(events.length, 1)
-      assert.equal(events[0].league_id, league)
       assert.equal(await sql(`SELECT count(*) FROM public.league_changes WHERE league_id='${league}' AND version>${before}`), '1')
       await sql(`BEGIN; UPDATE public.leagues SET name='Rolled back' WHERE id='${league}'; SELECT 1/0; COMMIT`, 1)
       assert.equal(await sql(`SELECT version FROM public.league_versions WHERE league_id='${league}'`), expected)
@@ -77,11 +56,8 @@ Deno.test({
       assert.equal(body.changes[0].topic, 'batch')
       const unchanged = await handleApiRoute(request(expected))
       assert.deepEqual(await unchanged.json(), { version: expected, changes: [] })
-      await new Promise(resolve => setTimeout(resolve, 250))
-      assert.equal(events.length, 1)
-      console.log(JSON.stringify({ versionEvents: events.length, committedBumps: 1, rollbackBumps: 0, actualEndpoint: true }))
+      console.log(JSON.stringify({ committedBumps: 1, rollbackBumps: 0, actualEndpoint: true, draftOnlyRealtime: true }))
     } finally {
-      if (channel) await client.removeChannel(channel)
       client.realtime.disconnect()
       await sql(`DELETE FROM public.leagues WHERE id='${league}'; DELETE FROM public.league_change_hints WHERE league_id='${league}'`)
       if (user) assert.ifError((await admin.auth.admin.deleteUser(user)).error)

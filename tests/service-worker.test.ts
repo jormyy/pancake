@@ -405,6 +405,18 @@ describe('service worker', () => {
         }
     })
 
+    it('renders an unknown page from the verified root shell while offline', async () => {
+        const body = await html().text()
+        const worker = await loadWorker({ fetchImpl: async () => { throw new TypeError('offline') }, hashes: { '/': createHash('sha256').update(body).digest('hex') } })
+        const cache = await worker.caches.open('pancake-test-1-public-v1-shell')
+        await cache.put('/', html())
+        expect(await (await worker.respond(navigation('/surface-contract-not-found'))).text()).toBe(body)
+        expect([...cache.entries.keys()]).toEqual(['/'])
+        for (const route of ['/api/private', '/rest/v1/players', '/auth/v1/user', '/functions/v1/api', '/storage/v1/private', '/realtime/v1/websocket', '/graphql/v1']) {
+            expect(worker.intercepts(navigation(route))).toBe(false)
+        }
+    })
+
     it('cannot read a poisoned matching URL from the legacy cache before or after activation', async () => {
         const worker = await loadWorker({ fetchImpl: async input => new URL((input as Request).url).pathname === '/' ? new Response('public', { headers: { 'content-type': 'text/html' } }) : script('public'), hashes: { '/': createHash('sha256').update('public').digest('hex') } })
         const legacy = await worker.caches.open('pancake-test-1-assets')

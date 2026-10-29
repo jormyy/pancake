@@ -1,5 +1,12 @@
 BEGIN;
+UPDATE public.leagues SET deleted_at=now() WHERE deleted_at IS NULL;
+UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
+DELETE FROM public.notification_outbox;
+DELETE FROM private.work_items WHERE kind='process-trades';
 \ir rules-support.sql
+DELETE FROM private.work_items;
+UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
+UPDATE public.notification_outbox SET available_at=now()+interval '1 day';
 DO $$
 DECLARE f record; queued uuid; admitted uuid; token uuid:=gen_random_uuid(); before_count bigint;
 BEGIN
@@ -39,9 +46,10 @@ BEGIN
   PERFORM public.complete_notification_outbox_atomic(ticketed,lease);
   INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category,expo_ticket_id,push_token,ticketed_at,suppressed_at,suppression_reason)
     VALUES(gen_random_uuid()::text,f.member_ids[2],'trade_expired','Expired','Expired','{}','trade','suppressed-ticket','token',now(),now(),'league_deleted') RETURNING id INTO suppressed;
-  SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='process-trades';
-  PERFORM public.invoke_process_trades_if_due();
-  PERFORM pg_temp.check_rules((SELECT count(*)=before_count FROM edge_invocations WHERE function_name='process-trades'),
+  DELETE FROM private.work_items WHERE kind='process-trades';
+  SELECT count(*) INTO before_count FROM private.work_items WHERE kind='process-trades';
+  PERFORM private.enqueue_process_trades(now());
+  PERFORM pg_temp.check_rules((SELECT count(*)=before_count FROM private.work_items WHERE kind='process-trades'),
     'suppressed Expo ticket does not wake the trade worker');
 END;
 $$;

@@ -18,9 +18,9 @@ BEGIN
   offer:=public.submit_trade_offer_atomic(f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose-multi',
     jsonb_build_object('leagueId',f.league_id,'leagueSeasonId',f.season_id,'participantMemberIds',f.member_ids,'items',items));
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),
-    'Rules team 3 must change its trade plan to meet the active roster limit.','every acceptor requires complete plans for all teams');
+    'Rules team 3: Regular roster is % over the limit of %','every acceptor requires complete plans for all teams');
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[3]),
-    'Rules team 3 must change its trade plan to meet the active roster limit.','final acceptance validates all teams');
+    'Rules team 3: Regular roster is % over the limit of %','final acceptance validates all teams');
   PERFORM public.set_trade_roster_plan_atomic(offer,f.member_ids[3],f.user_ids[3],'{}','{}',ARRAY[players[6]]);
   PERFORM public.accept_trade_atomic(offer,f.member_ids[2]);
   PERFORM public.accept_trade_atomic(offer,f.member_ids[3]);
@@ -42,7 +42,7 @@ BEGIN
       'offerPlayerIds',ARRAY[players[1]],'requestPlayerIds',ARRAY[players[3],players[4]],'rosterPlan',jsonb_build_object('taxiPlayerIds','[]'::jsonb,'irPlayerIds','[]'::jsonb,'dropPlayerIds',ARRAY[players[2]])));
   PERFORM pg_temp.reject_rules(format('SELECT public.set_trade_roster_plan_atomic(%L,%L,%L,%L,%L,%L)',
     offer,f.member_ids[1],f.user_ids[1],'{}','{}','{}'),
-    'Rules team 1 must change its trade plan to meet the active roster limit.','accepted proposer cannot save an over-cap plan');
+    'Rules team 1: Regular roster is % over the limit of %','accepted proposer cannot save an over-cap plan');
   PERFORM pg_temp.check_rules((SELECT drop_player_ids=ARRAY[players[2]] FROM trade_participants WHERE trade_id=offer AND member_id=f.member_ids[1]),
     'invalid plan edit preserves the accepted plan');
 END;
@@ -66,21 +66,21 @@ BEGIN
     IF kind='ir' THEN
       UPDATE trade_items SET to_ir=true WHERE trade_id=offer AND player_id=v_players[1];
       UPDATE players SET injury_status=NULL WHERE id=v_players[1];
-      expected:='Incoming IR players must be Out or IR-designated and cannot also enter taxi.';
+      expected:='%cannot use IR.%';
     ELSE
       UPDATE trade_items SET to_taxi=true WHERE trade_id=offer AND player_id=v_players[1];
       IF kind='eligibility' THEN
         UPDATE players SET years_exp=5,career_regular_season_games=65 WHERE id=v_players[1];
-        expected:='Incoming taxi players must be rookies or have fewer than 65 career regular-season games.';
+        expected:='%Taxi requires a rookie or fewer than 65 known career games.%';
       ELSIF kind='tenure' THEN
         prior_season:=gen_random_uuid();
         INSERT INTO league_seasons(id,league_id,season_year,is_current) VALUES(prior_season,f.league_id,9533,false);
         INSERT INTO roster_transactions(league_id,league_season_id,member_id,player_id,transaction_type)
           VALUES(f.league_id,prior_season,f.member_ids[1],v_players[1],'taxi_designate');
-        expected:='Incoming taxi player has reached the taxi tenure limit.';
+        expected:='%taxi tenure limit%';
       ELSE
         INSERT INTO league_member_taxi_exits(league_id,member_id,player_id) VALUES(f.league_id,f.member_ids[3],v_players[1]);
-        expected:='A promoted player cannot return to this team taxi squad.';
+        expected:='%cannot return to this team%';
       END IF;
     END IF;
     PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),expected,kind||' invalid recipient blocks every acceptance');

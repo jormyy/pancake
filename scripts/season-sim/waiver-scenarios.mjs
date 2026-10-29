@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { etDate, season } from './common.mjs'
+import { season } from './common.mjs'
 import { sql } from './local-stack.mjs'
 import { checkPendingWaivers, checkWaiverReset, checkWaiverResult, checkWaiverTiming, rolloverPriorities, waiverOutcomes, waiverParticipants } from './waiver-oracle.mjs'
 
@@ -7,20 +7,34 @@ const roster = (c, user) => c.rest(user, `roster_players?select=*,players(nba_id
 const transactionState = async (c, user) => (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0]
 const freePlayer = c => sql(`SELECT id FROM players p WHERE p.nba_id IS NOT NULL AND p.position IS NOT NULL AND p.injury_status IS NULL AND p.display_name NOT LIKE 'Synthetic Prospect %' AND NOT EXISTS(SELECT 1 FROM roster_players r WHERE r.league_id='${c.leagueId}' AND r.player_id=p.id) AND NOT EXISTS(SELECT 1 FROM waiver_wire_log w WHERE w.league_id='${c.leagueId}' AND w.player_id=p.id AND w.cleared_at IS NULL) ORDER BY nba_id LIMIT 1`)
 
-export function nextWaiverRun(clearsAt) {
-  let date = etDate(new Date(clearsAt).toISOString())
-  const atThree = day => {
-    const offset = new Intl.DateTimeFormat('en', { timeZone: 'America/New_York', timeZoneName: 'longOffset' }).formatToParts(new Date(`${day}T12:00:00Z`)).find(part => part.type === 'timeZoneName').value.replace('GMT', '')
-    return Date.parse(`${day}T03:00:00${offset}`)
+export function overBudgetWaiverBid(budget) {
+  assert.ok(Number.isSafeInteger(budget) && budget >= 0, 'A waiver rejection needs a known nonnegative budget')
+  return budget + 1
+}
+
+export function nextWaiverRun(clearsAt,timeZone='America/Los_Angeles') {
+  const formatter=new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'})
+  const parts=at=>Object.fromEntries(formatter.formatToParts(new Date(at)).map(row=>[row.type,row.value]))
+  const local=parts(clearsAt)
+  let day=`${local.year}-${local.month}-${local.day}`
+  const midnight=date=>{
+    const target=Date.parse(`${date}T00:00:00Z`)
+    let at=target
+    for(let index=0;index<3;index++){
+      const row=parts(at)
+      at+=target-Date.parse(`${row.year}-${row.month}-${row.day}T${row.hour}:${row.minute}:${row.second}Z`)
+    }
+    return at
   }
-  if (atThree(date) < clearsAt) date = new Date(Date.parse(`${date}T12:00:00Z`) + 86400000).toISOString().slice(0, 10)
-  return atThree(date)
+  if(midnight(day)<clearsAt)day=new Date(Date.parse(`${day}T12:00:00Z`)+86400000).toISOString().slice(0,10)
+  return midnight(day)
 }
 
 export async function beginWaivers(c, name, report) {
   c.waiverScenarios ??= []
   if (c.waiverScenarios.some(row => row.name === name)) return
   const mode = await sql(`SELECT waiver_mode FROM leagues WHERE id='${c.leagueId}'`)
+  const timeZone=await sql(`SELECT coalesce(timezone,'America/Los_Angeles') FROM leagues WHERE id='${c.leagueId}'`)
   const priorities = c.expectedWaiverPriorities ?? Object.fromEntries(c.users.map((user, index) => [user.memberId, index + 1]))
   const week = Number(await sql(`SELECT week_number FROM season_weeks WHERE season_year=${c.seasonYear} AND (now() AT TIME ZONE 'America/New_York')::date BETWEEN week_start AND week_end`))
   assert.ok(week > 0, 'Waiver scenario has a calendar add bucket')
@@ -56,15 +70,15 @@ export async function beginWaivers(c, name, report) {
     await c.rpc(donor, 'drop_player_atomic', { p_roster_player_id: row.id, p_expected_league_season_id: c.leagueSeasonId })
     const hold = (await c.rest(donor, `waiver_wire_log?select=*&league_season_id=eq.${c.leagueSeasonId}&player_id=eq.${row.player_id}&cleared_at=is.null`))[0]
     assert.ok(hold, 'A genuine drop creates a waiver hold')
-    checkWaiverHold(hold.clears_at, at)
+    checkWaiverHold(hold.clears_at, at, timeZone)
     targets.push({ player: row.player_id, member: donor.memberId, droppedAt: at, clearsAt: Date.parse(hold.clears_at) })
   }
   const active = Object.fromEntries(await Promise.all(users.map(async user => [user.memberId, await roster(c, user)])))
+  const budgets = c.expectedWaiverBudgets ?? Object.fromEntries(users.map(user => [user.memberId, 100]))
   if (mode === 'faab') {
-    const rejected = await c.api(a, '/waivers/claims', { memberId: a.memberId, leagueId: c.leagueId, playerId: targets[0].player, bidAmount: 101 }, 400)
+    const rejected = await c.api(a, '/waivers/claims', { memberId: a.memberId, leagueId: c.leagueId, playerId: targets[0].player, bidAmount: overBudgetWaiverBid(budgets[a.memberId]) }, 400)
     assert.match(JSON.stringify(rejected), /balance|FAAB/i)
   }
-  const budgets = c.expectedWaiverBudgets ?? Object.fromEntries(users.map(user => [user.memberId, 100]))
   const plans = [
     [a, targets[0], Math.min(80, budgets[a.memberId]), false], [b, targets[0], 30, true], [donorC, targets[0], 20, true],
     [a, targets[1], 10, true], [donorC, targets[1], 10, true], [donorD, targets[1], 10, true],
@@ -92,7 +106,7 @@ export async function beginWaivers(c, name, report) {
   }
   assert.ok(claims.some(a => claims.some(b => a.player === b.player && a.member !== b.member)), 'The waiver batch retains competing accepted claims')
   const input = { claims, mode, priorities, budgets, rosterCounts: Object.fromEntries(users.map(user => [user.memberId, active[user.memberId].length])), weeklyCounts: { ...weeklyCounts }, limit: 1, rosterSize: 3 }
-  const scenario = { name, mode, week, rejected, rosterAdds: (c.waiverRosterAdds ?? []).filter(row => row.seasonId === c.leagueSeasonId && row.week === week), seasonId: c.leagueSeasonId, targets, input, expected: waiverOutcomes(input), processAt: nextWaiverRun(Math.max(...targets.map(row => row.clearsAt))), checked: false }
+  const scenario = { name, mode, week, rejected, rosterAdds: (c.waiverRosterAdds ?? []).filter(row => row.seasonId === c.leagueSeasonId && row.week === week), seasonId: c.leagueSeasonId, targets, input, expected: waiverOutcomes(input), processAt: nextWaiverRun(Math.max(...targets.map(row => row.clearsAt)),timeZone), checked: false }
   c.waiverScenarios.push(scenario)
   report.waivers ??= []
   report.waivers.push(scenario)
@@ -183,6 +197,6 @@ export function waiverRosterRefills(users, rosters) {
   })
 }
 
-export function checkWaiverHold(clearsAt, droppedAt) {
-  assert.equal(Date.parse(clearsAt), nextWaiverRun(droppedAt + 48 * 3600000), 'Drop hold clears on the first 03:00 Eastern run at or after 48 hours')
+export function checkWaiverHold(clearsAt, droppedAt, timeZone) {
+  assert.equal(Date.parse(clearsAt), nextWaiverRun(droppedAt + 48 * 3600000,timeZone), 'Drop hold clears on the first league midnight at or after 48 hours')
 }

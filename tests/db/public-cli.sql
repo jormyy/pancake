@@ -1,4 +1,7 @@
 BEGIN;
+\ir rules-support.sql
+CREATE TEMP TABLE public_cli_fixture AS SELECT * FROM pg_temp.rules_fixture(2,9585);
+INSERT INTO public.players(first_name,last_name) VALUES('Public','Fixture');
 SET LOCAL statement_timeout = '30s';
 SET LOCAL session_replication_role = replica;
 DO $$

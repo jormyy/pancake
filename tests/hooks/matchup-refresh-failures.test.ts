@@ -1,11 +1,15 @@
 import { boundary, held, bumpView } from '../helpers/screen-view-boundary'
 import { homeHarness, homePayload } from '../helpers/home-view-fixture'
 import { act } from 'react-test-renderer'
-import { beforeEach, expect, it } from 'vitest'
+import { beforeEach, expect, it, vi } from 'vitest'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 const h = homeHarness()
-beforeEach(() => { boundary.read.mockImplementation(async scope => homePayload(String(scope.params.date))) })
+beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-27T12:00:00Z'))
+    boundary.read.mockImplementation(async scope => homePayload(String(scope.params.date)))
+})
 it('keeps the last lineup after a background failure and clears retry state on recovery', async () => {
     await h.render()
     const previous = h.latest.myLineup

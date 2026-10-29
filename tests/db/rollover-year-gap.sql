@@ -24,6 +24,7 @@ BEGIN
   IF (SELECT current_owner_id FROM draft_picks WHERE id=preserved_pick)<>members[2] THEN
     RAISE EXCEPTION 'Filling missing classes must preserve an existing traded pick owner';
   END IF;
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=league),true);
   result:=start_rookie_draft_atomic(league,3,false);
   IF (SELECT count(*) FROM snake_draft_picks WHERE draft_id=(result->>'id')::uuid)<>12 THEN
     RAISE EXCEPTION 'Year jump must allocate every current rookie slot';

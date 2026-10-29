@@ -11,7 +11,7 @@ import { prepareLineups, checkLineups } from './lineups.mjs'
 import { startRuntime } from './runtime.mjs'
 import { sourceEvidence } from './source-manifest.mjs'
 import { cronDispatcher } from './cron-dispatcher.mjs'
-import { sql } from './local-stack.mjs'
+import { sql, sqlJson } from './local-stack.mjs'
 import { setClock } from './clock.mjs'
 import { fixtureDirectory, dates, etDate, miniRoot, season as fallbackSeason, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
@@ -35,6 +35,7 @@ import { shiftDay } from './season-model.mjs'
 import { waiverBoundaryDeferral } from './maintenance.mjs'
 import { assertSkippedWeek, isSkippedWeek } from './skipped-week.mjs'
 import { recoveryHistoryQuery, draftRecoveryFields, openingRecoveryFields, realSecondRecoveryFields, postDraftStateQuery } from './recovery.mjs'
+import { retryableWorkFailure,assertRetriedWorkCompleted } from './work-retries.mjs'
 
 export async function replay(options = {}) {
   const scenario = await loadScenarioProfile()
@@ -51,7 +52,7 @@ export async function replay(options = {}) {
   let deferredCalendarError
   const { games } = JSON.parse(await readFile(path.join(fixtureDirectory, 'games.json'), 'utf8'))
   const store = await fixtureStore(fixtureDirectory)
-  const auctionDate = start
+  const auctionDate = options.twoDay ? (await import('../perf-lab/waiver-plan.mjs')).twoDayAuctionDate(start) : start
   let runtime, context, baseline, probe, previous = {}, previousTeams = {}, observed = {}, activeDate
   let clock = options.resume?.clock ?? Date.parse(`${auctionDate}T09:59:00Z`)
   const verifiedWeeks = options.resume?.verifiedWeeks ?? []
@@ -66,6 +67,7 @@ export async function replay(options = {}) {
   report.playersEvidence ??= []
   if(options.secondSeasonThrough)report.secondSeasonThrough=options.secondSeasonThrough
   const checkpoint = async phase => {
+    if (options.twoDay && phase !== report.phase) (await import('../perf-lab/two-day.mjs')).assertTwoDayDeadline()
     report.phase = phase
     await writeJson(path.join(miniRoot, 'evidence/replay-checkpoint.json'), { ...report, savedAt: new Date().toISOString() })
     await writeJson(path.join(miniRoot, 'evidence/replay-progress.json'), { phase, completedDates: report.days.length, requestedDates: selected.length, fullAcceptance: report.fullAcceptance })
@@ -96,8 +98,27 @@ export async function replay(options = {}) {
     report.sourceCorrections ??= []
     report.sourceCorrections.push(...result.corrections)
   }
+  const retriedWork=new Set()
+  const verifyRetries=async()=>{
+    const ids=[...retriedWork]
+    if(ids.length)report.workerRetryCompletion=assertRetriedWorkCompleted(ids,await sqlJson(`SELECT coalesce(json_agg(json_build_object('id',id,'status',status)),'[]') FROM private.work_items WHERE id IN (${ids.join(',')})`,'Retried work completion'))
+  }
   const dispatcher = cronDispatcher(async outcome => {
-    if (outcome.status_code === 200 && outcome.worker_status === 'success') return
+    if (options.twoDay) (await import('../perf-lab/two-day.mjs')).assertTwoDayDeadline()
+    if ((outcome.status_code === 200 || options.twoDay && outcome.timed_out === true) && outcome.worker_status === 'success') {
+      if (options.twoDay && outcome.timed_out === true) {
+        report.transportTimeouts ??= []
+        report.transportTimeouts.push({ id: outcome.id, function: outcome.function_name, workerCompleted: true })
+      }
+      if (options.twoDay) await (await import('../perf-lab/retry-recovery.mjs')).trackProductionRetry(outcome, report)
+        return
+      }
+    if(retryableWorkFailure(outcome)){
+      retriedWork.add(Number(outcome.work_id))
+      report.workerRetries??=[]
+      report.workerRetries.push(outcome)
+      return
+    }
     const at = Number(await sql('SELECT extract(epoch FROM now())*1000'))
     if (waiverBoundaryDeferral(outcome, context, at)) {
       report.waiverBoundaryDeferrals ??= []
@@ -110,9 +131,14 @@ export async function replay(options = {}) {
       report.sourceUnavailable.push({ function: outcome.function_name, id: outcome.id, businessAt: new Date(at).toISOString(), reason: realPlan.draft.availabilityProvenance,error:sourceError })
       return
     }
-    if (['sync-rankings', 'sync-projections'].includes(outcome.function_name)) report.triggerFidelity.unsupportedInputs.push({ function: outcome.function_name, id: outcome.id, status: outcome.status_code })
+    if (options.twoDay && await (await import('../perf-lab/provider-gaps.mjs')).historicalProjectionGap(outcome)) {
+      report.triggerFidelity.unsupportedInputs.push({ function: outcome.function_name, id: outcome.id, status: outcome.status_code, reason: 'Recorded historical provider input is unavailable' })
+      return
+    }
+    if (options.twoDay && await (await import('../perf-lab/retry-recovery.mjs')).trackProductionRetry(outcome, report)) return
+    if (!options.twoDay && ['sync-rankings', 'sync-projections'].includes(outcome.function_name)) report.triggerFidelity.unsupportedInputs.push({ function: outcome.function_name, id: outcome.id, status: outcome.status_code })
     else assert.fail(`Production dispatch fails: ${JSON.stringify(outcome)}`)
-  })
+  }, { waitForWorkerOutcome: options.twoDay === true })
   const move = async value => {
     const to = typeof value === 'number' ? value : Date.parse(value)
     assert.ok(to >= clock, 'Replay cannot rewind business time')
@@ -151,6 +177,7 @@ export async function replay(options = {}) {
     report.source = await sourceEvidence()
     await writeJson(path.join(miniRoot, 'evidence/source-at-start.json'), report.source)
     runtime = await startRuntime(new Date(clock).toISOString(), { resume: !!options.resume })
+    if (options.twoDay && process.env.PERF_LAB_CAPTURE_PROFILE !== 'control') await (await import('../perf-lab/clock-capture.mjs')).configureClockCapture(path.join(miniRoot, 'evidence'))
     if (options.restoredDefinitions) assert.equal(await functionFingerprint(), options.restoredDefinitions, 'Runtime clock startup must preserve restored lane definitions')
     if (options.afterRestoreSql) report.overlay = await applyOverlay(options.afterRestoreSql)
     verifyCronCatalog(JSON.parse(await readFile(path.join(miniRoot, 'cron-jobs.json'), 'utf8')))
@@ -191,6 +218,12 @@ export async function replay(options = {}) {
     }
     report.diagnosticSkippedWeeks = context.diagnosticSkippedWeeks ?? null
     probe = await startRealtimeProbe(context, runtime.keys)
+    if (options.twoDay) {
+      const { assertTwoDayWaiverWindow } = await import('../perf-lab/waiver-plan.mjs')
+      await (await import('../perf-lab/two-day.mjs')).counterTrade(context, report, move)
+      await beginWaivers(context, 'season-one-faab', report)
+      assertTwoDayWaiverWindow(start, report.waivers)
+    }
     if (options.resume?.actions) { report.actions = options.resume.actions; report.retainedActions = true }
     if (options.resume?.evidence) Object.assign(report, options.resume.evidence)
     if (report.recovery) {
@@ -214,6 +247,7 @@ export async function replay(options = {}) {
       if (options.segment === 'next-season-start') report.nextSeason = realPlan ? await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }, { afterOpening: true }) : await runNextSeason(context, context.previousSeasonId, move, report, snapshot, checkpoint, liveCoverage)
       if (options.segment === 'real-second-season') report.nextSeason = await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }, { afterOpening: true, startDate: start })
       await dispatcher.drain(clock)
+      await verifyRetries()
       if (report.nextSeason?.passed && probe) {
         const delivery = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
         if (realPlan) report.realtimeSecond = delivery
@@ -230,6 +264,7 @@ export async function replay(options = {}) {
     if (realPlan) report.firstCalendar = await assertTwoCalendar(context, profile,!!deferredCalendarError)
     const trades = tradeScenarios(context, report.actions, move)
     const taxiDate = await sql(`SELECT week_start FROM season_weeks WHERE season_year=${context.seasonYear} AND week_number=2`)
+    await options.onWorkloadReady?.()
     for (const date of selected) {
       activeDate = date
       const began = Date.now()
@@ -274,10 +309,11 @@ export async function replay(options = {}) {
       if(realPlan&&!report.featureCheckpoints.some(row=>row.year===context.seasonYear&&row.label==='mid-season')&&profile.calendar.weeks.find(row=>row.week_start<=date&&row.week_end>=date)?.week_number>=Math.floor(profile.playoffStart/2))await captureSeasonFeatures(context,profile,'mid-season',report)
       if(realPlan&&!report.playersEvidence.some(row=>row.year===context.seasonYear&&row.label==='after-first-final'))await capturePlayers(context,'after-first-final',report)
       day.domain = await assertDomain(context, previous)
+      if (options.twoDay) day.forecasts = await (await import('../perf-lab/two-day.mjs')).captureForecasts(context, move)
       previous = day.domain
       day.wallSeconds = (Date.now() - began) / 1000
       report.days.push(day)
-      if (!report.realtime && probe.events.some(event => event.scoreChanged)) {
+      if (!report.realtime && probe.readyToVerify()) {
         report.realtime = await probe.verify(await context.rest(context.users[0], `matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
         await probe.close()
         probe = null
@@ -300,6 +336,7 @@ export async function replay(options = {}) {
       report.nextSeason = realPlan ? await runRealSeason(context,realPlan,move,report,checkpoint,snapshot,liveCoverage,async()=>{ await probe?.close(); probe=await startRealtimeProbe(context,runtime.keys) }) : await runNextSeason(context, report.seasonEnd.oldSeason, move, report, snapshot, checkpoint, liveCoverage)
     }
     await dispatcher.drain(clock)
+    await verifyRetries()
     if (realPlan && report.nextSeason?.passed) report.realtimeSecond=await probe.verify(await context.rest(context.users[0],`matchups?select=*&league_season_id=eq.${context.leagueSeasonId}`))
     report.complete = true
     report.triggerFidelity.verified = true

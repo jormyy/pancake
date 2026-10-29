@@ -1,14 +1,15 @@
 import type { Json } from '@/types/database'
 import { supabase } from '@/lib/supabase'
-import { apiPost } from '@/lib/shared/api'
+import { apiPost, apiReadPost } from '@/lib/shared/api'
 import { getRosterStatsMaps } from '@/lib/roster-stats'
 import type { TradeStatus } from '@pancake/core'
 import type { TradeEstimateSummary } from '@/lib/trade-estimates'
+import type { TradeLegalityReason } from '@/lib/trade-legality'
 export {
     needsMemberAcceptance,
 } from '@/lib/trade-perspective'
 
-type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' }
+type TradeRosterMove = { playerId: string; destination: 'active' | 'ir' | 'taxi' }
 export type TradeRosterPlan = { taxiPlayerIds: string[]; irPlayerIds: string[]; dropPlayerIds: string[]; rosterMoves?: TradeRosterMove[] }
 export type TradeRosterPreview = {
     memberId: string
@@ -21,10 +22,12 @@ export type TradeRosterPreview = {
     unavailableDestinations?: Record<string, Partial<Record<'ir' | 'taxi', string>>>
     limits: { active: number; ir: number; taxi: number }
     error: string | null
+    legal?: boolean
+    reasons?: TradeLegalityReason[]
 }
 
 export async function getTradeRosterPreview(tradeId: string): Promise<TradeRosterPreview[]> {
-    const result = await apiPost<{ teams: TradeRosterPreview[] }>(`/trades/${tradeId}/roster-preview`, {})
+    const result = await apiReadPost<{ teams: TradeRosterPreview[] }>(`/trades/${tradeId}/roster-preview`, {})
     return result.teams
 }
 
@@ -176,7 +179,7 @@ type TradeItemQueryRow = {
 function parseTradeRosterMoves(value: Json | undefined): TradeRosterMove[] {
     if (!Array.isArray(value)) return []
     return value.flatMap((move) => move && typeof move === 'object' && !Array.isArray(move)
-        && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir')
+        && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir' || move.destination === 'taxi')
         ? [{ playerId: move.playerId, destination: move.destination }] : [])
 }
 
@@ -225,6 +228,7 @@ type TradeQueryRow = {
 type TradeProposalOptions = {
     estimateId?: string
     rosterPlan?: TradeRosterPlan
+    rosterPlans?: Record<string, TradeRosterPlan>
     requestId?: string
     notes?: string | null
     expiresAt?: string | null
@@ -254,7 +258,7 @@ export type MultiTeamTradeItemPayload = MultiTeamTradeRoute & (
 export type MultiTeamTradeProposalPayload = {
     participantMemberIds: string[]
     items: MultiTeamTradeItemPayload[]
-} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan' | 'estimateId'>
+} & Pick<TradeProposalOptions, 'notes' | 'expiresAt' | 'requestId' | 'rosterPlan' | 'rosterPlans' | 'estimateId'>
 
 function multiTeamTradeWireItems(items: MultiTeamTradeItemPayload[]) {
     return items.map((item) => {
@@ -337,6 +341,7 @@ export async function proposeTrade(
     const result = await apiPost<{ tradeId: string }>('/trades/propose', {
         ...(options.estimateId ? { estimateId: options.estimateId } : {}),
         ...(options.rosterPlan ? { rosterPlan: options.rosterPlan } : {}),
+        ...(options.rosterPlans ? { rosterPlans: options.rosterPlans } : {}),
         requestId: options.requestId,
         memberId,
         leagueId,
@@ -364,6 +369,7 @@ export async function proposeMultiTeamTrade(
     const result = await apiPost<{ tradeId: string }>('/trades/propose-multi', {
         ...(payload.estimateId ? { estimateId: payload.estimateId } : {}),
         ...(payload.rosterPlan ? { rosterPlan: payload.rosterPlan } : {}),
+        ...(payload.rosterPlans ? { rosterPlans: payload.rosterPlans } : {}),
         requestId: payload.requestId,
         memberId,
         leagueId,

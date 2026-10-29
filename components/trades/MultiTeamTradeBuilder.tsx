@@ -2,6 +2,7 @@ import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { playerSeasonContextText } from '@/lib/player-context'
 import { pickLabel } from '@/lib/picks'
+import type { TradePickContext } from '@/lib/trade-pick-label'
 import { DeferredContent } from '@/components/ui/DeferredContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
@@ -129,6 +130,7 @@ export function MultiTeamTradeBuilder({
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
             label,
+            pick: item.kind === 'pick' && pick ? { ...pick, fromMemberId: item.fromMemberId, toMemberId: item.toMemberId } : undefined,
             player: item.kind === 'player' ? {
                 name: label, nbaId: player?.players.nba_id, team: player?.players.nba_team,
                 positions: player?.players.eligible_positions ?? (player?.players.position ? [player.players.position] : []),
@@ -138,6 +140,7 @@ export function MultiTeamTradeBuilder({
             detail: available ? null : 'Unavailable from this team',
         }
     }), [assetLabels, items, participants, avgMap, avgStatsMap])
+    const pickContext: TradePickContext = { viewerMemberId: myMemberId, memberNames: Object.fromEntries(participants.map(participant => [participant.memberId, participantName(participant.memberId)])) }
 
     const removeItem = (key: string) => {
         const item = items[overviewItems.findIndex((entry) => entry.key === key)]
@@ -200,7 +203,7 @@ export function MultiTeamTradeBuilder({
                         {participants.length}-team trade · {items.length} {items.length === 1 ? 'asset' : 'assets'}
                     </Text>
                 </View>
-                <MultiTeamTradeOverview
+                <MultiTeamTradeOverview pickContext={pickContext}
                     participants={overviewParticipants}
                     items={overviewItems}
                     columns={useColumns}
@@ -226,7 +229,7 @@ export function MultiTeamTradeBuilder({
             onLayout={(event) => setContentWidth(event.nativeEvent.layout.width)}
         >
             {useColumns ? (
-                <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
+                <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} columns onRemoveItem={removeItem} />
             ) : (
                 <>
                     <View style={styles.summaryRow}>
@@ -254,7 +257,7 @@ export function MultiTeamTradeBuilder({
                         accessibilityLabel="Analyze trade proposal" /> : null}
                     </View>
                     {overviewExpanded ? (
-                        <MultiTeamTradeOverview participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
+                        <MultiTeamTradeOverview pickContext={pickContext} participants={overviewParticipants} items={overviewItems} compact onRemoveItem={removeItem} />
                     ) : null}
                 </>
             )}

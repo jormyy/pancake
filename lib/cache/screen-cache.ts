@@ -104,8 +104,8 @@ const dependencies: Record<ScreenName, string[]> = {
     league: ['score', 'roster', 'inventory', 'resources', 'member', 'settings', 'season', 'draft', 'activity', 'announcement'],
     standings: ['score', 'member', 'season'], activity: ['activity', 'roster', 'inventory', 'trade', 'announcement', 'member'],
     picks: ['inventory', 'trade', 'draft', 'member', 'season'], settings: ['settings', 'inventory', 'member', 'season'],
-    lineup: ['lineup', 'roster', 'game', 'stat', 'settings', 'resources', 'season'],
-    'claim-editor': ['roster', 'inventory', 'claim', 'member', 'settings', 'season'],
+    lineup: ['trade', 'claim', 'inventory', 'lineup', 'roster', 'game', 'stat', 'settings', 'resources', 'season'],
+    'claim-editor': ['trade', 'roster', 'inventory', 'claim', 'member', 'settings', 'season'],
     'draft-rooms': ['draft', 'member', 'settings', 'season'], 'draft-room': ['draft', 'roster', 'inventory', 'member', 'settings', 'season'],
     profile: ['profile'],
 }

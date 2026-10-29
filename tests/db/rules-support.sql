@@ -60,3 +60,14 @@ BEGIN
   RETURN NEXT;
 END;
 $$;
+
+CREATE FUNCTION pg_temp.publish_rules_trades(p_league uuid)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE publication uuid;
+BEGIN
+  PERFORM set_config('pancake.trade_write','',true);
+  FOR publication IN SELECT id FROM private.trade_publications WHERE league_id=p_league ORDER BY id LOOP
+    PERFORM private.publish_trade_changes(publication);
+  END LOOP;
+END;
+$$;

@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION public.view_claims(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE context jsonb; claims jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
@@ -12,7 +12,7 @@ BEGIN
       AND claim.league_season_id = (context->>'seasonId')::uuid AND claim.status IN ('succeeded', 'failed_priority', 'failed_roster')
       ORDER BY claim.submitted_at DESC LIMIT 20)
   )
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('id', claim.id, 'playerId', claim.player_id,
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('assetLocks', COALESCE((SELECT jsonb_agg(jsonb_build_object('assetKind', locked.asset_kind, 'assetId', locked.asset_id, 'sourceKind', locked.source_kind, 'sourceId', locked.source_id, 'reason', locked.reason)) FROM private.locked_assets(p_league_id, (context->>'seasonId')::uuid, p_member_id) locked WHERE locked.source_kind='claim' AND locked.source_id=claim.id), '[]'), 'id', claim.id, 'playerId', claim.player_id,
     'clearsAt', CASE WHEN claim.status = 'pending' THEN (SELECT max(log.clears_at) FROM public.waiver_wire_log log
       WHERE log.player_id = claim.player_id AND log.league_id = p_league_id AND log.league_season_id = claim.league_season_id AND log.cleared_at IS NULL AND log.clears_at > now()) END,
     'playerName', COALESCE(player.display_name, 'Unknown'), 'playerNbaId', player.nba_id,

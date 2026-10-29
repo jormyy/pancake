@@ -12,10 +12,10 @@ BEGIN
   EXECUTE 'SET LOCAL ROLE authenticated';
   profile:=public.view_player(fixture.league_id,fixture.member_ids[1],jsonb_build_object('playerId',player_id,'section','overview'));
   PERFORM pg_temp.check_rules(profile ? 'pickup' AND NOT profile ? 'lines','compact profile preserves separate sections');
-  PERFORM pg_temp.check_rules((profile->'player'->>'trade_value')::numeric=999.9,'compact profile includes the stored trade value');
+  PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value'),'compact profile keeps calculator values separate');
   PERFORM pg_temp.check_rules(profile->'player'->>'injury_reason'='Ankle','compact profile preserves injury details');
   profile:=public.view_player(fixture.league_id,fixture.member_ids[1],jsonb_build_object('playerId',player_id));
-  PERFORM pg_temp.check_rules((profile->'player'->>'trade_value')::numeric=999.9 AND profile ? 'lines','legacy profile keeps values and game lines');
+  PERFORM pg_temp.check_rules(NOT (profile->'player' ? 'trade_value') AND profile ? 'lines','legacy profile keeps game lines separate from calculator values');
   EXECUTE 'RESET ROLE';
   DELETE FROM private.work_items;
   PERFORM private.enqueue_scheduled_work('2026-06-20 11:00 UTC');

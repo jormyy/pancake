@@ -41,6 +41,7 @@ BEGIN
       NULL;
     END;
   END LOOP;
+  PERFORM private.flush_deferred_league_versions(v_limit);
   RETURN v_processed;
 END;
 $$;

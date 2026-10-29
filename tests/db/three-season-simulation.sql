@@ -11,6 +11,7 @@
 -- seasons stay byte-for-byte unchanged.
 -- Runs inside one transaction and rolls back. Never run against production.
 BEGIN;
+TRUNCATE public.leagues CASCADE;
 
 CREATE FUNCTION pg_temp.oid(p text) RETURNS uuid LANGUAGE sql IMMUTABLE AS $$
   SELECT md5('three-season:' || p)::uuid
@@ -266,7 +267,7 @@ VALUES
   (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B1'), 1), (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B2'), 2), (pg_temp.oid('league-B'), pg_temp.oid('season-B-2098'), pg_temp.oid('B3'), 3);
 -- Forty veterans (13-18 are Out) and twelve rookies (draft classes of six).
 INSERT INTO public.players (id, first_name, last_name, nba_team, position, years_exp, eligible_positions, injury_status, nba_draft_number)
-SELECT pg_temp.oid('vet-' || n), 'Vet', 'Player ' || n, (ARRAY['ATL', 'BOS', 'DAL', 'DEN', 'LAL', 'MIA'])[1 + n % 6],
+SELECT pg_temp.oid('vet-' || n), 'Vet', 'Player ' || n, (ARRAY['STA', 'STB', 'STC', 'STD', 'STE', 'STF'])[1 + n % 6],
        (ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]::nba_position, 2 + n % 5, ARRAY[(ARRAY['PG', 'SG', 'SF', 'PF', 'C'])[1 + n % 5]],
        CASE WHEN n BETWEEN 13 AND 18 THEN 'Out' END, NULL
   FROM generate_series(1, 40) AS n;
@@ -435,7 +436,7 @@ BEGIN
   PERFORM public.create_waiver_claim_atomic(i.a, i.a2, pg_temp.vet(7), NULL, i.u2, 20);
   PERFORM pg_temp.rejected('claim retry', pg_temp.try(format('SELECT public.create_waiver_claim_atomic(%L, %L, %L, NULL, %L, 20)', i.a, i.a2, pg_temp.vet(7), i.u2)), '%already have a pending claim%');
   v_claim := public.create_waiver_claim_atomic(i.a, i.a3, pg_temp.vet(7), pg_temp.vet(14), i.u3, 30);
-  PERFORM pg_temp.rejected('IR move of a pending drop', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(14)), i.u3)), '%pending waiver drop%');
+  PERFORM pg_temp.rejected('IR move of a pending drop', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a3, pg_temp.vet(14)), i.u3)), '%Locked by waiver claim%');
   PERFORM pg_temp.make_claims_due(i.a);
   v_processed := pg_temp.process_claims();
   PERFORM pg_temp.assert(pg_temp.owner_of(i.a, pg_temp.vet(7)) = i.a3, 'the higher FAAB bid did not win');
@@ -477,8 +478,8 @@ BEGIN
   PERFORM pg_temp.rejected('accept retry', pg_temp.try(format('SELECT public.accept_trade_atomic(%L, %L)', v_t1, i.a2)), 'not pending|no longer pending|already');
   PERFORM pg_temp.rejected('party veto', pg_temp.try(format('SELECT public.veto_trade_atomic(%L, %L)', v_t1, i.a1)), '%cannot veto%');
   PERFORM pg_temp.act_as(i.u1);
-  PERFORM pg_temp.rejected('drop a reserved asset', pg_temp.try(format('SELECT public.drop_player_atomic(%L)', pg_temp.row_of(i.a1, pg_temp.vet(8)))), 'PA004:%reserved%');
-  PERFORM pg_temp.rejected('IR a reserved asset', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a2, pg_temp.vet(13)), i.u2)), 'PA004:%reserved%');
+  PERFORM pg_temp.rejected('drop a reserved asset', pg_temp.try(format('SELECT public.drop_player_atomic(%L)', pg_temp.row_of(i.a1, pg_temp.vet(8)))), 'PA004:%Locked by trade%');
+  PERFORM pg_temp.rejected('IR a reserved asset', pg_temp.try(format('SELECT public.toggle_ir_atomic(%L, true, %L)', pg_temp.row_of(i.a2, pg_temp.vet(13)), i.u2)), 'PA004:%Locked by trade%');
   -- T2 is vetoed by the one eligible voter (member vote, 50%).
   PERFORM pg_temp.act_as(NULL);
   v_t2 := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a2, i.a3, ARRAY[pg_temp.vet(12)], ARRAY[pg_temp.vet(15)], '{}', '{}');
@@ -496,7 +497,7 @@ BEGIN
   PERFORM pg_temp.act_as(NULL);
   v_t4 := public.propose_trade_atomic(i.a, pg_temp.season(i.a), i.a1, i.a3, '{}', '{}', ARRAY[pg_temp.pick('A1', 2099, 1)], ARRAY[pg_temp.pick('A3', 2099, 2)]);
   PERFORM public.accept_trade_atomic(v_t4, i.a3);
-  PERFORM pg_temp.rejected('use a reserved pick', pg_temp.try(format('UPDATE public.draft_picks SET is_used = true WHERE id = %L', pg_temp.pick('A1', 2099, 1))), 'PA004:%reserved%');
+  PERFORM pg_temp.rejected('use a reserved pick', pg_temp.try(format('UPDATE public.draft_picks SET is_used = true WHERE id = %L', pg_temp.pick('A1', 2099, 1))), 'PA004:%Locked by trade%');
   v_n := pg_temp.complete_due_trades();
   PERFORM pg_temp.assert(pg_temp.trade_status(v_t1) = 'completed' AND pg_temp.trade_status(v_t4) = 'completed', 'due trades did not complete');
   PERFORM pg_temp.assert(pg_temp.owner_of(i.a, pg_temp.vet(8)) = i.a2 AND pg_temp.owner_of(i.a, pg_temp.vet(13)) = i.a1, 'T1 assets did not move');

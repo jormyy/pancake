@@ -39,16 +39,16 @@ test('rolling ignores bid amounts and rollover uses reverse standings with docum
   assert.deepEqual(rolloverPriorities(['a', 'b', 'c'], [{ member_id: 'a', wins: 1, points_for: 10, losses: 2, points_against: 30, week_number: 22 }, { member_id: 'b', wins: 1, points_for: 10, losses: 3, points_against: 20, week_number: 22 }]), { c: 1, b: 2, a: 3 })
 })
 
-test('waiver processing remains at 03:00 Eastern across the DST change', async () => {
+test('waiver processing remains at league midnight across the DST change', async () => {
   const { nextWaiverRun } = await import('./waiver-scenarios.mjs')
-  assert.equal(new Date(nextWaiverRun(Date.parse('2026-10-31T14:00:00Z'))).toISOString(), '2026-11-01T08:00:00.000Z')
+  assert.equal(new Date(nextWaiverRun(Date.parse('2026-10-31T14:00:00Z'))).toISOString(), '2026-11-01T07:00:00.000Z')
   assert.equal(new Date(nextWaiverRun(Date.parse('2026-10-30T14:00:00Z'))).toISOString(), '2026-10-31T07:00:00.000Z')
 })
 
 test('waiver timing rejects both early and late observed processing', () => {
   const expected = Date.parse('2026-03-19T07:00:00Z')
   assert.ok(checkWaiverTiming('2026-03-19T07:00:00Z', expected))
-  for (const observed of ['2026-03-19T06:59:00Z', '2026-03-19T07:15:00Z']) assert.throws(() => checkWaiverTiming(observed, expected), /03:00 Eastern/)
+  for (const observed of ['2026-03-19T06:59:00Z', '2026-03-19T07:15:00Z']) assert.throws(() => checkWaiverTiming(observed, expected), /league midnight/)
 })
 
 test('later waiver batches select an actually full claimant after earlier donor drops', () => {

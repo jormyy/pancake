@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { ClaimEditorView } from '@/lib/cache/view-types'
@@ -277,7 +279,8 @@ export default function ClaimPlayerScreen() {
 
     const processDateStr = savedProcessDate ? scheduledClaimLabel(savedProcessDate, currentLeague?.timezone) : claimProcessDateLabel(clearsAt, new Date(), currentLeague?.timezone)
     const claimReady = online && canAct() && !loading && !!player
-    const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop)
+    const selectedDropLocks = needsDrop ? readAssetLocks(selectedDrop) : []
+    const submitDisabled = submitting || !claimReady || balanceUnknown || (needsDrop && !selectedDrop) || selectedDropLocks.length > 0
     const compactDropMode = isCompactLandscape && needsDrop
     // Wide screens put the claim beside the drop list instead of stacking them.
     const twoColumn = needsDrop && !isCompactLandscape && usableWidth >= TWO_COLUMN_MIN
@@ -412,14 +415,16 @@ export default function ClaimPlayerScreen() {
     function renderRosterDropRows() {
         return activeRoster.map((item, index) => {
             const isSelected = selectedDrop?.id === item.id
+            const locks = readAssetLocks(item)
             return (
-                <Pressable
-                    key={item.id}
+                <View key={item.id}><Pressable
                     style={[styles.rosterRow, index > 0 && styles.rosterRowDivider, isSelected && styles.rosterRowSelected]}
                     onPress={() => setSelectedDrop(isSelected ? null : item)}
                     accessibilityRole="button"
                     accessibilityLabel={`Select ${item.players.display_name} to drop`}
-                    accessibilityState={{ selected: isSelected }}
+                    accessibilityState={{ selected: isSelected, disabled: locks.length > 0 }}
+                    disabled={locks.length > 0}
+                    accessibilityHint={locks[0]?.reason}
                 >
                     <PlayerRowContent name={item.players.display_name} nbaId={item.players.nba_id} team={item.players.nba_team}
                         positions={item.players.eligible_positions?.length ? item.players.eligible_positions : item.players.position ? [item.players.position] : []}
@@ -427,7 +432,7 @@ export default function ClaimPlayerScreen() {
                     <View style={[styles.check, isSelected && styles.checkSelected]}>
                         {isSelected && <MaterialIcons name="check" size={16} color={colors.onAccent} />}
                     </View>
-                </Pressable>
+                </Pressable><LockedAssetNotice locks={locks} /></View>
             )
         })
     }

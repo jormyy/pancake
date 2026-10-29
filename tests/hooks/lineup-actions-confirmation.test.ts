@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 
 const mocks = vi.hoisted(() => ({ activate: vi.fn(), move: vi.fn(), confirm: vi.fn() }))
-vi.mock('@/lib/lineup', async () => ({ planLineupMove: (await import('@/lib/lineup/movePlan')).planLineupMove, setPlayerSlotMoves: mocks.move, autoSetLineup: vi.fn() }))
+vi.mock('@/lib/lineup', async () => ({ planLineupMove: (await import('@/lib/lineup/movePlan')).planLineupMove, setPlayerSlotMoves: mocks.move }))
 vi.mock('@/lib/roster', () => ({ activateRosterPlayerWithLineup: mocks.activate, toggleIR: vi.fn() }))
 vi.mock('@/lib/alert', () => ({ confirmAction: mocks.confirm, showAlert: vi.fn(), showSuccess: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-24' }))

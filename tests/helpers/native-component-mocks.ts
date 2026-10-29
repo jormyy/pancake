@@ -4,6 +4,12 @@
 import React from 'react'
 import { vi } from 'vitest'
 
+const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: () => false }))
+
+export { navigation }
+
+vi.mock('expo-router', () => ({ useRouter: () => navigation }))
+
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
 vi.mock('@/lib/shared/api', () => ({ apiPost: vi.fn() }))
@@ -17,6 +23,8 @@ vi.mock('react-native', () => ({
     Text: 'Text',
     TextInput: 'TextInput',
     View: 'View',
+    Modal: 'Modal',
+    ScrollView: 'ScrollView',
 }))
 vi.mock('@/components/Motion', () => ({
     MotionPressable: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>

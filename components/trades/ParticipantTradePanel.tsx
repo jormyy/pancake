@@ -153,6 +153,7 @@ export function ParticipantTradePanel({
                 </View>
             ) : null}
             <TradeAssetColumn
+                memberId={participant.memberId}
                 title={participant.memberId === myMemberId ? 'YOU SEND' : `${participantName(participant.memberId).toUpperCase()} SENDS`}
                 subtitle={`To ${destinationName}`}
                 side="give"

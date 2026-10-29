@@ -10,15 +10,15 @@ const mocks = vi.hoisted(() => ({
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     readView: vi.fn(), hidden: false, dirty: false, listeners: new Map<() => void, string>(),
     freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
-    enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
+    enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
-vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
+vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
 vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
-    selected: null, setSelected: vi.fn(), saving: false, autoSetting: false, autoSetModalVisible: true,
-    setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), doAutoSet: mocks.autoSet, handleAutoSet: vi.fn(),
+    selected: null, setSelected: vi.fn(), saving: false, autoSetModalVisible: true,
+    setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), handleAutoSet: vi.fn(),
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: mocks.startedTeams, liveTeams: new Set<string>(), todaysGames: mocks.games, freshness: mocks.freshness, teamMatchups: new Map() }) }))
 vi.mock('@/lib/cache/screen-cache', () => ({

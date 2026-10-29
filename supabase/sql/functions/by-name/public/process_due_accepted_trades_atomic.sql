@@ -97,15 +97,15 @@ BEGIN
           WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
           ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
         END,
-        'completed'::text,
+        CASE WHEN EXISTS(SELECT 1 FROM trades WHERE id=v_trade.id AND jsonb_array_length(legality_issues)>0) THEN 'deferred' ELSE 'completed' END::text,
         NULL::text,
         NULL::text;
     EXCEPTION
-      WHEN SQLSTATE 'PT001' THEN
+      WHEN SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN
         v_error_code := SQLSTATE;
         v_error_message := SQLERRM;
 
-        PERFORM public.expire_trade_completion_failure_atomic(v_trade.id, v_error_message);
+        PERFORM public.hold_trade_for_legality_atomic(v_trade.id, v_error_message);
 
         RETURN QUERY
         SELECT
@@ -116,7 +116,7 @@ BEGIN
             WHEN cardinality(v_trade.participant_member_ids) > 0 THEN v_trade.participant_member_ids
             ELSE ARRAY[v_trade.proposer_member_id, v_trade.recipient_member_id]
           END,
-          'expired_terminal_failure'::text,
+          'deferred'::text,
           v_error_code,
           v_error_message;
       WHEN SQLSTATE 'PT002' THEN

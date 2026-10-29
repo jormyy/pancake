@@ -8,15 +8,17 @@ SELECT :'HOST' IN ('localhost', '127.0.0.1') AND :'PORT' = :'season_sim_port'
 \endif
 
 BEGIN;
+SET LOCAL lock_timeout='5s';
+SET LOCAL statement_timeout='60s';
 CREATE TEMP TABLE current_clock_bindings(definition text) ON COMMIT DROP;
 INSERT INTO current_clock_bindings
 SELECT pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
 WHERE n.nspname IN ('public','private') AND p.prokind='f' AND p.prolang IN (SELECT oid FROM pg_language WHERE lanname IN ('sql','plpgsql'));
 INSERT INTO current_clock_bindings
-SELECT format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT %s',n.nspname,c.relname,a.attname,pg_get_expr(d.adbin,d.adrelid))
+SELECT format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT %s',n.nspname,c.relname,a.attname,replace(pg_get_expr(d.adbin,d.adrelid),'season_sim_native_',''))
 FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_namespace n ON n.oid=c.relnamespace
 JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
-WHERE n.nspname IN ('public','private') AND a.attgenerated='';
+WHERE (n.nspname IN ('public','private') OR (n.nspname='net' AND c.relname='_http_response')) AND a.attgenerated='';
 INSERT INTO current_clock_bindings
 SELECT format('ALTER POLICY %I ON %I.%I',policyname,schemaname,tablename)
   || CASE WHEN qual IS NULL THEN '' ELSE ' USING (' || qual || ')' END

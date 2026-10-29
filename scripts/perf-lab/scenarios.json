@@ -1,0 +1,2262 @@
+[
+  {
+    "name": "perf-search-fast",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}",
+          "cadenceMs": 60
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-search-normal",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}",
+          "cadenceMs": 180
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-search-deliberate",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "fill": "Search players",
+          "value": "{{freeAgent.display_name}}",
+          "cadenceMs": 400
+        },
+        "expected": {
+          "selector": "[aria-label='Open {{freeAgent.display_name}}']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-activity-pull-refresh",
+    "from": "/league?tab=history",
+    "steps": [
+      {
+        "action": {
+          "pullRefresh": "#league-panel-history"
+        },
+        "expected": {
+          "selector": "#league-tab-history[aria-selected='true']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-player-infinite-scroll",
+    "from": "/players",
+    "steps": [
+      {
+        "action": {
+          "scrollEnd": true
+        },
+        "expected": {
+          "selector": "[data-testid='player-row-content']"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-availability-all-players",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "All players",
+          "dialog": "Availability"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Availability: All players"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-availability-free-agents",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Free agents",
+          "dialog": "Availability"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Availability: Free agents"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-availability-on-waivers",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "On waivers",
+          "dialog": "Availability"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Availability: On waivers"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-availability-rostered",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Rostered",
+          "dialog": "Availability"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Availability: Rostered"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-availability-my-team",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Availability:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "My team",
+          "dialog": "Availability"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Availability: My team"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-all",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "All",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: All"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-pg",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "PG",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: PG"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-sg",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "SG",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: SG"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-sf",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "SF",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: SF"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-pf",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "PF",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: PF"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-c",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "C",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: C"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-g",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "G",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: G"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-position-f",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "F",
+          "dialog": "Position"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: F"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-health-all",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Health:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "All",
+          "dialog": "Health"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Health: All"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-health-healthy",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Health:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Healthy",
+          "dialog": "Health"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Health: Healthy"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-health-game-time",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Health:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Game-time",
+          "dialog": "Health"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Health: Game-time"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-health-out",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Health:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Out",
+          "dialog": "Health"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Health: Out"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-health-ir",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Health:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "IR",
+          "dialog": "Health"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Health: IR"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-game-today-all",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Game today:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "All",
+          "dialog": "Game today"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Game today: All"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-game-today-playing-today",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Game today:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Playing today",
+          "dialog": "Game today"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Game today: Playing today"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-game-today-not-playing",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Game today:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Not playing",
+          "dialog": "Game today"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Game today: Not playing"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-experience-all",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Experience:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "All",
+          "dialog": "Experience"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Experience: All"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-experience-rookies-only",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Experience:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Rookies only",
+          "dialog": "Experience"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Experience: Rookies only"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-fantasy-pts",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Fantasy Pts",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Fantasy Pts"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-dynasty-rank",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Dynasty rank",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Dynasty rank"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-minutes",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Minutes",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Minutes"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-points",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Points",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Points"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-rebounds",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Rebounds",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Rebounds"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-assists",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Assists",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Assists"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-steals",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Steals",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Steals"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-blocks",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Blocks",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Blocks"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-3-pointers",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "3-Pointers",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: 3-Pointers"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-turnovers",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Turnovers",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Turnovers"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-games-played",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Sort:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Games Played",
+          "dialog": "Sort"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Sort: Games Played"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-season-auto",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Season:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Auto",
+          "dialog": "Season"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Season: Auto"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-season-2026-27",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Season:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "2026\u201327",
+          "dialog": "Season"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Season: 2026\u201327"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-season-2025-26",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Season:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "2025\u201326",
+          "dialog": "Season"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Season: 2025\u201326"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-season-2024-25",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Season:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "2024\u201325",
+          "dialog": "Season"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Season: 2024\u201325"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-atl",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "ATL",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"ATL\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: ATL"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-bos",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "BOS",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"BOS\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: BOS"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-bkn",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "BKN",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"BKN\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: BKN"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-cha",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "CHA",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"CHA\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: CHA"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-chi",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "CHI",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"CHI\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: CHI"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-cle",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "CLE",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"CLE\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: CLE"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-dal",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "DAL",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"DAL\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: DAL"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-den",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "DEN",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"DEN\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: DEN"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-det",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "DET",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"DET\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: DET"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-gsw",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "GSW",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"GSW\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: GSW"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-hou",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "HOU",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"HOU\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: HOU"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-ind",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "IND",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"IND\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: IND"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-lac",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "LAC",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"LAC\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: LAC"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-lal",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "LAL",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"LAL\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: LAL"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-mem",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "MEM",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"MEM\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: MEM"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-mia",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "MIA",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"MIA\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: MIA"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-mil",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "MIL",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"MIL\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: MIL"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-min",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "MIN",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"MIN\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: MIN"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-nop",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "NOP",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"NOP\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: NOP"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-nyk",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "NYK",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"NYK\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: NYK"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-okc",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "OKC",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"OKC\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: OKC"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-orl",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "ORL",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"ORL\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: ORL"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-phi",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "PHI",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"PHI\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: PHI"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-phx",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "PHX",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"PHX\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: PHX"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-por",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "POR",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"POR\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: POR"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-sac",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "SAC",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"SAC\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: SAC"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-sas",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "SAS",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"SAS\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: SAS"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-tor",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "TOR",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"TOR\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: TOR"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-uta",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "UTA",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"UTA\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: UTA"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-team-was",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Team:",
+        "dialog": "Filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "WAS",
+          "dialog": "Team"
+        },
+        "expected": {
+          "selector": "[role=\"checkbox\"][aria-label=\"WAS\"][aria-checked=\"true\"]"
+        }
+      },
+      {
+        "name": "close",
+        "action": {
+          "tap": "Done",
+          "dialog": "Team"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Team: WAS"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-sort-direction",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      }
+    ],
+    "steps": [
+      {
+        "name": "ascending",
+        "action": {
+          "tap": "Highest first \u2193",
+          "dialog": "Filters"
+        },
+        "expected": {
+          "text": "Lowest first \u2191"
+        }
+      },
+      {
+        "name": "descending",
+        "action": {
+          "tap": "Lowest first \u2191",
+          "dialog": "Filters"
+        },
+        "expected": {
+          "text": "Highest first \u2193"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-filter-clear",
+    "from": "/players",
+    "prepare": [
+      {
+        "tap": "Show filters"
+      },
+      {
+        "tapPrefix": "Position:",
+        "dialog": "Filters"
+      },
+      {
+        "tap": "PG",
+        "dialog": "Position"
+      }
+    ],
+    "steps": [
+      {
+        "name": "clear",
+        "action": {
+          "tap": "Clear all filters",
+          "dialog": "Filters"
+        },
+        "expected": {
+          "dialog": "Filters",
+          "button": "Position: All"
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-analyzer-mode",
+    "from": "/trades?tab=analyzer",
+    "steps": [
+      {
+        "name": "multi-team",
+        "action": {
+          "tap": "Multi-Team"
+        },
+        "expected": {
+          "all": [
+            {
+              "text": "Choose two or more teams."
+            },
+            {
+              "selector": "#trade-section-analyzer[aria-selected=\"true\"]"
+            }
+          ]
+        }
+      },
+      {
+        "name": "two-team",
+        "action": {
+          "tap": "2-Team"
+        },
+        "expected": {
+          "text": "Choose a team."
+        }
+      }
+    ]
+  },
+  {
+    "name": "perf-analyzer-team",
+    "from": "/trades?tab=analyzer",
+    "steps": [
+      {
+        "name": "choose",
+        "action": {
+          "tap": "Analyze with {{otherTeam}}"
+        },
+        "expected": {
+          "selector": "[aria-label=\"Remove {{otherTeam}}\"]"
+        }
+      },
+      {
+        "name": "remove",
+        "action": {
+          "tap": "Remove {{otherTeam}}"
+        },
+        "expected": {
+          "text": "Choose a team."
+        }
+      }
+    ]
+  }
+]

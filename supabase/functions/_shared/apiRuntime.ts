@@ -130,7 +130,7 @@ function dbErrorCode(error: unknown): string | undefined {
 function dbErrorStatus(error: unknown): number {
   const code = dbErrorCode(error)
   if (code === '42501') return 403
-  if (code === 'PT001' || code === 'PT002') return 409
+  if (code === 'PT001' || code === 'PT002' || code === 'PT409') return 409
   if (code === 'P0002' || code === 'PGRST116') return 404
   if (code === 'P0001' || isRuleCode(code) || code === '23505' || code === '23514' || code === '22003' || code === '22023') return 400
   return 500

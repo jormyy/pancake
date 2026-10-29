@@ -13,6 +13,7 @@ BEGIN
     worker_status='failed',worker_finished_at=COALESCE(r.worker_finished_at,p_now),
     error_message=COALESCE(r.error_message,'Invocation remains unfinished after 30 days')
   FROM stale WHERE r.id=stale.id;
+  v_total:=private.drop_expired_invocation_partitions(p_now);
   FOR v_outcome IN 1..2 LOOP
     IF v_outcome=1 THEN
       v_condition:='status_code BETWEEN 200 AND 299 AND error_message IS NULL AND worker_status IS DISTINCT FROM ''failed'' AND reconciled_at IS NOT NULL AND (worker_started_at IS NULL OR worker_finished_at IS NOT NULL) AND worker_status IS DISTINCT FROM ''running''';

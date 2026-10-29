@@ -78,6 +78,15 @@ function wrapAbortAsTimeout(err: unknown, timeoutMs: number): never {
     throw err
 }
 
+export async function apiReadPost<T = unknown>(
+    path: string,
+    body: Record<string, unknown>,
+    options: ApiRequestOptions = {},
+): Promise<T> {
+    const id = requestId(options.requestId)
+    return sendApiPost<T>(path, JSON.stringify({ ...body, requestId: id }), { ...options, requestId: id })
+}
+
 export async function apiPost<T = unknown>(
     path: string,
     body: Record<string, unknown>,

@@ -12,7 +12,7 @@ BEGIN
     WHERE trade.league_id=p_league_id AND trade.league_season_id=p_season_id AND (trade.status='accepted' OR trade.id=p_include_trade_id)
   ), resulting AS (
     SELECT CASE WHEN move.value IS NULL THEN roster.is_on_ir ELSE move.value->>'destination'='ir' END AS on_ir,
-      CASE WHEN move.value IS NULL THEN roster.is_on_taxi ELSE false END AS on_taxi
+      CASE WHEN move.value IS NULL THEN roster.is_on_taxi ELSE move.value->>'destination'='taxi' END AS on_taxi
     FROM roster_players roster
     LEFT JOIN LATERAL (SELECT value FROM commitments,jsonb_array_elements(roster_moves) WHERE value->>'playerId'=roster.player_id::text) move ON true
     WHERE roster.league_season_id=p_season_id AND roster.member_id=p_member_id
@@ -26,7 +26,7 @@ BEGIN
   ) SELECT count(*) FILTER(WHERE NOT on_ir AND NOT on_taxi) active,count(*) FILTER(WHERE on_ir) ir,
       count(*) FILTER(WHERE on_taxi) taxi INTO v_counts FROM resulting;
   IF v_counts.active>v_league.roster_size OR v_counts.ir>v_league.ir_slots OR v_counts.taxi>v_league.taxi_slots THEN
-    RAISE EXCEPTION 'Accepted trades reserve roster capacity. Change this action or resolve the trade first.' USING ERRCODE='PT001';
+    RAISE EXCEPTION 'Accepted trades reserve roster capacity. Change this action or resolve the trade first.' USING ERRCODE='PT409';
   END IF;
 END;
 $$;

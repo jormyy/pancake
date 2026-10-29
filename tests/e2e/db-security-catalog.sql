@@ -55,7 +55,7 @@ SELECT jsonb_build_object(
   ) ORDER BY c.relname), '[]'::jsonb) FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
   WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN (
     'profiles_push_token_lookup', 'idx_sync_runs_started_at', 'idx_projection_sync_runs_started_at',
-    'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'idx_edge_invocations_reconciled_at',
+    'idx_standings_season_member_week', 'idx_edge_invocations_unreconciled', 'edge_invocations_pending', 'edge_invocations_recent_scores', 'idx_edge_invocations_reconciled_at',
     'web_push_subscriptions_user_id_idx', 'trades_pending_parties'
   )),
   'serviceRoleMissingReads', (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

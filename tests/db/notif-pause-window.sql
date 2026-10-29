@@ -45,6 +45,7 @@ DO $$
 DECLARE f record; d uuid; p uuid; timer int; r record; expiry uuid; initial_deadline timestamptz; resumed_deadline timestamptz;
 BEGIN
   SELECT * INTO f FROM notif_fixture;
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',f.owner,'role','authenticated')::text,true);
   UPDATE notification_preferences SET event_settings=(SELECT jsonb_object_agg(event_type,event_type IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring')) FROM notif_event_catalog)
     WHERE user_id IN (f.owner,f.opponent);
   FOREACH timer IN ARRAY ARRAY[60,604800] LOOP
@@ -52,6 +53,7 @@ BEGIN
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
       SELECT f.league,20026,1,m,m FROM unnest(ARRAY[f.member,f.other_member]) m
       ON CONFLICT DO NOTHING;
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
     SELECT (start_rookie_draft_atomic(f.league,1,false,timer)->>'id')::uuid INTO d;
     SELECT id,timer_expires_at INTO p,initial_deadline FROM snake_draft_picks WHERE draft_id=d AND overall_pick=1;
     PERFORM notif_scan_due_atomic(initial_deadline-interval '30 seconds');

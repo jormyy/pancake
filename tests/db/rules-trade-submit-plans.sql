@@ -20,7 +20,7 @@ BEGIN
     'offerFaabAmount', 1, 'requestFaabAmount', 0);
   PERFORM pg_temp.reject_rules(format('SELECT public.submit_trade_offer_atomic(%L,%L,%L,%L,%L)',
     f.user_ids[1], gen_random_uuid(), f.member_ids[1], 'propose', payload),
-    'Rules team 1 must change its trade plan to meet the active roster limit.',
+    'Rules team 1: Regular roster is % over the limit of %',
     'sending without a plan rejects proposer overflow by team name');
   payload := payload || jsonb_build_object('rosterPlan', jsonb_build_object(
     'taxiPlayerIds', '[]'::jsonb, 'irPlayerIds', '[]'::jsonb, 'dropPlayerIds', ARRAY[players[1]]));

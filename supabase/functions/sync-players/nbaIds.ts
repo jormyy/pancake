@@ -6,17 +6,15 @@ import { linkPlayerSources, type SourceLinkRecord } from '../_shared/sourceLinks
 import { fetchAllPlayers } from './players.ts'
 import { currentSeasonYear } from '../_shared/season.ts'
 import { planNbaLinks, type NbaLinkPlayer } from './nbaLinkPlan.ts'
+import { corroborateRoster } from './rosterIdentity.ts'
 
 const NBA_CDN_BASE_URL = Deno.env.get('NBA_CDN_BASE_URL') ?? 'https://cdn.nba.com/static/json'
 const NBA_PLAYER_INDEX_URL = `${NBA_CDN_BASE_URL}/staticData/playerIndex.json`
 const CHUNK = 50
 
-// Fetch the NBA CDN player index and populate nba_id for any players missing it.
-// The index includes all active NBA players with their PERSON_ID, first name, and last name
-// (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
-export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }> {
-  console.log('[sync-players] Syncing NBA person IDs from CDN index...')
+type NbaIndex = { resultSets?: { headers: string[]; rowSet: unknown[][] }[] }
 
+async function fetchNbaIndex(): Promise<NbaIndex> {
   const res = await fetchWithRetry(NBA_PLAYER_INDEX_URL, {
     headers: {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
@@ -26,7 +24,10 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
   })
   if (!res.ok) throw new Error(`NBA player index ${res.status}`)
 
-  const data = await res.json() as { resultSets?: { headers: string[]; rowSet: unknown[][] }[] }
+  return await res.json() as NbaIndex
+}
+
+function readRoster(data: NbaIndex, now: Date) {
   const rs = data?.resultSets?.[0]
   if (!rs) throw new Error('Unexpected NBA player index shape')
 
@@ -54,6 +55,31 @@ export async function syncNBAIds(now = new Date()): Promise<{ mapped: number; me
       nba_team: String(row[teamIndex]), position,
       years_exp: Number.isInteger(firstYear) && firstYear > 1946 && firstYear <= currentSeason ? Math.max(0, currentSeason - 1 - firstYear) : null }
   })
+  return { headers, rows, pidIdx, firstIdx, lastIdx, statusIdx, teamIndex, rosterRecords, validTeams }
+}
+
+export async function prepareEspnIdentities(records: Parameters<typeof corroborateRoster>[1], now = new Date()) {
+  const data = await fetchNbaIndex()
+  const { rosterRecords } = readRoster(data, now)
+  const players = await fetchAllPlayers<NbaLinkPlayer>(supabase,
+    'id, display_name, nba_id, nba_team, espn_id, sleeper_id, years_exp, position, eligible_positions')
+  const bridges = planNbaLinks(corroborateRoster(rosterRecords, records), players, false).pending.map(row => row.record)
+  let linked = 0
+  for (let offset = 0; offset < bridges.length; offset += CHUNK) {
+    const results = await linkPlayerSources(supabase, 'nba', bridges.slice(offset, offset + CHUNK))
+    linked += results.filter(row => row.action === 'updated').length
+  }
+  return { data, linked }
+}
+
+// Fetch the NBA CDN player index and populate nba_id for any players missing it.
+// The index includes all active NBA players with their PERSON_ID, first name, and last name
+// (last name includes suffix, e.g. "Jackson Jr.", "Payton II").
+export async function syncNBAIds(now = new Date(), prepared?: NbaIndex): Promise<{ mapped: number; merged: number; failures: string[]; roster: { provider_id: string; nba_team: string }[]; rosterGaps: string[] }> {
+  console.log('[sync-players] Syncing NBA person IDs from CDN index...')
+
+  const data = prepared ?? await fetchNbaIndex()
+  const { headers, rows, pidIdx, firstIdx, lastIdx, statusIdx, teamIndex, rosterRecords, validTeams } = readRoster(data, now)
   const rosterGaps: string[] = []
   if (rosterRecords.length < 350) rosterGaps.push('NBA roster has fewer than 350 active players')
   if (new Set(rosterRecords.map(row => row.nba_team)).size !== 30) rosterGaps.push('NBA roster does not cover all 30 teams')

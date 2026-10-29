@@ -15,5 +15,7 @@ RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
   ORDER BY matchup.id
   ON CONFLICT(matchup_id) DO UPDATE SET
     revision=CASE WHEN queued.changed_at=transaction_timestamp() THEN queued.revision ELSE queued.revision+1 END,
-    changed_at=transaction_timestamp(), dirty=true, available_at=now();
+    changed_at=transaction_timestamp(), dirty=true, available_at=now()
+  WHERE (queued.changed_at,queued.dirty,queued.available_at)
+    IS DISTINCT FROM (transaction_timestamp(),true,now());
 $$;

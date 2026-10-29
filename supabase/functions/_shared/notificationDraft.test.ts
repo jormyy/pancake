@@ -9,6 +9,7 @@ Deno.test('the timer leaves durable auto-pick notifications to the database', as
   const nativeFetch = globalThis.fetch
   const queued: Record<string, unknown>[] = []
   globalThis.fetch = async (input, init) => {
+    const options = init as RequestInit | undefined
     const url = new URL(input instanceof Request ? input.url : input)
     const table = url.pathname.split('/').at(-1)
     if (table === 'close_expired_auction_nominations_atomic') return Response.json([])
@@ -23,10 +24,8 @@ Deno.test('the timer leaves durable auto-pick notifications to the database', as
       assert.equal(url.searchParams.get('draft_type'), 'eq.snake')
       return Response.json([{ id: 'real' }])
     }
-    assert.equal(table, 'notification_outbox')
-    assert.equal(url.searchParams.get('on_conflict'), 'dedupe_key')
-    assert.ok(new Headers(init?.headers).get('prefer')?.includes('resolution=ignore-duplicates'))
-    queued.push(JSON.parse(String(init?.body)))
+    assert.equal(table, 'enqueue_rookie_pick_notification')
+    queued.push(JSON.parse(String(options?.body)))
     return new Response(null, { status: 201 })
   }
   try {
@@ -42,6 +41,7 @@ Deno.test('the season backstop leaves durable auto-pick notifications to the dat
   const queued: Record<string, unknown>[] = []
   let picked = false
   globalThis.fetch = async (input, init) => {
+    const options = init as RequestInit | undefined
     const url = new URL(input instanceof Request ? input.url : input)
     const table = url.pathname.split('/').at(-1)
     if (table === 'league_seasons') return Response.json(url.searchParams.get('select')?.startsWith('season_year')
@@ -50,12 +50,12 @@ Deno.test('the season backstop leaves durable auto-pick notifications to the dat
     if (table === 'season_weeks') return Response.json([{ week_number: 1, week_start: '2026-10-20' }])
     if (table === 'draft_timer_start_warning') return Response.json({ openingNightCutoff: null })
     if (table === 'drafts') return Response.json([{ id: 'draft', status: 'in_progress' }])
-    if (table === 'snake_draft_picks') return init?.method === 'HEAD'
+    if (table === 'snake_draft_picks') return options?.method === 'HEAD'
       ? new Response(null, { headers: { 'content-range': '*/0' } })
       : Response.json(picked ? null : { id: 'pick', member_id: 'owner' })
     if (table === 'auto_pick_snake_pick_atomic') { picked = true; return Response.json({ player_id: 'rookie' }) }
-    assert.equal(table, 'notification_outbox')
-    queued.push(JSON.parse(String(init?.body)))
+    assert.equal(table, 'enqueue_rookie_pick_notification')
+    queued.push(JSON.parse(String(options?.body)))
     return new Response(null, { status: 201 })
   }
   try {

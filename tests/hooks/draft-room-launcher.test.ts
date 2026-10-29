@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@react-navigation/native', () => ({ useIsFocused: () => true }))
-vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
+vi.mock('react-native', () => ({ Platform: { OS: 'web' }, AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) } }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: mocks.push, dismissTo: mocks.dismissTo }) }))
 vi.mock('@/lib/draft', () => ({ acquireJoinableDraft: (...args: unknown[]) => ({ promise: mocks.getJoinableDraft(...args), release: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null }) }))
@@ -33,6 +33,27 @@ const deferred = <Value,>() => {
 beforeEach(() => {
     clearSessionCaches()
     vi.clearAllMocks()
+})
+
+it('restores a persisted draft launcher after an offline reload without leaving it loading', async () => {
+    mocks.getJoinableDraft.mockResolvedValue({ id: 'saved-auction', draftType: 'auction' })
+    let latest!: ReturnType<typeof useDraftRoomLauncher>
+    const Probe = () => { latest = useDraftRoomLauncher('offline-league', { scopeKey: 'offline-member', renderAuctionInline: true }); return null }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    await act(async () => { await latest.openDraftRoom() })
+    await act(async () => renderer.unmount())
+    clearSessionCaches()
+    mocks.getJoinableDraft.mockClear()
+    vi.stubGlobal('navigator', { onLine: false })
+    try {
+        await act(async () => { renderer = create(React.createElement(Probe)) })
+        await act(async () => { await latest.openDraftRoom() })
+        expect(latest.draft?.id).toBe('saved-auction')
+        expect(latest.draftChecked).toBe(true)
+        expect(latest.draftLoading).toBe(false)
+        expect(mocks.getJoinableDraft).not.toHaveBeenCalled()
+    } finally { await act(async () => renderer.unmount()); vi.unstubAllGlobals() }
 })
 
 describe('draft room launcher ownership', () => {

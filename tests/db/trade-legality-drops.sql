@@ -24,7 +24,7 @@ BEGIN
     'rosterPlan', jsonb_build_object('taxiPlayerIds', '[]'::jsonb, 'irPlayerIds', '[]'::jsonb, 'dropPlayerIds', ARRAY[players[1]])));
   PERFORM pg_temp.check_rules((SELECT drop_player_ids = ARRAY[players[1]] FROM trade_participants WHERE trade_id = offer AND member_id = f.member_ids[1]), 'proposal carries proposer drop');
   PERFORM pg_temp.check_rules((SELECT count(*) = 6 FROM roster_players WHERE league_season_id = f.season_id), 'proposal leaves all roster players in place');
-  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_with_plan_atomic(%L,%L,%L,%L,%L,%L)', offer, f.member_ids[2], f.user_ids[2], '{}', '{}', '{}'), '%active roster limit%', 'accept without required drop fails');
+  PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_with_plan_atomic(%L,%L,%L,%L,%L,%L)', offer, f.member_ids[2], f.user_ids[2], '{}', '{}', '{}'), '%Regular roster is % over the limit%', 'accept without required drop fails');
   PERFORM public.accept_trade_with_plan_atomic(offer, f.member_ids[2], f.user_ids[2], '{}', '{}', ARRAY[players[4]]);
   PERFORM pg_temp.check_rules((SELECT drop_player_ids = ARRAY[players[4]] FROM trade_participants WHERE trade_id = offer AND member_id = f.member_ids[2]), 'accept carries acceptor drop');
   PERFORM pg_temp.check_rules((SELECT count(*) = 6 FROM roster_players WHERE league_season_id = f.season_id), 'accept leaves planned drops until settlement');

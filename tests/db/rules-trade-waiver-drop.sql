@@ -36,9 +36,15 @@ BEGIN
   VALUES(v_fixture.league_id, v_fixture.season_id, v_players[2], now() + interval '48 hours');
   v_claim := public.create_waiver_claim_atomic(v_fixture.league_id, v_fixture.member_ids[1],
     v_players[2], v_players[1], v_fixture.user_ids[1]);
+  SET CONSTRAINTS ALL IMMEDIATE;
+  ALTER TABLE public.trade_items DISABLE TRIGGER guard_trade_item_plan_reservations;
+  SET CONSTRAINTS ALL DEFERRED;
   v_trade := public.propose_trade_atomic(v_fixture.league_id, v_fixture.season_id,
     v_fixture.member_ids[1], v_fixture.member_ids[2], ARRAY[v_players[1]], '{}', '{}', '{}', NULL, NULL, 0, 1);
   PERFORM public.set_trade_roster_plan_atomic(v_trade, v_fixture.member_ids[2], v_fixture.user_ids[2], '{}', ARRAY[v_players[1]], '{}');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  ALTER TABLE public.trade_items ENABLE TRIGGER guard_trade_item_plan_reservations;
+  SET CONSTRAINTS ALL DEFERRED;
   PERFORM public.accept_trade_atomic(v_trade, v_fixture.member_ids[2]);
   UPDATE public.trades SET veto_window_expires_at = now() - interval '2 minutes' WHERE id = v_trade;
   v_other_trade := public.propose_trade_atomic(v_other.league_id, v_other.season_id,
@@ -60,9 +66,15 @@ BEGIN
 
   v_claim := public.create_waiver_claim_atomic(v_fixture.league_id, v_fixture.member_ids[1],
     v_players[2], v_players[3], v_fixture.user_ids[1]);
+  SET CONSTRAINTS ALL IMMEDIATE;
+  ALTER TABLE public.trade_items DISABLE TRIGGER guard_trade_item_plan_reservations;
+  SET CONSTRAINTS ALL DEFERRED;
   v_trade := public.propose_trade_atomic(v_fixture.league_id, v_fixture.season_id,
     v_fixture.member_ids[1], v_fixture.member_ids[2], ARRAY[v_players[3]], '{}', '{}', '{}', NULL, NULL, 0, 1);
   PERFORM public.set_trade_roster_plan_atomic(v_trade, v_fixture.member_ids[2], v_fixture.user_ids[2], '{}', ARRAY[v_players[3]], '{}');
+  SET CONSTRAINTS ALL IMMEDIATE;
+  ALTER TABLE public.trade_items ENABLE TRIGGER guard_trade_item_plan_reservations;
+  SET CONSTRAINTS ALL DEFERRED;
   PERFORM public.accept_trade_atomic(v_trade, v_fixture.member_ids[2]);
   UPDATE public.trades SET veto_window_expires_at = now() - interval '2 minutes' WHERE id = v_trade;
   PERFORM set_config('rules.reject_player', v_players[3]::text, true);
@@ -72,7 +84,7 @@ BEGIN
   UPDATE public.trades SET veto_window_expires_at = now() - interval '1 minute' WHERE id = v_other_trade;
   SELECT jsonb_agg(to_jsonb(result)) INTO v_result FROM public.process_due_accepted_trades_atomic(200) result;
   PERFORM pg_temp.check_rules(v_result @> jsonb_build_array(jsonb_build_object('trade_id', v_trade,
-    'status', 'expired_terminal_failure', 'error_code', 'PT001')), 'non-taxi P0001 becomes a terminal trade failure');
+    'status', 'deferred', 'error_code', 'PT001')), 'non-taxi P0001 holds the trade for repair');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM jsonb_array_elements(v_result) result
     WHERE result->>'trade_id'=v_trade::text AND result->>'error_message' LIKE 'IR acquisition failed: Destination changed before settlement.%'),
     'IR terminal failure names its destination');

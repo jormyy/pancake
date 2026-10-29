@@ -1,6 +1,7 @@
 -- Claims may share an order and omit a drop on a full roster.
 -- Losing a selected drop clears that selection; processing still enforces capacity.
 BEGIN;
+UPDATE public.waiver_claims SET process_date=current_date+365000 WHERE status='pending';
 INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 VALUES ('00000000-0000-0000-0000-000000071001', 'authenticated', 'authenticated', 'claim-projection@example.test', 'x', now(), '{}'::jsonb, '{}'::jsonb, now(), now()) ON CONFLICT (id) DO NOTHING;
 INSERT INTO public.profiles (id, username, display_name) VALUES ('00000000-0000-0000-0000-000000071001', 'claim_projection', 'Claim Projection') ON CONFLICT (id) DO NOTHING;
@@ -35,13 +36,18 @@ BEGIN
   END IF;
 END $$;
 SELECT set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-000000071001","role":"authenticated"}', true);
-SELECT public.drop_player_atomic('00000000-0000-0000-0000-000000071501');
 DO $$
+DECLARE blocked text; claim_id uuid;
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.roster_players WHERE id = '00000000-0000-0000-0000-000000071501') THEN RAISE EXCEPTION 'drop did not remove the player'; END IF;
-  IF (SELECT count(*) FROM public.waiver_claims WHERE player_id = '00000000-0000-0000-0000-000000071403' AND drop_player_id IS NULL AND status = 'pending') <> 1 THEN
-    RAISE EXCEPTION 'dropping the selected player must clear the selection and keep the claim pending';
-  END IF;
+  BEGIN
+    PERFORM public.drop_player_atomic('00000000-0000-0000-0000-000000071501');
+  EXCEPTION WHEN OTHERS THEN blocked:=SQLERRM; END;
+  IF blocked NOT LIKE 'Locked by waiver claim %' THEN RAISE EXCEPTION 'pending claim must reject its selected drop'; END IF;
+  SELECT id INTO claim_id FROM public.waiver_claims WHERE member_id='00000000-0000-0000-0000-000000071201'
+    AND drop_player_id='00000000-0000-0000-0000-000000071401' AND status='pending';
+  PERFORM public.cancel_waiver_claim_atomic(claim_id,'00000000-0000-0000-0000-000000071201','00000000-0000-0000-0000-000000071001');
+  PERFORM public.drop_player_atomic('00000000-0000-0000-0000-000000071501');
+  IF EXISTS (SELECT 1 FROM public.roster_players WHERE id='00000000-0000-0000-0000-000000071501') THEN RAISE EXCEPTION 'cancel must release the drop'; END IF;
 END $$;
 
 -- Processing once the holds clear and the process date arrives.
@@ -54,9 +60,9 @@ DECLARE v record; v_rows int;
 BEGIN
   SELECT count(*) INTO v_rows FROM projection_results;
   FOR v IN SELECT * FROM projection_results LOOP RAISE NOTICE 'claim % -> % (%)', v.player_id, v.status, v.failure_reason; END LOOP;
-  IF v_rows <> 2 THEN RAISE EXCEPTION 'expected both claims to be processed, got % rows', v_rows; END IF;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'expected the uncancelled claim to be processed, got % rows', v_rows; END IF;
   IF (SELECT count(*) FROM projection_results WHERE status = 'succeeded') <> 1
-     OR (SELECT count(*) FROM projection_results WHERE status = 'failed_roster') <> 1 THEN
+     OR (SELECT count(*) FROM projection_results WHERE status = 'failed_roster') <> 0 THEN
     RAISE EXCEPTION 'the single free slot must allow exactly one claim and refuse the other';
   END IF;
   IF EXISTS (SELECT 1 FROM projection_results WHERE failure_reason LIKE 'Drop player is no longer%') THEN

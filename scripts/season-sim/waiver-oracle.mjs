@@ -46,7 +46,7 @@ export function rolloverPriorities(members, standings) {
 }
 
 export function checkWaiverTiming(processedAt, expectedAt) {
-  assert.equal(Date.parse(processedAt), expectedAt, 'Due waiver claim processes at the production 03:00 Eastern gate')
+  assert.equal(Date.parse(processedAt), expectedAt, 'Due waiver claim processes at the league midnight gate')
   return true
 }
 

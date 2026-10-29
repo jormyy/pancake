@@ -1,6 +1,7 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
+import { TradePickLabel } from '@/components/trades/TradePickLabel'
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh'
 import { useScreenStatusScroll } from '@/components/ui/ScreenStatusOverlay'
 import { View, Text, Pressable, StyleSheet } from 'react-native'
@@ -16,7 +17,7 @@ import { Badge } from '@/components/Badge'
 import { usePageMetrics } from '@/components/ui'
 
 /** One league transaction. */
-function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; padX?: number }) {
+function ActivityRow({ item, isMe, myMemberId, padX = spacing.lg }: { item: TransactionRow; isMe: boolean; myMemberId?: string; padX?: number }) {
     const timezone = useLeagueTimezone()
     const color = TX_COLORS[item.transactionType] ?? colors.textMuted
     const label = item.transactionType === 'commissioner_announcement' ? 'Commissioner' : TRANSACTION_LABELS[item.transactionType] ?? activityEventCategory(item.transactionType)
@@ -36,6 +37,10 @@ function ActivityRow({ item, isMe, padX = spacing.lg }: { item: TransactionRow; 
                         {item.body ?? item.teamName}
                         {isMe ? <Text style={styles.meTag}> (you)</Text> : null}
                     </Text>
+                    {item.tradePicks?.map(pick => <TradePickLabel key={pick.pickId} pick={pick} context={{
+                        viewerMemberId: myMemberId ?? '',
+                        memberNames: { [pick.fromMemberId ?? '']: pick.fromTeamName, [pick.toMemberId ?? '']: pick.toTeamName },
+                    }} />)}
                 </View>
                 <View style={styles.txRight}>
                     <Badge label={label} color={color} variant="soft" />
@@ -83,7 +88,7 @@ export function ActivityFeed({
     const { padX } = usePageMetrics()
 
     const renderItem = useCallback<ListRenderItem<TransactionRow>>(({ item }) => (
-        <ActivityRow item={item} isMe={item.memberId === myMemberId} padX={padX} />
+        <ActivityRow item={item} isMe={item.memberId === myMemberId} myMemberId={myMemberId} padX={padX} />
     ), [myMemberId, padX])
     const footerRetryMessage = 'League activity could not load more. Select to retry.'
 

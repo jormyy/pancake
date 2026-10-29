@@ -207,15 +207,14 @@ BEGIN
     INTO v_tail
     FROM (SELECT * FROM oracle_log ORDER BY step DESC LIMIT 6) AS recent;
 
-  -- I1: a player listing needs an active current-season roster row for that member.
+  -- I1: a player listing needs a current-season roster row for that member.
   SELECT count(*) INTO v_count
     FROM public.trade_block_items AS item
    WHERE item.player_id IS NOT NULL
      AND NOT EXISTS (
        SELECT 1 FROM public.roster_players AS roster
          JOIN public.league_seasons AS season ON season.id = roster.league_season_id AND season.is_current
-        WHERE roster.league_id = item.league_id AND roster.member_id = item.member_id AND roster.player_id = item.player_id
-          AND roster.is_on_ir = false AND roster.is_on_taxi = false);
+        WHERE roster.league_id = item.league_id AND roster.member_id = item.member_id AND roster.player_id = item.player_id);
   IF v_count > 0 THEN RAISE EXCEPTION 'I1 violated after step % (%): % stale player listing(s)', p_step, p_op, v_count USING DETAIL = v_tail; END IF;
 
   -- I2: a pick listing needs an unused pick owned by that member.

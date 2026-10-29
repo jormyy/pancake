@@ -37,12 +37,13 @@ function privateRequest(request) {
 }
 
 function shellRoute(pathname) {
+  if (/^\/(?:api|auth|rest|functions|storage|realtime|graphql)(?:\/|$)/.test(pathname)) return false
   return SHELL_ROUTES.some((route) => {
     const expected = route.replace(/\/$/, '').split('/')
     const actual = pathname.replace(/\/$/, '').split('/')
     return expected.length === actual.length && expected.every((part, index) =>
       part === actual[index] || (/^\[[^\]]+\]$/.test(part) && !!actual[index]))
-  })
+  }) || !/\.[^/]+\/?$/.test(pathname)
 }
 
 const publicFetch = (url, signal) =>

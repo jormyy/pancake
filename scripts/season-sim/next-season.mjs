@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { appendFile, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { appendFile } from '../perf-lab/bounded-log.mjs'
 import { season, fixtureDirectory, dates, etDate, sha256, writeGzip, writeJson } from './common.mjs'
 import { fixtureStore } from './fixtures.mjs'
 import { planDay } from './planner.mjs'

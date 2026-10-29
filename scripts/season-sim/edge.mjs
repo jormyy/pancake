@@ -3,12 +3,15 @@ import { providerTransport, gapSource } from './provider-transport.mjs'
 import { assertFetchTarget } from './fetch-guard.mjs'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { businessTimers } from './business-timers.mjs'
-import { appendFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { appendFileSync } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 import { config, originUrl, assertTarget, laneDirectory, miniRoot, sha256 } from './common.mjs'
 import { virtualDate } from './virtual-clock.mjs'
 import { virtualTimers } from './timers.mjs'
 import { trackWorkerWait, workerHealth } from './worker-waits.mjs'
+import { edgeFunctionNames } from './edge-function-inventory.mjs'
+import { fileURLToPath } from 'node:url'
 import { tradeValueWorkRequest } from './trade-value-catalog.mjs'
 
 const Deno = globalThis['Deno']
@@ -20,7 +23,8 @@ const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
 const clockFile = path.join(directory, 'clock.json')
 const readClock = () => JSON.parse(readFileSync(clockFile, 'utf8'))
 const NativeDate = Date
-const nativeFetch = fetch
+const nativeFetch = Deno.env.get('SEASON_SIM_TWO_DAY') === '1' && Deno.env.get('PERF_LAB_CAPTURE_PROFILE') !== 'control'
+  ? (await import('../perf-lab/replay-capture.mjs')).measuredFetch(fetch, path.join(evidence, 'replay-edge-access.jsonl')) : fetch
 const nativeServe = Deno.serve
 const nativeSetTimeout = setTimeout
 const nativeSetInterval = setInterval
@@ -104,7 +108,7 @@ let loading
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
 Object.defineProperty(Deno, 'serve', { value: handler => { assert.ok(loading); handlers.set(loading, handler) }, configurable: true })
 try {
-  const names = Deno.env.get('SEASON_SIM_PROFILE') ? readdirSync(new URL('../../supabase/functions/', import.meta.url), { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('_') && existsSync(new URL(`../../supabase/functions/${entry.name}/index.ts`, import.meta.url))).map(entry => entry.name).sort() : ['dispatcher', 'api', 'sync-trade-values', 'sync-projections', 'live-poll', 'sync-schedule', 'sync-players', 'sync-player-injuries', 'sync-stats', 'sync-scores', 'season-boundary', 'process-waivers', 'process-trades', 'lineup-optimizer', 'close-expired-nominations', 'backfill', 'sync-draft-order']
+  const names = edgeFunctionNames(fileURLToPath(new URL('../../supabase/functions/', import.meta.url)))
   for (const name of names) {
     loading = name
     await import(new URL(`../../supabase/functions/${name}/index.ts`, import.meta.url).href)

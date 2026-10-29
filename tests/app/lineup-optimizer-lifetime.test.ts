@@ -5,15 +5,15 @@ import LineupScreen, { LineupEditor } from '@/app/(modals)/lineup'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' }, online: true },
-    savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), autoSet: vi.fn(), showAlert: vi.fn(),
+    savePreference: vi.fn(), enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(),
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
-vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}) }))
+vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
 vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
-    selected: null, setSelected: vi.fn(), saving: false, autoSetting: false, autoSetModalVisible: true,
-    setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), doAutoSet: mocks.autoSet, handleAutoSet: vi.fn(),
+    selected: null, setSelected: vi.fn(), saving: false, autoSetModalVisible: true,
+    setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), handleAutoSet: vi.fn(),
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
 vi.mock('@/lib/cache/screen-cache', () => ({
@@ -77,7 +77,6 @@ it.each([true, false])('keeps a delayed setting reply from changing another leag
     expect(toggle().props.value).toBe(!enabling)
     await act(async () => { finish(); await pending })
     expect(toggle().props.value).toBe(!enabling)
-    expect(mocks.autoSet).toHaveBeenCalledTimes(0)
 })
 
 it.each(['switch', 'unmount'] as const)('does not show a late settings failure after %s', async (action) => {
@@ -92,7 +91,6 @@ it.each(['switch', 'unmount'] as const)('does not show a late settings failure a
     } else await act(async () => screen.unmount())
     await act(async () => { fail(new Error('old settings failed')); await pending })
     expect(mocks.showAlert).not.toHaveBeenCalled()
-    expect(mocks.autoSet).not.toHaveBeenCalled()
 })
 
 it('updates the current setting without changing manual lineups', async () => {
@@ -102,7 +100,6 @@ it('updates the current setting without changing manual lineups', async () => {
     expect(toggle().props.value).toBe(true)
     expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
     expect(mocks.savePreference).toHaveBeenCalledWith({ ownerId: 'user', memberId: 'member-a', leagueId: 'league-a', day: '2026-10-11' }, 1, 'season-league-a', true)
-    expect(mocks.autoSet).not.toHaveBeenCalled()
 })
 
 
@@ -118,7 +115,6 @@ it('turns the current team on and off without running a manual action', async ()
         ['member-a', 'league-a', 'season-league-a', true],
         ['member-a', 'league-a', 'season-league-a', false],
     ])
-    expect(mocks.autoSet).not.toHaveBeenCalled()
 })
 
 it('keeps the saved preference when the current write fails', async () => {
@@ -130,33 +126,15 @@ it('keeps the saved preference when the current write fails', async () => {
     expect(mocks.showAlert).toHaveBeenCalledWith('Auto-set daily failed', 'connection failed')
 })
 
-it('auto-sets today while the lineup screen displays a different day', async () => {
-    await mount()
-    await act(async () => { await screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12') })
-    screen.root.findByProps({ accessibilityLabel: 'Auto-set today' }).props.onPress()
-    expect(mocks.autoSet).toHaveBeenCalledWith('2026-10-11')
-})
-
-
-it.each([
-    ['Auto-set today', ['2026-10-11']],
-    ['Auto-set this week', [null]],
-    ['Auto-set rest of season', [null, true]],
-] as const)('runs %s without changing the daily preference', async (label, args) => {
-    mocks.enabled = true
-    await mount()
-    await act(async () => { screen.root.findByProps({ accessibilityLabel: label }).props.onPress() })
-    expect(mocks.autoSet).toHaveBeenCalledWith(...args)
-    expect(toggle().props.value).toBe(true)
-    expect(mocks.setEnabled).not.toHaveBeenCalled()
-})
-
-it('shows one panel with direct actions and an accessible preference', async () => {
+it('shows one panel with only an accessible automatic preference', async () => {
     await mount()
     const content = JSON.stringify(screen.toJSON())
     expect(content).toContain('Auto lineup')
     expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Auto lineup' || node.props.children === 'Set now')).toBe(false)
     expect(content).toContain('Keep updated automatically')
+    for (const label of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
+        expect(screen.root.findAllByProps({ accessibilityLabel: label })).toHaveLength(0)
+    }
     expect(screen.root.findByProps({ accessibilityRole: 'switch' }).props.accessibilityLabel).toBe('Keep lineup updated automatically')
     expect(screen.root.findAllByType('AutoSetModal' as React.ElementType)).toHaveLength(0)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })).toHaveLength(0)
@@ -177,9 +155,7 @@ it('disables the panel while offline', async () => {
     mocks.context.online = false
     await act(async () => { screen.update(React.createElement(Component)) })
     expect(toggle().props.disabled).toBe(true)
-    for (const label of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
-        expect(screen.root.findByProps({ accessibilityLabel: label }).props.disabled).toBe(true)
-    }
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Auto-set today')
 })
 
 

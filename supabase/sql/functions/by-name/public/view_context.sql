@@ -17,6 +17,7 @@ BEGIN
     ORDER BY CASE WHEN today BETWEEN week_start AND week_end THEN 0 WHEN week_start > today THEN 1 ELSE 2 END,
       CASE WHEN week_start >= today THEN week_start END, week_end DESC LIMIT 1;
   SELECT q.version, q.dirty INTO context_version, dirty FROM private.screen_refresh_queue q WHERE q.league_season_id = season.id;
+  dirty:=COALESCE(dirty,true) OR EXISTS(SELECT 1 FROM private.league_version_pending WHERE league_id=p_league_id);
   RETURN jsonb_build_object('leagueId', p_league_id, 'memberId', p_member_id, 'league', to_jsonb(league),
     'member', to_jsonb(member), 'season', CASE WHEN season.id IS NULL THEN NULL ELSE to_jsonb(season) END,
     'seasonId', season.id, 'seasonYear', COALESCE((p_params->>'seasonYear')::integer, season.season_year, public.current_season_year_et()),

@@ -34,7 +34,7 @@ afterEach(async () => { await act(async () => screen?.unmount()); vi.doUnmock('@
 
 it('preserves the shipped phone and lineup measurements', async () => {
     await render(React.createElement(PageHeader, { compact: true, title: 'Lineup', onBack: vi.fn(), backLabel: 'Close lineup' }))
-    expect(screen.toJSON()).toBeNull()
+    expect(screen.root.findByProps({ accessibilityLabel: 'Close lineup' }).props.accessibilityRole).toBe('button')
     expect(controlSize.field.fontSize).toBe(16)
     expect(componentTokens.playerRow.compact.avatarSize).toBe(28)
     expect(componentTokens.playerRow.standard.avatarSize).toBe(32)
@@ -129,16 +129,17 @@ it('moves every title header after one base header token edit', async () => {
     expect(heights).toEqual([64, 64, 57])
 })
 
-it.each(['Trade analysis', 'Propose trade', 'Claim player', 'Lineup', 'Team roster', 'Bracket', 'Draft', 'Settings'])('omits the web title row for %s', async title => {
+it.each(['Trade analysis', 'Propose trade', 'Claim player', 'Lineup', 'Team roster', 'Bracket', 'Draft', 'Settings'])('keeps web navigation without repeating the title for %s', async title => {
     await render(React.createElement(PageHeader, { title, onBack: () => {} }))
-    expect(screen.toJSON()).toBeNull()
+    expect(screen.root.findByProps({ accessibilityLabel: 'Back' }).props.accessibilityRole).toBe('button')
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === title)).toBe(false)
 })
 
-it('keeps modal actions while removing the title and back button', async () => {
+it('keeps modal actions and web back navigation without repeating the title', async () => {
     await render(React.createElement(PageHeader, { title: 'Settings', onBack: () => {}, actions: React.createElement('Action') }))
     expect(screen.root.findAllByType('Action' as React.ElementType)).toHaveLength(1)
-    expect(screen.root.findAllByType('Text' as React.ElementType)).toHaveLength(0)
-    expect(screen.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(0)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Settings')).toBe(false)
+    expect(screen.root.findAllByType('Pressable' as React.ElementType)).toHaveLength(1)
 })
 
 it('requires shared design tokens throughout app and feature components', () => {

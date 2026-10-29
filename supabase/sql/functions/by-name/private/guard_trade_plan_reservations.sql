@@ -1,6 +1,6 @@
 CREATE OR REPLACE FUNCTION private.guard_trade_plan_reservations()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_trade trades%ROWTYPE; v_player uuid; v_ids uuid[]; v_member uuid;
+DECLARE v_trade trades%ROWTYPE; v_player uuid; v_ids uuid[]; v_member uuid; lock_reason text;
 BEGIN
   SELECT * INTO v_trade FROM trades WHERE id=NEW.trade_id;
   IF TG_TABLE_NAME='trade_items' THEN
@@ -11,6 +11,21 @@ BEGIN
     v_member := NEW.member_id;
   END IF;
   PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_member::text));
+  IF v_trade.status IN ('pending','accepted') THEN
+    SELECT locked.reason INTO lock_reason FROM private.locked_assets(v_trade.league_id,v_trade.league_season_id,v_member) locked
+      WHERE (locked.source_kind<>'trade' OR locked.source_id<>NEW.trade_id)
+        AND NOT (locked.source_kind='trade' AND locked.source_id IN (v_trade.edited_from_trade_id,v_trade.countered_from_trade_id)
+          AND EXISTS (SELECT 1 FROM trades source WHERE source.id=locked.source_id AND source.status='pending'
+            AND source.league_id=v_trade.league_id AND source.league_season_id=v_trade.league_season_id
+            AND ((source.id=v_trade.edited_from_trade_id AND source.proposer_member_id=v_trade.proposer_member_id
+                AND source.recipient_member_id=v_trade.recipient_member_id)
+              OR (source.id=v_trade.countered_from_trade_id AND source.recipient_member_id=v_trade.proposer_member_id
+                AND source.proposer_member_id=v_trade.recipient_member_id))))
+        AND ((locked.asset_kind='player' AND locked.asset_id=ANY(v_ids))
+          OR (TG_TABLE_NAME='trade_items' AND locked.asset_kind='pick' AND locked.asset_id=(to_jsonb(NEW)->>'pick_id')::uuid))
+      ORDER BY locked.source_kind,locked.source_id LIMIT 1;
+    IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
+  END IF;
   FOR v_player IN SELECT DISTINCT id FROM unnest(v_ids) id WHERE id IS NOT NULL ORDER BY id LOOP
     PERFORM pg_advisory_xact_lock(hashtext(v_trade.league_id::text),hashtext(v_player::text));
     IF EXISTS (SELECT 1 FROM trade_participants participant JOIN trades trade ON trade.id=participant.trade_id

@@ -33,6 +33,7 @@ BEGIN
   PERFORM pg_sleep(1.1);
   FOREACH v_seconds IN ARRAY ARRAY[60,604800] LOOP
     v_at := clock_timestamp();
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=v_league),true);
     v_draft := (start_rookie_draft_atomic(v_league,1,true,v_seconds)->>'id')::uuid;
     PERFORM pg_temp.assert_true((SELECT extract(epoch FROM min(timer_expires_at)-v_at) BETWEEN v_seconds-0.1 AND v_seconds+1 FROM snake_draft_picks WHERE draft_id=v_draft),'Initial timer arms with the full duration');
     PERFORM pause_draft_atomic(v_draft);
@@ -81,6 +82,7 @@ BEGIN
   FOREACH v_mode IN ARRAY ARRAY['auto_pick','skip_pick','pause_draft','commissioner_pick'] LOOP
     UPDATE leagues SET status='offseason' WHERE id=v_league;
     UPDATE draft_picks SET is_used=false,used_at=NULL,rookie_draft_id=NULL WHERE league_id=v_league;
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=v_league),true);
     v_draft := (start_rookie_draft_atomic(v_league,1,false,604800,v_mode)->>'id')::uuid;
     SELECT id INTO v_pick FROM snake_draft_picks WHERE draft_id=v_draft ORDER BY overall_pick LIMIT 1;
     IF v_mode='commissioner_pick' THEN
@@ -104,6 +106,7 @@ BEGIN
   END LOOP;
   UPDATE leagues SET status='offseason' WHERE id=v_league;
   UPDATE draft_picks SET is_used=false,used_at=NULL,rookie_draft_id=NULL WHERE league_id=v_league;
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=v_league),true);
   v_draft := (start_rookie_draft_atomic(v_league,1,false,604800,'commissioner_pick')->>'id')::uuid;
   PERFORM pause_draft_atomic(v_draft);
   EXECUTE format('CREATE TRIGGER draft_timer_fail_second BEFORE UPDATE ON snake_draft_picks FOR EACH ROW WHEN (OLD.draft_id=%L AND OLD.overall_pick=2) EXECUTE FUNCTION pg_temp.draft_timer_fail_second()',v_draft);
@@ -115,6 +118,7 @@ BEGIN
   SELECT count(*) INTO v_count FROM process_expired_snake_picks_atomic();
   PERFORM pg_temp.assert_true(v_count=2 AND (SELECT status='completed' FROM drafts WHERE id=v_draft),'The per-minute expiry path completes a paused draft without a deadline');
   FOREACH v_mode IN ARRAY ARRAY['auto_pick','skip_pick','pause_draft','commissioner_pick'] LOOP
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=v_league),true);
     v_draft := (start_rookie_draft_atomic(v_league,1,true,604800,v_mode)->>'id')::uuid;
     UPDATE snake_draft_picks SET timer_expires_at=clock_timestamp()-interval '1 second' WHERE draft_id=v_draft AND overall_pick=1;
     FOR v_result IN SELECT * FROM process_expired_snake_pick_atomic(v_draft) LOOP
@@ -141,7 +145,7 @@ BEGIN
     END IF;
     UPDATE drafts SET status='cancelled' WHERE id=v_draft;
   END LOOP;
-  PERFORM pg_temp.assert_true((SELECT schedule='* * * * *' FROM cron.job WHERE jobname='nba-close-expired-nominations'),'Expiry dispatch runs once each minute');
+  PERFORM pg_temp.assert_true((SELECT schedule='* * * * *' FROM cron.job WHERE jobname='work-dispatcher'),'Expiry dispatch runs once each minute');
 END;
 $$;
 ROLLBACK;

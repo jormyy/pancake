@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { sqlJson } from './local-stack.mjs'
+import { sql, sqlJson } from './local-stack.mjs'
 import { nextWaiverRun } from './waiver-scenarios.mjs'
 import { waiverOutcomes, checkWaiverResult, checkWaiverTiming } from './waiver-oracle.mjs'
 
@@ -28,7 +28,7 @@ export async function beginOfficialWaivers(c, now, report) {
   const [cancelled] = await c.rest(user, `waiver_claims?select=*&league_season_id=eq.${c.leagueSeasonId}&member_id=eq.${user.memberId}&player_id=eq.${free[1].id}&status=eq.pending`)
   await c.api(user, `/waivers/claims/${cancelled.id}/cancel`, { memberId: user.memberId })
   const input = { claims, mode: 'faab', priorities: Object.fromEntries(priorities.map(row => [row.member_id, row.priority])), budgets: Object.fromEntries(Object.entries(before).map(([id, row]) => [id, row.faab_balance])), rosterCounts: Object.fromEntries(c.users.map(user => [user.memberId, roster.filter(row => row.member_id === user.memberId).length])), weeklyCounts: Object.fromEntries(Object.entries(before).map(([id, row]) => [id, row.weekly_add_count])), limit: 2, rosterSize: 20 }
-  const scenario = { input, expected: waiverOutcomes(input), processAt: nextWaiverRun(now + 1), cancelled: cancelled.id, checked: false }
+  const scenario = { input, expected: waiverOutcomes(input), processAt: nextWaiverRun(now + 1,await sql(`SELECT coalesce(timezone,'America/Los_Angeles') FROM leagues WHERE id='${c.leagueId}'`)), cancelled: cancelled.id, checked: false }
   report.waivers = scenario
   return scenario
 }

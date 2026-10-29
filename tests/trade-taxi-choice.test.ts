@@ -8,11 +8,13 @@ import type { RoutedTradeItem } from '@/lib/trades'
 
 const league = vi.hoisted(() => ({ id: 'league-a', taxi_slots: 3, allow_inactive_trades: false }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ currentLeague: league }) }))
+vi.mock('@/components/ui', () => ({ Button: 'Button' }))
+vi.mock('@/components/trades/TradeReviewCancellation', () => ({ TradeReviewCancellation: () => null }))
 vi.mock('@/components/TaxiAcquisitionChoice', () => ({ TaxiAcquisitionChoice: 'TaxiAcquisitionChoice' }))
 vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: 'PendingTradeRosterPlan' }))
 vi.mock('@/components/trades/MultiTeamTradeOverview', () => ({ MultiTeamTradeOverview: () => null }))
 vi.mock('@/components/trades/TradeCard', () => ({
-    AssetList: () => null, StatusChip: () => null, TradeActionButtons: () => null,
+    AssetList: () => null, StatusChip: () => null, TradeActionButtons: 'TradeActionButtons',
     tradeFlowItem: () => null,
     tradeCardModel: () => ({ opponentName: 'Team B', meta: [], receives: [], gives: [] }),
 }))
@@ -30,9 +32,11 @@ describe('trade roster destination', () => {
             context: { trade: value, myMemberId: 'member-a', tab: 'offers' }, actions, onAnalyze: vi.fn(),
         })) })
         expect(renderer.root.findAllByType('TaxiAcquisitionChoice' as React.ElementType)).toHaveLength(0)
+        await act(async () => renderer.root.findByType('TradeActionButtons' as React.ElementType).props.actions.onAccept())
         const editors = renderer.root.findAllByType('PendingTradeRosterPlan' as React.ElementType)
         expect(editors).toHaveLength(1)
-        expect(editors[0].props.onChange).toBe(actions.onRosterPlan)
+        expect(editors[0].props.onConfirmed).toBeTypeOf('function')
+        expect(editors[0].props.onCancel).toBeTypeOf('function')
         expect(editors[0].props.memberId).toBe('member-a')
         await act(async () => renderer.unmount())
     })

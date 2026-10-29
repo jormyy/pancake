@@ -51,13 +51,15 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     const myMemberId = current?.id ?? ''
     const leagueId = currentLeague?.id ?? ''
     const online = useOnlineStatus()
-    const [members, setMembers] = useState<TradeComposerMember[]>([])
-    const [membersLoaded, setMembersLoaded] = useState(false)
+    const membersKey = user?.id && myMemberId && leagueId ? `pancake:analyzer-members:v1:${user.id}:${myMemberId}:${leagueId}` : null
+    const [members, setMembers] = useState<TradeComposerMember[]>(() => membersKey ? readPersistentCache<TradeComposerMember[]>(membersKey) ?? [] : [])
+    const [membersLoaded, setMembersLoaded] = useState(() => Boolean(membersKey && readPersistentCache<TradeComposerMember[]>(membersKey)))
     const [showAnalysis, setShowAnalysis] = useState(Boolean(prefillTrade))
     const [historical, setHistorical] = useState(Boolean(prefillTrade))
     const [networkUnavailable, setNetworkUnavailable] = useState(false)
     const [membersRetryToken, setMembersRetryToken] = useState(0)
     const [multiTeamMode, setMultiTeamMode] = useState(false)
+    const [editedSnapshot, setEditedSnapshot] = useState<{ routeSignature: string; value: Snapshot } | null>(null)
     const prefillRef = useRef('')
     const composer = useMultiTeamTradeComposer({
         enabled: Boolean(myMemberId && leagueId),
@@ -119,24 +121,29 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         ? dynastyAnalyzerSnapshotCacheKey(analyzerCacheScope, `${historical ? `revaluation:${prefillTrade?.id}:` : ''}${cacheRouteSignature}`)
         : null
     const storedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
-    const cachedSnapshot = storedSnapshot?.leagueId === leagueId && storedSnapshot.memberId === myMemberId ? storedSnapshot : null
+    const matchingSnapshot = editedSnapshot?.routeSignature === routeSignature ? editedSnapshot.value : storedSnapshot
+    const cachedSnapshot = matchingSnapshot?.leagueId === leagueId && matchingSnapshot.memberId === myMemberId ? matchingSnapshot : null
 
     useEffect(() => {
-        setMembers([])
-        setMembersLoaded(false)
+        const cachedMembers = membersKey ? readPersistentCache<TradeComposerMember[]>(membersKey) : null
+        setMembers(cachedMembers ?? [])
+        setMembersLoaded(Boolean(cachedMembers))
         setShowAnalysis(Boolean(prefillTrade))
         setHistorical(Boolean(prefillTrade))
         setNetworkUnavailable(false)
+        setEditedSnapshot(null)
         prefillRef.current = ''
         resetComposer()
-    }, [leagueId, myMemberId, prefillTrade, resetComposer, user?.id])
+    }, [leagueId, membersKey, myMemberId, prefillTrade, resetComposer, user?.id])
 
     useEffect(() => {
         let active = true
         if (!leagueId || !online) return
         void getLeagueMembers(leagueId).then((rows) => {
             if (active) {
-                setMembers(rows.filter((member) => member.id !== myMemberId))
+                const available = rows.filter((member) => member.id !== myMemberId)
+                if (membersKey) writePersistentCache(membersKey, available)
+                setMembers(available)
                 setMembersLoaded(true)
                 setNetworkUnavailable(false)
             }
@@ -144,7 +151,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             if (active) { setNetworkUnavailable(true); setMembersLoaded(true) }
         })
         return () => { active = false }
-    }, [leagueId, myMemberId, online, membersRetryToken, user?.id])
+    }, [leagueId, membersKey, myMemberId, online, membersRetryToken, user?.id])
 
     useEffect(() => {
         if (networkUnavailable || members.length === 0) return
@@ -170,9 +177,9 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
             leagueId,
             memberId: myMemberId,
         })
+        writePersistentCache(latestScopeKey, liveCacheScope)
         if (!historical) {
             writePersistentCache(latestRouteKey, routeSignature)
-            writePersistentCache(latestScopeKey, liveCacheScope)
         }
     }, [analysis, latestRouteKey, latestScopeKey, leagueId, liveCacheScope, myMemberId, participantName,
         routeSignature, snapshotKey, loading, error, historical])
@@ -183,7 +190,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     }, [composer])
     const selectTeam = useCallback((memberId: string) => {
         if (multiTeamMode) composer.toggleParticipant(memberId)
-        else composer.setParticipantIds([myMemberId, memberId])
+        else composer.setParticipantIds(composer.selectedParticipantIds.has(memberId) ? [myMemberId] : [myMemberId, memberId])
     }, [composer, multiTeamMode, myMemberId])
     const twoTeamInvolved = new Set(items.flatMap((item) => [item.fromMemberId, item.toMemberId]))
     const participantCountReady = multiTeamMode ? composer.participantIds.length >= 3 : composer.participantIds.length === 2
@@ -260,7 +267,15 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
     if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady && !loading)}>
         <View style={styles.scroll}>
         <View style={styles.analysisActions}>
-            <Button title="Edit assets" variant="secondary" size="sm" onPress={() => { setHistorical(false); setShowAnalysis(false) }} />
+            <Button title="Edit assets" variant="secondary" size="sm" onPress={() => {
+                setEditedSnapshot(shownAnalysis && routeSignature ? { routeSignature, value: {
+                    analysis: shownAnalysis,
+                    participantNames: Object.fromEntries(shownAnalysis.teams.map(team => [team.memberId, analysisParticipantName(team.memberId)])),
+                    savedAt: new Date().toISOString(), leagueId, memberId: myMemberId,
+                } } : null)
+                setHistorical(false)
+                setShowAnalysis(false)
+            }} />
             {!historical ? <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
                 accessibilityLabel="Make Offer from this analysis" /> : null}
         </View>

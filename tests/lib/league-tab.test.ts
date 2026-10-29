@@ -123,3 +123,9 @@ describe('getLeagueTransactions', () => {
         expect(result[0].targetTeamName).toBe('Beta')
     })
 })
+
+it('preserves pick identity and transfer names from the activity reader', async () => {
+    const picks = [{ kind: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Matthew', fromMemberId: 'mike', toMemberId: 'justin', fromTeamName: 'Mike', toTeamName: 'Justin' }]
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: [{ id: 'trade-activity', player_id: null, is_system: true, trade_picks: picks }], error: null } as any)
+    expect((await getLeagueTransactions('league-1'))[0].tradePicks).toEqual(picks)
+})

@@ -55,11 +55,11 @@ async function verifyTradeActivation(mode: 'accept' | 'worker', draftStatus: 'co
     await sql(`INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
       VALUES(${quote(league)},${quote(season)},${quote(members[0])},${quote(players[1])},'draft');
       UPDATE trades SET veto_window_expires_at=now()-interval '1 hour' WHERE id=${quote(trade)};`)
-    const illegalOffer = await admin.rpc('propose_trade_atomic', {
-      p_league_id: league, p_league_season_id: season, p_proposer_member_id: members[0], p_recipient_member_id: members[1],
-      p_offer_player_ids: [players[1]], p_request_player_ids: [], p_offer_pick_ids: [], p_request_pick_ids: [pick],
+    const illegalOffer = await admin.rpc('submit_trade_offer_atomic', {
+      p_user_id: users[0], p_request_id: crypto.randomUUID(), p_member_id: members[0], p_action: 'propose',
+      p_payload: { leagueId: league, leagueSeasonId: season, recipientMemberId: members[1], offerFaabAmount: 1, requestFaabAmount: 1 },
     })
-    assert.equal(illegalOffer.error?.code, 'PA003')
+    assert.equal(illegalOffer.error?.code, 'PT409', JSON.stringify(illegalOffer.error))
     const blocked = await admin.rpc('activate_rookie_draft_league_atomic', { p_draft_id: draft })
     assert.equal(blocked.error, null)
     assert.equal(blocked.data, false)
@@ -68,11 +68,14 @@ async function verifyTradeActivation(mode: 'accept' | 'worker', draftStatus: 'co
       assert.equal(session.error, null)
       const { handleApiRoute } = await import('../api/router.ts')
       const response = await handleApiRoute(new Request(`${api}/functions/v1/api/trades/${trade}/accept`, {
-        method: 'POST', headers: { authorization: `Bearer ${session.data.session!.access_token}`, 'content-type': 'application/json' },
+        method: 'POST', headers: { authorization: `Bearer ${session.data.session!.access_token}`, 'content-type': 'application/json', 'x-request-id': crypto.randomUUID() },
         body: JSON.stringify({ memberId: members[1] }),
       }))
       assert.equal(response.status, 200, await response.text())
-    } else {
+      assert.equal(await sql(`SELECT status FROM trades WHERE id=${quote(trade)}`), 'accepted')
+      assert.equal(await sql(`SELECT status FROM leagues WHERE id=${quote(league)}`), 'drafting')
+    }
+    {
       if (!workerHandler) {
         const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')!
         Object.defineProperty(Deno, 'serve', { value: (callback: typeof workerHandler) => { workerHandler = callback } })
@@ -98,7 +101,7 @@ async function verifyTradeActivation(mode: 'accept' | 'worker', draftStatus: 'co
 
 for (const mode of ['accept', 'worker'] as const) for (const draftStatus of ['completed', 'cancelled'] as const) {
   Deno.test({
-    name: `${mode} activates a rookie league after the last overage clears with a ${draftStatus} draft`,
+    name: `${mode} waits for worker execution before activating a rookie league with a ${draftStatus} draft`,
     ignore: !Deno.env.get('SUPABASE_DB_URL'),
     sanitizeOps: false,
     sanitizeResources: false,

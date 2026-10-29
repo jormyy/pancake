@@ -30,7 +30,7 @@ vi.mock('@/lib/dynasty-decisions', () => ({
 }))
 vi.mock('@/lib/persistent-cache', () => ({
     readPersistentCache: (key: string) => key === 'scope' ? { seasonYear: 2027 } : key === 'route' ? 'saved-route'
-        : { analysis: saved, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team' } },
+        : key === 'snapshot' ? { analysis: saved, leagueId: 'league', memberId: 'me', participantNames: { me: 'My team' } } : null,
     writePersistentCache: vi.fn(),
 }))
 vi.mock('@/lib/trade-analyzer-session', () => ({ saveTradeAnalyzerDraft: vi.fn() }))

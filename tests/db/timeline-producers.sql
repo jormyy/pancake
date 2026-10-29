@@ -14,16 +14,22 @@ BEGIN
     jsonb_build_array(jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[2],'faabAmount',1),
       jsonb_build_object('fromMemberId',f.member_ids[2],'toMemberId',f.member_ids[3],'faabAmount',1),
       jsonb_build_object('fromMemberId',f.member_ids[3],'toMemberId',f.member_ids[1],'faabAmount',1)),NULL,NULL);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=f.league_id AND kind='trade.sent'),'multi-team offer emits once');
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT jsonb_array_length(detail->'member_ids')=3 FROM public.league_events WHERE league_id=f.league_id AND kind='trade.sent'),'offer records all participants');
   PERFORM public.accept_trade_atomic(trade,f.member_ids[2]);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=f.league_id AND kind='trade.accepted'),'partial acceptance emits once');
   UPDATE public.trade_participants SET accepted_at=accepted_at WHERE trade_id=trade;
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=f.league_id AND kind='trade.accepted'),'unchanged acceptance emits no duplicate');
   PERFORM public.accept_trade_atomic(trade,f.member_ids[3]);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM public.league_events WHERE league_id=f.league_id AND kind='trade.accepted'),'final participant acceptance emits once');
   UPDATE public.trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade;
   PERFORM public.complete_accepted_trade_atomic(trade);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT detail->'member_ids' @> to_jsonb(f.member_ids) FROM public.league_events WHERE league_id=f.league_id AND kind='trade.executed'),'execution retains historical participants');
   trade := public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}','{}','{}','{}',NULL,NULL,1,1);
   PERFORM public.accept_trade_atomic(trade,f.member_ids[2]);
@@ -31,18 +37,22 @@ BEGIN
   PERFORM public.expire_trade_completion_failure_atomic(trade,'Receiving roster no longer fits.');
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
   PERFORM public.update_league_settings_atomic(f.league_id,'{"weekly_add_limit":3}');
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.league_events WHERE league_id=f.league_id AND kind='settings.changed'
     AND detail->'changes'->'weekly_add_limit'->>'after'='3'),'settings RPC records changed value');
   SELECT count(*) INTO event_count FROM public.league_events WHERE league_id=f.league_id;
   PERFORM public.update_league_settings_atomic(f.league_id,'{"weekly_add_limit":3}');
   UPDATE public.leagues SET invite_code='ABCD1234ABCD1234' WHERE id=f.league_id;
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=event_count FROM public.league_events WHERE league_id=f.league_id),'unchanged settings and private codes add no event');
   UPDATE public.leagues SET status='setup' WHERE id=f.league_id;
   PERFORM public.update_lineup_slots_atomic(f.league_id,'[{"slot_type":"PG","slot_count":2}]');
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.league_events WHERE league_id=f.league_id AND summary='Lineup slots changed'
     AND detail->'changes' ? 'lineup_slots'),'lineup slot settings record their resulting configuration');
   SELECT count(*) INTO event_count FROM public.league_events WHERE league_id=f.league_id;
   PERFORM public.update_lineup_slots_atomic(f.league_id,'[{"slot_type":"PG","slot_count":2}]');
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=event_count FROM public.league_events WHERE league_id=f.league_id),'unchanged lineup slots add no event');
   UPDATE public.leagues SET status='active' WHERE id=f.league_id;
 
@@ -57,14 +67,17 @@ BEGIN
   INSERT INTO public.snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,draft_pick_id)
     VALUES(draft,1,1,1,d.member_ids[1],asset),(draft,2,1,2,d.member_ids[2],NULL);
   PERFORM public.make_snake_pick_atomic(draft,d.member_ids[1],player);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.league_events WHERE league_id=d.league_id AND member_id=d.member_ids[1]
     AND kind='pick.made' AND detail->>'player_id'=player::text AND detail->>'pick_number'='1'),'real rookie pick enters the timeline');
   UPDATE public.snake_draft_picks SET player_id=player WHERE draft_id=draft AND overall_pick=1;
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=d.league_id AND kind='pick.made'),'unchanged pick emits no duplicate');
   INSERT INTO public.drafts(id,league_id,league_season_id,draft_type,status,is_mock,pick_timer_seconds)
     VALUES(mock,d.league_id,d.season_id,'snake','in_progress',true,60);
   INSERT INTO public.snake_draft_picks(draft_id,overall_pick,round,pick_in_round,member_id,player_id,picked_at)
     VALUES(mock,1,1,1,d.member_ids[1],player,now());
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=d.league_id AND kind='pick.made'),'mock picks stay out of the team timeline');
   SELECT * INTO a FROM pg_temp.rules_fixture(2,9575,'drafting');
   draft := gen_random_uuid();
@@ -80,9 +93,11 @@ BEGIN
   PERFORM public.place_auction_bid_atomic(draft,a.member_ids[1],nomination.id,3,a.user_ids[1]);
   UPDATE public.nominations SET countdown_expires_at=now()-interval '1 second' WHERE id=nomination.id;
   PERFORM public.close_auction_nomination_atomic(nomination.id);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.league_events WHERE league_id=a.league_id AND member_id=a.member_ids[1]
     AND kind='pick.made' AND detail->>'player_id'=player::text AND detail->>'final_price'='3'),'real auction award enters the timeline');
   PERFORM public.close_auction_nomination_atomic(nomination.id);
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM public.league_events WHERE league_id=a.league_id AND kind='pick.made'),'auction close retry emits no duplicate');
 
 END;

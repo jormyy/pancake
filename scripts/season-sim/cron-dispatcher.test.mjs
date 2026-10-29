@@ -44,3 +44,14 @@ test('diagnostics leave real dispatch failures fatal',async()=>{
   assert.equal(rows[0].status_code,503)
   assert.equal(closed,true)
 })
+
+test('a timed-out HTTP request can finish its sleeping worker before completion is checked',()=>{
+  const sleeping={active:1,sleeping:1,fetches:0,nextAt:20000}
+  const responses=[{worker_status:'success',queue_pending:false}]
+  assert.ok(canAdvanceWorkers(responses,sleeping,10000))
+  assert.ok(canAdvanceWorkers([],sleeping,10000))
+  assert.ok(!canAdvanceWorkers(responses,{...sleeping,fetches:1},10000))
+  assert.ok(!canAdvanceWorkers(responses,{...sleeping,sleeping:0},10000))
+  assert.ok(!canAdvanceWorkers([{worker_status:null,queue_pending:false}],sleeping,10000))
+  assert.ok(!canAdvanceWorkers([{worker_status:'running'},{worker_status:'running'}],sleeping,10000))
+})

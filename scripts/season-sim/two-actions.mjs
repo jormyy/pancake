@@ -155,7 +155,7 @@ export async function realRookieActions(c, date, move, report) {
     assert.ok(response)
     const claim = (await c.rest(user, `waiver_claims?select=*&league_season_id=eq.${c.leagueSeasonId}&player_id=eq.${drop.player_id}&member_id=eq.${user.memberId}&status=eq.pending`))[0]
     assert.ok(claim)
-    const processAt = nextWaiverRun(at + 48*3600000)
+    const processAt = nextWaiverRun(at + 48*3600000,await sql(`SELECT coalesce(timezone,'America/Los_Angeles') FROM leagues WHERE id='${c.leagueId}'`))
     c.identityMoves.push({ playerId: drop.player_id, owner: user.memberId, at: processAt })
     c.rookieReadd = { claimId: claim.id, playerId: drop.player_id, owner: user.memberId, processAt }
   }

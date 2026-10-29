@@ -5,12 +5,39 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   __request_context jsonb;
   __request_result uuid;
+  v_member_league uuid;
 BEGIN
-  __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
+  BEGIN
+    __request_context := private.request_begin('public.submit_trade_offer_atomic', jsonb_build_array(p_user_id, p_request_id, p_member_id, p_action, p_payload - 'estimateId'), p_request_id, NULL, p_user_id);
+  EXCEPTION WHEN invalid_parameter_value THEN
+    IF NOT EXISTS (SELECT 1 FROM league_members WHERE id=p_member_id AND user_id=p_user_id) THEN
+      RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE='42501';
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM private.request_receipts
+      WHERE request_id=p_request_id AND actor IS DISTINCT FROM p_user_id
+    ) OR EXISTS (
+      SELECT 1 FROM private.trade_offer_requests
+      WHERE user_id=p_user_id AND request_id=p_request_id AND member_id IS DISTINCT FROM p_member_id
+    ) THEN
+      RAISE EXCEPTION 'Not authorized to replay this trade request.' USING ERRCODE='42501';
+    END IF;
+    RAISE;
+  END;
+  SELECT league_id INTO v_member_league FROM league_members
+    WHERE id=p_member_id AND user_id=p_user_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE='42501';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM private.trade_offer_requests
+    WHERE user_id=p_user_id AND request_id=p_request_id AND member_id IS DISTINCT FROM p_member_id
+  ) THEN
+    RAISE EXCEPTION 'Not authorized to replay this trade request.' USING ERRCODE='42501';
+  END IF;
   IF (__request_context->>'replay')::boolean THEN RETURN (__request_context->>'result')::uuid; END IF;
   <<request_write>>
 DECLARE
-  v_member_league uuid;
   v_multi boolean;
   v_league uuid;
   v_season uuid;
@@ -30,23 +57,19 @@ DECLARE
   v_receipt private.trade_offer_requests%ROWTYPE;
   v_inserted int;
   v_result uuid;
+  v_plans jsonb; v_check_items jsonb; v_check_teams jsonb; v_check_error text; v_plan_entry record;
 BEGIN
   IF p_request_id IS NULL OR p_action IS NULL
     OR p_action NOT IN ('propose','propose-multi','edit','edit-multi','counter','counter-multi')
     OR jsonb_typeof(p_payload) IS DISTINCT FROM 'object' THEN
     RAISE EXCEPTION 'A request key, supported offer action, and offer payload are required.' USING ERRCODE='22023';
   END IF;
-  SELECT league_id INTO v_member_league FROM league_members
-    WHERE id=p_member_id AND user_id=p_user_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Not authorized to act for this member.' USING ERRCODE='42501';
-  END IF;
-
   v_multi := p_action LIKE '%-multi';
   v_notes := NULLIF(btrim(p_payload->>'notes'),'');
   v_expiration := (p_payload->>'expiresAt')::timestamptz;
   v_envelope := jsonb_build_object('version',1,'action',p_action,'memberId',p_member_id,
     'notes',v_notes,'expiresAt',v_expiration);
+  IF p_payload ? 'rosterPlans' THEN v_envelope:=v_envelope||jsonb_build_object('rosterPlans',p_payload->'rosterPlans'); END IF;
   IF p_payload ? 'rosterPlan' THEN v_envelope := v_envelope||jsonb_build_object('rosterPlan',p_payload->'rosterPlan'); END IF;
   IF p_action IN ('propose','propose-multi') THEN
     v_league := (p_payload->>'leagueId')::uuid;
@@ -90,13 +113,46 @@ BEGIN
       'offerFaabAmount',v_offer_faab,'requestFaabAmount',v_request_faab);
   END IF;
 
+  IF v_source IS NOT NULL THEN
+    SELECT league_id,league_season_id,CASE WHEN p_action LIKE 'counter%' THEN proposer_member_id ELSE recipient_member_id END
+      INTO v_league,v_season,v_recipient FROM trades WHERE id=v_source;
+    IF NOT v_multi AND p_payload ? 'recipientMemberId'
+      AND (p_payload->>'recipientMemberId')::uuid IS DISTINCT FROM v_recipient THEN
+      RAISE EXCEPTION 'The replacement must keep the original counterparty.' USING ERRCODE='22023';
+    END IF;
+  END IF;
+  v_plans:=COALESCE(p_payload->'rosterPlans','{}')||jsonb_build_object(p_member_id::text,COALESCE(p_payload->'rosterPlan','{}'));
+  FOR v_plan_entry IN SELECT * FROM jsonb_each(v_plans) LOOP
+    IF v_plan_entry.key<>p_member_id::text AND (jsonb_array_length(COALESCE(v_plan_entry.value->'dropPlayerIds','[]'))>0 OR jsonb_array_length(COALESCE(v_plan_entry.value->'rosterMoves','[]'))>0) THEN
+      RAISE EXCEPTION 'Only a team manager can choose its drops and moves.' USING ERRCODE='42501';
+    END IF;
+  END LOOP;
+  IF v_multi THEN v_check_items:=v_items;
+  ELSE
+    v_participants:=ARRAY[p_member_id,v_recipient];
+    SELECT COALESCE(jsonb_agg(item),'[]') INTO v_check_items FROM (
+      SELECT jsonb_build_object('playerId',id,'fromMemberId',p_member_id,'toMemberId',v_recipient) item FROM unnest(v_offer_players) id
+      UNION ALL SELECT jsonb_build_object('playerId',id,'fromMemberId',v_recipient,'toMemberId',p_member_id) FROM unnest(v_request_players) id
+      UNION ALL SELECT jsonb_build_object('fromMemberId',p_member_id,'toMemberId',v_recipient,'faabAmount',v_offer_faab)
+      UNION ALL SELECT jsonb_build_object('fromMemberId',v_recipient,'toMemberId',p_member_id,'faabAmount',v_request_faab)
+    ) items;
+  END IF;
+  v_check_teams:=private.check_trade_legality(v_league,v_season,v_participants,v_check_items,v_plans,v_source);
+  SELECT string_agg(reason->>'message',' ') INTO v_check_error FROM jsonb_array_elements(v_check_teams) team
+    CROSS JOIN LATERAL jsonb_array_elements(team->'reasons') reason
+    WHERE team->>'memberId'=p_member_id::text;
+  IF v_check_error IS NOT NULL THEN RAISE EXCEPTION '%',v_check_error USING ERRCODE='PT409',DETAIL=v_check_teams::text; END IF;
+
   INSERT INTO private.trade_offer_requests(user_id,request_id,member_id,request_payload)
     VALUES(p_user_id,p_request_id,p_member_id,v_envelope) ON CONFLICT(user_id,request_id) DO NOTHING;
   GET DIAGNOSTICS v_inserted=ROW_COUNT;
   -- The separate statement sees a concurrent claim after its transaction commits.
   SELECT * INTO STRICT v_receipt FROM private.trade_offer_requests
     WHERE user_id=p_user_id AND request_id=p_request_id FOR UPDATE;
-  IF v_receipt.member_id IS DISTINCT FROM p_member_id OR v_receipt.request_payload IS DISTINCT FROM v_envelope THEN
+  IF v_receipt.member_id IS DISTINCT FROM p_member_id THEN
+    RAISE EXCEPTION 'Not authorized to replay this trade request.' USING ERRCODE='42501';
+  END IF;
+  IF v_receipt.request_payload IS DISTINCT FROM v_envelope THEN
     RAISE EXCEPTION 'This request key already belongs to different trade terms.' USING ERRCODE='22023';
   END IF;
   IF v_receipt.completed THEN __request_result := v_receipt.result_trade_id; EXIT request_write; END IF;
@@ -113,12 +169,6 @@ BEGIN
     v_result := private.replace_multi_team_trade_offer(v_source,p_member_id,p_user_id,split_part(p_action,'-',1),
       v_participants,v_items,v_notes,v_expiration);
   ELSE
-    IF p_payload ? 'recipientMemberId' AND v_recipient IS DISTINCT FROM (
-      SELECT CASE WHEN p_action='counter' THEN proposer_member_id ELSE recipient_member_id END
-        FROM public.trades WHERE id=v_source AND league_id=v_member_league
-    ) THEN
-      RAISE EXCEPTION 'The replacement must keep the original counterparty.' USING ERRCODE='22023';
-    END IF;
     v_result := private.replace_trade_offer(v_source,p_member_id,p_user_id,p_action,
       v_offer_players,v_request_players,v_offer_picks,v_request_picks,v_notes,v_expiration,v_offer_faab,v_request_faab);
   END IF;
@@ -130,7 +180,12 @@ BEGIN
       COALESCE(p_payload->'rosterPlan'->'rosterMoves','[]'::jsonb));
   END IF;
   IF v_result IS NOT NULL THEN
-    PERFORM private.validate_trade_rosters(v_result, p_member_id);
+    FOR v_plan_entry IN SELECT * FROM jsonb_each(v_plans) WHERE key<>p_member_id::text LOOP
+      UPDATE trade_items SET to_ir=COALESCE(v_plan_entry.value->'irPlayerIds','[]') ? player_id::text,
+        to_taxi=COALESCE(v_plan_entry.value->'taxiPlayerIds','[]') ? player_id::text OR EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=v_season AND roster_players.player_id=trade_items.player_id AND is_on_taxi)
+        WHERE trade_id=v_result AND to_member_id=v_plan_entry.key::uuid AND player_id IS NOT NULL;
+    END LOOP;
+    PERFORM private.validate_trade_rosters(v_result,p_member_id);
     PERFORM private.attach_trade_estimate(v_result,p_member_id,(p_payload->>'estimateId')::uuid);
   END IF;
   UPDATE private.trade_offer_requests SET completed=true,result_trade_id=v_result

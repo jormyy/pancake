@@ -13,11 +13,45 @@ BEGIN
       SELECT * INTO player FROM public.players WHERE id = (p_params->>'playerId')::uuid;
       IF NOT FOUND THEN RAISE EXCEPTION 'Player not found.' USING ERRCODE = 'P0002'; END IF;
       IF p_params->>'section' = 'games' THEN
-        SELECT COALESCE(jsonb_agg(to_jsonb(stat) - 'game_id' || jsonb_build_object('nba_games', to_jsonb(game)) ORDER BY stat.game_date DESC, stat.id DESC), '[]')
-          INTO items FROM (SELECT stat.* FROM public.player_game_stats stat JOIN public.nba_games game ON game.id = stat.game_id
-            WHERE stat.player_id = player.id AND stat.season_year = (context->>'seasonYear')::integer AND game.nba_game_id LIKE '002%'
-            ORDER BY stat.game_date DESC, stat.id DESC LIMIT page_size + 1) stat JOIN public.nba_games game ON game.id = stat.game_id;
-        RETURN jsonb_build_object('context', context, 'lines', items, 'hasMoreGames', jsonb_array_length(items) > page_size);
+        DECLARE
+          cursor_value jsonb := p_params->'gameAfter';
+          cursor_date date;
+          cursor_id uuid;
+          has_more boolean;
+          last_item jsonb;
+        BEGIN
+          IF cursor_value IS NOT NULL AND cursor_value <> 'null'::jsonb THEN
+            IF jsonb_typeof(cursor_value) <> 'object' OR NOT cursor_value ?& ARRAY['date','id']
+              OR cursor_value->>'id' IS NULL THEN
+              RAISE EXCEPTION 'Invalid game cursor.' USING ERRCODE='22023';
+            END IF;
+            cursor_date := (cursor_value->>'date')::date;
+            cursor_id := (cursor_value->>'id')::uuid;
+          END IF;
+          SELECT COALESCE(jsonb_agg(to_jsonb(stat) - 'game_id' || jsonb_build_object('nba_games', to_jsonb(game))
+            ORDER BY stat.game_date DESC NULLS FIRST, stat.id DESC), '[]') INTO items
+          FROM (
+            SELECT stat.id,stat.player_id,stat.game_id,stat.season_year,stat.week_number,stat.game_date,
+              stat.minutes_played,stat.points,stat.rebounds,stat.assists,stat.steals,stat.blocks,stat.turnovers,
+              stat.personal_fouls,stat.field_goals_made,stat.field_goals_attempted,stat.three_pointers_made,
+              stat.three_pointers_attempted,stat.free_throws_made,stat.free_throws_attempted,stat.plus_minus,
+              stat.double_double,stat.triple_double,stat.did_not_play,stat.created_at,stat.updated_at,
+              stat.is_home,stat.offensive_rebounds,stat.defensive_rebounds
+            FROM public.player_game_stats stat JOIN public.nba_games game ON game.id=stat.game_id
+            WHERE stat.player_id=player.id AND stat.season_year=(context->>'seasonYear')::integer
+              AND game.nba_game_id LIKE '002%'
+              AND (cursor_id IS NULL
+                OR cursor_date IS NULL AND (stat.game_date IS NOT NULL OR stat.id<cursor_id)
+                OR cursor_date IS NOT NULL AND (stat.game_date,stat.id)<(cursor_date,cursor_id))
+            ORDER BY stat.game_date DESC NULLS FIRST,stat.id DESC LIMIT page_size+1
+          ) stat JOIN public.nba_games game ON game.id=stat.game_id;
+          has_more := jsonb_array_length(items)>page_size;
+          SELECT COALESCE(jsonb_agg(value ORDER BY ordinal),'[]') INTO items
+            FROM jsonb_array_elements(items) WITH ORDINALITY row(value,ordinal) WHERE ordinal<=page_size;
+          last_item := items->(jsonb_array_length(items)-1);
+          RETURN jsonb_build_object('context',context,'lines',items,'hasMoreGames',has_more,
+            'nextGameCursor',CASE WHEN has_more THEN jsonb_build_object('date',last_item->'game_date','id',last_item->'id') END);
+        END;
       ELSIF p_params->>'section' = 'news' THEN
         SELECT COALESCE(jsonb_agg(to_jsonb(item) ORDER BY item.published_at DESC, item.id), '[]') INTO items
           FROM (SELECT id, title, summary, source, url, published_at FROM public.dynasty_news

@@ -1,5 +1,6 @@
 \set ON_ERROR_STOP on
-SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT'='59622' AS publication_local \gset
+\getenv publication_db_port PANCAKE_TEST_DB_PORT
+SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT'=:'publication_db_port' AS publication_local \gset
 \if :publication_local
 \else
   DO $$ BEGIN RAISE EXCEPTION 'Use the private screen test database.'; END $$;

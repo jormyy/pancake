@@ -17,6 +17,7 @@ type TradeComposerDraft = {
     notes: string
     expirationDays: string
     rosterPlan: TradeRosterPlan
+    rosterPlans?: Record<string, TradeRosterPlan>
 }
 
 const DRAFT_KEY = 'pancake:trade-composer-draft'
@@ -46,7 +47,7 @@ function parseDraft(raw: string): TradeComposerDraft | null {
         })) return null
         const moves = (plan as Record<string, unknown>).rosterMoves
         if (moves !== undefined && (!Array.isArray(moves) || !moves.every(move => move && typeof move === 'object'
-            && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir')))) return null
+            && typeof move.playerId === 'string' && (move.destination === 'active' || move.destination === 'ir' || move.destination === 'taxi')))) return null
         return { ...draft, rosterPlan: plan } as TradeComposerDraft
     } catch {
         return null

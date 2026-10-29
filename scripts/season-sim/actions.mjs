@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { appendFile } from 'node:fs/promises'
+import { appendFile } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 import { season, config, originUrl, assertTarget, miniRoot, writeJson } from './common.mjs'
 import { setClock } from './clock.mjs'

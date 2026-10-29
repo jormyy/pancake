@@ -38,8 +38,24 @@ BEGIN
     ORDER BY queued.available_at,queued.created_at,queued.id
     LIMIT CASE WHEN v_limit=0 THEN 0 ELSE GREATEST(v_limit,100) END
     FOR UPDATE OF queued SKIP LOCKED
+  ), lineup_contexts AS MATERIALIZED (
+    SELECT DISTINCT pending.data->>'leagueId' AS league_key,pending.data->>'memberId' AS member_key
+    FROM pending WHERE pending.event_type IN ('lineup_inactive','lineup_empty')
+      AND coalesce(pg_input_is_valid(pending.data->>'leagueId','uuid'),false)
+      AND coalesce(pg_input_is_valid(pending.data->>'memberId','uuid'),false)
+  ), lineup_current AS MATERIALIZED (
+    SELECT context.league_key,context.member_key,candidate.event_type,candidate.league_id,
+      candidate.member_id,candidate.game_date,candidate.player_id
+    FROM lineup_contexts context CROSS JOIN LATERAL private.notif_lineup_candidates_scoped(
+      clock_timestamp(),context.league_key::uuid,context.member_key::uuid) candidate
   ), stale AS MATERIALIZED (
     SELECT pending.*, CASE WHEN pending.deleted_at IS NOT NULL THEN 'league_deleted'
+      WHEN pending.event_type IN ('lineup_inactive','lineup_empty') THEN
+        CASE WHEN NOT EXISTS(SELECT 1 FROM lineup_current candidate
+          WHERE candidate.league_key=pending.data->>'leagueId' AND candidate.member_key=pending.data->>'memberId'
+            AND candidate.event_type=pending.event_type AND candidate.league_id::text=pending.data->>'leagueId'
+            AND candidate.member_id::text=pending.data->>'memberId' AND candidate.game_date::text=pending.data->>'gameDate'
+            AND (pending.event_type='lineup_empty' OR candidate.player_id::text=pending.data->>'playerId')) THEN 'stale' END
       WHEN private.notif_is_stale(pending.event_type,pending.data) THEN 'stale' END AS reason
     FROM pending
   ), deferred AS MATERIALIZED (

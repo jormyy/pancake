@@ -773,6 +773,246 @@ export type Database = {
         }
         Relationships: []
       }
+      edge_invocations_default: {
+        Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
+          error_message: string | null
+          function_name: string
+          id: number
+          invocation_key: string | null
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+          sync_run_id: string | null
+          work_item_id: number | null
+          work_lease_token: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
+        }
+        Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Relationships: []
+      }
+      edge_invocations_y2026m10: {
+        Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
+          error_message: string | null
+          function_name: string
+          id: number
+          invocation_key: string | null
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+          sync_run_id: string | null
+          work_item_id: number | null
+          work_lease_token: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
+        }
+        Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Relationships: []
+      }
+      edge_invocations_y2026m11: {
+        Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
+          error_message: string | null
+          function_name: string
+          id: number
+          invocation_key: string | null
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+          sync_run_id: string | null
+          work_item_id: number | null
+          work_lease_token: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
+        }
+        Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Relationships: []
+      }
+      edge_invocations_y2026m12: {
+        Row: {
+          dispatch_claimed_at: string | null
+          dispatch_job_key: string | null
+          dispatch_period_key: string | null
+          error_message: string | null
+          function_name: string
+          id: number
+          invocation_key: string | null
+          queued_at: string
+          reconciled_at: string | null
+          request_id: number | null
+          status_code: number | null
+          sync_run_id: string | null
+          work_item_id: number | null
+          work_lease_token: string | null
+          worker_finished_at: string | null
+          worker_started_at: string | null
+          worker_status: string | null
+        }
+        Insert: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Update: {
+          dispatch_claimed_at?: string | null
+          dispatch_job_key?: string | null
+          dispatch_period_key?: string | null
+          error_message?: string | null
+          function_name?: string
+          id?: never
+          invocation_key?: string | null
+          queued_at?: string
+          reconciled_at?: string | null
+          request_id?: number | null
+          status_code?: number | null
+          sync_run_id?: string | null
+          work_item_id?: number | null
+          work_lease_token?: string | null
+          worker_finished_at?: string | null
+          worker_started_at?: string | null
+          worker_status?: string | null
+        }
+        Relationships: []
+      }
       faab_balances: {
         Row: {
           balance: number
@@ -1323,6 +1563,126 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      league_events_default: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          league_id: string | null
+          member_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          league_id?: string | null
+          member_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          league_id?: string | null
+          member_id?: string | null
+          summary?: string
+        }
+        Relationships: []
+      }
+      league_events_y2026m10: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          league_id: string | null
+          member_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          league_id?: string | null
+          member_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          league_id?: string | null
+          member_id?: string | null
+          summary?: string
+        }
+        Relationships: []
+      }
+      league_events_y2026m11: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          league_id: string | null
+          member_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          league_id?: string | null
+          member_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          league_id?: string | null
+          member_id?: string | null
+          summary?: string
+        }
+        Relationships: []
+      }
+      league_events_y2026m12: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: number
+          kind: string
+          league_id: string | null
+          member_id: string | null
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind: string
+          league_id?: string | null
+          member_id?: string | null
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: never
+          kind?: string
+          league_id?: string | null
+          member_id?: string | null
+          summary?: string
+        }
+        Relationships: []
       }
       league_member_taxi_exits: {
         Row: {
@@ -2644,6 +3004,198 @@ export type Database = {
           },
         ]
       }
+      perf_beacons_default: {
+        Row: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id: number
+          member_id: string
+          received_at: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Insert: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id?: never
+          member_id: string
+          received_at?: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Update: {
+          app_version?: string
+          bytes_complete?: boolean
+          cold?: boolean
+          connection_type?: string
+          device_class?: string
+          id?: never
+          member_id?: string
+          received_at?: string
+          request_count?: number
+          sample_n?: number
+          screen?: string
+          transfer_bytes?: number
+          useful_ms?: number
+        }
+        Relationships: []
+      }
+      perf_beacons_y2026m10: {
+        Row: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id: number
+          member_id: string
+          received_at: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Insert: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id?: never
+          member_id: string
+          received_at?: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Update: {
+          app_version?: string
+          bytes_complete?: boolean
+          cold?: boolean
+          connection_type?: string
+          device_class?: string
+          id?: never
+          member_id?: string
+          received_at?: string
+          request_count?: number
+          sample_n?: number
+          screen?: string
+          transfer_bytes?: number
+          useful_ms?: number
+        }
+        Relationships: []
+      }
+      perf_beacons_y2026m11: {
+        Row: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id: number
+          member_id: string
+          received_at: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Insert: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id?: never
+          member_id: string
+          received_at?: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Update: {
+          app_version?: string
+          bytes_complete?: boolean
+          cold?: boolean
+          connection_type?: string
+          device_class?: string
+          id?: never
+          member_id?: string
+          received_at?: string
+          request_count?: number
+          sample_n?: number
+          screen?: string
+          transfer_bytes?: number
+          useful_ms?: number
+        }
+        Relationships: []
+      }
+      perf_beacons_y2026m12: {
+        Row: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id: number
+          member_id: string
+          received_at: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Insert: {
+          app_version: string
+          bytes_complete: boolean
+          cold: boolean
+          connection_type: string
+          device_class: string
+          id?: never
+          member_id: string
+          received_at?: string
+          request_count: number
+          sample_n: number
+          screen: string
+          transfer_bytes: number
+          useful_ms: number
+        }
+        Update: {
+          app_version?: string
+          bytes_complete?: boolean
+          cold?: boolean
+          connection_type?: string
+          device_class?: string
+          id?: never
+          member_id?: string
+          received_at?: string
+          request_count?: number
+          sample_n?: number
+          screen?: string
+          transfer_bytes?: number
+          useful_ms?: number
+        }
+        Relationships: []
+      }
       player_game_stats: {
         Row: {
           assists: number | null
@@ -2754,6 +3306,102 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      player_game_stats_default: {
+        Row: {
+          assists: number | null
+          blocks: number | null
+          created_at: string
+          defensive_rebounds: number | null
+          did_not_play: boolean
+          double_double: boolean | null
+          field_goals_attempted: number | null
+          field_goals_made: number | null
+          free_throws_attempted: number | null
+          free_throws_made: number | null
+          game_date: string | null
+          game_id: string
+          id: string
+          is_home: boolean | null
+          minutes_played: number | null
+          offensive_rebounds: number | null
+          personal_fouls: number | null
+          player_id: string
+          plus_minus: number | null
+          points: number | null
+          rebounds: number | null
+          season_year: number
+          steals: number | null
+          three_pointers_attempted: number | null
+          three_pointers_made: number | null
+          triple_double: boolean | null
+          turnovers: number | null
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          assists?: number | null
+          blocks?: number | null
+          created_at?: string
+          defensive_rebounds?: number | null
+          did_not_play?: boolean
+          double_double?: boolean | null
+          field_goals_attempted?: number | null
+          field_goals_made?: number | null
+          free_throws_attempted?: number | null
+          free_throws_made?: number | null
+          game_date?: string | null
+          game_id: string
+          id?: string
+          is_home?: boolean | null
+          minutes_played?: number | null
+          offensive_rebounds?: number | null
+          personal_fouls?: number | null
+          player_id: string
+          plus_minus?: number | null
+          points?: number | null
+          rebounds?: number | null
+          season_year: number
+          steals?: number | null
+          three_pointers_attempted?: number | null
+          three_pointers_made?: number | null
+          triple_double?: boolean | null
+          turnovers?: number | null
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          assists?: number | null
+          blocks?: number | null
+          created_at?: string
+          defensive_rebounds?: number | null
+          did_not_play?: boolean
+          double_double?: boolean | null
+          field_goals_attempted?: number | null
+          field_goals_made?: number | null
+          free_throws_attempted?: number | null
+          free_throws_made?: number | null
+          game_date?: string | null
+          game_id?: string
+          id?: string
+          is_home?: boolean | null
+          minutes_played?: number | null
+          offensive_rebounds?: number | null
+          personal_fouls?: number | null
+          player_id?: string
+          plus_minus?: number | null
+          points?: number | null
+          rebounds?: number | null
+          season_year?: number
+          steals?: number | null
+          three_pointers_attempted?: number | null
+          three_pointers_made?: number | null
+          triple_double?: boolean | null
+          turnovers?: number | null
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: []
       }
       player_projections: {
         Row: {
@@ -4452,6 +5100,7 @@ export type Database = {
           is_multi_team: boolean
           league_id: string
           league_season_id: string
+          legality_issues: Json
           notes: string | null
           parent_trade_id: string | null
           proposed_at: string
@@ -4476,6 +5125,7 @@ export type Database = {
           is_multi_team?: boolean
           league_id: string
           league_season_id: string
+          legality_issues?: Json
           notes?: string | null
           parent_trade_id?: string | null
           proposed_at?: string
@@ -4500,6 +5150,7 @@ export type Database = {
           is_multi_team?: boolean
           league_id?: string
           league_season_id?: string
+          legality_issues?: Json
           notes?: string | null
           parent_trade_id?: string | null
           proposed_at?: string
@@ -5723,6 +6374,15 @@ export type Database = {
         }
         Returns: undefined
       }
+      enqueue_rookie_pick_notification: {
+        Args: {
+          p_draft_id: string
+          p_member_id: string
+          p_pick_id: string
+          p_player_id: string
+        }
+        Returns: undefined
+      }
       expire_mock_draft_rooms: { Args: never; Returns: number }
       expire_pending_trades_atomic: {
         Args: { p_limit?: number }
@@ -5884,6 +6544,7 @@ export type Database = {
           target_team_name: string
           team_name: string
           title: string
+          trade_picks: Json
           transaction_type: string
           years_exp: number
         }[]
@@ -6082,6 +6743,10 @@ export type Database = {
           totals: Json
         }[]
       }
+      hold_trade_for_legality_atomic: {
+        Args: { p_reason?: string; p_trade_id: string }
+        Returns: undefined
+      }
       invoke_edge_function: {
         Args: { body?: Json; function_name: string }
         Returns: undefined
@@ -6196,6 +6861,17 @@ export type Database = {
       }
       prepare_matchup_forecast_inputs: {
         Args: { p_game_date?: string; p_matchup_id: string }
+        Returns: Json
+      }
+      preview_trade_legality: {
+        Args: {
+          p_items: Json
+          p_league_id: string
+          p_member_ids: string[]
+          p_plans?: Json
+          p_trade_id?: string
+          p_user_id: string
+        }
         Returns: Json
       }
       process_due_accepted_trades_atomic: {

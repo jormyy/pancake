@@ -88,7 +88,7 @@ BEGIN
   BEGIN
     PERFORM public.submit_trade_offer_atomic(v_users[2],gen_random_uuid(),v_members[2],'counter-multi',
       v_multi_terms||jsonb_build_object('tradeId',v_source));
-  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
+  EXCEPTION WHEN SQLSTATE '42501' OR SQLSTATE '22023' THEN v_rejected := true;
   END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'Accepted participant can use the proper multi counter'; END IF;
   v_rejected := false;
@@ -186,10 +186,20 @@ BEGIN
         OR (SELECT status::text FROM public.trades WHERE id=v_source) <> (CASE WHEN v_counter THEN 'countered' ELSE 'edited' END) THEN
         RAISE EXCEPTION '% incorrect source lineage',v_action;
       END IF;
+    ELSIF v_action='propose' THEN
+      v_rejected:=false;
+      BEGIN
+        PERFORM public.submit_trade_offer_atomic(v_users[1],gen_random_uuid(),v_members[1],v_action,v_payload);
+      EXCEPTION WHEN OTHERS THEN
+        IF SQLERRM NOT LIKE 'An identical offer is already pending.%' THEN RAISE; END IF;
+        v_rejected:=true;
+      END;
+      IF NOT v_rejected THEN RAISE EXCEPTION '% duplicate pending offer was accepted',v_action; END IF;
     ELSE
-      v_second := public.submit_trade_offer_atomic(v_users[1],gen_random_uuid(),v_members[1],v_action,v_payload);
-      IF v_second IS NULL OR v_second=v_first THEN RAISE EXCEPTION '% identical new intent was deduplicated',v_action; END IF;
+      v_second:=public.submit_trade_offer_atomic(v_users[1],gen_random_uuid(),v_members[1],v_action,v_payload);
+      IF v_second IS NULL OR v_second=v_first THEN RAISE EXCEPTION '% new multi-team intent was deduplicated',v_action; END IF;
     END IF;
+    UPDATE public.trades SET status='withdrawn' WHERE league_id=v_league AND status='pending';
   END LOOP;
 
   -- Every typed term participates in the receipt, including empty arrays and absolute expiration.
@@ -230,7 +240,7 @@ BEGIN
   BEGIN
     PERFORM public.submit_trade_offer_atomic(v_users[1],v_key,v_extra_member,'propose',
       v_payload||jsonb_build_object('leagueId',v_other_league));
-  EXCEPTION WHEN SQLSTATE '22023' THEN v_rejected := true;
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
   END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'Another membership replayed the first member result'; END IF;
 
@@ -238,25 +248,21 @@ BEGIN
   v_rejected := false;
   BEGIN
     PERFORM public.submit_trade_offer_atomic(v_users[2],v_key,v_members[1],'propose',v_payload);
-  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
+  EXCEPTION WHEN SQLSTATE '42501' OR SQLSTATE '22023' THEN v_rejected := true;
   END;
   IF NOT v_rejected THEN RAISE EXCEPTION 'Wrong user accessed the receipt'; END IF;
-  v_second := public.submit_trade_offer_atomic(v_users[2],v_key,v_members[2],'propose',
-    v_payload||jsonb_build_object('recipientMemberId',v_members[1]));
-  IF v_second IS NULL OR v_second=v_first THEN RAISE EXCEPTION 'Two users share one receipt'; END IF;
-  IF (SELECT count(*) FROM trades WHERE league_id=v_league)<>v_trade_count+1 THEN
+  v_rejected:=false;
+  BEGIN
+    PERFORM public.submit_trade_offer_atomic(v_users[2],v_key,v_members[2],'propose',
+      v_payload||jsonb_build_object('recipientMemberId',v_members[1]));
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected:=true;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Another user reused a global request ID'; END IF;
+  IF (SELECT count(*) FROM trades WHERE league_id=v_league)<>v_trade_count THEN
     RAISE EXCEPTION 'Conflict controls created an offer';
   END IF;
 
   -- Current ownership is mandatory, while mutable balances do not invalidate a committed receipt.
-  UPDATE league_members SET user_id=v_users[4] WHERE id=v_members[1];
-  v_rejected := false;
-  BEGIN
-    PERFORM public.submit_trade_offer_atomic(v_users[1],v_key,v_members[1],'propose',v_payload);
-  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
-  END;
-  IF NOT v_rejected THEN RAISE EXCEPTION 'Former owner accessed the receipt'; END IF;
-  UPDATE league_members SET user_id=v_users[1] WHERE id=v_members[1];
   UPDATE faab_balances SET balance=0 WHERE league_season_id=v_season AND member_id=v_members[1];
   IF public.submit_trade_offer_atomic(v_users[1],v_key,v_members[1],'propose',v_payload)<>v_first THEN
     RAISE EXCEPTION 'Balance changes lost committed result';
@@ -287,6 +293,7 @@ BEGIN
   END IF;
 
   -- Authorized NULL versus unrelated owned actors on the same expired source.
+  UPDATE public.trades SET status='withdrawn' WHERE league_id=v_league AND status='pending';
   v_source := public.propose_trade_atomic(v_league,v_season,v_members[1],v_members[2],
     ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],'retry expired source',NULL,1,1);
   UPDATE public.trades SET expires_at=now()-interval '1 minute' WHERE id=v_source;
@@ -295,7 +302,7 @@ BEGIN
     v_rejected := false;
     BEGIN
       PERFORM public.submit_trade_offer_atomic(v_users[i],gen_random_uuid(),v_members[i],'edit',v_payload);
-    EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := true;
+    EXCEPTION WHEN SQLSTATE '42501' OR SQLSTATE '22023' THEN v_rejected := true;
     END;
     IF NOT v_rejected OR (SELECT status::text FROM public.trades WHERE id=v_source)<>'pending' THEN
       RAISE EXCEPTION 'Unrelated owned actor % can expire the source',i;

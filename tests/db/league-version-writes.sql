@@ -57,7 +57,7 @@ COMMIT;
 CREATE TEMP TABLE version_proofs(label text PRIMARY KEY,before_version bigint,after_version bigint);
 CREATE PROCEDURE pg_temp.version_write(label text,command text,expected integer DEFAULT 1,rejection text DEFAULT NULL)
 LANGUAGE plpgsql AS $$
-DECLARE league uuid; before_version bigint; after_version bigint; caught text;
+DECLARE league uuid; before_version bigint; after_version bigint; caught text; publication record;
 BEGIN
   SELECT league_id INTO league FROM version_fixture;
   SELECT version INTO before_version FROM public.league_versions WHERE league_id=league;
@@ -68,6 +68,11 @@ BEGIN
     caught:=SQLERRM;
   END;
   IF rejection IS NOT NULL AND caught IS NULL THEN RAISE EXCEPTION 'Expected rejection: %',label; END IF;
+  COMMIT;
+  FOR publication IN SELECT id FROM private.trade_publications WHERE league_id=league ORDER BY id LOOP
+    PERFORM private.publish_trade_changes(publication.id);
+    DELETE FROM private.work_items WHERE kind='trade-publication' AND payload->>'publicationId'=publication.id::text;
+  END LOOP;
   COMMIT;
   SELECT version INTO after_version FROM public.league_versions WHERE league_id=league;
   IF after_version IS DISTINCT FROM before_version+expected THEN
@@ -98,12 +103,17 @@ CALL pg_temp.version_write('inventory key update',$cmd$UPDATE public.faab_balanc
 CALL pg_temp.version_write('create pending claim',$cmd$UPDATE version_fixture SET claim_id=public.create_waiver_claim_atomic(league_id,member_ids[1],players[3],NULL,user_ids[1],1)$cmd$);
 CALL pg_temp.version_write('edit pending claim',$cmd$SELECT public.edit_waiver_claim_atomic(claim_id,member_ids[1],user_ids[1],NULL,2,NULL) FROM version_fixture$cmd$);
 CALL pg_temp.version_write('cancel private claim',$cmd$SELECT public.cancel_waiver_claim_atomic(claim_id,member_ids[1],user_ids[1]) FROM version_fixture$cmd$);
-CALL pg_temp.version_write('propose trade',$cmd$UPDATE version_fixture SET trade_id=public.propose_trade_atomic(league_id,season_id,member_ids[1],member_ids[2],ARRAY[players[1]],ARRAY[players[2]],'{}','{}')$cmd$);
+CALL pg_temp.version_write('propose trade',$cmd$UPDATE version_fixture SET trade_id=public.propose_trade_atomic(league_id,season_id,member_ids[1],member_ids[2],ARRAY[players[1]],ARRAY[players[2]],'{}','{}')$cmd$,2);
 SET request.jwt.claim.sub='';
 CALL pg_temp.version_write('withdraw trade',$cmd$SELECT public.withdraw_trade_atomic(trade_id,member_ids[1],user_ids[1]) FROM version_fixture$cmd$);
 SELECT set_config('request.jwt.claim.sub',(SELECT user_ids[1]::text FROM version_fixture),false);
 CALL pg_temp.version_write('trade block',$cmd$SELECT public.add_trade_block_item_atomic(member_ids[1],league_id,players[1],NULL,'version probe') FROM version_fixture$cmd$);
 \ir league-version-transaction-writes.sql
+BEGIN;
+UPDATE public.roster_players roster SET member_id=fixture.member_ids[1],is_on_ir=false,is_on_taxi=false
+FROM version_fixture fixture WHERE roster.league_id=fixture.league_id
+  AND roster.player_id=ANY(ARRAY[fixture.players[1],fixture.players[5],fixture.players[6],fixture.players[7]]);
+COMMIT;
 \ir league-version-roster-writes.sql
 \ir league-version-player-writes.sql
 CALL pg_temp.version_write('live scoreboard worker',$cmd$SELECT public.save_live_scoreboard_atomic(game_id,'0029562001','InProgress',3,2,'Q1',10) FROM version_fixture$cmd$);
