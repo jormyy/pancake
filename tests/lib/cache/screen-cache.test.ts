@@ -89,3 +89,15 @@ describe('versioned screen cache', () => {
         expect(saved.length).toBeLessThanOrEqual(41); expect(saved.at(-1)?.value).toBeDefined()
     })
 })
+
+it('keeps the published schedule version when the first push baseline has not arrived', async () => {
+    const scheduleScope: ScreenScope = { ...scope, screen: 'league-schedule' }
+    mocks.version = '0'
+    const value = { context: { version: '7' }, schedule: [{ weekNumber: 1 }] }
+    mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ ok: true, view: value })))
+    expect(await readScreenView(scheduleScope, { checkVersion: false })).toEqual(value)
+    expect(cachedScreenView(scheduleScope)?.version).toBe('7')
+    mocks.version = '7'
+    expect(await readScreenView(scheduleScope)).toEqual(value)
+    expect(mocks.fetch).toHaveBeenCalledOnce()
+})

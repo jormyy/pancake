@@ -23,12 +23,13 @@ WITH players AS (
   FROM generate_series(2026,2028) year CROSS JOIN generate_series(1,2) round CROSS JOIN unnest(ARRAY['early','mid','late']) tier
 )
 SELECT public.publish_trade_values(rows.value,picks.value,'fixture',clock_timestamp(),'json') FROM rows,picks;
+SELECT private.refresh_screen_statistics();
 EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT pg_temp.pick_values(:'league_id');
 SELECT md5(pg_temp.pick_values(:'league_id')::text);
 DO $$ BEGIN
   IF NOT EXISTS(SELECT FROM pg_stats WHERE schemaname='public' AND tablename='dynasty_rankings'
     AND attname='source' AND most_common_vals::text LIKE '%onenumberhoops.com%') THEN
-    RAISE EXCEPTION 'Trade publication leaves stale source statistics';
+    RAISE EXCEPTION 'The separate statistics refresh leaves stale source statistics';
   END IF;
 END; $$;
 ROLLBACK;

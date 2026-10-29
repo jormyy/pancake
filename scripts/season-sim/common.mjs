@@ -1,4 +1,5 @@
 import { captureFileLimit } from '../perf-lab/bounded-log.mjs'
+import { labTarget } from '../perf-lab/target.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
@@ -30,6 +31,11 @@ export function configuration(env = process.env) {
     assert.equal(prefix,'587','The private repair stack uses block 587')
     assert.equal(project,'pt4bafablefix','Block 587 belongs only to the private repair stack')
     assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/replay/run'),'The private repair stack uses its own replay root')
+  }else if(env.PERF_LAB_PROJECT){
+    const target=labTarget(env)
+    assert.equal(project,target.project,'Use the assigned private lab project')
+    assert.equal(prefix,target.prefix,'Use the assigned private lab port block')
+    assert.equal(path.resolve(root),path.join(homedir(),target.relativeRoot),'Use the assigned private lab root')
   }else assert.match(prefix, /^57[2-5]$/, 'Use an assigned task port block')
   const container = env.SEASON_SIM_CONTAINER ?? `supabase_db_${project}`
   assert.equal(container, `supabase_db_${project}`, 'Container must belong to the configured project')

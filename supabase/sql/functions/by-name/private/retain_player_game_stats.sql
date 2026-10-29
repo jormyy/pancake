@@ -4,7 +4,6 @@ DECLARE season integer:=extract(year FROM p_now AT TIME ZONE 'America/New_York')
   +(extract(month FROM p_now AT TIME ZONE 'America/New_York')>=7)::integer;
 BEGIN
   PERFORM private.ensure_player_stats_partition(season);
-  ANALYZE public.player_game_stats;
   RETURN jsonb_build_object('public.player_game_stats',0);
 END;
 $$;

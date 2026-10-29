@@ -4050,6 +4050,30 @@ export type Database = {
           },
         ]
       }
+      scheduler_health_hint: {
+        Row: {
+          changed_at: string
+          id: boolean
+          level: string
+          reason: string
+          revision: number
+        }
+        Insert: {
+          changed_at: string
+          id?: boolean
+          level: string
+          reason: string
+          revision: number
+        }
+        Update: {
+          changed_at?: string
+          id?: boolean
+          level?: string
+          reason?: string
+          revision?: number
+        }
+        Relationships: []
+      }
       season_weeks: {
         Row: {
           id: string
@@ -4461,6 +4485,7 @@ export type Database = {
       }
       sync_runs: {
         Row: {
+          details: Json
           error: string | null
           finished_at: string | null
           function_name: string
@@ -4470,6 +4495,7 @@ export type Database = {
           status: string
         }
         Insert: {
+          details?: Json
           error?: string | null
           finished_at?: string | null
           function_name: string
@@ -4479,6 +4505,7 @@ export type Database = {
           status?: string
         }
         Update: {
+          details?: Json
           error?: string | null
           finished_at?: string | null
           function_name?: string
@@ -6673,6 +6700,7 @@ export type Database = {
         Args: { p_matchup_id: string }
         Returns: Json
       }
+      get_scheduler_health: { Args: never; Returns: Json }
       get_score_sync_games: {
         Args: {
           p_end_date: string
@@ -7535,6 +7563,10 @@ export type Database = {
         Returns: Json
       }
       view_league: {
+        Args: { p_league_id: string; p_member_id: string; p_params?: Json }
+        Returns: Json
+      }
+      view_league_schedule: {
         Args: { p_league_id: string; p_member_id: string; p_params?: Json }
         Returns: Json
       }

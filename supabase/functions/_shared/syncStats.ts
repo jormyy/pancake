@@ -261,6 +261,7 @@ export async function resolveBoxScorePlayers(
     personId: String(player.personId), displayName: player.name ?? '',
   })), providerGameId)
   for (const [index, player] of allPlayers.entries()) {
+    if (boxScore.gameStatus !== 3 && 'status' in player && player.status === 'INACTIVE') continue
     const playerId = playerIds[index]
     if (playerId && player.statistics) {
       resolved.push({ player: { ...player, isHome: index < (boxScore.homeTeam?.players?.length ?? 0) }, playerId })

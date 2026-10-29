@@ -33,6 +33,7 @@ const sections = {
   'league-dashboard.results': { selector: '#league-panel-results [aria-label^="Rank "][aria-label$="Open roster"]' },
   'league-dashboard.history': { selector: '#league-panel-history [data-testid="player-row-content"]' },
   'league-dashboard.picks': { selector: '#league-panel-picks [role="listitem"][aria-label]' },
+  'league-dashboard.schedule': { selector: '#league-panel-schedule [aria-label="Your season schedule"] [role="listitem"]' },
   'league-dashboard.draft': { any: [{ text: 'No live draft.' }, { text: 'Live Draft' }, { text: 'Auction setup' }, { text: 'Rookie draft setup' }] },
   'league-dashboard.settings': { selector: '[aria-label="Open playoff bracket"]' },
   'players.players': { selector: '#players-section-panel [data-testid="player-row-content"]' },

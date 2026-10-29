@@ -1,4 +1,6 @@
+\getenv queue_api_url SUPABASE_URL
 BEGIN;
+SELECT set_config('test.queue_api_url',:'queue_api_url',true);
 DELETE FROM private.work_items;
 CREATE TEMP TABLE queue_checks(label text PRIMARY KEY,passed boolean NOT NULL CHECK(passed));
 CREATE FUNCTION pg_temp.check_queue(p_label text,p_passed boolean) RETURNS void LANGUAGE plpgsql AS $$
@@ -74,7 +76,7 @@ BEGIN
   PERFORM set_config('request.headers','{}',true);
   PERFORM pg_temp.check_queue('displaced worker is fenced before writes',true);
   PERFORM private.work_finish(v_id,v_token);
-  PERFORM set_config('app.supabase_url','http://127.0.0.1:1',true);
+  PERFORM set_config('app.supabase_url',current_setting('test.queue_api_url'),true);
   PERFORM set_config('app.edge_internal_token','queue-outcome-test',true);
   v_id:=private.work_enqueue('sync-players','correlated');
   SELECT lease_token INTO v_token FROM private.work_claim();
@@ -92,7 +94,7 @@ BEGIN
   PERFORM public.dispatch_work();
   PERFORM pg_temp.check_queue('one worker error schedules its own retry',(SELECT status='failed' AND attempts=1 FROM private.work_items WHERE id=v_id));
   PERFORM pg_temp.check_queue('one worker error does not roll back healthy work',(SELECT status='succeeded' FROM private.work_items WHERE kind='player-stats-hints' AND key='after-error'));
-  PERFORM pg_temp.check_queue('only the dispatcher is scheduled',(SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')));
+  PERFORM pg_temp.check_queue('only the dispatcher handles queued work',(SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention','screen-statistics')));
 END;
 $$;
 SELECT count(*) AS passed_checks FROM queue_checks;

@@ -2830,6 +2830,34 @@
       "statementCount": 2,
       "statementsSha256": "e572d18bac90f2d90c6f95c3eda0dcb21b154d6ff2549385413a1e53992b1a82",
       "sha256": "53e2588dd037b9bc3f1291c95f4da820900786874845f129f789ce6330eabbd6"
+    },
+    {
+      "name": "league_schedule",
+      "version": "20261209000600",
+      "statementCount": 3,
+      "statementsSha256": "70b6a212f7ef015223a11ee516b72449e4f62616b7c73d19c1ea0b3ad6cd33fa",
+      "sha256": "27f114721e6bc8b71095d1c4088eb17f2c81de27c9437b14bb40e1ba27e925f2"
+    },
+    {
+      "name": "scheduler_watchdog",
+      "version": "20261210000100",
+      "statementCount": 20,
+      "statementsSha256": "f82235378182fcfec8afbe19f3fd3b0208efcf597b34391d57050ed573541f1b",
+      "sha256": "fe610258e6436af20ab8e6915a10d35bc94c23fa6ac11a950abe6e739e7588b2"
+    },
+    {
+      "name": "certify_inactive_zero_rows",
+      "version": "20261210000200",
+      "statementCount": 2,
+      "statementsSha256": "58bc178db39530c15c4b421d44d41feedd81672eacf7cfcf81a3587a9600299c",
+      "sha256": "9525f5e9c429322f3fbd7067804bf034097818090c758e391f916dc6ec611b6b"
+    },
+    {
+      "name": "isolate_screen_statistics",
+      "version": "20261210000300",
+      "statementCount": 21,
+      "statementsSha256": "cb79bc5650a7158d73876bf8c197b2fb356dc9344a791c219d75e3fe5389cd8d",
+      "sha256": "683951acec2c39f30a0a2959aae0a4b873e60362409bb6bc65efe4a7fa8c4666"
     }
   ]
 }

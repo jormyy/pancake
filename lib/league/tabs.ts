@@ -1,10 +1,11 @@
-export type LeagueSection = 'results' | 'history' | 'picks' | 'draft' | 'bracket' | 'settings'
+export type LeagueSection = 'results' | 'history' | 'picks' | 'schedule' | 'draft' | 'bracket' | 'settings'
 export type LeagueTab = LeagueSection | 'draftBoard' | 'auctions' | 'mockRooms'
 
 export const LEAGUE_TABS: readonly { key: LeagueSection; label: string }[] = [
     { key: 'results', label: 'Standings' },
     { key: 'history', label: 'Activity' },
     { key: 'picks', label: 'Picks' },
+    { key: 'schedule', label: 'Schedule' },
     { key: 'draft', label: 'Draft' },
     { key: 'bracket', label: 'Bracket' },
     { key: 'settings', label: 'Settings' },
@@ -16,6 +17,7 @@ const LEAGUE_TAB_ALIASES: Record<string, LeagueSection> = {
     history: 'history',
     activity: 'history',
     picks: 'picks',
+    schedule: 'schedule',
     draftBoard: 'picks',
     'draft-board': 'picks',
     draft: 'draft',

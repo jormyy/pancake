@@ -6,7 +6,9 @@ import type { MatchupForecast } from '@/hooks/use-matchup-forecast'
 import type { LineupPlayer, LineupMoveData, LineupSelection, LineupMoveTargetState } from '@/lib/lineup'
 import type { LiveStatLine } from '@/lib/games'
 import type { StatColumn } from '@/lib/score-breakdown'
-import { colors, fontSize, fontWeight, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
+import { formatPoints } from '@/lib/format'
+import { matchupDailyTotal } from '@/lib/matchup-daily-total'
+import { borderWidth, colors, fontSize, fontWeight, radii, spacing, srOnly, textStyles } from '@/constants/tokens'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
@@ -202,6 +204,17 @@ export function MatchupLineupView({
                                 ))}
                             </>
                         )}
+                        {section.key === 'starters' ? (
+                            <View testID="matchup-daily-total" style={styles.dailyTotal}>
+                                <Text testID="matchup-daily-total-left" style={styles.dailyTotalScore}>
+                                    {formatPoints(matchupDailyTotal(myLineup.starters, liveStats, scoringSettings))}
+                                </Text>
+                                <Text style={styles.dailyTotalLabel}>Daily Total</Text>
+                                <Text testID="matchup-daily-total-right" style={styles.dailyTotalScore}>
+                                    {formatPoints(matchupDailyTotal(oppLineup.starters, liveStats, scoringSettings))}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                 ))}
                 {footer ? <View style={styles.lineupFooter}>{footer}</View> : null}
@@ -224,6 +237,28 @@ const styles = StyleSheet.create({
         fontSize: fontSize.xs,
         fontWeight: fontWeight.extrabold,
         color: colors.textMuted,
+    },
+    dailyTotal: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        backgroundColor: colors.bgSubtle,
+        borderTopColor: colors.separator,
+        borderTopWidth: borderWidth.thin,
+        borderBottomColor: colors.separator,
+        borderBottomWidth: borderWidth.thin,
+    },
+    dailyTotalScore: {
+        ...textStyles.compactScore,
+        flex: 1,
+        textAlign: 'center',
+        color: colors.textPrimary,
+    },
+    dailyTotalLabel: {
+        ...textStyles.rowTitle,
+        color: colors.textSecondary,
+        marginHorizontal: spacing.md,
     },
     lineupFooter: {
         gap: spacing.md,

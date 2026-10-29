@@ -1,11 +1,18 @@
 import { Badge } from '@/components/ui/Badge'
 import type { ReactNode } from 'react'
-import { Platform, View, Text, StyleSheet } from 'react-native'
+import { Platform, Pressable, View, Text, StyleSheet } from 'react-native'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import type { Matchup } from '@/lib/scoring'
-import { alpha, componentTokens, borderWidth, colors, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
+import { alpha, componentTokens, borderWidth, colors, controlSize, fontSize, fontWeight, radii, shadows, spacing, textStyles, uiColors } from '@/constants/tokens'
 import { formatPoints } from '@/lib/format'
 
-export function ScoreCard({ matchup, compact = false, children }: { matchup: Matchup; compact?: boolean; children?: ReactNode }) {
+export function ScoreCard({ matchup, compact = false, children, onPreviousMatchup, onNextMatchup }: {
+    matchup: Matchup
+    compact?: boolean
+    children?: ReactNode
+    onPreviousMatchup?: () => void
+    onNextMatchup?: () => void
+}) {
     const myPts = matchup.myPoints ?? 0
     const oppPts = matchup.opponentPoints ?? 0
     const iWinning = myPts > oppPts
@@ -35,7 +42,7 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
     const weekLabel = firstWeek === lastWeek ? `Week ${firstWeek}` : `Weeks ${firstWeek}–${lastWeek}`
 
     return (
-        <View style={[styles.card, compact && styles.cardCompact]}>
+        <View testID="matchup-score-card" style={[styles.card, compact && styles.cardCompact]}>
             <View style={[styles.header, compact && styles.headerCompact]}>
                 <Text
                     style={styles.week}
@@ -52,22 +59,30 @@ export function ScoreCard({ matchup, compact = false, children }: { matchup: Mat
                 />
             </View>
 
-            <View style={[styles.scores, compact && styles.scoresCompact]}>
-                <View style={styles.side}>
+            <View style={[styles.teams, compact && styles.teamsCompact]}>
+                {onPreviousMatchup ? <Pressable accessibilityRole="button" accessibilityLabel="Previous matchup" onPress={onPreviousMatchup} style={styles.navigation}>
+                    <MaterialIcons name="arrow-back" size={controlSize.icon.lg} color={colors.textMuted} />
+                </Pressable> : null}
+                <View testID="matchup-team-left" style={styles.side}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact]}>{matchup.myTeamName}</Text>
                     <Text style={styles.record}>{`${matchup.myWins ?? 0}-${matchup.myLosses ?? 0}`}</Text>
-                    <Text style={[styles.score, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {formatPoints(matchup.myPoints)}
-                    </Text>
                 </View>
 
-                <View style={[styles.side, styles.sideRight]}>
+                <View testID="matchup-team-right" style={[styles.side, styles.sideRight]}>
                     <Text style={[styles.teamName, compact && styles.teamNameCompact, styles.teamNameRight]}>{matchup.opponentTeamName}</Text>
                     <Text style={styles.record}>{`${matchup.opponentWins ?? 0}-${matchup.opponentLosses ?? 0}`}</Text>
-                    <Text style={[styles.score, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
-                        {formatPoints(matchup.opponentPoints)}
-                    </Text>
                 </View>
+                {onNextMatchup ? <Pressable accessibilityRole="button" accessibilityLabel="Next matchup" onPress={onNextMatchup} style={styles.navigation}>
+                    <MaterialIcons name="arrow-forward" size={controlSize.icon.lg} color={colors.textMuted} />
+                </Pressable> : null}
+            </View>
+            <View style={[styles.scores, compact && styles.scoresCompact]}>
+                <Text style={[styles.score, styles.side, compact && styles.scoreCompact, iWinning ? styles.scoreWin : styles.scoreLose]}>
+                    {formatPoints(matchup.myPoints)}
+                </Text>
+                <Text style={[styles.score, styles.side, styles.teamNameRight, compact && styles.scoreCompact, oppWinning ? styles.scoreWin : styles.scoreLose]}>
+                    {formatPoints(matchup.opponentPoints)}
+                </Text>
             </View>
             {children}
         </View>
@@ -119,11 +134,28 @@ const styles = StyleSheet.create({
         color: colors.primaryDark,
         letterSpacing: textStyles.sectionLabel.letterSpacing,
     },
-    scores: {
+    teams: {
         flexDirection: 'row',
-        alignItems: 'stretch',
+        alignItems: 'center',
         paddingHorizontal: spacing.xl,
         paddingTop: spacing.md,
+        gap: spacing.md,
+    },
+    teamsCompact: {
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.xxs,
+    },
+    navigation: {
+        width: controlSize.minTouch,
+        minHeight: controlSize.minTouch,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: radii.md,
+    },
+    scores: {
+        flexDirection: 'row',
+        paddingHorizontal: spacing.xl,
+        paddingTop: spacing.xxs,
         paddingBottom: spacing.sm,
     },
     scoresCompact: {

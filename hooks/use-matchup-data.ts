@@ -14,7 +14,7 @@ import { endOfLeagueDayUTC, resolveLeagueTimezone, todayLeague } from '@/lib/tim
 
 type HomePayload = HomeView & { forecast: MatchupForecast | null; announcements: LeagueAnnouncement[]; todaysGames: NBAGameRow[]; liveStats: Record<string, LiveStatLine>; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
 
-export function useMatchupData(current: { id: string; team_name?: string | null; role?: string } | null, user: { id: string } | null, league: Pick<LeagueInfo, 'id'> & Partial<LeagueInfo> | null, membershipValidated = true, membershipError: Error | null = null, refreshMemberships?: () => Promise<void>, matchupId?: string) {
+export function useMatchupData(current: { id: string; team_name?: string | null; role?: string } | null, user: { id: string } | null, league: Pick<LeagueInfo, 'id'> & Partial<LeagueInfo> | null, membershipValidated = true, membershipError: Error | null = null, refreshMemberships?: () => Promise<void>, matchupId?: string, initialDate?: string) {
     const focused = useIsFocused()
     const timezone = resolveLeagueTimezone(league?.timezone)
     const [calendar, setCalendar] = useState(() => ({ timezone, day: todayLeague(timezone) }))
@@ -40,9 +40,10 @@ export function useMatchupData(current: { id: string; team_name?: string | null;
             if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', update)
         }
     }, [day, timezone, setDay])
-    const identity = JSON.stringify([user?.id, league?.id, current?.id, timezone, day, matchupId])
-    const [selection, setSelection] = useState({ identity, date: todayLeague(timezone) })
-    const requestedDate = selection.identity === identity ? selection.date : day
+    const identity = JSON.stringify([user?.id, league?.id, current?.id, timezone, day, matchupId, initialDate])
+    const [selection, setSelection] = useState({ identity, date: initialDate ?? todayLeague(timezone) })
+    if (selection.identity !== identity) setSelection({ identity, date: initialDate ?? day })
+    const requestedDate = selection.identity === identity ? selection.date : initialDate ?? day
     const view = useScreenView<HomePayload>(current && user && league ? screenScope('home', league.id, current.id, { date: requestedDate, ...(matchupId ? { matchupId } : {}) }, user.id) : null, focused && membershipValidated && !membershipError)
     const refreshView = view.refresh
     const data = view.data

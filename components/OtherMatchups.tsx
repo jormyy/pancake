@@ -1,10 +1,12 @@
 import { Platform, ScrollView, StyleSheet, Text, Pressable, View } from 'react-native'
 import type { LeagueWeekMatchup } from '@/lib/scoring'
 import { formatPoints } from '@/lib/format'
+import { orderedMatchups } from '@/lib/matchup-navigation'
 import { borderWidth, colors, fontSize, fontWeight, radii, spacing } from '@/constants/tokens'
 
 export function OtherMatchups({ matchups, currentMatchupId, onOpen }: { matchups: LeagueWeekMatchup[]; currentMatchupId?: string; onOpen: (id: string) => void }) {
-    const others = matchups.filter(matchup => !matchup.isMine || matchup.id === currentMatchupId)
+    const others = orderedMatchups(matchups)
+    const selectedId = currentMatchupId ?? matchups.find(matchup => matchup.isMine)?.id
     if (!others.length) return null
     return (
         <View style={styles.strip} testID="other-matchups">
@@ -12,10 +14,10 @@ export function OtherMatchups({ matchups, currentMatchupId, onOpen }: { matchups
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.entries}>
                 {others.map(matchup => (
                     <Pressable key={matchup.id} accessibilityRole="button"
-                        accessibilityState={{ selected: matchup.id === currentMatchupId }}
-                        {...(Platform.OS === 'web' && matchup.id === currentMatchupId ? { 'aria-current': 'true' } : {})}
+                        accessibilityState={{ selected: matchup.id === selectedId }}
+                        {...(Platform.OS === 'web' && matchup.id === selectedId ? { 'aria-current': 'true' } : {})}
                         accessibilityLabel={`Open ${matchup.homeTeamName} versus ${matchup.awayTeamName}`}
-                        onPress={() => onOpen(matchup.id)} style={[styles.entry, matchup.id === currentMatchupId && styles.selected]}>
+                        onPress={() => onOpen(matchup.id)} style={[styles.entry, matchup.id === selectedId && styles.selected]}>
                         <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.homeTeamName}</Text><Text style={styles.score}>{formatPoints(matchup.homePoints)}</Text></View>
                         <View style={styles.team}><Text style={styles.name} numberOfLines={1}>{matchup.awayTeamName}</Text><Text style={styles.score}>{formatPoints(matchup.awayPoints)}</Text></View>
                     </Pressable>

@@ -1,0 +1,7 @@
+\set ON_ERROR_STOP on
+\getenv probe_application STATISTICS_PROBE_APPLICATION
+SET application_name=:'probe_application';
+SET vacuum_cost_delay='20ms';
+SET vacuum_cost_limit=1;
+SET default_statistics_target=10000;
+SELECT command FROM cron.job WHERE jobname='screen-statistics' \gexec

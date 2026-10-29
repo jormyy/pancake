@@ -945,6 +945,8 @@ export async function runBrowserLineupAutoSetScenario({
     await signInBrowser(session, env, fixture.user, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844'])
     await browser(session, ['open', joinUrl(env.frontendUrl, '/roster')])
+    await waitForAccessibleButton(session, 'Open auto-set lineup options', 'roster auto-set')
+    record({ rosterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'roster.png') })
     const openClick = await openAutoSetOptions(session, 'auto-set options')
     const choices = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
       [...document.querySelectorAll('[role="dialog"] [role="button"], [role="dialog"] button')]
@@ -955,8 +957,9 @@ export async function runBrowserLineupAutoSetScenario({
     await clickButton(session, 'Edit lineup manually', 'manual editor')
     await assertPageText(session, ['STARTERS', 'BENCH', fixture.player.display_name, 'Keep updated automatically'], 'manual lineup editor')
     const oldActions = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
-      ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']
-        .filter(label => document.querySelector('[aria-label="' + label + '"]'))
+      [...document.querySelectorAll('[role="button"], button')]
+        .map(node => node.getAttribute('aria-label') || node.textContent.trim())
+        .filter(label => /^(?:Auto-set )?(?:Today|This week|Rest of season|ROS)$/i.test(label))
     )`]))
     assert.deepEqual(oldActions, [])
     record({ editorScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'manual-editor.png') })

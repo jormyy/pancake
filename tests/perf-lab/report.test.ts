@@ -54,7 +54,7 @@ it('renders current contracts, control ownership and separate replay network lay
   })
   const lines = (await readFile(path.join(root, 'docs/data-flow.md'), 'utf8')).split('\n')
   expect(lines).toContain('## Final ranked screen baseline')
-  expect(Reflect.get(report, 'perScreen')).toHaveLength(40)
+  expect(Reflect.get(report, 'perScreen')).toHaveLength(41)
   expect(lines).toContain('| forecasts | failed: matchup-forecast / 55P03 |')
   expect(lines).toContain('The frozen starting matchup records 43 cold requests / 4500930 down bytes and 9 warm requests / 62669 down bytes.')
   expect(lines).toContain('Cost × frequency is total response bytes. These archived results do not prove the current release.')

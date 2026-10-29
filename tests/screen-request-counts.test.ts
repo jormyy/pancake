@@ -47,6 +47,7 @@ const cases: [string, string, () => unknown][] = [
     ['trades history', 'trades', () => useTradeHistoryFeed('member', 'league', true)],
     ['trade block', 'trade-block', () => useTradeBlock('member', 'league')],
     ...(['results', 'history', 'settings', 'picks', 'draft', 'auctions'] as const).map(tab => [`league ${tab}`, 'league', () => useLeagueTabResources('league', 'member', tab)] as [string, string, () => unknown]),
+    ['league schedule', 'league-schedule', () => useLeagueTabResources('league', 'member', 'schedule')],
     ['profile', 'profile', () => useProfileResource('account')],
     ['rookie controller', 'draft-room', () => useRookieDraftRoomController({ draftId: 'draft', leagueId: 'league', memberId: 'member', rosterSize: 20 })],
     ...(['roster', 'lineup', 'claim-editor', 'draft-room', 'trade-details', 'trade-analysis', 'standings', 'activity', 'picks', 'settings', 'draft-rooms'] satisfies ScreenName[]).map(screen => [screen, screen, () => useScreenView({ accountId: 'account', leagueId: 'league', memberId: 'member', seasonId: 'season', screen })] as [string, string, () => unknown]),

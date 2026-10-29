@@ -36,6 +36,7 @@ import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeG
 
 import { useLineupActions } from '@/hooks/use-lineup-actions'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
+import { adjacentMatchupId } from '@/lib/matchup-navigation'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
@@ -156,6 +157,9 @@ export default function HomeScreen() {
     const lineupWidth = showStatColumns ? layout.statLineupMaxWidth : layout.lineupMaxWidth
 
     const [detailsRow, setDetailsRow] = useState<DetailsRow | null>(null)
+    const openMatchup = (id: string | null) => {
+        if (id && id !== matchup?.id) router.push({ pathname: '/(modals)/matchup', params: { matchupId: id, date: selectedDate } })
+    }
 
 
     // Stay blank while auth/league context loads — flashing the NoLeagueState
@@ -180,7 +184,9 @@ export default function HomeScreen() {
                 <View style={[styles.playSurface, { paddingHorizontal: padX }]}>
                     <View style={[styles.mainColumn, { maxWidth: lineupWidth }]}>
 
-                    <ScoreCard matchup={matchup} compact={compact}>
+                    <ScoreCard matchup={matchup} compact={compact}
+                        onPreviousMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, -1))}
+                        onNextMatchup={() => openMatchup(adjacentMatchupId(leagueMatchups, matchup.id, 1))}>
                         <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
                     </ScoreCard>
 
@@ -229,7 +235,7 @@ export default function HomeScreen() {
                     ) : weekDays.length > 0 ? (
                         <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                     ) : null}
-                    <OtherMatchups matchups={leagueMatchups} onOpen={id => router.push({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
+                    <OtherMatchups matchups={leagueMatchups} currentMatchupId={matchup.id} onOpen={openMatchup} />
                     </View>
                 </View>
             ) : homeSurface === 'draft' ? (

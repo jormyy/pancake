@@ -10,7 +10,7 @@ const roles = ['commissioner', 'member']
 const days = ['in-progress', 'final']
 
 const sections = {
-  'league-dashboard': ['results', 'history', 'picks', 'draft', 'bracket', 'settings'],
+  'league-dashboard': ['results', 'history', 'picks', 'schedule', 'draft', 'bracket', 'settings'],
   players: ['players', 'waivers', 'rankings', 'news'],
   trades: ['offers', 'block', 'history', 'analyzer'],
 }
@@ -30,6 +30,7 @@ export async function inventory(root = sourceRoot) {
   const scenarioFiles = ['scripts/perf-lab/scenarios.json', 'scripts/ios-sim/scenarios.json', ...(await readdir(path.join(root, 'scripts/ios-sim/scenarios'))).filter(file => file.endsWith('.json')).sort().map(file => `scripts/ios-sim/scenarios/${file}`)]
   const hashes = { 'tests/e2e/surface-matrix.json': digest(matrixBytes) }
   hashes['public/sw.js'] = digest(await readFile(path.join(root, 'public/sw.js')))
+  hashes['scripts/perf-lab/release-ui.mjs'] = digest(await readFile(path.join(root, 'scripts/perf-lab/release-ui.mjs')))
   for (const file of ['player-results.mjs', 'edge.mjs', 'edge-routing.mjs', 'scenario-adapters.mjs', 'workloads.mjs', 'walk.mjs', 'actions.mjs', 'interactions.mjs', 'control-observer.mjs', 'network-proxy.mjs', 'settle.mjs', 'device.mjs', 'runtime.mjs', 'surfaces.mjs', 'phases.mjs', 'server-change.mjs', 'empty.mjs', 'selection.mjs', 'observer.mjs', 'capture.mjs', 'headshots.mjs', 'external-headshots.mjs', 'bounded-log.mjs']) {
     const relative = `scripts/perf-lab/${file}`
     hashes[relative] = digest(await readFile(path.join(root, relative)))

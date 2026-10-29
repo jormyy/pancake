@@ -94,7 +94,7 @@ Change these definitions before adding screen-specific measurements.
 | `matchupRow` | 52px slot, 64px points, 34px stat columns, 46px wide stat columns, 24px phone avatar |
 | `segmentedControl` | 44px minimum target, 12px horizontal padding, selected background highlight |
 | `textLink` | 44px minimum target and 20px line height |
-| `lineupControls` | 44px targets; 13px labels; season action receives 1.4 times the width |
+| `lineupControls` | 44px targets; automatic preference row |
 | `daySelector.compact` | 2px gaps above, below, and between date targets |
 | `sheet` | 560px maximum width, 52px header, 16px content padding |
 | `sheet` | Phone height at most 88%; desktop height at most 86% |
@@ -168,12 +168,13 @@ It shows week status, teams, records, scores, forecasts, days, and both lineups.
 The header, day selector, and rows share one vertical scroller.
 Other matchups open a detail page with their own selected date.
 Their bottom matchup strip keeps team browsing separate from the Home action.
+Header arrows wrap through the same matchups as the bottom strip, with the viewer first and the selected day preserved.
 Home restores its cached matchup when the user returns.
 Home has no timeline, waivers card, announcement card, or separate daily editor.
 
 Players groups Players, Waivers, Rankings, and News.
 League opens Standings by default.
-Its section bar contains Standings, Activity, Picks, Draft, Bracket, and Settings.
+Its section bar contains Standings, Activity, Picks, Schedule, Draft, Bracket, and Settings.
 Trades contains Offers, Block, History, and Analyzer in that order.
 Section bars use a background highlight without an underline.
 Players and Trades restore their last selected section before reading data.
@@ -216,6 +217,7 @@ The first line contains the name and injury status.
 The second contains the game or final-game statistics.
 No-game players retain an empty second line.
 Fantasy points stay vertically centered.
+Daily Total separates starters from bench and sums the selected day's starter scores in compact score type.
 Headshots sit beside the center position column.
 Mirrored names and badges extend outward.
 Only the points target opens the scoring breakdown.
@@ -272,6 +274,8 @@ The row preserves a 44px target.
 The day strip follows the switch with 2px spacing above and below.
 Every empty starter, bench, IR, and taxi place remains visible.
 Offline and read-only states disable lineup moves.
+Manual changes apply only to the selected day.
+The editor and roster Auto-set sheet have no period choices.
 
 Home and Roster retain Auto-set with the label Open auto-set lineup options.
 Their sheets offer only Edit lineup manually.
@@ -359,3 +363,11 @@ Install icons use opaque backgrounds.
 Header and favicon exports retain transparent corners.
 The mark stays inside the maskable safe region.
 The launch background matches the icon background.
+
+## League schedule
+
+Schedule uses the shared section tabs and table tokens.
+Rows show the week, opponent, and result or live score.
+The current week uses the shared highlight and a Current label.
+Undecided playoff weeks show Playoffs without an opponent.
+Week boundaries use the league calendar and timezone.

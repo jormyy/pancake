@@ -1,0 +1,344 @@
+{
+  "game": {
+    "id": "b1f7c144-0c2f-4b48-aaa3-701545476b2f",
+    "status": "Scheduled",
+    "ended_at": null,
+    "away_team": "OKC",
+    "game_date": "2026-10-28",
+    "game_time": "2026-10-29T01:30:00+00:00",
+    "home_team": "DAL",
+    "away_score": 0,
+    "created_at": "2026-08-15T17:50:54.677183+00:00",
+    "home_score": 0,
+    "started_at": "2026-10-29T01:30:00+00:00",
+    "updated_at": "2026-10-27T10:05:03.183872+00:00",
+    "nba_game_id": "0022600142",
+    "season_year": 2027,
+    "week_number": 2,
+    "bbref_away_team": null,
+    "bbref_home_team": null,
+    "stats_synced_at": null,
+    "game_status_text": "9:30 pm ET",
+    "sportsdata_game_id": null,
+    "live_stats_elapsed_seconds": null,
+    "live_scoreboard_elapsed_seconds": null
+  },
+  "players": [
+    {
+      "id": "3dc342fe-1daf-464c-8743-27320f1e21e3",
+      "nba_id": "1643585",
+      "nba_team": "DAL",
+      "last_name": "Ishchenko",
+      "first_name": "Vsevolod"
+    },
+    {
+      "id": "413f6250-63c0-4645-887a-c553ea392f8b",
+      "nba_id": "1641726",
+      "nba_team": "DAL",
+      "last_name": "Lively II",
+      "first_name": "Dereck"
+    },
+    {
+      "id": "427e90cd-5c66-4dca-8fa9-940add2502b8",
+      "nba_id": "1643516",
+      "nba_team": "DAL",
+      "last_name": "Johnson Jr.",
+      "first_name": "Morez"
+    },
+    {
+      "id": "43b88e40-3131-4efe-8578-aedff3c4b7b0",
+      "nba_id": "202681",
+      "nba_team": "DAL",
+      "last_name": "Irving",
+      "first_name": "Kyrie"
+    },
+    {
+      "id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "nba_id": "1642383",
+      "nba_team": "DAL",
+      "last_name": "Clayton Jr.",
+      "first_name": "Walter"
+    },
+    {
+      "id": "67091ffd-39f4-4e72-a903-da2ce07bb083",
+      "nba_id": "1642258",
+      "nba_team": "DAL",
+      "last_name": "Risacher",
+      "first_name": "Zaccharie"
+    },
+    {
+      "id": "76732d89-4fe3-4d5c-b46c-74e445ace171",
+      "nba_id": "1630583",
+      "nba_team": "DAL",
+      "last_name": "Aldama",
+      "first_name": "Santi"
+    },
+    {
+      "id": "81152787-b116-4437-87a7-7525641459e0",
+      "nba_id": "1641890",
+      "nba_team": "DAL",
+      "last_name": "Smith",
+      "first_name": "Tyler"
+    },
+    {
+      "id": "83cc5014-f4cd-42ed-b508-25a9f37f7d41",
+      "nba_id": "1631204",
+      "nba_team": "DAL",
+      "last_name": "Sasser",
+      "first_name": "Marcus"
+    },
+    {
+      "id": "8d6933b3-d398-4551-9192-08aa188fc94b",
+      "nba_id": "1628997",
+      "nba_team": "DAL",
+      "last_name": "Martin",
+      "first_name": "Caleb"
+    },
+    {
+      "id": "94ed8037-7d68-4d97-b0b8-fbceeb2a215a",
+      "nba_id": "1643588",
+      "nba_team": "DAL",
+      "last_name": "Lawal",
+      "first_name": "Tobi"
+    },
+    {
+      "id": "98a02399-2c5d-4bea-8947-4092ca353ac1",
+      "nba_id": "1642967",
+      "nba_team": "DAL",
+      "last_name": "Poulakidas",
+      "first_name": "John"
+    },
+    {
+      "id": "9b679544-b913-49d4-8eca-1beb2667b405",
+      "nba_id": "1630230",
+      "nba_team": "DAL",
+      "last_name": "Marshall",
+      "first_name": "Naji"
+    },
+    {
+      "id": "9cb1f29b-5a7c-428c-bc4a-5121c4c3fd53",
+      "nba_id": "1630619",
+      "nba_team": "DAL",
+      "last_name": "Cisse",
+      "first_name": "Moussa"
+    },
+    {
+      "id": "9d9d3eb3-eae9-4947-a3e7-f51d3ae5c126",
+      "nba_id": "1631108",
+      "nba_team": "DAL",
+      "last_name": "Christie",
+      "first_name": "Max"
+    },
+    {
+      "id": "c1092d36-fa18-43df-a931-c5506460061e",
+      "nba_id": "1641844",
+      "nba_team": "DAL",
+      "last_name": "Biberovic",
+      "first_name": "Tarik"
+    },
+    {
+      "id": "c41b4c39-ef23-4b6f-9e9e-584fe87fce90",
+      "nba_id": "1629655",
+      "nba_team": "DAL",
+      "last_name": "Gafford",
+      "first_name": "Daniel"
+    },
+    {
+      "id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "nba_id": "1629023",
+      "nba_team": "DAL",
+      "last_name": "Washington",
+      "first_name": "P.J."
+    },
+    {
+      "id": "e9fc51b3-f14b-4cc6-ab82-12c82fd38884",
+      "nba_id": "1641724",
+      "nba_team": "DAL",
+      "last_name": "Howard",
+      "first_name": "Jett"
+    },
+    {
+      "id": "eeb092b1-2fd2-4656-a2ba-d0912f51801b",
+      "nba_id": "203939",
+      "nba_team": "DAL",
+      "last_name": "Powell",
+      "first_name": "Dwight"
+    },
+    {
+      "id": "f644bbad-1455-4dad-a011-a9463cee57fa",
+      "nba_id": "1643547",
+      "nba_team": "DAL",
+      "last_name": "de Larrea",
+      "first_name": "Sergio"
+    },
+    {
+      "id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "nba_id": "1642843",
+      "nba_team": "DAL",
+      "last_name": "Flagg",
+      "first_name": "Cooper"
+    },
+    {
+      "id": "09d517bc-a707-4f4f-8cb1-265f64c57b7a",
+      "nba_id": "1629026",
+      "nba_team": "OKC",
+      "last_name": "Williams",
+      "first_name": "Kenrich"
+    },
+    {
+      "id": "38e331ed-7349-43fd-9b1f-58cde5007cff",
+      "nba_id": "1642362",
+      "nba_team": "OKC",
+      "last_name": "Sandfort",
+      "first_name": "Payton"
+    },
+    {
+      "id": "3f41c996-0471-48d0-82ea-aac3b9af7e3a",
+      "nba_id": "1642964",
+      "nba_team": "OKC",
+      "last_name": "Barnhizer",
+      "first_name": "Brooks"
+    },
+    {
+      "id": "4dfa684a-4c61-430f-a99b-65140e2b8555",
+      "nba_id": "1631119",
+      "nba_team": "OKC",
+      "last_name": "Williams",
+      "first_name": "Jaylin"
+    },
+    {
+      "id": "52670aad-7380-4e5c-9f5f-7096ac3fb561",
+      "nba_id": "1628983",
+      "nba_team": "OKC",
+      "last_name": "Gilgeous-Alexander",
+      "first_name": "Shai"
+    },
+    {
+      "id": "5601fba8-46f7-44cd-bbe7-eb98538eddc9",
+      "nba_id": "1643754",
+      "nba_team": "OKC",
+      "last_name": "Tilly",
+      "first_name": "Christoph"
+    },
+    {
+      "id": "561187f3-ff85-45c1-8d38-d0eb5aa28c81",
+      "nba_id": "1643717",
+      "nba_team": "OKC",
+      "last_name": "Dix",
+      "first_name": "Josh"
+    },
+    {
+      "id": "562b1758-6a1a-4f3b-a551-b628ea4efc06",
+      "nba_id": "1642260",
+      "nba_team": "OKC",
+      "last_name": "Topic",
+      "first_name": "Nikola"
+    },
+    {
+      "id": "58e0ccfe-85f5-4ae7-bdfe-a50a410105f3",
+      "nba_id": "1642923",
+      "nba_team": "OKC",
+      "last_name": "Oweh",
+      "first_name": "Otega"
+    },
+    {
+      "id": "5e03e48e-b8fa-4da1-a52b-6c9088731e1b",
+      "nba_id": "1641717",
+      "nba_team": "OKC",
+      "last_name": "Wallace",
+      "first_name": "Cason"
+    },
+    {
+      "id": "612255d0-4b37-4332-948c-3a4aba4759bd",
+      "nba_id": "1643530",
+      "nba_team": "OKC",
+      "last_name": "Mara",
+      "first_name": "Aday"
+    },
+    {
+      "id": "72cae501-19c8-4209-a03f-b742651a5aaa",
+      "nba_id": "1627936",
+      "nba_team": "OKC",
+      "last_name": "Caruso",
+      "first_name": "Alex"
+    },
+    {
+      "id": "77db9073-196a-42f6-8dbc-b437fbc1f5b8",
+      "nba_id": "1643597",
+      "nba_team": "OKC",
+      "last_name": "McCray V",
+      "first_name": "Robert"
+    },
+    {
+      "id": "90ef20f9-2c97-495e-b371-4c9c5d57304a",
+      "nba_id": "1643808",
+      "nba_team": "OKC",
+      "last_name": "Holifield",
+      "first_name": "Andrew"
+    },
+    {
+      "id": "9fd009c3-6dd9-4a72-a74e-b655e23e7c06",
+      "nba_id": "1642349",
+      "nba_team": "OKC",
+      "last_name": "Mitchell",
+      "first_name": "Ajay"
+    },
+    {
+      "id": "a3c02bfd-83b1-480f-aec1-86087574df22",
+      "nba_id": "1642272",
+      "nba_team": "OKC",
+      "last_name": "McCain",
+      "first_name": "Jared"
+    },
+    {
+      "id": "abdf6300-224b-4e04-8206-33788785f6f3",
+      "nba_id": "1642877",
+      "nba_team": "OKC",
+      "last_name": "Peavy",
+      "first_name": "Micah"
+    },
+    {
+      "id": "ae19f9a2-960e-49fd-a09a-bb7fb086d0ad",
+      "nba_id": "1643208",
+      "nba_team": "OKC",
+      "last_name": "Pritchard",
+      "first_name": "Anthony"
+    },
+    {
+      "id": "ced1a9bc-5f0a-4694-a91b-48fc02fe3cdf",
+      "nba_id": "1628392",
+      "nba_team": "OKC",
+      "last_name": "Hartenstein",
+      "first_name": "Isaiah"
+    },
+    {
+      "id": "d0583d8b-da21-4b75-b8d2-d3131590df42",
+      "nba_id": "1631114",
+      "nba_team": "OKC",
+      "last_name": "Williams",
+      "first_name": "Jalen"
+    },
+    {
+      "id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "nba_id": "1642892",
+      "nba_team": "OKC",
+      "last_name": "Stirtz",
+      "first_name": "Bennett"
+    },
+    {
+      "id": "e07b2e61-77fa-497e-8840-6426e75b72c4",
+      "nba_id": "1642850",
+      "nba_team": "OKC",
+      "last_name": "Sorber",
+      "first_name": "Thomas"
+    },
+    {
+      "id": "f0b02794-1973-45ab-9930-f6fc79a9d24d",
+      "nba_id": "1631096",
+      "nba_team": "OKC",
+      "last_name": "Holmgren",
+      "first_name": "Chet"
+    }
+  ],
+  "provenance": "Game and player identities from 2026-10-28 backup; live and final stats are reconstructed controls."
+}

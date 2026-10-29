@@ -9,6 +9,8 @@ DECLARE
   v_game public.nba_games%ROWTYPE;
   v_changed integer;
   v_year integer;
+  v_removed jsonb := '[]'::jsonb;
+  v_started_at timestamptz := clock_timestamp();
 BEGIN
   SELECT season_year INTO v_year FROM public.nba_games WHERE id=p_game_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'NBA game not found.' USING ERRCODE='P0002'; END IF;
@@ -40,6 +42,23 @@ BEGIN
        OR row.did_not_play IS NULL
   ) OR (SELECT count(DISTINCT row->>'player_id') FROM jsonb_array_elements(p_stats) AS row) <> jsonb_array_length(p_stats) THEN
     RAISE EXCEPTION 'Box score rows do not match the current game or contain duplicate players.' USING ERRCODE = '22023';
+  END IF;
+
+  IF p_is_final THEN
+    WITH removed AS (
+      DELETE FROM public.player_game_stats AS stored
+      WHERE stored.game_id = p_game_id
+        AND stored.did_not_play
+        AND ROW(stored.minutes_played, stored.points, stored.rebounds, stored.offensive_rebounds,
+          stored.defensive_rebounds, stored.assists, stored.steals, stored.blocks, stored.turnovers,
+          stored.personal_fouls, stored.field_goals_made, stored.field_goals_attempted,
+          stored.three_pointers_made, stored.three_pointers_attempted, stored.free_throws_made,
+          stored.free_throws_attempted, stored.plus_minus, stored.double_double, stored.triple_double)
+          IS NOT DISTINCT FROM ROW(0::numeric, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false)
+        AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_stats) AS row WHERE (row->>'player_id')::uuid = stored.player_id)
+      RETURNING stored.*
+    )
+    SELECT COALESCE(jsonb_agg(to_jsonb(removed) ORDER BY player_id), '[]'::jsonb) INTO v_removed FROM removed;
   END IF;
 
   IF p_is_final AND EXISTS (
@@ -90,6 +109,11 @@ BEGIN
     WHERE id = p_game_id;
   ELSE
     UPDATE public.nba_games SET stats_synced_at = NULL WHERE id = p_game_id AND stats_synced_at IS NOT NULL;
+  END IF;
+  IF jsonb_array_length(v_removed) > 0 THEN
+    INSERT INTO public.sync_runs(function_name, started_at, finished_at, status, rows_affected, details)
+    VALUES('sync-stats:inactive-cleanup', v_started_at, clock_timestamp(), 'success', jsonb_array_length(v_removed),
+      jsonb_build_object('game_id', p_game_id, 'nba_game_id', p_provider_game_id, 'removed_inactive_rows', v_removed));
   END IF;
   RETURN v_changed;
 END;

@@ -1,4 +1,5 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { expect, it } from 'vitest'
@@ -6,6 +7,21 @@ import { clientRealtimeTables, publicationDifference, publicationTables, reposit
 
 it('publishes exactly the tables watched by the current client', () => {
     expect(publicationDifference(clientRealtimeTables(), repositoryPublicationTables())).toEqual({ missing: [], unwatched: [] })
+}, 15000)
+
+it('ignores untracked source files left by other test suites', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'pancake-realtime-tracked-'))
+    try {
+        for (const directory of ['app', 'components', 'constants', 'contexts', 'hooks', 'lib']) mkdirSync(path.join(root, directory))
+        execFileSync('git', ['init', '-q', root])
+        writeFileSync(path.join(root, 'lib/client.ts'), "const channel = { on: (...args: unknown[]) => args }; channel.on('postgres_changes', { table: 'drafts' })")
+        execFileSync('git', ['add', 'lib/client.ts'], { cwd: root })
+        mkdirSync(path.join(root, 'lib/generated-fixture'))
+        writeFileSync(path.join(root, 'lib/generated-fixture/client.ts'), "const channel = { on: (...args: unknown[]) => args }; channel.on('postgres_changes', { table: 'temporary_fixture_only' })")
+        expect(clientRealtimeTables(root)).toEqual(['drafts'])
+    } finally {
+        rmSync(root, { recursive: true, force: true })
+    }
 })
 
 it('follows aliases and watch helpers without counting unused factories or unrelated table properties', () => {

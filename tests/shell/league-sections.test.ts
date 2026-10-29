@@ -5,7 +5,7 @@ import { LEAGUE_TABS, parseLeagueTab } from '@/lib/league/tabs'
 
 it('opens Standings by default and keeps league sections one tap away', () => {
     expect(parseLeagueTab(undefined)).toBe('results')
-    expect(LEAGUE_TABS.map(tab => tab.label)).toEqual(['Standings', 'Activity', 'Picks', 'Draft', 'Bracket', 'Settings'])
+    expect(LEAGUE_TABS.map(tab => tab.label)).toEqual(['Standings', 'Activity', 'Picks', 'Schedule', 'Draft', 'Bracket', 'Settings'])
     const source = readFileSync('app/(tabs)/league.tsx', 'utf8')
     expect(source).not.toContain('<LeagueHome')
     expect(source).not.toContain('currentLeague?.name')

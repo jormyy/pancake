@@ -1,0 +1,114 @@
+\set ON_ERROR_STOP on
+\getenv expected_db_port PANCAKE_TEST_DB_PORT
+SELECT :'HOST' IN ('127.0.0.1','localhost') AND :'PORT'=:'expected_db_port' AS assigned_database \gset
+\if :assigned_database
+\else
+  DO $$ BEGIN RAISE EXCEPTION 'Use the assigned private database'; END $$;
+\endif
+DO $$ BEGIN
+  IF (SELECT count(*) FROM public.player_game_stats)<10000 THEN
+    RAISE EXCEPTION 'Restore production-shaped statistics before the isolation recipe';
+  END IF;
+END $$;
+BEGIN;
+SET LOCAL statement_timeout='30s';
+CREATE TEMP TABLE statistics_dispatch_samples(phase text,milliseconds numeric,dispatched integer);
+CREATE TEMP TABLE statistics_dispatched(id bigint GENERATED ALWAYS AS IDENTITY);
+CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$ BEGIN RETURN; END $$;
+CREATE OR REPLACE FUNCTION private.flush_player_stats_hints()
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$ BEGIN INSERT INTO pg_temp.statistics_dispatched DEFAULT VALUES; RETURN 1; END $$;
+UPDATE private.work_items SET status='dead',lease_token=NULL,lease_until=NULL WHERE status IN ('pending','running','failed');
+UPDATE private.worker_controls SET paused=false,scheduler_level='normal',scheduler_healthy_since=NULL WHERE id;
+CREATE FUNCTION pg_temp.measure_dispatch(p_phase text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE started timestamptz; dispatched integer;
+BEGIN
+  FOR i IN 1..20 LOOP
+    PERFORM private.work_enqueue('player-stats-hints','statistics-isolation-'||p_phase||i::text,now());
+    started:=clock_timestamp();
+    dispatched:=public.dispatch_work();
+    INSERT INTO statistics_dispatch_samples VALUES(p_phase,extract(epoch FROM clock_timestamp()-started)*1000,dispatched);
+    IF dispatched<>1 THEN RAISE EXCEPTION 'Essential work did not dispatch'; END IF;
+  END LOOP;
+END;
+$$;
+SET LOCAL statement_timeout='5s';
+SELECT pg_temp.measure_dispatch('baseline');
+SELECT 'statistics-isolation-'||gen_random_uuid()::text AS probe_application \gset
+\setenv STATISTICS_PROBE_APPLICATION :probe_application
+SELECT set_config('test.statistics_application',:'probe_application',true);
+\! psql "$SUPABASE_DB_URL" -X -f tests/db/statistics-slow-job.psql >/dev/null 2>&1 &
+SET LOCAL statement_timeout='30s';
+DO $$
+DECLARE application text:=current_setting('test.statistics_application'); active boolean:=false;
+BEGIN
+  FOR attempt IN 1..100 LOOP
+    SELECT EXISTS(SELECT FROM pg_stat_progress_analyze progress JOIN pg_stat_activity activity USING(pid)
+      WHERE activity.application_name=application) INTO active;
+    EXIT WHEN active;
+    PERFORM pg_sleep(0.05);
+    PERFORM pg_stat_clear_snapshot();
+  END LOOP;
+  IF NOT active THEN RAISE EXCEPTION 'The independent ANALYZE did not start'; END IF;
+  PERFORM pg_sleep(5.1);
+  PERFORM pg_stat_clear_snapshot();
+  IF NOT EXISTS(SELECT FROM pg_stat_progress_analyze progress JOIN pg_stat_activity activity USING(pid)
+    WHERE activity.application_name=application) THEN RAISE EXCEPTION 'ANALYZE must stay active beyond the dispatcher timeout'; END IF;
+EXCEPTION WHEN OTHERS THEN
+  PERFORM pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=application;
+  RAISE;
+END;
+$$;
+SET LOCAL statement_timeout='5s';
+DO $$
+DECLARE application text:=current_setting('test.statistics_application'); baseline numeric; loaded numeric;
+BEGIN
+  PERFORM pg_temp.measure_dispatch('during-analysis');
+  SELECT percentile_cont(0.5) WITHIN GROUP(ORDER BY milliseconds) INTO baseline FROM statistics_dispatch_samples WHERE phase='baseline';
+  SELECT percentile_cont(0.5) WITHIN GROUP(ORDER BY milliseconds) INTO loaded FROM statistics_dispatch_samples WHERE phase='during-analysis';
+  IF loaded>greatest(baseline*3,baseline+25) THEN RAISE EXCEPTION 'Analysis changes dispatcher runtime: baseline %, loaded %',baseline,loaded; END IF;
+  IF (SELECT count(*) FROM statistics_dispatched)<>40 THEN RAISE EXCEPTION 'Essential work was lost'; END IF;
+  PERFORM pg_stat_clear_snapshot();
+  IF NOT EXISTS(SELECT FROM pg_stat_progress_analyze progress JOIN pg_stat_activity activity USING(pid)
+    WHERE activity.application_name=application) THEN RAISE EXCEPTION 'Dispatch must finish while ANALYZE remains active'; END IF;
+  PERFORM pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=application;
+EXCEPTION WHEN OTHERS THEN
+  PERFORM pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=application;
+  RAISE;
+END;
+$$;
+SELECT phase,count(*) AS samples,round(min(milliseconds),3) AS minimum_ms,
+  round((percentile_cont(0.5) WITHIN GROUP(ORDER BY milliseconds))::numeric,3) AS median_ms,
+  round(max(milliseconds),3) AS maximum_ms,sum(dispatched) AS dispatched
+FROM statistics_dispatch_samples GROUP BY phase ORDER BY phase;
+ROLLBACK;
+BEGIN;
+SELECT 'statistics-lock-'||gen_random_uuid()::text AS probe_application \gset
+\setenv STATISTICS_PROBE_APPLICATION :probe_application
+SELECT set_config('test.statistics_application',:'probe_application',true);
+\! psql "$SUPABASE_DB_URL" -X -f tests/db/statistics-lock-holder.psql >/dev/null 2>&1 &
+DO $$
+DECLARE application text:=current_setting('test.statistics_application'); locked boolean:=false; result jsonb;
+BEGIN
+  FOR attempt IN 1..100 LOOP
+    SELECT EXISTS(SELECT FROM pg_stat_activity activity JOIN pg_locks lock USING(pid)
+      WHERE activity.application_name=application AND lock.relation='public.players'::regclass AND lock.mode='AccessExclusiveLock' AND lock.granted) INTO locked;
+    EXIT WHEN locked;
+    PERFORM pg_sleep(0.05);
+    PERFORM pg_stat_clear_snapshot();
+  END LOOP;
+  IF NOT locked THEN RAISE EXCEPTION 'The lock control did not start'; END IF;
+  PERFORM set_config('lock_timeout','2s',true);
+  result:=private.refresh_screen_statistics();
+  IF NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE to_regclass(row->>'relation')='public.players'::regclass AND row->>'status'='skipped' AND row->>'sqlstate'='55P03') THEN
+    RAISE EXCEPTION 'The job must skip the locked table: %',result;
+  END IF;
+  IF NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE row->>'status'='analyzed') THEN RAISE EXCEPTION 'Other targets must still run'; END IF;
+  PERFORM pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=application;
+  RAISE NOTICE 'PASS: locked target skipped; other targets analyzed';
+EXCEPTION WHEN OTHERS THEN
+  PERFORM pg_cancel_backend(pid) FROM pg_stat_activity WHERE application_name=application;
+  RAISE;
+END;
+$$;
+ROLLBACK;

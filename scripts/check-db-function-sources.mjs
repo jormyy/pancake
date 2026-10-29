@@ -641,6 +641,15 @@ FROM (
      OR comparison.live_acl <> comparison.expected_acl
   UNION ALL
   SELECT jsonb_build_object('functionKey', extras.function_key, 'problem', 'missing canonical source') FROM extras
+  UNION ALL
+  SELECT jsonb_build_object(
+    'functionKey', live.schema_name || '.' || live.proname || '(' || live.identity_arguments || ')',
+    'problem', 'inline database maintenance is restricted to the separate statistics job'
+  )
+  FROM live
+  WHERE NOT (live.schema_name = 'private' AND live.proname = 'refresh_screen_statistics' AND live.identity_arguments = '')
+    AND (live.prosrc ~* $maintenance$(^|[[:space:];'"])(ANALYZE|VACUUM|REINDEX)([[:space:](;]|$)$maintenance$
+      OR live.prosrc ~* $maintenance$(^|[^[:alnum:]_])(private[.])?refresh_screen_statistics[[:space:]]*[(]$maintenance$)
 ) AS issues;
 ROLLBACK;
 `

@@ -1,0 +1,162 @@
+[
+  {
+    "weekNumber": 1,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "win",
+    "myPoints": 531,
+    "opponentPoints": 465
+  },
+  {
+    "weekNumber": 2,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "loss",
+    "myPoints": 400,
+    "opponentPoints": 500
+  },
+  {
+    "weekNumber": 3,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "tie",
+    "myPoints": 300,
+    "opponentPoints": 300
+  },
+  {
+    "weekNumber": 4,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "win",
+    "myPoints": 620,
+    "opponentPoints": 601
+  },
+  {
+    "weekNumber": 5,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": true,
+    "status": "live",
+    "myPoints": 112.5,
+    "opponentPoints": 90
+  },
+  {
+    "weekNumber": 6,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 7,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 8,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 9,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 10,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 11,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 12,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 13,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 14,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 15,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 16,
+    "opponentTeamName": "Cedar Owls",
+    "isCurrent": false,
+    "status": "upcoming",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 17,
+    "opponentTeamName": null,
+    "isCurrent": false,
+    "status": "playoffs",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 18,
+    "opponentTeamName": null,
+    "isCurrent": false,
+    "status": "playoffs",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 19,
+    "opponentTeamName": null,
+    "isCurrent": false,
+    "status": "playoffs",
+    "myPoints": null,
+    "opponentPoints": null
+  },
+  {
+    "weekNumber": 20,
+    "opponentTeamName": null,
+    "isCurrent": false,
+    "status": "playoffs",
+    "myPoints": null,
+    "opponentPoints": null
+  }
+]

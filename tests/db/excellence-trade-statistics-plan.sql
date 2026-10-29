@@ -23,6 +23,7 @@ WITH players AS (
   FROM generate_series(2026,2028) year CROSS JOIN generate_series(1,2) round CROSS JOIN unnest(ARRAY['early','mid','late']) tier
 )
 SELECT public.publish_trade_values(rows.value,picks.value,'fixture',clock_timestamp(),'json') FROM rows,picks;
+SELECT private.refresh_screen_statistics();
 EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT pg_temp.pick_values(:'league_id');
 SELECT md5(pg_temp.pick_values(:'league_id')::text);
 ROLLBACK;

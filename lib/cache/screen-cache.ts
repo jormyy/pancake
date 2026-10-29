@@ -3,7 +3,7 @@ import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/s
 import { compareLeagueVersions, leagueVersionSnapshot, readLeagueVersion, subscribeLeagueVersion, type LeagueVersionSnapshot } from '@/lib/league-version'
 import { API_URL } from '@/lib/shared/api-url'
 
-export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
+export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'league-schedule' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
 export type ScreenScope = { accountId: string; leagueId?: string | null; memberId?: string | null; seasonId?: string | null; screen: ScreenName; params?: Record<string, unknown> }
 export type ViewContext = { league?: { timezone?: string | null }; pendingIncomingCount?: number; leagueId: string; memberId: string; seasonId: string | null; seasonYear: number; weekNumber: number | null; today: string; version: number | string | null; stale: boolean }
 export type ScreenEnvelope<T> = { schema: 1; scope: ScreenScope; lookupScope?: ScreenScope; version: string; savedAt: number; value: T; dirty: boolean }
@@ -102,6 +102,7 @@ const dependencies: Record<ScreenName, string[]> = {
     'trade-details': ['trade', 'roster', 'inventory', 'resources', 'member', 'settings', 'season'],
     'trade-analysis': ['trade', 'resources', 'roster', 'inventory', 'settings', 'season'],
     league: ['score', 'roster', 'inventory', 'resources', 'member', 'settings', 'season', 'draft', 'activity', 'announcement'],
+    'league-schedule': ['score', 'member', 'settings', 'season'],
     standings: ['score', 'member', 'season'], activity: ['activity', 'roster', 'inventory', 'trade', 'announcement', 'member'],
     picks: ['inventory', 'trade', 'draft', 'member', 'season'], settings: ['settings', 'inventory', 'member', 'season'],
     lineup: ['trade', 'claim', 'inventory', 'lineup', 'roster', 'game', 'stat', 'settings', 'resources', 'season'],
@@ -239,6 +240,11 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
             if (!current()) throw new Error('Your account or league changed. Please retry.')
             if (!response.ok || body.ok !== true || body.view === undefined) throw new Error(body.error ?? 'Could not load this screen.')
             value = body.view
+            if (scope.screen === 'league-schedule') {
+                const published = (value as { context?: { version?: unknown } }).context?.version
+                if (typeof published !== 'string' || !/^\d+$/.test(published)) throw new Error('Could not read the schedule version.')
+                version = published
+            }
         } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version)))
         saveScreenView(scope, value, version)
         return value

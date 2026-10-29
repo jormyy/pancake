@@ -38,7 +38,7 @@ Deno.test({
       const joined = await admin.from('league_members').insert({ id: member, league_id: league, user_id: user, role: 'commissioner' })
       assert.ifError(joined.error)
       const before = BigInt(await sql(`SELECT version FROM public.league_versions WHERE league_id='${league}'`))
-      assert.equal(await sql("SELECT count(*) FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='league_change_hints'"), '0')
+      assert.equal(await sql("SELECT count(*) FROM pg_publication_tables WHERE pubname='supabase_realtime' AND tablename='league_change_hints'"), '1')
       await sql(`BEGIN; UPDATE public.leagues SET name='Changed version fixture' WHERE id='${league}'; UPDATE public.league_members SET team_name='Changed team' WHERE id='${member}'; COMMIT`)
       const expected = (before + 1n).toString()
       assert.equal(await sql(`SELECT version FROM public.league_versions WHERE league_id='${league}'`), expected)
@@ -56,7 +56,7 @@ Deno.test({
       assert.equal(body.changes[0].topic, 'batch')
       const unchanged = await handleApiRoute(request(expected))
       assert.deepEqual(await unchanged.json(), { version: expected, changes: [] })
-      console.log(JSON.stringify({ committedBumps: 1, rollbackBumps: 0, actualEndpoint: true, draftOnlyRealtime: true }))
+      console.log(JSON.stringify({ committedBumps: 1, rollbackBumps: 0, actualEndpoint: true, activeClientRealtime: true }))
     } finally {
       client.realtime.disconnect()
       await sql(`DELETE FROM public.leagues WHERE id='${league}'; DELETE FROM public.league_change_hints WHERE league_id='${league}'`)
