@@ -1,0 +1,923 @@
+{
+  "phase": "before",
+  "width": 390,
+  "source": "628c7defd19139aa6596be146742f563f576628d",
+  "records": [
+    {
+      "name": "background-trade",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "playerReads": 0,
+      "kept": true
+    },
+    {
+      "name": "forecast",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "playerReads": 0,
+      "kept": true
+    },
+    {
+      "name": "standings",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 40,
+        "offset": 556,
+        "height": 2244,
+        "rows": [
+          {
+            "label": "Open Daniss Jenkins",
+            "top": 131
+          },
+          {
+            "label": "Open Isaiah Jackson",
+            "top": 186
+          },
+          {
+            "label": "Open Dean Wade",
+            "top": 241
+          },
+          {
+            "label": "Open Keon Ellis",
+            "top": 296
+          },
+          {
+            "label": "Open Ziaire Williams",
+            "top": 351
+          },
+          {
+            "label": "Open Tristan da Silva",
+            "top": 406
+          },
+          {
+            "label": "Open Jalen Smith",
+            "top": 461
+          },
+          {
+            "label": "Open Terrence Shannon Jr.",
+            "top": 516
+          },
+          {
+            "label": "Open Luke Kennard",
+            "top": 571
+          },
+          {
+            "label": "Open Jordan Goodwin",
+            "top": 626
+          },
+          {
+            "label": "Open Dennis Schroder",
+            "top": 681
+          },
+          {
+            "label": "Open Sidy Cissoko",
+            "top": 736
+          }
+        ]
+      },
+      "playerReads": 2,
+      "kept": false
+    },
+    {
+      "name": "live-stats",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 40,
+        "offset": 556,
+        "height": 2244,
+        "rows": [
+          {
+            "label": "Open Daniss Jenkins",
+            "top": 131
+          },
+          {
+            "label": "Open Isaiah Jackson",
+            "top": 186
+          },
+          {
+            "label": "Open Dean Wade",
+            "top": 241
+          },
+          {
+            "label": "Open Keon Ellis",
+            "top": 296
+          },
+          {
+            "label": "Open Ziaire Williams",
+            "top": 351
+          },
+          {
+            "label": "Open Tristan da Silva",
+            "top": 406
+          },
+          {
+            "label": "Open Jalen Smith",
+            "top": 461
+          },
+          {
+            "label": "Open Terrence Shannon Jr.",
+            "top": 516
+          },
+          {
+            "label": "Open Luke Kennard",
+            "top": 571
+          },
+          {
+            "label": "Open Jordan Goodwin",
+            "top": 626
+          },
+          {
+            "label": "Open Dennis Schroder",
+            "top": 681
+          },
+          {
+            "label": "Open Sidy Cissoko",
+            "top": 736
+          }
+        ]
+      },
+      "playerReads": 2,
+      "kept": false
+    },
+    {
+      "name": "focus",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 20,
+        "offset": 0,
+        "height": 1144,
+        "rows": [
+          {
+            "label": "Open Mo Bamba",
+            "top": 192
+          },
+          {
+            "label": "Open Brook Lopez",
+            "top": 247
+          },
+          {
+            "label": "Open Ja'Kobe Walter",
+            "top": 302
+          },
+          {
+            "label": "Open Duncan Robinson",
+            "top": 357
+          },
+          {
+            "label": "Open Obi Toppin",
+            "top": 412
+          },
+          {
+            "label": "Open Jrue Holiday",
+            "top": 467
+          },
+          {
+            "label": "Open DeAndre Jordan",
+            "top": 522
+          },
+          {
+            "label": "Open Kyle Kuzma",
+            "top": 577
+          },
+          {
+            "label": "Open Matisse Thybulle",
+            "top": 632
+          },
+          {
+            "label": "Open Daniss Jenkins",
+            "top": 687
+          },
+          {
+            "label": "Open Isaiah Jackson",
+            "top": 742
+          }
+        ]
+      },
+      "playerReads": 0,
+      "kept": false
+    },
+    {
+      "name": "offline-online",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "playerReads": 0,
+      "kept": true
+    },
+    {
+      "name": "stale-revalidate",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 40,
+        "offset": 556,
+        "height": 2244,
+        "rows": [
+          {
+            "label": "Open Daniss Jenkins",
+            "top": 131
+          },
+          {
+            "label": "Open Isaiah Jackson",
+            "top": 186
+          },
+          {
+            "label": "Open Dean Wade",
+            "top": 241
+          },
+          {
+            "label": "Open Keon Ellis",
+            "top": 296
+          },
+          {
+            "label": "Open Ziaire Williams",
+            "top": 351
+          },
+          {
+            "label": "Open Tristan da Silva",
+            "top": 406
+          },
+          {
+            "label": "Open Jalen Smith",
+            "top": 461
+          },
+          {
+            "label": "Open Terrence Shannon Jr.",
+            "top": 516
+          },
+          {
+            "label": "Open Luke Kennard",
+            "top": 571
+          },
+          {
+            "label": "Open Jordan Goodwin",
+            "top": 626
+          },
+          {
+            "label": "Open Dennis Schroder",
+            "top": 681
+          },
+          {
+            "label": "Open Sidy Cissoko",
+            "top": 736
+          }
+        ]
+      },
+      "playerReads": 2,
+      "kept": false
+    },
+    {
+      "name": "loadMore-refresh-race",
+      "before": {
+        "count": 60,
+        "offset": 1800,
+        "height": 3344,
+        "rows": [
+          {
+            "label": "Open Sam Merrill",
+            "top": 152
+          },
+          {
+            "label": "Open Trevon Brazile",
+            "top": 207
+          },
+          {
+            "label": "Open Cam Spencer",
+            "top": 262
+          },
+          {
+            "label": "Open Marcus Sasser",
+            "top": 317
+          },
+          {
+            "label": "Open Isaiah Collier",
+            "top": 372
+          },
+          {
+            "label": "Open Quenton Jackson",
+            "top": 427
+          },
+          {
+            "label": "Open Leonard Miller",
+            "top": 482
+          },
+          {
+            "label": "Open Draymond Green",
+            "top": 537
+          },
+          {
+            "label": "Open Jay Huff",
+            "top": 592
+          },
+          {
+            "label": "Open Miles McBride",
+            "top": 647
+          },
+          {
+            "label": "Open Aaron Nesmith",
+            "top": 702
+          },
+          {
+            "label": "Open Javonte Green",
+            "top": 757
+          }
+        ]
+      },
+      "after": {
+        "count": 40,
+        "offset": 556,
+        "height": 2244,
+        "rows": [
+          {
+            "label": "Open Daniss Jenkins",
+            "top": 131
+          },
+          {
+            "label": "Open Isaiah Jackson",
+            "top": 186
+          },
+          {
+            "label": "Open Dean Wade",
+            "top": 241
+          },
+          {
+            "label": "Open Keon Ellis",
+            "top": 296
+          },
+          {
+            "label": "Open Ziaire Williams",
+            "top": 351
+          },
+          {
+            "label": "Open Tristan da Silva",
+            "top": 406
+          },
+          {
+            "label": "Open Jalen Smith",
+            "top": 461
+          },
+          {
+            "label": "Open Terrence Shannon Jr.",
+            "top": 516
+          },
+          {
+            "label": "Open Luke Kennard",
+            "top": 571
+          },
+          {
+            "label": "Open Jordan Goodwin",
+            "top": 626
+          },
+          {
+            "label": "Open Dennis Schroder",
+            "top": 681
+          },
+          {
+            "label": "Open Sidy Cissoko",
+            "top": 736
+          }
+        ]
+      },
+      "playerReads": 4,
+      "kept": false
+    }
+  ]
+}

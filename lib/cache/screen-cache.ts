@@ -2,6 +2,7 @@ import { rememberLeagueTimezone } from '@/lib/league-timezones'
 import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { compareLeagueVersions, leagueVersionSnapshot, readLeagueVersion, subscribeLeagueVersion, type LeagueVersionSnapshot } from '@/lib/league-version'
 import { API_URL } from '@/lib/shared/api-url'
+import { mergePlayerPage, playerPageOffset, type PlayerPages } from '@/lib/cache/player-pages'
 
 export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'league-schedule' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
 export type ScreenScope = { accountId: string; leagueId?: string | null; memberId?: string | null; seasonId?: string | null; screen: ScreenName; params?: Record<string, unknown> }
@@ -66,17 +67,20 @@ function publish(key: string): void {
     for (const listener of listeners.get(key) ?? []) listener()
 }
 
-export function saveScreenView<T>(scope: ScreenScope, value: T, version: string): void {
+export function saveScreenView<T>(scope: ScreenScope, value: T, version: string, replace = false): void {
     restore()
     const key = screenCacheKey(scope)
+    const previous = entries.get(key)
+    const partial = !replace && scope.screen === 'players' && typeof scope.params?.limit === 'number' && !scope.params.offset && previous
+        && playerPageOffset(previous.value as PlayerPages) > playerPageOffset(value as PlayerPages)
+    if (partial) value = mergePlayerPage(previous.value as PlayerPages, value as PlayerPages, 0) as T
     const context = value && typeof value === 'object' && 'context' in value ? value.context as ViewContext | null : null
     if (context?.leagueId && context.league) rememberLeagueTimezone(context.leagueId, context.league.timezone)
     const resolvedScope = context?.seasonId ? { ...scope, seasonId: context.seasonId } : scope
-    const entry: ScreenEnvelope<T> = { schema: 1, scope: resolvedScope, lookupScope: scope, value, version, savedAt: Date.now(), dirty: false }
+    const entry: ScreenEnvelope<T> = { schema: 1, scope: resolvedScope, lookupScope: scope, value, version, savedAt: Date.now(), dirty: Boolean(partial || !replace && scope.screen === 'players' && previous?.dirty) }
     const serialized = JSON.stringify(entry)
     const size = (text: string) => new TextEncoder().encode(text).length
     if (size(serialized) > maxBytes) return
-    const previous = entries.get(key)
     if (previous && screenCacheKey(previous.scope) !== screenCacheKey(resolvedScope)) { try { storage()?.removeItem(screenCacheKey(previous.scope)) } catch {} }
     entries.delete(key)
     entries.set(key, entry)
@@ -121,6 +125,9 @@ function screenAffected(scope: ScreenScope, snapshot: LeagueVersionSnapshot, pre
         const topics = rawTopics.map(topic => topic === 'members' ? 'member' : topic === 'players' ? 'resources' : topic === 'projections' ? 'resources' : topic === 'claims' ? 'inventory' : topic)
         const known = new Set([...Object.values(dependencies).flat(), 'members', 'players', 'projections', 'claims'])
         if (topics.some(topic => typeof topic !== 'string' || !known.has(topic))) return true
+        const tables = change.scope.tables
+        if (scope.screen === 'players' && Array.isArray(tables) && tables.length > 0
+            && tables.every(table => ['standings_current', 'matchup_totals', 'matchup_forecasts', 'trade_value_cache'].includes(table))) return false
         return topics.some(topic => dependencies[scope.screen].includes(String(topic)))
     })
 }
@@ -232,21 +239,33 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
         do {
             revision = revisions.get(key) ?? 0
             version = scope.leagueId ? leagueVersionSnapshot(scope.leagueId).version : '0'
-            const query = new URLSearchParams({ params: JSON.stringify(scope.params ?? {}) })
-            if (scope.leagueId) query.set('leagueId', scope.leagueId)
-            if (scope.memberId) query.set('memberId', scope.memberId)
-            const response = await fetch(`${API_URL}/views/${scope.screen}?${query}`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store', signal: AbortSignal.timeout(30_000) })
-            const body = await response.json() as { ok?: boolean; view?: T; error?: string }
-            if (!current()) throw new Error('Your account or league changed. Please retry.')
-            if (!response.ok || body.ok !== true || body.view === undefined) throw new Error(body.error ?? 'Could not load this screen.')
-            value = body.view
+            const paginated = scope.screen === 'players' && typeof scope.params?.limit === 'number' && !scope.params.offset
+            let offset = 0
+            let combined: PlayerPages | undefined
+            do {
+                const params = offset ? { ...scope.params, offset } : scope.params ?? {}
+                const query = new URLSearchParams({ params: JSON.stringify(params) })
+                if (scope.leagueId) query.set('leagueId', scope.leagueId)
+                if (scope.memberId) query.set('memberId', scope.memberId)
+                const response = await fetch(`${API_URL}/views/${scope.screen}?${query}`, { headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store', signal: AbortSignal.timeout(30_000) })
+                const body = await response.json() as { ok?: boolean; view?: T; error?: string }
+                if (!current()) throw new Error('Your account or league changed. Please retry.')
+                if (!response.ok || body.ok !== true || body.view === undefined) throw new Error(body.error ?? 'Could not load this screen.')
+                value = body.view
+                if (!paginated) break
+                const page = value as PlayerPages
+                combined = combined ? mergePlayerPage(combined, page, offset) : { ...page, nextOffset: page.players.length }
+                offset += page.players.length
+                value = combined as T
+                if (!page.hasMore || page.players.length === 0) break
+            } while (offset < playerPageOffset(cachedScreenView<PlayerPages>(scope)?.value ?? combined!))
             if (scope.screen === 'league-schedule') {
                 const published = (value as { context?: { version?: unknown } }).context?.version
                 if (typeof published !== 'string' || !/^\d+$/.test(published)) throw new Error('Could not read the schedule version.')
                 version = published
             }
         } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version)))
-        saveScreenView(scope, value, version)
+        saveScreenView(scope, value, version, true)
         return value
     })()
     pending.set(key, task)

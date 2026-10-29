@@ -1,0 +1,2202 @@
+[
+  {
+    "scenario": "background-trade",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305085028
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305085058
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305085139
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085184
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085185
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085186
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085188
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085188
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085189
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085189
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085189
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085190
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085190
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305085190
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1629731",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086862
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1631165",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086862
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630533",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086864
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1641783",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086865
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630188",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086865
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630545",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086866
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1628379",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086866
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630692",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086866
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/203471",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305086867
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "44",
+    "status": 200,
+    "at": 1793305086887
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305086980
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1631321",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305087005
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1629111",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088920
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1643633",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088922
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088922
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088923
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088923
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088924
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088926
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088926
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088927
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305088927
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "44",
+    "status": 200,
+    "at": 1793305088947
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":40}",
+    "since": null,
+    "status": 200,
+    "at": 1793305089005
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305089020
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305090904
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305090904
+  },
+  {
+    "scenario": "background-trade",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305090905
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095060
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095062
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095063
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095063
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095064
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095064
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095065
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095066
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095066
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095067
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305095067
+  },
+  {
+    "scenario": "forecast",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305095073
+  },
+  {
+    "scenario": "forecast",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305095090
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "45",
+    "status": 200,
+    "at": 1793305095238
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096829
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096829
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096830
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096831
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096831
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096832
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096832
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096832
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096833
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096834
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096834
+  },
+  {
+    "scenario": "forecast",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305096834
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101037
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101039
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101040
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101042
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101043
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101044
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101044
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101045
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101045
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101046
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305101046
+  },
+  {
+    "scenario": "standings",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305101051
+  },
+  {
+    "scenario": "standings",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305101079
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "46",
+    "status": 200,
+    "at": 1793305101205
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102802
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102804
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102804
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102805
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102806
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102806
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102806
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102807
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102807
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102808
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102808
+  },
+  {
+    "scenario": "standings",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305102808
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106956
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106957
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106958
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106958
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106959
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106960
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106961
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106961
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106962
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106963
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305106964
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305106968
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305106992
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "47",
+    "status": 200,
+    "at": 1793305107124
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108729
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108731
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108731
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108732
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108732
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108733
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108733
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108733
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108734
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108734
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108734
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108735
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305108735
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305111150
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305111224
+  },
+  {
+    "scenario": "live-stats",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":40}",
+    "since": null,
+    "status": 200,
+    "at": 1793305111289
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112871
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112873
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112874
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112875
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112875
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112876
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112877
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112877
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112878
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112878
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305112879
+  },
+  {
+    "scenario": "focus",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305112882
+  },
+  {
+    "scenario": "focus",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305112903
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "48",
+    "status": 200,
+    "at": 1793305113036
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114637
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114638
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114639
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114640
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114641
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114641
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114641
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114642
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114642
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114642
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114643
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305114643
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/views/roster",
+    "params": "{\"date\":\"2026-10-29\"}",
+    "since": null,
+    "status": 200,
+    "at": 1793305117061
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117069
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117070
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117071
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117073
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117074
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117074
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117074
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117075
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117075
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117081
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117081
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117099
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117100
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117100
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117101
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117102
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117102
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117104
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117104
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117104
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117104
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117105
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305117105
+  },
+  {
+    "scenario": "focus",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "48",
+    "status": 200,
+    "at": 1793305117187
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119179
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119181
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119182
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119183
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119183
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119183
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119184
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119184
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119184
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119184
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305119184
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305119189
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305119206
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "48",
+    "status": 200,
+    "at": 1793305119334
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120946
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120947
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120947
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120948
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120949
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120949
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120950
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120951
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120951
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120951
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120952
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305120952
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "48",
+    "status": 200,
+    "at": 1793305123433
+  },
+  {
+    "scenario": "offline-online",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305123546
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125378
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125379
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125380
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125380
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125381
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125381
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125381
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125382
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125382
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125382
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305125382
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305125387
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305125405
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "48",
+    "status": 200,
+    "at": 1793305125568
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127130
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127132
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127132
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127133
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127134
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127135
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127135
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127135
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127136
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127136
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127136
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305127136
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305129981
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305130655
+  },
+  {
+    "scenario": "stale-revalidate",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":40}",
+    "since": null,
+    "status": 200,
+    "at": 1793305131327
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1628964",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133813
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/201572",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133813
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1629130",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133814
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642266",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133816
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/201950",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133816
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630167",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133817
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/201599",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133817
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1629680",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133818
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642450",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133818
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1628398",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133819
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630543",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305133820
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/rest/v1/league_members",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305133823
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/rest/v1/league_change_hints",
+    "params": null,
+    "since": null,
+    "status": 200,
+    "at": 1793305133842
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "49",
+    "status": 200,
+    "at": 1793305133983
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630241",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135561
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642350",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135564
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642285",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135564
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1631204",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135565
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642268",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135566
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1631245",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135566
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1631159",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135566
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/203110",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135567
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630643",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135567
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630540",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135567
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630174",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135567
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1629750",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305135568
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630631",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137817
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630311",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137818
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/201143",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137819
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1641711",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137819
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642267",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137820
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1630557",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137820
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1628989",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137821
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1642419",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137821
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1631260",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137821
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1641737",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305137822
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/version",
+    "params": null,
+    "since": "49",
+    "status": 200,
+    "at": 1793305137859
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305138467
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":20}",
+    "since": null,
+    "status": 200,
+    "at": 1793305138535
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":40}",
+    "since": null,
+    "status": 200,
+    "at": 1793305138599
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":60}",
+    "since": null,
+    "status": 200,
+    "at": 1793305138939
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/views/players",
+    "params": "{\"date\":\"2026-10-29\",\"query\":\"\",\"position\":\"ALL\",\"teams\":[],\"playing\":\"all\",\"availability\":\"free_agents\",\"rookiesOnly\":false,\"health\":\"all\",\"sortBy\":\"fpts\",\"sortDir\":\"desc\",\"limit\":20,\"offset\":60}",
+    "since": null,
+    "status": 200,
+    "at": 1793305139004
+  },
+  {
+    "scenario": "loadMore-refresh-race",
+    "path": "/functions/v1/api/players/headshot/1629646",
+    "params": null,
+    "since": null,
+    "status": 500,
+    "at": 1793305139027
+  }
+]

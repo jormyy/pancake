@@ -42,9 +42,9 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
-export function bumpView(league = 'league', topic = 'catchup') {
+export function bumpView(league = 'league', topic = 'catchup', tables?: string[]) {
     boundary.version = String(Number(boundary.version) + 1)
-    boundary.changes = [{ version: boundary.version, topic, scope: { topics: [topic] }, created_at: new Date().toISOString() }]
+    boundary.changes = [{ version: boundary.version, topic, scope: { topics: [topic], ...(tables ? { tables } : {}) }, created_at: new Date().toISOString() }]
     for (const listener of boundary.listeners.get(league) ?? []) listener({ version: boundary.version, changes: boundary.changes })
 }
 
