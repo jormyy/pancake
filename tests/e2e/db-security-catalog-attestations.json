@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261210000300",
+  "candidateVersion": "20261211000400",
   "common": {
     "functions": [
       {
@@ -2208,6 +2208,22 @@
     {
       "filename": "20261210000300_isolate_screen_statistics.sql",
       "sha256": "683951acec2c39f30a0a2959aae0a4b873e60362409bb6bc65efe4a7fa8c4666"
+    },
+    {
+      "filename": "20261211000100_scope_trade_revaluation.sql",
+      "sha256": "a8e66809f777ed11f5aab1358fd6d33cb351660415b5e3c0e5ec6f5f814b257b"
+    },
+    {
+      "filename": "20261211000200_league_schedule_skipped_weeks.sql",
+      "sha256": "7aa64fe0edfd41a3df51f0fc0bc0d8c445b4844f0450c9c7c5da0a8cfcd4ed49"
+    },
+    {
+      "filename": "20261211000300_forecast_inputs_bound.sql",
+      "sha256": "c8733a2747793248084a6f701fcdc06ede520034ed47f54d191eecacfbb7f3c1"
+    },
+    {
+      "filename": "20261211000400_trade_taxi_incoming_only.sql",
+      "sha256": "2ae8d08254ae7455b889a0e348190e4363376001746da00fc61ca45ceeb5deac"
     }
   ],
   "preMigration": {

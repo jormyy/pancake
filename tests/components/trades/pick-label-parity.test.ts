@@ -50,7 +50,7 @@ it('identifies Matthew’s incoming picks without calling their original owner Y
     const text = screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join('')).join('\n')
     expect(text).toContain("2028 Round 1 (orig. Mike's Minions)")
     expect(text).toContain("2027 Round 2 (orig. Mike's Minions)")
-    expect(text.match(/from Mike's Minions → to You/g)).toHaveLength(2)
+    expect(text).not.toContain(' — from ')
 })
 
 it.each(['pending', 'completed'] as const)('uses the same component in a %s card and review panel', async status => {
@@ -60,10 +60,11 @@ it.each(['pending', 'completed'] as const)('uses the same component in a %s card
         React.createElement(TradeCard, { trade: offer, myMemberId: 'matthew', tab: status === 'pending' ? 'offers' : 'history', ...actions, onAnalyze: vi.fn() }),
         React.createElement(TradeDetailsPanel, { context: { trade: offer, myMemberId: 'matthew', tab: status === 'pending' ? 'offers' : 'history' }, actions, onAnalyze: vi.fn() }),
     )) })
-    const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context))
+    const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context, node.props.showDirection))
     expect(labels).toHaveLength(4)
     expect(labels.slice(0, 2)).toEqual(labels.slice(2))
-    expect(labels).toContain("2028 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
+    expect(labels).toContain("2028 Round 1 (orig. Mike's Minions)")
+    expect(labels.every(label => !label.includes(' — from '))).toBe(true)
 })
 
 it('uses the same component for submitted summaries, multi-team review, and activity', async () => {
@@ -77,7 +78,7 @@ it('uses the same component for submitted summaries, multi-team review, and acti
         React.createElement(MultiTeamTradeOverview, { participants: [{ memberId: 'matthew', label: 'You' }, { memberId: 'mike', label: "Mike's Minions" }], items: picks.flatMap((pick, index) => tradeFlowItem(pick, index) ?? []), pickContext: context }),
         React.createElement(ActivityFeed, { transactions: [activity], myMemberId: 'matthew' }),
     )) })
-    const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context))
+    const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context, node.props.showDirection))
     expect(labels).toHaveLength(6)
     expect(labels.slice(0, 2)).toEqual(labels.slice(2, 4))
     expect(labels.slice(0, 2)).toEqual(labels.slice(4))

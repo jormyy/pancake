@@ -78,12 +78,12 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
         buildMultiTeamItems: () => mocks.tradeItems,
         loadedParticipantKey: 'member-a,member-b',
         participantIds: mocks.participantIds,
-        participantName: vi.fn(),
+        participantName: (id: string) => id,
         participantRosters: {
             'member-a': ['player-a', 'drop', 'keep-drop'].map(id => ({ players: { id, display_name: id, injury_status: 'Out' } })),
             'member-b': ['player-b', 'incoming-taxi', 'incoming-ir'].map(id => ({ players: { id, display_name: id, injury_status: 'Out' } })),
         },
-        participantViews: mocks.participantIds.map((memberId) => ({ memberId })),
+        participantViews: mocks.participantIds.map((memberId) => ({ memberId, picks: [], roster: (memberId === 'member-a' ? ['player-a', 'drop', 'keep-drop'] : ['player-b', 'incoming-taxi', 'incoming-ir']).map(id => ({ players: { id, display_name: id, eligible_positions: [], injury_status: 'Out' } })) })),
         prefillFromTrade: mocks.prefillFromTrade,
         prefillFromItems: mocks.prefillFromItems,
         reset: vi.fn(),
@@ -106,7 +106,7 @@ vi.mock('@/hooks/use-multi-team-trade-composer', () => ({
 vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({
     useDynastyTradeAnalysis: () => ({ analysis: null, loading: false, error: null }),
 }))
-vi.mock('@/components/trades/TradeRosterPreviewList', () => ({ TradeRosterPreviewList: 'TradeRosterPreviewList' }))
+vi.mock('@/components/trades/TradeCard', () => ({ TradeCard: 'TradeCard' }))
 vi.mock('@/lib/trade-legality', () => ({ previewTradeLegality: mocks.preview }))
 vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/roster', () => ({ getRoster: async () => mocks.roster }))
@@ -171,7 +171,7 @@ vi.mock('@/components/trades/TradeRosterPlanEditor', () => ({ TradeRosterPlanEdi
 vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuilder: 'MultiTeamTradeBuilder' }))
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: () => null }))
-vi.mock('@/components/ui', () => ({ Button: 'Button', ErrorBanner: () => null }))
+vi.mock('@/components/ui', () => ({ Button: 'Button', ErrorBanner: () => null, PageHeader: ({ actions }: { actions: React.ReactNode }) => React.createElement('View', null, actions) }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: () => null }))
 
 vi.mock('@/components/IRResolutionModal', () => ({ IRResolutionModal: 'IRResolutionModal' }))
@@ -850,18 +850,18 @@ it.each(['edit', 'counter'])('prefills and submits the actor roster plan in %s m
 
 
 it('keeps the draft when SQL reports an ineligible taxi player', async () => {
-    const reason = { rule: 'taxi_eligibility', message: 'Team A must move Player A from taxi.' }
-    mocks.preview.mockResolvedValue([{ memberId: 'member-a', legal: false, reasons: [reason], error: reason.message }])
+    const reason = { rule: 'taxi_eligibility', message: 'Team A must move Player A from taxi.', suggestedMoves: [] }
+    mocks.preview.mockResolvedValue([{ memberId: 'member-a', legal: false, roster: [], reasons: [reason], error: reason.message }])
     let renderer!: ReactTestRenderer
     await act(async () => { renderer = create(React.createElement(ProposeTradeScreen)) })
     await act(async () => renderer.root.findByProps({ testID: 'trade-submit' }).props.onPress())
     await act(async () => renderer.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
     expect(mocks.submitTradeComposer).not.toHaveBeenCalled()
-    expect(renderer.root.findByType('TradeRosterPreviewList' as React.ElementType).props.teams[0].reasons).toEqual([reason])
+    expect(renderer.root.findByType('TradeRosterPlanEditor' as React.ElementType).props.preview.reasons).toEqual([reason])
     await act(async () => renderer.unmount())
 })
 
-it('waits for SQL to approve both rosters and preserves selected drops', async () => {
+it('waits for SQL to approve the viewer roster and preserves selected drops', async () => {
     mocks.preview.mockResolvedValue([{ memberId: 'member-b', legal: false, error: 'Team B is full.', reasons: [] }])
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
@@ -877,13 +877,20 @@ it('waits for SQL to approve both rosters and preserves selected drops', async (
     await act(async () => screen.unmount())
 })
 
-it('saves the sender-selected destination for the other team in the terms', async () => {
+it('shows only the viewer roster and permits sending when the other team needs room', async () => {
+    mocks.preview.mockResolvedValue([
+        { memberId: 'member-a', teamName: 'Team A', legal: true, error: null, reasons: [] },
+        { memberId: 'member-b', teamName: 'Team B', legal: false, error: 'Full', reasons: [{ rule: 'active_slots' }] },
+    ])
     let screen!: ReactTestRenderer
     await act(async () => { screen = create(React.createElement(ProposeTradeScreen)) })
     await act(async () => screen.root.findByProps({ testID: 'trade-submit' }).props.onPress())
-    await act(async () => screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)[1].props.onChange({ taxiPlayerIds: [], irPlayerIds: ['player-a'], dropPlayerIds: [] }))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 220)) })
+    expect(screen.root.findAllByType('TradeRosterPlanEditor' as React.ElementType)).toHaveLength(1)
+    expect(JSON.stringify(screen.toJSON())).not.toContain('will need to make room to accept')
+    expect(screen.root.findByProps({ testID: 'trade-confirm-submit' }).props.disabled).toBe(false)
     await act(async () => screen.root.findByProps({ testID: 'trade-confirm-submit' }).props.onPress())
-    expect(mocks.submitTradeComposer.mock.calls[0][0].payload.rosterPlans['member-b'].irPlayerIds).toEqual(['player-a'])
+    expect(mocks.submitTradeComposer).toHaveBeenCalledTimes(1)
     await act(async () => screen.unmount())
 })
 

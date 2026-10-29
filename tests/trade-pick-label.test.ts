@@ -16,6 +16,12 @@ describe('trade pick labels', () => {
         }, { viewerMemberId: viewer, memberNames })).toBe(expected)
     })
 
+    it('omits the route when a receive or give section already supplies it', () => {
+        expect(tradePickLabel({ kind: 'pick', pickId: 'pick', seasonYear: 2030, round: 1,
+            originalTeamName: 'Trade Team 1', fromMemberId: 'matthew', toMemberId: 'justin',
+        }, { viewerMemberId: 'matthew', memberNames }, false)).toBe('2029 Round 1 (orig. Trade Team 1)')
+    })
+
     it('does not infer identity from equal team names', () => {
         expect(tradePickLabel({ kind: 'pick', pickId: 'pick', seasonYear: 2028, round: 1, originalTeamName: 'Matthew', fromMemberId: 'mike', toMemberId: 'justin' },
             { viewerMemberId: 'matthew', memberNames: { matthew: 'Matthew', mike: 'Matthew', justin: 'Justin' } }))

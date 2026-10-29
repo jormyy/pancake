@@ -14,17 +14,17 @@ BEGIN
   INSERT INTO public.season_weeks(season_year, week_number, week_start, week_end)
     SELECT 9583, week, today + (week - 5) * 7, today + (week - 5) * 7 + 6 FROM generate_series(1, 20) week;
   UPDATE public.leagues SET timezone = 'Pacific/Kiritimati', playoff_start_week = 17, playoff_total_weeks = 4, playoff_round_weeks = ARRAY[2,2] WHERE id = f.league_id;
-  UPDATE public.league_seasons SET playoff_start_week = 17, playoff_round_weeks = ARRAY[2,2] WHERE id = f.season_id;
+  UPDATE public.league_seasons SET playoff_start_week = 17, playoff_round_weeks = ARRAY[2,2], skipped_weeks = ARRAY[1] WHERE id = f.season_id;
   UPDATE public.league_members SET team_name = 'Cedar Owls' WHERE id = f.member_ids[2];
   INSERT INTO public.matchups(league_id, league_season_id, week_number, home_member_id, away_member_id,
     home_points, away_points, is_finalized, winner_member_id)
     SELECT f.league_id, f.season_id, week,
       CASE WHEN week = 2 THEN f.member_ids[2] ELSE f.member_ids[1] END,
       CASE WHEN week = 2 THEN f.member_ids[1] ELSE f.member_ids[2] END,
-      CASE week WHEN 1 THEN 531 WHEN 2 THEN 500 WHEN 3 THEN 300 WHEN 4 THEN 620 WHEN 5 THEN 112.5 ELSE 0 END,
-      CASE week WHEN 1 THEN 465 WHEN 2 THEN 400 WHEN 3 THEN 300 WHEN 4 THEN 601 WHEN 5 THEN 90 ELSE 0 END,
-      week < 5, CASE WHEN week IN (1,4) THEN f.member_ids[1] WHEN week = 2 THEN f.member_ids[2] END
-    FROM generate_series(1, 16) week;
+      CASE week WHEN 2 THEN 500 WHEN 3 THEN 300 WHEN 4 THEN 620 WHEN 5 THEN 112.5 ELSE 0 END,
+      CASE week WHEN 2 THEN 400 WHEN 3 THEN 300 WHEN 4 THEN 601 WHEN 5 THEN 90 ELSE 0 END,
+      week < 5, CASE WHEN week = 4 THEN f.member_ids[1] WHEN week = 2 THEN f.member_ids[2] END
+    FROM generate_series(2, 16) week;
   PERFORM set_config('request.jwt.claim.sub', f.user_ids[1]::text, true);
 END;
 $$;
@@ -48,9 +48,32 @@ END;
 $$;
 RESET ROLE;
 DO $$
-DECLARE f record; other record; before_version bigint; result jsonb; source text; plan jsonb; scans jsonb;
+DECLARE f record; other record; before_version bigint; result jsonb; source text; plan jsonb; scans jsonb; skipped_bytes integer; skipped_week integer;
 BEGIN
   SELECT * INTO f FROM schedule_fixture;
+  result := public.view_league_schedule(f.league_id, f.member_ids[1]);
+  skipped_bytes := octet_length(result::text);
+  UPDATE public.league_seasons SET skipped_weeks = '{}' WHERE id = f.season_id;
+  result := public.view_league_schedule(f.league_id, f.member_ids[1]);
+  PERFORM pg_temp.check_rules(result->'schedule'->0->>'status' = 'pending', 'past regular week without a matchup remains pending');
+  PERFORM pg_temp.check_rules(abs(octet_length(result::text) - skipped_bytes) <= 100, 'skipped status changes payload by at most 100 bytes');
+  RAISE NOTICE 'Skipped payload delta: % bytes', skipped_bytes - octet_length(result::text);
+  UPDATE public.league_seasons SET skipped_weeks = ARRAY[1,2,5,6,17] WHERE id = f.season_id;
+  result := public.view_league_schedule(f.league_id, f.member_ids[1]);
+  FOREACH skipped_week IN ARRAY ARRAY[1,2,5,6,17] LOOP
+    PERFORM pg_temp.check_rules(result->'schedule'->(skipped_week - 1)->>'status' = 'skipped'
+      AND result->'schedule'->(skipped_week - 1)->'opponentTeamName' = 'null'
+      AND result->'schedule'->(skipped_week - 1)->'myPoints' = 'null'
+      AND result->'schedule'->(skipped_week - 1)->'opponentPoints' = 'null', format('skipped week %s overrides every other state and clears opponent and points', skipped_week));
+  END LOOP;
+  UPDATE public.league_seasons SET skipped_weeks = ARRAY[1] WHERE id = f.season_id;
+  UPDATE public.matchups SET is_voided = true WHERE league_season_id = f.season_id AND week_number = 2;
+  result := public.view_league_schedule(f.league_id, f.member_ids[1]);
+  PERFORM pg_temp.check_rules(result->'schedule'->1->>'status' = 'pending'
+    AND result->'schedule'->1->'opponentTeamName' = 'null'
+    AND result->'schedule'->1->'myPoints' = 'null'
+    AND result->'schedule'->1->'opponentPoints' = 'null', 'voided past regular matchup remains pending without opponent or points');
+  UPDATE public.matchups SET is_voided = false WHERE league_season_id = f.season_id AND week_number = 2;
   SELECT (public.view_league_schedule(f.league_id, f.member_ids[1])->'context'->>'version')::bigint INTO before_version;
   UPDATE private.screen_refresh_queue SET dirty = false WHERE league_season_id = f.season_id;
   UPDATE public.matchups SET home_points = 123 WHERE league_season_id = f.season_id AND week_number = 5;
@@ -61,6 +84,8 @@ BEGIN
   UPDATE public.matchups SET is_voided = true WHERE league_season_id = f.season_id AND week_number = 6;
   result := public.view_league_schedule(f.league_id, f.member_ids[1]);
   PERFORM pg_temp.check_rules(result->'schedule'->5->'opponentTeamName' = 'null', 'voided matchups do not show an opponent');
+  PERFORM pg_temp.check_rules(result->'schedule'->5->>'status' = 'upcoming', 'future regular week without a matchup remains upcoming');
+  PERFORM pg_temp.check_rules(result->'schedule'->16->>'status' = 'playoffs', 'undecided playoff week remains playoffs');
   SELECT * INTO other FROM pg_temp.rules_fixture(4, 9584);
   INSERT INTO public.season_weeks(season_year, week_number, week_start, week_end)
     SELECT 9584, week, current_date + 60 + week * 7, current_date + 66 + week * 7 FROM generate_series(1,20) week;

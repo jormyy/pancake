@@ -3,8 +3,8 @@ import { colors, fontSize, fontWeight } from '@/constants/tokens'
 import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
 import type { TradePickItem } from '@/lib/trades'
 
-export function TradePickLabel({ pick, context }: { pick: TradePickItem; context?: TradePickContext }) {
-    const label = tradePickLabel(pick, context)
+export function TradePickLabel({ pick, context, showDirection = true }: { pick: TradePickItem; context?: TradePickContext; showDirection?: boolean }) {
+    const label = tradePickLabel(pick, context, showDirection)
     return <Text style={styles.label} accessibilityLabel={label}>{label}</Text>
 }
 

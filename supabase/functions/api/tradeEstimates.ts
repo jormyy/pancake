@@ -45,21 +45,33 @@ export async function createSubmittedTradeEstimate(tradeId: string): Promise<voi
     p_user_id: member.user_id, p_member_id: trade.proposer_member_id, p_trade_id: tradeId,
   })
   if (error) throwDb(error)
+  if ((data as Record<string, Json>).closed) return
   const inputs = { ...(data as Record<string, Json>) }
   delete inputs.revaluationTradeId
   delete inputs.inputVersion
   delete inputs.observedAt
+  delete inputs.cachedRevaluation
   inputs.submittedTradeId = tradeId
   await saveEstimate(member.user_id, trade.proposer_member_id, inputs)
 }
 
-export async function revalueTrade(userId: string, memberId: string, tradeId: string) {
-  const { data, error } = await supabase.rpc('get_trade_revaluation_inputs', {
+export async function revalueTrade(userId: string, memberId: string, tradeId: string, inputFingerprint?: string, preparedInputs?: Json) {
+  if (preparedInputs) {
+    const ready = await supabase.rpc('view_refresh_work', {
+      p_params: { operation: 'trade-ready', tradeId, inputFingerprint, modelVersion: DYNASTY_TRADE_MODEL_VERSION },
+    })
+    if (ready.error) throwDb(ready.error)
+    if (!ready.data) return null
+  }
+  const { data, error } = preparedInputs ? { data: preparedInputs, error: null } : await supabase.rpc('get_trade_revaluation_inputs', {
     p_user_id: userId, p_member_id: memberId, p_trade_id: tradeId,
   })
   if (error) throwDb(error)
-  const inputs = data as unknown as TradeEstimateInputs & { inputVersion: string; observedAt: string }
-  return {
+  const inputs = data as unknown as TradeEstimateInputs & { inputVersion: string; observedAt: string; closed?: boolean; cachedRevaluation?: { modelVersion: string } }
+  if (inputs.closed) return inputFingerprint ? null : inputs.cachedRevaluation ?? null
+  if (inputFingerprint && inputs.inputVersion !== inputFingerprint) return null
+  if (inputs.cachedRevaluation?.modelVersion === DYNASTY_TRADE_MODEL_VERSION) return inputFingerprint ? null : inputs.cachedRevaluation
+  const revaluation = {
     tradeId,
     analysis: analyzeTradeEstimate(inputs, Date.parse(inputs.observedAt)),
     modelVersion: DYNASTY_TRADE_MODEL_VERSION,
@@ -69,6 +81,12 @@ export async function revalueTrade(userId: string, memberId: string, tradeId: st
     seasonYear: inputs.seasonYear,
     terms: inputs.terms,
   }
+  const published = await supabase.rpc('view_refresh_work', {
+    p_league_id: inputs.leagueId,
+    p_params: { operation: 'publish-trade', seasonId: inputs.seasonId, tradeId, revaluation } as unknown as Json,
+  })
+  if (published.error) throwDb(published.error)
+  return published.data ? revaluation : null
 }
 
 export async function reanalyzeTradeEstimates(runVersion = DYNASTY_TRADE_MODEL_VERSION) {

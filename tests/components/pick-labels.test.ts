@@ -8,6 +8,7 @@ import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { AssetList } from '@/components/trades/TradeCard'
 import { TradeBlockPickRow } from '@/components/trades/TradeListRow'
 
+vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null, currentLeague: null }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: null }) }))
 vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: null, loaded: false }) }))

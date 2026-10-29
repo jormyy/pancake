@@ -3,7 +3,7 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   league public.leagues%ROWTYPE; season public.league_seasons%ROWTYPE; terms jsonb;
   v_item jsonb; seen text[]:='{}'; identity text; player_ids uuid[]; replacement_ids uuid[];
-  player_rows jsonb; replacement_rows jsonb; picks jsonb; balances jsonb; pick_values jsonb:='[]'::jsonb;
+  player_rows jsonb; replacement_rows jsonb; player_input_rows jsonb; picks jsonb; balances jsonb; pick_values jsonb:='[]'::jsonb;
   previous_user text:=current_setting('request.jwt.claim.sub',true); teams integer;
 BEGIN
   SELECT l.* INTO league FROM public.leagues l JOIN public.league_members m ON m.league_id=l.id
@@ -45,7 +45,15 @@ BEGIN
   SELECT COALESCE(array_agg((item->>'playerId')::uuid ORDER BY item->>'playerId'),'{}') INTO player_ids
     FROM jsonb_array_elements(terms) item WHERE item->>'playerId' IS NOT NULL;
   SELECT COALESCE(array_agg(candidate.player_id),'{}') INTO replacement_ids FROM (
-    SELECT average.player_id FROM public.v_player_avg_fantasy_points average
+    SELECT average.player_id FROM (
+      SELECT player_id,league_id,season_year,avg_fantasy_points FROM public.player_season_averages
+        WHERE league_id=league.id AND season_year=season.season_year AND EXISTS(
+          SELECT 1 FROM private.screen_refresh_queue WHERE league_season_id=season.id AND averages_initialized)
+      UNION ALL
+      SELECT player_id,league_id,season_year,avg_fantasy_points FROM public.v_player_avg_fantasy_points
+        WHERE league_id=league.id AND season_year=season.season_year AND NOT EXISTS(
+          SELECT 1 FROM private.screen_refresh_queue WHERE league_season_id=season.id AND averages_initialized)
+    ) average
     JOIN public.players player ON player.id=average.player_id AND player.nba_team IS NOT NULL
     WHERE average.league_id=league.id AND average.season_year=season.season_year
       AND NOT EXISTS(SELECT 1 FROM public.roster_players roster WHERE roster.league_id=league.id
@@ -53,8 +61,16 @@ BEGIN
     ORDER BY average.avg_fantasy_points DESC,average.player_id LIMIT 5
   ) candidate;
   PERFORM set_config('request.jwt.claim.sub',p_user_id::text,true);
-  player_rows:=private.trade_value_player_inputs(league.id,p_member_id,season.season_year,player_ids,100);
-  replacement_rows:=private.trade_value_player_inputs(league.id,p_member_id,season.season_year,replacement_ids,5);
+  IF cardinality(player_ids||replacement_ids)>0 THEN
+    player_input_rows:=private.trade_value_player_inputs(league.id,p_member_id,season.season_year,
+      ARRAY(SELECT DISTINCT id FROM unnest(player_ids||replacement_ids) id ORDER BY id),105);
+  ELSE
+    player_input_rows:='[]'::jsonb;
+  END IF;
+  SELECT COALESCE(jsonb_agg(player ORDER BY player->>'player_id'),'[]'::jsonb) INTO player_rows
+    FROM jsonb_array_elements(player_input_rows) player WHERE (player->>'player_id')::uuid=ANY(player_ids);
+  SELECT COALESCE(jsonb_agg(player ORDER BY player->>'player_id'),'[]'::jsonb) INTO replacement_rows
+    FROM jsonb_array_elements(player_input_rows) player WHERE (player->>'player_id')::uuid=ANY(replacement_ids);
   IF EXISTS(SELECT 1 FROM jsonb_array_elements(terms) item WHERE item->>'pickId' IS NOT NULL) THEN
     SELECT COALESCE(jsonb_agg(to_jsonb(value)),'[]'::jsonb) INTO pick_values FROM public.get_dynasty_pick_values(league.id) value;
   END IF;

@@ -16,7 +16,7 @@ afterEach(async () => {
 })
 
 describe('trade roster plan', () => {
-    it('explains SQL rejection of incoming IR and taxi destinations', async () => {
+    it('disables ineligible destinations without repeating rule sentences', async () => {
         const unavailableDestinations = { incoming: {
             ir: 'IR requires an Out or IR designation.',
             taxi: 'Taxi requires a rookie or fewer than 65 known career games.',
@@ -26,8 +26,51 @@ describe('trade roster plan', () => {
         })) })
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
-        expect(JSON.stringify(renderer!.toJSON())).toContain(unavailableDestinations.incoming.ir)
-        expect(JSON.stringify(renderer!.toJSON())).toContain(unavailableDestinations.incoming.taxi)
+        expect(JSON.stringify(renderer!.toJSON())).not.toContain(unavailableDestinations.incoming.ir)
+        expect(JSON.stringify(renderer!.toJSON())).not.toContain(unavailableDestinations.incoming.taxi)
+    })
+
+    it('disables Taxi for an existing rookie even when the preview allows it', async () => {
+        const onChange = vi.fn()
+        const existing = rosterPlayer()
+        existing.players = { ...existing.players, years_exp: 0, career_regular_season_games: 0 }
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [], roster: [existing], value: emptyPlan, onChange,
+        })) })
+        const taxi = renderer!.root.findByProps({ accessibilityLabel: 'Player A: taxi' })
+        expect(taxi.props.disabled).toBe(true)
+        expect(taxi.props.style).toContainEqual({ opacity: 0.5 })
+        await act(async () => taxi.props.onPress())
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        [0, null, false],
+        [3, 64, false],
+        [3, 65, true],
+        [3, null, true],
+    ])('uses shared Taxi eligibility for incoming players: experience %s, games %s', async (yearsExp, careerGames, disabled) => {
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], yearsExp, careerGames }], roster: [], value: emptyPlan, onChange: vi.fn(),
+        })) })
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(disabled)
+    })
+
+    it.each([['Out', false], ['IR', false], ['DTD', true], [null, true]])('uses shared IR eligibility for %s', async (injuryStatus, disabled) => {
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], injuryStatus }], roster: [], value: emptyPlan, onChange: vi.fn(),
+        })) })
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(disabled)
+    })
+
+    it('uses roster averages and incoming trade statistics', async () => {
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming: [{ ...incoming[0], avgFantasyPoints: 27, avgMinutesPlayed: 25.1 }], roster: [rosterPlayer()],
+            value: emptyPlan, onChange: vi.fn(), avgMap: new Map([['player-a', 42]]),
+            avgStatsMap: new Map([['player-a', { avg_minutes_played: 31.5 }]]),
+        })) })
+        const text = JSON.stringify(renderer!.toJSON())
+        for (const value of ['42.0', '31.5', '27.0', '25.1']) expect(text).toContain(value)
     })
 
     it('shows drop choices directly and saves the selected drop', async () => {
@@ -56,8 +99,8 @@ describe('trade roster plan', () => {
             incoming: [{ ...incoming[0], fromTaxi: true, yearsExp: 0, nbaDraftNumber: 1 }],
             roster: [], value: emptyPlan, onChange,
         })) })
-        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: active' })).toHaveLength(0)
-        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.disabled).toBe(true)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.accessibilityState.checked).toBe(true)
         expect(onChange).not.toHaveBeenCalled()
     })

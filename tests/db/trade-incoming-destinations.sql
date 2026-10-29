@@ -17,7 +17,7 @@ BEGIN
     SELECT * INTO f FROM pg_temp.rules_fixture(2,9601+array_position(ARRAY['ir','taxi','cancel'],destination));
     p:=ARRAY[gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid()];
     pick:=gen_random_uuid();
-    UPDATE leagues SET roster_size=2,ir_slots=2,taxi_slots=2,allow_inactive_trades=true,
+    UPDATE leagues SET roster_size=2,ir_slots=3,taxi_slots=2,allow_inactive_trades=true,
       trade_veto_mode='commissioner',trade_veto_window_hours=24,waiver_mode='faab' WHERE id=f.league_id;
     INSERT INTO players(id,first_name,last_name,position,eligible_positions,years_exp,career_regular_season_games,injury_status)
       SELECT id,'Incoming proof',destination||' '||n,'PG',ARRAY['PG'],0,0,'Out' FROM unnest(p) WITH ORDINALITY ids(id,n);
@@ -31,7 +31,7 @@ BEGIN
       'offerPlayerIds',ARRAY[p[1]],'requestPlayerIds',ARRAY[p[2]],'offerPickIds',ARRAY[pick],'offerFaabAmount',5,
       'rosterPlan',jsonb_build_object('irPlayerIds',CASE WHEN destination='taxi' THEN '{}'::uuid[] ELSE ARRAY[p[2]] END,
         'taxiPlayerIds',CASE WHEN destination='taxi' THEN ARRAY[p[2]] ELSE '{}'::uuid[] END,'dropPlayerIds',ARRAY[p[5]],
-        'rosterMoves',jsonb_build_array(jsonb_build_object('playerId',p[3],'destination','ir'),jsonb_build_object('playerId',p[4],'destination','taxi'))));
+        'rosterMoves',jsonb_build_array(jsonb_build_object('playerId',p[3],'destination','ir'),jsonb_build_object('playerId',p[4],'destination','ir'))));
     t:=public.submit_trade_offer_atomic(f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose',payload);
     INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
       VALUES(f.league_id,f.season_id,f.member_ids[2],p[7],'draft');
@@ -82,7 +82,7 @@ BEGIN
       PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[2] AND is_on_ir=(destination='ir') AND is_on_taxi=(destination='taxi') FROM roster_players WHERE player_id=p[1]),destination||': incoming player reaches the chosen slot');
       PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[1] AND is_on_ir=(destination='ir') AND is_on_taxi=(destination='taxi') FROM roster_players WHERE player_id=p[2]),destination||': sender incoming player reaches the saved slot');
       PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE player_id=p[3]),destination||': sender retained IR move executes');
-      PERFORM pg_temp.check_rules((SELECT is_on_taxi FROM roster_players WHERE player_id=p[4]),destination||': sender retained taxi move executes');
+      PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE player_id=p[4]),destination||': second retained IR move executes');
       PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=p[5]),destination||': sender drop executes');
       PERFORM pg_temp.check_rules((SELECT current_owner_id=f.member_ids[2] FROM draft_picks WHERE id=pick),destination||': pick transfers with the roster plans');
       teams:=public.preview_trade_legality(f.user_ids[1],f.league_id,f.member_ids,'[]','{}');

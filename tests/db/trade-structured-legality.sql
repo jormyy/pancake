@@ -121,9 +121,9 @@ BEGIN
     'leagueId',f.league_id,'leagueSeasonId',f.season_id,'recipientMemberId',f.member_ids[2],
     'offerPlayerIds',ARRAY[p[1]],'requestPlayerIds',ARRAY[p[3]],
     'rosterPlan',jsonb_build_object('taxiPlayerIds','[]'::jsonb,'irPlayerIds','[]'::jsonb,'dropPlayerIds',ARRAY[p[4]],
-      'rosterMoves',jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','taxi')))));
-  PERFORM pg_temp.check_rules((SELECT roster_moves @> jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','taxi')) FROM trade_participants WHERE trade_id=t AND member_id=f.member_ids[1]),'submission saves sender taxi move');
-  PERFORM pg_temp.check_rules((SELECT NOT is_on_taxi FROM roster_players WHERE player_id=p[2]),'submission does not apply sender move');
+      'rosterMoves',jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','ir')))));
+  PERFORM pg_temp.check_rules((SELECT roster_moves @> jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','ir')) FROM trade_participants WHERE trade_id=t AND member_id=f.member_ids[1]),'submission saves sender IR move');
+  PERFORM pg_temp.check_rules((SELECT NOT is_on_ir FROM roster_players WHERE player_id=p[2]),'submission does not apply sender move');
   PERFORM public.accept_trade_with_plan_atomic(t,f.member_ids[2],f.user_ids[2],'{}',ARRAY[p[1]],'{}');
   PERFORM pg_temp.check_rules((SELECT status='accepted' FROM trades WHERE id=t),'zero-window acceptance still does not execute');
   PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[1] FROM roster_players WHERE player_id=p[1]),'zero-window acceptance leaves assets untouched');
@@ -146,13 +146,13 @@ BEGIN
     'ordinary users cannot forge execution proof rows');
   PERFORM set_config('pancake.test_fail_transfer_player',p[1]::text,true);
   PERFORM pg_temp.reject_rules(format('SELECT complete_accepted_trade_atomic(%L)',t),'%rollback control%','a late execution failure rolls back the trade');
-  PERFORM pg_temp.check_rules((SELECT NOT is_on_taxi FROM roster_players WHERE player_id=p[2]),'late failure rolls back the retained taxi move');
+  PERFORM pg_temp.check_rules((SELECT NOT is_on_ir FROM roster_players WHERE player_id=p[2]),'late failure rolls back the retained IR move');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM roster_players WHERE player_id=p[4]),'late failure rolls back the planned drop');
   PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[1] FROM roster_players WHERE player_id=p[1]),'late failure rolls back ownership');
   PERFORM pg_temp.check_rules(COALESCE(current_setting('pancake.applied_trade_id',true),'')='','failed execution does not leak its context');
   PERFORM set_config('pancake.test_fail_transfer_player','',true);
   PERFORM public.complete_accepted_trade_atomic(t);
-  PERFORM pg_temp.check_rules((SELECT is_on_taxi FROM roster_players WHERE player_id=p[2]),'execution applies retained taxi move');
+  PERFORM pg_temp.check_rules((SELECT is_on_ir FROM roster_players WHERE player_id=p[2]),'execution applies retained IR move');
   PERFORM pg_temp.check_rules((SELECT is_on_ir AND member_id=f.member_ids[2] FROM roster_players WHERE player_id=p[1]),'execution applies acceptor incoming IR');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM roster_players WHERE player_id=p[4]),'execution applies the saved drop with both roster plans');
   PERFORM pg_temp.check_rules(COALESCE(current_setting('pancake.applied_trade_id',true),'')='','successful execution restores its context');

@@ -40,7 +40,11 @@ BEGIN
       ELSIF EXISTS(SELECT 1 FROM waiver_claims WHERE league_season_id=p_season_id AND member_id=v_team.id AND status='pending' AND drop_player_id=v_row.id) THEN v_error:='Reserved as a pending waiver drop.'; END IF;
       IF v_error IS NOT NULL THEN v_unavailable:=v_unavailable||jsonb_build_object(v_row.id,v_error); END IF;
       v_ir_error:=CASE WHEN v_league.ir_slots=0 THEN 'This league has no IR slots.' WHEN NOT private.is_ir_designation(v_row.injury_status) THEN 'IR requires an Out or IR designation.' END;
-      v_taxi_error:=CASE WHEN v_league.taxi_slots=0 THEN 'This league has no taxi slots.'
+      v_taxi_error:=CASE WHEN NOT EXISTS(SELECT 1 FROM jsonb_to_recordset(p_items) AS i("playerId" uuid,"toMemberId" uuid)
+          WHERE i."playerId"=v_row.id AND i."toMemberId"=v_team.id)
+          AND NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=p_season_id AND member_id=v_team.id AND player_id=v_row.id AND is_on_taxi)
+          THEN 'Only incoming players can be placed on Taxi.'
+        WHEN v_league.taxi_slots=0 THEN 'This league has no taxi slots.'
         WHEN EXISTS(SELECT 1 FROM league_member_taxi_exits WHERE league_id=p_league_id AND member_id=v_team.id AND player_id=v_row.id) THEN 'This player cannot return to this team taxi squad.'
         WHEN NOT private.taxi_player_eligible(p_league_id,v_row.id) THEN 'Taxi requires a rookie or fewer than 65 known career games.'
         WHEN v_league.taxi_max_seasons IS NOT NULL AND v_year-private.taxi_start_year(p_league_id,v_row.id,v_year)>=v_league.taxi_max_seasons THEN 'This player has reached the taxi tenure limit.' END;
@@ -80,6 +84,10 @@ BEGIN
     FOR v_move IN SELECT value FROM jsonb_array_elements(COALESCE(v_plan->'rosterMoves','[]')) UNION ALL
       SELECT jsonb_build_object('playerId',value,'destination','drop') FROM jsonb_array_elements_text(COALESCE(v_plan->'dropPlayerIds','[]'))
     LOOP
+      IF v_move->>'destination'='taxi' THEN
+        v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object('memberId',v_team.id,'teamName',v_team.team_name,'rule','taxi_incoming_only','playerId',v_move->>'playerId',
+          'message','Only incoming players can be placed on Taxi.','suggestedMoves',jsonb_build_array(jsonb_build_object('action','remove_move','playerId',v_move->>'playerId','message','Remove this planned move.'))));
+      END IF;
       IF NOT EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=p_season_id AND member_id=v_team.id AND player_id=(v_move->>'playerId')::uuid)
         OR EXISTS(SELECT 1 FROM jsonb_array_elements(p_items) WHERE value->>'playerId'=v_move->>'playerId') OR v_unavailable ? (v_move->>'playerId') THEN
         v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object('memberId',v_team.id,'teamName',v_team.team_name,'rule','planned_move','playerId',v_move->>'playerId',

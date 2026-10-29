@@ -34,11 +34,10 @@ BEGIN
   UPDATE leagues SET scoring_settings=jsonb_build_object('points',17) WHERE id=f.league_id;
   UPDATE draft_picks SET is_used=true WHERE id=pick;
   valuation:=public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],offer);
-  PERFORM pg_temp.check_rules(valuation->'terms'=private.canonical_trade_estimate_terms(terms),'revaluation derives the unchanged saved terms');
-  PERFORM pg_temp.check_rules(valuation->'scoringSettings'->>'points'='17','revaluation uses current scoring inputs');
-  PERFORM pg_temp.check_rules(valuation->>'revaluationTradeId'=offer::text,'revaluation identifies its historical trade');
-  PERFORM pg_temp.check_rules((valuation->'picks'->0->>'id')::uuid=pick,'used historical pick retains valuation context');
-  PERFORM pg_temp.check_rules(public.get_trade_revaluation_inputs(f.user_ids[2],f.member_ids[2],offer)->'terms'=valuation->'terms','both original participants see the same saved terms');
+  PERFORM pg_temp.check_rules(valuation->>'closed'='true','completed trades never load live valuation inputs');
+  PERFORM pg_temp.check_rules(valuation->'cachedRevaluation'='null','missing historical publication does not trigger a revaluation');
+  PERFORM pg_temp.check_rules(public.get_trade_revaluation_inputs(f.user_ids[2],f.member_ids[2],offer)=valuation,
+    'both original participants read the same frozen publication');
   PERFORM pg_temp.reject_rules(format('SELECT public.get_trade_revaluation_inputs(%L,%L,%L)',other.user_ids[1],other.member_ids[1],offer),
     'This trade is not available for revaluation.','other league cannot read historical terms');
   PERFORM pg_temp.reject_rules(format('SELECT public.get_trade_revaluation_inputs(%L,%L,%L)',f.user_ids[2],f.member_ids[1],offer),

@@ -48,6 +48,7 @@ export type TradeCardContext = {
     trade: Trade
     myMemberId: string
     tab: TradeTabKey
+    reviewMode?: 'propose' | 'accept'
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
 }
@@ -135,7 +136,7 @@ function TradeItemLine({ item, showContext = true, pickContext }: { item: TradeI
         <View style={styles.assetRow}>
             <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
             <View style={styles.assetCopy}>
-                <TradePickLabel pick={item} context={pickContext} />
+                <TradePickLabel pick={item} context={pickContext} showDirection={false} />
             </View>
         </View>
     )
@@ -212,7 +213,7 @@ export function TradeActionButtons({
     const opponent = model.opponentName
     const buttons: { key: string; label: string; primary?: boolean; a11y: string; onPress: () => void }[] = []
     if (model.canRespond) {
-        buttons.push({ key: 'accept', label: actions.reviewBeforeAccept ? 'Review' : 'Accept', primary: true, a11y: `${actions.reviewBeforeAccept ? 'Review' : 'Accept'} trade with ${opponent}`, onPress: actions.onAccept })
+        buttons.push({ key: 'accept', label: 'Accept', primary: true, a11y: `Accept trade with ${opponent}`, onPress: actions.onAccept })
         if (model.canReject) buttons.push({ key: 'reject', label: 'Reject', a11y: `Reject trade with ${opponent}`, onPress: actions.onReject })
         buttons.push({
             key: 'counter',
@@ -280,10 +281,12 @@ export function TradeCard({
     onWithdraw,
     onAnalyze,
     onOpen,
+    reviewMode,
 }: {
     trade: Trade
     myMemberId: string
     tab: TradeTabKey
+    reviewMode?: 'propose' | 'accept'
     tradeVetoMode?: TradeVetoMode
     isCommissioner?: boolean
     acting: boolean
@@ -303,6 +306,7 @@ export function TradeCard({
     const timezone = useLeagueTimezone()
     const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner, timezone })
     const pickContext = tradePickContext(trade, myMemberId)
+    if (reviewMode === 'propose') model.status = 'Draft'
 
     // The summary is the press target, not the whole card, so the header and
     // action buttons never sit inside another button.
@@ -318,12 +322,12 @@ export function TradeCard({
     )
 
     return (
-        <View style={[styles.card, selected && styles.cardSelected]}>
+        <View style={[styles.card, selected && styles.cardSelected]} testID={reviewMode ? 'trade-review-card' : undefined}>
             <PendingMutationBadge rowId={trade.id} />
             <View style={styles.cardHeader}>
                 <Text style={styles.cardOpponent} numberOfLines={2}>{model.opponentName}</Text>
                 <View style={styles.cardHeaderControls}>
-                    <MotionPressable
+                    {!reviewMode ? <MotionPressable
                         style={[styles.analyzeBtn, acting && styles.analyzeBtnDisabled]}
                         onPress={onAnalyze}
                         disabled={acting}
@@ -334,8 +338,8 @@ export function TradeCard({
                         id={`trade-analyze-${trade.id}`}
                     >
                         <Text style={styles.analyzeBtnText}>Revalue</Text>
-                    </MotionPressable>
-                    {trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
+                    </MotionPressable> : null}
+                    {reviewMode === 'propose' || trade.status !== 'pending' || model.isProposer || tab !== 'offers' ? <StatusChip model={model} /> : null}
                 </View>
             </View>
 
@@ -353,14 +357,14 @@ export function TradeCard({
                 </MotionPressable>
             ) : <View style={styles.summary}>{summary}</View>}
 
-            <SavedTradeEstimate trade={trade} myMemberId={myMemberId} />
+            {!reviewMode ? <SavedTradeEstimate trade={trade} myMemberId={myMemberId} /> : null}
 
-            <TradeActionButtons
+            {!reviewMode ? <TradeActionButtons
                 trade={trade}
                 model={model}
                 actions={{ acting: acting || decisionsDisabled, reviewBeforeAccept: Boolean(onOpen), onAccept, onReject, onVeto, onWithdraw }}
                 withTestIds
-            />
+            /> : null}
         </View>
     )
 }

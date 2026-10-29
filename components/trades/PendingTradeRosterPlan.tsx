@@ -1,18 +1,17 @@
 import { tradeRosterPlanKey } from '@/lib/trade-roster-preview'
 import { useEffect, useMemo, useState } from 'react'
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Modal, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { getRosterStatsMaps, type RosterStatsMaps } from '@/lib/roster-stats'
 import { getRoster, type RosterPlayer } from '@/lib/roster'
 import { acceptTrade, setTradeRosterPlan, type Trade, type TradeRosterPlan, type TradeRosterPreview } from '@/lib/trades'
 import { prefillTradeRosterPlan } from '@/lib/trade-composer'
 import { previewTradeLegality } from '@/lib/trade-legality'
 import { isTradeRosterLegal } from '@/lib/trade-legality-step'
 import { getErrorMessage } from '@/lib/shared/errors'
-import { TradeRosterPreviewList } from './TradeRosterPreviewList'
+import { TradeLegalityScreen } from './TradeLegalityScreen'
 import { useLeagueContext } from '@/contexts/league-context'
-import { TradeRosterPlanEditor } from './TradeRosterPlanEditor'
-import { Button, ErrorBanner, PageHeader } from '@/components/ui'
-import { colors, spacing, textStyles } from '@/constants/tokens'
+import { colors } from '@/constants/tokens'
 
 export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed }: {
     trade: Trade
@@ -27,6 +26,7 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     const [result, setResult] = useState<{ owner: string; key: string; teams: TradeRosterPreview[] } | null>(null)
     const preview = result?.owner === owner ? result.teams : []
     const [roster, setRoster] = useState<RosterPlayer[]>([])
+    const [stats, setStats] = useState<RosterStatsMaps>()
     const [error, setError] = useState<string | null>(null)
     const [attempt, setAttempt] = useState(0)
     const [saving, setSaving] = useState(false)
@@ -51,9 +51,17 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
         return () => { cancelled = true; clearTimeout(timer) }
     }, [leagueId, memberId, serializedPlan, trade, attempt, owner, requestKey])
     const incoming = useMemo(() => trade.routedItems.filter(item => item.toMemberId === memberId), [trade, memberId])
+    useEffect(() => {
+        if (!leagueId) return
+        let cancelled = false
+        const ids = [...roster.map(row => row.players.id), ...incoming.flatMap(item => item.kind === 'player' ? [item.playerId] : [])]
+        void getRosterStatsMaps(ids, leagueId).then(value => { if (!cancelled) setStats(value) })
+            .catch(() => { if (!cancelled) setStats(undefined) })
+        return () => { cancelled = true }
+    }, [incoming, leagueId, roster])
     const offered = new Set(trade.routedItems.flatMap(item => item.kind === 'player' ? [item.playerId] : []))
     const own = preview.find(team => team.memberId === memberId)
-    const legal = preview.length > 0 && preview.every(isTradeRosterLegal)
+    const legal = isTradeRosterLegal(own)
     const confirm = async () => {
         if (saving || loading || error || !legal || !leagueId) return
         setSaving(true)
@@ -69,25 +77,15 @@ export function PendingTradeRosterPlan({ trade, memberId, onCancel, onConfirmed 
     }
     return <Modal visible animationType="slide" onRequestClose={onCancel}>
         <SafeAreaView style={styles.root}>
-            <PageHeader title="Make it legal" titleIsPageHeading actions={<Button title="Cancel" variant="secondary" onPress={onCancel} />} />
-            <ScrollView contentContainerStyle={styles.content}>
-                <Text style={textStyles.body}>Preview your roster after the trade. Your choices take effect together after the review window.</Text>
-                {error ? <ErrorBanner message={error} onRetry={() => setAttempt(value => value + 1)} /> : null}
-                <TradeRosterPreviewList teams={preview} />
-                <TradeRosterPlanEditor incoming={incoming} roster={roster.filter(row => !offered.has(row.players.id))}
-                    value={plan} onChange={setPlan} preview={own} disabled={saving || !own}
-                    unavailableMoves={own?.unavailableMoves} unavailableDestinations={own?.unavailableDestinations} />
-            </ScrollView>
-            <View style={styles.confirm}>
-                <Text style={textStyles.meta}>{loading ? 'Checking roster…' : legal ? 'Ready for review. Nothing moves yet.' : 'Resolve the rules above to continue.'}</Text>
-                <Button title="Confirm" onPress={confirm} disabled={loading || saving || Boolean(error) || !legal} loading={saving} />
-            </View>
+            <TradeLegalityScreen trade={trade} memberId={memberId} teams={preview} loading={loading} saving={saving}
+                error={error} onRetry={() => setAttempt(value => value + 1)} onClose={onCancel} onSubmit={confirm} mode="accept"
+                editor={{ incoming, avgMap: stats?.avgMap, avgStatsMap: stats?.avgStatsMap, roster: roster.filter(row => !offered.has(row.players.id)), value: plan, onChange: setPlan,
+                    allowIR: (currentLeague?.ir_slots ?? 0) > 0, allowTaxi: (currentLeague?.taxi_slots ?? 0) > 0,
+                    unavailableMoves: own?.unavailableMoves, unavailableDestinations: own?.unavailableDestinations }} />
         </SafeAreaView>
     </Modal>
 }
 
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.bgScreen },
-    content: { padding: spacing.lg, gap: spacing.lg },
-    confirm: { padding: spacing.lg, gap: spacing.sm, backgroundColor: colors.bgCard },
 })

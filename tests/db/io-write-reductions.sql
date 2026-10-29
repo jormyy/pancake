@@ -63,7 +63,13 @@ BEGIN
     VALUES(matchup,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2],42,31);
   INSERT INTO public.trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id)
     VALUES(trade,f.league_id,f.season_id,f.member_ids[1],f.member_ids[2]);
-  trade_values:=jsonb_build_array(jsonb_build_object('tradeId',trade,'revaluation','{"analysis":{"teams":[]},"modelVersion":"io-fixture"}'::jsonb));
+  INSERT INTO public.trade_participants(trade_id,league_id,member_id,proposed_at,sort_order,is_initiator)
+    VALUES(trade,f.league_id,f.member_ids[1],now(),0,true),(trade,f.league_id,f.member_ids[2],now(),1,false);
+  INSERT INTO public.trade_items(trade_id,side,from_member_id,to_member_id,faab_amount)
+    VALUES(trade,'proposer',f.member_ids[1],f.member_ids[2],1);
+  trade_values:=jsonb_build_array(jsonb_build_object('tradeId',trade,'revaluation',jsonb_build_object(
+    'analysis','{"teams":[]}'::jsonb,'modelVersion','io-fixture',
+    'inputVersion',public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],trade)->>'inputVersion')));
   SELECT q.version INTO v_version FROM private.screen_refresh_queue q WHERE league_season_id=f.season_id;
   PERFORM private.refresh_standings(f.league_id,f.season_id,v_version);
   PERFORM private.refresh_matchup_totals(f.league_id,f.season_id,v_version);
@@ -77,6 +83,7 @@ BEGIN
   PERFORM private.refresh_matchup_totals(f.league_id,f.season_id,v_version);
   PERFORM private.refresh_player_averages(f.league_id,f.season_id,v_version);
   PERFORM private.refresh_trade_values(f.league_id,f.season_id,v_version,trade_values);
+  PERFORM private.refresh_queue_trade_revaluation(trade,trade_values->0->'revaluation'->>'inputVersion','io-fixture');
   RAISE NOTICE 'IO unchanged cache rows=%', (SELECT count(*) FROM io_writes WHERE relation_name IN ('public.standings_current','public.matchup_totals','public.player_season_averages','public.trade_value_cache'));
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes WHERE relation_name<>'private.trade_value_publications'),'new publication with identical screen content writes no cached rows');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.player_season_averages WHERE league_season_id=f.season_id),'unchanged average survives pruning');

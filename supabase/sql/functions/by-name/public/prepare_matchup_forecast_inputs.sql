@@ -48,10 +48,11 @@ BEGIN
           h.three_pointers_made,h.turnovers,h.field_goals_made,h.field_goals_attempted,h.free_throws_made,h.free_throws_attempted,
           CASE WHEN h.double_double THEN 1 ELSE 0 END,CASE WHEN h.triple_double THEN 1 ELSE 0 END,c.scoring_settings)
           ORDER BY h.game_date,h.id) FROM (
-            SELECT s.* FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id
-            WHERE s.player_id=r.player_id AND NOT s.did_not_play AND g.status='Final'
+            SELECT s.* FROM public.player_game_stats s
+            WHERE s.player_id=r.player_id AND NOT s.did_not_play
               AND s.game_date<v_today AND s.season_year BETWEEN c.season_year-1 AND c.season_year
-              AND public.is_regular_season_game_id(g.nba_game_id)
+              AND (SELECT g.status='Final' AND public.is_regular_season_game_id(g.nba_game_id)
+                FROM public.nba_games g WHERE g.id=s.game_id)
             ORDER BY s.game_date DESC,s.id LIMIT 30
           ) h)
       FROM unnest(v_missing) r(player_id)

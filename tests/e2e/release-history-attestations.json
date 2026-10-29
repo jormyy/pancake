@@ -2858,6 +2858,34 @@
       "statementCount": 21,
       "statementsSha256": "cb79bc5650a7158d73876bf8c197b2fb356dc9344a791c219d75e3fe5389cd8d",
       "sha256": "683951acec2c39f30a0a2959aae0a4b873e60362409bb6bc65efe4a7fa8c4666"
+    },
+    {
+      "name": "scope_trade_revaluation",
+      "version": "20261211000100",
+      "statementCount": 25,
+      "statementsSha256": "6c0ceb4692a0b4380b87faae45f1b87edb94549dbb61c031296f5cd1441c94eb",
+      "sha256": "a8e66809f777ed11f5aab1358fd6d33cb351660415b5e3c0e5ec6f5f814b257b"
+    },
+    {
+      "name": "league_schedule_skipped_weeks",
+      "version": "20261211000200",
+      "statementCount": 1,
+      "statementsSha256": "3f26ae32ac4fd217b5bccc68d8ca64dc6475fde57d140812ee2b3b8b6e064bdb",
+      "sha256": "7aa64fe0edfd41a3df51f0fc0bc0d8c445b4844f0450c9c7c5da0a8cfcd4ed49"
+    },
+    {
+      "name": "forecast_inputs_bound",
+      "version": "20261211000300",
+      "statementCount": 2,
+      "statementsSha256": "80150644359c4106f1816090a2cc2fef525b6ce6765a87f87e4e96e1b724fc54",
+      "sha256": "c8733a2747793248084a6f701fcdc06ede520034ed47f54d191eecacfbb7f3c1"
+    },
+    {
+      "name": "trade_taxi_incoming_only",
+      "version": "20261211000400",
+      "statementCount": 3,
+      "statementsSha256": "fe79e74223a58d87050bf6433495b6708aaa9a7970091466d38a10292137d980",
+      "sha256": "2ae8d08254ae7455b889a0e348190e4363376001746da00fc61ca45ceeb5deac"
     }
   ]
 }

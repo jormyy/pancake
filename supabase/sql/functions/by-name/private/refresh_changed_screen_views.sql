@@ -4,6 +4,10 @@ DECLARE row_data jsonb;
 BEGIN
   IF TG_OP='UPDATE' AND (to_jsonb(OLD)-ARRAY['updated_at','set_at']) IS NOT DISTINCT FROM (to_jsonb(NEW)-ARRAY['updated_at','set_at']) THEN RETURN NULL; END IF;
   row_data := CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE to_jsonb(NEW) END;
+  IF TG_TABLE_NAME='league_seasons' AND TG_OP='UPDATE'
+    AND to_jsonb(OLD)->>'season_year' IS DISTINCT FROM row_data->>'season_year' THEN
+    UPDATE private.screen_refresh_queue SET averages_initialized=false WHERE league_season_id=(row_data->>'id')::uuid;
+  END IF;
   IF TG_TABLE_NAME='league_change_hints' AND row_data->>'topic'='inventory'
     AND EXISTS(SELECT 1 FROM private.league_version_pending
       WHERE transaction_id=pg_current_xact_id() AND league_id=(row_data->>'league_id')::uuid) THEN

@@ -2,7 +2,8 @@ import { SectionBand } from '@/components/ui/SectionBand'
 import { pickLabel } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { memo } from 'react'
+import { memo, useState } from 'react'
+import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
 import { useRouter } from 'expo-router'
 
 
@@ -194,12 +195,15 @@ export const TradeOfferRow = memo(function TradeOfferRow({
     brief?: boolean
     onOpen?: (trade: Trade) => void
 }) {
-    return <TradeCard trade={item.trade} myMemberId={myMemberId}
+    const [accepting, setAccepting] = useState(false)
+    return <><TradeCard trade={item.trade} myMemberId={myMemberId}
         tab={tab} tradeVetoMode={tradeVetoMode} isCommissioner={isCommissioner}
-        acting={acting} decisionsDisabled={decisionsDisabled} selected={selected} brief={brief} onAccept={() => onAccept(item.trade)}
+        acting={acting} decisionsDisabled={decisionsDisabled} selected={selected} brief={brief} onAccept={() => setAccepting(true)}
         onReject={() => onReject(item.trade.id)} onVeto={() => onVeto(item.trade.id)}
         onWithdraw={() => onWithdraw(item.trade.id)} onAnalyze={() => onAnalyze(item.trade)}
         onOpen={onOpen ? () => onOpen(item.trade) : undefined} />
+        {accepting ? <PendingTradeRosterPlan trade={item.trade} memberId={myMemberId} onCancel={() => setAccepting(false)}
+            onConfirmed={() => { setAccepting(false); onAccept(item.trade) }} /> : null}</>
 })
 
 const styles = StyleSheet.create({
