@@ -72,10 +72,13 @@ COMMIT;`)
   await root.query(`BEGIN; UPDATE public.leagues SET name='Publication changed' WHERE id=${quote(league)}; UPDATE public.drafts SET scheduled_at=clock_timestamp() WHERE id=${quote(draft)}; COMMIT;`)
   const result = JSON.parse(await root.query(`SELECT jsonb_build_object('rows',count(*) FILTER(WHERE get_byte(data,0) IN (73,85,68)),
  'bytes',sum(octet_length(data)),
- 'draftRows',count(*) FILTER(WHERE get_byte(data,0) IN (73,85,68) AND (get_byte(data,1)::bigint*16777216+get_byte(data,2)*65536+get_byte(data,3)*256+get_byte(data,4))='public.drafts'::regclass::oid))
+ 'draftRows',count(*) FILTER(WHERE get_byte(data,0) IN (73,85,68) AND (get_byte(data,1)::bigint*16777216+get_byte(data,2)*65536+get_byte(data,3)*256+get_byte(data,4))='public.drafts'::regclass::oid),
+ 'leagueRows',count(*) FILTER(WHERE get_byte(data,0) IN (73,85,68) AND (get_byte(data,1)::bigint*16777216+get_byte(data,2)*65536+get_byte(data,3)*256+get_byte(data,4))='public.leagues'::regclass::oid),
+ 'hintRows',count(*) FILTER(WHERE get_byte(data,0) IN (73,85,68) AND (get_byte(data,1)::bigint*16777216+get_byte(data,2)*65536+get_byte(data,3)*256+get_byte(data,4))='public.league_change_hints'::regclass::oid))
 FROM pg_logical_slot_get_binary_changes(${quote(slot)},NULL,NULL,'proto_version','1','publication_names','supabase_realtime');`))
   assert.equal(result.draftRows, 1)
-  if (process.env.EXPECT_DRAFT_ONLY === '1') assert.equal(result.rows, 1)
+  assert.equal(result.leagueRows, 1)
+  assert.ok(result.hintRows >= 1, 'League invalidation hints must reach logical replication')
   console.log(JSON.stringify(result))
 } finally {
   await root.query(`BEGIN; DELETE FROM public.leagues WHERE id=${quote(league)}; DELETE FROM public.league_change_hints WHERE league_id=${quote(league)}; DELETE FROM auth.users WHERE id=${quote(user)}; COMMIT;`)

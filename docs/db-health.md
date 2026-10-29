@@ -64,7 +64,7 @@ node --test tests/db/health-report.test.mjs
 Output files use owner-only permissions when created.
 The source scan lists review candidates; it does not prove that a write lacks a guard.
 After the timing workload finishes, run `pancake db-health --verify` for the isolated fixture checks.
-It checks drain timeouts, deferred version publication, and draft-only logical delivery.
+It checks drain timeouts, deferred version publication, and client-subscription logical delivery.
 The command uses the same private database allowlist and removes its fixture rows.
 
 ## Recorded baseline
@@ -1447,14 +1447,20 @@ A real archived segment contains 48,202 plans in 141,517,713 uncompressed bytes.
 Its verified retained plans occupy 196,630 bytes.
 Sampling can miss rare statements; the coverage report must identify and resolve those gaps before acceptance.
 
-## Draft publication
+## Client publication
 
-The requested publication contains only drafts, draft picks, room members, nominations, budgets, and snake picks.
-Migration `20261201000900` reduces its published table count from 22 to six.
-The six draft tables retain identical data hashes.
-A logical-decoding probe changes one league row and one draft row.
-It emits three row messages and 3,743 bytes before the change, then one row message and 1,368 bytes afterward.
-The draft row still appears once.
+Migration `20261201000900` publishes the exact union of current client subscriptions.
+It retains 16 tables from the supplied 22-table publication.
+The [release contract](../supabase/RELEASE-DB.md#realtime-publication) lists every retained and removed table.
+The app-wide hint stream, forecasts, claims, league updates, player support, trades, and drafts stay published.
+`draft_room_members` has no active subscriber and is removed with the other five unwatched tables.
+The unused league watch factory does not count as a subscription.
+
+The earlier six-table publication is incorrect and superseded.
+Its one-row logical-decoding result does not establish a valid release gain.
+The corrected probe requires draft updates, league updates, and league invalidation hints in logical replication.
+The static check rejects missing and unwatched tables before a database runs.
+
 The simulator verifies a real draft update and restores its timer before measuring the workload.
 It waits for the database-feed readiness event after the channel joins.
 A live probe misses the update before this wait and receives it afterward.
@@ -1490,7 +1496,7 @@ ORDER BY schemaname,tablename;
 ```
 
 The active-worker count must stay at four or fewer.
-The publication query must return the six draft tables listed above.
+The publication query must return the 16 client tables in the release contract.
 The queue fixture returns four active workers, rejects another claim, and admits the remaining four after completion.
 
 ## Player game pagination

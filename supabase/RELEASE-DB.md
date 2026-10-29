@@ -131,8 +131,8 @@ Drop `standings.waiver_priority` after old Edge writers and their rollback windo
 Live waiver order already uses `waiver_priorities`.
 
 
-Release 2.7 limits realtime publication to draft tables.
-Other screens use version polling. Keep compatible polling readers through rollback.
+Release 2.7 publishes exactly the tables watched by the current client.
+Keep the app-wide hint stream and screen subscriptions through rollback.
 
 The checked-in attestations cover all 675 migrations through `20261209000500`.
 Recheck their source fingerprints before deployment.
@@ -564,7 +564,7 @@ All versions are distinct. No migration is renumbered.
 | 33 | `20261201000500_share_player_average_refresh_source.sql` | Share player average refresh source. |
 | 34 | `20261201000600_bound_hint_drain.sql` | Applies the guarded five-second hint drain through cron.alter_job. |
 | 35 | `20261201000800_defer_contended_balance_publications.sql` | Defer contended balance publications. |
-| 36 | `20261201000900_draft_only_realtime.sql` | Draft only realtime. |
+| 36 | `20261201000900_draft_only_realtime.sql` | Publishes the exact union of current client subscriptions. |
 | 37 | `20261201001000_cap_worker_dispatch.sql` | Cap worker dispatch. |
 | 38 | `20261201001100_player_game_keyset.sql` | Player game keyset. |
 | 39 | `20261201001200_guard_minute_workers.sql` | Keeps both minute workers bounded and prevents overlapping runs. |
@@ -581,7 +581,8 @@ All versions are distinct. No migration is renumbered.
 Catch-up starts after minute 17. The separate `public-read-retention` cron job is unscheduled.
 The scheduler keeps Hashtag rankings, missing-final-stat repair, and daily table analysis.
 The dispatcher claims at most four workers and stops after its transaction budget.
-Only draft tables remain in the realtime publication. Other screens use version polling.
+Realtime retains all 16 tables watched by the current client.
+Version polling complements those subscriptions.
 The hint drain and cron-history cleanup retain their maintenance jobs.
 
 Migrations `20261201000200`, `20261201000600`, and `20261201001200` use `cron.alter_job` on existing job IDs.
@@ -593,6 +594,39 @@ Ordinary roster writes enforce pending asset locks.
 Saved trade moves require the executor context, private transaction proof, and an exact saved destination.
 Waiver workers handle the HTTP-compatible trade capacity conflict code as a failed roster claim.
 All three former bug recipes require fixed behavior. `tests/db/known-bugs.json` is empty.
+
+### Realtime publication
+
+The static subscription check follows direct calls, imported watch helpers, aliases, maps, and dynamic imports.
+It compares that union with the final publication across ordered migrations.
+It rejects both missing subscriptions and unwatched published tables.
+Unresolved watch expressions or later publication changes fail the check.
+
+| Table | Active client reader |
+| --- | --- |
+| `draft_budgets` | Auction draft subscription. |
+| `draft_picks` | Trade screen watch helper. |
+| `drafts` | Auction and rookie draft subscriptions. |
+| `league_change_hints` | App-wide league change stream. |
+| `league_members` | League list and player support. |
+| `leagues` | League list. |
+| `matchup_forecasts` | Matchup forecast hook. |
+| `nominations` | Auction draft subscription. |
+| `roster_players` | Player support. |
+| `snake_draft_picks` | Rookie draft subscription. |
+| `trade_block_items` | Trade screen watch helper. |
+| `trade_items` | Trade screen watch helper. |
+| `trade_participants` | Trade screen watch helper. |
+| `trade_vetos` | Trade screen watch helper. |
+| `trades` | Trade screen watch helper. |
+| `waiver_claims` | Member claims stream. |
+
+The migration removes six unwatched tables from the supplied 22-table publication.
+They are `draft_room_members`, `matchups`, `roster_transactions`, `waiver_priorities`, `waiver_wire_log`, and `weekly_lineups`.
+No active client subscribes to `draft_room_members`.
+The unused `leagueScreenWatches` factory does not create a subscription.
+Its unused history and settings watches do not enter the union.
+The migration version and filename stay unchanged. Reset the private stack before regenerating attestations.
 
 ### Changed Edge functions
 

@@ -95,7 +95,7 @@ Overlapping scopes must not be added together.
 | Combined trade guard recipes | 151 assertions pass: 51 lock checks, 45 legality checks, and 55 incoming-destination checks. |
 | Hint drain | 10 checks pass. Lock contention ends in 275.01 ms. An overlapping run returns in 35.46 ms. |
 | Deferred league versions | 17 checks pass, including conflict rollback and one eventual publication. |
-| Draft-only logical publication | 1 changed draft row, 1 total published row, and 1,368 bytes. A league update produces no published row. |
+| Draft-only logical publication | Superseded. This result excludes required client subscriptions and proves no release gain. |
 | Ordered private upgrade | 628 migrations at the supplied head become 674 through `20261207000100`. |
 | Cron replay | Repeating migration `20261201000200` preserves job IDs, count, schedules, and commands against the supplied live definitions. |
 | Fresh versus upgrade | All 4 generated files match byte for byte after a fresh 674-migration install. |
@@ -164,6 +164,7 @@ The runner negative controls reject new failing recipes, wrong bug errors, and a
 
 The final scheduler retains Hashtag rankings, missing-stat reconciliation, daily analysis, and dispatcher-owned public-read retention.
 The retained read prune removes its separate cron job, reducing active jobs from four to three.
+Realtime now preserves the 16 active client watch tables. The earlier draft-only publication is superseded.
 Both minute workers keep session overlap guards, statement limits, and lock limits.
 The roster guard requires the saved executor context and private transaction proof for saved trade moves.
 The private mini project is `pt4bafabler27`. Its port block is `600xx`.
