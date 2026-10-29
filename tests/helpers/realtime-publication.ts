@@ -1,23 +1,22 @@
 import { readdirSync, readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import ts from 'typescript'
 import { maskSqlNonCode } from '../../scripts/check-db-function-sources.mjs'
 
 const clientDirectories = ['app', 'components', 'constants', 'contexts', 'hooks', 'lib']
 
-function sourceFiles(directory: string): string[] {
-    return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
-        const file = path.join(directory, entry.name)
-        return entry.isDirectory() ? sourceFiles(file) : /\.tsx?$/.test(file) ? [file] : []
-    })
+function sourceFiles(root: string): string[] {
+    return execFileSync('git', ['ls-files', '-z', '--', ...clientDirectories], { cwd: root, encoding: 'utf8' })
+        .split('\0').filter(file => /\.tsx?$/.test(file)).map(file => path.join(root, file))
 }
 
 type Binding = { expression: ts.Expression; bindings: Map<ts.Symbol, Binding> }
 
-export function clientRealtimeTables(root = process.cwd(), files = clientDirectories.flatMap(directory => sourceFiles(path.join(root, directory)))) {
+export function clientRealtimeTables(root = process.cwd(), files = sourceFiles(root)) {
     const program = ts.createProgram(files, {
         target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Bundler,
-        jsx: ts.JsxEmit.ReactJSX, baseUrl: root, paths: { '@/*': ['./*'] }, skipLibCheck: true,
+        jsx: ts.JsxEmit.ReactJSX, baseUrl: root, paths: { '@/*': ['./*'] }, skipLibCheck: true, types: [],
     })
     const checker = program.getTypeChecker()
     const tables = new Set<string>()

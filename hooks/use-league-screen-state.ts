@@ -109,6 +109,7 @@ export function useLeagueScreenState() {
         setRoomName: mockRooms.setRoomName,
         setRoomScheduledAt: mockRooms.setRoomScheduledAt,
         shareInviteCode,
+        schedule: tabResources.schedule,
         standings: tabResources.standings,
         tab,
         tabErr: tabResources.tabError,

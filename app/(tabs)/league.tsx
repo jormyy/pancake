@@ -10,6 +10,7 @@ import { DraftPanel } from '@/components/league/DraftSetupPanels'
 import { MockRoomsPanel } from '@/components/league/MockRoomsPanel'
 import { SettingsPanel } from '@/components/league/SettingsPanel'
 import { useLeagueScreenState } from '@/hooks/use-league-screen-state'
+import { LeagueSchedule } from '@/components/league/LeagueSchedule'
 import { PicksBankList } from '@/components/league/LeaguePicksBank'
 import { LEAGUE_TABS } from '@/lib/league/tabs'
 
@@ -117,6 +118,8 @@ function LeagueScreen() {
                 />
             )
         }
+
+        if (screen.tab === 'schedule') return <LeagueSchedule rows={screen.schedule} />
 
         if (screen.tab === 'settings') {
             return (

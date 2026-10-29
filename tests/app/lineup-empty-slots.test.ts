@@ -98,6 +98,8 @@ it('uses the new day capacity after switching dates', async () => {
     mocks.lineup = { starters: [], bench: [], benchSlots: 2 }
     await act(async () => screen.root.findByType('DaySelector' as React.ElementType).props.onSelect('2026-10-12'))
     expect(emptyRows()).toHaveLength(2)
+    expect(mocks.readView).toHaveBeenLastCalledWith(expect.objectContaining({ params: { date: '2026-10-12' } }))
+    expect(screen.root.findByType('DaySelector' as React.ElementType).props.selectedDate).toBe('2026-10-12')
 })
 
 it('keeps a fresh lineup on focus and rechecks stale or failed reads', async () => {

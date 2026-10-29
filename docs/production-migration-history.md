@@ -417,3 +417,30 @@ The changed Edge functions are `api`, `backfill`, `matchup-forecast`, `process-t
 No production service receives a request.
 [Release contract](../supabase/RELEASE-DB.md#release-27) owns rollout and rollback.
 [Integration evidence](release-2.7-integration.md) owns exact counts and changed files.
+
+## Release 2.7.1 candidate
+
+The source starts at `f1c1f6ec`, the release 2.7 source.
+The supplied production head is `20261209000500`, with 675 migrations.
+The private rehearsal applies that full prefix before the four candidate migrations.
+The final history contains 679 migrations through `20261210000300`.
+No version collides or changes.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261209000600_league_schedule.sql` | Reads each member's season schedule. |
+| 2 | `20261210000100_scheduler_watchdog.sql` | Adds bounded health checks, degradation levels, and restricted dispatch. |
+| 3 | `20261210000200_certify_inactive_zero_rows.sql` | Removes and audits absent inactive zero rows during final certification. |
+| 4 | `20261210000300_isolate_screen_statistics.sql` | Retires inline analysis and schedules independent daily statistics. |
+
+The fixed audit anchor remains 329 migrations through `20261005000003`.
+Its approved range contains 350 migrations.
+The recorded security baseline remains 564 migrations through `20261029000800`.
+Its candidate suffix contains 115 migrations.
+Historical aliases and the recorded pre-migration catalog stay unchanged.
+The function catalog, database types, and both attestations regenerate on private project `pt4bafabler271`, using ports `612xx`.
+Schedule adds no realtime subscription; the publication remains equal to the 16-table client watch set.
+The changed Edge functions are `api`, `backfill`, `live-poll`, `season-boundary`, `sync-scores`, and `sync-stats`.
+This integration makes no production request.
+[Release contract](../supabase/RELEASE-DB.md#release-271) owns rollout, watchdog thresholds, health reads, and rollback.
+[Integration evidence](release-2.7.1-integration.md) owns executed counts and every changed file.

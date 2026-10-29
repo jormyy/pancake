@@ -63,7 +63,7 @@ it('opens another matchup from the shared strip below the lineup', async () => {
     const content = strip.parent!
     expect(content.children.at(-1)).toBe(strip)
     await act(async () => strip.props.onOpen('next-matchup'))
-    expect(state.replace).toHaveBeenCalledExactlyOnceWith({ pathname: '/(modals)/matchup', params: { matchupId: 'next-matchup' } })
+    expect(state.replace).toHaveBeenCalledExactlyOnceWith({ pathname: '/(modals)/matchup', params: { matchupId: 'next-matchup', date: '2026-10-27' } })
 })
 it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('fits the other matchup and strip in WebKit at 390x844', async () => {
     const output = process.env.PANCAKE_LAYOUT_OUTPUT!

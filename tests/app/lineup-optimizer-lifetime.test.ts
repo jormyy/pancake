@@ -132,7 +132,7 @@ it('shows one panel with only an accessible automatic preference', async () => {
     expect(content).toContain('Auto lineup')
     expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'Auto lineup' || node.props.children === 'Set now')).toBe(false)
     expect(content).toContain('Keep updated automatically')
-    for (const label of ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
+    for (const label of ['Today', 'This week', 'Rest of season', 'ROS', 'Auto-set today', 'Auto-set this week', 'Auto-set rest of season']) {
         expect(screen.root.findAllByProps({ accessibilityLabel: label })).toHaveLength(0)
     }
     expect(screen.root.findByProps({ accessibilityRole: 'switch' }).props.accessibilityLabel).toBe('Keep lineup updated automatically')

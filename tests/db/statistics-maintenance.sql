@@ -4,14 +4,10 @@ SET LOCAL statement_timeout='30s';
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='statistics-fixture';
 \ir rules-support.sql
-INSERT INTO public.players(first_name,last_name) VALUES('Statistics','First'),('Statistics','Second'),('Statistics','Third');
-UPDATE private.work_items SET status='succeeded',lease_until=NULL,lease_token=NULL
-WHERE status IN ('pending','running','failed');
 DO $$
-DECLARE item private.work_items%ROWTYPE; work_id bigint; target regclass; child regclass; previous_count integer;
-  original_hash text; current_hash text; guard_failed boolean:=false;
+DECLARE result jsonb; work_id bigint; token uuid:=gen_random_uuid(); source text; job_id bigint;
 BEGIN
-  PERFORM pg_temp.check_rules(cardinality(private.screen_statistics_targets())=15,'all screen statistics targets are registered');
+  PERFORM pg_temp.check_rules(cardinality(private.screen_statistics_targets())=15,'all screen statistics targets remain registered');
   PERFORM pg_temp.check_rules(NOT EXISTS(
     SELECT FROM unnest(private.screen_statistics_targets()) relation
     JOIN pg_class parent ON parent.oid=relation
@@ -20,51 +16,35 @@ BEGIN
       UNION SELECT relid FROM pg_partition_tree(relation) WHERE isleaf
     ) physical JOIN pg_class leaf ON leaf.oid=physical.oid
     WHERE NOT coalesce(leaf.reloptions @> ARRAY['autovacuum_analyze_scale_factor=0.02','autovacuum_analyze_threshold=25'],false)
-  ),'every physical screen table has the analyze policy');
-  PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','private.analyze_screen_table(text)','EXECUTE')
-    AND NOT has_function_privilege('anon','private.analyze_screen_table(text)','EXECUTE')
-    AND NOT has_function_privilege('service_role','private.analyze_screen_table(text)','EXECUTE'),'clients cannot request arbitrary analysis');
-  BEGIN
-    PERFORM private.analyze_screen_table('auth.users');
-  EXCEPTION WHEN invalid_parameter_value THEN guard_failed:=true;
-  END;
-  PERFORM pg_temp.check_rules(guard_failed,'the analyzer rejects a table outside the allowlist');
-  guard_failed:=false;
-  BEGIN
-    PERFORM private.analyze_screen_table(NULL);
-  EXCEPTION WHEN invalid_parameter_value THEN guard_failed:=true;
-  END;
-  PERFORM pg_temp.check_rules(guard_failed,'the analyzer rejects a missing table');
-  SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY p.id)::text) INTO original_hash FROM public.players p;
-  PERFORM private.analyze_screen_table('public.players');
-  SELECT md5(jsonb_agg(to_jsonb(p) ORDER BY p.id)::text) INTO current_hash FROM public.players p;
-  PERFORM pg_temp.check_rules(original_hash IS NOT DISTINCT FROM current_hash,'analysis preserves every player value');
-  work_id:=private.work_enqueue('retention-prune','statistics-fixture-'||gen_random_uuid(),now());
-  SELECT * INTO item FROM private.work_claim(1) WHERE id=work_id;
-  PERFORM pg_temp.check_rules(item.lease_token IS NOT NULL,'the retention task receives a lease');
-  PERFORM private.work_execute(item.id,item.lease_token);
-  SELECT count(*) INTO previous_count FROM private.work_items
-    WHERE kind='analyze-screen-table' AND key LIKE (now() AT TIME ZONE 'UTC')::date::text||':%';
-  PERFORM pg_temp.check_rules(previous_count=15,'retention schedules one daily analysis task per target');
-  FOREACH target IN ARRAY private.screen_statistics_targets() LOOP
-    PERFORM pg_temp.check_rules(EXISTS(SELECT FROM private.work_items WHERE kind='analyze-screen-table'
-      AND to_regclass(payload->>'relation')=target),'the task preserves its exact target: '||target::text);
-  END LOOP;
-  UPDATE private.work_items SET status='succeeded',lease_until=NULL,lease_token=NULL WHERE kind='analyze-screen-table';
-  work_id:=private.work_enqueue('retention-prune','statistics-fixture-repeat-'||gen_random_uuid(),now());
-  SELECT * INTO item FROM private.work_claim(1) WHERE id=work_id;
-  PERFORM private.work_execute(item.id,item.lease_token);
-  PERFORM pg_temp.check_rules((SELECT count(*) FROM private.work_items WHERE kind='analyze-screen-table'
-    AND key LIKE (now() AT TIME ZONE 'UTC')::date::text||':%')=previous_count,'repeated retention does not duplicate daily analysis');
-  work_id:=private.work_enqueue('analyze-screen-table','statistics-fixture-execute-'||gen_random_uuid(),now(),jsonb_build_object('relation','public.players'));
-  SELECT * INTO item FROM private.work_claim(1) WHERE id=work_id;
-  PERFORM private.work_execute(item.id,item.lease_token);
-  PERFORM pg_temp.check_rules((SELECT status='succeeded' FROM private.work_items WHERE id=item.id),'the analyzer completes through the real work dispatcher');
-  INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
-    VALUES('002statistics-fixture',2202,1,'2201-10-01','BOS','LAL','Scheduled');
-  child:=private.ensure_player_stats_partition(2202);
-  PERFORM pg_temp.check_rules((SELECT reloptions @> ARRAY['autovacuum_analyze_scale_factor=0.02','autovacuum_analyze_threshold=25']
-    FROM pg_class WHERE oid=child),'future stats partitions receive the same analyze policy');
+  ),'physical screen tables retain the autovacuum analyze policy');
+  PERFORM pg_temp.check_rules((SELECT retired_at IS NOT NULL FROM private.work_kinds WHERE kind='analyze-screen-table'),'the old work kind is retired');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM private.work_items WHERE kind='analyze-screen-table' AND status IN ('pending','running','failed')),'migration closes every stale analysis item');
+  PERFORM pg_temp.check_rules(private.work_enqueue('analyze-screen-table','retired-statistics-'||gen_random_uuid()) IS NULL,'retired work cannot be enqueued');
+  INSERT INTO private.work_items(kind,key,status,lease_token,lease_until,payload)
+    VALUES('analyze-screen-table','retired-lease-'||gen_random_uuid(),'running',token,now()+interval '1 minute','{"relation":"public.players"}') RETURNING id INTO work_id;
+  PERFORM private.work_execute(work_id,token);
+  PERFORM pg_temp.check_rules((SELECT status='dead' AND lease_token IS NULL FROM private.work_items WHERE id=work_id),'a stale lease cannot execute retired maintenance');
+  INSERT INTO private.work_items(kind,key,status,payload)
+    VALUES('analyze-screen-table','retired-pending-'||gen_random_uuid(),'pending','{"relation":"public.players"}') RETURNING id INTO work_id;
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM private.work_claim(4) WHERE id=work_id),'claims exclude retired work');
+  SELECT command INTO source FROM cron.job WHERE jobname='screen-statistics';
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND min(schedule)='15 10 * * *' FROM cron.job WHERE jobname='screen-statistics'),'one independent daily job runs at 10:15 UTC');
+  PERFORM pg_temp.check_rules(source LIKE '%statement_timeout=''10min''%' AND source LIKE '%lock_timeout=''2s''%' AND source LIKE '%private.refresh_screen_statistics()%','the cron command owns its timeout budgets');
+  SELECT jobid INTO job_id FROM cron.job WHERE jobname='screen-statistics';
+  PERFORM cron.schedule('screen-statistics','15 10 * * *',source);
+  PERFORM pg_temp.check_rules((SELECT jobid=job_id FROM cron.job WHERE jobname='screen-statistics'),'scheduling the named job again preserves its identity');
+  PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','private.refresh_screen_statistics()','EXECUTE')
+    AND NOT has_function_privilege('anon','private.refresh_screen_statistics()','EXECUTE')
+    AND NOT has_function_privilege('service_role','private.refresh_screen_statistics()','EXECUTE'),'clients cannot run statistics maintenance');
+  PERFORM pg_temp.check_rules(to_regprocedure('private.analyze_screen_table(text)') IS NULL,'the inline analysis helper is removed');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM pg_trigger WHERE tgname IN ('trade_rankings_analyze_insert','trade_rankings_analyze_update','trade_rankings_analyze_delete')),'trade writes cannot run analysis through triggers');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname IN ('public','private','analytics') AND p.prokind='f'
+      AND p.oid<>'private.refresh_screen_statistics()'::regprocedure
+      AND p.prosrc ~* $maintenance$(^|[[:space:];'"])(ANALYZE|VACUUM|REINDEX)([[:space:](;]|$)$maintenance$),'only the independent job contains database maintenance');
+  result:=private.refresh_screen_statistics();
+  PERFORM pg_temp.check_rules(jsonb_array_length(result)=15,'the separate job visits each target once');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT FROM jsonb_array_elements(result) row WHERE row->>'status'<>'analyzed'),'every unlocked target is analyzed');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

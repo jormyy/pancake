@@ -8,11 +8,11 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 let screen: ReactTestRenderer | undefined
 let latest: ReturnType<typeof useMatchupData>
-function Probe({ id }: { id?: string }) {
-    latest = useMatchupData({ id: 'member' }, { id: 'account' }, { id: 'league' }, true, null, undefined, id)
+function Probe({ id, date }: { id?: string; date?: string }) {
+    latest = useMatchupData({ id: 'member' }, { id: 'account' }, { id: 'league' }, true, null, undefined, id, date)
     return null
 }
-async function render(id?: string) { await act(async () => { if (screen) screen.update(React.createElement(Probe, { id })); else screen = create(React.createElement(Probe, { id })) }) }
+async function render(id?: string, date?: string) { await act(async () => { if (screen) screen.update(React.createElement(Probe, { id, date })); else screen = create(React.createElement(Probe, { id, date })) }) }
 async function unmount() { await act(async () => screen?.unmount()); screen = undefined }
 beforeEach(() => { boundary.read.mockImplementation(async scope => ({ ...homePayload(String(scope.params.date)), matchup: { ...homePayload().matchup, id: scope.params.matchupId ?? 'own' } })); })
 afterEach(unmount)
@@ -45,4 +45,16 @@ it('revalidates an opened other matchup after a score change', async () => {
     await render('other-a')
     await act(async () => { await bumpView('league', 'score') })
     expect(boundary.read).toHaveBeenCalledTimes(2)
+})
+
+it('uses the carried date on first open and across matchup changes', async () => {
+    await render('other-a', '2026-11-12')
+    expect(latest.selectedDate).toBe('2026-11-12')
+    expect(boundary.read.mock.calls[0][0].params).toEqual({ date: '2026-11-12', matchupId: 'other-a' })
+    await act(async () => latest.setSelectedDate('2026-11-13'))
+    await render('other-b', '2026-11-13')
+    expect(latest.selectedDate).toBe('2026-11-13')
+    expect(boundary.read.mock.calls.at(-1)![0].params).toEqual({ date: '2026-11-13', matchupId: 'other-b' })
+    await render('other-a', '2026-11-12')
+    expect(latest.selectedDate).toBe('2026-11-12')
 })

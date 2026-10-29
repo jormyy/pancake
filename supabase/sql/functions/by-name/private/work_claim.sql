@@ -10,6 +10,7 @@ BEGIN
   END LOOP;
   RETURN QUERY
     WITH due AS (SELECT id FROM private.work_items WHERE status IN ('pending','failed') AND due_at<=now()
+      AND NOT EXISTS(SELECT 1 FROM private.work_kinds kind WHERE kind.kind=private.work_items.kind AND kind.retired_at IS NOT NULL)
       ORDER BY due_at,id LIMIT greatest(0,least(p_limit,4-(SELECT count(*)::integer FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp()))) FOR UPDATE SKIP LOCKED)
     UPDATE private.work_items item SET status='running',attempts=attempts+1,
       lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL

@@ -95,3 +95,30 @@ it('clears an index selection when the lineup changes and keeps it when unchange
 })
 
 vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-07-09' }))
+
+it('saves a manual move only for the selected future day', async () => {
+    mocks.plan.mockImplementation(planLineupMove)
+    mocks.move.mockResolvedValue(undefined)
+    const reload = vi.fn().mockResolvedValue(undefined)
+    const player = { rosterPlayerId: 'roster', playerId: 'player', displayName: 'Player', position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, injuryStatus: null, nbaId: null }
+    let actions!: ReturnType<typeof useLineupActions>
+    const Probe = () => {
+        const lineup = React.useMemo(() => ({ starters: [{ slotType: 'PG', player: null }], bench: [player] }), [])
+        actions = useLineupActions({
+            actionContext: { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, seasonYear: 2026 },
+            myLineup: lineup, league: { roster_size: 20 }, selectedDate: '2026-07-11', startedTeams: new Set(), reloadLineup: reload,
+        })
+        return null
+    }
+    let renderer!: ReactTestRenderer
+    await act(async () => { renderer = create(React.createElement(Probe)) })
+    try {
+        await act(async () => { await actions.handleTap({ kind: 'bench', index: 0 }) })
+        await act(async () => { await actions.handleTap({ kind: 'starter', index: 0 }) })
+        expect(mocks.move).toHaveBeenCalledExactlyOnceWith(
+            { memberId: 'member', leagueId: 'league', seasonId: 'season', weekNumber: 1, gameDate: '2026-07-11' },
+            [{ playerId: 'player', slotType: 'PG' }],
+        )
+        expect(reload).toHaveBeenCalledExactlyOnceWith('2026-07-11')
+    } finally { await act(async () => renderer.unmount()) }
+})

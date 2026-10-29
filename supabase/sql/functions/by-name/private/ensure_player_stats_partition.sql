@@ -66,7 +66,6 @@ BEGIN
     INSERT INTO private.player_stats_partitions(season_year,shard,partition_table,game_ids) VALUES(part.season_year,part.shard,child,part.game_ids)
     ON CONFLICT(season_year,shard) DO UPDATE SET partition_table=EXCLUDED.partition_table,game_ids=EXCLUDED.game_ids;
     INSERT INTO private.retention_rules(relation_name,retention_rule) VALUES(child::text,'NBA season partition of public.player_game_stats; durable scoring history') ON CONFLICT(relation_name) DO NOTHING;
-    EXECUTE format('ANALYZE %s',child);
   END LOOP;
   EXECUTE format('INSERT INTO public.player_game_stats_default(%s) SELECT %s FROM jsonb_populate_recordset(NULL::public.player_game_stats,$1) WHERE NOT (game_id=ANY($2))',column_names,column_names) USING moved,all_games;
   FOR part IN SELECT key AS child,value AS triggers FROM jsonb_each(states) LOOP

@@ -14,6 +14,7 @@ export const screenViews = {
   'trade-details': 'view_trade_details',
   'trade-analysis': 'view_trade_analysis',
   league: 'view_league',
+  'league-schedule': 'view_league_schedule',
   standings: 'view_standings',
   activity: 'view_activity',
   picks: 'view_picks',

@@ -52,6 +52,7 @@ vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: m
 vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, setAutoSetModalVisible: vi.fn() }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
+vi.mock('@/lib/supabase', () => ({ supabase: {} }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-11' }))
 vi.mock('@/lib/format', () => ({ countLabel: String, formatPoints: String }))
@@ -334,7 +335,7 @@ it('places the current week strip below the lineup and opens a read-only matchup
     expect(strip.props.matchups).toEqual(mocks.leagueMatchups)
     expect(scroll.findAllByProps({ accessibilityLabel: 'Open Owls versus Foxes' })).toHaveLength(1)
     await act(async () => strip.props.onOpen('other-matchup'))
-    expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/matchup', params: { matchupId: 'other-matchup' } })
+    expect(mocks.push).toHaveBeenCalledWith({ pathname: '/(modals)/matchup', params: { matchupId: 'other-matchup', date: '2026-10-11' } })
 })
 
 vi.mock('@/lib/timezone', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/timezone')>(), todayLeague: () => '2026-10-11' }))

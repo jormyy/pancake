@@ -18,11 +18,12 @@ import { breakpoints, layout, spacing } from '@/constants/tokens'
 import { getGameDisplayState } from '@/lib/home-surface'
 import { lineupStatColumns } from '@/lib/score-breakdown'
 import type { LineupPlayer } from '@/lib/lineup'
+import { adjacentMatchupId } from '@/lib/matchup-navigation'
 
 type Details = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
 
 export default function OtherMatchupScreen() {
-    const { matchupId } = useLocalSearchParams<{ matchupId: string }>()
+    const { matchupId, date } = useLocalSearchParams<{ matchupId: string; date?: string }>()
     const { current, currentLeague: league, membershipValidated, membershipError, refresh: refreshMemberships } = useLeagueContext()
     const { user } = useAuth()
     const router = useRouter()
@@ -31,7 +32,7 @@ export default function OtherMatchupScreen() {
     const { padX, usableWidth } = usePageMetrics()
     const narrow = width < breakpoints.phone
     const compact = narrow || height < 840
-    const data = useMatchupData(matchupId ? current : null, user, league, membershipValidated, membershipError, refreshMemberships, matchupId)
+    const data = useMatchupData(matchupId ? current : null, user, league, membershipValidated, membershipError, refreshMemberships, matchupId, date)
     const { matchup, myLineup, oppLineup, selectedDate, weekDays, forecastState, liveSnapshot } = data
     const [details, setDetails] = useState<Details | null>(null)
     const settings = useMemo(() => league?.scoring_settings && typeof league.scoring_settings === 'object' && !Array.isArray(league.scoring_settings) ? league.scoring_settings as Record<string, number> : {}, [league?.scoring_settings])
@@ -40,6 +41,9 @@ export default function OtherMatchupScreen() {
     const projections = useMemo(() => new Map((forecastState.forecast?.games ?? []).filter(game => game.date === selectedDate).map(game => [`${game.memberId}:${game.playerId}`, game])), [forecastState.forecast, selectedDate])
     const playingTeams = useMemo(() => new Set(weekDays.find(day => day.date === selectedDate)?.playingTeams ?? []), [weekDays, selectedDate])
     const { liveTeams } = getGameDisplayState(liveSnapshot.todaysGames, liveSnapshot.freshness)
+    const openMatchup = (id: string | null) => {
+        if (id && id !== matchup?.id) router.replace({ pathname: '/(modals)/matchup', params: { matchupId: id, date: selectedDate } })
+    }
     return (
         <Page title="Matchup" width="full">
             <ScrollView testID="other-matchup-page" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: padX, paddingBottom: spacing.xl }}>
@@ -48,7 +52,9 @@ export default function OtherMatchupScreen() {
                     {!matchupId ? <ErrorBanner message="Choose a matchup from Home." onRetry={back} /> : null}
                     <DeferredContent ready={Boolean(data.error) || data.emptyConfirmed || Boolean(matchup && myLineup && oppLineup)}>
                         {matchup ? <>
-                            <ScoreCard matchup={matchup} compact={compact}>
+                            <ScoreCard matchup={matchup} compact={compact}
+                                onPreviousMatchup={() => openMatchup(adjacentMatchupId(data.leagueMatchups, matchup.id, -1))}
+                                onNextMatchup={() => openMatchup(adjacentMatchupId(data.leagueMatchups, matchup.id, 1))}>
                                 <MatchupForecastSummary {...forecastState} myMemberId={matchup.myMemberId} opponentMemberId={matchup.opponentMemberId} />
                             </ScoreCard>
                             {myLineup && oppLineup ? <MatchupLineupView
@@ -65,7 +71,7 @@ export default function OtherMatchupScreen() {
                             /> : null}
                         </> : null}
                     </DeferredContent>
-                    <OtherMatchups currentMatchupId={matchup?.id ?? matchupId} matchups={data.leagueMatchups} onOpen={id => router.replace({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
+                    <OtherMatchups currentMatchupId={matchup?.id ?? matchupId} matchups={data.leagueMatchups} onOpen={openMatchup} />
                 </View>
             </ScrollView>
             <ScoreBreakdownSheet visible={details !== null} onClose={() => setDetails(null)} slotType={details?.slotType ?? ''}

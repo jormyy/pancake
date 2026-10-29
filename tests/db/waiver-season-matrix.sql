@@ -271,10 +271,11 @@ BEGIN
   SELECT id INTO rid FROM roster_players WHERE league_season_id=f.s AND player_id=p;
   PERFORM public.drop_player_atomic(rid);
   PERFORM pg_temp.check_that((SELECT clears_at>=placed_on_waivers_at+interval '48 hours'
-    AND (clears_at AT TIME ZONE 'America/New_York')::time=time '03:00'
-    AND ((clears_at AT TIME ZONE 'America/New_York')-interval '1 day') AT TIME ZONE 'America/New_York'
+    AND (clears_at AT TIME ZONE scope.timezone)::time=time '00:00'
+    AND ((clears_at AT TIME ZONE scope.timezone)-interval '1 day') AT TIME ZONE scope.timezone
       < placed_on_waivers_at+interval '48 hours'
-    FROM waiver_wire_log WHERE league_season_id=f.s AND player_id=p AND cleared_at IS NULL),'drop clears at the first 03:00 ET after 48 hours');
+    FROM waiver_wire_log wire JOIN leagues scope ON scope.id=wire.league_id
+    WHERE league_season_id=f.s AND player_id=p AND cleared_at IS NULL),'drop clears at the first league midnight after 48 hours');
   c:=public.create_waiver_claim_atomic(f.l,f.m[2],p,NULL,f.u[2],1);
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='pending' FROM waiver_claims WHERE id=c),'future clear does not process early');

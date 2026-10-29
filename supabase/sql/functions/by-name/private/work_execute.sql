@@ -1,10 +1,15 @@
 CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz; v_statistics_target regclass;
+DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz;
   v_previous text:=coalesce(current_setting('pancake.work_id',true),'');
 BEGIN
   SELECT * INTO v_item FROM private.work_items WHERE id=p_id AND lease_token=p_token AND status='running' AND lease_until>now();
   IF NOT FOUND THEN RETURN; END IF;
+  IF EXISTS(SELECT 1 FROM private.work_kinds WHERE kind=v_item.kind AND retired_at IS NOT NULL) THEN
+    UPDATE private.work_items SET status='dead',completed_at=clock_timestamp(),lease_token=NULL,lease_until=NULL,
+      invocation_key=NULL,last_error='Work kind is retired' WHERE id=p_id AND lease_token=p_token;
+    RETURN;
+  END IF;
   SELECT function_name INTO v_function FROM private.work_kinds WHERE kind=v_item.kind;
   v_payload:=v_item.payload;
   IF v_item.kind='league-inventory-hint-drain' AND (v_payload->>'delay')::int=0 THEN v_function:=NULL; END IF;
@@ -34,15 +39,7 @@ BEGIN
     WHEN 'cleanup-trade-estimates' THEN PERFORM public.cleanup_trade_estimate_quotes();
     WHEN 'mock-room-expiry' THEN PERFORM public.expire_mock_draft_rooms();
     WHEN 'public-read-retention' THEN PERFORM public.public_prune_read_log();
-    WHEN 'retention-prune' THEN
-      PERFORM private.run_retention();
-      FOREACH v_statistics_target IN ARRAY private.screen_statistics_targets() LOOP
-        PERFORM private.work_enqueue('analyze-screen-table',
-          (now() AT TIME ZONE 'UTC')::date::text||':'||v_statistics_target::text,now(),
-          jsonb_build_object('relation',v_statistics_target::text));
-      END LOOP;
-    WHEN 'analyze-screen-table' THEN
-      PERFORM private.analyze_screen_table(v_payload->>'relation');
+    WHEN 'retention-prune' THEN PERFORM private.run_retention();
     ELSE RAISE EXCEPTION 'Unknown SQL work kind: %',v_item.kind;
   END CASE;
   PERFORM private.work_finish(p_id,p_token);

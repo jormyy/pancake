@@ -304,5 +304,6 @@ This command uses synthetic screen fixtures on a fresh private database.
 It does not restore the backup or fetch season replay inputs.
 It uses the installed OpenSSL for a temporary browser certificate.
 It adds no dependency and keeps the historical ranked baseline unchanged.
-Its 56 WebKit cases cover 40 screen adapters, Analyzer controls, and offline revaluation.
+Its 57 WebKit cases cover 41 screen adapters, Analyzer controls, and offline revaluation.
+The screen checks include Daily Total placement, matchup navigation, Schedule, and selected-day lineup controls.
 They do not establish a new performance baseline or an installed iPhone PWA result.

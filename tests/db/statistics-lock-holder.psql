@@ -1,0 +1,7 @@
+\set ON_ERROR_STOP on
+\getenv probe_application STATISTICS_PROBE_APPLICATION
+SET application_name=:'probe_application';
+BEGIN;
+LOCK TABLE public.players IN ACCESS EXCLUSIVE MODE;
+SELECT pg_sleep(10);
+ROLLBACK;

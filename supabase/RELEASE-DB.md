@@ -1,12 +1,10 @@
-# Release 2.7 database contract
+# Release 2.7.1 database contract
 
 ## Release order for this release
 
-The supplied production head is `20261130000100`, with 628 migrations.
-Apply all 47 missing migrations in [Release 2.7](#release-27) order through `20261209000500`.
-Twenty-eight missing versions precede the supplied head. Include them in the ordered pending set.
-Database, then Edge, then merge the frontend.
-Deploy the seven functions listed below after the database upgrade.
+The supplied production head is `20261209000500`, with 675 migrations.
+Apply the four migrations in [Release 2.7.1](#release-271) order through `20261210000300`.
+Apply the database changes, deploy the six listed Edge functions, then release the frontend.
 This integration makes no production request.
 
 ## Release 2.6 historical contract
@@ -668,3 +666,103 @@ Use a reviewed forward migration for database repairs.
 Do not restore obsolete cron jobs or remove partitions that contain retained data.
 
 [Integration evidence](../docs/release-2.7-integration.md) records exact checks, limits, and every changed file.
+
+## Release 2.7.1
+
+The source base is release 2.7 at `f1c1f6ec`.
+The supplied production head is `20261209000500`, with 675 migrations.
+The candidate adds four distinct versions and ends at `20261210000300`, with 679 migrations.
+No migration version changes.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261209000600_league_schedule.sql` | Adds the member's season schedule read. |
+| 2 | `20261210000100_scheduler_watchdog.sql` | Measures scheduler health and limits work under load. |
+| 3 | `20261210000200_certify_inactive_zero_rows.sql` | Removes absent inactive zero rows before final certification and records removed rows. |
+| 4 | `20261210000300_isolate_screen_statistics.sql` | Moves statistics into an independent daily job and retires queued analysis work. |
+
+### Changed Edge functions
+
+The release runner's import graph compares this candidate with `origin/main` at `f1c1f6ec`.
+Shared file changes affect six deployable functions.
+
+| Function | Change |
+| --- | --- |
+| `api` | Registers the Schedule view. |
+| `backfill` | Includes the corrected shared stat certification. |
+| `live-poll` | Ignores absent inactive zero rows during certification. |
+| `season-boundary` | Includes the corrected shared stat certification. |
+| `sync-scores` | Includes the corrected shared stat certification. |
+| `sync-stats` | Ignores absent inactive zero rows during certification. |
+
+### Rollout
+
+1. Verify the applied history matches the supplied production prefix.
+2. Save compatible frontend and Edge rollback artifacts.
+3. Pause dispatcher work and let active work finish.
+4. Apply the four migrations in numeric order.
+5. Verify migration fingerprints, function sources, grants, database types, and the realtime publication.
+6. Deploy the six listed Edge functions.
+7. Release the frontend with Schedule, Daily Total, matchup navigation, and selected-day lineup controls.
+8. Resume dispatch and read `public.get_scheduler_health()` with the service role.
+9. Check schedule reads, stat certification, scheduler recovery, and the independent statistics job.
+
+The realtime publication remains the same 16-table client watch set.
+Schedule uses the existing screen version cache and adds no subscription.
+Private rehearsal uses `pt4bafabler271` and ports `612xx` on the mini.
+The function catalog, database types, and both attestations regenerate from that private database.
+
+### Watchdog thresholds
+
+Health examines at most 40 recent cron rows within five minutes.
+The success ratio uses completed dispatcher runs.
+Any cron startup timeout enters `paused`.
+Dispatcher success below 50% also enters `paused`.
+Success below 80%, average duration above three seconds, or unavailable health enters `shed`.
+A restricted state needs ten continuous healthy minutes to recover.
+A missing sample, failed check, or check gap above 90 seconds resets recovery.
+Manual pause remains separate and stops all dispatch.
+
+In `shed`, only live polling, scoring, stat sync, waivers, trades, and invocation reconciliation can run.
+Live polling runs on even minutes; waiver enqueue runs every 15 minutes.
+In `paused`, only waivers, trades, and live polling can run, once per five-minute dispatch batch.
+Nonessential queued work keeps its due date and attempt count.
+The four-worker cap and two-second dispatch budget remain in force.
+
+`public.get_scheduler_health()` reads the last saved measurement without changing state.
+Read `level`, manual `paused`, `checked_at`, `healthy_since`, and `last_reduced_dispatch_at` first.
+The nested `health` object includes samples, success ratio, durations, startup timeouts, and backend counts.
+The nested `hint` contains the latest transition reason and revision.
+Alert on stale `checked_at` as well as restricted levels.
+The watchdog cannot recover a dispatcher that cron cannot start.
+[Scheduler operations](../docs/operations-scheduler.md) explains the allowed work and transition log.
+
+### Statistics job
+
+`screen-statistics` runs at `15 10 * * *` in its own cron connection.
+Its command sets a ten-minute statement timeout, a two-second lock timeout, and 16 MB maintenance memory.
+It analyzes one named relation per statement and continues after a lock timeout.
+The 15 targets retain their existing autovacuum settings.
+Partitioned parents still need manual statistics; their ANALYZE also visits child partitions.
+
+The migration retires `analyze-screen-table` and marks outstanding items dead.
+Retired kinds cannot enqueue, claim, or execute work.
+Retention, partition creation, and trade triggers no longer analyze tables.
+Catalog checks reject inline ANALYZE, VACUUM, and REINDEX outside the statistics job.
+A slow daily job cannot cancel the dispatcher's separate statement.
+
+[Isolation evidence](../docs/release-2.7.1-statistics-isolation.md) records production-shaped timings and concurrency checks.
+
+### Rollback
+
+Pause dispatch before restoring compatible frontend and Edge artifacts.
+Keep the additive schema and stat cleanup audit rows.
+Do not restore removed inactive rows blindly; later certified snapshots may supersede them.
+Use a reviewed forward migration for database repairs.
+If the watchdog requires removal, restore the release 2.7 dispatcher definition through a reviewed forward migration.
+Keep manual pause active until health and queue checks pass.
+Keep statistics outside dispatch during rollback.
+Disable the independent cron job if needed; do not restore the retired inline work kind.
+This integration performs no production rollout or rollback.
+
+[Integration evidence](../docs/release-2.7.1-integration.md) records exact checks and every changed file.

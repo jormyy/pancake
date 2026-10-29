@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261209000500",
+  "candidateVersion": "20261210000300",
   "common": {
     "functions": [
       {
@@ -738,7 +738,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "363c20fa845a6f00eb461f37f2ecc14e730bdfe77c3ed3bf8344226cd703e6d9",
+          "bodySha256": "63c1fe3c554a0721b2472efa9215dfb3c22bf8a5bcd28e62dd2cb707d456379d",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -778,7 +778,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_kind text, p_key text, p_due_at timestamp with time zone DEFAULT now(), p_payload jsonb DEFAULT '{}'::jsonb, p_league_id uuid DEFAULT NULL::uuid",
-          "bodySha256": "2d7f1e6ca5fd0185fff84239be7db5c28545354a13d5814fe448f6ef3d364410",
+          "bodySha256": "c19f75d69f9a58f41650763610b731d8bd25b4fa7b861aaedc7c4e76ae202567",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -798,7 +798,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "6d562ebb173b42cba2a2dde107fcc2034b895696a5256370712573a6cac5fe8e",
+          "bodySha256": "6944cb04b339ced91ccb362aa1a521fda945aa396b9db4c3cae1e44baf802a50",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -838,7 +838,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "8ee567a6bc024149f3ae518aa61d08ffa1d5d55e0f206b7444f57e3666c201f2",
+          "bodySha256": "517a8366f6b62c271a5d9bea2893614c554d7b8e4e38927d1d2598f3bc83baa4",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2192,6 +2192,22 @@
     {
       "filename": "20261209000500_matchup_forecast_season_fallback.sql",
       "sha256": "53e2588dd037b9bc3f1291c95f4da820900786874845f129f789ce6330eabbd6"
+    },
+    {
+      "filename": "20261209000600_league_schedule.sql",
+      "sha256": "27f114721e6bc8b71095d1c4088eb17f2c81de27c9437b14bb40e1ba27e925f2"
+    },
+    {
+      "filename": "20261210000100_scheduler_watchdog.sql",
+      "sha256": "fe610258e6436af20ab8e6915a10d35bc94c23fa6ac11a950abe6e739e7588b2"
+    },
+    {
+      "filename": "20261210000200_certify_inactive_zero_rows.sql",
+      "sha256": "9525f5e9c429322f3fbd7067804bf034097818090c758e391f916dc6ec611b6b"
+    },
+    {
+      "filename": "20261210000300_isolate_screen_statistics.sql",
+      "sha256": "683951acec2c39f30a0a2959aae0a4b873e60362409bb6bc65efe4a7fa8c4666"
     }
   ],
   "preMigration": {

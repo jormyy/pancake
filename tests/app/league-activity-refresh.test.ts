@@ -11,6 +11,7 @@ vi.mock('@/hooks/use-league-screen-state', () => ({ useLeagueScreenState: () => 
 vi.mock('@/components/ui', () => ({ Page: 'Page', PageHeader: 'PageHeader', SegmentedControl: 'SegmentedControl', ErrorBanner: 'ErrorBanner' }))
 vi.mock('@/components/league/LeagueActivityFeed', () => ({ ActivityFeed: 'ActivityFeed' }))
 vi.mock('@/components/league/LeagueStandings', () => ({ StandingsTable: 'StandingsTable' }))
+vi.mock('@/components/league/LeagueSchedule', () => ({ LeagueSchedule: 'LeagueSchedule' }))
 vi.mock('@/components/league/DraftSetupPanels', () => ({ DraftPanel: 'DraftPanel' }))
 vi.mock('@/components/league/MockRoomsPanel', () => ({ MockRoomsPanel: 'MockRoomsPanel' }))
 vi.mock('@/components/league/SettingsPanel', () => ({ SettingsPanel: 'SettingsPanel' }))

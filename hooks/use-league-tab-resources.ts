@@ -1,3 +1,4 @@
+import type { LeagueScheduleView } from '@/lib/cache/view-types'
 import type { Draft } from '@/lib/draft'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { browserReadsAllowed } from '@/hooks/use-browser-read-activity'
@@ -14,13 +15,13 @@ import type { LeaguePickItem } from '@/lib/rookieDraft'
 import type { MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 
-type LeagueView = { activeDraft?: Draft | null; standings?: StandingRow[]; rows?: TransactionRow[]; announcements?: LeagueAnnouncement[]; waiverOrder?: WaiverPriorityRow[]; picks?: LeaguePickItem[]; rooms?: MockDraftRoom[]; hasMore?: boolean; offset?: number }
+type LeagueView = Partial<LeagueScheduleView> & { activeDraft?: Draft | null; standings?: StandingRow[]; rows?: TransactionRow[]; announcements?: LeagueAnnouncement[]; waiverOrder?: WaiverPriorityRow[]; picks?: LeaguePickItem[]; rooms?: MockDraftRoom[]; hasMore?: boolean; offset?: number }
 
 export function useLeagueTabResources(leagueId: string | undefined, memberId: string | undefined, activeTab: LeagueTab, authorized = true) {
     const owner = sessionOwner()
     const focused = useIsFocused()
     const tab = activeTab === 'picks' ? 'draftBoard' : activeTab === 'draft' ? 'mockRooms' : activeTab
-    const scope = owner && leagueId && memberId ? screenScope('league', leagueId, memberId, { tab, limit: 50 }, owner) : null
+    const scope = owner && leagueId && memberId ? screenScope(tab === 'schedule' ? 'league-schedule' : 'league', leagueId, memberId, tab === 'schedule' ? {} : { tab, limit: 50 }, owner) : null
     const view = useScreenView<LeagueView>(scope, authorized && focused)
     const refreshView = view.refresh
     const [pages, setPages] = useState<{ base?: LeagueView; rows: TransactionRow[]; offset: number; hasMore: boolean }>({ rows: [], offset: 0, hasMore: false })
@@ -54,5 +55,5 @@ export function useLeagueTabResources(leagueId: string | undefined, memberId: st
         finally { if (request.current === sequence) { pending.current = false; setActivityLoadingMore(false) } }
     }, [scope, authorized, focused, selected.hasMore, tab, view.refreshing])
     const transactions = useMemo(() => mergeAnnouncementActivity(selected.rows, view.data?.announcements ?? [], selected.hasMore), [selected.rows, selected.hasMore, view.data])
-    return { activeDraft: view.data?.activeDraft ?? null, activeDraftLoaded: view.loaded, activeDraftError: view.error?.message ?? null, activityHasMore: selected.hasMore, activityLoadMoreError, activityLoadingMore, currentLeaguePicks: view.data?.picks ?? [], ensureTab, invalidateTab, isTabLoading: view.loading, isTabLoaded: view.loaded, isTabRefreshing: view.refreshing, isOnline: !view.offline, loadMoreActivity, mockRooms: view.data?.rooms ?? [], refreshTab, refreshMockRooms, standings: view.data?.standings ?? [], tabError: view.error?.message, transactions, waiverOrder: view.data?.waiverOrder ?? [] }
+    return { schedule: view.data?.schedule ?? [], activeDraft: view.data?.activeDraft ?? null, activeDraftLoaded: view.loaded, activeDraftError: view.error?.message ?? null, activityHasMore: selected.hasMore, activityLoadMoreError, activityLoadingMore, currentLeaguePicks: view.data?.picks ?? [], ensureTab, invalidateTab, isTabLoading: view.loading, isTabLoaded: view.loaded, isTabRefreshing: view.refreshing, isOnline: !view.offline, loadMoreActivity, mockRooms: view.data?.rooms ?? [], refreshTab, refreshMockRooms, standings: view.data?.standings ?? [], tabError: view.error?.message, transactions, waiverOrder: view.data?.waiverOrder ?? [] }
 }

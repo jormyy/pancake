@@ -21,6 +21,7 @@ import { settleControl } from './settle.mjs'
 import { phoneProfile, emulateStandalone, phoneEvidence } from './device.mjs'
 import { emptyPlan, withEmptyState } from './empty.mjs'
 import { playerViewReady } from './player-results.mjs'
+import { verifyReleaseUi } from './release-ui.mjs'
 
 export function substitute(value, context) {
   if (Array.isArray(value)) return value.map(item => substitute(item, context))
@@ -298,6 +299,7 @@ export async function walk({ origin, fixture, capture, evidence, stack, limit = 
             proof.cacheMisses = cache.filter(row => row.hit === false).length
             proof.invalidations = cache.filter(row => row.cacheAction === 'invalidated' || row.operation === 'delete').length
             proof.offlineContent = state === 'offline'
+            if (state === 'cold') proof.releaseUi = await verifyReleaseUi(page, surface, variables)
             denied.push(...proxy.blocked.slice(blockedBefore))
             proof.passed = denied.length === 0
           } catch (error) {

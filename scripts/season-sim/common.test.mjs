@@ -5,6 +5,16 @@ import path from 'node:path'
 import { assertTarget, config, configuration, dates, etDate, historicalSummary, scheduleEntries } from './common.mjs'
 import { databaseEnvironment } from './local-stack.mjs'
 
+test('an explicit lab assignment binds the simulator root, project, and port block', () => {
+  const env = { PERF_LAB_LANE: 'fable-r271', PERF_LAB_PROJECT: 'pt4bafabler271', PERF_LAB_PORT_PREFIX: '612',
+    SEASON_SIM_ROOT: path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-r271'),
+    SEASON_SIM_PROJECT: 'pt4bafabler271', SEASON_SIM_PORT_PREFIX: '612' }
+  assert.equal(configuration(env).ports.db, 61222)
+  for (const changed of [{ SEASON_SIM_ROOT: env.SEASON_SIM_ROOT + '-other' },
+    { SEASON_SIM_PROJECT: 'pt4baother' }, { SEASON_SIM_PORT_PREFIX: '613' },
+    { SEASON_SIM_CONTAINER: 'supabase_db_pt4baother' }]) assert.throws(() => configuration({ ...env, ...changed }))
+})
+
 test('the database audit binds its exact root, project, and port block', () => {
   const env = { SEASON_SIM_ROOT: path.join(homedir(), 'pancake-t_4ba51e0d/lanes/fable-timeline/db'),
     SEASON_SIM_PROJECT: 'pt4bafabledb', SEASON_SIM_PORT_PREFIX: '574' }
