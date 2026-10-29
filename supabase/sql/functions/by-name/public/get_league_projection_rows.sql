@@ -91,8 +91,11 @@ base_players AS (
     p.injury_status,
     p.headshot_url,
     p.nba_id
-  FROM public.players p
-  WHERE p_player_ids IS NULL OR p.id = ANY(p_player_ids)
+  FROM (
+    SELECT * FROM public.players WHERE p_player_ids IS NULL
+    UNION ALL
+    SELECT * FROM public.players WHERE p_player_ids IS NOT NULL AND id = ANY(p_player_ids)
+  ) p
 ),
 regular_games AS MATERIALIZED (
   SELECT id, game_date, home_team, away_team, game_time, status, started_at
@@ -510,8 +513,13 @@ season_avg_candidates AS (
     4 AS priority
   FROM args
   JOIN league l ON true
-  JOIN public.mv_player_season_averages avg
-    ON avg.season_year = p_season_year
+  JOIN (
+    SELECT * FROM public.mv_player_season_averages
+    WHERE p_player_ids IS NULL AND season_year = p_season_year
+    UNION ALL
+    SELECT * FROM public.mv_player_season_averages
+    WHERE p_player_ids IS NOT NULL AND season_year = p_season_year AND player_id = ANY(p_player_ids)
+  ) avg ON true
   JOIN base_players projected_player
     ON projected_player.id = avg.player_id
   LEFT JOIN week_game_counts wgc

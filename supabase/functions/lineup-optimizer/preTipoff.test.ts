@@ -141,7 +141,7 @@ Deno.test('teams sharing one tipoff claim do not submit competing apply transact
   } finally { globalThis.fetch = original }
 })
 
-for (const code of ['55P03', '40P01', '40001', '23514', 'persistent']) {
+for (const code of ['55P03', '40P01', '40001', '57014', 'fetch_timeout', '23514', 'persistent']) {
   Deno.test(`tipoff ${code} errors preserve fresh injury guards and bounded failures`, async () => {
     const original = globalThis.fetch
     let batches = 0
@@ -161,7 +161,7 @@ for (const code of ['55P03', '40P01', '40001', '23514', 'persistent']) {
       if (name === 'get_league_projection_rows') return Response.json(projections)
       if (name === 'apply_pre_tipoff_lineup') {
         applies++
-        if (applies === 1 || !transient) return Response.json({ code: code === 'persistent' ? '55P03' : code, message: 'write conflict' }, { status: 500 })
+        if (applies === 1 || !transient) return Response.json({ code: code === 'persistent' ? '55P03' : code === 'fetch_timeout' ? '' : code, message: code === 'fetch_timeout' ? 'FetchError: TimeoutError: Signal timed out.' : 'write conflict' }, { status: 500 })
         const body = await req.json()
         assert(!body.p_assignments.some((row: { player_id: string }) => row.player_id === 'a'), 'Retry reuses the injured starter from stale context.')
         return Response.json(true)

@@ -40,7 +40,7 @@ BEGIN
     SELECT 1 FROM jsonb_populate_recordset(NULL::public.player_game_stats, p_stats) AS row
     WHERE row.player_id IS NULL OR row.game_id IS DISTINCT FROM p_game_id
        OR row.did_not_play IS NULL
-  ) OR (SELECT count(DISTINCT row->>'player_id') FROM jsonb_array_elements(p_stats) AS row) <> jsonb_array_length(p_stats) THEN
+  ) OR (SELECT count(DISTINCT (row->>'player_id')::uuid) FROM jsonb_array_elements(p_stats) AS row) <> jsonb_array_length(p_stats) THEN
     RAISE EXCEPTION 'Box score rows do not match the current game or contain duplicate players.' USING ERRCODE = '22023';
   END IF;
 
@@ -74,6 +74,9 @@ BEGIN
   )
   SELECT incoming.player_id, v_game.id, incoming.is_home, v_game.season_year, v_game.week_number, incoming.minutes_played, incoming.points, incoming.rebounds, incoming.offensive_rebounds, incoming.defensive_rebounds, incoming.assists, incoming.steals, incoming.blocks, incoming.turnovers, incoming.personal_fouls, incoming.field_goals_made, incoming.field_goals_attempted, incoming.three_pointers_made, incoming.three_pointers_attempted, incoming.free_throws_made, incoming.free_throws_attempted, incoming.plus_minus, incoming.double_double, incoming.triple_double, incoming.did_not_play, clock_timestamp()
   FROM jsonb_populate_recordset(NULL::public.player_game_stats, p_stats) AS incoming
+  LEFT JOIN public.player_game_stats previous ON previous.player_id=incoming.player_id AND previous.game_id=v_game.id
+  WHERE previous.player_id IS NULL OR ROW(previous.player_id, previous.game_id, previous.is_home, previous.season_year, previous.week_number, previous.minutes_played, previous.points, previous.rebounds, previous.offensive_rebounds, previous.defensive_rebounds, previous.assists, previous.steals, previous.blocks, previous.turnovers, previous.personal_fouls, previous.field_goals_made, previous.field_goals_attempted, previous.three_pointers_made, previous.three_pointers_attempted, previous.free_throws_made, previous.free_throws_attempted, previous.plus_minus, previous.double_double, previous.triple_double, previous.did_not_play)
+    IS DISTINCT FROM ROW(incoming.player_id, v_game.id, COALESCE(incoming.is_home, previous.is_home), v_game.season_year, v_game.week_number, incoming.minutes_played, incoming.points, incoming.rebounds, incoming.offensive_rebounds, incoming.defensive_rebounds, incoming.assists, incoming.steals, incoming.blocks, incoming.turnovers, incoming.personal_fouls, incoming.field_goals_made, incoming.field_goals_attempted, incoming.three_pointers_made, incoming.three_pointers_attempted, incoming.free_throws_made, incoming.free_throws_attempted, incoming.plus_minus, incoming.double_double, incoming.triple_double, incoming.did_not_play)
   ON CONFLICT (player_id, game_id) DO UPDATE SET
     is_home = COALESCE(EXCLUDED.is_home, stored.is_home),
     season_year = EXCLUDED.season_year,

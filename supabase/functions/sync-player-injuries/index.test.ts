@@ -22,7 +22,7 @@ try {
 const injury = (displayName: string, status = 'Out') => ({ status, athlete: { displayName } })
 const player = (id: string, display_name: string, injury_status: string | null = null) => ({ id, display_name, injury_status, espn_id: id, nba_team: 'BOS', injury_reason: 'unknown', injury_expected_return: 'unknown' })
 
-async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token', patchErrors: { code: string; message: string }[] = []) {
+async function refresh(payload: unknown, players: { id: string; display_name: string; injury_status: string | null; espn_id: string | null; nba_team: string | null }[] = [player('scratch', 'Afternoon Scratch')], body: unknown = {}, token: string | null = 'fixture-token', patchErrors: { code: string; message: string }[] = [], afterLink?: () => void) {
   const originalFetch = globalThis.fetch
   const originalError = console.error
   const logs: string[] = []
@@ -55,6 +55,7 @@ async function refresh(payload: unknown, players: { id: string; display_name: st
         matched.espn_id = row.provider_id
         return { index, player_id: matched.id, action: 'updated' }
       })
+      afterLink?.()
       return Response.json({ results: result })
     }
     assert.equal(url.pathname, '/rest/v1/players')
@@ -142,6 +143,36 @@ Deno.test('each injury identity links in a separate transaction before guarded s
   assert.equal(result.result.updated, 2)
   assert.equal(result.requests.filter(path => path.endsWith('/link_player_sources_atomic')).length, 2)
   assert.equal(result.writes.length, 2)
+})
+
+Deno.test('a short identity pass renews before linking and before guarded injury writes', async () => {
+  const rows = Array.from({ length: 20 }, (_, index) => player(`fixture-${index}`, `Scratch ${String.fromCharCode(65 + index)}`, 'Out'))
+  let renewals = 0
+  const result = await withWorkContext({ signal: new AbortController().signal, renewLease: async () => { renewals++ } },
+    () => refresh({ injuries: [{ id: '2', injuries: rows.map((row, index) => ({
+      status: 'Out', athlete: { displayName: row.display_name, id: String(12345 + index) },
+    })) }] }, rows))
+  assert.equal(result.response.status, 200)
+  assert.equal(renewals, 2)
+  assert.equal(result.requests.filter(path => path.endsWith('/link_player_sources_atomic')).length, 20)
+  assert.equal(result.writes.length, 0)
+})
+
+Deno.test('a long identity pass renews before another two minutes of work', async () => {
+  const nativeNow = Date.now
+  let at = nativeNow()
+  Date.now = () => at
+  const rows = ['First', 'Second', 'Third'].map(name => player(name, `${name} Scratch`, 'Out'))
+  const renewals: number[] = []
+  try {
+    const result = await withWorkContext({ signal: new AbortController().signal, renewLease: async () => { renewals.push(at) } },
+      () => refresh({ injuries: [{ id: '2', injuries: rows.map((row, index) => ({
+        status: 'Out', athlete: { displayName: row.display_name, id: String(12345 + index) },
+      })) }] }, rows, {}, 'fixture-token', [], () => { at += 120_001 }))
+    assert.equal(result.response.status, 200)
+    assert.equal(renewals.length, 4)
+    assert.ok(renewals.every((value, index) => index === 0 || value - renewals[index - 1] === 120_001))
+  } finally { Date.now = nativeNow }
 })
 
 for (const payload of [{}, { injuries: [] }, { injuries: [{ injuries: [injury('Scratch', 'Unknown')] }] }, { injuries: [{}] }]) {

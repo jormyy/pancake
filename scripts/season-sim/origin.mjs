@@ -27,7 +27,7 @@ export async function readNextScheduleSource(directory,databaseWindow) {
 }
 
 export async function startOrigin({ resume = false, probeToken = '' } = {}) {
-  const directory = fixtureDirectory
+  const directory = process.env.SEASON_SIM_ORIGIN_FIXTURES ?? fixtureDirectory
   const evidence = await laneDirectory(path.join(miniRoot, 'evidence'))
   const store = await fixtureStore(directory)
   const recorder = upstreamRecorder(evidence, { resume })

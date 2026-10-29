@@ -49,6 +49,7 @@ export async function withDatabase(action, { restore = true } = {}) {
     stackAttempted = true
     console.log('Starting the isolated database.')
     await command('supabase', ['start', '--network-id', project, '-x', 'studio,imgproxy,vector,logflare,supavisor,edge-runtime,postgres-meta,mailpit'], { timeout: 240000 })
+    if (target.lane === 'fable-l3e') await command('docker', ['update', '--memory=1g', '--memory-swap=1g', `supabase_db_${project}`])
     receipt.diskBeforeRestore = await diskUsage()
     await sql("ALTER SYSTEM SET log_min_duration_statement = '-1';")
     await sql("ALTER SYSTEM SET auto_explain.log_min_duration = '-1';")

@@ -124,7 +124,10 @@ export async function processPreTipoff(body: Record<string, unknown>) {
               return
             } catch (error) {
               const code = error && typeof error === 'object' && 'code' in error ? error.code : null
-              if (attempt < 4 && ['55P03', '40P01', '40001'].includes(String(code)) && !controller.signal.aborted) {
+              const transient = ['55P03', '40P01', '40001', '57014'].includes(String(code))
+                || (!code && (/^FetchError: TimeoutError:/.test(errorMessage(error))
+                  || (error instanceof Error && error.name === 'TimeoutError')))
+              if (attempt < 4 && transient && !controller.signal.aborted) {
                 logInternalError(`lineup-optimizer: retry ${attempt + 1}`, error)
                 try {
                   await renewCurrentWorkLease()

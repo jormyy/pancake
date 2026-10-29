@@ -1,0 +1,13 @@
+SELECT private.scheduler_health();
+SELECT private.retain_cron_job_run_details('2026-10-28T12:00:00Z');
+SELECT private.retain_work_items('2026-10-28T12:00:00Z');
+SELECT count(*) FROM public.work_dashboard();
+SELECT public.count_final_games_missing_stats(2026);
+SELECT private.matchup_forecast_inputs_ready(id) FROM public.matchups WHERE NOT is_voided ORDER BY id LIMIT 3;
+SELECT md5(private.read_matchup_forecast_context(id)::text) FROM public.matchups WHERE NOT is_voided ORDER BY id LIMIT 3;
+SELECT md5(private.compute_matchup_forecast_context(id)::text) FROM public.matchups WHERE NOT is_voided ORDER BY id LIMIT 3;
+SELECT public.prepare_matchup_forecast_inputs(id) FROM public.matchups WHERE NOT is_voided ORDER BY id LIMIT 3;
+SELECT private.refresh_player_averages(league_id,league_season_id,version) FROM private.screen_refresh_queue ORDER BY league_season_id;
+SELECT md5(private.pre_tipoff_input_fingerprint('2025-10-28'));
+SELECT count(*) FROM private.notif_lineup_candidates_scoped('2025-10-28T22:00:00Z',NULL,NULL);
+SELECT private.roster_status_game_started(player_id) FROM public.roster_players ORDER BY id LIMIT 3;

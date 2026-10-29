@@ -44,3 +44,31 @@ Cron stays disabled and external database HTTP stays blocked.
 The stack is stopped, configuration restored, shared lock released, and transferred backups deleted.
 No production request, real message, push, PR, CI, or deployment is used.
 Mini evidence remains under `~/pancake-t_4ba51e0d/lanes/fable-r210/`, including `step3-*` reports and `step3-recipe-evidence/`.
+
+## Step 4
+
+Included, in order: notification commits `582b2f5d`, `ad67ed44`, `9a243c32`; ingest `a05cdf23`; game-day jobs `dc67cd8b`; scan cuts `1abf27e2`.
+The notification insert migration is `20261214000600`, preserving production's `00500` slow-screen migration.
+Notification bench files and perf documentation are excluded. `eccc58d9` has only tests/docs and is skipped.
+Neither `096bdd73` nor `561a6c53` is taken again.
+
+Broadcast `22889547` is dropped under the requested drop-first rule.
+Its SQL recipe passed, but the new transport probe stopped at fixture creation because it omitted a required client request ID.
+Delivery was not reached; this is not evidence of a Broadcast product defect.
+No Broadcast client or migration changes remain.
+
+The notification scanner retains both season bounds and the idle-lineup gate.
+No product function is overwritten by another lane.
+The scan lane's identity helper grant preserves the ingest service-role index contract.
+Replay-port and ingest retry changes are combined in the shared harness.
+The only check fixes are the merged Knip entry lists and `NODE_ENV` fields in `tests/perf-l4c/window-config.test.ts`.
+
+The final rehearsal restores the backup, applies the supplied 689 migrations through `20261214000700`, then applies all missing release migrations through `20261214002100`.
+All 700 versions are unique. Every production migration remains unchanged.
+The backdated notification migrations require `--include-all`; apply missing database migrations before the strict release preflight.
+Both attestations and the 544-function catalog regenerate identically and pass live checks.
+
+Final verification: 37 SQL recipes pass, including the pick-bounds recipe with the existing retained trade-value fixture; 17 scan-output pairs match; refresh contention, slow-screen guards, and forecast concurrency pass.
+Focused Vitest passes 945 tests, with the three corrected fixture tests passing again. Edge tests pass 106, with one ignored. The season harness passes 353.
+All 13 quality stages pass, including lint and configured typechecks. The full suite remains reserved for pre-push under the final testing instruction.
+The private stack is stopped, the lock released, and all transferred backup copies removed. No production contact, push, PR, CI, or deployment occurs.

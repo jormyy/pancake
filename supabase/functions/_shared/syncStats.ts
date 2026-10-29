@@ -134,8 +134,8 @@ async function syncGameBoxScore(
   return await persist(() => retrySourceContention(async () => {
     await assertGameUnambiguous(game.id)
     validateBoxScorePlayers(boxScore, providerGameId)
-    await recordBoxSides(boxScore, providerGameId)
-    const resolved = await resolveBoxScorePlayers(boxScore, providerGameId)
+    const playerIds = await recordBoxSides(boxScore, providerGameId)
+    const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, playerIds)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
     const changed = boxScore.gameStatus === 3
@@ -171,7 +171,7 @@ type BoxScorePlayers = {
 export async function recordBoxSides(
   boxScore: { homeTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] }; awayTeam?: { teamTricode?: unknown; players?: NBABoxScorePlayer[] } },
   providerGameId: string,
-): Promise<void> {
+): Promise<string[] | undefined> {
   const records = [boxScore.homeTeam, boxScore.awayTeam].flatMap((team) => {
     const side = team?.teamTricode
     return typeof side === 'string' && side.trim() ? (team?.players ?? []).map(player => ({
@@ -180,7 +180,13 @@ export async function recordBoxSides(
       ...player.position && ['PG', 'SG', 'SF', 'PF', 'C', 'G', 'F'].includes(player.position) ? { metadata: { position: player.position } } : {},
     })) : []
   })
-  if (records.length > 0) await resolvePlayerImports('nba_cdn', records)
+  if (records.length > 0) {
+    const { results } = await resolvePlayerImports('nba_cdn', records)
+    const count = (boxScore.homeTeam?.players?.length ?? 0) + (boxScore.awayTeam?.players?.length ?? 0)
+    if (records.length === count && results.every(row => row.player_id !== null)) {
+      return results.map(row => row.player_id!)
+    }
+  }
 }
 
 type FinalBoxScore = BoxScorePlayers & {
@@ -254,12 +260,14 @@ export function validateBoxScorePlayers(boxScore: BoxScorePlayers, providerGameI
 export async function resolveBoxScorePlayers(
   boxScore: BoxScorePlayers,
   providerGameId: string,
+  recordedPlayerIds?: string[],
 ): Promise<Array<{ player: CdnGamePlayer; playerId: string }>> {
   const allPlayers = validateBoxScorePlayers(boxScore, providerGameId)
   const resolved: Array<{ player: CdnGamePlayer; playerId: string }> = []
-  const playerIds = await resolveCdnPlayers(allPlayers.map(player => ({
+  const playerIds = recordedPlayerIds ?? await resolveCdnPlayers(allPlayers.map(player => ({
     personId: String(player.personId), displayName: player.name ?? '',
   })), providerGameId)
+  if (playerIds.length !== allPlayers.length) throw new Error(`Incomplete CDN identity receipt for ${providerGameId}`)
   for (const [index, player] of allPlayers.entries()) {
     if (boxScore.gameStatus !== 3 && 'status' in player && player.status === 'INACTIVE') continue
     const playerId = playerIds[index]

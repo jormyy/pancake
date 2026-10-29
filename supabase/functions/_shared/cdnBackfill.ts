@@ -64,8 +64,8 @@ export async function runCDNChunk(run: BackfillRun, offset: number): Promise<boo
       // Each side is recorded before the box's own import, as sync-stats does, so the ESPN release sweep
       // never reads one of this box's memberships without it.
       validateBoxScorePlayers(game, gameId)
-      await recordBoxSides(game, gameId)
-      const players = await resolveBoxScorePlayers(game, gameId)
+      const playerIds = await recordBoxSides(game, gameId)
+      const players = await resolveBoxScorePlayers(game, gameId, playerIds)
       await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number, game)
       await markBackfillGameCompleted(jobId, 'cdn', seasonYear, gameId, dbGame.id)
       completed++
@@ -160,8 +160,8 @@ async function processCdnEnumGame(run: BackfillRun, gameId: string): Promise<'co
 
     validateBoxScorePlayers(game, gameId)
     const dbGame = await upsertCdnGame(gameId, game, seasonYear)
-    await recordBoxSides(game, gameId)
-    const players = await resolveBoxScorePlayers(game, gameId)
+    const playerIds = await recordBoxSides(game, gameId)
+    const players = await resolveBoxScorePlayers(game, gameId, playerIds)
     await upsertCdnStats(players, dbGame.id, gameId, seasonYear, dbGame.week_number, game)
     await markBackfillGameCompleted(jobId, 'cdn-enum', seasonYear, gameId, dbGame.id)
     return 'completed'

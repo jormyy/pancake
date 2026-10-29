@@ -100,6 +100,10 @@ export async function setupStack() {
   contents = contents.replace(/^project_id = .*$/m, `project_id = "${config.project}"`).replace(/\b543(\d\d)\b/g, `${config.prefix}$1`).replace('inspector_port = 8083', `inspector_port = ${config.ports.inspector}`)
   contents = contents.replace(/(\[realtime\]\s*enabled = )false/, '$1true').replace(/(\[storage\]\s*enabled = )false/, '$1true')
   contents = contents.replace(/(\[db.migrations\][\s\S]*?enabled = )(?:true|false)/, '$1false').replace(/(\[db.seed\][\s\S]*?enabled = )(?:true|false)/, '$1false')
+  if (process.env.SEASON_SIM_AUTH_CLOCK === '1') {
+    contents = contents.replace(/^jwt_expiry = \d+$/m, 'jwt_expiry = 315360000')
+    if (!/^\[auth.hook.custom_access_token\]$/m.test(contents)) contents += '\n[auth.hook.custom_access_token]\nenabled = true\nuri = "pg-functions://postgres/perf_lab/replay_claims"\n'
+  }
   await writeFile(configFile, contents)
   execFileSync(cli, ['start', '-x', 'studio,imgproxy,vector,logflare,supavisor,edge-runtime,postgres-meta,mailpit'], { stdio: ['ignore', 'ignore', 'inherit'] })
   await sql("ALTER SYSTEM SET cron.launch_active_jobs = 'off'")

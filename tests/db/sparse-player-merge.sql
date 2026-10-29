@@ -14,7 +14,7 @@ VALUES('00000000-0000-0000-0000-0000f6d42004','Traded','History','XHA','PG',ARRA
 INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,is_on_ir,acquired_via)
 VALUES('00000000-0000-0000-0000-0000f6d42001','00000000-0000-0000-0000-0000f6d42003','00000000-0000-0000-0000-0000f6d42002','00000000-0000-0000-0000-0000f6d42004',false,'draft');
 INSERT INTO nba_games(id,nba_game_id,week_number,season_year,game_date,home_team,away_team,status,game_time)
-VALUES('00000000-0000-0000-0000-0000f6d42006','0022500099',1,2120,(now() at time zone 'America/New_York')::date,'XHA','XHC','InProgress',now()-interval '1 day');
+VALUES('00000000-0000-0000-0000-0000f6d42006','0022599999',1,2120,(now() at time zone 'America/New_York')::date,'XHA','XHC','InProgress',now()-interval '1 day');
 INSERT INTO players(id,first_name,last_name,nba_id) VALUES('00000000-0000-0000-0000-0000f6d42005','Sparse','Survivor','f6d4-sparse-nba');
 UPDATE players SET espn_id='f6d4-sparse-espn',sportsdata_id='f6d4-sparse-sportsdata',headshot_url='https://example.test/photo.png',years_exp=0,nba_draft_number=7,injury_status='Out',sleeper_id='f6d4-sparse-sleeper' WHERE id='00000000-0000-0000-0000-0000f6d42004';
 INSERT INTO weekly_lineups(league_id,league_season_id,member_id,player_id,game_date,week_number,slot_type,is_auto_set)

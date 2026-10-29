@@ -1,0 +1,120 @@
+{
+  "players": 27,
+  "boxes": 100,
+  "rounds": [
+    {
+      "round": 0,
+      "variant": "candidate",
+      "calls": 100,
+      "databaseMs": 95.481,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 0,
+      "variant": "reference",
+      "calls": 100,
+      "databaseMs": 218.503,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 1,
+      "variant": "reference",
+      "calls": 100,
+      "databaseMs": 211.387,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 1,
+      "variant": "candidate",
+      "calls": 100,
+      "databaseMs": 91.06,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 2,
+      "variant": "candidate",
+      "calls": 100,
+      "databaseMs": 89.934,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 2,
+      "variant": "reference",
+      "calls": 100,
+      "databaseMs": 223.746,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 3,
+      "variant": "reference",
+      "calls": 100,
+      "databaseMs": 224.663,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 3,
+      "variant": "candidate",
+      "calls": 100,
+      "databaseMs": 95.531,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 4,
+      "variant": "candidate",
+      "calls": 100,
+      "databaseMs": 92.591,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    },
+    {
+      "round": 4,
+      "variant": "reference",
+      "calls": 100,
+      "databaseMs": 224.156,
+      "hash": {
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "28f366605bb8f31733019d58fe61cb77",
+        "memberships": "4f1ddd5644cfc3329a84b81cddd26c04"
+      }
+    }
+  ],
+  "summary": {
+    "reference": 223.746,
+    "candidate": 92.591
+  }
+}

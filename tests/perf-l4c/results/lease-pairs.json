@@ -1,0 +1,85 @@
+{
+  "identities": 100,
+  "rounds": [
+    {
+      "round": 0,
+      "variant": "candidate",
+      "calls": 2,
+      "databaseMs": 0.432,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 0,
+      "variant": "reference",
+      "calls": 101,
+      "databaseMs": 9.539,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 1,
+      "variant": "reference",
+      "calls": 101,
+      "databaseMs": 31.265,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 1,
+      "variant": "candidate",
+      "calls": 2,
+      "databaseMs": 0.486,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 2,
+      "variant": "candidate",
+      "calls": 2,
+      "databaseMs": 0.47,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 2,
+      "variant": "reference",
+      "calls": 101,
+      "databaseMs": 9.876,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 3,
+      "variant": "reference",
+      "calls": 101,
+      "databaseMs": 9.72,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 3,
+      "variant": "candidate",
+      "calls": 2,
+      "databaseMs": 0.655,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 4,
+      "variant": "candidate",
+      "calls": 2,
+      "databaseMs": 0.519,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    },
+    {
+      "round": 4,
+      "variant": "reference",
+      "calls": 101,
+      "databaseMs": 9.757,
+      "hash": "50a73c6ebc4a5669d124560ac1ed8fa2"
+    }
+  ],
+  "summary": {
+    "reference": {
+      "calls": 101,
+      "medianDatabaseMs": 9.757
+    },
+    "candidate": {
+      "calls": 2,
+      "medianDatabaseMs": 0.486
+    }
+  }
+}

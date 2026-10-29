@@ -1,7 +1,13 @@
 BEGIN;
 DELETE FROM private.work_items;
+DELETE FROM public.sync_jobs;
 UPDATE public.drafts SET status = 'paused', paused_at = now() WHERE status = 'in_progress';
+\getenv gate_api_url SUPABASE_URL
+\if :{?gate_api_url}
+SELECT set_config('app.supabase_url', :'gate_api_url', true);
+\else
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
+\endif
 SELECT set_config('app.edge_internal_token', 'cron-gate-test-token', true);
 
 CREATE TEMP TABLE gate_results (label text, expected boolean, actual boolean);

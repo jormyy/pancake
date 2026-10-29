@@ -6,6 +6,7 @@ import { toETDate } from '../_shared/date.ts'
 import { chooseBestAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
 import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'
+import { createScheduledProjectionLoader } from './projections.ts'
 type LeagueRow = {
   status: string
 }
@@ -177,6 +178,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
   if (dateContexts.length === 0) return { settings: 0, dates: 0, optimized: 0, skipped: 0, failed: 0 }
 
   const settings = await loadEnabledOptimizerSettings(supabase, [...new Set(dateContexts.map((context) => context.seasonYear))])
+  const loadProjections = createScheduledProjectionLoader(supabase, settings)
 
   // Many enabled members share a league; load each league and season once.
   const leagues = new Map<string, LeagueRow | null>()
@@ -213,7 +215,7 @@ async function processEnabledLineupOptimizers(requestedDate: string | null): Pro
           skipped++
           continue
         }
-        await autoSetMemberDate(setting, dateContext, roster)
+        await autoSetMemberDate(setting, dateContext, roster, loadProjections)
         optimized++
         settingOptimized++
       }
@@ -391,13 +393,14 @@ async function autoSetMemberDate(
   setting: OptimizerSetting,
   dateContext: DateContext,
   { rosterRows, templates }: MemberRoster,
+  loadProjections?: ReturnType<typeof createScheduledProjectionLoader>,
 ): Promise<void> {
   const playerIds = rosterRows.map((row) => row.player_id)
   if (playerIds.length === 0) return
 
   const [{ data: projections, error: projectionErr }, { data: existingEntries, error: existingErr }] =
     await Promise.all([
-      supabase.rpc('get_league_projection_rows', {
+      loadProjections ? loadProjections(setting, dateContext, playerIds).then(data => ({ data, error: null })) : supabase.rpc('get_league_projection_rows', {
         p_league_id: setting.league_id,
         p_season_year: dateContext.seasonYear,
         p_game_date: dateContext.date,

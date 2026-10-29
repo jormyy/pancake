@@ -68,3 +68,51 @@ Deno.test('a box side carries missing position metadata in the same identity imp
     assert.deepEqual(records, [{ provider_id: '123', display_name: 'Box Player', nba_game_id: '0022600001', nba_team: 'BOS', identity_only: true, metadata: { position: 'C' } }])
   } finally { globalThis.fetch = originalFetch }
 })
+
+Deno.test('each complete box reuses its current side identities and resolves a later box again', async () => {
+  const nativeFetch = globalThis.fetch
+  let generation = 0
+  let requests = 0
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    assert.equal(new URL(request.url).pathname, '/rest/v1/rpc/resolve_player_imports_atomic')
+    const { p_records: records } = await request.json()
+    requests++
+    assert.deepEqual(records.map((row: { nba_team: string }) => row.nba_team), ['BOS', 'NYK'])
+    return Response.json({ results: records.map((row: { provider_id: string }, index: number) => ({
+      index, player_id: `${generation}-${row.provider_id}`, action: 'updated',
+    })), stale_draft_numbers_cleared: 0 })
+  }
+  const player = (personId: number) => ({ personId, name: `Box ${personId}`, statistics: { points: 1 } }) as NBABoxScorePlayer
+  const box = { gameStatus: 2, homeTeam: { teamTricode: 'BOS', players: [player(1)] }, awayTeam: { teamTricode: 'NYK', players: [player(2)] } }
+  try {
+    for (generation = 0; generation < 2; generation++) {
+      const ids = await recordBoxSides(box, '0022600001')
+      const resolved = await resolveBoxScorePlayers(box, '0022600001', ids)
+      assert.deepEqual(resolved.map(row => row.playerId), [`${generation}-1`, `${generation}-2`])
+      assert.equal(requests, generation + 1)
+    }
+  } finally { globalThis.fetch = nativeFetch }
+})
+
+Deno.test('a partial box side falls back to complete identity validation', async () => {
+  const nativeFetch = globalThis.fetch
+  const counts: number[] = []
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    const { p_records: records } = await request.json()
+    counts.push(records.length)
+    return Response.json({ results: records.map((row: { provider_id: string }, index: number) => ({
+      index, player_id: row.provider_id, action: 'updated',
+    })), stale_draft_numbers_cleared: 0 })
+  }
+  const player = (personId: number) => ({ personId, name: `Box ${personId}`, statistics: { points: 1 } }) as NBABoxScorePlayer
+  const box = { gameStatus: 2, homeTeam: { teamTricode: 'BOS', players: [player(1)] }, awayTeam: { players: [player(2)] } }
+  try {
+    const ids = await recordBoxSides(box, '0022600001')
+    assert.equal(ids, undefined)
+    const resolved = await resolveBoxScorePlayers(box, '0022600001', ids)
+    assert.deepEqual(resolved.map(row => row.playerId), ['1', '2'])
+    assert.deepEqual(counts, [1, 2])
+  } finally { globalThis.fetch = nativeFetch }
+})

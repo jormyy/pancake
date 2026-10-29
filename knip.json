@@ -27,6 +27,7 @@
     "supabase-go"
   ],
   "entry": [
+    "tests/perf-l4c/*.mjs",
     "tests/e2e/ui-polish-{stack,browser,build,values}.mjs",
     "tests/e2e/players-scroll-{stack,browser}.mjs",
     "app/**/*.{ts,tsx}",
@@ -128,7 +129,19 @@
     "tests/e2e/perf-lab-globals.d.ts",
     "tests/e2e/future-pick-mini.mjs",
     "tests/e2e/future-pick-web.mjs",
-    "tests/e2e/future-pick-browser.mjs"
+    "tests/e2e/future-pick-browser.mjs",
+    "tests/performance/l4d-sql.mjs",
+    "tests/db/l3e-scans.mjs",
+    "tests/db/l3e-plan-audit.mjs",
+    "tests/db/l3e-capture.mjs",
+    "tests/db/l3e-compare.mjs",
+    "tests/db/l3e-snapshot.mjs",
+    "tests/db/l3e-replay.mjs",
+    "tests/db/l3e-chunk-backup.mjs",
+    "tests/db/l3e-forecast-fixture.mjs",
+    "tests/db/l3e-attest.mjs",
+    "tests/db/l3e-install.mjs",
+    "scripts/season-sim/sql-session-fixture.mjs"
   ],
   "project": [
     "**/*.{js,mjs,ts,tsx}"

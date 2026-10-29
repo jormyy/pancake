@@ -15,14 +15,17 @@ import { snapshot } from '../db-health/index.mjs'
 import { clearDatabaseWindowReports, projectReplayGrowth } from './database-window-growth.mjs'
 import { runWithCleanup } from './cleanup.mjs'
 import { providerSnapshot } from './database-providers.mjs'
+import { labTarget } from '../perf-lab/target.mjs'
 
 export async function prepareDatabaseWindow(start) {
-  assert.equal(config.project, 'pt4bafabledb')
+  assert.equal(config.project, process.env.PERF_LAB_PROJECT ? labTarget().project : 'pt4bafabledb')
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
-  const jobs=await sqlJson('SELECT coalesce(jsonb_agg(jsonb_build_object(\'jobname\',jobname,\'schedule\',schedule,\'command\',command)),\'[]\'::jsonb) FROM cron.job','Installed database cadence')
+  const jobs=process.env.SEASON_SIM_CRON_CATALOG
+    ? JSON.parse(await readFile(process.env.SEASON_SIM_CRON_CATALOG,'utf8'))
+    : await sqlJson('SELECT coalesce(jsonb_agg(jsonb_build_object(\'jobname\',jobname,\'schedule\',schedule,\'command\',command)),\'[]\'::jsonb) FROM cron.job','Installed database cadence')
   verifyCronCatalog(jobs)
   await writeJson(path.join(miniRoot,'cron-jobs.json'),jobs)
-  await writeJson(path.join(miniRoot,'cron-catalog-evidence.json'),{capturedAt:new Date().toISOString(),installedRows:jobs.length,scope:'Installed cron catalog before the database workload clock starts.'})
+  await writeJson(path.join(miniRoot,'cron-catalog-evidence.json'),{capturedAt:new Date().toISOString(),installedRows:jobs.length,scope:process.env.SEASON_SIM_CRON_CATALOG?'Pinned installed cron catalog from the private stack setup.':'Installed cron catalog before the database workload clock starts.'})
   const end = shiftDay(start, 1)
   assert.ok(start > season.start && end < season.end, 'The database window must stay within one season')
   const calendar = await sqlJson(`SELECT jsonb_agg(jsonb_build_object('id',nba_game_id,'date',game_date,'time',game_time,'weekNumber',week_number,
@@ -58,7 +61,8 @@ export async function prepareDatabaseWindow(start) {
       await writeGzip(path.join(destination,file),bytes)
       added.push({ key,file,sha256:hash,status:200,bytes:bytes.length,provenance:'SYNTHETIC',template:`${kind}-${template.id}` })
     }
-    mappedGames.push({...target,provenance:'SYNTHETIC'})
+    assert.ok(template.espnId, `A historical ESPN roster identity is required for ${target.id}`)
+    mappedGames.push({...target,espnId:template.espnId,provenance:'SYNTHETIC'})
     mapping.push({target:target.id,template:template.id})
   }
   await writeFile(path.join(destination,'manifest.jsonl'),`${manifestSource.trim()}\n${added.map(row=>JSON.stringify(row)).join('\n')}\n`)

@@ -1,0 +1,14 @@
+{
+  "repetitions": 100,
+  "cases": [
+    {
+      "name": "completed-history",
+      "query": "SELECT * FROM public.work_dashboard()"
+    },
+    {
+      "name": "all-states",
+      "query": "SELECT * FROM public.work_dashboard()",
+      "setup": "INSERT INTO private.work_items(id,kind,key,status,due_at,created_at,lease_token,lease_until,payload) OVERRIDING SYSTEM VALUE VALUES (-2001,'sync-players','l3e-pending','pending','2026-01-01','2026-01-01',NULL,NULL,jsonb_build_object('l3e',-2001)),(-2002,'sync-players','l3e-failed','failed','2026-01-01','2026-01-01',NULL,NULL,jsonb_build_object('l3e',-2002)),(-2003,'sync-players','l3e-running','running','2026-01-01','2026-01-01','10000000-0000-4000-8000-000000000001','2099-01-01',jsonb_build_object('l3e',-2003)),(-2004,'sync-players','l3e-expired-lease','running','2026-01-01','2026-01-01','10000000-0000-4000-8000-000000000002','2026-01-01',jsonb_build_object('l3e',-2004)),(-2005,'sync-players','l3e-future','pending','2099-01-01','2026-01-01',NULL,NULL,jsonb_build_object('l3e',-2005));"
+    }
+  ]
+}

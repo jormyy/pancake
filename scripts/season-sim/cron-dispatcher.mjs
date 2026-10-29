@@ -7,10 +7,12 @@ import { sqlJson } from './local-stack.mjs'
 import { createStallProbe } from './stall-probe.mjs'
 
 export function canAdvanceWorkers(pendingRows, state, at) {
-  const unstarted = pendingRows.some(row => !['running', 'success', 'failed'].includes(row.worker_status))
-  const starting = pendingRows.some(row => !['running', 'success', 'failed'].includes(row.worker_status)&&row.queue_pending!==true)
-  const running = pendingRows.filter(row => row.worker_status === 'running').length
-  if (!unstarted && running === 0 && state.active === 0) return true
+  const activeRows = pendingRows.filter(row => row.status_code == null && row.error_msg == null && row.timed_out !== true)
+  const unstarted = activeRows.some(row => !['running', 'success', 'failed'].includes(row.worker_status))
+  const starting = activeRows.some(row => !['running', 'success', 'failed'].includes(row.worker_status)&&row.queue_pending!==true)
+  const running = activeRows.filter(row => row.worker_status === 'running').length
+  const repliesComplete = activeRows.every(row => row.worker_status !== 'running')
+  if (!unstarted && state.active === 0 && repliesComplete) return true
   return !starting && running <= state.active && state.active > 0 && state.active === state.sleeping && state.fetches === 0 && state.nextAt > at
 }
 

@@ -6,5 +6,5 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     count(*) FILTER(WHERE item.status='running' AND item.lease_until>now()),
     count(*) FILTER(WHERE item.status='failed' OR (item.status='running' AND item.lease_until<=now())),
     count(*) FILTER(WHERE item.status='dead')
-  FROM private.work_kinds kinds LEFT JOIN private.work_items item ON item.kind=kinds.kind GROUP BY kinds.kind ORDER BY kinds.kind;
+  FROM private.work_kinds kinds LEFT JOIN private.work_items item ON item.kind=kinds.kind AND item.status<>'succeeded' GROUP BY kinds.kind ORDER BY kinds.kind;
 $$;

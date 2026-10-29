@@ -2,12 +2,17 @@ import assert from 'node:assert/strict'
 import { sql, sqlJson } from './local-stack.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { assertTarget, delay } from './common.mjs'
+import { repositoryPublicationTables } from '../../tests/helpers/realtime-publication.ts'
+
+export function assertRealtimePublication(published) {
+  assert.deepEqual(published, repositoryPublicationTables(), 'Realtime publication must match the committed client publication')
+}
 
 export async function startRealtimeProbe(c, keys) {
   assertTarget(keys.API_URL, 'api')
   const published = await sqlJson("SELECT coalesce(jsonb_agg(tablename ORDER BY tablename),'[]') FROM pg_publication_tables WHERE pubname='supabase_realtime' AND schemaname='public'")
+  assertRealtimePublication(published)
   if (!published.includes('matchups')) {
-    assert.deepEqual(published, ['draft_budgets','draft_picks','draft_room_members','drafts','nominations','snake_draft_picks'])
     return startDraftProbe(c, keys)
   }
   const client = createClient(keys.API_URL, keys.ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })

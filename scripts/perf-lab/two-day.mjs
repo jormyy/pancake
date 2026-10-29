@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { config, fixtureDirectory, miniRoot } from '../season-sim/common.mjs'
+import { config, fixtureDirectory, miniRoot, season } from '../season-sim/common.mjs'
 import { sql, localKeys } from '../season-sim/local-stack.mjs'
 import { replay } from '../season-sim/replay.mjs'
-import { labRoot, project, json, requireMini, digest } from './common.mjs'
+import { labRoot, project, target, json, requireMini, digest } from './common.mjs'
 import { twoDayGates } from './gates.mjs'
 import { execFileSync } from 'node:child_process'
 import { harnessManifest } from '../season-sim/source-manifest.mjs'
@@ -31,7 +31,11 @@ export async function counterTrade(context, report, move) {
   const proposed = await context.api(a, '/trades/propose', { memberId: a.memberId, leagueId: context.leagueId, leagueSeasonId: context.leagueSeasonId, recipientMemberId: b.memberId, offerPickIds: [first], requestPickIds: [second] })
   const countered = await context.api(b, `/trades/${proposed.tradeId}/counter`, { memberId: b.memberId, recipientMemberId: a.memberId, offerPickIds: [second], requestPickIds: [first], offerFaabAmount: faabAmount })
   await context.api(a, `/trades/${countered.tradeId}/accept`, { memberId: a.memberId })
-  await move(Number(await sql('SELECT extract(epoch FROM now())*1000')) + 6 * 60000)
+  const acceptedAt = Number(await sql('SELECT extract(epoch FROM now())*1000'))
+  for (let minute = 1; minute <= 15; minute++) {
+    await move(acceptedAt + minute * 60000)
+    if (await sql(`SELECT status FROM trades WHERE id='${countered.tradeId}'`) === 'completed') break
+  }
   assert.equal(await sql(`SELECT status FROM trades WHERE id='${countered.tradeId}'`), 'completed')
   assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${first}'`), b.memberId)
   assert.equal(await sql(`SELECT current_owner_id FROM draft_picks WHERE id='${second}'`), a.memberId)
@@ -58,7 +62,7 @@ export async function runTwoDay(options = {}) {
   deadline = seconds > 0 ? Date.now() + seconds * 1000 : Infinity
   assert.equal(config.project, project, 'The two-day flag requires the private performance lab')
   assert.equal(miniRoot, labRoot, 'The two-day flag requires the private lab directory')
-  assert.equal(config.prefix, '572')
+  assert.equal(config.prefix, target.prefix)
   assert.ok(!options.days || options.days === '2', 'Two-day mode runs exactly two days')
   const start = options.start ?? '2025-10-23'
   assert.match(start, /^\d{4}-\d{2}-\d{2}$/)
@@ -85,7 +89,7 @@ export async function runTwoDay(options = {}) {
   process.env.SUPABASE_URL = keys.API_URL
   const restored = JSON.parse(await sql(`SELECT coalesce(json_agg(r),'[]') FROM (
     SELECT nba_game_id AS id, game_date::text AS date, game_time AS time, home_team AS home, away_team AS away
-    FROM nba_games WHERE season_year=2026 AND nba_game_id LIKE '00225%' ORDER BY nba_game_id
+    FROM nba_games WHERE season_year=${season.year} AND nba_game_id LIKE '${season.prefix}%' ORDER BY nba_game_id
   ) r`))
   const calendar = new Map(restored.filter(game => game.time).map(game => [game.id, game]))
   for (const game of games) {
@@ -95,8 +99,8 @@ export async function runTwoDay(options = {}) {
   await json(path.join(fixtureDirectory, 'two-day-calendar.json'), { source: 'Restored calendar with the complete pinned two-day game window', games: [...calendar.values()], missingTimesOutsideWindow: restored.filter(game => !game.time).length })
   await json(path.join(labRoot, 'evidence/two-day-preparation.json'), { phase: 'remove-future-stats', startedAt: new Date().toISOString() })
   await sql(`BEGIN; SET LOCAL auto_explain.log_min_duration='-1'; SET LOCAL log_min_duration_statement='-1';
-    DELETE FROM player_game_stats WHERE game_id IN (SELECT id FROM nba_games WHERE season_year=2026 AND game_date>='${boundary}');
-    UPDATE nba_games SET status='Scheduled',home_score=0,away_score=0 WHERE season_year=2026 AND game_date>='${boundary}';
+    DELETE FROM player_game_stats WHERE game_id IN (SELECT id FROM nba_games WHERE season_year=${season.year} AND game_date>='${boundary}');
+    UPDATE nba_games SET status='Scheduled',home_score=0,away_score=0 WHERE season_year=${season.year} AND game_date>='${boundary}';
     COMMIT;`)
   await json(path.join(labRoot, 'evidence/two-day-preparation.json'), { phase: 'prepared', finishedAt: new Date().toISOString() })
   const originalFetch = globalThis.fetch

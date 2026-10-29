@@ -2909,6 +2909,20 @@
       "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
     },
     {
+      "name": "bound_notification_season_scan",
+      "version": "20261214000300",
+      "statementCount": 5,
+      "statementsSha256": "97e2fd2325ee528e7914812700614fe46a20a2eb66bdfc11e7f1894730d48dc1",
+      "sha256": "8c68fbd2b464f92d506053626402c9c10d4508b3becebe3541643caafa239164"
+    },
+    {
+      "name": "gate_idle_lineup_notifications",
+      "version": "20261214000400",
+      "statementCount": 5,
+      "statementsSha256": "36cfb9e0bfe6691b98a03c52744575515b9e6c3711ca9d5421578e7608fe0cdf",
+      "sha256": "0d00466102154d0e2cd009e0da3bdf0c86ebc4ba80b99caf543d6c0cc7be7084"
+    },
+    {
       "name": "slow_screens",
       "version": "20261214000500",
       "statementCount": 9,
@@ -2921,6 +2935,13 @@
       "statementCount": 14,
       "statementsSha256": "596b25cd6a8824c9abf779c99e8d9179dcf210fcf077cbd8ae4f7eee468abdf6",
       "sha256": "a9b21ee1b1b04a2fa7ca33e0bf8f8719e08529b86f930e82b884a87d81bff71a"
+    },
+    {
+      "name": "reuse_notification_insert_plan",
+      "version": "20261214000600",
+      "statementCount": 5,
+      "statementsSha256": "e9a6513469dc4849cc5fd4acb0967c0d957cf85219a565e9893fa0050858586a",
+      "sha256": "b4b803f368eed9554516852de540ec57f49f2e5914d9987b919b065a6b5c57da"
     },
     {
       "name": "future_pick_years",
@@ -2963,6 +2984,27 @@
       "statementCount": 14,
       "statementsSha256": "84172a242b6882506bb97365751637f734c9480b59b0d621ca4463b3b2f3fd44",
       "sha256": "29cd2d5472fec27e882a1929605bc30eb626a13885a05d92df1ff0fb556bc6db"
+    },
+    {
+      "name": "ingest_identity_noop",
+      "version": "20261214001700",
+      "statementCount": 7,
+      "statementsSha256": "91d3c3d2c9cf69571ef106c562b05eb1f2991876a32600d36f34d67721981219",
+      "sha256": "93d6f3183134d0d78a3042418632a2472a4a006b4718a4e9319641297344c2da"
+    },
+    {
+      "name": "l4d_background_cost",
+      "version": "20261214001900",
+      "statementCount": 2,
+      "statementsSha256": "099a3200de10757b670ea0c438e1cc8ce4e30e4efc99084c1179ace2de4cc2a5",
+      "sha256": "1dcefba160b2c80e116a1ced6e795314cb0455787f665d71ba107047515fe758"
+    },
+    {
+      "name": "l3e_scans",
+      "version": "20261214002100",
+      "statementCount": 9,
+      "statementsSha256": "fe7bba36c4e21f1df7d05872de427f1d7087cfc084da1f00c22c2f69da739721",
+      "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
     }
   ]
 }

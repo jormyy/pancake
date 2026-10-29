@@ -68,6 +68,30 @@ BEGIN
           ARRAY['provider_id','display_name','nba_game_id','nba_team','metadata','identity_only']))) THEN
       RAISE EXCEPTION 'Invalid stat player identity.' USING ERRCODE = '22023';
     END IF;
+    IF NOT EXISTS(SELECT FROM jsonb_array_elements(p_records) r
+      WHERE r->>'provider_id' IN ('196295686','1641794')
+        OR jsonb_typeof(r->'nba_game_id') IS DISTINCT FROM 'string'
+        OR jsonb_typeof(r->'nba_team') IS DISTINCT FROM 'string'
+        OR btrim(r->>'nba_team')=''
+        OR private.player_identity_team(r->>'nba_team') IS NULL
+        OR CASE WHEN jsonb_typeof(coalesce(r->'metadata','{}'::jsonb))='object' THEN
+          EXISTS(SELECT FROM jsonb_object_keys(coalesce(r->'metadata','{}'::jsonb)) k WHERE NOT k=ANY(ARRAY['position','years_exp']))
+          ELSE true END) THEN
+      WITH incoming AS MATERIALIZED (
+        SELECT value AS record,ordinality-1 AS index,private.player_identity_team(value->>'nba_team') AS nba_team
+        FROM jsonb_array_elements(p_records) WITH ORDINALITY)
+      SELECT jsonb_agg(jsonb_build_object('index',incoming.index,'player_id',p.id,'action','updated') ORDER BY incoming.index)
+      INTO v_record
+      FROM incoming JOIN public.players p ON p.nba_id=incoming.record->>'provider_id'
+      JOIN public.nba_games g ON g.nba_game_id=incoming.record->>'nba_game_id'
+      JOIN private.player_game_memberships m ON m.player_id=p.id AND m.game_id=g.id
+        AND m.nba_team IS NOT DISTINCT FROM incoming.nba_team
+      HAVING count(*)=jsonb_array_length(p_records) AND count(DISTINCT p.id)=jsonb_array_length(p_records);
+      IF v_record IS NOT NULL THEN
+        UPDATE private.player_game_memberships m SET nba_team=m.nba_team WHERE false;
+        RETURN jsonb_build_object('results',v_record,'stale_draft_numbers_cleared',0);
+      END IF;
+    END IF;
     FOR v_record IN SELECT value FROM jsonb_array_elements(p_records) LOOP
       v_provider := v_record->>'provider_id';
       v_name := btrim(v_record->>'display_name');

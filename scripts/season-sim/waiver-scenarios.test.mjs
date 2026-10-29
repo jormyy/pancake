@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkWaiverHold, nextWaiverRun, assertPendingWaivers, readWaiverClaims, waiverDrop, waiverRosterRefills } from './waiver-scenarios.mjs'
+import { checkWaiverHold, nextWaiverRun, assertPendingWaivers, assertWeeklyAddLimit, readWaiverClaims, waiverDrop, waiverRosterRefills } from './waiver-scenarios.mjs'
 
 const members = ['a', 'b', 'c', 'd']
 const claims = [
@@ -8,6 +8,21 @@ const claims = [
   { id: 'b1', member: 'b' }, { id: 'c1', member: 'c' },
   { id: 'c2', member: 'c' }, { id: 'd1', member: 'd' },
 ]
+
+test('weekly add limits use scheduled claims and reject an unrelated pickup error', async () => {
+  const user = { memberId: 'member', userId: 'user' }
+  const calls = []
+  const c = { leagueId: 'league', rpc: async (...args) => {
+    calls.push(args)
+    return { code: 'PA001', message: 'Weekly add limit reached (1/1 adds used this week).' }
+  } }
+  await assertWeeklyAddLimit(c, user, 'player')
+  assert.deepEqual(calls, [[user, 'create_waiver_claim_atomic', {
+    p_member_id: 'member', p_league_id: 'league', p_player_id: 'player', p_bid_amount: 0,
+  }, 400]])
+  c.rpc = async () => ({ code: 'PA002', message: 'Every pickup requires a scheduled waiver claim. Submit a claim instead.' })
+  await assert.rejects(() => assertWeeklyAddLimit(c, user, 'player'))
+})
 
 test('pending claims are read through each owner under the production privacy policy', async () => {
   const reads = []

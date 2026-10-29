@@ -1,0 +1,31 @@
+{
+  "cases": [
+    {
+      "name": "roster-20",
+      "query": "SELECT * FROM public.get_league_projection_rows((SELECT id FROM public.leagues ORDER BY id LIMIT 1),2026,'2025-10-28','today',ARRAY(SELECT player_id FROM public.roster_players ORDER BY id LIMIT 20),1000,0) ORDER BY player_id",
+      "repetitions": 50
+    },
+    {
+      "name": "empty",
+      "query": "SELECT * FROM public.get_league_projection_rows((SELECT id FROM public.leagues ORDER BY id LIMIT 1),2026,'2025-10-28','today','{}'::uuid[],1000,0) ORDER BY player_id",
+      "repetitions": 50
+    },
+    {
+      "name": "all",
+      "query": "SELECT * FROM public.get_league_projection_rows((SELECT id FROM public.leagues ORDER BY id LIMIT 1),2026,'2025-10-28','today',NULL,1000,0) ORDER BY player_id",
+      "repetitions": 50
+    },
+    {
+      "name": "week_avg",
+      "query": "SELECT * FROM public.get_league_projection_rows((SELECT id FROM public.leagues ORDER BY id LIMIT 1),2026,'2025-10-28','week_avg',ARRAY(SELECT player_id FROM public.roster_players ORDER BY id LIMIT 20),1000,0) ORDER BY player_id",
+      "repetitions": 50
+    },
+    {
+      "name": "week_total",
+      "query": "SELECT * FROM public.get_league_projection_rows((SELECT id FROM public.leagues ORDER BY id LIMIT 1),2026,'2025-10-28','week_total',ARRAY(SELECT player_id FROM public.roster_players ORDER BY id LIMIT 20),1000,0) ORDER BY player_id",
+      "repetitions": 50
+    }
+  ],
+  "repetitions": 50,
+  "base": "ce2af0f2"
+}

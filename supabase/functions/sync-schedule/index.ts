@@ -3,6 +3,7 @@ import { fetchSeasonSchedule } from '../_shared/nba.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { buildScheduleSyncPlan } from '../_shared/schedule.ts'
+import { renewCurrentWorkLease } from '../_shared/workContext.ts'
 
 
 serveInternal('sync-schedule', async (req) => {
@@ -27,11 +28,22 @@ async function syncSchedule(): Promise<{ games: number; weeks: number }> {
   if (!plan.seasonStart) { console.log('[sync-schedule] No regular season start date.'); return { games: 0, weeks: 0 } }
   if (!plan.rows.length) { console.log('[sync-schedule] No schedule rows.'); return { games: 0, weeks: 0 } }
 
-  const { data: weeks, error: writeError } = await supabase.rpc('publish_nba_schedule_atomic', {
-    p_season_year: plan.seasonYear!, p_games: plan.rows, p_weeks: plan.weeks,
-  })
-  if (writeError) throw writeError
+  const weeks = await publishSchedule(plan)
 
   console.log(`[sync-schedule] ${plan.rows.length} games published, ${weeks} weeks changed.`)
   return { games: plan.rows.length, weeks }
+}
+
+async function publishSchedule(plan: ReturnType<typeof buildScheduleSyncPlan>): Promise<number> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data, error } = await supabase.rpc('publish_nba_schedule_atomic', {
+      p_season_year: plan.seasonYear!, p_games: plan.rows, p_weeks: plan.weeks,
+    })
+    if (!error) return data
+    if (attempt === 2 || !['PT409', '55P03', '40P01', '40001', '57014'].includes(error.code)) throw error
+    await renewCurrentWorkLease()
+    await new Promise(resolve => setTimeout(resolve, 100 * 2 ** attempt))
+    await renewCurrentWorkLease()
+  }
+  throw new Error('Schedule publication retry budget exhausted')
 }
