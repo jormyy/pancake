@@ -48,6 +48,13 @@ BEGIN
   IF NOT FOUND OR v_trade.status NOT IN ('pending','accepted') OR v_trade.status='pending' AND v_trade.expires_at <= now() THEN
     RAISE EXCEPTION 'Choose placements and drops while the trade is pending.';
   END IF;
+  IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_roster_moves) move WHERE move->>'destination'='taxi') THEN
+    RAISE EXCEPTION 'Only incoming players can be placed on Taxi.' USING ERRCODE='PT422',DETAIL='TRADE_TAXI_INCOMING_ONLY';
+  END IF;
+  IF EXISTS (SELECT 1 FROM unnest(p_taxi_player_ids) choice(player_id)
+    WHERE NOT private.taxi_player_eligible(v_trade.league_id,choice.player_id)) THEN
+    RAISE EXCEPTION 'Taxi requires a rookie or fewer than 65 known career games.' USING ERRCODE='PT422',DETAIL='TRADE_TAXI_INELIGIBLE';
+  END IF;
   IF EXISTS (SELECT 1 FROM unnest(p_taxi_player_ids || p_ir_player_ids) choice(player_id) WHERE NOT EXISTS
     (SELECT 1 FROM trade_items WHERE trade_id = p_trade_id AND to_member_id = p_member_id AND player_id = choice.player_id)) THEN
     RAISE EXCEPTION 'Placements must belong to incoming players.';

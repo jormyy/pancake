@@ -16,8 +16,8 @@ BEGIN
   PERFORM pg_temp.reject_rules(format('SELECT get_trade_roster_preview(%L,%L)',trade,gen_random_uuid()),'%cannot view%','preview rejects a non-member');
   PERFORM pg_temp.check_rules((public.get_trade_roster_preview(trade,f.user_ids[1])->1->>'error') IS NOT NULL,'preview reports recipient overflow before planning');
   PERFORM pg_temp.reject_rules(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,%L,%L,%L,%L::jsonb)',trade,f.member_ids[1],f.user_ids[2],'{}','{}','{}','[]'),'%Only the receiving manager%','another manager cannot set the plan');
-  PERFORM public.set_trade_roster_plan_atomic(trade,f.member_ids[1],f.user_ids[1],'{}','{}','{}',jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','taxi')));
-  PERFORM pg_temp.check_rules((public.get_trade_roster_preview(trade,f.user_ids[1]))::text LIKE '%cannot use TAXI%', 'an ineligible saved taxi choice remains invalid');
+  PERFORM pg_temp.reject_rules(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,%L,%L,%L,%L::jsonb)',trade,f.member_ids[1],f.user_ids[1],'{}','{}','{}',jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','taxi'))),
+    '%Only incoming players%', 'a retained player cannot be saved onto Taxi');
   move:=jsonb_build_array(jsonb_build_object('playerId',p[2],'destination','ir'));
   PERFORM pg_temp.reject_rules(format('SELECT set_trade_roster_plan_atomic(%L,%L,%L,%L,%L,%L,%L::jsonb)',trade,f.member_ids[1],f.user_ids[1],'{}','{}','{}',move||move),'%unique%','duplicate moves cannot reserve the same player twice');
   PERFORM public.set_trade_roster_plan_atomic(trade,f.member_ids[1],f.user_ids[1],'{}','{}','{}',move);

@@ -3,8 +3,9 @@ import { DeferredContent } from '@/components/ui/DeferredContent'
 import { useDraftActivity as useModalActivity } from '@/components/league/draft-room/useDraftActivity'
 import { previewTradeLegality } from '@/lib/trade-legality'
 import { getRoster, type RosterPlayer } from '@/lib/roster'
-import { TradeRosterPreviewList } from '@/components/trades/TradeRosterPreviewList'
-import { TradeRosterPlanEditor } from '@/components/trades/TradeRosterPlanEditor'
+import { TradeLegalityScreen } from '@/components/trades/TradeLegalityScreen'
+import { tradeDraft } from '@/lib/trade-draft'
+import { isTradeRosterLegal } from '@/lib/trade-legality-step'
 import { invalidateSeasonCache } from '@/lib/shared/season'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
@@ -30,6 +31,7 @@ import { confirmAction, showAlert, showSuccess } from '@/lib/alert'
 import { getErrorMessage, RequestError } from '@/lib/shared/errors'
 import { getLeagueMembers, isTradingClosed } from '@/lib/league'
 import {
+    buildTradeComposerPayload,
     buildTwoTeamTradeComposerPayload,
     getTradeComposerMode,
     prefillTradeComposerFromTrade,
@@ -481,7 +483,7 @@ export default function ProposeTradeScreen() {
                 const teams = await previewTradeLegality(JSON.parse(legalityInput))
                 if (!isCurrent(generation) || !ownsOwner(ownerIdentity)) return
                 setRosterPreviews(teams)
-                if (teams.some(team => !team.legal)) return
+                if (!isTradeRosterLegal(teams.find(team => team.memberId === myMemberId))) return
             }
             if (!isCurrent(generation) || !ownsOwner(ownerIdentity)) return
             writeEpoch.current = generation
@@ -638,7 +640,6 @@ export default function ProposeTradeScreen() {
         <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
             loading={tradeAnalysis.loading} inset={!sideBySide} />
     )
-    const reviewReady = !tradeAnalysis.loading
 
     if (analyzing) return <PageFrame style={styles.container}>
         <PageHeader title="Trade analysis" onBack={() => setAnalyzing(false)} backLabel="Back to trade editor"
@@ -655,70 +656,23 @@ export default function ProposeTradeScreen() {
         </DeferredContent>
     </PageFrame>
 
-    // Review replaces the editor inside the same page, like any pushed screen,
-    // instead of covering the whole window.
     if (reviewing) {
-        return (
-            <PageFrame style={styles.container}>
-                <PageHeader
-                    title="Review trade"
-                    onBack={() => setReviewing(false)}
-                    backLabel="Back to trade editor"
-                    actions={(
-                        <Pressable
-                            onPress={handleSubmit}
-                            style={[styles.submitButton, (!canSubmit || !reviewReady) && styles.submitButtonDisabled]}
-                            disabled={!canSubmit || !reviewReady}
-                            accessibilityRole="button"
-                            accessibilityState={{ disabled: !canSubmit || !reviewReady }}
-                            accessibilityLabel="Confirm and send trade"
-                            testID="trade-confirm-submit"
-                            id="trade-confirm-submit"
-                        >
-                            <Text style={[styles.submitText, (!canSubmit || !reviewReady) && styles.submitTextDisabled]}>Send</Text>
-                        </Pressable>
-                    )}
-                />
-                {/* Its own key, so review opens at the top instead of the editor's scroll position. */}
-                <ScrollView key="review" style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-                    <DeferredContent ready={reviewReady}>
-                    <View style={styles.reviewColumn}>
-                        <Button title="Edit assets" size="sm" variant="secondary" onPress={() => setReviewing(false)} />
-                        {!online ? <Text style={styles.lockBannerText}>Connect to send this trade. Your draft stays here.</Text> : null}
-                        {legalityError ? <ErrorBanner message={legalityError} onRetry={() => setLegalityAttempt(value => value + 1)} /> : null}
-                        <TradeRosterPreviewList teams={rosterPreviews} />
-                        <MultiTeamTradeBuilder {...multiTeamBuilderProps} reviewOnly />
-                        {currentLeague ? <TradeRosterPlanEditor
-                            incoming={items.flatMap((item) => {
-                                if (item.kind !== 'player' || item.toMemberId !== myMemberId) return []
-                                const rosterPlayer = composer.participantRosters[item.fromMemberId]?.find((row) => row.players.id === item.playerId)
-                                const player = rosterPlayer?.players
-                                return [{ ...item, fromTaxi: rosterPlayer?.is_on_taxi === true, playerName: player?.display_name ?? 'Incoming player', position: player?.position ?? null, nbaTeam: player?.nba_team ?? null, injuryStatus: player?.injury_status, yearsExp: player?.years_exp, nbaDraftNumber: player?.nba_draft_number, careerGames: player?.career_regular_season_games }]
-                            })}
-                            roster={ownPlanRoster.filter((player) => !items.some((item) => item.kind === 'player' && item.playerId === player.players.id))}
-                            preview={ownRosterPreview} value={rosterPlan} onChange={setRosterPlan} disabled={submitting}
-                            unavailableMoves={ownRosterPreview?.unavailableMoves}
-                            unavailableDestinations={ownRosterPreview?.unavailableDestinations}
-                            allowIR={currentLeague.ir_slots > 0} allowTaxi={(currentLeague.taxi_slots ?? 0) > 0} /> : null}
-                        {participantIds.filter(id => id !== myMemberId).map(memberId => <View key={memberId}>
-                            <Text style={textStyles.sectionLabel}>{composer.participantName(memberId)} incoming slots</Text>
-                            <TradeRosterPlanEditor incoming={items.flatMap(item => {
-                                if (item.kind !== 'player' || item.toMemberId !== memberId) return []
-                                const row = composer.participantRosters[item.fromMemberId]?.find(player => player.players.id === item.playerId)
-                                return [{ ...item, playerName: row?.players.display_name ?? 'Incoming player', fromTaxi: row?.is_on_taxi, position: row?.players.position ?? null, nbaTeam: row?.players.nba_team ?? null }]
-                            })} roster={[]} value={otherPlans[memberId] ?? { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [] }}
-                                onChange={plan => setOtherPlans(current => ({ ...current, [memberId]: plan }))}
-                                preview={rosterPreviews.find(team => team.memberId === memberId)} disabled={submitting || rosterPreviews.length === 0}
-                                unavailableDestinations={rosterPreviews.find(team => team.memberId === memberId)?.unavailableDestinations} />
-                        </View>)}
-                        <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={tradeAnalysis.analysis} calculatedAt={tradeAnalysis.quote?.createdAt} participantName={composer.participantName}
-                            loading={tradeAnalysis.loading} />
-                        {tradeAnalysis.error ? <ErrorBanner message={tradeAnalysis.error} onRetry={tradeAnalysis.retry} /> : null}
-                    </View>
-                    </DeferredContent>
-                </ScrollView>
-            </PageFrame>
-        )
+        const draft = tradeDraft({ items, participants: participantViews, memberId: myMemberId,
+            participantName: composer.participantName, notes,
+            expiresAt: buildTradeComposerPayload({ offerPlayerIds: [], requestPlayerIds: [], offerPickIds: [], requestPickIds: [],
+                notes, offerFaabInput: '0', requestFaabInput: '0', expirationDaysInput: expirationDays,
+                leagueStatus: currentLeague?.status, tradeDeadline: currentLeague?.trade_deadline }).payload.expiresAt ?? null,
+            avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap })
+        return <PageFrame style={styles.container}>
+            <TradeLegalityScreen trade={draft} memberId={myMemberId} teams={rosterPreviews}
+                loading={!canSubmit || rosterPreviews.length === 0} saving={submitting} error={legalityError}
+                onRetry={() => setLegalityAttempt(value => value + 1)} onClose={() => setReviewing(false)} onSubmit={handleSubmit} mode="propose" retrying={Boolean(retainedAttempt)}
+                editor={{ incoming: draft.routedItems.filter(item => item.toMemberId === myMemberId),
+                    roster: ownPlanRoster.filter(row => !items.some(item => item.kind === 'player' && item.playerId === row.players.id)),
+                    value: rosterPlan, onChange: setRosterPlan, avgMap: composer.avgMap, avgStatsMap: composer.avgStatsMap,
+                    unavailableMoves: ownRosterPreview?.unavailableMoves, unavailableDestinations: ownRosterPreview?.unavailableDestinations,
+                    allowIR: (currentLeague?.ir_slots ?? 0) > 0, allowTaxi: (currentLeague?.taxi_slots ?? 0) > 0 }} />
+        </PageFrame>
     }
 
     return (
@@ -857,7 +811,6 @@ const styles = StyleSheet.create({
         gap: spacing['3xl'],
     },
     main: { width: '100%', minWidth: 0 },
-    reviewColumn: { width: '100%', maxWidth: BUILDER_WIDTH, alignSelf: 'center' },
     mainWide: { width: BUILDER_WIDTH, flexShrink: 0 },
     rail: { width: layout.railWidth, paddingTop: spacing.xl },
     submitButton: {

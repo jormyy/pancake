@@ -16,11 +16,27 @@ BEGIN
   IF NOT allowed THEN
     RAISE EXCEPTION 'This trade is not available for revaluation.' USING ERRCODE='42501';
   END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.trades WHERE id=p_trade_id AND status IN ('pending','accepted')) THEN
+    RETURN jsonb_build_object('closed',true,'revaluationTradeId',p_trade_id,'cachedRevaluation',
+      (SELECT revaluation FROM public.trade_value_cache WHERE trade_id=p_trade_id));
+  END IF;
   SELECT jsonb_agg(jsonb_build_object('fromMemberId',i.from_member_id,'toMemberId',i.to_member_id,
     'playerId',i.player_id,'pickId',i.pick_id,'faabAmount',i.faab_amount) ORDER BY i.id)
     INTO terms FROM public.trade_items i WHERE i.trade_id=p_trade_id;
   inputs:=private.build_trade_estimate_inputs(p_user_id,p_member_id,terms,false)
-    ||jsonb_build_object('revaluationTradeId',p_trade_id);
-  RETURN inputs||jsonb_build_object('inputVersion',md5(inputs::text),'observedAt',now());
+    ||jsonb_build_object('revaluationTradeId',p_trade_id,'pickPredictionVersions',(
+      SELECT jsonb_agg(jsonb_build_array(pick.id,pick.prediction_version,pick.prediction_source_sha256) ORDER BY pick.id)
+      FROM public.draft_picks pick JOIN public.trade_items item ON item.pick_id=pick.id WHERE item.trade_id=p_trade_id));
+  inputs:=inputs||jsonb_build_object('valuationFreshness',(
+    SELECT jsonb_agg(jsonb_build_array(player->>'player_id',
+      (player->>'ranking_fetched_at')::timestamptz BETWEEN now()-interval '90 days' AND now(),
+      player->>'projection_source'='season_avg' OR (player->>'projection_fetched_at')::timestamptz
+        BETWEEN now()-CASE WHEN player->>'projection_source'='internal' THEN interval '8 days' ELSE interval '36 hours' END AND now())
+      ORDER BY player->>'player_id')
+    FROM jsonb_array_elements((inputs->'players')||(inputs->'replacementPlayers')) player));
+  RETURN inputs||jsonb_build_object('inputVersion',md5(inputs::text),'observedAt',now(),'cachedRevaluation',
+    (SELECT cached.revaluation FROM private.trade_value_publications published
+      JOIN public.trade_value_cache cached USING(trade_id)
+      WHERE published.trade_id=p_trade_id AND published.input_fingerprint=md5(inputs::text)));
 END;
 $$;

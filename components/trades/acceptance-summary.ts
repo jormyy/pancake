@@ -1,7 +1,7 @@
 import { tradePickContext, tradePickLabel } from '@/lib/trade-pick-label'
 import type { Trade, TradeRosterPreview } from '@/lib/trades'
 
-export function tradeCapacityLine(team: TradeRosterPreview) {
+function tradeCapacityLine(team: TradeRosterPreview) {
     const count = (location: string) => team.roster.filter(player => player.location === location).length
     return `${team.teamName}: ${count('active')}/${team.limits.active} · IR ${count('ir')}/${team.limits.ir} · Taxi ${count('taxi')}/${team.limits.taxi}`
 }

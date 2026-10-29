@@ -1,11 +1,11 @@
 [
   {
     "weekNumber": 1,
-    "opponentTeamName": "Cedar Owls",
+    "opponentTeamName": null,
     "isCurrent": false,
-    "status": "win",
-    "myPoints": 531,
-    "opponentPoints": 465
+    "status": "skipped",
+    "myPoints": null,
+    "opponentPoints": null
   },
   {
     "weekNumber": 2,

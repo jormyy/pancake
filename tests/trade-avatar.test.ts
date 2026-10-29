@@ -6,6 +6,7 @@ import { AssetList } from '@/components/trades/TradeCard'
 import { TradeBlockListingRow, TradeBlockPlayerRow } from '@/components/trades/TradeListRow'
 import type { TradeItem } from '@/lib/trades'
 import { rosterPlayer } from './helpers/fixtures'
+vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/components/SectionHeader', () => ({ SectionHeader: 'SectionHeader' }))

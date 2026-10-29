@@ -24,6 +24,7 @@ import { MotionPressable, MotionView } from '@/components/Motion'
 const ROW_AVATAR = controlSize.avatar.md
 const ROSTER_TAG_HEIGHT = 22
 export const ROSTER_SLOT_TAG_WIDTH = controlSize.minTouch
+export const rosterActionDisabledStyle = { opacity: 0.5 }
 
 /**
  * Fixed-width lineup role for a roster row: a filled tag for a starting slot,
@@ -57,6 +58,33 @@ function PlayerStats({ avgFpts, avgMinutes }: { avgFpts?: number; avgMinutes?: n
         {' · '}
         {`${formatPoints(avgMinutes ?? 0)} mins`}
     </Text>
+}
+
+export function RosterPlayerRow({ item, avgFpts, avgMinutes, leading, metadata, actions, stackedActions = false, onPress, onLongPress }: {
+    item: RosterPlayer
+    avgFpts?: number
+    avgMinutes?: number | null
+    leading?: ReactNode
+    metadata?: ReactNode
+    actions?: ReactNode
+    stackedActions?: boolean
+    onPress?: () => void
+    onLongPress?: () => void
+}) {
+    const player = item.players
+    const content = <>
+        {leading}
+        <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
+            birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games}
+            injuryStatus={player.injury_status} onTaxi={item.is_on_taxi} metadata={metadata}
+            stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
+    </>
+    return <View style={[styles.row, stackedActions && styles.stackedRow]}>
+        {onPress ? <MotionPressable style={styles.rowMain} onPress={onPress} onLongPress={onLongPress}
+            delayLongPress={400} accessibilityRole="button" accessibilityLabel={`Open ${player.display_name}`}>{content}</MotionPressable>
+            : <View style={[styles.rowMain, stackedActions && styles.fullWidth]}>{content}</View>}
+        {actions}
+    </View>
 }
 
 export const RosterClaimItem = memo(function RosterClaimItem({
@@ -245,27 +273,13 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     allowIR?: boolean
 }) {
     const player = item.players
-    const positions = getEligiblePositions(player)
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
 
     const locks = readAssetLocks(item)
     return (
-        <View><View style={styles.row}>
-            <MotionPressable
-                style={styles.rowMain}
-                onPress={() => onPress(item)}
-                onLongPress={locks.length ? undefined : () => onLongPress(item)}
-                delayLongPress={400}
-                accessibilityRole="button"
-                accessibilityLabel={`Open ${player.display_name}`}
-            >
-                <RosterSlotTag slotType={slotType} />
-                <PendingMutationBadge rowId={player.id} />
-                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
-                    birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
-                    stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
-            </MotionPressable>
-
+        <View><RosterPlayerRow item={item} avgFpts={avgFpts} avgMinutes={avgMinutes}
+            leading={<><RosterSlotTag slotType={slotType} /><PendingMutationBadge rowId={player.id} /></>}
+            onPress={() => onPress(item)} onLongPress={locks.length ? undefined : () => onLongPress(item)} actions={<>
             {(item.is_on_ir || allowIR && isIREligible(player.injury_status)) ? (
                 <View style={styles.rowActions}>
                     <MotionPressable
@@ -283,7 +297,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                     </MotionPressable>
                 </View>
             ) : null}
-        </View><LockedAssetNotice locks={locks} /></View>
+        </>} /><LockedAssetNotice locks={locks} /></View>
     )
 })
 
@@ -396,6 +410,8 @@ const styles = StyleSheet.create({
         paddingVertical: componentTokens.playerRow.compact.paddingVertical,
         gap: spacing.xs,
     },
+    stackedRow: { flexDirection: 'column', alignItems: 'stretch' },
+    fullWidth: { flex: 0, width: '100%' },
     rowMain: { flex: 1, minWidth: 0, minHeight: controlSize.minTouch, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
 
     info: { flex: 1, minWidth: 0, gap: spacing.xxs },

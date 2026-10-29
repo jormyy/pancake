@@ -1,0 +1,200 @@
+[
+  {
+    "change": "lineup",
+    "sampleCount": 3,
+    "durationMs": 494.60954100000026,
+    "screenDatabaseMs": 454.212273,
+    "databaseMs": 454.212273,
+    "revaluations": 18,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "lineup",
+        "sample": 1,
+        "durationMs": 494.60954100000026,
+        "screenDatabaseMs": 451.803635,
+        "databaseMs": 451.803635,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "lineup",
+        "sample": 2,
+        "durationMs": 542.8499579999998,
+        "screenDatabaseMs": 462.416189,
+        "databaseMs": 462.416189,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "lineup",
+        "sample": 3,
+        "durationMs": 491.1569580000005,
+        "screenDatabaseMs": 454.212273,
+        "databaseMs": 454.212273,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  },
+  {
+    "change": "stat",
+    "sampleCount": 3,
+    "durationMs": 505.77850000000035,
+    "screenDatabaseMs": 456.9482,
+    "databaseMs": 456.9482,
+    "revaluations": 18,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "stat",
+        "sample": 1,
+        "durationMs": 505.77850000000035,
+        "screenDatabaseMs": 467.589672,
+        "databaseMs": 467.589672,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "stat",
+        "sample": 2,
+        "durationMs": 525.6816249999997,
+        "screenDatabaseMs": 450.552335,
+        "databaseMs": 450.552335,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "stat",
+        "sample": 3,
+        "durationMs": 491.6679589999994,
+        "screenDatabaseMs": 456.9482,
+        "databaseMs": 456.9482,
+        "revaluations": 18,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  },
+  {
+    "change": "proposal",
+    "sampleCount": 3,
+    "durationMs": 523.9964169999994,
+    "screenDatabaseMs": 486.378056,
+    "databaseMs": 486.378056,
+    "revaluations": 19,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "proposal",
+        "sample": 1,
+        "durationMs": 526.1285419999999,
+        "screenDatabaseMs": 486.378056,
+        "databaseMs": 486.378056,
+        "revaluations": 19,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "proposal",
+        "sample": 2,
+        "durationMs": 516.7828749999999,
+        "screenDatabaseMs": 475.970838,
+        "databaseMs": 475.970838,
+        "revaluations": 19,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "proposal",
+        "sample": 3,
+        "durationMs": 523.9964169999994,
+        "screenDatabaseMs": 486.635145,
+        "databaseMs": 486.635145,
+        "revaluations": 19,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  }
+]

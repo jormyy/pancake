@@ -20,15 +20,15 @@ BEGIN
     VALUES(trade, f.league_id, f.season_id, f.member_ids[1], f.member_ids[2]);
   trade_values := jsonb_build_array(jsonb_build_object('tradeId', trade, 'revaluation', '{"analysis":{"teams":[]},"modelVersion":"fixture"}'::jsonb));
   SELECT version INTO original FROM private.screen_refresh_queue WHERE league_season_id = f.season_id;
-  FOREACH name IN ARRAY ARRAY['standings', 'matchup_totals', 'player_averages', 'trade_values'] LOOP
+  FOREACH name IN ARRAY ARRAY['standings', 'matchup_totals', 'player_averages'] LOOP
     EXECUTE format('SELECT private.refresh_%I($1,$2,$3)', name) USING f.league_id, f.season_id, original;
   END LOOP;
   PERFORM private.refresh_trade_values(f.league_id, f.season_id, original, trade_values);
-  FOREACH table_name IN ARRAY ARRAY['standings_current','matchup_totals','player_season_averages','trade_value_cache'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['standings_current','matchup_totals','player_season_averages'] LOOP
     EXECUTE format('UPDATE public.%I SET refreshed_at = now() - interval ''1 day'' WHERE league_season_id = $1', table_name) USING f.season_id;
   END LOOP;
   UPDATE public.trade_value_cache SET valid_until = now() + interval '7 minutes' WHERE league_season_id = f.season_id;
-  FOREACH table_name IN ARRAY ARRAY['standings_current','matchup_totals','player_season_averages','trade_value_cache'] LOOP
+  FOREACH table_name IN ARRAY ARRAY['standings_current','matchup_totals','player_season_averages'] LOOP
     EXECUTE format('SELECT jsonb_agg(to_jsonb(row) ORDER BY to_jsonb(row)::text) FROM public.%I row WHERE league_season_id = $1', table_name) INTO before_rows USING f.season_id;
     PERFORM pg_temp.check_rules(jsonb_array_length(before_rows) > 0, table_name || ' has a nonempty fixture');
     PERFORM private.refresh_standings(f.league_id, f.season_id, original);
@@ -47,7 +47,7 @@ BEGIN
   SELECT version INTO newer FROM private.screen_refresh_queue WHERE league_season_id = f.season_id;
   PERFORM pg_temp.check_rules(newer > original, 'member change advances version');
   PERFORM private.refresh_standings(f.league_id, f.season_id, newer);
-  FOREACH name IN ARRAY ARRAY['standings', 'matchup_totals', 'player_averages', 'trade_values'] LOOP
+  FOREACH name IN ARRAY ARRAY['standings', 'matchup_totals', 'player_averages'] LOOP
     EXECUTE format('SELECT private.refresh_%I($1,$2,$3)', name) INTO refreshed USING f.league_id, f.season_id, original;
     PERFORM pg_temp.check_rules(NOT refreshed, name || ' refuses stale input');
   END LOOP;
@@ -66,14 +66,8 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT dirty AND claim_token IS NULL AND available_at>now() FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'rejected work releases lease and keeps pending work');
   UPDATE private.screen_refresh_queue SET available_at=now() WHERE league_season_id=f.season_id;
   SELECT item INTO claim FROM jsonb_array_elements(public.view_refresh_work()) item WHERE item->>'seasonId' = f.season_id::text;
-  PERFORM pg_temp.check_rules(public.view_refresh_work(f.league_id,NULL,claim||'{"operation":"complete","tradeValues":[]}')='false',
-    'partial valuations cannot complete a season');
-  PERFORM pg_temp.check_rules((SELECT dirty AND claim_token IS NULL FROM private.screen_refresh_queue WHERE league_season_id=f.season_id),
-    'partial valuations leave retryable work');
-  UPDATE private.screen_refresh_queue SET available_at=now() WHERE league_season_id=f.season_id;
-  SELECT item INTO claim FROM jsonb_array_elements(public.view_refresh_work()) item WHERE item->>'seasonId'=f.season_id::text;
-  result := public.view_refresh_work(f.league_id, NULL, claim || jsonb_build_object('operation', 'complete', 'tradeValues', trade_values));
-  PERFORM pg_temp.check_rules(result = 'true', 'current worker publishes all four tables');
+  result := public.view_refresh_work(f.league_id,NULL,claim||'{"operation":"complete"}');
+  PERFORM pg_temp.check_rules(result='true','screens complete without trade valuations');
   PERFORM pg_temp.check_rules(public.view_refresh_work(f.league_id, NULL, claim || '{"operation":"complete"}') = 'false', 'duplicate completion cannot publish');
   PERFORM pg_temp.check_rules((SELECT NOT dirty FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'successful refresh clears pending work');
   UPDATE public.leagues SET scoring_settings = '{"points":2}' WHERE id = f.league_id;

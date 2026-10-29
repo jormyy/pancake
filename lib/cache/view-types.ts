@@ -45,5 +45,5 @@ export type PlayerSection = 'games' | 'news' | 'history'
 export type PlayerGameCursor = { date: string | null; id: string }
 export type PlayerSectionView = { context: ViewContext; lines?: PlayerSeasonLine[]; transactions?: TransactionHistoryEntry[]; hasMoreGames?: boolean; nextGameCursor?: PlayerGameCursor | null; news?: { id: string; title: string; summary: string; source: string; url: string | null; published_at: string }[] }
 
-export type LeagueScheduleRow = { weekNumber: number; opponentTeamName: string | null; isCurrent: boolean; status: 'win' | 'loss' | 'tie' | 'live' | 'upcoming' | 'pending' | 'playoffs'; myPoints: number | null; opponentPoints: number | null }
+export type LeagueScheduleRow = { weekNumber: number; opponentTeamName: string | null; isCurrent: boolean; status: 'win' | 'loss' | 'tie' | 'live' | 'upcoming' | 'pending' | 'playoffs' | 'skipped'; myPoints: number | null; opponentPoints: number | null }
 export type LeagueScheduleView = { context: ViewContext; schedule: LeagueScheduleRow[] }

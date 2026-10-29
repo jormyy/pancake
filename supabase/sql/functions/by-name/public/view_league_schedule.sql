@@ -4,6 +4,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     SELECT public.view_context(p_league_id, p_member_id, p_params - ARRAY['weekNumber', 'seasonYear', 'date']) AS value
   ), settings AS (
     SELECT value,
+      COALESCE(value->'season'->'skipped_weeks', '[]'::jsonb) AS skipped_weeks,
       COALESCE((value->'season'->>'playoff_start_week')::integer, (value->'league'->>'playoff_start_week')::integer) AS playoff_start,
       COALESCE((SELECT sum(weeks::integer) FROM jsonb_array_elements_text(NULLIF(value->'season'->'playoff_round_weeks', 'null')) weeks),
         CASE WHEN value->'league'->>'playoff_entrants' IS NOT NULL THEN
@@ -23,7 +24,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ), weeks AS (
     SELECT DISTINCT ON (week.week_number) week.week_number, member.team_name,
       (settings.value->>'today')::date BETWEEN week.week_start AND week.week_end AS is_current,
-      CASE WHEN matchup.is_finalized THEN
+      CASE WHEN settings.skipped_weeks @> jsonb_build_array(week.week_number) THEN 'skipped'
+        WHEN matchup.is_finalized THEN
           CASE WHEN matchup.winner_member_id = p_member_id THEN 'win'
             WHEN matchup.winner_member_id IS NOT NULL THEN 'loss'
             WHEN matchup.my_points > matchup.opponent_points THEN 'win'
@@ -38,6 +40,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
         THEN matchup.opponent_points END AS opponent_points
     FROM public.season_weeks week CROSS JOIN settings
     LEFT JOIN matchups matchup ON week.week_number BETWEEN matchup.week_number AND matchup.end_week
+      AND NOT (settings.skipped_weeks @> jsonb_build_array(week.week_number))
     LEFT JOIN public.league_members member ON member.id = matchup.opponent_id
     WHERE week.season_year = (settings.value->>'seasonYear')::integer
       AND week.week_number < settings.playoff_start + settings.playoff_weeks

@@ -74,9 +74,9 @@ it('opens a roster preview and saves the repaired plan with acceptance', async (
     const duplicateKeys = errors.mock.calls.some(call => call.map(String).join(' ').includes('same key'))
     errors.mockRestore()
     expect(duplicateKeys).toBe(false)
-    expect(JSON.stringify(view.toJSON())).toContain('Make it legal')
-    expect(JSON.stringify(view.toJSON())).toContain('Team B must drop 1 player.')
-    const confirm = () => view.root.findByProps({ title: 'Confirm' })
+    expect(JSON.stringify(view.toJSON())).toContain('Invalid roster')
+    expect(JSON.stringify(view.toJSON())).toContain('1 over roster limit (1/0)')
+    const confirm = () => view.root.findByProps({ testID: 'trade-confirm-accept' })
     expect(confirm().props.disabled).toBe(true)
     mocks.read.mockResolvedValue([{ ...preview, roster: [], error: null, reasons: [], legal: true }])
     await act(async () => view.root.findByProps({ accessibilityLabel: 'Drop Player A at completion' }).props.onPress())
@@ -89,5 +89,41 @@ it('opens a roster preview and saves the repaired plan with acceptance', async (
         taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: ['player-a'], rosterMoves: [],
     })
     expect(JSON.stringify(view.toJSON())).toContain('Waiting for review and execution.')
+    await act(async () => view.unmount())
+})
+
+it.each(['card', 'details'])('opens valid acceptance from %s and saves an optional incoming IR move', async entry => {
+    const { TradeOfferRow } = await import('@/components/trades/TradeListRow')
+    const offer = trade({ status: 'pending', completedAt: null, routedItems: [{
+        kind: 'player', playerId: 'incoming-ir', playerName: 'Kentavious Caldwell-Pope', nbaTeam: 'MEM', position: 'SG',
+        injuryStatus: 'Out', fromMemberId: 'member-a', toMemberId: 'member-b',
+    }] })
+    const own: TradeRosterPreview = { memberId: 'member-b', teamName: 'Team B', limits: { active: 2, ir: 1, taxi: 1 },
+        roster: [{ playerId: 'incoming-ir', name: 'Kentavious Caldwell-Pope', location: 'active' }],
+        drops: [], moves: [], legal: true, error: null, reasons: [], unavailableDestinations: { 'incoming-ir': { taxi: 'Not eligible' } } }
+    mocks.roster.mockResolvedValue([])
+    mocks.read.mockResolvedValue([own, { ...own, memberId: 'member-a', legal: false, error: 'Full' }])
+    mocks.accept.mockClear()
+    mocks.accept.mockResolvedValue(undefined)
+    const actions = { acting: false, onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn() }
+    let view!: ReturnType<typeof create>
+    await act(async () => { view = create(entry === 'card' ? React.createElement(TradeOfferRow, {
+        item: { _type: 'trade', trade: offer }, myMemberId: 'member-b', tab: 'offers', tradeVetoMode: 'member_vote',
+        isCommissioner: false, ...actions, onAnalyze: vi.fn(), onOpen: vi.fn(),
+    }) : React.createElement(TradeDetailsPanel, { context: { trade: offer, myMemberId: 'member-b', tab: 'offers' },
+        actions, onAnalyze: vi.fn() })) })
+    await act(async () => view.root.findByProps({ accessibilityLabel: 'Accept trade with Team A' }).props.onPress())
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 200)) })
+    const accept = () => view.root.findByProps({ testID: 'trade-confirm-accept' })
+    expect(accept().props.disabled).toBe(false)
+    expect(mocks.accept).not.toHaveBeenCalled()
+    await act(async () => view.root.findByProps({ accessibilityLabel: 'Kentavious Caldwell-Pope: ir' }).props.onPress())
+    expect(accept().props.disabled).toBe(true)
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 200)) })
+    expect(accept().props.disabled).toBe(false)
+    await act(async () => accept().props.onPress())
+    expect(mocks.accept).toHaveBeenCalledWith(offer.id, 'member-b', {
+        taxiPlayerIds: [], irPlayerIds: ['incoming-ir'], dropPlayerIds: [], rosterMoves: [],
+    })
     await act(async () => view.unmount())
 })

@@ -3,8 +3,8 @@
 ## Release order for this release
 
 The supplied production head is `20261209000500`, with 675 migrations.
-Apply the four migrations in [Release 2.7.1](#release-271) order through `20261210000300`.
-Apply the database changes, deploy the six listed Edge functions, then release the frontend.
+Apply the four [Release 2.7.1](#release-271) prerequisites, then the four [Release 2.7.2](#release-272) migrations through `20261211000400`.
+Apply the database changes, deploy the listed Edge functions for each release, then release the frontend.
 This integration makes no production request.
 
 ## Release 2.6 historical contract
@@ -766,3 +766,23 @@ Disable the independent cron job if needed; do not restore the retired inline wo
 This integration performs no production rollout or rollback.
 
 [Integration evidence](../docs/release-2.7.1-integration.md) records exact checks and every changed file.
+
+## Release 2.7.2
+
+The source base is release 2.7.1 at `2adcfa9a`, with 679 migrations.
+This release adds four migrations and ends at `20261211000400`, with 683 migrations.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261211000100_scope_trade_revaluation.sql` | Separates trade valuation from screen refresh and bounds changed-player work. |
+| 2 | `20261211000200_league_schedule_skipped_weeks.sql` | Shows skipped weeks without an opponent or score. |
+| 3 | `20261211000300_forecast_inputs_bound.sql` | Adds the parent history index and bounds forecast game lookups without changing forecast outputs. |
+| 4 | `20261211000400_trade_taxi_incoming_only.sql` | Limits trade Taxi moves to eligible incoming players. |
+
+Pause refresh and trade valuation dispatch while applying this release.
+Apply the four migrations in numeric order, then deploy `api` and `refresh-views`, then release the frontend.
+Resume dispatch after the database and Edge versions agree.
+Keep these additive database changes during a frontend or Edge rollback.
+Use a reviewed forward migration for database repairs.
+
+[Integration evidence](../docs/release-2.7.2-integration.md) records the private rehearsal and check counts.

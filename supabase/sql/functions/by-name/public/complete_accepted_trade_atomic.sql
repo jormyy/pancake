@@ -94,6 +94,11 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  IF EXISTS (SELECT 1 FROM trade_participants participant CROSS JOIN LATERAL jsonb_array_elements(participant.roster_moves) move
+    WHERE participant.trade_id=p_trade_id AND move->>'destination'='taxi') THEN
+    RAISE EXCEPTION 'Only incoming players can be placed on Taxi.' USING ERRCODE='PT422',DETAIL='TRADE_TAXI_INCOMING_ONLY';
+  END IF;
+
   BEGIN
     PERFORM private.validate_trade_rosters(p_trade_id);
   EXCEPTION WHEN SQLSTATE 'PT001' OR SQLSTATE 'PT409' THEN

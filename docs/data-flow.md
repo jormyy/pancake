@@ -1,5 +1,39 @@
 # Screen data flow
 
+## Screen refresh
+
+Screen publication updates standings, matchup totals, and affected player averages. It does not wait for trade values.
+A stat change marks its player dirty. Initial publication, season rollover, and scoring changes refresh all season players.
+A separate scan queues at most 20 trade input checks. Each check handles one pending or accepted trade.
+Closed trades retain their last publication. Closed states include completed, rejected, withdrawn, countered, expired, vetoed, and edited.
+Each publication stores its input fingerprint and model version. Unchanged inputs reuse the saved value.
+The fingerprint covers assets, production, projections, source freshness, pick predictions, settings, and the replacement-player sample.
+Changed inputs create one valuation job per trade and fingerprint. Retries reuse that job.
+Publication checks the trade status and current inputs again. Stale work queues the current fingerprint.
+Each trade uses the existing three-attempt work limit. A trade failure does not fail screen publication.
+
+Database, then Edge, then merge the frontend.
+Migration `20261211000100` and the refresh worker form one release unit.
+Release 2.7.2 applies `20261211000100`, `20261211000200`, `20261211000300`, and `20261211000400` in that order.
+Pause refresh and trade valuation dispatch during that release unit. Resume after both versions are present.
+
+Verification uses `tests/db/trade-revaluation-scope.sql`, `tests/db/refresh-player-averages.sql`, and `tests/db/worker-refresh-bounds.sql`.
+The private benchmark uses `tests/performance/trade-refresh.mts` and the checked-in before and after results.
+Run the benchmark against each source revision after loading the backup and fixture. Use `--after` for the revised worker.
+It uses the supplied backup with 18 trade fixtures: nine pending, one accepted, and eight closed.
+The trade fixtures share asset terms. A current-season stat change therefore affects all ten open trades.
+Timing excludes the initiating mutation. Database time includes the independent trade checks and valuations.
+Each row is the median of three warm runs on the private stack. These are local measurements, not production timings.
+
+| Change | Screen ms before → after | All DB ms before → after | Revaluations before → after |
+| --- | ---: | ---: | ---: |
+| lineup | 494.6 → 4.8 | 454.2 → 163.5 | 18 → 0 |
+| stat | 505.8 → 7.2 | 456.9 → 346.0 | 18 → 10 |
+| proposal | 524.0 → 5.0 | 486.4 → 199.7 | 19 → 1 |
+
+All three cases reduce database time. Combined database time falls by 49.3% across these three warm samples.
+
+
 ## Baseline closure
 
 Baseline closed under the revised closure rule. All current screen adapters pass. The replay records a forecast worker lock timeout (55P03): four gates pass, forecasts fails, and four final checks are not reached. No full-run performance gain is claimed.

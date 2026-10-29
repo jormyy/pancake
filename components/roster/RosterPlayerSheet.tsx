@@ -1,3 +1,4 @@
+import { rosterActionDisabledStyle } from '@/components/roster/RosterItems'
 import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { readAssetLocks } from '@/lib/locked-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
@@ -96,7 +97,7 @@ export function RosterPlayerSheet({
                                 accessibilityLabel={action.accessibilityLabel ?? action.label}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.action,
-                                    (action.disabled || locks.length > 0 && action.key !== 'page') && { opacity: 0.5 },
+                                    (action.disabled || locks.length > 0 && action.key !== 'page') && rosterActionDisabledStyle,
                                     index < actions.length - 1 && styles.actionDivider,
                                     hovered && styles.actionHover,
                                     pressed && styles.actionPressed,

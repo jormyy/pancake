@@ -1,0 +1,200 @@
+[
+  {
+    "change": "lineup",
+    "sampleCount": 3,
+    "durationMs": 4.771125000000211,
+    "screenDatabaseMs": 1.756799,
+    "databaseMs": 163.503287,
+    "revaluations": 0,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "lineup",
+        "sample": 1,
+        "durationMs": 5.341750000000047,
+        "screenDatabaseMs": 2.162637,
+        "databaseMs": 160.524852,
+        "revaluations": 0,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "lineup",
+        "sample": 2,
+        "durationMs": 4.771125000000211,
+        "screenDatabaseMs": 1.724928,
+        "databaseMs": 163.503287,
+        "revaluations": 0,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "lineup",
+        "sample": 3,
+        "durationMs": 4.685708999999406,
+        "screenDatabaseMs": 1.756799,
+        "databaseMs": 170.518143,
+        "revaluations": 0,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  },
+  {
+    "change": "stat",
+    "sampleCount": 3,
+    "durationMs": 7.199832999999671,
+    "screenDatabaseMs": 3.790146,
+    "databaseMs": 346.006872,
+    "revaluations": 10,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "stat",
+        "sample": 1,
+        "durationMs": 7.199832999999671,
+        "screenDatabaseMs": 3.790146,
+        "databaseMs": 335.041946,
+        "revaluations": 10,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "stat",
+        "sample": 2,
+        "durationMs": 7.079708999999639,
+        "screenDatabaseMs": 3.110726,
+        "databaseMs": 346.006872,
+        "revaluations": 10,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "stat",
+        "sample": 3,
+        "durationMs": 10.2984579999993,
+        "screenDatabaseMs": 4.338025,
+        "databaseMs": 359.013819,
+        "revaluations": 10,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  },
+  {
+    "change": "proposal",
+    "sampleCount": 3,
+    "durationMs": 5.043916000000536,
+    "screenDatabaseMs": 1.878635,
+    "databaseMs": 199.655467,
+    "revaluations": 1,
+    "result": {
+      "result": {
+        "completed": 1,
+        "failures": []
+      },
+      "rowsAffected": 1,
+      "failure": null
+    },
+    "samples": [
+      {
+        "change": "proposal",
+        "sample": 1,
+        "durationMs": 5.2627089999996315,
+        "screenDatabaseMs": 2.202346,
+        "databaseMs": 199.655467,
+        "revaluations": 1,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "proposal",
+        "sample": 2,
+        "durationMs": 5.043916000000536,
+        "screenDatabaseMs": 1.878635,
+        "databaseMs": 202.160603,
+        "revaluations": 1,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      },
+      {
+        "change": "proposal",
+        "sample": 3,
+        "durationMs": 4.62945899999977,
+        "screenDatabaseMs": 1.746135,
+        "databaseMs": 198.950593,
+        "revaluations": 1,
+        "result": {
+          "result": {
+            "completed": 1,
+            "failures": []
+          },
+          "rowsAffected": 1,
+          "failure": null
+        }
+      }
+    ]
+  }
+]

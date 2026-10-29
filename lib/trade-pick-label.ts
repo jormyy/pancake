@@ -17,8 +17,10 @@ export function tradePickContext(trade: Pick<Trade, 'participants' | 'proposerMe
     }
 }
 
-export function tradePickLabel(pick: TradePickItem, context?: TradePickContext): string {
+export function tradePickLabel(pick: TradePickItem, context?: TradePickContext, showDirection = true): string {
+    const label = `${pickLabel(pick.seasonYear, pick.round)} (orig. ${pick.originalTeamName})`
+    if (!showDirection) return label
     const memberName = (memberId: string | null | undefined) => memberId && memberId === context?.viewerMemberId
         ? 'You' : memberId && context?.memberNames[memberId] || 'Unknown team'
-    return `${pickLabel(pick.seasonYear, pick.round)} (orig. ${pick.originalTeamName}) — from ${memberName(pick.fromMemberId)} → to ${memberName(pick.toMemberId)}`
+    return `${label} — from ${memberName(pick.fromMemberId)} → to ${memberName(pick.toMemberId)}`
 }

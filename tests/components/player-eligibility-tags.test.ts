@@ -14,6 +14,7 @@ import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import type { TradeItem } from '@/lib/trades'
 import { AssetList, tradeFlowItem } from '@/components/trades/TradeCard'
 import { playerRow, rosterPlayer } from '../helpers/fixtures'
+vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 vi.mock('@/hooks/use-league-timezone', () => ({ useLeagueTimezone: () => 'America/Los_Angeles' }))
 
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Platform: { OS: 'web' }, StyleSheet: { create: (value: unknown) => value } }))

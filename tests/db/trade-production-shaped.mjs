@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
 const database = process.env.SUPABASE_DB_URL
-assert.ok(database && new URL(database).hostname === '127.0.0.1' && new URL(database).port === '59722')
+assert.ok(database && new URL(database).hostname === '127.0.0.1' && new URL(database).port === (process.env.TRADE_AUDIT_PORT ?? '59722'))
 assert.ok(process.env.TRADE_BACKUP_PATH)
 const backup = readFileSync(process.env.TRADE_BACKUP_PATH, 'utf8')
 const tables = ['players', 'leagues', 'league_seasons', 'league_members', 'roster_players']

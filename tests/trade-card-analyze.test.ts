@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TradeCard } from '@/components/trades/TradeCard'
 import { TradeOfferRow } from '@/components/trades/TradeListRow'
 import { trade } from './helpers/fixtures'
+vi.mock('@/components/trades/PendingTradeRosterPlan', () => ({ PendingTradeRosterPlan: () => null }))
 
 const timelineNavigation = vi.hoisted(() => ({ push: vi.fn() }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member-a' }, currentLeague: { id: 'league' } }) }))

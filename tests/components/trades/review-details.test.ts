@@ -1,7 +1,7 @@
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
-import { TradeRosterPreviewList } from '@/components/trades/TradeRosterPreviewList'
+import { tradeRosterReasons } from '@/lib/trade-roster-status'
 import { TradeAnalysisSummary } from '@/components/trades/TradeAnalysisSummary'
 import type { TradeRosterPreview } from '@/lib/trades'
 import type { DynastyTradeAnalysis } from '@pancake/core'
@@ -14,20 +14,11 @@ let screen: ReactTestRenderer
 const texts = () => screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join(''))
 afterEach(async () => act(async () => screen?.unmount()))
 
-it.each([0, 1, 2])('keeps capacity lines compact with %s excess players', async excess => {
+it.each([0, 1, 2])('keeps capacity reasons compact with %s excess players', excess => {
     const team: TradeRosterPreview = { memberId: 'partner', teamName: 'Team 006', limits: { active: 20, ir: 2, taxi: 3 },
-        roster: Array.from({ length: 20 + excess }, (_, i) => ({ playerId: String(i), name: `Player ${i}`, location: 'active' })), drops: [], moves: [], error: null }
-    await act(async () => { screen = create(React.createElement(TradeRosterPreviewList, { teams: [team] })) })
-    expect(texts()).toContain(`Team 006: ${20 + excess}/20 · IR 0/2 · Taxi 0/3`)
-    expect(texts().join(' ')).not.toContain('must drop')
-})
-
-it('shows each roster group without a second legality step', async () => {
-    const team: TradeRosterPreview = { memberId: 'partner', teamName: 'Team 006', limits: { active: 0, ir: 0, taxi: 0 }, roster: [
-        { playerId: 'a', name: 'A', location: 'active' }, { playerId: 'b', name: 'B', location: 'ir' }, { playerId: 'c', name: 'C', location: 'taxi' },
-    ], drops: [], moves: [], error: null }
-    await act(async () => { screen = create(React.createElement(TradeRosterPreviewList, { teams: [team] })) })
-    expect(texts()).toEqual(['Resulting rosters', 'Team 006: 1/0 · IR 1/0 · Taxi 1/0'])
+        roster: Array.from({ length: 20 + excess }, (_, i) => ({ playerId: String(i), name: `Player ${i}`, location: 'active' })),
+        drops: [], moves: [], error: null, reasons: excess ? [{ memberId: 'partner', teamName: 'Team 006', rule: 'active_slots', message: 'Long explanation.', suggestedMoves: [] }] : [] }
+    expect(tradeRosterReasons(team)).toEqual(excess ? [`${excess} over roster limit (${20 + excess}/20)`] : [])
 })
 
 it('keeps complete asset values and range on one line', async () => {

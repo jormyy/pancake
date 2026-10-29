@@ -1,7 +1,7 @@
 BEGIN;
 \ir rules-support.sql
 DO $$
-DECLARE f record; other record; before_version bigint; claims jsonb; claim jsonb; values_batch jsonb; completed jsonb;
+DECLARE f record; other record; before_version bigint; claims jsonb; claim jsonb; completed jsonb; next_page jsonb;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2,9592);
   SELECT * INTO other FROM pg_temp.rules_fixture(2,9593);
@@ -17,16 +17,22 @@ BEGIN
   INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
     SELECT f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'withdrawn' FROM generate_series(1,21);
   claims:=public.view_refresh_work(); claim:=claims->0;
-  PERFORM pg_temp.check_rules(jsonb_array_length(claim->'trades')=20,'valuation work is capped at twenty trades');
-  SELECT jsonb_agg(jsonb_build_object('tradeId',item->>'tradeId','revaluation','{}'::jsonb)) INTO values_batch FROM jsonb_array_elements(claim->'trades') item;
-  completed:=public.view_refresh_work(f.league_id,NULL,jsonb_build_object('operation','complete','seasonId',f.season_id,'version',claim->'version','claimToken',claim->'claimToken','tradeValues',values_batch));
-  PERFORM pg_temp.check_rules(completed='false','partial valuation publication keeps continuation work');
-  UPDATE private.screen_refresh_queue SET available_at=now()-interval '1 second' WHERE league_season_id=f.season_id;
-  claim:=public.view_refresh_work()->0;
-  PERFORM pg_temp.check_rules(jsonb_array_length(claim->'trades')=1,'continuation reads only the remaining trade');
-  SELECT jsonb_agg(jsonb_build_object('tradeId',item->>'tradeId','revaluation','{}'::jsonb)) INTO values_batch FROM jsonb_array_elements(claim->'trades') item;
-  completed:=public.view_refresh_work(f.league_id,NULL,jsonb_build_object('operation','complete','seasonId',f.season_id,'version',claim->'version','claimToken',claim->'claimToken','tradeValues',values_batch));
-  PERFORM pg_temp.check_rules(completed='true','complete valuation publication clears the queue');
+  PERFORM pg_temp.check_rules(NOT claim ? 'trades','screen work contains no trade batch');
+  completed:=public.view_refresh_work(f.league_id,NULL,jsonb_build_object('operation','complete','seasonId',f.season_id,
+    'version',claim->'version','claimToken',claim->'claimToken'));
+  PERFORM pg_temp.check_rules(completed='true','closed trades never hold the screen queue open');
+  PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'closed trades create no valuation work');
+  INSERT INTO public.trades(league_id,league_season_id,proposer_member_id,recipient_member_id,status)
+    SELECT f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'pending' FROM generate_series(1,21);
+  PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture');
+  PERFORM pg_temp.check_rules((SELECT count(*)=20 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
+    'one scan queues at most twenty independent input checks');
+  SELECT payload INTO next_page FROM private.work_items WHERE kind='trade-revaluation-scan' AND payload ? 'after' AND league_id=f.league_id;
+  PERFORM private.refresh_queue_trade_revaluations(f.season_id,(claim->>'version')::bigint,'fixture',(next_page->>'after')::uuid);
+  PERFORM pg_temp.check_rules((SELECT count(*)=21 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
+    'the continuation queues the remaining trade exactly once');
 END;
 $$;
 DELETE FROM private.work_items;

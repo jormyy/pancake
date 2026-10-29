@@ -288,25 +288,33 @@ Keep actionable errors and offline messages.
 
 ## Trades
 
-The review step shows the resulting roster before submission or acceptance.
-It names the next legal action and the exact player count.
-Where possible, it offers an eligible IR move or a move to Regular.
-Otherwise it requires the needed drops.
-The direct choices use Regular, IR, and Taxi.
-A legal preview reads Roster ready.
-A failed preview cannot enable acceptance.
-Background refreshes retain the last complete roster summary.
-A validated offer keeps its button state during refresh.
-Account changes and reconnects require fresh validation.
-Named drops require confirmation.
-The server validates the same submitted plan.
+Propose and accept use one review screen.
+The header places Close on the left and Send or Accept on the right.
+The Trades list card appears first, with its assets and expiry.
+Proposal review labels this card Draft.
+A compact status card follows it.
+Valid roster uses the success color; Invalid roster uses the danger color.
+Each structured rule failure occupies one line.
+Only the viewer's roster appears, grouped into Regular, IR, and Taxi.
+Incoming players carry an Incoming label.
+Each player uses the shared Roster row and available season averages.
+The name keeps its full row width; move controls occupy a separate line.
+Ineligible Regular, IR, Taxi, and Drop choices stay disabled.
+Planned drops stay visible so the viewer can undo them.
+Each move requests a new legality result.
+Send and Accept require a valid viewer roster and current validation.
+The status card never shows another team or its roster.
+Acceptance always opens this screen, including already-valid rosters.
+The saved plan still travels with the existing submission and acceptance calls.
+RPC parameters and saved plan fields stay unchanged.
 
 Every trade pick names its draft year, round, and original team.
-The label also names its owner before the trade and its recipient.
+Receive and give sections omit the repeated sender and recipient.
+Standalone activity and summary labels keep both names.
 Only the viewing member becomes You.
 Original team names stay explicit, including the viewer's original picks.
 Submitted summaries, pending offers, review, history, and activity use one pick label.
-History keeps the trade's sender and recipient when ownership changes later.
+Standalone history labels keep the trade's original sender and recipient.
 Pick labels wrap without truncation on phones.
 
 History cards show status, veto deadline, and one row per asset.
@@ -371,3 +379,298 @@ Rows show the week, opponent, and result or live score.
 The current week uses the shared highlight and a Current label.
 Undecided playoff weeks show Playoffs without an opponent.
 Week boundaries use the league calendar and timezone.
+
+## Trade review reference
+
+### Reused components
+
+| Component | Use |
+| --- | --- |
+| `TradeCard` | The Trades list layout, assets, expiry, and Draft badge. |
+| `StatusChip`, `PendingMutationBadge` | Existing card status and pending state. |
+| `AssetList`, `TradeItemLine`, `TradePickLabel` | The existing player and pick lines inside the card. |
+| `TradeRosterPlanEditor`, `PendingTradeRosterPlan` | Existing saved choices and acceptance container. |
+| `RosterPlayerRow` | The row extracted from `RosterPlayerItem`, with unchanged Roster page actions. |
+| `RosterSectionBand`, `SectionBand` | Regular, IR, Taxi, and planned-drop headings. |
+| `PlayerRowContent`, `PlayerStats` | The existing roster identity and FP/minutes display. |
+| `PlayerAvatar`, `Avatar`, `PosTag`, `PlayerEligibilityTags`, `Badge` | Existing player assets and metadata within those rows. |
+| `PageHeader`, `BackButton`, `ErrorBanner`, `SafeAreaView` | Existing header, close control, errors, and safe area. |
+
+### Changed files
+
+| File | Change |
+| --- | --- |
+| [app/(modals)/propose-trade.tsx](../app/(modals)/propose-trade.tsx) | Uses shared review and checks only the proposer roster. |
+| [components/roster/RosterItems.tsx](../components/roster/RosterItems.tsx) | Extracts the reusable row without changing Roster actions. |
+| [components/trades/PendingTradeRosterPlan.tsx](../components/trades/PendingTradeRosterPlan.tsx) | Uses shared review for acceptance and saved moves. |
+| [components/trades/TradeCard.tsx](../components/trades/TradeCard.tsx) | Adds the review variant and Draft state. |
+| [components/trades/TradeLegalityScreen.tsx](../components/trades/TradeLegalityScreen.tsx) | Owns the shared review layout and status card. |
+| [components/trades/TradeListRow.tsx](../components/trades/TradeListRow.tsx) | Opens review directly from incoming Accept. |
+| [components/trades/TradeRosterPlanEditor.tsx](../components/trades/TradeRosterPlanEditor.tsx) | Separates player identity from move controls. |
+| `components/trades/TradeRosterPreviewList.tsx` | Deletes the verbose roster summary. |
+| [components/trades/acceptance-summary.ts](../components/trades/acceptance-summary.ts) | Removes an unused export. |
+| [docs/interface-design.md](../docs/interface-design.md) | Records the design, files, reuse, and verification. |
+| [lib/trade-draft.ts](../lib/trade-draft.ts) | Builds the draft card data from selected assets. |
+| [lib/trade-legality-step.ts](../lib/trade-legality-step.ts) | Retains the SQL verdict helper. |
+| [lib/trade-roster-status.ts](../lib/trade-roster-status.ts) | Formats short structured rule reasons. |
+| [tests/app/propose-trade-ownership.test.ts](../tests/app/propose-trade-ownership.test.ts) | Updates focused component and regression coverage. |
+| [tests/components/trades/offer-refresh.test.ts](../tests/components/trades/offer-refresh.test.ts) | Updates focused component and regression coverage. |
+| [tests/components/trades/review-details.test.ts](../tests/components/trades/review-details.test.ts) | Updates focused component and regression coverage. |
+| [tests/db/trade-production-shaped.mjs](../tests/db/trade-production-shaped.mjs) | Allows an explicit private audit port. |
+| [tests/e2e/trade-legal-redesign.mjs](../tests/e2e/trade-legal-redesign.mjs) | Checks phone layouts, both flows, themes, and saved plans. |
+| [tests/e2e/trade-legal-server.mjs](../tests/e2e/trade-legal-server.mjs) | Serves the isolated browser build. |
+| [tests/e2e/trade-legality-browser.mjs](../tests/e2e/trade-legality-browser.mjs) | Selects the redesign verification recipe. |
+| [tests/trade-accept-legality.test.ts](../tests/trade-accept-legality.test.ts) | Updates focused component and regression coverage. |
+| [tests/trade-avatar.test.ts](../tests/trade-avatar.test.ts) | Updates focused component and regression coverage. |
+| [tests/trade-block-stats.test.ts](../tests/trade-block-stats.test.ts) | Updates focused component and regression coverage. |
+| [tests/trade-card-analyze.test.ts](../tests/trade-card-analyze.test.ts) | Updates focused component and regression coverage. |
+| [tests/trade-legality-step.test.ts](../tests/trade-legality-step.test.ts) | Updates focused component and regression coverage. |
+| [tests/trade-roster-plan.test.ts](../tests/trade-roster-plan.test.ts) | Updates focused component and regression coverage. |
+
+### Verification commands
+
+Run these with Node 22:
+
+```sh
+npx vitest run tests/trade-*.test.ts tests/hooks/trade-*.test.ts tests/lib/trade-*.test.ts tests/components/trades tests/app/propose-trade-ownership.test.ts
+npm run lint:all
+npm run typecheck && npm run typecheck:tests
+npm run check:quality
+```
+
+Run these only against the private stack:
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-structured-legality.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-incoming-destinations.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-plan-moves-capacity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/release2-trade-accept-capacity.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/server-trade-plan-acceptance.sql
+E2E_TRADE_LEGAL_REDESIGN=1 E2E_AGENT_BROWSER=1 E2E_BROWSER_ARTIFACT_DIR=../evidence/after node tests/e2e/trade-legality-browser.mjs
+```
+
+Export the browser build with `expo export --platform web --clear` and the private stack environment.
+The cleared cache prevents an earlier local endpoint from entering the build.
+The browser recipe permits only its two exact local origins.
+The recipe starts and stops its own static server.
+Use `E2E_TRADE_WEB_DIR` to select the exported directory.
+Use `E2E_EXPECT_LEGACY=1` with the old export to exercise the failing width guard.
+
+The focused suite passes 381 checks, with three existing checks skipped.
+The shared row and review subset passes 95 checks.
+The five SQL recipes pass 45, 55, 20, 30, and 21 checks respectively.
+The copied-data audit confirms Justin's one-player Regular overflow.
+The full quality command passes.
+The request and plan shapes remain unchanged.
+
+### Phone evidence
+
+WebKit uses a 390 by 844 mobile viewport and also checks 320 pixels.
+It captures every requested state with saved light and dark preferences.
+Screenshots finish modal animations before capture.
+Each capture checks the action caption and its bounds.
+The separate browser-tool capture uses Chromium at 390 pixels.
+The original 320-pixel layout leaves only 70 pixels for the narrowest name.
+The new layout leaves 244 pixels and reduces the tallest name from 48 to 16 pixels.
+At 390 pixels, the narrowest name grows from 140 to 314 pixels.
+The card-to-status gap stays within 16 pixels.
+
+| State | Light | Dark |
+| --- | --- | --- |
+| Propose invalid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-invalid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-invalid-dark-390.png) |
+| Drop fixes proposal; Send enabled | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-valid-send-enabled-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-valid-send-enabled-dark-390.png) |
+| Accept already valid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-dark-390.png) |
+| Incoming player moved to IR | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-incoming-ir-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-incoming-ir-dark-390.png) |
+| Accept invalid | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-invalid-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-invalid-dark-390.png) |
+| Drop fixes acceptance; Accept enabled | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-fixed-enabled-light-390.png) | [390px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-accept-fixed-enabled-dark-390.png) |
+
+Long-name evidence: [propose at 320px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/invalid-propose-long-names-320.png), [accept at 320px](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/valid-accept-valid-long-names-320.png).
+
+The [old 320px layout](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/before/invalid-before-long-names-320.png) fails the same width check.
+
+The [browser-tool capture](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/agent-browser-accept-390.png) confirms the same acceptance screen.
+
+The [WebKit receipt](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/after/receipt.json) records 32 state captures and the row measurements.
+
+### Trade move rule addendum
+
+Trade controls call the Roster page's shared `isIREligible` and `isTaxiEligible` functions.
+Only incoming players can enter Taxi.
+Retained players can leave Taxi but cannot return through these controls.
+Disabled controls share the Roster action row's opacity style.
+The focused addendum checks pass 71 tests.
+
+The [server regression](../tests/db/trade-retained-taxi-rejection.sql) first fails because the server accepts a retained Taxi move.
+It now passes 16 checks, including save rejection, execution rejection, and changing eligibility.
+The server uses `private.taxi_player_eligible`, as roster acquisitions do.
+Retained Taxi moves fail with SQLSTATE `PT422` and detail `TRADE_TAXI_INCOMING_ONLY`.
+Ineligible incoming choices fail at save with detail `TRADE_TAXI_INELIGIBLE`.
+Execution checks eligibility again before any roster transfer.
+All 46 trade SQL recipes pass on the private stack.
+Three recipes replace formerly allowed retained Taxi moves with retained IR moves.
+Their capacity, delayed execution, and rollback checks remain active.
+The catalog and release attestations come from their generators.
+
+Server files:
+
+- `supabase/migrations/20261211000400_trade_taxi_incoming_only.sql`
+- `supabase/sql/functions/by-name/private/check_trade_legality.sql`
+- `supabase/sql/functions/by-name/public/set_trade_roster_plan_atomic.sql`
+- `supabase/sql/functions/by-name/public/complete_accepted_trade_atomic.sql`
+- `tests/db/trade-incoming-destinations.sql`
+- `tests/db/trade-plan-moves-capacity.sql`
+- `tests/db/trade-structured-legality.sql`
+- `tests/e2e/db-security-catalog-attestations.json`
+- `tests/e2e/release-history-attestations.json`
+
+Addendum files:
+
+- `components/roster/RosterItems.tsx`
+- `components/roster/RosterPlayerSheet.tsx`
+- `components/trades/TradeRosterPlanEditor.tsx`
+- `tests/trade-roster-plan.test.ts`
+- `tests/trade-legality-step.test.ts`
+- `tests/components/player-eligibility-tags.test.ts`
+- `tests/db/trade-retained-taxi-rejection.sql`
+- `docs/interface-design.md`
+
+### Trade review polish
+
+Valid status contains only “Valid roster”.
+Invalid status contains the title and the viewer's short reasons.
+Other teams never appear in the status card.
+Sectioned pick rows omit their route in both the Trades list and review screen.
+Activity rows and standalone summaries retain their sender and recipient.
+The focused polish checks pass 141 tests.
+Another 58 row, card, and identity regression checks pass on Node 22.
+The release check reads the migration order below and retains its negative controls.
+The full Vitest run records 4,584 passes, six failures, and 48 skips.
+All failing files pass their focused rerun after the release note and mock fixes.
+Four failures use stale modules while polish files change during the full run.
+The replay report failure coincides with the server commit during its source comparison.
+
+Polish files:
+
+- `components/trades/TradeCard.tsx`
+- `components/trades/TradeLegalityScreen.tsx`
+- `components/trades/TradePickLabel.tsx`
+- `lib/trade-pick-label.ts`
+- `lib/trade-roster-status.ts`
+- `tests/components/pick-labels.test.ts`
+- `tests/components/trades/pick-label-parity.test.ts`
+- `tests/e2e/trade-legal-redesign.mjs`
+- `tests/release-edge-compatibility.test.ts`
+- `tests/trade-legality-screen.test.ts`
+- `tests/trade-pick-label.test.ts`
+- `docs/interface-design.md`
+
+## Trade Taxi release order
+
+Apply `20261211000400_trade_taxi_incoming_only.sql` before releasing the trade review changes.
+Database, then Edge, then merge the frontend.
+The migration keeps the RPC parameters and saved plan fields unchanged.
+It rejects retained Taxi moves and checks incoming eligibility again at execution.
+
+## Trade review verification handoff
+
+The private stack uses only `pt4bafabletl` and the `614xx` ports.
+The final capture uses WebKit with the iPhone 13 profile.
+The final quality command passes lint, all type checks, function-source parity, and design checks.
+The catalog generator produces no catalog change because function signatures and grants stay unchanged.
+The release and security attestations are regenerated from the private database.
+
+### Files changed from the release base
+
+- [app/(modals)/propose-trade.tsx](<../app/(modals)/propose-trade.tsx>)
+- [components/roster/RosterItems.tsx](<../components/roster/RosterItems.tsx>)
+- [components/roster/RosterPlayerSheet.tsx](<../components/roster/RosterPlayerSheet.tsx>)
+- [components/trades/PendingTradeRosterPlan.tsx](<../components/trades/PendingTradeRosterPlan.tsx>)
+- [components/trades/TradeCard.tsx](<../components/trades/TradeCard.tsx>)
+- [components/trades/TradeLegalityScreen.tsx](<../components/trades/TradeLegalityScreen.tsx>)
+- [components/trades/TradeListRow.tsx](<../components/trades/TradeListRow.tsx>)
+- [components/trades/TradePickLabel.tsx](<../components/trades/TradePickLabel.tsx>)
+- [components/trades/TradeRosterPlanEditor.tsx](<../components/trades/TradeRosterPlanEditor.tsx>)
+- [components/trades/TradeRosterPreviewList.tsx](<../components/trades/TradeRosterPreviewList.tsx>)
+- [components/trades/acceptance-summary.ts](<../components/trades/acceptance-summary.ts>)
+- [docs/interface-design.md](<../docs/interface-design.md>)
+- [lib/trade-draft.ts](<../lib/trade-draft.ts>)
+- [lib/trade-legality-step.ts](<../lib/trade-legality-step.ts>)
+- [lib/trade-pick-label.ts](<../lib/trade-pick-label.ts>)
+- [lib/trade-roster-status.ts](<../lib/trade-roster-status.ts>)
+- [supabase/migrations/20261211000400_trade_taxi_incoming_only.sql](<../supabase/migrations/20261211000400_trade_taxi_incoming_only.sql>)
+- [supabase/sql/functions/by-name/private/check_trade_legality.sql](<../supabase/sql/functions/by-name/private/check_trade_legality.sql>)
+- [supabase/sql/functions/by-name/public/complete_accepted_trade_atomic.sql](<../supabase/sql/functions/by-name/public/complete_accepted_trade_atomic.sql>)
+- [supabase/sql/functions/by-name/public/set_trade_roster_plan_atomic.sql](<../supabase/sql/functions/by-name/public/set_trade_roster_plan_atomic.sql>)
+- [tests/app/propose-trade-ownership.test.ts](<../tests/app/propose-trade-ownership.test.ts>)
+- [tests/components/pick-labels.test.ts](<../tests/components/pick-labels.test.ts>)
+- [tests/components/player-eligibility-tags.test.ts](<../tests/components/player-eligibility-tags.test.ts>)
+- [tests/components/trades/offer-refresh.test.ts](<../tests/components/trades/offer-refresh.test.ts>)
+- [tests/components/trades/pick-label-parity.test.ts](<../tests/components/trades/pick-label-parity.test.ts>)
+- [tests/components/trades/review-details.test.ts](<../tests/components/trades/review-details.test.ts>)
+- [tests/db/trade-incoming-destinations.sql](<../tests/db/trade-incoming-destinations.sql>)
+- [tests/db/trade-plan-moves-capacity.sql](<../tests/db/trade-plan-moves-capacity.sql>)
+- [tests/db/trade-production-shaped.mjs](<../tests/db/trade-production-shaped.mjs>)
+- [tests/db/trade-retained-taxi-rejection.sql](<../tests/db/trade-retained-taxi-rejection.sql>)
+- [tests/db/trade-structured-legality.sql](<../tests/db/trade-structured-legality.sql>)
+- [tests/e2e/db-security-catalog-attestations.json](<../tests/e2e/db-security-catalog-attestations.json>)
+- [tests/e2e/release-history-attestations.json](<../tests/e2e/release-history-attestations.json>)
+- [tests/e2e/trade-legal-redesign.mjs](<../tests/e2e/trade-legal-redesign.mjs>)
+- [tests/e2e/trade-legal-server.mjs](<../tests/e2e/trade-legal-server.mjs>)
+- [tests/e2e/trade-legality-browser.mjs](<../tests/e2e/trade-legality-browser.mjs>)
+- [tests/release-edge-compatibility.test.ts](<../tests/release-edge-compatibility.test.ts>)
+- [tests/trade-accept-legality.test.ts](<../tests/trade-accept-legality.test.ts>)
+- [tests/trade-avatar.test.ts](<../tests/trade-avatar.test.ts>)
+- [tests/trade-block-stats.test.ts](<../tests/trade-block-stats.test.ts>)
+- [tests/trade-card-analyze.test.ts](<../tests/trade-card-analyze.test.ts>)
+- [tests/trade-legality-screen.test.ts](<../tests/trade-legality-screen.test.ts>)
+- [tests/trade-legality-step.test.ts](<../tests/trade-legality-step.test.ts>)
+- [tests/trade-pick-label.test.ts](<../tests/trade-pick-label.test.ts>)
+- [tests/trade-roster-plan.test.ts](<../tests/trade-roster-plan.test.ts>)
+
+### New phone evidence
+
+| State | Light, 390 px | Dark, 390 px |
+| --- | --- | --- |
+| Propose invalid | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-invalid-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-invalid-dark-390.png) |
+| Propose valid; Send enabled | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-valid-send-enabled-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-valid-send-enabled-dark-390.png) |
+| Accept valid; Accept enabled | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-valid-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-valid-dark-390.png) |
+| Incoming moved to IR | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-ir-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-ir-dark-390.png) |
+| Incoming moved to Taxi | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-taxi-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/valid-accept-incoming-taxi-dark-390.png) |
+| Trades list with a pick | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-trades-list-pick-light-390.png) | [Screenshot](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-trades-list-pick-dark-390.png) |
+
+Additional proof: [invalid acceptance](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-accept-invalid-light-390.png), [repaired acceptance](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-accept-fixed-enabled-light-390.png), [320 px names](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/invalid-propose-long-names-320.png), [browser-tool capture](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/agent-browser-accept-390.png), [WebKit receipt](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/receipt.json).
+
+The receipt contains 36 passing WebKit states and one separate browser-tool screenshot.
+Both themes pass at 390 pixels, with long-name checks at 320 pixels.
+The narrowest name grows from 70 to 244 pixels at 320 pixels.
+At 390 pixels it grows from 140 to 314 pixels.
+Every measured name stays 16 pixels tall.
+The private stack is stopped after verification.
+
+Final checks use Node 22.23.2.
+`npm run check:quality` passes all included checks.
+The changed browser recipe also passes `npm run typecheck:e2e` and scoped ESLint after selecting the iPhone profile.
+The 15 focused test files pass 199 tests without failures.
+The full run executes once on Node 22; the failing files pass targeted reruns.
+
+Run the new server regression with the private database environment:
+
+```sh
+PANCAKE_TEST_DB_PORT=61422 psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-retained-taxi-rejection.sql
+```
+
+Server generation commands:
+
+```sh
+node --env-file=.env scripts/check-db-function-sources.mjs --write-catalog-manifest
+PANCAKE_TEST_DB_PORT=61422 node --env-file=.env scripts/regenerate-release-history-attestations.mjs
+node --env-file=.env scripts/check-db-function-sources.mjs --check-catalog
+```
+
+- [Full Vitest log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/full-vitest.log)
+- [Focused Vitest log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/focused-vitest.log)
+- [Row regression log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/row-regressions.log)
+- [Quality log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/quality.log)
+- [Trade SQL log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/trade-sql.log)
+- [Corrected work-queue invocation](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/work-queue-sql.log)
+- [Taxi rejection log](/Users/michaelchen/Documents/pancake-season-mission/fable/program4/evidence/trade-ui-after/polish/taxi-rejection-sql.log)
