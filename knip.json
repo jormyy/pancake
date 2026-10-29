@@ -27,6 +27,7 @@
     "supabase-go"
   ],
   "entry": [
+    "tests/e2e/players-scroll-{stack,browser}.mjs",
     "app/**/*.{ts,tsx}",
     "tests/**/*.test.ts",
     "tests/source-guard.ts",
