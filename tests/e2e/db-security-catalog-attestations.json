@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261212000100",
+  "candidateVersion": "20261213000200",
   "common": {
     "functions": [
       {
@@ -1061,7 +1061,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2256,6 +2256,14 @@
     {
       "filename": "20261212000100_trade_revaluation_inputs_fast.sql",
       "sha256": "c1d97c142acb4a328f10052a247acba36510f3c73d5dbf88f0dad4f6f460b5d5"
+    },
+    {
+      "filename": "20261213000100_screen_view_costs.sql",
+      "sha256": "532f466a2e9c94c22770d7ef33642327bdcace82daa40c0e98513f20ad81579e"
+    },
+    {
+      "filename": "20261213000200_unpartition_player_game_stats.sql",
+      "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
     }
   ],
   "preMigration": {

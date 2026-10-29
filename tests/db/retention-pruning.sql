@@ -1,5 +1,8 @@
 BEGIN;
 
+SELECT cron.schedule('work-dispatcher','* * * * *','SELECT public.dispatch_work();')
+WHERE NOT EXISTS(SELECT 1 FROM cron.job WHERE jobname='work-dispatcher');
+
 INSERT INTO auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at

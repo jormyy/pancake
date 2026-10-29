@@ -1,6 +1,7 @@
 BEGIN;
 \ir rules-support.sql
 CREATE TEMP TABLE average_attempts(player_id uuid);
+GRANT INSERT ON average_attempts TO postgres;
 CREATE FUNCTION pg_temp.record_average_attempt() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO average_attempts VALUES(NEW.player_id);

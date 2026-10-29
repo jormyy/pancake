@@ -8,6 +8,40 @@ Resume dispatch when both versions agree.
 This change needs no frontend release.
 This integration makes no production request.
 
+### Screen read cost migration
+
+Apply `20261213000100_screen_view_costs.sql`, then `20261213000200_unpartition_player_game_stats.sql`.
+The second migration replaces the 70 stats partitions with one regular table.
+It preserves rows, access rules, triggers, references, and all nine original indexes.
+A unique ID index adds native identity protection at every transaction isolation level.
+It removes stats partition maintenance and keeps durable stats outside log retention.
+Prepared forecast averages still use the selected roster and maintained season totals.
+Projection reads still share their upcoming and regular-game calendars.
+The game-day partition filter is removed because it slows the regular table.
+
+Pause workers with `public.set_worker_paused(true, 'Stats table migration')` and let active workers finish.
+Apply both migrations in order through the normal migration runner.
+The copy, exact row comparison, index build, and table swap commit together.
+The copy uses a heap first; indexes build in bulk before the swap.
+Policies, grants, and triggers are prepared before the SHARE lock.
+Only functions with catalog dependencies on the old relation or row type are rebuilt.
+Foreign keys enforce new writes immediately and validate old rows after the copy lock is released.
+The migration keeps private resume state until validation finishes.
+If validation stops after the swap, rerun the same migration; it resumes validation without copying again.
+Do not restore the retired table or resume workers before validation completes.
+The quarter-CPU, 1 GiB rehearsal and phase timings are in the linked report.
+Budget fifty seconds in production using four times the slowest quarter-CPU rehearsal, including the migration runner.
+Both statement and elapsed-time caps are 300 seconds; the lock wait cap stays three seconds.
+Run `ANALYZE public.player_game_stats;` after the migration commits.
+Check the regular table, row count, triggers, grants, and screen reads before resuming workers.
+Resume with `public.set_worker_paused(false, 'Stats table migration verified')`.
+Keep the regular table on application rollback; repair database changes with a forward migration.
+
+The change preserves screen and worker JSON and requires no client release.
+The [screen benchmark](../tests/db/unpartition-player-stats.md) records read measurements.
+The [migration follow-up](../tests/db/unpartition-migration.md) records quarter-CPU timings and failure recovery.
+This rehearsal makes no production request.
+
 ## Release 2.6 historical contract
 
 Apply the database changes, deploy Edge functions, then merge the frontend.

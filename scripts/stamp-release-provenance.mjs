@@ -6,6 +6,7 @@ import process from 'node:process'
 import { digestReleaseBundle, FRONTEND_DEPLOYMENT_INPUTS } from '../tests/e2e/release-provenance.mjs'
 import { createReleaseArtifactManifest } from '../tests/e2e/release-artifact.mjs'
 import { prepareReleaseCompatibility } from './retain-release-assets.mjs'
+import { compactDocumentAssets } from './compact-document-assets.mjs'
 
 const fullSha = (value) => typeof value === 'string' && /^[a-f0-9]{40}$/i.test(value)
 
@@ -237,6 +238,7 @@ export const stampReleaseProvenance = async ({
 } = {}) => {
   if (!fullSha(commitSha)) throw new Error('Release marker requires a full commit SHA')
   // Before the digest, so the precached set is covered by the cache version.
+  await compactDocumentAssets(root)
   await contentAddressPublicFiles(root)
   await prepareReleaseCompatibility(root, previousRelease)
   await setDocumentVersion(root, 'pancake-build')

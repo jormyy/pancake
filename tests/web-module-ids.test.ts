@@ -9,6 +9,19 @@ const createFactory = scopeWebModuleIds(upstream.serializer.createModuleIdFactor
 const client = { platform: 'web', environment: 'client' }
 const server = { platform: 'web', environment: 'node' }
 
+it('shares helpers between web require and import while preserving native resolution', () => {
+  const resolve = require('../metro.config.js').resolver.resolveRequest
+  const context = (esm: boolean) => ({
+    resolveRequest: (_context: unknown, name: string) => ({
+      type: 'sourceFile', filePath: name === 'tslib' ? (esm ? 'tslib/tslib.es6.mjs' : 'tslib/tslib.js') : name,
+    }),
+  })
+  const esm = resolve(context(true), 'tslib', 'web')
+  expect(resolve(context(false), 'tslib', 'web')).toEqual(esm)
+  expect(resolve(context(false), 'tslib', 'ios').filePath).toBe('tslib/tslib.js')
+  expect(resolve(context(false), 'ordinary', 'web').filePath).toBe('ordinary')
+})
+
 describe('web module ID isolation', () => {
   it('keeps browser IDs stable when server serialization wins the race', () => {
     const build = (factory: typeof createFactory, serverFirst: boolean) => {
