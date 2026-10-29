@@ -1,0 +1,6243 @@
+{
+  "games": [
+    {
+      "id": "031adbb9-42a8-4fdd-84e1-08f3ea4d17e7",
+      "status": "Scheduled",
+      "away_team": "PHI",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-28T23:00:00+00:00",
+      "home_team": "IND",
+      "started_at": "2026-10-28T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "3ad9653a-634b-4f16-898f-9b932ba2f374",
+      "status": "Scheduled",
+      "away_team": "DEN",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T00:00:00+00:00",
+      "home_team": "NOP",
+      "started_at": "2026-10-29T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "66028248-5d58-4253-aa6f-2645b48f0de7",
+      "status": "Scheduled",
+      "away_team": "SAS",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T01:00:00+00:00",
+      "home_team": "UTA",
+      "started_at": "2026-10-29T01:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "6b530999-5d6a-4297-9cae-1e017258993e",
+      "status": "Scheduled",
+      "away_team": "WAS",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-28T23:00:00+00:00",
+      "home_team": "CLE",
+      "started_at": "2026-10-28T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "7c3364e8-f8ef-455f-83fa-211c38e3663b",
+      "status": "Scheduled",
+      "away_team": "LAL",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T02:30:00+00:00",
+      "home_team": "LAC",
+      "started_at": "2026-10-29T02:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "843306f8-e43c-43a5-a810-b656da02d331",
+      "status": "Scheduled",
+      "away_team": "CHA",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-28T23:00:00+00:00",
+      "home_team": "DET",
+      "started_at": "2026-10-28T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "b1f7c144-0c2f-4b48-aaa3-701545476b2f",
+      "status": "Scheduled",
+      "away_team": "OKC",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T01:30:00+00:00",
+      "home_team": "DAL",
+      "started_at": "2026-10-29T01:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "d54a84ef-8f3b-4d96-8843-ff2b66808d59",
+      "status": "InProgress",
+      "away_team": "NYK",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T00:00:00+00:00",
+      "home_team": "CHI",
+      "started_at": "2026-10-29T00:00:00+00:00",
+      "live_stats_elapsed_seconds": 1353.6,
+      "live_scoreboard_elapsed_seconds": 1353.6
+    },
+    {
+      "id": "e81c3638-607b-4c0f-9b10-f67bcf8c9b49",
+      "status": "Scheduled",
+      "away_team": "MIA",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-28T23:00:00+00:00",
+      "home_team": "ATL",
+      "started_at": "2026-10-28T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "ec826e04-7c87-4771-b330-ca17db769be5",
+      "status": "Scheduled",
+      "away_team": "ORL",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-28T23:30:00+00:00",
+      "home_team": "TOR",
+      "started_at": "2026-10-28T23:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "f07a94f5-c583-45bc-8506-20f788686fdb",
+      "status": "Scheduled",
+      "away_team": "GSW",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T00:00:00+00:00",
+      "home_team": "MIN",
+      "started_at": "2026-10-29T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "f1758e7c-9778-4bc3-a944-2ef63c0b071c",
+      "status": "Scheduled",
+      "away_team": "HOU",
+      "game_date": "2026-10-28",
+      "game_time": "2026-10-29T00:00:00+00:00",
+      "home_team": "MIL",
+      "started_at": "2026-10-29T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "48acf097-32ca-416f-a1ca-c850735f5443",
+      "status": "Scheduled",
+      "away_team": "CLE",
+      "game_date": "2026-10-29",
+      "game_time": "2026-10-30T00:00:00+00:00",
+      "home_team": "ATL",
+      "started_at": "2026-10-30T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "c346e111-5b97-4ef1-9578-7b679079d293",
+      "status": "Scheduled",
+      "away_team": "MEM",
+      "game_date": "2026-10-29",
+      "game_time": "2026-10-30T02:00:00+00:00",
+      "home_team": "POR",
+      "started_at": "2026-10-30T02:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "d3c9b79c-f757-495d-a6a4-b39d31025a72",
+      "status": "Scheduled",
+      "away_team": "SAC",
+      "game_date": "2026-10-29",
+      "game_time": "2026-10-30T00:00:00+00:00",
+      "home_team": "NOP",
+      "started_at": "2026-10-30T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "11a6d365-d7ee-4b5b-bdac-aad59b4ff9ec",
+      "status": "Scheduled",
+      "away_team": "LAL",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-31T02:00:00+00:00",
+      "home_team": "GSW",
+      "started_at": "2026-10-31T02:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "234e9f41-761c-48d0-ad60-93e05f0337a4",
+      "status": "Scheduled",
+      "away_team": "LAC",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-31T00:00:00+00:00",
+      "home_team": "MIN",
+      "started_at": "2026-10-31T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "44d34e25-e228-4ddf-87ee-de8fcc9b2202",
+      "status": "Scheduled",
+      "away_team": "HOU",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-31T00:00:00+00:00",
+      "home_team": "DAL",
+      "started_at": "2026-10-31T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "5c5c1bc9-b214-464d-a33a-b1f5025dbfd4",
+      "status": "Scheduled",
+      "away_team": "IND",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-31T00:00:00+00:00",
+      "home_team": "MIA",
+      "started_at": "2026-10-31T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "affd7613-0e02-401b-ab40-9883d3e00264",
+      "status": "Scheduled",
+      "away_team": "CHA",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-30T23:00:00+00:00",
+      "home_team": "WAS",
+      "started_at": "2026-10-30T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "bf0e02df-26c0-4a5f-8dcb-eb3c550f6f39",
+      "status": "Scheduled",
+      "away_team": "NYK",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-30T23:30:00+00:00",
+      "home_team": "PHI",
+      "started_at": "2026-10-30T23:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "d60736d7-f800-4122-8494-cb5d97d2ea1d",
+      "status": "Scheduled",
+      "away_team": "ORL",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-30T23:30:00+00:00",
+      "home_team": "TOR",
+      "started_at": "2026-10-30T23:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "dbf6cd0f-ec60-4117-b280-806cdcd0a527",
+      "status": "Scheduled",
+      "away_team": "DEN",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-31T02:00:00+00:00",
+      "home_team": "PHX",
+      "started_at": "2026-10-31T02:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "e6a14cd2-7902-4cee-b8a9-342db640a7c4",
+      "status": "Scheduled",
+      "away_team": "DET",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-30T23:30:00+00:00",
+      "home_team": "BKN",
+      "started_at": "2026-10-30T23:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "efd888e2-b1ff-4ee0-bda1-66e0c1e3a644",
+      "status": "Scheduled",
+      "away_team": "CHI",
+      "game_date": "2026-10-30",
+      "game_time": "2026-10-30T23:30:00+00:00",
+      "home_team": "BOS",
+      "started_at": "2026-10-30T23:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "3fff3e78-b270-4b67-b896-7471ebb9df52",
+      "status": "Scheduled",
+      "away_team": "CLE",
+      "game_date": "2026-10-31",
+      "game_time": "2026-11-01T00:00:00+00:00",
+      "home_team": "MIL",
+      "started_at": "2026-11-01T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "63960f2b-dd8a-497b-b39d-8795d4a3891c",
+      "status": "Scheduled",
+      "away_team": "OKC",
+      "game_date": "2026-10-31",
+      "game_time": "2026-11-01T00:30:00+00:00",
+      "home_team": "HOU",
+      "started_at": "2026-11-01T00:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "68dd7827-35da-4b0c-b611-53651acd582d",
+      "status": "Scheduled",
+      "away_team": "POR",
+      "game_date": "2026-10-31",
+      "game_time": "2026-10-31T19:00:00+00:00",
+      "home_team": "UTA",
+      "started_at": "2026-10-31T19:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "8f4ac45f-4607-46a0-b016-db092c96694f",
+      "status": "Scheduled",
+      "away_team": "MIN",
+      "game_date": "2026-10-31",
+      "game_time": "2026-11-01T00:00:00+00:00",
+      "home_team": "SAS",
+      "started_at": "2026-11-01T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "9061a52b-40cf-49b6-b3e9-beee8cf6d5a8",
+      "status": "Scheduled",
+      "away_team": "PHI",
+      "game_date": "2026-10-31",
+      "game_time": "2026-10-31T22:00:00+00:00",
+      "home_team": "CHA",
+      "started_at": "2026-10-31T22:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "abb53c07-2b11-4c77-b598-c6edbc33187b",
+      "status": "Scheduled",
+      "away_team": "ATL",
+      "game_date": "2026-10-31",
+      "game_time": "2026-10-31T23:00:00+00:00",
+      "home_team": "NOP",
+      "started_at": "2026-10-31T23:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+      "status": "Scheduled",
+      "away_team": "SAC",
+      "game_date": "2026-10-31",
+      "game_time": "2026-11-01T00:00:00+00:00",
+      "home_team": "MEM",
+      "started_at": "2026-11-01T00:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "1229ca8e-6586-40e5-b15a-f73db22e84fb",
+      "status": "Scheduled",
+      "away_team": "BKN",
+      "game_date": "2026-11-01",
+      "game_time": "2026-11-01T22:00:00+00:00",
+      "home_team": "IND",
+      "started_at": "2026-11-01T22:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "20ae76a9-8fc4-4649-9708-55ce015fe272",
+      "status": "Scheduled",
+      "away_team": "LAC",
+      "game_date": "2026-11-01",
+      "game_time": "2026-11-02T01:30:00+00:00",
+      "home_team": "GSW",
+      "started_at": "2026-11-02T01:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "72a445f4-66ab-4447-9647-d3d31adb756a",
+      "status": "Scheduled",
+      "away_team": "BOS",
+      "game_date": "2026-11-01",
+      "game_time": "2026-11-01T20:30:00+00:00",
+      "home_team": "ORL",
+      "started_at": "2026-11-01T20:30:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    },
+    {
+      "id": "d1550e13-e9e5-4b1e-b0b1-8f771b8e2919",
+      "status": "Scheduled",
+      "away_team": "TOR",
+      "game_date": "2026-11-01",
+      "game_time": "2026-11-02T02:00:00+00:00",
+      "home_team": "LAL",
+      "started_at": "2026-11-02T02:00:00+00:00",
+      "live_stats_elapsed_seconds": null,
+      "live_scoreboard_elapsed_seconds": null
+    }
+  ],
+  "teams": [
+    {
+      "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "currentPoints": 359
+    },
+    {
+      "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "currentPoints": 366
+    }
+  ],
+  "today": "2026-10-28",
+  "roster": [
+    {
+      "is_on_ir": false,
+      "nba_team": "SAC",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": true,
+      "nba_team": "GSW",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "is_on_taxi": false,
+      "injury_status": "Out",
+      "eligible_positions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CHI",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CLE",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "WAS",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "IND",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "is_on_taxi": false,
+      "injury_status": "Out",
+      "eligible_positions": [
+        "C"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "LAC",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "PHI",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "NYK",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MIL",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "5bdb8af4-1a7e-4286-9265-0c746bf8da9e",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "SAC",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "IND",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "BOS",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CLE",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DEN",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MIN",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DEN",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DAL",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "OKC",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "is_on_taxi": true,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DET",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "is_on_taxi": true,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DEN",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "OKC",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "e07b2e61-77fa-497e-8840-6426e75b72c4",
+      "is_on_taxi": true,
+      "injury_status": "Out",
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "NYK",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "HOU",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "ATL",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MEM",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CHA",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "is_on_taxi": true,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "IND",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "LAL",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "SAC",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "GSW",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MEM",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CHI",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "BKN",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "is_on_taxi": true,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "SAC",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DAL",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "LAC",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "CLE",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "is_on_taxi": true,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "SAS",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MIN",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "is_on_taxi": false,
+      "injury_status": "DTD",
+      "eligible_positions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "HOU",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "is_on_taxi": false,
+      "injury_status": "Out",
+      "eligible_positions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "PHX",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "is_on_taxi": false,
+      "injury_status": "DTD",
+      "eligible_positions": [
+        "C"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "BOS",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "LAL",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "MEM",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "WAS",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "C"
+      ]
+    },
+    {
+      "is_on_ir": false,
+      "nba_team": "DAL",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "is_on_taxi": false,
+      "injury_status": null,
+      "eligible_positions": [
+        "PG",
+        "SF",
+        "SG"
+      ]
+    }
+  ],
+  "history": [
+    {
+      "scores": [
+        14,
+        10,
+        19,
+        22,
+        25,
+        17,
+        19,
+        8,
+        9,
+        17,
+        17,
+        13,
+        12,
+        2,
+        3,
+        3,
+        22,
+        10,
+        27,
+        5,
+        28,
+        33,
+        29,
+        22,
+        8,
+        17,
+        11,
+        19,
+        20,
+        12
+      ],
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c"
+    },
+    {
+      "scores": [
+        28,
+        21,
+        60,
+        10,
+        28,
+        14,
+        24,
+        29,
+        21,
+        8,
+        14,
+        37,
+        13,
+        29,
+        1,
+        24,
+        2,
+        20,
+        35,
+        14,
+        23,
+        15,
+        35,
+        18,
+        8,
+        19,
+        26,
+        7,
+        36,
+        6
+      ],
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208"
+    },
+    {
+      "scores": [
+        24,
+        38,
+        27,
+        43,
+        48,
+        39,
+        28,
+        38,
+        20,
+        53,
+        45,
+        31,
+        9,
+        19,
+        53,
+        43,
+        34,
+        21,
+        49,
+        51,
+        63,
+        39
+      ],
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796"
+    },
+    {
+      "scores": [
+        28,
+        56,
+        30,
+        66,
+        36,
+        46,
+        56,
+        44,
+        46,
+        47,
+        43,
+        9,
+        42,
+        35,
+        31,
+        45,
+        33,
+        39,
+        37,
+        25,
+        36,
+        35,
+        38,
+        47,
+        29,
+        31,
+        56,
+        36,
+        61,
+        33
+      ],
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2"
+    },
+    {
+      "scores": [
+        7,
+        1,
+        -3,
+        11
+      ],
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2"
+    },
+    {
+      "scores": [
+        26,
+        16,
+        5,
+        29,
+        26,
+        20,
+        46,
+        26,
+        40,
+        38,
+        31,
+        41,
+        18,
+        38,
+        38,
+        29,
+        55,
+        40,
+        36,
+        17,
+        30,
+        53,
+        41,
+        52,
+        37,
+        12,
+        17,
+        36,
+        20,
+        3
+      ],
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853"
+    },
+    {
+      "scores": [
+        47,
+        45,
+        54,
+        28,
+        53,
+        38,
+        45,
+        26,
+        38,
+        22,
+        39,
+        40,
+        52,
+        38,
+        20,
+        52,
+        65,
+        53,
+        50,
+        36,
+        55,
+        51,
+        16,
+        29,
+        61,
+        31,
+        21,
+        21,
+        27,
+        44
+      ],
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b"
+    },
+    {
+      "scores": [
+        24,
+        34,
+        15,
+        38,
+        39,
+        27,
+        43,
+        27,
+        27,
+        35,
+        29,
+        28,
+        27,
+        18,
+        26,
+        33,
+        38,
+        20,
+        26,
+        46,
+        29,
+        27,
+        10,
+        26,
+        39,
+        29,
+        6,
+        -3,
+        16,
+        30
+      ],
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e"
+    },
+    {
+      "scores": [
+        43,
+        50,
+        58,
+        50,
+        8,
+        41,
+        69,
+        48,
+        13,
+        61,
+        56,
+        38,
+        47,
+        60,
+        64,
+        13,
+        21,
+        56,
+        30,
+        44,
+        60,
+        15,
+        24,
+        46
+      ],
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4"
+    },
+    {
+      "scores": [
+        16,
+        34,
+        7,
+        5,
+        13,
+        6,
+        23,
+        36,
+        24,
+        17,
+        19,
+        16,
+        34,
+        11,
+        11,
+        60,
+        23,
+        41,
+        34,
+        31,
+        48,
+        17,
+        26,
+        16,
+        18,
+        29,
+        22,
+        19,
+        19,
+        15
+      ],
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9"
+    },
+    {
+      "scores": [
+        38,
+        20,
+        26,
+        60,
+        19,
+        30,
+        8,
+        15,
+        26,
+        51,
+        11,
+        29,
+        25,
+        33,
+        26,
+        22,
+        40,
+        27,
+        17,
+        21,
+        38,
+        25,
+        20,
+        25,
+        17,
+        32,
+        29,
+        37,
+        22,
+        6
+      ],
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53"
+    },
+    {
+      "scores": [
+        29,
+        19,
+        31,
+        34,
+        49,
+        21,
+        16,
+        9,
+        31,
+        37,
+        29,
+        29,
+        21,
+        13,
+        27,
+        30,
+        24,
+        22,
+        11,
+        31,
+        14,
+        20,
+        41,
+        17,
+        10,
+        10,
+        14,
+        42,
+        27,
+        61
+      ],
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246"
+    },
+    {
+      "scores": [
+        16,
+        18,
+        9,
+        16,
+        1,
+        16,
+        10,
+        43,
+        21,
+        20,
+        2,
+        31,
+        29,
+        14,
+        16,
+        34,
+        7,
+        -1,
+        31,
+        36,
+        16,
+        2,
+        7,
+        30,
+        27,
+        7,
+        -5,
+        8,
+        13,
+        9
+      ],
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9"
+    },
+    {
+      "scores": [
+        26,
+        41,
+        50,
+        35,
+        34,
+        25,
+        33,
+        41,
+        39,
+        32,
+        32,
+        42,
+        43,
+        17,
+        18,
+        30,
+        -1,
+        47,
+        35,
+        49,
+        51,
+        30,
+        47,
+        31,
+        30,
+        20,
+        40,
+        14,
+        33,
+        42
+      ],
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14"
+    },
+    {
+      "scores": [
+        45,
+        41,
+        58,
+        37,
+        39,
+        43,
+        49,
+        33,
+        39,
+        28,
+        45,
+        48,
+        66,
+        60,
+        47,
+        65,
+        60,
+        35,
+        70,
+        49,
+        44,
+        42,
+        62,
+        44,
+        33,
+        51,
+        52,
+        42,
+        30,
+        49
+      ],
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23"
+    },
+    {
+      "scores": [
+        8,
+        12,
+        15,
+        29,
+        39,
+        41,
+        27,
+        15,
+        24,
+        9,
+        42,
+        26,
+        39,
+        27,
+        3,
+        49,
+        31,
+        39,
+        38,
+        7,
+        29,
+        29,
+        8,
+        49,
+        20,
+        32,
+        21,
+        16,
+        23,
+        22
+      ],
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6"
+    },
+    {
+      "scores": [
+        -1,
+        2,
+        1,
+        19,
+        -1
+      ],
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5"
+    },
+    {
+      "scores": [
+        -4
+      ],
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8"
+    },
+    {
+      "scores": [
+        22,
+        32,
+        63,
+        17,
+        16,
+        -3,
+        26,
+        51,
+        31,
+        39,
+        47,
+        31,
+        15,
+        31,
+        21,
+        47,
+        27,
+        18,
+        37,
+        22,
+        9,
+        23,
+        15,
+        41,
+        37,
+        20,
+        27,
+        44,
+        10,
+        0
+      ],
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a"
+    },
+    {
+      "scores": [
+        8,
+        2,
+        5,
+        20,
+        32,
+        19,
+        23,
+        2,
+        17,
+        54,
+        31,
+        30,
+        5,
+        14,
+        27,
+        8,
+        2,
+        27,
+        27,
+        22,
+        6,
+        18,
+        31,
+        18,
+        30,
+        27,
+        23,
+        1,
+        19,
+        34
+      ],
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff"
+    },
+    {
+      "scores": [
+        11,
+        30,
+        57,
+        29,
+        20,
+        11,
+        28,
+        21,
+        32,
+        30,
+        52,
+        23,
+        29,
+        24,
+        29,
+        28,
+        69,
+        38,
+        19,
+        54,
+        39,
+        15,
+        22,
+        24,
+        8,
+        40,
+        12,
+        32,
+        42,
+        28
+      ],
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5"
+    },
+    {
+      "scores": [
+        43,
+        61,
+        52,
+        24,
+        36,
+        52,
+        31,
+        34,
+        55,
+        34,
+        51,
+        29,
+        41,
+        -6,
+        30,
+        54,
+        54,
+        46,
+        49,
+        32,
+        55,
+        57,
+        67,
+        60,
+        36,
+        18,
+        22,
+        27,
+        46,
+        56
+      ],
+      "player_id": "5bdb8af4-1a7e-4286-9265-0c746bf8da9e"
+    },
+    {
+      "scores": [
+        37,
+        15,
+        33,
+        25,
+        8,
+        23,
+        25,
+        32,
+        46,
+        38,
+        45,
+        9,
+        15,
+        14,
+        38,
+        43,
+        19,
+        5,
+        16,
+        31,
+        17,
+        8,
+        15,
+        28,
+        20,
+        19,
+        0,
+        28,
+        31,
+        22
+      ],
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658"
+    },
+    {
+      "scores": [
+        4,
+        37,
+        26,
+        11,
+        8,
+        46,
+        36,
+        12,
+        60,
+        19,
+        10,
+        33,
+        37,
+        20,
+        17,
+        31,
+        33,
+        38,
+        21,
+        33,
+        32,
+        14,
+        22,
+        22,
+        49,
+        12,
+        22,
+        33,
+        35,
+        55
+      ],
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b"
+    },
+    {
+      "scores": [
+        42,
+        18,
+        53,
+        36,
+        48,
+        35,
+        51,
+        35,
+        51,
+        25,
+        44,
+        44,
+        29,
+        21,
+        48,
+        40,
+        37,
+        38,
+        35,
+        25,
+        59,
+        24,
+        8,
+        48,
+        46,
+        48,
+        39,
+        25,
+        42,
+        36
+      ],
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4"
+    },
+    {
+      "scores": [
+        24
+      ],
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02"
+    },
+    {
+      "scores": [
+        18,
+        42,
+        33,
+        21,
+        18,
+        18,
+        42,
+        26,
+        53,
+        42,
+        26,
+        34,
+        36,
+        39,
+        21,
+        62,
+        33,
+        68,
+        59,
+        29,
+        81,
+        47,
+        37,
+        31,
+        4,
+        33,
+        20,
+        72,
+        32,
+        15
+      ],
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7"
+    },
+    {
+      "scores": [
+        19,
+        15,
+        5,
+        26,
+        1,
+        24,
+        12,
+        17,
+        32,
+        15,
+        15,
+        22,
+        7,
+        26,
+        8,
+        46,
+        30,
+        25,
+        36,
+        21,
+        10,
+        21,
+        8,
+        27,
+        38,
+        27,
+        24,
+        21,
+        19,
+        19
+      ],
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45"
+    },
+    {
+      "scores": [
+        28,
+        44,
+        47,
+        51,
+        43,
+        50,
+        57,
+        58,
+        24,
+        56,
+        34,
+        52,
+        49,
+        41,
+        43,
+        44,
+        79,
+        36,
+        59,
+        17,
+        49,
+        72,
+        23,
+        24,
+        14,
+        24,
+        76,
+        27,
+        28,
+        74
+      ],
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3"
+    },
+    {
+      "scores": [
+        36,
+        34,
+        51,
+        82,
+        29,
+        24,
+        42,
+        28,
+        35,
+        19,
+        25,
+        24,
+        57,
+        40,
+        35,
+        89,
+        58,
+        43,
+        92,
+        40,
+        60,
+        28,
+        50,
+        21,
+        20,
+        49,
+        39,
+        49,
+        38,
+        78
+      ],
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34"
+    },
+    {
+      "scores": [
+        61,
+        44,
+        22,
+        37,
+        68,
+        59,
+        66,
+        46,
+        30,
+        42,
+        37,
+        33,
+        60,
+        37,
+        36,
+        53,
+        55,
+        33,
+        39,
+        55,
+        42,
+        26,
+        50,
+        19,
+        43,
+        60,
+        52,
+        52,
+        36,
+        55
+      ],
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c"
+    },
+    {
+      "scores": [
+        40,
+        32,
+        73,
+        92,
+        47,
+        59,
+        71,
+        46,
+        61,
+        65,
+        77,
+        67,
+        92,
+        87,
+        34,
+        59,
+        55,
+        70,
+        70,
+        82,
+        71,
+        60,
+        44,
+        86,
+        91,
+        55,
+        40,
+        24,
+        82,
+        60
+      ],
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d"
+    },
+    {
+      "scores": [
+        40,
+        28,
+        26,
+        32,
+        13,
+        22,
+        35,
+        36,
+        37,
+        28,
+        19,
+        18,
+        29,
+        5,
+        32,
+        40,
+        43,
+        25,
+        30,
+        28,
+        24,
+        36,
+        26,
+        17,
+        35,
+        21,
+        12,
+        20,
+        23,
+        16
+      ],
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061"
+    },
+    {
+      "scores": [
+        21,
+        77,
+        33,
+        47,
+        36,
+        49,
+        34,
+        28,
+        40,
+        22,
+        48,
+        41,
+        59,
+        50,
+        55,
+        54,
+        41,
+        32,
+        23,
+        31,
+        44,
+        45,
+        61,
+        55,
+        52,
+        40,
+        42,
+        26,
+        41,
+        11
+      ],
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b"
+    },
+    {
+      "scores": [
+        32,
+        33,
+        25,
+        32,
+        32,
+        18,
+        41,
+        24,
+        24,
+        27,
+        15,
+        23,
+        42,
+        22,
+        22,
+        44,
+        62,
+        19,
+        27,
+        21,
+        18,
+        12,
+        17,
+        36,
+        44,
+        29,
+        23,
+        12,
+        35,
+        23
+      ],
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03"
+    },
+    {
+      "scores": [
+        0,
+        -1,
+        17,
+        14,
+        7,
+        12,
+        26,
+        6,
+        54,
+        14,
+        18,
+        2,
+        13,
+        30,
+        0,
+        0,
+        1,
+        15,
+        4,
+        6,
+        7,
+        11,
+        6,
+        0,
+        3,
+        0,
+        31,
+        2,
+        1,
+        27
+      ],
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7"
+    },
+    {
+      "scores": [
+        8,
+        19,
+        4,
+        27,
+        30,
+        11,
+        16,
+        0,
+        7,
+        16,
+        24,
+        8,
+        9,
+        16,
+        21,
+        19,
+        0,
+        13,
+        30,
+        0,
+        28,
+        30,
+        20,
+        20,
+        12,
+        50,
+        14,
+        23,
+        23,
+        15
+      ],
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6"
+    },
+    {
+      "scores": [
+        14,
+        41,
+        8,
+        31,
+        33,
+        10,
+        25,
+        15,
+        26,
+        29,
+        43,
+        24,
+        13,
+        39,
+        14,
+        21,
+        9,
+        24,
+        61,
+        38,
+        37,
+        33,
+        26,
+        42,
+        7,
+        22,
+        13,
+        42,
+        19,
+        40
+      ],
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889"
+    },
+    {
+      "scores": [
+        31,
+        34,
+        14,
+        36,
+        31,
+        48,
+        26,
+        44,
+        24,
+        33,
+        26,
+        30,
+        27,
+        23,
+        10,
+        30,
+        23,
+        23,
+        27,
+        44,
+        14,
+        8,
+        23,
+        41,
+        38,
+        30,
+        22,
+        1,
+        -2,
+        8
+      ],
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb"
+    },
+    {
+      "scores": [
+        0,
+        -1,
+        6,
+        3
+      ],
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75"
+    },
+    {
+      "scores": [
+        2
+      ],
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910"
+    },
+    {
+      "scores": [
+        27,
+        53,
+        36,
+        -1,
+        23,
+        22,
+        30,
+        35,
+        29,
+        43,
+        40,
+        33,
+        34,
+        30,
+        6,
+        40,
+        7,
+        42,
+        23,
+        30,
+        26,
+        21,
+        31,
+        11,
+        26,
+        47,
+        22,
+        41,
+        20,
+        11
+      ],
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f"
+    },
+    {
+      "scores": [
+        37,
+        17,
+        40,
+        28,
+        10,
+        49,
+        26,
+        21,
+        32,
+        82,
+        23,
+        35,
+        43,
+        39,
+        20,
+        55,
+        26,
+        3,
+        52,
+        31,
+        15,
+        25,
+        56,
+        55,
+        35,
+        26,
+        11,
+        14,
+        39,
+        27
+      ],
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87"
+    },
+    {
+      "scores": [
+        24,
+        17,
+        39,
+        9,
+        11,
+        35,
+        31,
+        1,
+        24,
+        35,
+        39,
+        21,
+        23,
+        40,
+        9,
+        18,
+        28,
+        30,
+        34,
+        39,
+        14,
+        23,
+        5,
+        38,
+        23,
+        52,
+        26,
+        12,
+        16,
+        5
+      ],
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec"
+    },
+    {
+      "scores": [
+        79,
+        55,
+        64,
+        63,
+        22,
+        27,
+        44,
+        25,
+        46,
+        28,
+        30,
+        34,
+        57,
+        46,
+        33,
+        51,
+        55,
+        62,
+        42,
+        11,
+        37,
+        91,
+        80,
+        34,
+        28,
+        49,
+        20,
+        51,
+        45,
+        82
+      ],
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5"
+    },
+    {
+      "scores": [
+        52,
+        36,
+        60,
+        65,
+        35,
+        50,
+        24,
+        44,
+        64,
+        21,
+        58,
+        13,
+        36,
+        61,
+        36,
+        58,
+        45,
+        53,
+        35,
+        58,
+        41,
+        49,
+        66,
+        31,
+        43,
+        66,
+        45,
+        35,
+        34,
+        48
+      ],
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4"
+    }
+  ],
+  "lineups": [
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-28",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-29",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-30",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "5bdb8af4-1a7e-4286-9265-0c746bf8da9e",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-10-31",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "slot_type": "F",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "slot_type": "PF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "slot_type": "C",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "slot_type": "PG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "slot_type": "SF",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "slot_type": "SG",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "slot_type": "G",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "slot_type": "UTIL",
+      "is_auto_set": true
+    },
+    {
+      "game_date": "2026-11-01",
+      "member_id": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "slot_type": "F",
+      "is_auto_set": true
+    }
+  ],
+  "weekEnd": "2026-11-01",
+  "previous": {
+    "games": [
+      {
+        "date": "2026-10-27",
+        "gameId": "6d7c7a88-4740-44fe-b37f-5fc9d23f1901",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 47.05,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "d3c9b79c-f757-495d-a6a4-b39d31025a72",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 49.9,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 51.46,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "6b530999-5d6a-4297-9cae-1e017258993e",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.33,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "48acf097-32ca-416f-a1ca-c850735f5443",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 36.66,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "3fff3e78-b270-4b67-b896-7471ebb9df52",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 39.09,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "6b530999-5d6a-4297-9cae-1e017258993e",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 42.78,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "affd7613-0e02-401b-ab40-9883d3e00264",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 42.46,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "234e9f41-761c-48d0-ad60-93e05f0337a4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 27.49,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "20ae76a9-8fc4-4649-9708-55ce015fe272",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 28.51,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "031adbb9-42a8-4fdd-84e1-08f3ea4d17e7",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "41fa67f3-7d15-4998-810a-d964570bdd23",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 44.6,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "bf0e02df-26c0-4a5f-8dcb-eb3c550f6f39",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "41fa67f3-7d15-4998-810a-d964570bdd23",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 40,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "9061a52b-40cf-49b6-b3e9-beee8cf6d5a8",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "41fa67f3-7d15-4998-810a-d964570bdd23",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 42.03,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "0d960e54-b404-4706-8e99-410de8e1a237",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "5a73d766-00f8-482e-b62a-676b82b857e5",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 32.55,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "d54a84ef-8f3b-4d96-8843-ff2b66808d59",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "5a73d766-00f8-482e-b62a-676b82b857e5",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 35.04,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "bf0e02df-26c0-4a5f-8dcb-eb3c550f6f39",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "5a73d766-00f8-482e-b62a-676b82b857e5",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 31.94,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "3fff3e78-b270-4b67-b896-7471ebb9df52",
+        "source": null,
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "5bdb8af4-1a7e-4286-9265-0c746bf8da9e",
+        "sourceAt": null,
+        "projection": null,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "6d7c7a88-4740-44fe-b37f-5fc9d23f1901",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 34.17,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "d3c9b79c-f757-495d-a6a4-b39d31025a72",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 34.21,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 36.44,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "031adbb9-42a8-4fdd-84e1-08f3ea4d17e7",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "797476ef-95a7-4b01-b1ba-1388501627e4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 35.7,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "5c5c1bc9-b214-464d-a33a-b1f5025dbfd4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "797476ef-95a7-4b01-b1ba-1388501627e4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.68,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "1229ca8e-6586-40e5-b15a-f73db22e84fb",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "797476ef-95a7-4b01-b1ba-1388501627e4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 37.29,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "76312da3-f531-4eef-b372-d02d5f1e5ea1",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 32.46,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "efd888e2-b1ff-4ee0-bda1-66e0c1e3a644",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.63,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "72a445f4-66ab-4447-9647-d3d31adb756a",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 32.69,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "6b530999-5d6a-4297-9cae-1e017258993e",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 46.2,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "48acf097-32ca-416f-a1ca-c850735f5443",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 44.01,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "3fff3e78-b270-4b67-b896-7471ebb9df52",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 49.2,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "3ad9653a-634b-4f16-898f-9b932ba2f374",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 58.48,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "dbf6cd0f-ec60-4117-b280-806cdcd0a527",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 60.37,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "f07a94f5-c583-45bc-8506-20f788686fdb",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 39.29,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "234e9f41-761c-48d0-ad60-93e05f0337a4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.54,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "8f4ac45f-4607-46a0-b016-db092c96694f",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.61,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "0d960e54-b404-4706-8e99-410de8e1a237",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 31.41,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "d54a84ef-8f3b-4d96-8843-ff2b66808d59",
+        "source": null,
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+        "sourceAt": null,
+        "projection": null,
+        "remainingFraction": 0.53
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "bf0e02df-26c0-4a5f-8dcb-eb3c550f6f39",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 30.99,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "f1758e7c-9778-4bc3-a944-2ef63c0b071c",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 41.4,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "44d34e25-e228-4ddf-87ee-de8fcc9b2202",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 44.27,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "63960f2b-dd8a-497b-b39d-8795d4a3891c",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "playerId": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 35.3,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "e81c3638-607b-4c0f-9b10-f67bcf8c9b49",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 18.16,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "48acf097-32ca-416f-a1ca-c850735f5443",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 17.97,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "abb53c07-2b11-4c77-b598-c6edbc33187b",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 17.91,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "c346e111-5b97-4ef1-9578-7b679079d293",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 15.75,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 16.47,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "031adbb9-42a8-4fdd-84e1-08f3ea4d17e7",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 18.73,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "5c5c1bc9-b214-464d-a33a-b1f5025dbfd4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 19.66,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "1229ca8e-6586-40e5-b15a-f73db22e84fb",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 18.97,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "7bf115b2-3489-445d-9984-720bc3963018",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 21.75,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "7c3364e8-f8ef-455f-83fa-211c38e3663b",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 20.91,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "11a6d365-d7ee-4b5b-bdac-aad59b4ff9ec",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 23.17,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "d1550e13-e9e5-4b1e-b0b1-8f771b8e2919",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 21.68,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "6d7c7a88-4740-44fe-b37f-5fc9d23f1901",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 23.13,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "d3c9b79c-f757-495d-a6a4-b39d31025a72",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 22.68,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 22.7,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "f07a94f5-c583-45bc-8506-20f788686fdb",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 33.83,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "11a6d365-d7ee-4b5b-bdac-aad59b4ff9ec",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 29.86,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "20ae76a9-8fc4-4649-9708-55ce015fe272",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 29.22,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "c346e111-5b97-4ef1-9578-7b679079d293",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "504db10f-0764-4e92-96f6-638e42afd1c6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 19.99,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "504db10f-0764-4e92-96f6-638e42afd1c6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 22.06,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "6d7c7a88-4740-44fe-b37f-5fc9d23f1901",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 3.29,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "d3c9b79c-f757-495d-a6a4-b39d31025a72",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 5.19,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 5.05,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "7c3364e8-f8ef-455f-83fa-211c38e3663b",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 30.23,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "234e9f41-761c-48d0-ad60-93e05f0337a4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 24.59,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "20ae76a9-8fc4-4649-9708-55ce015fe272",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 25.34,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "6d7c7a88-4740-44fe-b37f-5fc9d23f1901",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 21.86,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "66028248-5d58-4253-aa6f-2645b48f0de7",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 22.46,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "8f4ac45f-4607-46a0-b016-db092c96694f",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 19.02,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "f07a94f5-c583-45bc-8506-20f788686fdb",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 38.62,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "234e9f41-761c-48d0-ad60-93e05f0337a4",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 39.37,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "8f4ac45f-4607-46a0-b016-db092c96694f",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 39.43,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "dbf6cd0f-ec60-4117-b280-806cdcd0a527",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 17.79,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "76312da3-f531-4eef-b372-d02d5f1e5ea1",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 5.73,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "efd888e2-b1ff-4ee0-bda1-66e0c1e3a644",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 6.43,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "72a445f4-66ab-4447-9647-d3d31adb756a",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 5.57,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-27",
+        "gameId": "7bf115b2-3489-445d-9984-720bc3963018",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 12.33,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "7c3364e8-f8ef-455f-83fa-211c38e3663b",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 11.84,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "11a6d365-d7ee-4b5b-bdac-aad59b4ff9ec",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 10.6,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-11-01",
+        "gameId": "d1550e13-e9e5-4b1e-b0b1-8f771b8e2919",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 9.98,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-29",
+        "gameId": "c346e111-5b97-4ef1-9578-7b679079d293",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 9.04,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-31",
+        "gameId": "c00fadb5-3a86-4dcd-9d83-18faa197a0f6",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 9.77,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "6b530999-5d6a-4297-9cae-1e017258993e",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 13.39,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "affd7613-0e02-401b-ab40-9883d3e00264",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 13.96,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-28",
+        "gameId": "b1f7c144-0c2f-4b48-aaa3-701545476b2f",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 39.01,
+        "remainingFraction": 1
+      },
+      {
+        "date": "2026-10-30",
+        "gameId": "44d34e25-e228-4ddf-87ee-de8fcc9b2202",
+        "source": "Sleeper (RotoWire)",
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "playerId": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+        "sourceAt": "2026-10-27T22:00:13.669777+00:00",
+        "projection": 36.4,
+        "remainingFraction": 1
+      }
+    ],
+    "teams": [
+      {
+        "memberId": "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3",
+        "variance": 7507.118390804599,
+        "coveredGames": 46,
+        "currentPoints": 359,
+        "projectedFinal": 1269.8899999999999,
+        "remainingGames": 46,
+        "winProbability": null
+      },
+      {
+        "memberId": "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+        "variance": 8514.428513989755,
+        "coveredGames": 39,
+        "currentPoints": 366,
+        "projectedFinal": null,
+        "remainingGames": 40,
+        "winProbability": null
+      }
+    ],
+    "status": "limited",
+    "lineupBasis": "Saved lineups and enabled automatic lineups",
+    "modelVersion": "independent-games-v1",
+    "missingInputs": [
+      "Lineup projection unavailable: 5bdb8af4-1a7e-4286-9265-0c746bf8da9e",
+      "Projection unavailable: 5bdb8af4-1a7e-4286-9265-0c746bf8da9e"
+    ],
+    "tieProbability": null
+  },
+  "matchupId": "9e002ea0-c1d7-40f1-bca6-4afea03eb931",
+  "templates": [
+    {
+      "slot_type": "PG",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "SG",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "SF",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "PF",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "C",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "G",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "F",
+      "slot_count": 1
+    },
+    {
+      "slot_type": "UTIL",
+      "slot_count": 3
+    }
+  ],
+  "observedAt": "2026-10-29T01:11:00Z",
+  "isFinalized": false,
+  "projections": [
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.97
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 15.75
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 49.9
+    },
+    {
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 8.7
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 18.47
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.66
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.66
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 42.46
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 20.91
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 30.71
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.68
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.86
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 40
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.99
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 1.52
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.19
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 3.61
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 31.94
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 30.23
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 34.21
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.68
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 13.71
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.63
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.02
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.37
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 52.09
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 44.01
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 60.37
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.79
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.54
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 27.11
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 6.43
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 11.84
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.39
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.04
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 11.84
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 26.81
+    },
+    {
+      "player_id": "e07b2e61-77fa-497e-8840-6426e75b72c4",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 13.96
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-28",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.01
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "requested_date": "2026-10-28",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 44.27
+    },
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.97
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 15.75
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 49.9
+    },
+    {
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 8.7
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 18.47
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.66
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.66
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 42.46
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 23.17
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 27.49
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.68
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.86
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 40
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.99
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 1.52
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.19
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 2.65
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 31.94
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 24.59
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 34.21
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.68
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 13.71
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.63
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.02
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.37
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 52.09
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 44.01
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 60.37
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.79
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.54
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 27.11
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 6.43
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 10.6
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 25.81
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-29",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.04
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.9
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 26.81
+    },
+    {
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 30.99
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 13.96
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.4
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "requested_date": "2026-10-29",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 44.27
+    },
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.91
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 16.47
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 51.46
+    },
+    {
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 8.7
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 18.47
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.09
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.66
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 42.46
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 23.17
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 27.49
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.7
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.86
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 40
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.06
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 1.52
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.05
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 2.65
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 31.94
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 24.59
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.44
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.68
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 14.29
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.63
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.02
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.37
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 52.09
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 49.2
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 60.37
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.79
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.54
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 27.11
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 6.43
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 10.6
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 25.81
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.77
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.9
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 26.81
+    },
+    {
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 30.99
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 13.96
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.4
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "requested_date": "2026-10-30",
+      "projection_date": "2026-10-30",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 44.27
+    },
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 17.91
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 16.47
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 51.46
+    },
+    {
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 7.34
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 19
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.09
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 18.97
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 36.25
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 21.68
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 28.51
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.7
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.22
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 42.03
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 22.06
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 6.32
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.05
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 17.96
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 33.98
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 25.34
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 36.44
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 37.29
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 14.29
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 32.69
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 19.02
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.43
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 39.5
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 49.2
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 55.31
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 16
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 38.61
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 23.34
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.57
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.98
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 28.5
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.77
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.9
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 2
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 23.99
+    },
+    {
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 26.65
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 14.75
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 59.36
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "requested_date": "2026-10-31",
+      "projection_date": "2026-10-31",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 35.3
+    },
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 15.5
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 16.38
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 50.99
+    },
+    {
+      "player_id": "16239ceb-89dd-46fe-ae29-485a83e82ad2",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 4
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 19
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 30.68
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 18.97
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 36.25
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 21.68
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 0
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 28.51
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 9.99
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 29.22
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 40.35
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 20.5
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 6.32
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 5
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 17.96
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 33.98
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 25.34
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 40.98
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 37.29
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 24
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 32.69
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 19.67
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 51.25
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 51
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 47.69
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 55.31
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 16
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 30
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 23.34
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 5.57
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-01",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:13.669777+00:00",
+      "projection_source_label": "Sleeper (RotoWire)",
+      "projection_fantasy_points": 9.98
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 28.5
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 7.25
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 2
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 2
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 23.99
+    },
+    {
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 26.65
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 14.75
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 59.36
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "requested_date": "2026-11-01",
+      "projection_date": "2026-11-02",
+      "projection_is_fresh": true,
+      "projection_fetched_at": "2026-10-27T22:00:25.57+00:00",
+      "projection_source_label": "Internal Projection",
+      "projection_fantasy_points": 40.5
+    }
+  ],
+  "seasonAverages": [
+    {
+      "player_id": "01e123c3-881e-4e7a-b903-05e8c7e6f57c",
+      "avg_fantasy_points": 15.5
+    },
+    {
+      "player_id": "02cce3ed-bb86-4e7a-8cf4-749766d19208",
+      "avg_fantasy_points": 16.33
+    },
+    {
+      "player_id": "1525dcf0-21e4-4c0d-a019-e8ffd038b796",
+      "avg_fantasy_points": 51
+    },
+    {
+      "player_id": "164deb8c-a326-4de0-9647-74bd2517e7c2",
+      "avg_fantasy_points": 4
+    },
+    {
+      "player_id": "23f894fe-bb1c-43df-a094-27b5ef6a1853",
+      "avg_fantasy_points": 19
+    },
+    {
+      "player_id": "246fe817-c8b7-492f-8371-51c1692b4b3b",
+      "avg_fantasy_points": 30.67
+    },
+    {
+      "player_id": "28e20aad-c316-4cf5-a939-e4e8be730c6e",
+      "avg_fantasy_points": 12.25
+    },
+    {
+      "player_id": "28e394f8-7bac-4c6d-873c-1a6d47f645e4",
+      "avg_fantasy_points": 36.25
+    },
+    {
+      "player_id": "2dfdc1a1-1bd0-44c8-81b4-446e449c48e9",
+      "avg_fantasy_points": 17.67
+    },
+    {
+      "player_id": "34763772-1f60-4470-8eba-2ec4c6597a53",
+      "avg_fantasy_points": 21.67
+    },
+    {
+      "player_id": "395f36b9-adb2-4fbb-8dea-ccb71fbc7246",
+      "avg_fantasy_points": 43.33
+    },
+    {
+      "player_id": "3a1d5c5b-9c67-41db-affd-364a069d6ca9",
+      "avg_fantasy_points": 10
+    },
+    {
+      "player_id": "3a7c7c68-958a-4156-8e3c-c29cbd775d14",
+      "avg_fantasy_points": 37.5
+    },
+    {
+      "player_id": "41fa67f3-7d15-4998-810a-d964570bdd23",
+      "avg_fantasy_points": 40.33
+    },
+    {
+      "player_id": "504db10f-0764-4e92-96f6-638e42afd1c6",
+      "avg_fantasy_points": 20.5
+    },
+    {
+      "player_id": "5096a13a-2153-4c34-95db-bea14efdb9f5",
+      "avg_fantasy_points": 6.33
+    },
+    {
+      "player_id": "521afb52-2dc8-4d92-913e-1d27e4dc17b8",
+      "avg_fantasy_points": -4
+    },
+    {
+      "player_id": "5680d0e8-7765-4bbb-b9a8-76dbd441572a",
+      "avg_fantasy_points": 5
+    },
+    {
+      "player_id": "56d36034-8b9d-495d-a41f-c1d3f81dd4ff",
+      "avg_fantasy_points": 18
+    },
+    {
+      "player_id": "5a73d766-00f8-482e-b62a-676b82b857e5",
+      "avg_fantasy_points": 34
+    },
+    {
+      "player_id": "5fb13bf4-fbec-479e-ac93-6181abde2658",
+      "avg_fantasy_points": 27
+    },
+    {
+      "player_id": "64a99d31-c939-4e39-ac13-5f3077d1256b",
+      "avg_fantasy_points": 41
+    },
+    {
+      "player_id": "797476ef-95a7-4b01-b1ba-1388501627e4",
+      "avg_fantasy_points": 35.5
+    },
+    {
+      "player_id": "7b9e82d7-5156-423a-9743-fcb2006bde02",
+      "avg_fantasy_points": 24
+    },
+    {
+      "player_id": "7c70d64b-d087-416e-bd40-ddc8f59906b7",
+      "avg_fantasy_points": 39.67
+    },
+    {
+      "player_id": "7eb51aab-f102-4312-b8aa-5eb994a53b45",
+      "avg_fantasy_points": 19.67
+    },
+    {
+      "player_id": "85a1701a-6666-4ca5-b6aa-c4c5ee5a3ad3",
+      "avg_fantasy_points": 51.25
+    },
+    {
+      "player_id": "88709033-4a01-4016-87b2-90f32dfe5d34",
+      "avg_fantasy_points": 51
+    },
+    {
+      "player_id": "8d6395d2-a68b-4fb6-abe1-b74f7054a84c",
+      "avg_fantasy_points": 47.67
+    },
+    {
+      "player_id": "9e6c33b1-3b03-4919-94bd-565ffc0a9c9d",
+      "avg_fantasy_points": 55.33
+    },
+    {
+      "player_id": "9fac44ee-dda0-4934-9471-bb7bd6d51061",
+      "avg_fantasy_points": 16
+    },
+    {
+      "player_id": "baaba8cb-d25f-4331-af88-9262a4996b9b",
+      "avg_fantasy_points": 30
+    },
+    {
+      "player_id": "baac7add-6b83-4142-905d-baed86f1be03",
+      "avg_fantasy_points": 23.33
+    },
+    {
+      "player_id": "bc400bb7-6cb6-43f8-97a8-a9acb1aa88d7",
+      "avg_fantasy_points": 10
+    },
+    {
+      "player_id": "c163a746-5b1d-46ee-82a0-1947d29575d6",
+      "avg_fantasy_points": 19
+    },
+    {
+      "player_id": "c7026607-091e-43b1-a184-fb9bf9d49889",
+      "avg_fantasy_points": 28.5
+    },
+    {
+      "player_id": "ce75138d-78ff-4dff-a72b-4b1445a092cb",
+      "avg_fantasy_points": 7.25
+    },
+    {
+      "player_id": "d9a3757d-d31a-424f-a2be-be919f6fec75",
+      "avg_fantasy_points": 2
+    },
+    {
+      "player_id": "da5eda53-4a98-4a8c-810f-a89ba653f910",
+      "avg_fantasy_points": 2
+    },
+    {
+      "player_id": "dd9ab773-7f67-4928-bbbd-0b369b52473f",
+      "avg_fantasy_points": 24
+    },
+    {
+      "player_id": "f28f3bf6-7490-446a-afe1-f7ce09d81b87",
+      "avg_fantasy_points": 26.67
+    },
+    {
+      "player_id": "f369801b-2a05-4768-b8f9-ac378cc45fec",
+      "avg_fantasy_points": 14.75
+    },
+    {
+      "player_id": "f765f5b3-f66f-4bad-8d2d-bc4081b471a5",
+      "avg_fantasy_points": 59.33
+    },
+    {
+      "player_id": "ff8e7849-8d90-4cec-adb2-64b949f3a5c4",
+      "avg_fantasy_points": 40.5
+    }
+  ],
+  "automaticMembers": [
+    "6d9faceb-6d4a-479b-ace7-ac65a73fc982",
+    "a0886fc8-37ba-4fe7-bec7-8a58c3c330c3"
+  ]
+}

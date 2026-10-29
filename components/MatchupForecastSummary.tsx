@@ -19,7 +19,7 @@ export function MatchupForecastSummary({ forecast, myMemberId, opponentMemberId,
     const missing = forecast || error ? 'n/a' : 'pending'
     const projection = (index: number) => {
         const value = teams[index]?.projectedFinal
-        return value != null && Number.isFinite(value) ? `${Math.round(value)} proj` : missing === 'pending' ? missing : `${missing} proj`
+        return value != null && Number.isFinite(value) ? `${forecast?.missingInputs?.some(input => input.startsWith('Projection substituted:') && forecast.games?.some(game => game.memberId === teams[index]?.memberId && input === `Projection substituted: ${game.playerId}:${game.gameId}`)) ? '~' : ''}${Math.round(value)} proj` : missing === 'pending' ? missing : `${missing} proj`
     }
     const odds = (index: number) => forecast ? `${Math.round(probabilities[index] * 100)}% win` : missing === 'pending' ? missing : `${missing} win`
     return <View style={styles.summary} testID="matchup-forecast">
