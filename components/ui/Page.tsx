@@ -88,6 +88,8 @@ export function PageHeader({
     onBack,
     backLabel,
     titleIsPageHeading = false,
+    showTitle = false,
+    divider = true,
     compact = false,
     variant,
 }: {
@@ -100,17 +102,19 @@ export function PageHeader({
     backLabel?: string
     /** Make the visible title the page's h1 (screens not wrapped in Page). */
     titleIsPageHeading?: boolean
+    showTitle?: boolean
+    divider?: boolean
     compact?: boolean
     variant?: 'compact' | 'standard'
 }) {
     const { padX } = usePageMetrics()
     const small = variant ? variant === 'compact' : compact
-    const hideTitle = Boolean(title && onBack && !tabs)
+    const hideTitle = Boolean(title && onBack && !tabs && !showTitle)
     const headingProps = titleIsPageHeading
         ? ({ role: 'heading', 'aria-level': 1, accessibilityRole: 'header' } as const)
         : {}
     return (
-        <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, small && styles.headerCompact, { paddingHorizontal: padX }]}>
+        <View testID={small ? 'page-header-compact' : 'page-header-standard'} style={[styles.header, tabs ? styles.headerTabs : styles.headerCentered, small && styles.headerCompact, !divider && styles.headerBorderless, { paddingHorizontal: padX }]}>
             {hideTitle && titleIsPageHeading ? <Text style={srOnly} {...headingProps}>{title}</Text> : null}
             {onBack ? <View style={styles.headerBack}><BackButton onPress={onBack} label={Platform.OS === 'web' ? backLabel : hideTitle ? 'Close' : backLabel} icon={hideTitle ? 'close' : 'arrow-back'} /></View> : null}
             <View style={styles.headerMain}>
@@ -140,6 +144,7 @@ const styles = StyleSheet.create({
     // Tabs sit on the bottom border; titles and back controls center in the row.
     headerTabs: { alignItems: 'center', ...componentTokens.pageHeader.tabs, marginBottom: spacing.md },
     headerCentered: { alignItems: 'center', minHeight: componentTokens.pageHeader.standard.minHeight, paddingVertical: componentTokens.pageHeader.standard.paddingVertical },
+    headerBorderless: { borderBottomWidth: 0 },
     headerCompact: { minHeight: componentTokens.pageHeader.compact.minHeight, paddingVertical: componentTokens.pageHeader.compact.paddingVertical },
     titleCompact: { ...componentTokens.pageHeader.compact.title },
     headerBack: { alignSelf: 'center' },

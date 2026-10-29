@@ -2928,6 +2928,41 @@
       "statementCount": 19,
       "statementsSha256": "c175ced10b538e0faf3a0b2213338d29c7cd4459208770d7f1e5cbeeda1d7c4c",
       "sha256": "3a38acb7a768b72325aed897b41e7c3351cb8e4aeda92f782d7e22d709b7ec48"
+    },
+    {
+      "name": "refresh_queue_contention",
+      "version": "20261214000900",
+      "statementCount": 5,
+      "statementsSha256": "8cab616e6eff76c4aa44c452addcdda8caf017e9bcf106aabf630fa6763e6ecd",
+      "sha256": "73392bc978a5db5f436b48836c119abcf3c144fb90f7c9639e628afa30388a7f"
+    },
+    {
+      "name": "trade_preview_read_only",
+      "version": "20261214001100",
+      "statementCount": 8,
+      "statementsSha256": "ad162c601dcca45f57917e630d8133e4bc826c6b30048e92232387c4687b7315",
+      "sha256": "55f487d3989fb8951148a09233ba8848ed8cf6612218df7c6aee027f5d47d29a"
+    },
+    {
+      "name": "trade_analyzer_revalue",
+      "version": "20261214001300",
+      "statementCount": 1,
+      "statementsSha256": "d67a5e21f78cec0d71295a68b885335220454685805ef4d8ba987f4d97c5a4a6",
+      "sha256": "52e8b5b3e55b8be4d221ef1f852ec37b416e8e0f1f41214a8cd1998765327839"
+    },
+    {
+      "name": "pace_trade_revaluation_work",
+      "version": "20261214001400",
+      "statementCount": 10,
+      "statementsSha256": "1e8ee8b65dcd9dd438e55a4a56847627707cd3901e602da494ecd17358b43ac1",
+      "sha256": "1a7fcdf076b5fe8e0749cfbe7eb63a8dde79e7298dd7732638178dd7cd2c8c12"
+    },
+    {
+      "name": "matchup_forecast_inputs",
+      "version": "20261214001500",
+      "statementCount": 14,
+      "statementsSha256": "84172a242b6882506bb97365751637f734c9480b59b0d621ca4463b3b2f3fd44",
+      "sha256": "29cd2d5472fec27e882a1929605bc30eb626a13885a05d92df1ff0fb556bc6db"
     }
   ]
 }

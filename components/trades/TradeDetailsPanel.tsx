@@ -29,11 +29,13 @@ export function TradeDetailsPanel({
     context,
     actions,
     onAnalyze,
+    analysisDisabled = actions.acting,
     showHeader = true,
 }: {
     context: TradeCardContext
     actions: TradeCardActions
     onAnalyze: () => void
+    analysisDisabled?: boolean
     /** The sheet already titles the trade, so it hides this header. */
     showHeader?: boolean
 }) {
@@ -97,10 +99,10 @@ export function TradeDetailsPanel({
             <MotionPressable
                 style={styles.analyze}
                 onPress={onAnalyze}
-                disabled={actions.acting}
+                disabled={analysisDisabled}
                 accessibilityRole="button"
                 accessibilityLabel="Revalue this trade with current inputs"
-                accessibilityState={{ disabled: actions.acting }}
+                accessibilityState={{ disabled: analysisDisabled }}
             >
                 <Text style={styles.analyzeText}>Revalue with current inputs</Text>
             </MotionPressable>

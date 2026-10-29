@@ -1,0 +1,48 @@
+{
+  "id": "482d096f-b855-4a4d-acb9-b8f40951d7e0",
+  "revision": "806e38f6e0994a8f4ae5d8adb6223e7b8512ec0f",
+  "harnessRevision": "424496d42febf666e5592ab692df852e1a27839b",
+  "status": "complete",
+  "startedAt": "2026-10-29T20:08:30.037Z",
+  "finishedAt": "2026-10-29T20:09:26.283Z",
+  "contention": {
+    "passed": true,
+    "checks": [
+      "Completion succeeds while the refresh transaction holds its queue row",
+      "Repeated completion emits one event and one version",
+      "Completion stays within one second",
+      "Completion does not create another cache refresh",
+      "A mixed data and completion transaction still invalidates the cache",
+      "A mixed transaction publishes exactly one version and event"
+    ],
+    "holder": {
+      "pid": 564,
+      "query": "SELECT public.view_refresh_work('faab8d8f-6a60-4bbc-8f5d-44050b652cdd',NULL,'{\"version\":3,\"leagueId\":\"faab8d8f-6a60-4bbc-8f5d-44050b652cdd\",\"seasonId\":\"95b790d1-ffda-436b-ac7d-875e198dc6d9\",\"claimToken\":\"852cfed8-7bf1-40d7-bf9b-c31ec5cd4436\",\"operation\":\"complete\"}'::jsonb)\n;",
+      "state": "idle in transaction"
+    },
+    "completionMs": 58.41987500000687
+  },
+  "regressions": [
+    {
+      "name": "screen-publication-versions.sql",
+      "output": "7"
+    },
+    {
+      "name": "league-version-events.sql",
+      "output": "29"
+    },
+    {
+      "name": "refresh-screen-cache.sql",
+      "output": "21"
+    },
+    {
+      "name": "worker-refresh-bounds.sql",
+      "output": "31\n32\n33\n34\n35\n36\n37\n38\n39\n40\n41\n42\n43\n44\n45\n46\n47\n48\n49\n50\n51\n52\n53\n54\n55\n56\n57\n58\n59\n60\n61\n62\n63\n64\n65\n\n66\n67\n68\n\n\n9"
+    }
+  ],
+  "generatedSha256": {
+    "supabase/sql/function-catalog.json": "77587c8a4305f117a7de65538cb00714ce71cc0ea600881845db37d554cb6464",
+    "tests/e2e/release-history-attestations.json": "84fe92b36ccf799da71b9118702dd23c800d02a2728953e12244b177c77a1b33",
+    "tests/e2e/db-security-catalog-attestations.json": "2ad9b735f133b7f8af1b1a672588f1fdfded172fa8ae1e074c8de623d68243af"
+  }
+}

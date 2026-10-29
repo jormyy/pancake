@@ -12,7 +12,7 @@ BEGIN
       WHERE roster.player_id=NEW.id ORDER BY roster.league_id LOOP
       PERFORM private.queue_matchup_forecasts(affected_league);
     END LOOP;
-  ELSIF NEW.topic IN ('lineup','roster','score','game','stat','player_stats','resources')
+  ELSIF NEW.topic IN ('lineup','roster','score')
     OR NEW.topic='inventory' AND (NEW.details IS NULL OR NEW.details @> '[{"resource":"season"}]'::jsonb) THEN
     PERFORM private.queue_matchup_forecasts(NEW.league_id);
   END IF;

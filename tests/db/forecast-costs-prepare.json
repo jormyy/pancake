@@ -1,0 +1,2854 @@
+{
+  "runs": [
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 159.637,
+          "buffers": 14580
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 277.451,
+          "buffers": 2739
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.841,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.557,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.255,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 113.874,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.269,
+          "buffers": 1438
+        }
+      ],
+      "milliseconds": 939.884,
+      "calls": 7
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.803,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.803,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 84.207,
+          "buffers": 13520
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.13,
+          "buffers": 1449
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.717,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.087,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.347,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.657,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.053,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 107.4,
+          "buffers": 1442
+        }
+      ],
+      "milliseconds": 770.598,
+      "calls": 8
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.069,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 1.069,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 94.217,
+          "buffers": 13403
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.816,
+          "buffers": 1795
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 179.217,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.091,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.3,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.069,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.775,
+          "buffers": 1478
+        }
+      ],
+      "milliseconds": 775.4849999999999,
+      "calls": 7
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.941,
+          "buffers": 337
+        }
+      ],
+      "milliseconds": 0.941,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 141.031,
+          "buffers": 13209
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 104.786,
+          "buffers": 1465
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.493,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.079,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.289,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.376,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.988,
+          "buffers": 1430
+        }
+      ],
+      "milliseconds": 738.0419999999999,
+      "calls": 7
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.155,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 1.155,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 192.41,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.839,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 105.056,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.356,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.935,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.72,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 102.524,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 185.068,
+          "buffers": 1435
+        }
+      ],
+      "milliseconds": 980.908,
+      "calls": 8
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.893,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.893,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 103.047,
+          "buffers": 13367
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.919,
+          "buffers": 1481
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.192,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 22.68,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.282,
+          "buffers": 1472
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.16,
+          "buffers": 1472
+        }
+      ],
+      "milliseconds": 519.28,
+      "calls": 6
+    },
+    {
+      "round": 0,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.721,
+          "buffers": 339
+        }
+      ],
+      "milliseconds": 0.721,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 769.746,
+          "buffers": 20292
+        }
+      ],
+      "milliseconds": 769.746,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.429,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.429,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 713.021,
+          "buffers": 21662
+        }
+      ],
+      "milliseconds": 713.021,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.183,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.183,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 693.526,
+          "buffers": 20946
+        }
+      ],
+      "milliseconds": 693.526,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.409,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.409,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 686.853,
+          "buffers": 20245
+        }
+      ],
+      "milliseconds": 686.853,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 2.358,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 2.358,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 871.23,
+          "buffers": 21613
+        }
+      ],
+      "milliseconds": 871.23,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.547,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.547,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 686.316,
+          "buffers": 19434
+        }
+      ],
+      "milliseconds": 686.316,
+      "calls": 1
+    },
+    {
+      "round": 0,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.433,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.433,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 601.373,
+          "buffers": 20292
+        }
+      ],
+      "milliseconds": 601.373,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.423,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.423,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 778.804,
+          "buffers": 21662
+        }
+      ],
+      "milliseconds": 778.804,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.266,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.266,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 692.211,
+          "buffers": 20946
+        }
+      ],
+      "milliseconds": 692.211,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 69.958,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 69.958,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 682.976,
+          "buffers": 20245
+        }
+      ],
+      "milliseconds": 682.976,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.159,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.159,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 779.06,
+          "buffers": 21613
+        }
+      ],
+      "milliseconds": 779.06,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.123,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.123,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 506.802,
+          "buffers": 19434
+        }
+      ],
+      "milliseconds": 506.802,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.307,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.307,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 148.044,
+          "buffers": 13219
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 103.062,
+          "buffers": 1472
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.049,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.158,
+          "buffers": 1439
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.909,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.937,
+          "buffers": 1439
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.173,
+          "buffers": 1437
+        }
+      ],
+      "milliseconds": 742.332,
+      "calls": 7
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.915,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.915,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 164.851,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.484,
+          "buffers": 1449
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.835,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.133,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.426,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.599,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.534,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.535,
+          "buffers": 1442
+        }
+      ],
+      "milliseconds": 847.3969999999999,
+      "calls": 8
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.003,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 1.003,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 88.885,
+          "buffers": 13371
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.76,
+          "buffers": 1797
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.949,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.22,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.838,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 183.071,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.384,
+          "buffers": 1478
+        }
+      ],
+      "milliseconds": 761.107,
+      "calls": 7
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.751,
+          "buffers": 337
+        }
+      ],
+      "milliseconds": 0.751,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 105.315,
+          "buffers": 13214
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.718,
+          "buffers": 1465
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.246,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.282,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.251,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.863,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 112.2,
+          "buffers": 1430
+        }
+      ],
+      "milliseconds": 709.875,
+      "calls": 7
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.829,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.829,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 89.818,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.313,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.125,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.595,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.369,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.304,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.114,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.583,
+          "buffers": 1435
+        }
+      ],
+      "milliseconds": 774.221,
+      "calls": 8
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.729,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.729,
+      "calls": 1
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 90.774,
+          "buffers": 13367
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 107.137,
+          "buffers": 1481
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.574,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.155,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.5,
+          "buffers": 1472
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 21.029,
+          "buffers": 1472
+        }
+      ],
+      "milliseconds": 507.169,
+      "calls": 6
+    },
+    {
+      "round": 1,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.757,
+          "buffers": 339
+        }
+      ],
+      "milliseconds": 0.757,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 91.154,
+          "buffers": 13221
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.996,
+          "buffers": 1472
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.047,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.818,
+          "buffers": 1439
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 190.573,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 93.808,
+          "buffers": 1439
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.727,
+          "buffers": 1437
+        }
+      ],
+      "milliseconds": 769.1229999999999,
+      "calls": 7
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.818,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.818,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 162.505,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.16,
+          "buffers": 1449
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 79.749,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.964,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.177,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.672,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.08,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.032,
+          "buffers": 1442
+        }
+      ],
+      "milliseconds": 830.339,
+      "calls": 8
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.911,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.911,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 166.488,
+          "buffers": 13371
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.1,
+          "buffers": 1797
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 204.592,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 105.262,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 93.812,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.158,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.288,
+          "buffers": 1478
+        }
+      ],
+      "milliseconds": 861.7,
+      "calls": 7
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.795,
+          "buffers": 337
+        }
+      ],
+      "milliseconds": 0.795,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 160.645,
+          "buffers": 13216
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.179,
+          "buffers": 1465
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.754,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 22.092,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.904,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 182.095,
+          "buffers": 1432
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.138,
+          "buffers": 1430
+        }
+      ],
+      "milliseconds": 750.807,
+      "calls": 7
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.737,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.737,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 86.904,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.294,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.661,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.779,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.49,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.968,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.163,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.168,
+          "buffers": 1435
+        }
+      ],
+      "milliseconds": 765.427,
+      "calls": 8
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.764,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.764,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 102.411,
+          "buffers": 13367
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.822,
+          "buffers": 1481
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 23.367,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 22.619,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.14,
+          "buffers": 1472
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.492,
+          "buffers": 1472
+        }
+      ],
+      "milliseconds": 440.851,
+      "calls": 6
+    },
+    {
+      "round": 2,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.925,
+          "buffers": 339
+        }
+      ],
+      "milliseconds": 0.925,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 681.753,
+          "buffers": 20294
+        }
+      ],
+      "milliseconds": 681.753,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.182,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.182,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 785.957,
+          "buffers": 21662
+        }
+      ],
+      "milliseconds": 785.957,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 71.66,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 71.66,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 686.601,
+          "buffers": 20946
+        }
+      ],
+      "milliseconds": 686.601,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.373,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.373,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 706.887,
+          "buffers": 20253
+        }
+      ],
+      "milliseconds": 706.887,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.344,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.344,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 869.85,
+          "buffers": 21620
+        }
+      ],
+      "milliseconds": 869.85,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.086,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.086,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 573.988,
+          "buffers": 19439
+        }
+      ],
+      "milliseconds": 573.988,
+      "calls": 1
+    },
+    {
+      "round": 2,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.122,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.122,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 581.822,
+          "buffers": 20300
+        }
+      ],
+      "milliseconds": 581.822,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.261,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.261,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 795.374,
+          "buffers": 21669
+        }
+      ],
+      "milliseconds": 795.374,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.324,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.324,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 776.098,
+          "buffers": 20946
+        }
+      ],
+      "milliseconds": 776.098,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.285,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.285,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 799.932,
+          "buffers": 20253
+        }
+      ],
+      "milliseconds": 799.932,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.443,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.443,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 784.763,
+          "buffers": 21620
+        }
+      ],
+      "milliseconds": 784.763,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.461,
+          "buffers": 327
+        }
+      ],
+      "milliseconds": 1.461,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 666.94,
+          "buffers": 19439
+        }
+      ],
+      "milliseconds": 666.94,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.463,
+          "buffers": 349
+        }
+      ],
+      "milliseconds": 1.463,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 105.075,
+          "buffers": 13221
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 102.389,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 105.51,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 177.902,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 25.011,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 24.524,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.234,
+          "buffers": 1438
+        }
+      ],
+      "milliseconds": 636.645,
+      "calls": 7
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.955,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.955,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 167.437,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.5,
+          "buffers": 1450
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.587,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.67,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.353,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 88.482,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 93.692,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.813,
+          "buffers": 1443
+        }
+      ],
+      "milliseconds": 847.534,
+      "calls": 8
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 2.011,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 2.011,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 163.646,
+          "buffers": 13371
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.569,
+          "buffers": 1797
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.681,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.977,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.158,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 188.161,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 84.735,
+          "buffers": 1478
+        }
+      ],
+      "milliseconds": 837.927,
+      "calls": 7
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.978,
+          "buffers": 337
+        }
+      ],
+      "milliseconds": 0.978,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 109.55,
+          "buffers": 13216
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 178.656,
+          "buffers": 1466
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 83.055,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.347,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.784,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.25,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 103.014,
+          "buffers": 1431
+        }
+      ],
+      "milliseconds": 775.6560000000001,
+      "calls": 7
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.6,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 1.6,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 108.423,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.657,
+          "buffers": 1443
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.471,
+          "buffers": 1435
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.222,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.479,
+          "buffers": 1435
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 183.512,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 22.935,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 24.261,
+          "buffers": 1436
+        }
+      ],
+      "milliseconds": 735.9599999999998,
+      "calls": 8
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.821,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.821,
+      "calls": 1
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 85.738,
+          "buffers": 13367
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.864,
+          "buffers": 1482
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.411,
+          "buffers": 1474
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.174,
+          "buffers": 1474
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.341,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.228,
+          "buffers": 1473
+        }
+      ],
+      "milliseconds": 570.756,
+      "calls": 6
+    },
+    {
+      "round": 3,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.948,
+          "buffers": 339
+        }
+      ],
+      "milliseconds": 0.948,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 111.379,
+          "buffers": 13221
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.578,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 93.364,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.452,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 93.592,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 19.64,
+          "buffers": 1440
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.517,
+          "buffers": 1438
+        }
+      ],
+      "milliseconds": 609.5219999999999,
+      "calls": 7
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.907,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 0.907,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 89.274,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.019,
+          "buffers": 1450
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 192.986,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.58,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.79,
+          "buffers": 1442
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 94.348,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.581,
+          "buffers": 1441
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 20.886,
+          "buffers": 1443
+        }
+      ],
+      "milliseconds": 786.4639999999999,
+      "calls": 8
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.797,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.797,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 85.041,
+          "buffers": 13371
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.803,
+          "buffers": 1797
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.538,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.738,
+          "buffers": 1477
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 95.752,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 105.191,
+          "buffers": 1476
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.95,
+          "buffers": 1478
+        }
+      ],
+      "milliseconds": 674.013,
+      "calls": 7
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.819,
+          "buffers": 337
+        }
+      ],
+      "milliseconds": 0.819,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 98.408,
+          "buffers": 13216
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 193.807,
+          "buffers": 1466
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.716,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.877,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.744,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 96.277,
+          "buffers": 1433
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 103.482,
+          "buffers": 1431
+        }
+      ],
+      "milliseconds": 785.311,
+      "calls": 7
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.013,
+          "buffers": 315
+        }
+      ],
+      "milliseconds": 1.013,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 98.718,
+          "buffers": 13486
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.238,
+          "buffers": 1443
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 99.082,
+          "buffers": 1435
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.783,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 97.848,
+          "buffers": 1435
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.88,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 100.003,
+          "buffers": 1434
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.569,
+          "buffers": 1436
+        }
+      ],
+      "milliseconds": 793.121,
+      "calls": 8
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.986,
+          "buffers": 325
+        }
+      ],
+      "milliseconds": 0.986,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 106.57,
+          "buffers": 13367
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.352,
+          "buffers": 1482
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 104.359,
+          "buffers": 1474
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 103.18,
+          "buffers": 1474
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 101.069,
+          "buffers": 1473
+        },
+        {
+          "kind": "prepare-date",
+          "milliseconds": 98.533,
+          "buffers": 1473
+        }
+      ],
+      "milliseconds": 615.063,
+      "calls": 6
+    },
+    {
+      "round": 4,
+      "phase": "baseline",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 0.82,
+          "buffers": 339
+        }
+      ],
+      "milliseconds": 0.82,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1005.488,
+          "buffers": 19592
+        }
+      ],
+      "milliseconds": 1005.488,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.374,
+          "buffers": 317
+        }
+      ],
+      "milliseconds": 1.374,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1016.316,
+          "buffers": 16873
+        }
+      ],
+      "milliseconds": 1016.316,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.29,
+          "buffers": 299
+        }
+      ],
+      "milliseconds": 1.29,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 508.56,
+          "buffers": 17074
+        }
+      ],
+      "milliseconds": 508.56,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-27T20:30:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.344,
+          "buffers": 238
+        }
+      ],
+      "milliseconds": 1.344,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 491.894,
+          "buffers": 16344
+        }
+      ],
+      "milliseconds": 491.894,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "07ad4dd3-bdd2-4d57-9ecd-4e7fe1cef78f",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.421,
+          "buffers": 220
+        }
+      ],
+      "milliseconds": 1.421,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 385.86,
+          "buffers": 16880
+        }
+      ],
+      "milliseconds": 385.86,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "ccb35830-d258-4975-90c1-0cde9f41799d",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 1.449,
+          "buffers": 222
+        }
+      ],
+      "milliseconds": 1.449,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "cold",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 685.232,
+          "buffers": 16061
+        }
+      ],
+      "milliseconds": 685.232,
+      "calls": 1
+    },
+    {
+      "round": 4,
+      "phase": "candidate",
+      "observed": "2026-10-28T23:00:00Z",
+      "id": "e47fcb99-b481-4c06-922d-b8d0f0a67c21",
+      "state": "warm",
+      "samples": [
+        {
+          "kind": "prepare",
+          "milliseconds": 87.463,
+          "buffers": 236
+        }
+      ],
+      "milliseconds": 87.463,
+      "calls": 1
+    }
+  ],
+  "parityPairs": 12,
+  "plans": [],
+  "cpu": 0.25,
+  "memory": 1073741824,
+  "base": "ec739102"
+}

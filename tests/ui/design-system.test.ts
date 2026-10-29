@@ -6,6 +6,7 @@ import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { afterEach, expect, it, vi } from 'vitest'
 import { componentTokens, controlSize, spacing } from '@/constants/tokens'
+import { ModalScreen } from '@/components/ui/ModalScreen'
 import { PageHeader } from '@/components/ui/Page'
 import { PlayerRow } from '@/components/ui/PlayerRow'
 import { Badge } from '@/components/ui/Badge'
@@ -177,4 +178,30 @@ it('separates section bars from their first content row with a spacing token', a
     const header = screen.root.findByProps({ testID: 'page-header-standard' })
     const style = Object.assign({}, ...[header.props.style].flat(Infinity).filter(Boolean))
     expect(style.marginBottom).toBe(spacing.md)
+})
+
+
+it('shows the lineup title with the shared arrow back affordance', async () => {
+    const onBack = vi.fn()
+    await render(React.createElement(PageHeader, { title: 'Week 23 lineup', showTitle: true, compact: true, onBack, backLabel: 'Back to lineup' }))
+    const title = screen.root.findByProps({ children: 'Week 23 lineup' })
+    expect(flatten(title.props.style).position).not.toBe('absolute')
+    expect(screen.root.findAll(node => node.props.name === 'close')).toHaveLength(0)
+    expect(screen.root.findAll(node => node.props.name === 'arrow-back').length).toBeGreaterThan(0)
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Back to lineup' }).props.onPress())
+    expect(onBack).toHaveBeenCalledOnce()
+})
+
+
+it('renders the bracket header without its divider or close icon', async () => {
+    const onBack = vi.fn()
+    // eslint-disable-next-line react/no-children-prop
+    await render(React.createElement(ModalScreen, { title: 'Playoffs', showTitle: true, divider: false, onBack, backLabel: 'Back to league standings', children: React.createElement('Bracket') }))
+    const header = screen.root.findByProps({ testID: 'page-header-standard' })
+    expect(flatten(header.props.style).borderBottomWidth).toBe(0)
+    expect(screen.root.findAll(node => node.props.name === 'close')).toHaveLength(0)
+    expect(screen.root.findAll(node => node.props.name === 'arrow-back').length).toBeGreaterThan(0)
+    expect(flatten(screen.root.findByProps({ children: 'Playoffs' }).props.style).position).not.toBe('absolute')
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Back to league standings' }).props.onPress())
+    expect(onBack).toHaveBeenCalledOnce()
 })

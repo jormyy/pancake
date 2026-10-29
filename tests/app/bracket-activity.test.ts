@@ -81,7 +81,9 @@ it('paints a saved bracket answer immediately on remount while the next read is 
 it('dismisses the bracket when returning to standings', async () => {
     let view!: ReactTestRenderer
     await act(async () => { view = create(React.createElement(BracketScreen)) })
-    await act(async () => view.root.findByType('ModalScreen' as React.ElementType).props.onBack())
+    const modal = view.root.findByType('ModalScreen' as React.ElementType)
+    expect(modal.props).toMatchObject({ showTitle: true, divider: false, backLabel: 'Back to league standings' })
+    await act(async () => modal.props.onBack())
     expect(state.dismissTo).toHaveBeenCalledExactlyOnceWith('/league?tab=results')
     expect(state.replace).not.toHaveBeenCalled()
     await act(async () => view.unmount())

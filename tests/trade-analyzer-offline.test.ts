@@ -4,6 +4,7 @@ import { expect, it, vi } from 'vitest'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
 const saved = vi.hoisted(() => ({ assets: [{ kind: 'player', assetId: 'player', label: 'Saved player' }], teams: [{ memberId: 'me' }] }))
+const state = vi.hoisted(() => ({ online: false, loading: false, analysis: null as unknown, retry: vi.fn() }))
 const composer = vi.hoisted(() => ({
     participantIds: ['me'], participantRosters: {}, participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
     selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
@@ -20,10 +21,10 @@ vi.mock('@/components/trades/MultiTeamTradeBuilder', () => ({ MultiTeamTradeBuil
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'TradeAnalysisSummary' }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'me', team_name: 'My team' }, currentLeague: { id: 'league' } }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
-vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => false }))
+vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => state.online }))
 vi.mock('@/hooks/use-multi-team-trade-composer', () => ({ useMultiTeamTradeComposer: () => composer }))
-vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({ useDynastyTradeAnalysis: () => ({ analysis: null, seasonYear: null, loading: false, error: null }) }))
-vi.mock('@/lib/league', () => ({ getLeagueMembers: vi.fn(), isTradingClosed: () => false }))
+vi.mock('@/hooks/use-dynasty-trade-analysis', () => ({ useDynastyTradeAnalysis: () => ({ analysis: state.analysis, seasonYear: null, loading: state.loading, error: null, retry: state.retry }) }))
+vi.mock('@/lib/league', () => ({ getLeagueMembers: vi.fn(async () => []), isTradingClosed: () => false }))
 vi.mock('@/lib/dynasty-decisions', () => ({
     dynastyAnalyzerLatestScopeCacheKey: () => 'scope', dynastyAnalyzerLatestRouteCacheKey: () => 'route',
     dynastyAnalyzerSnapshotCacheKey: () => 'snapshot', dynastyAnalyzerRouteSignature: () => '', dynastyScoringSignature: () => '',
@@ -59,4 +60,27 @@ it('hides offer terms in the analyzer', async () => {
     expect(builder.props.onExpirationDaysChange).toBeUndefined()
     await act(async () => { renderer.unmount() })
     composer.participantViews = []
+})
+
+
+it('opens pending analysis and wires revalue with a visible loading state', async () => {
+    state.online = true
+    state.loading = true
+    state.analysis = saved
+    let renderer!: ReturnType<typeof create>
+    await act(async () => { renderer = create(React.createElement(TradeAnalyzer)) })
+    const view = renderer.root.findByProps({ accessibilityLabel: 'View trade analysis' })
+    expect(view.props.disabled).toBe(false)
+    await act(async () => view.props.onPress())
+    expect(renderer.root.findByType('TradeAnalysisSummary' as React.ElementType).props.loading).toBe(true)
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Revalue trade analysis' }).props.disabled).toBe(true)
+    state.loading = false
+    await act(async () => renderer.update(React.createElement(TradeAnalyzer)))
+    const revalue = renderer.root.findByProps({ accessibilityLabel: 'Revalue trade analysis' })
+    expect(revalue.props.disabled).toBe(false)
+    await act(async () => revalue.props.onPress())
+    expect(state.retry).toHaveBeenCalledOnce()
+    await act(async () => renderer.unmount())
+    state.online = false
+    state.analysis = null
 })

@@ -328,7 +328,7 @@ function TradesScreen() {
     if (!split && tradeContext && detailActions) return <Page title="Trade details">
         <PageHeader title={tradeCardModel(tradeContext).opponentName} onBack={() => setOpenTradeId(null)} backLabel="Back to trades" />
         <ScrollView contentContainerStyle={styles.tradeDetails}>
-            <TradeDetailsPanel context={tradeContext} actions={detailActions} showHeader={false}
+            <TradeDetailsPanel context={tradeContext} actions={detailActions} analysisDisabled={tradeActions.busyTradeId !== null} showHeader={false}
                 onAnalyze={() => { setOpenTradeId(null); openAnalyzer(tradeContext.trade) }} />
         </ScrollView>
         {resourceStatus}
@@ -354,7 +354,7 @@ function TradesScreen() {
                             <View style={styles.splitList}>{list}</View>
                             <ScrollView style={styles.splitDetail} contentContainerStyle={styles.splitDetailContent}>
                                 {tradeContext && detailActions ? (
-                                    <TradeDetailsPanel context={tradeContext} actions={detailActions}
+                                    <TradeDetailsPanel context={tradeContext} actions={detailActions} analysisDisabled={tradeActions.busyTradeId !== null}
                                         onAnalyze={() => openAnalyzer(tradeContext.trade)} />
                                 ) : (
                                     <Text style={styles.detailHint}>Select a trade to see every asset and note.</Text>

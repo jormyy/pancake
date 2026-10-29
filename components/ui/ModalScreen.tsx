@@ -13,16 +13,20 @@ export function ModalScreen({
     title,
     onBack,
     backLabel = 'Back',
+    showTitle = false,
+    divider = true,
     actions,
     children,
 }: {
     title: string
     onBack: () => void
     backLabel?: string
+    showTitle?: boolean
+    divider?: boolean
     actions?: ReactNode
     children: ReactNode
 }) {
-    const header = <PageHeader title={title} onBack={onBack} backLabel={backLabel} actions={actions} titleIsPageHeading />
+    const header = <PageHeader title={title} onBack={onBack} backLabel={backLabel} actions={actions} showTitle={showTitle} divider={divider} titleIsPageHeading />
     // The web shell already pads for the home indicator; only native needs the
     // bottom inset here.
     if (Platform.OS === 'web') {

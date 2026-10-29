@@ -139,6 +139,7 @@ it('shows one panel with only an accessible automatic preference', async () => {
     expect(screen.root.findAllByType('AutoSetModal' as React.ElementType)).toHaveLength(0)
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Open auto-set lineup options' })).toHaveLength(0)
     expect(screen.root.findAllByType('PageHeader' as React.ElementType)).toHaveLength(_mode === 'inline' ? 0 : 1)
+    if (_mode === 'screen') expect(screen.root.findByType('PageHeader' as React.ElementType).props).toMatchObject({ showTitle: true, backLabel: 'Back to lineup' })
 })
 
 it('reads the saved preference again after reopening the page', async () => {

@@ -39,7 +39,8 @@ BEGIN
     RAISE EXCEPTION 'Trade inputs changed. Retry.' USING ERRCODE='40001';
   END IF;
   RETURN inputs||jsonb_build_object('inputVersion',fingerprint,'observedAt',now(),'cachedRevaluation',
-    (SELECT cached.revaluation FROM private.trade_value_publications published
+    (SELECT cached.revaluation||jsonb_build_object('expiresAt',now()+interval '10 minutes')
+      FROM private.trade_value_publications published
       JOIN public.trade_value_cache cached USING(trade_id)
       WHERE published.trade_id=p_trade_id AND published.input_fingerprint=fingerprint));
 END;

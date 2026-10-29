@@ -260,11 +260,11 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                 </Pressable>
             </View> : null}
             <TradeAnalysisSummary players={Object.values(composer.participantRosters).flat()} analysis={shownAnalysis} calculatedAt={calculatedAt ?? undefined} participantName={analysisParticipantName}
-                loading={loading && !shownAnalysis} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
+                loading={loading} cached={!analysis && Boolean(shownAnalysis)} inset={!sideBySide} />
         </View>
     )
 
-    if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady && !loading)}>
+    if (showAnalysis) return <DeferredContent ready={!online || Boolean(error || composer.rosterError || networkUnavailable) || (membersLoaded && composer.assetsReady)}>
         <View style={styles.scroll}>
         <View style={styles.analysisActions}>
             <Button title="Edit assets" variant="secondary" size="sm" onPress={() => {
@@ -276,6 +276,8 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                 setHistorical(false)
                 setShowAnalysis(false)
             }} />
+            <Button title="Revalue" variant="secondary" size="sm" onPress={retryAnalysis}
+                disabled={!networkAvailable || loading} accessibilityLabel="Revalue trade analysis" />
             {!historical ? <Button title="Make offer" size="sm" onPress={makeOffer} disabled={!canMakeOffer}
                 accessibilityLabel="Make Offer from this analysis" /> : null}
         </View>
@@ -321,7 +323,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
                 </NativeScrollView>
                 {(items.length > 0 || shownAnalysis) && !sideBySide ? <View style={styles.analysisActions}>
                     <Button title="View analysis" variant="secondary" size="sm" onPress={() => setShowAnalysis(true)}
-                        disabled={!shownAnalysis && !error} accessibilityLabel="View trade analysis" />
+                        disabled={!shownAnalysis && !error && !loading} accessibilityLabel="View trade analysis" />
                 </View> : null}
                 {composer.participantViews.length >= 2 ? <MultiTeamTradeBuilder {...builderProps} /> : (
                     <Text style={styles.emptyPrompt}>{multiTeamMode ? 'Choose two or more teams.' : 'Choose a team.'}</Text>
