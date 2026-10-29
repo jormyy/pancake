@@ -12,6 +12,7 @@ export type { TradeVetoMode } from '@/types/app'
 
 export type LeagueSettingsUpdate = {
     timezone?: string
+    future_pick_years?: number
     team_limit?: number
     taxi_max_seasons?: number
     allow_inactive_trades?: boolean
@@ -55,7 +56,7 @@ function numericRecordPayload(values: Record<string, number>): JsonObject {
 function leagueSettingsPayload(updates: LeagueSettingsUpdate): Json {
     const payload: JsonObject = {}
     if (updates.timezone !== undefined) payload.timezone = updates.timezone
-    for (const key of ['team_limit','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
+    for (const key of ['future_pick_years','team_limit','taxi_max_seasons','allow_inactive_trades','playoff_entrants','playoff_round_lengths','skipped_weeks'] as const) {
         if (updates[key] !== undefined) payload[key] = updates[key]
     }
     if (updates.scoring_settings != null) payload.scoring_settings = numericRecordPayload(updates.scoring_settings)
@@ -151,7 +152,7 @@ export async function fetchUserLeagues(userId: string) {
         auction_budget,
         scoring_settings,
         playoff_start_week,
-        team_limit, taxi_rule, taxi_max_seasons, allow_inactive_trades, playoff_entrants, playoff_round_lengths,
+        future_pick_years, team_limit, taxi_rule, taxi_max_seasons, allow_inactive_trades, playoff_entrants, playoff_round_lengths,
         playoff_total_weeks,
         playoff_round_weeks,
         roster_size,
@@ -242,6 +243,12 @@ export async function getLineupSlots(leagueId: string) {
 
     if (error) throw error
     return data ?? []
+}
+
+export async function getLeagueFuturePickYears(leagueId: string): Promise<number> {
+    const { data, error } = await supabase.from('leagues').select('future_pick_years').eq('id', leagueId).single()
+    if (error) throw error
+    return data.future_pick_years
 }
 
 export async function updateLeagueConfiguration(

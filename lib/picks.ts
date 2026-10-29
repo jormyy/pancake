@@ -1,5 +1,5 @@
 export function draftYear(seasonYear: number): number {
-    return seasonYear - 1
+    return seasonYear
 }
 
 export function pickLabel(seasonYear: number, round: number): string {

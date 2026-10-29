@@ -143,7 +143,21 @@ BEGIN
     'ftMade', COALESCE(NULLIF(line->'free_throws_made', 'null'), '0'), 'ftAttempted', COALESCE(NULLIF(line->'free_throws_attempted', 'null'), '0'),
     'plusMinus', COALESCE(NULLIF(line->'plus_minus', 'null'), '0'), 'doubleDouble', COALESCE(NULLIF(line->'double_double', 'null'), 'false'),
     'tripleDouble', COALESCE(NULLIF(line->'triple_double', 'null'), 'false')) ORDER BY game->>'game_date' DESC, line->>'id' DESC), '[]'),
-    COALESCE(jsonb_object_agg(line->>'id', public.compute_fantasy_points((line->>'id')::uuid, p_league_id)), '{}')
+    COALESCE(jsonb_object_agg(line->>'id', CASE WHEN (line->>'did_not_play')::boolean THEN 0 ELSE public.projection_stat_fantasy_points(
+      (line->>'points')::numeric,
+      (line->>'rebounds')::numeric,
+      (line->>'assists')::numeric,
+      (line->>'steals')::numeric,
+      (line->>'blocks')::numeric,
+      (line->>'three_pointers_made')::numeric,
+      (line->>'turnovers')::numeric,
+      (line->>'field_goals_made')::numeric,
+      (line->>'field_goals_attempted')::numeric,
+      (line->>'free_throws_made')::numeric,
+      (line->>'free_throws_attempted')::numeric,
+      CASE WHEN (line->>'double_double')::boolean THEN 1 ELSE 0 END,
+      CASE WHEN (line->>'triple_double')::boolean THEN 1 ELSE 0 END,
+      context->'league'->'scoring_settings') END), '{}')
     INTO games, fantasy_map FROM ordered;
   IF fantasy IS NULL THEN
     SELECT COALESCE(avg((fantasy_map->>(line->>'id'))::numeric) FILTER (WHERE NOT (line->>'did_not_play')::boolean), 0) INTO fantasy

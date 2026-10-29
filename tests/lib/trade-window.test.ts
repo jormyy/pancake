@@ -11,6 +11,9 @@ vi.mock('@/lib/supabase', () => ({ supabase: { from: (table: string) => {
     ]
     const query = { select: (selection: string) => { state.selection = selection; return query }, order: () => query, is: () => query,
         eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query },
+        single: async () => ({ data: { future_pick_years: 5, league_seasons: [{ season_year: 2027 }] }, error: null }),
+        gte: (key: string, value: number) => { filters.push(row => Number(row[key]) >= value); return query },
+        lte: (key: string, value: number) => { filters.push(row => Number(row[key]) <= value); return query },
         in: (key: string, values: unknown[]) => { filters.push(row => values.includes(row[key])); return query },
         then: (resolve: (value: unknown) => void) => Promise.resolve({ data: rows.filter(row => filters.every(filter => filter(row))), error: null }).then(resolve),
     }

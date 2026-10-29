@@ -15968,3 +15968,20 @@ This stopped attempt does not establish a full-run gain.
 | auth-sign-up | 1 | 35.0 | 4494517 | 0 | 7.98 | 7389 | 7.98 |
 | auth-sign-in | 1 | 36.0 | 4492902 | 0 | 5.98 | 4926 | 5.98 |
 
+
+### Slow screen planning
+
+The roster and player projection reads reuse generic PL/pgSQL plans.
+The pending trade count also retains its statement plan across calls.
+This reduces repeated planning inside roster, players, league, and trades screens.
+
+`view_trades` asks `view_trade_details` for `cardOnly` and `view_trade_block` for `blockOnly`.
+Those paths return the same list fields without building the unused roster and analysis responses.
+Direct calls keep their full response by default.
+The [slow screen recipe](../tests/db/slow-screens.md) records timing and exact JSON checks.
+
+Player details score the selected game lines without looking up every statistic and league again.
+The full trade block requests only roster inventory, picks, and average maps.
+Trade lists read authorized cards, participants, items, quotes, and values as one bounded page.
+`get_trade_cards` checks membership before reading the page and filters hidden trades.
+Revaluation input and fingerprint statements retain their plans between worker calls.

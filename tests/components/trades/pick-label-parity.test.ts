@@ -48,8 +48,8 @@ const picks = [
 it('identifies Matthew’s incoming picks without calling their original owner You', async () => {
     await act(async () => { screen = create(React.createElement(AssetList, { items: picks, label: 'You receive', pickContext: { viewerMemberId: 'matthew', memberNames: { mike: "Mike's Minions", matthew: 'Matthew' } } })) })
     const text = screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join('')).join('\n')
-    expect(text).toContain("2028 Round 1 (orig. Mike's Minions)")
-    expect(text).toContain("2027 Round 2 (orig. Mike's Minions)")
+    expect(text).toContain("2029 Round 1 (orig. Mike's Minions)")
+    expect(text).toContain("2028 Round 2 (orig. Mike's Minions)")
     expect(text).not.toContain(' — from ')
 })
 
@@ -63,7 +63,7 @@ it.each(['pending', 'completed'] as const)('uses the same component in a %s card
     const labels = screen.root.findAllByType(TradePickLabel).map(node => tradePickLabel(node.props.pick, node.props.context, node.props.showDirection))
     expect(labels).toHaveLength(4)
     expect(labels.slice(0, 2)).toEqual(labels.slice(2))
-    expect(labels).toContain("2028 Round 1 (orig. Mike's Minions)")
+    expect(labels).toContain("2029 Round 1 (orig. Mike's Minions)")
     expect(labels.every(label => !label.includes(' — from '))).toBe(true)
 })
 
@@ -82,10 +82,10 @@ it('uses the same component for submitted summaries, multi-team review, and acti
     expect(labels).toHaveLength(6)
     expect(labels.slice(0, 2)).toEqual(labels.slice(2, 4))
     expect(labels.slice(0, 2)).toEqual(labels.slice(4))
-    expect(labels[0]).toBe("2028 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
+    expect(labels[0]).toBe("2029 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
 })
 
 it('keeps the full pick label in the acceptance confirmation', () => {
     const offer = trade({ proposerMemberId: 'matthew', proposerTeamName: 'Matthew', recipientMemberId: 'mike', recipientTeamName: "Mike's Minions", routedItems: picks })
-    expect(tradeAcceptanceSummary(offer, [], 'matthew')).toContain("2028 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
+    expect(tradeAcceptanceSummary(offer, [], 'matthew')).toContain("2029 Round 1 (orig. Mike's Minions) — from Mike's Minions → to You")
 })

@@ -3,9 +3,9 @@ RETURNS void
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
-DECLARE v_status public.league_status;
+DECLARE v_status public.league_status; v_future_pick_years smallint;
 BEGIN
-  SELECT status INTO v_status FROM public.leagues WHERE id=p_league_id FOR NO KEY UPDATE NOWAIT;
+  SELECT status, future_pick_years INTO v_status, v_future_pick_years FROM public.leagues WHERE id=p_league_id FOR NO KEY UPDATE NOWAIT;
   IF v_status='setup' OR EXISTS (
     SELECT 1 FROM public.drafts draft
     JOIN public.league_seasons season ON season.id=draft.league_season_id AND season.is_current
@@ -27,9 +27,9 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.draft_picks pick JOIN public.league_seasons season
       ON season.league_id=pick.league_id AND season.is_current
-    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year>season.season_year+3
+    WHERE pick.league_id=p_league_id AND pick.id=ANY(p_pick_ids) AND pick.season_year>season.season_year+v_future_pick_years
   ) THEN
-    RAISE EXCEPTION 'Only the next three future draft years can be traded.' USING ERRCODE='P0001';
+    RAISE EXCEPTION 'Only the next % future draft years can be traded.',v_future_pick_years USING ERRCODE='P0001';
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.drafts draft

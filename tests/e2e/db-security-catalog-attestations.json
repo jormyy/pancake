@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261213000200",
+  "candidateVersion": "20261214000700",
   "common": {
     "functions": [
       {
@@ -1061,7 +1061,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2264,6 +2264,18 @@
     {
       "filename": "20261213000200_unpartition_player_game_stats.sql",
       "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
+    },
+    {
+      "filename": "20261214000500_slow_screens.sql",
+      "sha256": "085a12ec3f7c69b4e9ebe06ca16ab9867f01ae674955cf956452a4ab915baf8b"
+    },
+    {
+      "filename": "20261214000501_slow_screen_addendum.sql",
+      "sha256": "a9b21ee1b1b04a2fa7ca33e0bf8f8719e08529b86f930e82b884a87d81bff71a"
+    },
+    {
+      "filename": "20261214000700_future_pick_years.sql",
+      "sha256": "3a38acb7a768b72325aed897b41e7c3351cb8e4aeda92f782d7e22d709b7ec48"
     }
   ],
   "preMigration": {

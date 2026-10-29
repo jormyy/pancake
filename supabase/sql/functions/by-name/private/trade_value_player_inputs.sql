@@ -1,7 +1,9 @@
 CREATE OR REPLACE FUNCTION private.trade_value_player_inputs(
   p_league_id uuid, p_member_id uuid, p_season_year integer, p_player_ids uuid[], p_limit integer
 )
-RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET plan_cache_mode = force_generic_plan AS $$
+BEGIN
+  RETURN (
   WITH input_rows AS (
 WITH authorized AS (
   SELECT 1
@@ -165,6 +167,7 @@ ORDER BY player.five_year_rank NULLS LAST, player.display_name, player.id
      WHERE ranking.player_id = player.player_id AND ranking.source = 'onenumberhoops.com'
      ORDER BY ranking.fetched_at DESC, ranking.source_rank, ranking.id
      LIMIT 1
-  ) market ON true;
+  ) market ON true);
+END;
 $$;
 REVOKE ALL ON FUNCTION private.trade_value_player_inputs(uuid,uuid,integer,uuid[],integer) FROM PUBLIC,anon,authenticated,service_role;

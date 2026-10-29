@@ -20,10 +20,25 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   ), floor AS (
     SELECT LEAST(500,COALESCE((SELECT avg(trade_value) FROM replacements),
       GREATEST(50,180.0*200/GREATEST(1,teams*roster_size)))) AS value FROM league
+  ), extended AS (
+    SELECT pick.draft_year,pick.round,pick.tier,pick.trade_value,pick.source,pick.derived,pick.fetched_at
+    FROM public.dynasty_pick_values pick
+    UNION ALL
+    SELECT year.value,pick.round,pick.tier,
+      round(pick.trade_value*power(LEAST(1,GREATEST(0.5,COALESCE(pick.trade_value/NULLIF(previous.trade_value,0),0.9))),
+        year.value-pick.draft_year),2),pick.source,true,pick.fetched_at
+    FROM public.dynasty_pick_values pick
+    LEFT JOIN public.dynasty_pick_values previous ON previous.draft_year=pick.draft_year-1
+      AND previous.round=pick.round AND previous.tier=pick.tier AND previous.source=pick.source
+    CROSS JOIN league
+    CROSS JOIN LATERAL generate_series(pick.draft_year+1,league.season_year+league.future_pick_years-1) year(value)
+    WHERE pick.draft_year=(SELECT max(last.draft_year) FROM public.dynasty_pick_values last
+      WHERE last.round=pick.round AND last.tier=pick.tier AND last.source=pick.source)
   )
   SELECT pick.draft_year,pick.round,pick.tier,CASE WHEN pick.round=3 THEN GREATEST(pick.trade_value,floor.value)
     ELSE pick.trade_value END,pick.source,pick.fetched_at
-  FROM public.dynasty_pick_values pick CROSS JOIN floor ORDER BY pick.draft_year,pick.round,pick.tier;
+  FROM extended pick CROSS JOIN floor CROSS JOIN league
+  WHERE pick.draft_year <= league.season_year+league.future_pick_years-1 ORDER BY pick.draft_year,pick.round,pick.tier;
 $$;
 REVOKE ALL ON FUNCTION public.get_dynasty_pick_values(uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.get_dynasty_pick_values(uuid) TO authenticated,service_role;

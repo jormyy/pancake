@@ -7,12 +7,13 @@ CREATE OR REPLACE FUNCTION public.get_pending_trade_count(
   p_league_id uuid
 )
 RETURNS bigint
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY INVOKER
 SET search_path = public
 AS $$
-  SELECT count(*)
+BEGIN
+  RETURN (SELECT count(*)
     FROM public.trades AS trade
     JOIN public.trade_participants AS participant
       ON participant.trade_id = trade.id
@@ -28,5 +29,6 @@ AS $$
         WHERE own_member.id = p_member_id
           AND own_member.league_id = p_league_id
           AND own_member.user_id = (SELECT auth.uid())
-     );
+     ));
+END;
 $$;

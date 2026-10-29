@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
 import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { command } from '../../scripts/perf-lab/process.mjs'
 import { labRoot, project, requireMini } from '../../scripts/perf-lab/common.mjs'
 
-process.env.SCREEN_COST_EVIDENCE = 'unpartition-evidence'
+process.env.SCREEN_COST_EVIDENCE ??= 'unpartition-evidence'
 const { cases, plans, literal, load, save, evidence } = await import('./screen-view-costs.mjs')
 await requireMini()
-assert.equal(project,'pt4bafablel3')
+assert.ok(['pt4bafablel3','pt4bafablel3d'].includes(project))
 await mkdir(evidence,{recursive:true})
 const option = name => process.argv.find(value=>value.startsWith(`--${name}=`))?.slice(name.length+3)
 const databaseNames = ['postgres','template1','l3_partitioned','l3_regular','l3_preservation']
@@ -271,6 +273,7 @@ async function report() {
   console.log(JSON.stringify({functions:functions.length,latencyGuards:'pass',planningNegativeControl:'pass',parity:result.parity}))
 }
 
+if(fileURLToPath(import.meta.url)===path.resolve(process.argv[1]??'')) {
 if(process.argv.includes('--inventory')) await inventory()
 else if(process.argv.includes('--catalog')) await catalog(option('database')??'postgres',option('label')??'catalog')
 else if(process.argv.includes('--capture')) await capture()
@@ -305,5 +308,7 @@ else if(process.argv.includes('--clone')) {
   await run("ALTER DATABASE postgres WITH ALLOW_CONNECTIONS=false;SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='postgres' AND pid<>pg_backend_pid();",'template1')
   await run('CREATE DATABASE l3_partitioned TEMPLATE postgres;CREATE DATABASE l3_regular TEMPLATE postgres;ALTER DATABASE postgres WITH ALLOW_CONNECTIONS=true;','template1').catch(async error=>{await run('ALTER DATABASE postgres WITH ALLOW_CONNECTIONS=true;','template1');throw error})
 } else throw new Error('Choose --inventory, --catalog, --clone, or --capture')
+
+}
 
 export { run, workload, jsonValues, metrics, measure, catalog, evidence, labRoot }

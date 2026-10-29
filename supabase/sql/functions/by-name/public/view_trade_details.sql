@@ -5,7 +5,6 @@ BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   SELECT * INTO trade FROM public.trades WHERE id = (p_params->>'tradeId')::uuid AND league_id = p_league_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('context', context, 'trade', NULL, 'analysis', NULL); END IF;
-  analysis_context := public.view_context(p_league_id, p_member_id, jsonb_build_object('seasonId', trade.league_season_id,'tradeId',trade.id));
   SELECT COALESCE(jsonb_agg(jsonb_build_object('memberId', participant.member_id, 'teamName', COALESCE(member.team_name, 'Unknown'),
     'sortOrder', participant.sort_order, 'isInitiator', participant.is_initiator, 'acceptedAt', participant.accepted_at,
     'dropPlayerIds', participant.drop_player_ids, 'rosterMoves', participant.roster_moves)
@@ -56,6 +55,10 @@ BEGIN
     'version', trade.version, 'proposerFaabAmount', trade.proposer_faab_amount, 'recipientFaabAmount', trade.recipient_faab_amount,
     'myVetoed', EXISTS (SELECT 1 FROM public.trade_vetos WHERE trade_id = trade.id AND member_id = p_member_id),
     'routedItems', items, 'estimate', estimate, 'estimateUnavailable', unavailable);
+  IF COALESCE((p_params->>'cardOnly')::boolean, false) THEN
+    RETURN jsonb_build_object('trade', result);
+  END IF;
+  analysis_context := public.view_context(p_league_id, p_member_id, jsonb_build_object('seasonId', trade.league_season_id,'tradeId',trade.id));
   RETURN jsonb_build_object('context', context, 'trade', result,
     'roster', public.view_roster(p_league_id, p_member_id, p_params - 'targetMemberId')->'roster',
     'savedQuote', (SELECT jsonb_build_object('id', q.id, 'analysis', q.analysis, 'modelVersion', q.model_version, 'inputVersion', q.input_version, 'createdAt', q.created_at, 'expiresAt', q.expires_at, 'seasonYear', q.inputs->'seasonYear') FROM public.trade_estimates e JOIN public.trade_estimate_quotes q ON q.id = e.quote_id WHERE e.trade_id = trade.id),

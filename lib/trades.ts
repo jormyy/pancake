@@ -287,6 +287,12 @@ export async function getPicksForMembers(
     const uniqueMemberIds = [...new Set(memberIds)]
     const picks = Object.fromEntries(uniqueMemberIds.map((memberId) => [memberId, [] as TradePickItem[]]))
     if (uniqueMemberIds.length === 0) return picks
+    const { data: league, error: leagueError } = await supabase.from('leagues')
+        .select('future_pick_years, league_seasons!league_seasons_league_id_fkey!inner(season_year)')
+        .eq('id', leagueId).eq('league_seasons.is_current', true).single()
+    if (leagueError) throw leagueError
+    const seasonYear = league.league_seasons[0]?.season_year
+    if (seasonYear == null) return picks
     const { data, error } = await supabase
         .from('draft_picks')
         .select(`
@@ -299,6 +305,8 @@ export async function getPicksForMembers(
         .in('current_owner_id', uniqueMemberIds)
         .eq('league_id', leagueId)
         .eq('is_used', false)
+        .gte('season_year', seasonYear)
+        .lte('season_year', seasonYear + league.future_pick_years)
         .order('season_year', { ascending: true })
         .order('round', { ascending: true })
 

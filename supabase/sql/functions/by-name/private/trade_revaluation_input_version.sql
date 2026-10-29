@@ -1,8 +1,10 @@
 CREATE OR REPLACE FUNCTION private.trade_revaluation_input_version(p_trade_id uuid)
-RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+RETURNS text LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET plan_cache_mode = force_generic_plan AS $$
+BEGIN
+  RETURN (
   WITH context AS MATERIALIZED (
     SELECT trade.id,league.id AS league_id,season.id AS season_id,season.season_year,
-      league.roster_size,league.scoring_settings,league.faab_starting_budget,
+      league.roster_size,league.scoring_settings,league.faab_starting_budget,league.future_pick_years,
       (SELECT count(*) FROM public.league_members member WHERE member.league_id=league.id) AS teams,
       queued.averages_initialized
     FROM public.trades trade JOIN public.leagues league ON league.id=trade.league_id AND league.deleted_at IS NULL
@@ -41,6 +43,7 @@ RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     (SELECT max(fetched_at) FROM public.player_projections WHERE fetched_at<now()-interval '8 days'),
     (SELECT max(game_time) FROM public.nba_games WHERE game_time<=now()),
     (SELECT max(started_at) FROM public.nba_games WHERE started_at<=now())
-  )::text) FROM context;
+  )::text) FROM context);
+END;
 $$;
 REVOKE ALL ON FUNCTION private.trade_revaluation_input_version(uuid) FROM PUBLIC,anon,authenticated,service_role;

@@ -2907,6 +2907,27 @@
       "statementCount": 23,
       "statementsSha256": "4433e5da752d4a778da27af42e114e484681faaa9c33d1d5df0a0bab834b1635",
       "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
+    },
+    {
+      "name": "slow_screens",
+      "version": "20261214000500",
+      "statementCount": 9,
+      "statementsSha256": "e879bcd5aa0c8332095c918a07fb8509a5312f5b40ba862d85d43196a1a9be05",
+      "sha256": "085a12ec3f7c69b4e9ebe06ca16ab9867f01ae674955cf956452a4ab915baf8b"
+    },
+    {
+      "name": "slow_screen_addendum",
+      "version": "20261214000501",
+      "statementCount": 14,
+      "statementsSha256": "596b25cd6a8824c9abf779c99e8d9179dcf210fcf077cbd8ae4f7eee468abdf6",
+      "sha256": "a9b21ee1b1b04a2fa7ca33e0bf8f8719e08529b86f930e82b884a87d81bff71a"
+    },
+    {
+      "name": "future_pick_years",
+      "version": "20261214000700",
+      "statementCount": 19,
+      "statementsSha256": "c175ced10b538e0faf3a0b2213338d29c7cd4459208770d7f1e5cbeeda1d7c4c",
+      "sha256": "3a38acb7a768b72325aed897b41e7c3351cb8e4aeda92f782d7e22d709b7ec48"
     }
   ]
 }
