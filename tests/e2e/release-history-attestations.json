@@ -2751,8 +2751,8 @@
       "name": "draft_only_realtime",
       "version": "20261201000900",
       "statementCount": 5,
-      "statementsSha256": "58c8fb01c8e691ef776fae21469c491e75e56939205896a55d01f242a14fcece",
-      "sha256": "8c1596d6919bfb4d04ffa2d9acec4045003f9e3f7fd50eb8d25948c4e9e884b9"
+      "statementsSha256": "f0d284842949e03e60960252a4de8c2669139c95b8015b46e3f527ba22f92e4f",
+      "sha256": "52252be7648c1fd53353471989373c75587a2de78a42a1935a50afb0bf93d92b"
     },
     {
       "name": "cap_worker_dispatch",

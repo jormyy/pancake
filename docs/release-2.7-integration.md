@@ -8,6 +8,65 @@ No push, pull request, deployment, CI run, or production connection occurs.
 Verification uses the private mini database and synthetic fixtures.
 The requested full suite and scoped checks pass. The private stack is stopped.
 
+## Realtime publication correction
+
+Migration `20261201000900` now publishes the exact 16-table union derived from client subscription calls.
+The subscription scan follows imported helpers, aliases, dynamic imports, array maps, and direct PostgreSQL change subscriptions.
+It ignores unused watch factories and unrelated table properties.
+It rejects unresolved expressions instead of silently omitting them.
+The [release contract](../supabase/RELEASE-DB.md#realtime-publication) lists all 16 tables and their readers.
+
+The supplied publication contains 22 tables. The corrected migration removes six unwatched tables.
+They are `draft_room_members`, `matchups`, `roster_transactions`, `waiver_priorities`, `waiver_wire_log`, and `weekly_lineups`.
+The source has no `draft_room_members` subscription.
+The unused league watch factory does not subscribe to `roster_transactions` or `waiver_priorities`.
+The earlier draft-only reduction is superseded and proves no valid release gain.
+
+The new check first fails against the original migration: 11 watched tables are missing and `draft_room_members` is unwatched.
+Adding only `matchups` to the corrected publication independently makes the unwatched-table assertion fail.
+Removing `league_change_hints` from the private database makes the SQL publication check fail.
+The connection rolls back that control. The final publication remains unchanged.
+
+| Check | Observed result |
+| --- | --- |
+| Full Vitest after the fixture repair | 4,547 passed, 46 skipped, 0 failed; 480 files passed and 14 skipped. |
+| Focused publication and subscription tests | 19 passed across 4 files; 0 failed. |
+| Related hook and release compatibility tests | 72 passed across 4 files; 0 failed. |
+| Offline-day fixture and date tests | 22 passed across 2 files; 0 failed after freezing the fixture clock. |
+| Private database upgrade | 628 migrations at the supplied head become 675. The publication changes from 22 tables to 16. |
+| Publication SQL recipe | Passes exact table membership and insert/update/delete publication checks. |
+| Logical delivery | 3 row messages and 3,774 bytes: 1 draft update, 1 league update, and 1 invalidation hint. |
+| Migration replay | Repeating the corrected migration preserves the same 16 tables. |
+| Generated artifacts | All 4 regenerate on the private stack. Catalog and types stay byte-identical. Both attestations record the new migration fingerprint. |
+| Catalog, types, and offline attestation checks | All pass. History remains at 675 migrations with 346 approved entries. |
+| Focused lint and test type check | Pass. |
+
+The first full run records 4,546 passed, 1 failed, and 46 skipped.
+The offline-day test uses October 29 as an uncached day, which becomes the real current day during this continuation.
+Its fixture now fixes the clock before that day. Every assertion stays unchanged.
+The second full run passes all 4,547 tests with 46 skips and no failures.
+The private receipt records successful cleanup. No private container remains.
+The migration keeps its filename and version. No history rewrite, push, deployment, or production request occurs.
+
+### Publication correction files
+
+12 files change from the prior verified checkpoint.
+
+| Status | File |
+| --- | --- |
+| M | `docs/db-health.md` |
+| M | `docs/production-migration-history.md` |
+| M | `docs/release-2.7-integration.md` |
+| M | `supabase/RELEASE-DB.md` |
+| M | `supabase/migrations/20261201000900_draft_only_realtime.sql` |
+| M | `tests/db/hygiene-realtime.sql` |
+| M | `tests/db/realtime-draft-publication.mjs` |
+| M | `tests/e2e/db-security-catalog-attestations.json` |
+| M | `tests/e2e/release-history-attestations.json` |
+| A | `tests/helpers/realtime-publication.ts` |
+| M | `tests/hooks/matchup-refresh-failures.test.ts` |
+| A | `tests/realtime-publication.test.ts` |
+
 ## Forecast and lock-test follow-up
 
 The router test imports the shared navigation spy instead of replacing the router mock.
@@ -207,12 +266,12 @@ The [lab command](perf-lab.md#integration-checks) runs WebKit on the mini with s
 | --- | --- |
 | `supabase/sql/function-catalog.json` | `e475a72ecafaa692fbb9cfaaebade60a3e6c408a8f00f44231a5469ee80a244c` |
 | `types/database.ts` | `cd293085a8318a65febafa5dedad5c72b6928fcd9454666bd00aa195f2394bd8` |
-| `tests/e2e/db-security-catalog-attestations.json` | `aa5bd2fd3f3eca3b4b0ee8749662b39326b1b67739785c6cca3f57ad21a5ef3d` |
-| `tests/e2e/release-history-attestations.json` | `067ce92db7ba37403dd9f0551f8e2aff43554aca6632cb32bb8365f9a98bf315` |
+| `tests/e2e/db-security-catalog-attestations.json` | `1bc69fc22cc8d3a42abb7b1024f99e713a056ef070d053d5165d58faacacb907` |
+| `tests/e2e/release-history-attestations.json` | `417c12aef1de7f8473137472c3a09116800aa36db50992b64f1fb74793119a2a` |
 
 ## Every changed file
 
-648 file paths change against `origin/main`: 344 added, 18 deleted, 286 modified.
+651 file paths change against `origin/main`: 346 added, 18 deleted, 287 modified.
 Renames appear as an old deleted path and a new added path.
 
 | Status | File |
@@ -784,6 +843,7 @@ Renames appear as an old deleted path and a new added path.
 | A | `tests/e2e/trade-pick-local-setup.mjs` |
 | A | `tests/fixtures/matchup-forecast-justin.json` |
 | M | `tests/helpers/native-component-mocks.ts` |
+| A | `tests/helpers/realtime-publication.ts` |
 | M | `tests/hooks/draft-activity.test.ts` |
 | M | `tests/hooks/draft-room-launcher.test.ts` |
 | M | `tests/hooks/draft-room-shared-read.test.ts` |
@@ -791,6 +851,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `tests/hooks/lineup-actions-confirmation.test.ts` |
 | M | `tests/hooks/lineup-actions-partial.test.ts` |
 | D | `tests/hooks/lineup-auto-set-readiness.test.ts` |
+| M | `tests/hooks/matchup-refresh-failures.test.ts` |
 | A | `tests/hooks/player-game-pagination.test.ts` |
 | M | `tests/hooks/trade-actions.test.ts` |
 | M | `tests/hooks/trade-resource-identity.test.ts` |
@@ -848,6 +909,7 @@ Renames appear as an old deleted path and a new added path.
 | A | `tests/perf-lab/waiver-diagnostics.test.ts` |
 | A | `tests/perf-lab/waiver-plan.test.ts` |
 | A | `tests/perf-lab/web-back-navigation.test.ts` |
+| A | `tests/realtime-publication.test.ts` |
 | M | `tests/release-edge-compatibility.test.ts` |
 | M | `tests/roster-player-actions.test.ts` |
 | M | `tests/season-sim-cron.test.ts` |
