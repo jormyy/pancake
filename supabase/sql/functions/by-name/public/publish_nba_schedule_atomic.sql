@@ -84,11 +84,12 @@ BEGIN
   SELECT COALESCE(jsonb_object_agg(game->>'nba_game_id',game->'game_status_text'),'{}'::jsonb)
     INTO v_status_text FROM jsonb_array_elements(p_games) game WHERE game ? 'game_status_text';
 
-  INSERT INTO nba_games AS stored(nba_game_id,season_year,game_date,home_team,away_team,status,game_status_text,week_number,
+  INSERT INTO nba_games AS stored(id,nba_game_id,season_year,game_date,home_team,away_team,status,game_status_text,week_number,
     started_at,game_time,bbref_home_team,bbref_away_team,updated_at)
-  SELECT game.nba_game_id,p_season_year,game.game_date,game.home_team,game.away_team,game.status,game.game_status_text,game.week_number,
+  SELECT COALESCE(existing.id,gen_random_uuid()),game.nba_game_id,p_season_year,game.game_date,game.home_team,game.away_team,game.status,game.game_status_text,game.week_number,
     game.started_at,game.game_time,game.bbref_home_team,game.bbref_away_team,clock_timestamp()
     FROM jsonb_populate_recordset(NULL::nba_games,p_games) game
+    LEFT JOIN nba_games existing ON existing.nba_game_id=game.nba_game_id
   ON CONFLICT(nba_game_id) DO UPDATE SET
     season_year=EXCLUDED.season_year,game_date=EXCLUDED.game_date,home_team=EXCLUDED.home_team,away_team=EXCLUDED.away_team,
     status=EXCLUDED.status,

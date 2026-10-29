@@ -9,8 +9,8 @@ BEGIN
       OR jsonb_typeof(row->'odds'->'early') IS DISTINCT FROM 'number'
       OR jsonb_typeof(row->'odds'->'mid') IS DISTINCT FROM 'number'
       OR jsonb_typeof(row->'odds'->'late') IS DISTINCT FROM 'number'
-      OR (row->>'value')::numeric<LEAST((row->'bands'->>'early')::numeric,(row->'bands'->>'late')::numeric)-0.000001
-      OR (row->>'value')::numeric>GREATEST((row->'bands'->>'early')::numeric,(row->'bands'->>'late')::numeric)+0.000001
+      OR (row->>'value')::numeric<LEAST((row->'bands'->>'early')::numeric,(row->'bands'->>'mid')::numeric,(row->'bands'->>'late')::numeric)-0.000001
+      OR (row->>'value')::numeric>GREATEST((row->'bands'->>'early')::numeric,(row->'bands'->>'mid')::numeric,(row->'bands'->>'late')::numeric)+0.000001
       OR abs((row->'odds'->>'early')::numeric+(row->'odds'->>'mid')::numeric+(row->'odds'->>'late')::numeric-1)>0.000001) THEN
     RAISE EXCEPTION 'Invalid predicted pick values or odds.' USING ERRCODE='22023';
   END IF;

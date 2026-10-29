@@ -20,6 +20,7 @@ export async function startRuntime(at, { resume = false } = {}) {
   await writeJson(path.join(evidence, 'clock-audit.json'), clockAudit)
   for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) assert.equal(clockAudit[form].objects.filter(object => !(form === 'current_date' && object.kind === 'default')).length, 0, `Uncovered SQL clock form: ${form}`)
   await setClock({ at, rate: 0, install: true })
+  if (process.env.SEASON_SIM_AUTH_CLOCK === '1') await sql((await import('./auth-clock.mjs')).accessTokenHookSql)
   const reboundAudit = JSON.parse(await sql(await readFile(new URL('./clock-audit.sql', import.meta.url), 'utf8')))
   await writeJson(path.join(evidence, 'clock-audit-installed.json'), reboundAudit)
   for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) assert.equal(reboundAudit[form].occurrences, 0, `Uncovered installed SQL clock form: ${form}`)
@@ -40,7 +41,7 @@ export async function startRuntime(at, { resume = false } = {}) {
     finally { await new Promise(resolve => origin.close(resolve)) }
   }
   const startEdge = async () => {
-    child = spawn('deno', ['run', '--allow-sys=homedir', '--allow-env', '--allow-read', '--allow-write', `--allow-net=127.0.0.1:${config.ports.db},127.0.0.1:${config.ports.api},127.0.0.1:${config.ports.replay},127.0.0.1:${config.ports.edge},localhost:${config.ports.api}`, 'scripts/season-sim/edge.mjs'], {
+    child = spawn('deno', ['run', '--allow-sys=homedir', '--allow-env', '--allow-read', '--allow-write', `--allow-net=127.0.0.1:${config.ports.db},127.0.0.1:${config.ports.api},127.0.0.1:${config.ports.replay},127.0.0.1:${config.ports.edge},localhost:${config.ports.api}`, process.env.SEASON_SIM_EDGE_ENTRYPOINT ?? 'scripts/season-sim/edge.mjs'], {
     env: { ...process.env, SUPABASE_SECRET_KEY: keys.SECRET_KEY ?? keys.SERVICE_ROLE_KEY, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
   })
   log = captureProcessOutput(child, path.join(evidence, 'edge.log'))

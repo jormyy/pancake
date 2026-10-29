@@ -20,6 +20,32 @@ test('completed workers do not wait for delayed HTTP response collection', () =>
   assert.ok(!canAdvanceWorkers([{ worker_status: 'running' }], idle, 347))
 })
 
+test('completed HTTP replies release the clock without discarding stale worker receipts', async () => {
+  const outcomes = []
+  let finished = false
+  const driver = cronDispatcher(row => outcomes.push(row), {
+    waitForWorkerOutcome: true,
+    enqueueWork: async () => [{ id: 1, statement: 'production gate' }],
+    query: async () => [{ id: 1, worker_status: finished ? 'success' : 'running', status_code: 200 }],
+    health: async () => ({ active: 0, fetches: 0, sleeping: 0, nextAt: null }),
+    probe: { watch() {}, finish() {}, check: async () => {}, close: async () => {} },
+    recordOutcome: async () => {},
+  })
+  await driver.enqueue('production gate')
+  assert.deepEqual(await driver.settle(1000), { nextAt: null })
+  assert.equal(outcomes.length, 0)
+  finished = true
+  await driver.settle(2000)
+  assert.equal(outcomes[0].worker_status, 'success')
+})
+
+test('a stale completed receipt does not inflate the count of sleeping workers', () => {
+  const rows = [{ worker_status: 'running', status_code: 200 }, { worker_status: 'running', error_msg: 'HTTP response timed out' }]
+  const state = { active: 1, sleeping: 1, fetches: 0, nextAt: 20000 }
+  assert.equal(canAdvanceWorkers(rows, state, 10000), true)
+  assert.equal(canAdvanceWorkers(rows, { ...state, fetches: 1 }, 10000), false)
+})
+
 test('a pg_net request still queued behind a sleeping batch does not freeze its business clock',()=>{
   const rows=[{worker_status:'running',queue_pending:false},{worker_status:null,queue_pending:true}]
   const sleeping={active:1,sleeping:1,fetches:0,nextAt:20000}

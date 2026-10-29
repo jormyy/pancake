@@ -7,14 +7,21 @@ This is the contention lane's recorded baseline.
 Release 2.10 starts from release 2.9.1, `ec739102`.
 Database, then Edge, then merge the frontend.
 Apply pending migrations in version order.
+The missing notification versions precede the recorded production head; use `--include-all` and complete the database upgrade before strict release preflight.
 
 | Migration | Change |
 | --- | --- |
+| `20261214000300_bound_notification_season_scan.sql` | Bounds season notification candidates before recipient joins. |
+| `20261214000400_gate_idle_lineup_notifications.sql` | Skips impossible idle lineup notification scans. |
+| `20261214000600_reuse_notification_insert_plan.sql` | Reuses the notification insert plan. |
 | `20261214000900_refresh_queue_contention.sql` | Keeps completion events out of screen invalidation. |
 | `20261214001100_trade_preview_read_only.sql` | Keeps trade preview FAAB checks read only. |
 | `20261214001300_trade_analyzer_revalue.sql` | Enables saved trade revaluation and renews validated cache leases. |
 | `20261214001400_pace_trade_revaluation_work.sql` | Paces background revaluations behind screen work. |
 | `20261214001500_matchup_forecast_inputs.sql` | Reuses unchanged forecasts and prepares dates once per matchup. |
+| `20261214001700_ingest_identity_noop.sql` | Avoids unchanged identity and stat writes. |
+| `20261214001900_l4d_background_cost.sql` | Bounds pick predictions and skips unchanged game-day writes. |
+| `20261214002100_l3e_scans.sql` | Narrows projection and work scans and indexes internal identity reads. |
 
 `20261214001100_trade_preview_read_only.sql` can ship alone.
 It preserves locking checks for trade writes and waiver claims.
@@ -50,6 +57,20 @@ Pause trade dispatch, apply `20261212000100_trade_revaluation_inputs_fast.sql`, 
 Resume dispatch when both versions agree.
 This change needs no frontend release.
 This integration makes no production request.
+
+### L3e scan changes
+
+Apply `20261214002100_l3e_scans.sql` through the normal database migration runner.
+It changes `public.get_league_projection_rows` and `public.work_dashboard` without changing signatures or grants.
+It adds partial indexes for work retention and dashboard counts.
+It adds a function-expression index for player identity lookups and analyzes players.
+It grants `service_role` execute on `private.player_identity_name(text)` so service-role imports can maintain that index.
+Apply the complete migration, including that grant.
+No existing index is dropped.
+The shared projection helper is used by screen and forecast reads.
+The dashboard and retention indexes overlap L4 bookkeeping.
+Measurements and remaining replay checks are in [the L3e report](../docs/perf-l3e.md).
+This lane makes no production request.
 
 ### Screen read cost migration
 
@@ -1196,3 +1217,11 @@ Valuation source keys still use the prior summer NBA draft year.
 Commissioners edit the rule in a dedicated Future draft picks card with its own Save button.
 It loads the saved column directly and uses the existing configuration RPC.
 The form stays within app, components, and lib; no hook change is required.
+
+# L4c ingest cost
+
+`20261214001700_ingest_identity_noop.sql` avoids repeated merge work for unchanged, uniquely named player source links.
+The player lock and identity checks remain in place.
+The stat saver also filters unchanged rows before attempting inserts and retains its conflict guard.
+Measurements and verification are recorded in `docs/perf-l4c.md`.
+

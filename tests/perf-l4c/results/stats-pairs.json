@@ -1,0 +1,531 @@
+{
+  "players": 27,
+  "mixedPlayers": 10,
+  "ticks": 50,
+  "rounds": [
+    {
+      "scenario": "unchanged",
+      "round": 0,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 245.854,
+      "buffers": 4155,
+      "walBytes": 12400,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 0,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 335.385,
+      "buffers": 23312,
+      "walBytes": 13858,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 1,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 320.65,
+      "buffers": 23521,
+      "walBytes": 13858,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 1,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 241.252,
+      "buffers": 4155,
+      "walBytes": 12400,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 2,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 241.74,
+      "buffers": 4155,
+      "walBytes": 12400,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 2,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 333.146,
+      "buffers": 23604,
+      "walBytes": 13858,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 3,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 333.234,
+      "buffers": 23646,
+      "walBytes": 13858,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 3,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 280.303,
+      "buffers": 4155,
+      "walBytes": 12400,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 4,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 266.107,
+      "buffers": 4155,
+      "walBytes": 12400,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "unchanged",
+      "round": 4,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 336.731,
+      "buffers": 23654,
+      "walBytes": 13858,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "ba6ed6c83bc9e25b46b224784d4642bc",
+        "totals": "727a11876ae32daffbc4f6673f54b409",
+        "changed": 0,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "9ae5ed3f545bed51ce53c429cc72d842"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 0,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 530.61,
+      "buffers": 79819,
+      "walBytes": 568540,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 0,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 585.343,
+      "buffers": 91138,
+      "walBytes": 553792,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 1,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 582.934,
+      "buffers": 90914,
+      "walBytes": 553045,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 1,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 545.537,
+      "buffers": 79465,
+      "walBytes": 560208,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 2,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 518.142,
+      "buffers": 80045,
+      "walBytes": 554349,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 2,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 577.071,
+      "buffers": 92000,
+      "walBytes": 557261,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 3,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 584.657,
+      "buffers": 90958,
+      "walBytes": 577144,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 3,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 525.401,
+      "buffers": 79199,
+      "walBytes": 564398,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 4,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 531.131,
+      "buffers": 79281,
+      "walBytes": 554096,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "mixed",
+      "round": 4,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 642.406,
+      "buffers": 91045,
+      "walBytes": 583471,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "65224baff5545912ba8e8a1b411d6fc6",
+        "totals": "adb1664a509918d1198d49ee6d32bd50",
+        "changed": 500,
+        "players": "0a914a732af0946e14c1e86ace8743d2",
+        "receipts": "174e856ef40c7f67a286a6d2a49476f6"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 0,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 892.257,
+      "buffers": 323849,
+      "walBytes": 1963069,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 0,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 905.173,
+      "buffers": 320610,
+      "walBytes": 1931825,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 1,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 894.37,
+      "buffers": 322532,
+      "walBytes": 1970980,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 1,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 909.061,
+      "buffers": 322311,
+      "walBytes": 1971941,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 2,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 902.932,
+      "buffers": 325632,
+      "walBytes": 1952992,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 2,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 886.705,
+      "buffers": 321130,
+      "walBytes": 1968824,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 3,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 969.982,
+      "buffers": 323417,
+      "walBytes": 2008522,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 3,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 909.532,
+      "buffers": 323099,
+      "walBytes": 1976286,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 4,
+      "variant": "candidate",
+      "calls": 50,
+      "databaseMs": 928.588,
+      "buffers": 324951,
+      "walBytes": 1989992,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    },
+    {
+      "scenario": "changed",
+      "round": 4,
+      "variant": "reference",
+      "calls": 50,
+      "databaseMs": 905.606,
+      "buffers": 321746,
+      "walBytes": 1978855,
+      "hash": {
+        "games": "43e7407478ca1faad60594bf81b70368",
+        "stats": "0e458590b40b011534d90b264d7d1063",
+        "totals": "1e1f1f4a7838c71fb11bc3bdd9505d7f",
+        "changed": 1350,
+        "players": "aa1de53d3f804d5649f19dd4f581316d",
+        "receipts": "45681ca3a982ee47be1121541ff913a2"
+      }
+    }
+  ],
+  "summary": {
+    "unchanged": {
+      "reference": 333.234,
+      "candidate": 245.854
+    },
+    "mixed": {
+      "reference": 584.657,
+      "candidate": 530.61
+    },
+    "changed": {
+      "reference": 905.173,
+      "candidate": 909.061
+    }
+  }
+}

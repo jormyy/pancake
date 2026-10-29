@@ -6,7 +6,13 @@ DECLARE
   r record;
   v_today date := (p_now AT TIME ZONE 'America/New_York')::date;
 BEGIN
-  PERFORM private.notif_scan_lineups(p_now);
+  IF EXISTS(SELECT 1 FROM public.nba_games game WHERE game.game_date=v_today
+    AND private.lineup_game_available(game.status,game.game_status_text) AND game.game_time<=p_now+interval '2 hours')
+    AND EXISTS(SELECT 1 FROM public.nba_games game WHERE game.game_date=v_today
+      AND private.lineup_game_available(game.status,game.game_status_text) AND game.status='Scheduled'
+      AND game.game_time>p_now AND (game.started_at IS NULL OR game.started_at>p_now)) THEN
+    PERFORM private.notif_scan_lineups(p_now);
+  END IF;
   FOR r IN SELECT pick.id,pick.member_id,draft.league_id,draft.id AS draft_id
     FROM public.snake_draft_picks pick JOIN public.drafts draft ON draft.id = pick.draft_id
     WHERE draft.status = 'in_progress' AND NOT draft.is_mock AND pick.picked_at IS NULL AND pick.skipped_at IS NULL
@@ -14,11 +20,19 @@ BEGIN
   LOOP
     PERFORM private.notif_enqueue('draft_timer_expiring',r.id::text,r.league_id,r.member_id,jsonb_build_object('draftId',r.draft_id,'pickId',r.id));
   END LOOP;
-  FOR r IN SELECT season.id,season.league_id,member.id AS member_id FROM public.league_seasons season
-    JOIN public.league_members member ON member.league_id = season.league_id
+  FOR r IN WITH starting AS MATERIALIZED (
+    SELECT season.id,season.league_id FROM public.league_seasons season
     JOIN public.leagues league ON league.id = season.league_id
+    JOIN LATERAL (
+      SELECT week.week_start,week.week_end FROM public.season_weeks week
+      WHERE week.season_year=season.season_year AND NOT week.week_number=ANY(season.skipped_weeks)
+      ORDER BY week.week_number LIMIT 1
+    ) first_week ON true
     WHERE season.is_current AND league.status = 'active'
-      AND v_today = private.notif_first_scoring_day(season.id)
+      AND v_today = CASE WHEN v_today BETWEEN first_week.week_start AND first_week.week_end
+        THEN private.notif_first_scoring_day(season.id) END
+  ) SELECT starting.id,starting.league_id,member.id AS member_id FROM starting
+    JOIN public.league_members member ON member.league_id = starting.league_id
   LOOP
     PERFORM private.notif_enqueue('season_started',r.id::text,r.league_id,r.member_id,jsonb_build_object('leagueSeasonId',r.id));
   END LOOP;

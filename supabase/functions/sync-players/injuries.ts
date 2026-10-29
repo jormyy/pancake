@@ -10,8 +10,12 @@ import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 export async function syncInjuries(): Promise<{ updated: number; failure: string | null }> {
   const { statuses, byId, identities, detailsById, detailsByName, failure } = await fetchEspnInjuries()
   if (!statuses) return { updated: 0, failure }
+  let renewAfter = -Infinity
   for (const identity of new Map(identities.map(row => [row.provider_id, row])).values()) {
-    await renewCurrentWorkLease()
+    if (Date.now() >= renewAfter) {
+      await renewCurrentWorkLease()
+      renewAfter = Date.now() + 120_000
+    }
     await retryDatabaseContention(() => linkPlayerSources(supabase, 'espn', [identity]))
   }
   const rows = await fetchAllPlayers<{

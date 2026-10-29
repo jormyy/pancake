@@ -7,10 +7,14 @@ export function createSqlSession(executable, env, args = ['-XqAt', '--set', 'ON_
     for (const handle of [child, child?.stdin, child?.stdout, child?.stderr]) handle?.[enabled ? 'ref' : 'unref']?.()
   }
   const start = () => {
-    child = spawn(executable, args, { env, stdio: ['pipe', 'pipe', 'pipe'] })
-    child.stdout.setEncoding('utf8')
-    child.stderr.setEncoding('utf8')
-    child.stdout.on('data', chunk => {
+    output = ''
+    errors = ''
+    const current = spawn(executable, args, { env, stdio: ['pipe', 'pipe', 'pipe'] })
+    child = current
+    current.stdout.setEncoding('utf8')
+    current.stderr.setEncoding('utf8')
+    current.stdout.on('data', chunk => {
+      if (child !== current) return
       output += chunk
       if (!pending) return
       const end = output.indexOf(`${pending.marker}\n`)
@@ -22,14 +26,16 @@ export function createSqlSession(executable, env, args = ['-XqAt', '--set', 'ON_
       references(false)
       completed.resolve(result)
     })
-    child.stderr.on('data', chunk => { errors += chunk })
+    current.stderr.on('data', chunk => { if (child === current) errors += chunk })
     const fail = error => {
+      if (child !== current) return
       pending?.reject(error)
       pending = null
       child = null
+      output = ''
     }
-    child.on('error', fail)
-    child.on('exit', code => fail(new Error(`Local SQL client exits ${code}: ${errors.trim()}`)))
+    current.on('error', fail)
+    current.on('exit', code => fail(new Error(`Local SQL client exits ${code}: ${errors.trim()}`)))
   }
   const query = statement => {
     const operation = queue.then(() => new Promise((resolve, reject) => {

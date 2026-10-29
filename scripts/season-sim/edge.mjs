@@ -11,7 +11,7 @@ import { virtualDate } from './virtual-clock.mjs'
 import { virtualTimers } from './timers.mjs'
 import { trackWorkerWait, workerHealth } from './worker-waits.mjs'
 import { edgeFunctionNames } from './edge-function-inventory.mjs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { tradeValueWorkRequest } from './trade-value-catalog.mjs'
 
 const Deno = globalThis['Deno']
@@ -108,10 +108,12 @@ let loading
 const descriptor = Object.getOwnPropertyDescriptor(Deno, 'serve')
 Object.defineProperty(Deno, 'serve', { value: handler => { assert.ok(loading); handlers.set(loading, handler) }, configurable: true })
 try {
-  const names = edgeFunctionNames(fileURLToPath(new URL('../../supabase/functions/', import.meta.url)))
+  const configuredFunctions = Deno.env.get('SEASON_SIM_FUNCTIONS_ROOT')
+  const functions = configuredFunctions ? pathToFileURL(`${path.resolve(configuredFunctions)}/`) : new URL('../../supabase/functions/', import.meta.url)
+  const names = edgeFunctionNames(fileURLToPath(functions))
   for (const name of names) {
     loading = name
-    await import(new URL(`../../supabase/functions/${name}/index.ts`, import.meta.url).href)
+    await import(new URL(`${name}/index.ts`, functions).href)
     assert.ok(handlers.has(name), `No handler registered for ${name}`)
   }
 } finally { Object.defineProperty(Deno, 'serve', descriptor) }

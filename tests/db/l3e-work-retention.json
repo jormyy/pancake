@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "name": "no-expired",
+      "query": "SELECT private.retain_work_items('2026-10-28T12:00:00Z')",
+      "repetitions": 100
+    },
+    {
+      "name": "expired",
+      "query": "SELECT private.retain_work_items('2026-10-28T12:00:00Z')",
+      "repetitions": 1,
+      "setup": "INSERT INTO private.work_items(id,kind,key,status,due_at,created_at,completed_at) OVERRIDING SYSTEM VALUE VALUES (-1001,'sync-players','l3e-expired-success','succeeded','2026-10-01','2026-10-01','2026-10-01'),(-1002,'sync-players','l3e-retained-dead','dead','2026-10-01','2026-10-01','2026-10-01'),(-1003,'sync-players','l3e-expired-dead','dead','2026-01-01','2026-01-01','2026-01-01');",
+      "state": "SELECT md5(jsonb_agg(to_jsonb(w) ORDER BY id)::text) FROM private.work_items w"
+    }
+  ]
+}

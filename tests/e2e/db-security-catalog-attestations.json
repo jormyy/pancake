@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214001500",
+  "candidateVersion": "20261214002100",
   "common": {
     "functions": [
       {
@@ -958,7 +958,7 @@
           "strict": false,
           "language": "sql",
           "arguments": "",
-          "bodySha256": "be5838b2fa35a6d4bc0d9b36d13b509b48428afd6b3acc85e8e2f0e6958ad742",
+          "bodySha256": "b0cd7cea0189f62ba1e1b3709c17eb2476e6464fb54eaf5cdf9088f3cfccdf33",
           "volatility": "s",
           "anonExecute": false,
           "publicExecute": false,
@@ -2266,12 +2266,24 @@
       "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
     },
     {
+      "filename": "20261214000300_bound_notification_season_scan.sql",
+      "sha256": "8c68fbd2b464f92d506053626402c9c10d4508b3becebe3541643caafa239164"
+    },
+    {
+      "filename": "20261214000400_gate_idle_lineup_notifications.sql",
+      "sha256": "0d00466102154d0e2cd009e0da3bdf0c86ebc4ba80b99caf543d6c0cc7be7084"
+    },
+    {
       "filename": "20261214000500_slow_screens.sql",
       "sha256": "085a12ec3f7c69b4e9ebe06ca16ab9867f01ae674955cf956452a4ab915baf8b"
     },
     {
       "filename": "20261214000501_slow_screen_addendum.sql",
       "sha256": "a9b21ee1b1b04a2fa7ca33e0bf8f8719e08529b86f930e82b884a87d81bff71a"
+    },
+    {
+      "filename": "20261214000600_reuse_notification_insert_plan.sql",
+      "sha256": "b4b803f368eed9554516852de540ec57f49f2e5914d9987b919b065a6b5c57da"
     },
     {
       "filename": "20261214000700_future_pick_years.sql",
@@ -2296,6 +2308,18 @@
     {
       "filename": "20261214001500_matchup_forecast_inputs.sql",
       "sha256": "29cd2d5472fec27e882a1929605bc30eb626a13885a05d92df1ff0fb556bc6db"
+    },
+    {
+      "filename": "20261214001700_ingest_identity_noop.sql",
+      "sha256": "93d6f3183134d0d78a3042418632a2472a4a006b4718a4e9319641297344c2da"
+    },
+    {
+      "filename": "20261214001900_l4d_background_cost.sql",
+      "sha256": "1dcefba160b2c80e116a1ced6e795314cb0455787f665d71ba107047515fe758"
+    },
+    {
+      "filename": "20261214002100_l3e_scans.sql",
+      "sha256": "4b4d0aacb09dddc9bee924479223b1467f9271d676b71f44010c51e99bb1c300"
     }
   ],
   "preMigration": {

@@ -7,6 +7,12 @@ const roster = (c, user) => c.rest(user, `roster_players?select=*,players(nba_id
 const transactionState = async (c, user) => (await c.rpc(user, 'get_member_transaction_state', { p_member_id: user.memberId, p_league_id: c.leagueId }))[0]
 const freePlayer = c => sql(`SELECT id FROM players p WHERE p.nba_id IS NOT NULL AND p.position IS NOT NULL AND p.injury_status IS NULL AND p.display_name NOT LIKE 'Synthetic Prospect %' AND NOT EXISTS(SELECT 1 FROM roster_players r WHERE r.league_id='${c.leagueId}' AND r.player_id=p.id) AND NOT EXISTS(SELECT 1 FROM waiver_wire_log w WHERE w.league_id='${c.leagueId}' AND w.player_id=p.id AND w.cleared_at IS NULL) ORDER BY nba_id LIMIT 1`)
 
+export async function assertWeeklyAddLimit(c, user, playerId) {
+  const rejected = await c.rpc(user, 'create_waiver_claim_atomic', { p_member_id: user.memberId, p_league_id: c.leagueId, p_player_id: playerId, p_bid_amount: 0 }, 400)
+  assert.equal(rejected.code, 'PA001')
+  assert.match(rejected.message, /Weekly add limit/i)
+}
+
 export function overBudgetWaiverBid(budget) {
   assert.ok(Number.isSafeInteger(budget) && budget >= 0, 'A waiver rejection needs a known nonnegative budget')
   return budget + 1
@@ -127,8 +133,7 @@ export async function verifyWaivers(c, report) {
       checkWaiverTiming(actual.processed_at, scenario.processAt)
     }
     const winner = c.users.find(user => scenario.expected.weeklyCounts[user.memberId] === 1)
-    const rejected = await c.rpc(winner, 'add_free_agent_atomic', { p_member_id: winner.memberId, p_league_id: c.leagueId, p_player_id: await freePlayer(c) }, 400)
-    assert.match(JSON.stringify(rejected), /Weekly add limit/i)
+    await assertWeeklyAddLimit(c, winner, await freePlayer(c))
     scenario.checked = true
     scenario.checkedAt = new Date(now).toISOString()
     scenario.awardWeek = states[winner.memberId].week_number

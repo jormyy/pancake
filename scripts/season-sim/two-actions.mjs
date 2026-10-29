@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { sql, sqlJson } from './local-stack.mjs'
-import { nextWaiverRun } from './waiver-scenarios.mjs'
+import { assertWeeklyAddLimit, nextWaiverRun } from './waiver-scenarios.mjs'
 import { shiftDay } from './season-model.mjs'
 import { waiverClaims, waiverResetAt } from './waiver-oracle.mjs'
 
@@ -119,8 +119,7 @@ export async function allStarLimit(c, date, profile, report) {
     assert.equal(state.week_number,merged.week_number,'The merged matchup retains one add bucket')
     assert.equal(Date.parse(state.add_limit_resets_at),waiverResetAt(merged.week_end),'The add bucket ends after the complete merged matchup')
     assert.equal(state.weekly_add_count, 1, 'No add-limit reset occurs inside the merged All-Star matchup')
-    const failed = await c.rpc(user, 'add_free_agent_atomic', { p_member_id: user.memberId, p_league_id: c.leagueId, p_player_id: await sql(`SELECT id FROM players p WHERE nba_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM roster_players r WHERE r.league_id='${c.leagueId}' AND r.player_id=p.id) AND NOT EXISTS(SELECT 1 FROM waiver_wire_log w WHERE w.league_id='${c.leagueId}' AND w.player_id=p.id AND cleared_at IS NULL) ORDER BY nba_id LIMIT 1`) }, 400)
-    assert.match(JSON.stringify(failed), /Weekly add limit/i)
+    await assertWeeklyAddLimit(c, user, await sql(`SELECT id FROM players p WHERE nba_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM roster_players r WHERE r.league_id='${c.leagueId}' AND r.player_id=p.id) AND NOT EXISTS(SELECT 1 FROM waiver_wire_log w WHERE w.league_id='${c.leagueId}' AND w.player_id=p.id AND cleared_at IS NULL) ORDER BY nba_id LIMIT 1`))
     report.allStarLimits ??= []
     report.allStarLimits.push({ ...c.allStarLimit, checked: date, resetsAt: new Date(waiverResetAt(merged.week_end)).toISOString(), passed: true })
   }

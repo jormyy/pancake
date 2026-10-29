@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "name": "2025",
+      "query": "SELECT public.count_final_games_missing_stats(2025)"
+    },
+    {
+      "name": "2026",
+      "query": "SELECT public.count_final_games_missing_stats(2026)"
+    },
+    {
+      "name": "2099",
+      "query": "SELECT public.count_final_games_missing_stats(2099)"
+    }
+  ]
+}

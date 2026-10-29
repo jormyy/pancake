@@ -160,7 +160,7 @@
     "private.player_career_appearances(uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.player_career_fallback(uuid,integer,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.player_game_appeared(player_game_stats)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
-    "private.player_identity_name(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.player_identity_name(text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.player_identity_team(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.player_import_name_key(text)": {"acl":["postgres|EXECUTE|false|postgres","service_role|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.playoff_clinched_standings()": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},

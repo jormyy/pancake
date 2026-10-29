@@ -30,6 +30,25 @@ BEGIN
     ) THEN v_id:=NULL; v_action:='ambiguous'; END IF;
     IF v_id IS NOT NULL THEN
       SELECT * INTO v_player FROM public.players WHERE id=v_id FOR NO KEY UPDATE;
+      IF private.player_identity_name(v_player.display_name)=v_name_key
+        AND (v_record->>'espn_id' IS NULL OR v_player.espn_id=v_record->>'espn_id')
+        AND (v_record->>'nba_id' IS NULL OR v_player.nba_id=v_record->>'nba_id')
+        AND (v_record->>'sleeper_id' IS NULL OR v_player.sleeper_id=v_record->>'sleeper_id')
+        AND (v_record->>'years_exp' IS NULL OR v_player.years_exp IS NOT NULL)
+        AND (v_record->>'position' IS NULL OR (v_player.position IS NOT NULL AND cardinality(v_player.eligible_positions)>0))
+        AND (NOT p_current_roster OR v_player.nba_team IS NOT DISTINCT FROM v_team)
+        AND NOT EXISTS(SELECT FROM public.players p WHERE p.id<>v_id AND (
+          (v_record->>'espn_id' IS NOT NULL AND p.espn_id=v_record->>'espn_id')
+          OR (v_record->>'nba_id' IS NOT NULL AND p.nba_id=v_record->>'nba_id')
+          OR (v_record->>'sleeper_id' IS NOT NULL AND p.sleeper_id=v_record->>'sleeper_id')))
+        AND NOT EXISTS(SELECT FROM public.players p WHERE p.id<>v_id
+          AND regexp_replace(lower(regexp_replace(normalize(p.display_name,NFD),U&'[\0300-\036F]','','g')),'[^a-z]','','g')=v_name_key)
+      THEN
+        UPDATE public.players p SET nba_team=p.nba_team WHERE false;
+        v_results:=v_results||jsonb_build_array(jsonb_build_object('index',v_index,'player_id',v_id,'action','unchanged'));
+        v_index:=v_index+1;
+        CONTINUE;
+      END IF;
       SELECT array_agg(p.id ORDER BY p.id) INTO v_ids FROM public.players p
         WHERE p.id<>v_id AND regexp_replace(lower(regexp_replace(normalize(p.display_name,NFD),U&'[\0300-\036F]','','g')),'[^a-z]','','g')=v_name_key
           AND (private.player_identity_team(p.nba_team)=v_team OR (

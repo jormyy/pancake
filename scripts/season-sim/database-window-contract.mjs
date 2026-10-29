@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
+import { labTarget } from '../perf-lab/target.mjs'
 
-export function validateDatabaseWindow(value, project, year) {
-  assert.equal(project, 'pt4bafabledb', 'A database window requires the exclusive audit project')
+export function validateDatabaseWindow(value, project, year, env = process.env) {
+  assert.equal(project, env.PERF_LAB_PROJECT ? labTarget(env).project : 'pt4bafabledb', 'A database window requires its assigned private project')
   assert.equal(value.version, 1)
   assert.equal(value.days, 2, 'The database workload covers exactly two days')
   assert.equal(value.seasonYear, year)

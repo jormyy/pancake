@@ -1,0 +1,23 @@
+{
+  "cases": [
+    {
+      "name": "espn-1",
+      "query": "SELECT public.resolve_player_imports_atomic('espn',(SELECT jsonb_agg(jsonb_build_object('provider_id',espn_id,'first_name',first_name,'last_name',last_name,'metadata',jsonb_build_object('nba_team',nba_team,'position',position,'eligible_positions',eligible_positions,'status',status,'injury_status',injury_status,'years_exp',years_exp,'birthdate',birthdate)) ORDER BY id) FROM (SELECT * FROM public.players WHERE espn_id IS NOT NULL AND first_name IS NOT NULL AND last_name IS NOT NULL ORDER BY id LIMIT 1) p))",
+      "state": "SELECT md5(jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY id)::text) FROM public.players p"
+    },
+    {
+      "name": "espn-20",
+      "query": "SELECT public.resolve_player_imports_atomic('espn',(SELECT jsonb_agg(jsonb_build_object('provider_id',espn_id,'first_name',first_name,'last_name',last_name,'metadata',jsonb_build_object('nba_team',nba_team,'position',position,'eligible_positions',eligible_positions,'status',status,'injury_status',injury_status,'years_exp',years_exp,'birthdate',birthdate)) ORDER BY id) FROM (SELECT * FROM public.players WHERE espn_id IS NOT NULL AND first_name IS NOT NULL AND last_name IS NOT NULL ORDER BY id LIMIT 20) p))",
+      "state": "SELECT md5(jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY id)::text) FROM public.players p"
+    },
+    {
+      "name": "espn-100",
+      "query": "SELECT public.resolve_player_imports_atomic('espn',(SELECT jsonb_agg(jsonb_build_object('provider_id',espn_id,'first_name',first_name,'last_name',last_name,'metadata',jsonb_build_object('nba_team',nba_team,'position',position,'eligible_positions',eligible_positions,'status',status,'injury_status',injury_status,'years_exp',years_exp,'birthdate',birthdate)) ORDER BY id) FROM (SELECT * FROM public.players WHERE espn_id IS NOT NULL AND first_name IS NOT NULL AND last_name IS NOT NULL ORDER BY id LIMIT 100) p))",
+      "state": "SELECT md5(jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY id)::text) FROM public.players p"
+    },
+    {
+      "name": "empty",
+      "query": "SELECT public.resolve_player_imports_atomic('espn','[]'::jsonb)"
+    }
+  ]
+}
