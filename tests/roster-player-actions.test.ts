@@ -1,13 +1,10 @@
-import './helpers/native-component-mocks'
+import { navigation } from './helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
 import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import type { RosterPlayer } from '@/lib/roster'
-
-const navigation = vi.hoisted(() => ({ push: vi.fn() }))
-vi.mock('expo-router', () => ({ useRouter: () => navigation }))
 
 vi.mock('@/lib/format', () => ({ formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))

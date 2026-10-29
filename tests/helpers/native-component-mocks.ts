@@ -4,7 +4,11 @@
 import React from 'react'
 import { vi } from 'vitest'
 
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: () => false }) }))
+const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: () => false }))
+
+export { navigation }
+
+vi.mock('expo-router', () => ({ useRouter: () => navigation }))
 
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'MaterialIcons' }))
 vi.mock('@/lib/supabase', () => ({ supabase: { from: vi.fn() } }))
