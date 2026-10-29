@@ -22,10 +22,12 @@ BEGIN
     RAISE EXCEPTION 'A complete versioned forecast is required.' USING ERRCODE='22023';
   END IF;
   INSERT INTO public.matchup_forecasts(matchup_id,league_id,input_revision,forecast,calculated_at,valid_until)
-  VALUES(p_matchup_id,forecast_league_id,p_revision,p_forecast,now(),GREATEST(COALESCE(p_valid_until,now()+interval '1 day'),now()+interval '1 second'))
+  VALUES(p_matchup_id,forecast_league_id,p_revision,p_forecast,now(),GREATEST(LEAST(COALESCE(p_valid_until,now()+interval '1 day'),
+    (queued.claimed_fingerprint->>'validUntil')::timestamptz),now()+interval '1 second'))
   ON CONFLICT(matchup_id) DO UPDATE SET input_revision=EXCLUDED.input_revision,forecast=EXCLUDED.forecast,
     calculated_at=EXCLUDED.calculated_at,valid_until=EXCLUDED.valid_until;
-  UPDATE private.matchup_forecast_queue SET dirty=false,claim_token=NULL,claimed_at=NULL,claimed_revision=NULL,last_error=NULL
+  UPDATE private.matchup_forecast_queue SET dirty=false,claim_token=NULL,claimed_at=NULL,claimed_revision=NULL,last_error=NULL,
+    computed_fingerprint=queued.claimed_fingerprint,claimed_fingerprint=NULL
   WHERE matchup_id=p_matchup_id;
   RETURN true;
 END;

@@ -1,0 +1,1189 @@
+{
+  "phase": "after",
+  "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+  "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+  "screens": [
+    {
+      "route": "lineup",
+      "theme": "light",
+      "text": "Lineup\n\nWeek 2 lineup\nKeep updated automatically\nTap a player, then a slot or another player to swap. Locked players stay in place.\nM\n26\nT\n27\nW\n28\nT\n29\nF\n30\nS\n31\nS\n1\nSTARTERS\nPG\nJF\nJeremiah Fears\nNOP\nPG\nYr 2\nvs SAC\n\nLocked\nLocked by trade b4c1dea6. Resolve the trade to change this asset.\nSG\nCM\nCJ McCollum\nATL\nPG\nSG\nYr 14\nvs CLE\nSF\nJJ\nJalen Johnson\nATL\nPF\nSF\nYr 6\nvs CLE\nPF\nKT\nKarl-Anthony Towns\nNYK\nC\nPF\nYr 12\n· No game\nC\nJA\nJarrett Allen\nCLE\nC\nYr 10\n@ ATL\nG\nAR\nAustin Reaves\nLAL\nPG\nSG\nYr 6\n· No game\nF\nJB\nJaylen Brown\nPHI\nPF\nSF\nSG\nYr 11\n· No game\nUTIL\nRB\nRJ Barrett\nTOR\nPF\nSF\nSG\nYr 8\n· No game\nUTIL\nTY\nTrae Young\nWAS\nPG\nYr 9\n· No game\nUTIL\nWK\nWalker Kessler\nLAL\nC\nYr 5\n· No game\nBENCH\nAD\nAyo Dosunmu\nMIN\nPG\nSG\nYr 6\n· No game\nJG\nJosh Giddey\nCHI\nPG\nYr 6\n· No game\nAW\nAndrew Wiggins\nMIA\nPF\nSF\nSG\nYr 13\n· No game\nFW\nFranz Wagner\nORL\nPF\nSF\nYr 6\n· No game\nNP\nNorman Powell\nCHI\nSF\nSG\nYr 12\n· No game\nTE\nTari Eason\nHOU\nSF\nSG\nYr 5\n· No game\nMB\nMikal Bridges\nNYK\nPF\nSF\nSG\nYr 9\n· No game\nCW\nCoby White\nCHA\nPG\nSG\nO\nYr 8\n· No game\nIH\nIsaiah Hartenstein\nOKC\nC\nYr 9\n· No game\nOD\nOusmane Dieng\nMIL\nSF\nSG\nYr 5\n· No game\nIR\nIR\nMM\nMoses Moody\nGSW\nPF\nSF\nSG\nO\nYr 6\nIR\nJN\nJusuf Nurkic\nUTA\nC\nO\nYr 13\nTAXI\nTaxi\nMJ\nMorez Johnson Jr.\nDAL\nC\nPF\nR\nT:4\nYr 1\nTaxi\nZE\nZuby Ejiofor\nATL\nC\nPF\nR\nT:2\nYr 1\nTaxi\nJB\nJoan Beringer\nMIN\nC\nT:44\nYr 2\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague",
+      "headers": [
+        {
+          "text": "20/20 active · 2/2 IR · 3/3 taxi1 WaiverAuto-set",
+          "borderBottomWidth": "1px",
+          "top": 0,
+          "height": 0
+        },
+        {
+          "text": "Week 2 lineup",
+          "borderBottomWidth": "1px",
+          "top": 0,
+          "height": 49
+        }
+      ]
+    },
+    {
+      "route": "lineup",
+      "theme": "dark",
+      "text": "Lineup\n\nWeek 2 lineup\nKeep updated automatically\nTap a player, then a slot or another player to swap. Locked players stay in place.\nM\n26\nT\n27\nW\n28\nT\n29\nF\n30\nS\n31\nS\n1\nSTARTERS\nPG\nJF\nJeremiah Fears\nNOP\nPG\nYr 2\nvs SAC\n\nLocked\nLocked by trade b4c1dea6. Resolve the trade to change this asset.\nSG\nCM\nCJ McCollum\nATL\nPG\nSG\nYr 14\nvs CLE\nSF\nJJ\nJalen Johnson\nATL\nPF\nSF\nYr 6\nvs CLE\nPF\nKT\nKarl-Anthony Towns\nNYK\nC\nPF\nYr 12\n· No game\nC\nJA\nJarrett Allen\nCLE\nC\nYr 10\n@ ATL\nG\nAR\nAustin Reaves\nLAL\nPG\nSG\nYr 6\n· No game\nF\nJB\nJaylen Brown\nPHI\nPF\nSF\nSG\nYr 11\n· No game\nUTIL\nRB\nRJ Barrett\nTOR\nPF\nSF\nSG\nYr 8\n· No game\nUTIL\nTY\nTrae Young\nWAS\nPG\nYr 9\n· No game\nUTIL\nWK\nWalker Kessler\nLAL\nC\nYr 5\n· No game\nBENCH\nAD\nAyo Dosunmu\nMIN\nPG\nSG\nYr 6\n· No game\nJG\nJosh Giddey\nCHI\nPG\nYr 6\n· No game\nAW\nAndrew Wiggins\nMIA\nPF\nSF\nSG\nYr 13\n· No game\nFW\nFranz Wagner\nORL\nPF\nSF\nYr 6\n· No game\nNP\nNorman Powell\nCHI\nSF\nSG\nYr 12\n· No game\nTE\nTari Eason\nHOU\nSF\nSG\nYr 5\n· No game\nMB\nMikal Bridges\nNYK\nPF\nSF\nSG\nYr 9\n· No game\nCW\nCoby White\nCHA\nPG\nSG\nO\nYr 8\n· No game\nIH\nIsaiah Hartenstein\nOKC\nC\nYr 9\n· No game\nOD\nOusmane Dieng\nMIL\nSF\nSG\nYr 5\n· No game\nIR\nIR\nMM\nMoses Moody\nGSW\nPF\nSF\nSG\nO\nYr 6\nIR\nJN\nJusuf Nurkic\nUTA\nC\nO\nYr 13\nTAXI\nTaxi\nMJ\nMorez Johnson Jr.\nDAL\nC\nPF\nR\nT:4\nYr 1\nTaxi\nZE\nZuby Ejiofor\nATL\nC\nPF\nR\nT:2\nYr 1\nTaxi\nJB\nJoan Beringer\nMIN\nC\nT:44\nYr 2\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague",
+      "headers": [
+        {
+          "text": "20/20 active · 2/2 IR · 3/3 taxi1 WaiverAuto-set",
+          "borderBottomWidth": "1px",
+          "top": 0,
+          "height": 0
+        },
+        {
+          "text": "Week 2 lineup",
+          "borderBottomWidth": "1px",
+          "top": 0,
+          "height": 49
+        }
+      ]
+    },
+    {
+      "route": "bracket",
+      "theme": "light",
+      "text": "OFFICIAL LEAGUE\n\n\n\nPlayoffs\nNo playoff bracket yet\nIt appears when the regular season ends.\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague",
+      "headers": [
+        {
+          "text": "Playoffs",
+          "borderBottomWidth": "0px",
+          "top": 56,
+          "height": 56
+        }
+      ]
+    },
+    {
+      "route": "bracket",
+      "theme": "dark",
+      "text": "OFFICIAL LEAGUE\n\n\n\nPlayoffs\nNo playoff bracket yet\nIt appears when the regular season ends.\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague",
+      "headers": [
+        {
+          "text": "Playoffs",
+          "borderBottomWidth": "0px",
+          "top": 56,
+          "height": 56
+        }
+      ]
+    },
+    {
+      "route": "analyzer-initial",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=analyzer",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMake offer\njet lee\n0 vs 107.6\n+107.6\nMike's Minions\n107.6 vs 0\n-107.6\nOD\nOusmane Dieng\nMIL\nSF\nSG\nValue 107.6 · Now 5 · Long 107.6\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-changed-pending",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=analyzer",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMake offer\nUpdating values…\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-changed-fresh",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=analyzer",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMake offer\njet lee\n0 vs 510.5\n+510.5\nMike's Minions\n510.5 vs 0\n-510.5\nTE\nTari Eason\nHOU\nSF\nSG\nValue 402.9 · Now 24.75 · Long 402.9\nOD\nOusmane Dieng\nMIL\nSF\nSG\nValue 107.6 · Now 5 · Long 107.6\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-timing",
+      "elapsedMs": 1352,
+      "observationDelayMs": 600
+    },
+    {
+      "route": "analyzer-revalue-pending",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=analyzer",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMake offer\nUpdating values…\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-revalue-fresh",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=analyzer",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMake offer\njet lee\n0 vs 510.5\n+510.5\nMike's Minions\n510.5 vs 0\n-510.5\nTE\nTari Eason\nHOU\nSF\nSG\nValue 402.9 · Now 24.75 · Long 402.9\nOD\nOusmane Dieng\nMIL\nSF\nSG\nValue 107.6 · Now 5 · Long 107.6\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-saved-fresh-details",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=history&tradeId=b4c1dea6-e389-45aa-bedf-a26e12f46d38",
+      "text": "Trade details\n\nProposed by Matthew · Oct 27, 2026, 1:37 PM PT · Veto window closes Oct 28, 2026, 1:39 PM PT\nYOU RECEIVE\nNA\nNickeil Alexander-Walker\nATL\nPG\nSG\nYr 8\n34.0 FP · 29.6 mins\nYOU GIVE\nR2\n2028 Round 2 (orig. Mike's Minions)\nJF\nJeremiah Fears\nNOP\nPG\nYr 2\n8.7 FP · 22.7 mins\nR1\n2029 Round 1 (orig. Mike's Minions)\n1041.6 vs 540\nRevalue with current inputs\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-saved-fresh",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=history",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMike's Minions\n1041.6 vs 540\n-339.6\nMatthew\n540 vs 1041.6\n+339.6\nJF\nJeremiah Fears\nNOP\nPG\nValue 439.4 · Now 8.67 · Long 439.4\n2027 Round 2 · Mike's Minions\nValue 155.9 · Now 0 · Long 155.9 · 107.7–302.8\n2028 Round 1 · Mike's Minions\nValue 446.3 · Now 0 · Long 446.3 · 348.6–687.8\nNA\nNickeil Alexander-Walker\nATL\nPG\nSG\nValue 540 · Now 34 · Long 540\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-saved-expired-details",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=history&tradeId=b4c1dea6-e389-45aa-bedf-a26e12f46d38",
+      "text": "Trade details\n\nProposed by Matthew · Oct 27, 2026, 1:37 PM PT · Veto window closes Oct 28, 2026, 1:39 PM PT\nYOU RECEIVE\nNA\nNickeil Alexander-Walker\nATL\nPG\nSG\nYr 8\n34.0 FP · 29.6 mins\nYOU GIVE\nR2\n2028 Round 2 (orig. Mike's Minions)\nJF\nJeremiah Fears\nNOP\nPG\nYr 2\n8.7 FP · 22.7 mins\nR1\n2029 Round 1 (orig. Mike's Minions)\n1041.6 vs 540\nRevalue with current inputs\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    },
+    {
+      "route": "analyzer-saved-expired",
+      "url": "https://michaels-mac-mini.local:62884/trades?tab=history",
+      "text": "OFFICIAL LEAGUE\n\n\nTrade analysis\nOffers\nBlock\nHistory\nAnalyzer\n\nEdit assets\nRevalue\nMike's Minions\n1041.6 vs 540\n-339.6\nMatthew\n540 vs 1041.6\n+339.6\nJF\nJeremiah Fears\nNOP\nPG\nValue 439.4 · Now 8.67 · Long 439.4\n2027 Round 2 · Mike's Minions\nValue 155.9 · Now 0 · Long 155.9 · 107.7–302.8\n2028 Round 1 · Mike's Minions\nValue 446.3 · Now 0 · Long 446.3 · 348.6–687.8\nNA\nNickeil Alexander-Walker\nATL\nPG\nSG\nValue 540 · Now 34 · Long 540\n\nHome\n\nRoster\n\nPlayers\n\nTrades\n\nLeague"
+    }
+  ],
+  "requests": [
+    {
+      "path": "/functions/v1/api/trades/estimate",
+      "body": {
+        "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+        "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+        "items": [
+          {
+            "kind": "player",
+            "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+            "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+            "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f"
+          }
+        ],
+        "requestId": "db830804-4015-4200-85b1-df03988935e7"
+      },
+      "status": 200,
+      "response": {
+        "ok": true,
+        "quote": {
+          "id": "a6a415ed-3fbd-4c0d-8694-4fa73373c6a9",
+          "terms": [
+            {
+              "pickId": null,
+              "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+              "faabAmount": 0,
+              "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            }
+          ],
+          "analysis": {
+            "teams": [
+              {
+                "impact": 107.6,
+                "memberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+                "valuesSent": 0,
+                "longTermValue": 107.6,
+                "packageEffect": 0,
+                "valuesReceived": 107.6,
+                "shortTermPoints": 5,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              },
+              {
+                "impact": -107.6,
+                "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+                "valuesSent": 107.6,
+                "longTermValue": -107.6,
+                "packageEffect": 0,
+                "valuesReceived": 0,
+                "shortTermPoints": -5,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              }
+            ],
+            "assets": [
+              {
+                "kind": "player",
+                "label": "Ousmane Dieng",
+                "ranges": {},
+                "values": {
+                  "contend": 107.6,
+                  "overall": 107.6,
+                  "rebuild": 107.6
+                },
+                "assetId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 107.6,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 107.6,
+                  "shortTermPoints": 5,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              }
+            ],
+            "sources": [
+              {
+                "name": "onenumberhoops.com",
+                "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+              },
+              {
+                "name": "sleeper (stale or unavailable)",
+                "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+              },
+              {
+                "name": "league season averages",
+                "fetchedAt": null
+              }
+            ],
+            "strategy": "overall",
+            "confidence": 1,
+            "assumptions": [
+              "Totals sum imported values. Package effects include consolidation and strong-third-piece credit.",
+              "Impact is zero when adjusted totals differ by at most 5% of the larger total.",
+              "Replacement value uses 5 available players in this league."
+            ],
+            "missingInputs": []
+          },
+          "createdAt": "2026-10-29T21:04:37.545935+00:00",
+          "expiresAt": "2026-10-29T21:14:37.545935+00:00",
+          "seasonYear": 2027,
+          "inputVersion": "a4d74a5d70033b7b30c8c7e06d103907",
+          "modelVersion": "onenumber-trade-v1"
+        }
+      },
+      "at": 1793308445779
+    },
+    {
+      "path": "/functions/v1/api/trades/estimate",
+      "body": {
+        "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+        "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+        "items": [
+          {
+            "kind": "player",
+            "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+            "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+            "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f"
+          },
+          {
+            "kind": "player",
+            "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+            "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+            "playerId": "5a70bed9-d121-4f23-acd6-f314596ab409"
+          }
+        ],
+        "requestId": "5267e506-f6cb-4101-9b96-62d7f5fdbcf5"
+      },
+      "status": 200,
+      "response": {
+        "ok": true,
+        "quote": {
+          "id": "c288c186-3c88-487c-adfc-e237ddf27e61",
+          "terms": [
+            {
+              "pickId": null,
+              "playerId": "5a70bed9-d121-4f23-acd6-f314596ab409",
+              "faabAmount": 0,
+              "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": null,
+              "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+              "faabAmount": 0,
+              "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            }
+          ],
+          "analysis": {
+            "teams": [
+              {
+                "impact": 510.5,
+                "memberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+                "valuesSent": 0,
+                "longTermValue": 510.5,
+                "packageEffect": 0,
+                "valuesReceived": 510.5,
+                "shortTermPoints": 29.75,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              },
+              {
+                "impact": -510.5,
+                "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+                "valuesSent": 510.5,
+                "longTermValue": -510.5,
+                "packageEffect": 0,
+                "valuesReceived": 0,
+                "shortTermPoints": -29.75,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              }
+            ],
+            "assets": [
+              {
+                "kind": "player",
+                "label": "Tari Eason",
+                "ranges": {},
+                "values": {
+                  "contend": 402.9,
+                  "overall": 402.9,
+                  "rebuild": 402.9
+                },
+                "assetId": "5a70bed9-d121-4f23-acd6-f314596ab409",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 402.9,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 402.9,
+                  "shortTermPoints": 24.75,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              },
+              {
+                "kind": "player",
+                "label": "Ousmane Dieng",
+                "ranges": {},
+                "values": {
+                  "contend": 107.6,
+                  "overall": 107.6,
+                  "rebuild": 107.6
+                },
+                "assetId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 107.6,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 107.6,
+                  "shortTermPoints": 5,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              }
+            ],
+            "sources": [
+              {
+                "name": "onenumberhoops.com",
+                "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+              },
+              {
+                "name": "sleeper (stale or unavailable)",
+                "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+              },
+              {
+                "name": "league season averages",
+                "fetchedAt": null
+              }
+            ],
+            "strategy": "overall",
+            "confidence": 1,
+            "assumptions": [
+              "Totals sum imported values. Package effects include consolidation and strong-third-piece credit.",
+              "Impact is zero when adjusted totals differ by at most 5% of the larger total.",
+              "Replacement value uses 5 available players in this league."
+            ],
+            "missingInputs": []
+          },
+          "createdAt": "2026-10-29T21:04:39.15482+00:00",
+          "expiresAt": "2026-10-29T21:14:39.15482+00:00",
+          "seasonYear": 2027,
+          "inputVersion": "432432d3285bc1ac4405cbe46e336d06",
+          "modelVersion": "onenumber-trade-v1"
+        }
+      },
+      "at": 1793308447403
+    },
+    {
+      "path": "/functions/v1/api/trades/estimate",
+      "body": {
+        "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+        "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+        "items": [
+          {
+            "kind": "player",
+            "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+            "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+            "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f"
+          },
+          {
+            "kind": "player",
+            "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+            "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+            "playerId": "5a70bed9-d121-4f23-acd6-f314596ab409"
+          }
+        ],
+        "requestId": "a16cedc3-3827-4b81-b47e-470afe221bb8"
+      },
+      "status": 200,
+      "response": {
+        "ok": true,
+        "quote": {
+          "id": "c288c186-3c88-487c-adfc-e237ddf27e61",
+          "terms": [
+            {
+              "pickId": null,
+              "playerId": "5a70bed9-d121-4f23-acd6-f314596ab409",
+              "faabAmount": 0,
+              "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": null,
+              "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+              "faabAmount": 0,
+              "toMemberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            }
+          ],
+          "analysis": {
+            "teams": [
+              {
+                "impact": 510.5,
+                "memberId": "9809ebb7-2f8e-48ae-a42a-7ca833fa3d4b",
+                "valuesSent": 0,
+                "longTermValue": 510.5,
+                "packageEffect": 0,
+                "valuesReceived": 510.5,
+                "shortTermPoints": 29.75,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              },
+              {
+                "impact": -510.5,
+                "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+                "valuesSent": 510.5,
+                "longTermValue": -510.5,
+                "packageEffect": 0,
+                "valuesReceived": 0,
+                "shortTermPoints": -29.75,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              }
+            ],
+            "assets": [
+              {
+                "kind": "player",
+                "label": "Tari Eason",
+                "ranges": {},
+                "values": {
+                  "contend": 402.9,
+                  "overall": 402.9,
+                  "rebuild": 402.9
+                },
+                "assetId": "5a70bed9-d121-4f23-acd6-f314596ab409",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 402.9,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 402.9,
+                  "shortTermPoints": 24.75,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              },
+              {
+                "kind": "player",
+                "label": "Ousmane Dieng",
+                "ranges": {},
+                "values": {
+                  "contend": 107.6,
+                  "overall": 107.6,
+                  "rebuild": 107.6
+                },
+                "assetId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 107.6,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 107.6,
+                  "shortTermPoints": 5,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              }
+            ],
+            "sources": [
+              {
+                "name": "onenumberhoops.com",
+                "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+              },
+              {
+                "name": "sleeper (stale or unavailable)",
+                "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+              },
+              {
+                "name": "league season averages",
+                "fetchedAt": null
+              }
+            ],
+            "strategy": "overall",
+            "confidence": 1,
+            "assumptions": [
+              "Totals sum imported values. Package effects include consolidation and strong-third-piece credit.",
+              "Impact is zero when adjusted totals differ by at most 5% of the larger total.",
+              "Replacement value uses 5 available players in this league."
+            ],
+            "missingInputs": []
+          },
+          "createdAt": "2026-10-29T21:04:39.15482+00:00",
+          "expiresAt": "2026-10-29T21:14:39.15482+00:00",
+          "seasonYear": 2027,
+          "inputVersion": "432432d3285bc1ac4405cbe46e336d06",
+          "modelVersion": "onenumber-trade-v1"
+        }
+      },
+      "at": 1793308448740
+    },
+    {
+      "path": "/functions/v1/api/trades/b4c1dea6-e389-45aa-bedf-a26e12f46d38/revalue",
+      "body": {
+        "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+        "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+        "requestId": "7214490c-a3fa-4c94-9845-8cf3d1ca9c29"
+      },
+      "status": 200,
+      "response": {
+        "ok": true,
+        "revaluation": {
+          "terms": [
+            {
+              "pickId": null,
+              "playerId": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": "4165e18b-051d-4a9a-bba0-88d4c2ca9669",
+              "playerId": null,
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": "66937c0f-20b3-4c14-aee0-63334f4c9f4d",
+              "playerId": null,
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": null,
+              "playerId": "d5dbb96f-a809-4709-af68-907aacca9dd4",
+              "faabAmount": 0,
+              "toMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+              "fromMemberId": "e8220878-af71-47e1-883e-46251bea6057"
+            }
+          ],
+          "tradeId": "b4c1dea6-e389-45aa-bedf-a26e12f46d38",
+          "analysis": {
+            "teams": [
+              {
+                "impact": -339.6,
+                "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+                "valuesSent": 1041.6,
+                "longTermValue": -501.6,
+                "packageEffect": 162,
+                "valuesReceived": 540,
+                "shortTermPoints": 25.33,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              },
+              {
+                "impact": 339.6,
+                "memberId": "e8220878-af71-47e1-883e-46251bea6057",
+                "valuesSent": 540,
+                "longTermValue": 501.6,
+                "packageEffect": -162,
+                "valuesReceived": 1041.6,
+                "shortTermPoints": -25.33,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              }
+            ],
+            "assets": [
+              {
+                "kind": "player",
+                "label": "Jeremiah Fears",
+                "ranges": {},
+                "values": {
+                  "contend": 439.4,
+                  "overall": 439.4,
+                  "rebuild": 439.4
+                },
+                "assetId": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 439.4,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 439.4,
+                  "shortTermPoints": 8.67,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              },
+              {
+                "kind": "pick",
+                "label": "2027 Round 2 · Mike's Minions",
+                "ranges": {
+                  "contend": {
+                    "low": 107.7,
+                    "high": 302.8
+                  },
+                  "overall": {
+                    "low": 107.7,
+                    "high": 302.8
+                  },
+                  "rebuild": {
+                    "low": 107.7,
+                    "high": 302.8
+                  }
+                },
+                "values": {
+                  "contend": 155.9,
+                  "overall": 155.9,
+                  "rebuild": 155.9
+                },
+                "assetId": "4165e18b-051d-4a9a-bba0-88d4c2ca9669",
+                "sources": [
+                  {
+                    "name": "league draft picks",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 155.9,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 155.9,
+                  "shortTermPoints": 0,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 0.5,
+                "assumptions": [],
+                "missingInputs": [
+                  "pick slot"
+                ]
+              },
+              {
+                "kind": "pick",
+                "label": "2028 Round 1 · Mike's Minions",
+                "ranges": {
+                  "contend": {
+                    "low": 348.6,
+                    "high": 687.8
+                  },
+                  "overall": {
+                    "low": 348.6,
+                    "high": 687.8
+                  },
+                  "rebuild": {
+                    "low": 348.6,
+                    "high": 687.8
+                  }
+                },
+                "values": {
+                  "contend": 446.3,
+                  "overall": 446.3,
+                  "rebuild": 446.3
+                },
+                "assetId": "66937c0f-20b3-4c14-aee0-63334f4c9f4d",
+                "sources": [
+                  {
+                    "name": "league draft picks",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 446.3,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 446.3,
+                  "shortTermPoints": 0,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 0.5,
+                "assumptions": [],
+                "missingInputs": [
+                  "pick slot"
+                ]
+              },
+              {
+                "kind": "player",
+                "label": "Nickeil Alexander-Walker",
+                "ranges": {},
+                "values": {
+                  "contend": 540,
+                  "overall": 540,
+                  "rebuild": 540
+                },
+                "assetId": "d5dbb96f-a809-4709-af68-907aacca9dd4",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 540,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 540,
+                  "shortTermPoints": 34,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              }
+            ],
+            "sources": [
+              {
+                "name": "onenumberhoops.com",
+                "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+              },
+              {
+                "name": "sleeper (stale or unavailable)",
+                "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+              },
+              {
+                "name": "league season averages",
+                "fetchedAt": null
+              },
+              {
+                "name": "league draft picks",
+                "fetchedAt": null
+              }
+            ],
+            "strategy": "overall",
+            "confidence": 0.75,
+            "assumptions": [
+              "Totals sum imported values. Package effects include consolidation and strong-third-piece credit.",
+              "Impact is zero when adjusted totals differ by at most 5% of the larger total.",
+              "Replacement value uses 5 available players in this league."
+            ],
+            "missingInputs": [
+              "pick slot"
+            ]
+          },
+          "createdAt": "2026-10-29T21:12:33.495112+00:00",
+          "expiresAt": "2026-10-29T21:24:10.834559+00:00",
+          "seasonYear": 2027,
+          "inputVersion": "73664bf4aa118c836cd3631a4e31f3f6",
+          "modelVersion": "onenumber-trade-v1"
+        }
+      },
+      "at": 1793308450852
+    },
+    {
+      "path": "/functions/v1/api/trades/b4c1dea6-e389-45aa-bedf-a26e12f46d38/revalue",
+      "body": {
+        "leagueId": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+        "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+        "requestId": "da21bc03-f6d5-4202-b9fc-c3d950479e98"
+      },
+      "status": 200,
+      "response": {
+        "ok": true,
+        "revaluation": {
+          "terms": [
+            {
+              "pickId": null,
+              "playerId": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": "4165e18b-051d-4a9a-bba0-88d4c2ca9669",
+              "playerId": null,
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": "66937c0f-20b3-4c14-aee0-63334f4c9f4d",
+              "playerId": null,
+              "faabAmount": 0,
+              "toMemberId": "e8220878-af71-47e1-883e-46251bea6057",
+              "fromMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9"
+            },
+            {
+              "pickId": null,
+              "playerId": "d5dbb96f-a809-4709-af68-907aacca9dd4",
+              "faabAmount": 0,
+              "toMemberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+              "fromMemberId": "e8220878-af71-47e1-883e-46251bea6057"
+            }
+          ],
+          "tradeId": "b4c1dea6-e389-45aa-bedf-a26e12f46d38",
+          "analysis": {
+            "teams": [
+              {
+                "impact": -339.6,
+                "memberId": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+                "valuesSent": 1041.6,
+                "longTermValue": -501.6,
+                "packageEffect": 162,
+                "valuesReceived": 540,
+                "shortTermPoints": 25.33,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              },
+              {
+                "impact": 339.6,
+                "memberId": "e8220878-af71-47e1-883e-46251bea6057",
+                "valuesSent": 540,
+                "longTermValue": 501.6,
+                "packageEffect": -162,
+                "valuesReceived": 1041.6,
+                "shortTermPoints": -25.33,
+                "rosterSlotEffect": 0,
+                "replacementEffect": 0
+              }
+            ],
+            "assets": [
+              {
+                "kind": "player",
+                "label": "Jeremiah Fears",
+                "ranges": {},
+                "values": {
+                  "contend": 439.4,
+                  "overall": 439.4,
+                  "rebuild": 439.4
+                },
+                "assetId": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 439.4,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 439.4,
+                  "shortTermPoints": 8.67,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              },
+              {
+                "kind": "pick",
+                "label": "2027 Round 2 · Mike's Minions",
+                "ranges": {
+                  "contend": {
+                    "low": 107.7,
+                    "high": 302.8
+                  },
+                  "overall": {
+                    "low": 107.7,
+                    "high": 302.8
+                  },
+                  "rebuild": {
+                    "low": 107.7,
+                    "high": 302.8
+                  }
+                },
+                "values": {
+                  "contend": 155.9,
+                  "overall": 155.9,
+                  "rebuild": 155.9
+                },
+                "assetId": "4165e18b-051d-4a9a-bba0-88d4c2ca9669",
+                "sources": [
+                  {
+                    "name": "league draft picks",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 155.9,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 155.9,
+                  "shortTermPoints": 0,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 0.5,
+                "assumptions": [],
+                "missingInputs": [
+                  "pick slot"
+                ]
+              },
+              {
+                "kind": "pick",
+                "label": "2028 Round 1 · Mike's Minions",
+                "ranges": {
+                  "contend": {
+                    "low": 348.6,
+                    "high": 687.8
+                  },
+                  "overall": {
+                    "low": 348.6,
+                    "high": 687.8
+                  },
+                  "rebuild": {
+                    "low": 348.6,
+                    "high": 687.8
+                  }
+                },
+                "values": {
+                  "contend": 446.3,
+                  "overall": 446.3,
+                  "rebuild": 446.3
+                },
+                "assetId": "66937c0f-20b3-4c14-aee0-63334f4c9f4d",
+                "sources": [
+                  {
+                    "name": "league draft picks",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 446.3,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 446.3,
+                  "shortTermPoints": 0,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 0.5,
+                "assumptions": [],
+                "missingInputs": [
+                  "pick slot"
+                ]
+              },
+              {
+                "kind": "player",
+                "label": "Nickeil Alexander-Walker",
+                "ranges": {},
+                "values": {
+                  "contend": 540,
+                  "overall": 540,
+                  "rebuild": 540
+                },
+                "assetId": "d5dbb96f-a809-4709-af68-907aacca9dd4",
+                "sources": [
+                  {
+                    "name": "onenumberhoops.com",
+                    "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+                  },
+                  {
+                    "name": "sleeper (stale or unavailable)",
+                    "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+                  },
+                  {
+                    "name": "league season averages",
+                    "fetchedAt": null
+                  }
+                ],
+                "components": {
+                  "age": 0,
+                  "market": 540,
+                  "package": 0,
+                  "production": 0,
+                  "projection": 0,
+                  "rosterSlot": 0,
+                  "replacement": 0,
+                  "longTermValue": 540,
+                  "shortTermPoints": 34,
+                  "healthMultiplier": 1,
+                  "movementMultiplier": 1
+                },
+                "confidence": 1,
+                "assumptions": [],
+                "missingInputs": []
+              }
+            ],
+            "sources": [
+              {
+                "name": "onenumberhoops.com",
+                "fetchedAt": "2026-10-29T21:04:27.335+00:00"
+              },
+              {
+                "name": "sleeper (stale or unavailable)",
+                "fetchedAt": "2026-10-27T22:00:13.669777+00:00"
+              },
+              {
+                "name": "league season averages",
+                "fetchedAt": null
+              },
+              {
+                "name": "league draft picks",
+                "fetchedAt": null
+              }
+            ],
+            "strategy": "overall",
+            "confidence": 0.75,
+            "assumptions": [
+              "Totals sum imported values. Package effects include consolidation and strong-third-piece credit.",
+              "Impact is zero when adjusted totals differ by at most 5% of the larger total.",
+              "Replacement value uses 5 available players in this league."
+            ],
+            "missingInputs": [
+              "pick slot"
+            ]
+          },
+          "createdAt": "2026-10-29T21:12:33.495112+00:00",
+          "expiresAt": "2026-10-29T21:24:13.209727+00:00",
+          "seasonYear": 2027,
+          "inputVersion": "73664bf4aa118c836cd3631a4e31f3f6",
+          "modelVersion": "onenumber-trade-v1"
+        }
+      },
+      "at": 1793308453221
+    }
+  ],
+  "errors": []
+}

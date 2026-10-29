@@ -2,6 +2,45 @@
 
 ## Release order for this release
 
+The supplied production head is `20261213000200`, with 686 migrations.
+This is the contention lane's recorded baseline.
+Release 2.10 starts from release 2.9.1, `ec739102`.
+Database, then Edge, then merge the frontend.
+Apply pending migrations in version order.
+
+| Migration | Change |
+| --- | --- |
+| `20261214000900_refresh_queue_contention.sql` | Keeps completion events out of screen invalidation. |
+| `20261214001100_trade_preview_read_only.sql` | Keeps trade preview FAAB checks read only. |
+| `20261214001300_trade_analyzer_revalue.sql` | Enables saved trade revaluation and renews validated cache leases. |
+| `20261214001400_pace_trade_revaluation_work.sql` | Paces background revaluations behind screen work. |
+| `20261214001500_matchup_forecast_inputs.sql` | Reuses unchanged forecasts and prepares dates once per matchup. |
+
+`20261214001100_trade_preview_read_only.sql` can ship alone.
+It preserves locking checks for trade writes and waiver claims.
+Its standalone source commit is `1c07b175d19a2cbb049d9e4315851f15e3a3974b`.
+
+Existing in-flight revaluations drain before another revaluation starts for the same league.
+The pace permits one new background revaluation per league per minute.
+Foreground trade estimates retain priority and bypass that pace.
+The pacing migration preserves urgent schedules and invocation outcomes.
+It needs no Edge or frontend release.
+
+Apply `20261214001500_matchup_forecast_inputs.sql` for matchup input fingerprints and shared preparation.
+Unchanged inputs keep forecast work clean. Unchanged expiry renews the existing result.
+The existing forecast worker accepts the completed empty date list.
+The [L4b measurements](../docs/perf-l4b.md) record the private backup comparison.
+
+The contention repair follows `20261214000700_future_pick_years.sql`.
+This repair changes one database trigger function and needs no Edge or frontend deployment.
+Activity events still publish one league version per transaction.
+They do not invalidate derived standings, matchup totals, player averages, or trade values.
+Mixed transactions with source-data changes still queue a refresh.
+This removes the queue-row request from worker completion and preserves its idempotent receipt.
+The concurrency recipe holds a refresh transaction open while another connection completes a worker.
+
+## Release 2.7 trade input order
+
 Database, then Edge, then merge the frontend.
 Apply `20261214000700_future_pick_years.sql` before clients read the future pick setting.
 The existing Edge settings endpoint accepts the new JSON field without an Edge code change.

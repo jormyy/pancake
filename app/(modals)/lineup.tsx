@@ -577,9 +577,9 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
               ? 'Could not load lineup.'
               : !snapshotScope && membershipValidated ? 'No active league.' : 'No active lineup yet.'
         return (
-            <DeferredContent ready={!lineupLoading} fallback={<LineupFrame inline={inline}>{!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" /> : null}</LineupFrame>}>
+            <DeferredContent ready={!lineupLoading} fallback={<LineupFrame inline={inline}>{!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Back to lineup" showTitle /> : null}</LineupFrame>}>
             <LineupFrame inline={inline}>
-                {!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Close lineup" /> : null}
+                {!inline ? <PageHeader compact title="Lineup" onBack={() => back()} backLabel="Back to lineup" showTitle /> : null}
                 <View style={[styles.empty, { minHeight: 320 }]} aria-busy={lineupLoading} accessibilityState={{ busy: lineupLoading }}>
                     <Text style={styles.emptyText}>{emptyMessage}</Text>
                     {lineupError ? <Text style={styles.emptySubtext}>{lineupError}</Text> : null}
@@ -608,7 +608,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
             {!inline ? <PageHeader
                 title={`Week ${visibleCtx.weekNumber} lineup`}
                 onBack={() => back()}
-                backLabel="Close lineup"
+                backLabel="Back to lineup" showTitle
                 compact
             /> : null}
 

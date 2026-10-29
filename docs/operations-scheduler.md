@@ -119,3 +119,11 @@ psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/statistics-dispatch-is
 ```
 
 [Statistics isolation evidence](release-2.7.1-statistics-isolation.md) records the timings and controls.
+
+Queued trade revaluations, checks, and scans follow other work kinds.
+Only one expensive revaluation runs per league.
+A private league row permits one new revaluation each minute and survives queue coalescing.
+The four-worker cap and expired-lease recovery remain in place.
+Foreground trade estimates are claimed before queued background revaluations and bypass their league pace.
+Worker completion events still publish league versions and realtime hints.
+Events alone do not rebuild standings, matchup totals, or player averages.

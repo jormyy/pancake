@@ -8,6 +8,9 @@ BEGIN
     SELECT r.player_id FROM roster_players r JOIN trade_participants t ON t.member_id=r.member_id
       JOIN trades trade ON trade.id=t.trade_id AND trade.league_season_id=r.league_season_id WHERE t.trade_id=p_trade_id
   ) ORDER BY id FOR SHARE;
+  PERFORM private.ensure_faab_balance(trade.league_id,trade.league_season_id,participant.member_id)
+    FROM trades trade JOIN trade_participants participant ON participant.trade_id=trade.id
+    WHERE trade.id=p_trade_id ORDER BY participant.sort_order,participant.member_id;
   SELECT m.user_id INTO v_user FROM trades t JOIN league_members m ON m.id=t.proposer_member_id WHERE t.id=p_trade_id;
   v_teams:=public.get_trade_roster_preview(p_trade_id,v_user);
   SELECT string_agg(reason->>'message',' ') INTO v_error FROM jsonb_array_elements(v_teams) team

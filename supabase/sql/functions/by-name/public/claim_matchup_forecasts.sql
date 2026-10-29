@@ -9,7 +9,8 @@ LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
     LIMIT LEAST(GREATEST(COALESCE(p_limit,10),1),25)
     FOR UPDATE SKIP LOCKED
   )
-  UPDATE private.matchup_forecast_queue queued SET claim_token=gen_random_uuid(),claimed_at=now(),claimed_revision=queued.revision
+  UPDATE private.matchup_forecast_queue queued SET claim_token=gen_random_uuid(),claimed_at=now(),claimed_revision=queued.revision,
+    claimed_fingerprint=COALESCE(queued.input_fingerprint,private.matchup_forecast_input_fingerprint(queued.matchup_id))
   FROM candidates WHERE queued.matchup_id=candidates.matchup_id
   RETURNING queued.matchup_id,queued.revision,queued.claim_token;
 $$;

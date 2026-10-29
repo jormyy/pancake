@@ -1,6 +1,5 @@
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
-import { DeferredContent } from '@/components/ui/DeferredContent'
-import { StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
 import type { DynastyTradeAnalysis } from '@pancake/core'
 import { formatTradeValue } from '@/lib/trade-estimates'
@@ -23,10 +22,15 @@ export function TradeAnalysisSummary({
     calculatedAt?: string
     saved?: boolean
 }) {
+    if (loading) return (
+        <View style={[styles.pending, inset && styles.inset]} accessibilityLabel="Updating trade values" accessibilityLiveRegion="polite" aria-busy>
+            <ActivityIndicator color={colors.primary} />
+            <Text style={styles.assetValue}>Updating values…</Text>
+        </View>
+    )
     if (!analysis) return null
 
     return (
-        <DeferredContent ready={!loading} style={{ flex: 0, minHeight: componentTokens.tradeAnalyzer.pendingHeight }}>
         <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
             <View style={styles.teamGrid}>
                 {analysis.teams.map((team) => (
@@ -54,7 +58,6 @@ export function TradeAnalysisSummary({
                 )
             })}
         </View>
-        </DeferredContent>
     )
 }
 
@@ -69,6 +72,7 @@ function signed(value: number): string {
 }
 
 const styles = StyleSheet.create({
+    pending: { minHeight: componentTokens.tradeAnalyzer.pendingHeight, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
     inset: { margin: spacing.xl },
     root: { gap: spacing.md },
     teamGrid: { gap: spacing.xs },

@@ -20,7 +20,7 @@ BEGIN
   END IF;
   IF TG_TABLE_NAME = 'league_change_hints' AND row_data->>'topic' = 'version'
     AND jsonb_array_length(COALESCE(row_data->'details'->0->'scope'->'tables', '[]')) > 0
-    AND row_data->'details'->0->'scope'->'tables' <@ '["standings_current","matchup_totals","player_season_averages","trade_value_cache","matchup_forecasts"]'::jsonb THEN
+    AND row_data->'details'->0->'scope'->'tables' <@ '["standings_current","matchup_totals","player_season_averages","trade_value_cache","matchup_forecasts","league_events"]'::jsonb THEN
     RETURN NULL;
   END IF;
   PERFORM private.refresh_queue_screen_views(

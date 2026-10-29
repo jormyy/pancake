@@ -10,7 +10,7 @@ Deno.test('forecast workers prepare each missing date before reading cached inpu
   globalThis.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : input)
     const name = url.pathname.split('/').at(-1)!
-    const args = JSON.parse(String(init?.body))
+    const args = JSON.parse(String((init as { body?: unknown } | undefined)?.body))
     calls.push({ name, args })
     return Promise.resolve(Response.json(name === 'prepare_matchup_forecast_inputs' ? args.p_game_date ? [] : ['2026-11-02', '2026-11-03'] : { matchupId: 'matchup' }))
   }
@@ -18,6 +18,21 @@ Deno.test('forecast workers prepare each missing date before reading cached inpu
     equal((await loadForecastContext('matchup')).matchupId, 'matchup')
     deepStrictEqual(calls.map(call => call.name), ['prepare_matchup_forecast_inputs', 'prepare_matchup_forecast_inputs', 'prepare_matchup_forecast_inputs', 'get_prepared_matchup_forecast_context'])
     deepStrictEqual(calls.slice(1, 3).map(call => call.args.p_game_date), ['2026-11-02', '2026-11-03'])
+  } finally { globalThis.fetch = nativeFetch }
+})
+
+Deno.test('forecast workers prepare all dates in one call with the batched backend', async () => {
+  const nativeFetch = globalThis.fetch
+  const calls: string[] = []
+  globalThis.fetch = input => {
+    const url = new URL(input instanceof Request ? input.url : input)
+    const name = url.pathname.split('/').at(-1)!
+    calls.push(name)
+    return Promise.resolve(Response.json(name === 'prepare_matchup_forecast_inputs' ? [] : { matchupId: 'matchup' }))
+  }
+  try {
+    equal((await loadForecastContext('matchup')).matchupId, 'matchup')
+    deepStrictEqual(calls, ['prepare_matchup_forecast_inputs', 'get_prepared_matchup_forecast_context'])
   } finally { globalThis.fetch = nativeFetch }
 })
 

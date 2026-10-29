@@ -127,3 +127,21 @@ it.each(['card', 'details'])('opens valid acceptance from %s and saves an option
     })
     await act(async () => view.unmount())
 })
+
+it.each([false, true])('keeps revaluation independent from snapshot mutation gates, busy=%s', async busy => {
+    const onAnalyze = vi.fn()
+    let view!: ReturnType<typeof create>
+    await act(async () => { view = create(React.createElement(TradeDetailsPanel, {
+        context: { trade: trade(), myMemberId: 'member-b', tab: 'history' },
+        actions: { acting: true, onAccept: vi.fn(), onReject: vi.fn(), onVeto: vi.fn(), onWithdraw: vi.fn() },
+        analysisDisabled: busy, onAnalyze,
+    })) })
+    const revalue = view.root.findByProps({ accessibilityLabel: 'Revalue this trade with current inputs' })
+    expect(revalue.props.disabled).toBe(busy)
+    expect(revalue.props.accessibilityState.disabled).toBe(busy)
+    if (!busy) {
+        await act(async () => revalue.props.onPress())
+        expect(onAnalyze).toHaveBeenCalledOnce()
+    }
+    await act(async () => view.unmount())
+})

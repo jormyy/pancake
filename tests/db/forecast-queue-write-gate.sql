@@ -26,17 +26,19 @@ BEGIN
   SELECT revision INTO initial_revision FROM private.matchup_forecast_queue WHERE matchup_id=f.id;
   FOR attempt IN 1..100 LOOP PERFORM private.queue_matchup_forecasts(f.league_id,f.id); END LOOP;
   PERFORM pg_temp.check_rules((SELECT writes=0 FROM forecast_gate_count),'identical invalidations write no queue rows');
-  UPDATE private.matchup_forecast_queue SET dirty=false,available_at=now()+interval '1 hour' WHERE matchup_id=f.id;
+  UPDATE private.matchup_forecast_queue SET dirty=false,computed_fingerprint=input_fingerprint,
+    available_at=now()+interval '1 hour' WHERE matchup_id=f.id;
   UPDATE forecast_gate_count SET writes=0;
   PERFORM private.queue_matchup_forecasts(f.league_id,f.id);
-  PERFORM pg_temp.check_rules((SELECT writes=1 FROM forecast_gate_count),'clean or deferred work becomes ready');
-  PERFORM pg_temp.check_rules((SELECT dirty AND available_at=now() AND revision=initial_revision FROM private.matchup_forecast_queue WHERE matchup_id=f.id),'same transaction keeps its revision');
+  PERFORM pg_temp.check_rules((SELECT writes=0 FROM forecast_gate_count),'unchanged completed inputs stay clean');
+  PERFORM pg_temp.check_rules((SELECT NOT dirty AND available_at=now()+interval '1 hour' AND revision=initial_revision FROM private.matchup_forecast_queue WHERE matchup_id=f.id),'unchanged inputs preserve availability and revision');
   UPDATE private.matchup_forecast_queue SET changed_at=transaction_timestamp()-interval '1 second',claim_token=token,claimed_at=now(),claimed_revision=initial_revision WHERE matchup_id=f.id;
   UPDATE forecast_gate_count SET writes=0;
+  UPDATE public.matchups SET home_points=1 WHERE id=f.id;
   PERFORM private.queue_matchup_forecasts(f.league_id,f.id);
   PERFORM private.queue_matchup_forecasts(f.league_id,f.id);
-  PERFORM pg_temp.check_rules((SELECT writes=1 FROM forecast_gate_count),'one new transaction generation produces one write');
-  PERFORM pg_temp.check_rules((SELECT revision=initial_revision+1 AND claim_token=token AND claimed_revision=initial_revision FROM private.matchup_forecast_queue WHERE matchup_id=f.id),'new generation preserves the stale lease for completion rejection');
+  PERFORM pg_temp.check_rules((SELECT writes=1 FROM forecast_gate_count),'one changed input produces one write');
+  PERFORM pg_temp.check_rules((SELECT dirty AND revision=initial_revision+1 AND claim_token=token AND claimed_revision=initial_revision FROM private.matchup_forecast_queue WHERE matchup_id=f.id),'changed inputs preserve the stale lease for completion rejection');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

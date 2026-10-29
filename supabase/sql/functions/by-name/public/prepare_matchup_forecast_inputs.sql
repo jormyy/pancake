@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public.prepare_matchup_forecast_inputs(p_matchup_id uuid,p_game_date date DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE c record; v_ids uuid[]; v_missing uuid[]; v_roster_hash text; v_history_revision bigint;
-  v_projection_revision bigint; v_dates date[]; v_rows jsonb; v_expires timestamptz;
+  v_projection_revision bigint; v_dates date[]; v_game_date date; v_rows jsonb; v_expires timestamptz;
   v_today date:=(now() AT TIME ZONE 'America/New_York')::date;
 BEGIN
   SELECT m.league_id,m.league_season_id,m.home_member_id,m.away_member_id,s.season_year,
@@ -60,22 +60,14 @@ BEGIN
         revision=EXCLUDED.revision,scoring_hash=EXCLUDED.scoring_hash,scores=EXCLUDED.scores;
     END IF;
     DELETE FROM private.forecast_projection_inputs p WHERE p.matchup_id=p_matchup_id AND p.game_date<v_today;
-    RETURN COALESCE((SELECT jsonb_agg(d.game_date ORDER BY d.game_date) FROM unnest(v_dates) d(game_date)
-      LEFT JOIN private.forecast_projection_inputs p ON p.matchup_id=p_matchup_id AND p.game_date=d.game_date
-      WHERE p.matchup_id IS NULL OR p.observed_date<>v_today OR p.revision<>v_projection_revision
-        OR p.scoring_hash<>c.scoring_hash OR p.roster_hash<>v_roster_hash OR p.valid_until<=now()),'[]'::jsonb);
   END IF;
-  IF NOT p_game_date=ANY(v_dates) THEN RETURN '[]'::jsonb; END IF;
-  IF EXISTS(SELECT 1 FROM private.forecast_projection_inputs cached
-    WHERE cached.matchup_id=p_matchup_id AND cached.game_date=p_game_date
-      AND cached.observed_date=v_today AND cached.revision=v_projection_revision
-      AND cached.scoring_hash=c.scoring_hash AND cached.roster_hash=v_roster_hash
-      AND cached.valid_until>now()) THEN RETURN '[]'::jsonb; END IF;
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('requested_date',p_game_date,'player_id',p.player_id,
-    'projection_fantasy_points',p.projection_fantasy_points,'projection_source_label',p.projection_source_label,
-    'projection_fetched_at',p.projection_fetched_at,'projection_date',p.projection_date,
-    'projection_is_fresh',p.projection_is_fresh) ORDER BY p.player_id),'[]'::jsonb) INTO v_rows
-  FROM public.get_league_projection_rows(c.league_id,c.season_year,p_game_date,'today',v_ids,100,0) p;
+  SELECT COALESCE(array_agg(d.game_date ORDER BY d.game_date),'{}'::date[]) INTO v_dates
+  FROM unnest(v_dates) d(game_date)
+  LEFT JOIN private.forecast_projection_inputs p ON p.matchup_id=p_matchup_id AND p.game_date=d.game_date
+  WHERE (p_game_date IS NULL OR d.game_date=p_game_date)
+    AND (p.matchup_id IS NULL OR p.observed_date<>v_today OR p.revision<>v_projection_revision
+      OR p.scoring_hash<>c.scoring_hash OR p.roster_hash<>v_roster_hash OR p.valid_until<=now());
+  IF cardinality(v_dates)=0 THEN RETURN '[]'::jsonb; END IF;
   SELECT LEAST((v_today+1)::timestamp AT TIME ZONE 'America/New_York',
     (SELECT min(g.game_time) FROM public.nba_games g WHERE g.season_year=c.season_year AND g.game_time>now()),
     (SELECT min(g.started_at) FROM public.nba_games g WHERE g.season_year=c.season_year AND g.started_at>now()),
@@ -83,12 +75,19 @@ BEGIN
     (SELECT min(r.fetched_at+CASE WHEN r.projection_type='daily' THEN interval '36 hours' ELSE interval '8 days' END)
       FROM public.fantasypros_projection_rows r WHERE r.player_id=ANY(v_ids)
         AND r.fetched_at+CASE WHEN r.projection_type='daily' THEN interval '36 hours' ELSE interval '8 days' END>now())) INTO v_expires;
-  INSERT INTO private.forecast_projection_inputs AS stored(matchup_id,game_date,observed_date,revision,scoring_hash,roster_hash,valid_until,rows)
-    VALUES(p_matchup_id,p_game_date,v_today,v_projection_revision,c.scoring_hash,v_roster_hash,v_expires,v_rows)
-  ON CONFLICT(matchup_id,game_date) DO UPDATE SET observed_date=EXCLUDED.observed_date,revision=EXCLUDED.revision,
-    scoring_hash=EXCLUDED.scoring_hash,roster_hash=EXCLUDED.roster_hash,valid_until=EXCLUDED.valid_until,rows=EXCLUDED.rows
-    WHERE ROW(stored.observed_date,stored.revision,stored.scoring_hash,stored.roster_hash,stored.valid_until,stored.rows)
-      IS DISTINCT FROM ROW(EXCLUDED.observed_date,EXCLUDED.revision,EXCLUDED.scoring_hash,EXCLUDED.roster_hash,EXCLUDED.valid_until,EXCLUDED.rows);
+  FOREACH v_game_date IN ARRAY v_dates LOOP
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('requested_date',v_game_date,'player_id',p.player_id,
+      'projection_fantasy_points',p.projection_fantasy_points,'projection_source_label',p.projection_source_label,
+      'projection_fetched_at',p.projection_fetched_at,'projection_date',p.projection_date,
+      'projection_is_fresh',p.projection_is_fresh) ORDER BY p.player_id),'[]'::jsonb) INTO v_rows
+    FROM public.get_league_projection_rows(c.league_id,c.season_year,v_game_date,'today',v_ids,100,0) p;
+    INSERT INTO private.forecast_projection_inputs AS stored(matchup_id,game_date,observed_date,revision,scoring_hash,roster_hash,valid_until,rows)
+      VALUES(p_matchup_id,v_game_date,v_today,v_projection_revision,c.scoring_hash,v_roster_hash,v_expires,v_rows)
+    ON CONFLICT(matchup_id,game_date) DO UPDATE SET observed_date=EXCLUDED.observed_date,revision=EXCLUDED.revision,
+      scoring_hash=EXCLUDED.scoring_hash,roster_hash=EXCLUDED.roster_hash,valid_until=EXCLUDED.valid_until,rows=EXCLUDED.rows
+      WHERE ROW(stored.observed_date,stored.revision,stored.scoring_hash,stored.roster_hash,stored.valid_until,stored.rows)
+        IS DISTINCT FROM ROW(EXCLUDED.observed_date,EXCLUDED.revision,EXCLUDED.scoring_hash,EXCLUDED.roster_hash,EXCLUDED.valid_until,EXCLUDED.rows);
+  END LOOP;
   RETURN '[]'::jsonb;
 END;
 $$;

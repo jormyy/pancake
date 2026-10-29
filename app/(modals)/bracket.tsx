@@ -102,7 +102,7 @@ export default function BracketScreen() {
     return (
         <>
             <Stack.Screen options={{ title: 'Playoffs', presentation: 'modal', headerShown: false }} />
-            <ModalScreen title="Playoffs" onBack={backToStandings} backLabel="Back to league standings">
+            <ModalScreen title="Playoffs" onBack={backToStandings} backLabel="Back to league standings" showTitle divider={false}>
                 {refreshError && status !== 'error' ? <ErrorBanner message="Could not refresh the bracket." onRetry={() => setAttempt(value => value + 1)} /> : null}
                 <View style={{ flex: 1, minHeight: 320 }} aria-busy={refreshing} accessibilityState={{ busy: refreshing }}>
                 {status === 'loading' ? <LoadingState /> : status === 'error' ? (

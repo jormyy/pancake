@@ -1,0 +1,11 @@
+{
+  "passed": false,
+  "checks": [],
+  "holder": {
+    "pid": 569,
+    "query": "SELECT public.view_refresh_work('faab8d8f-6a60-4bbc-8f5d-44050b652cdd',NULL,'{\"version\":3,\"leagueId\":\"faab8d8f-6a60-4bbc-8f5d-44050b652cdd\",\"seasonId\":\"95b790d1-ffda-436b-ac7d-875e198dc6d9\",\"claimToken\":\"7e47c122-f116-4efa-a889-b89c0e60dcdd\",\"operation\":\"complete\"}'::jsonb)\n;",
+    "state": "idle in transaction"
+  },
+  "completionMs": 174.7282090000008,
+  "error": "Local SQL client exits 3: ERROR:  canceling statement due to lock timeout\nCONTEXT:  while inserting index tuple (0,6) in relation \"screen_refresh_queue\"\nSQL function \"refresh_queue_screen_views\" statement 1\nSQL statement \"SELECT private.refresh_queue_screen_views(\n    CASE WHEN TG_TABLE_NAME = 'leagues' THEN (row_data->>'id')::uuid ELSE (row_data->>'league_id')::uuid END)\"\nPL/pgSQL function private.refresh_changed_screen_views() line 25 at PERFORM\nSQL statement \"INSERT INTO public.league_change_hints AS hint(league_id,topic,revision,scopes,details,updated_at)\n      VALUES(stored.league_id,'version',stored.version,NULL,jsonb_build_array(jsonb_build_object(\n        'version',stored.version::text,'topic',change_topic,'scope',change_scope,'created_at',stored.updated_at)),stored.updated_at)\n    ON CONFLICT(league_id,topic) DO UPDATE SET revision=EXCLUDED.revision,scopes=NULL,details=EXCLUDED.details,updated_at=EXCLUDED.updated_at\"\nPL/pgSQL function private.publish_league_version(uuid,text[],text[]) line 18 at SQL statement\nSQL statement \"SELECT private.publish_league_version(pending.league_id,pending.topics,pending.sources)\"\nPL/pgSQL function private.league_version_flush() line 7 at PERFORM"
+}
