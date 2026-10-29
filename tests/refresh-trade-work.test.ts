@@ -68,6 +68,38 @@ describe('independent trade valuation work', () => {
     expect((await refreshTradeWork({ revaluationScan: true, seasonId: 'season', version: 12 })).rowsAffected).toBe(2)
     expect(mocks.rpc).toHaveBeenCalledWith('view_refresh_work', { p_params: expect.objectContaining({ operation: 'queue-trades', modelVersion: 'model' }) })
   })
+  it('checks versions and queues changes without reading full inputs', async () => {
+    mocks.rpc.mockResolvedValue({ data: true })
+    expect((await refreshTradeWork({ checkInputs: true, tradeId: 'trade', memberId: 'member', userId: 'user' })).rowsAffected).toBe(1)
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('view_refresh_work', {
+      p_params: { operation: 'check-trade', tradeId: 'trade', modelVersion: 'model' },
+    })
+    expect(mocks.analyze).not.toHaveBeenCalled()
+  })
+
+  it('skips unchanged versions in one call', async () => {
+    mocks.rpc.mockResolvedValue({ data: false })
+    expect((await refreshTradeWork({ checkInputs: true, tradeId: 'trade', memberId: 'member', userId: 'user' })).rowsAffected).toBe(0)
+    expect(mocks.rpc).toHaveBeenCalledOnce()
+    expect(mocks.analyze).not.toHaveBeenCalled()
+  })
+
+  it('waits for the live-game window before reading inputs', async () => {
+    mocks.rpc.mockResolvedValue({ data: false })
+    expect((await refreshTradeWork({ latestInputs: true, tradeId: 'trade', memberId: 'member', userId: 'user' })).rowsAffected).toBe(0)
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('view_refresh_work', {
+      p_params: { operation: 'begin-trade', tradeId: 'trade', modelVersion: 'model' },
+    })
+    expect(mocks.analyze).not.toHaveBeenCalled()
+  })
+
+  it('reads current inputs when coalesced work starts', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: true }).mockResolvedValueOnce({ data: inputs }).mockResolvedValueOnce({ data: true })
+    expect((await refreshTradeWork({ latestInputs: true, tradeId: 'trade', memberId: 'member', userId: 'user', inputFingerprint: 'obsolete' })).rowsAffected).toBe(1)
+    expect(mocks.rpc.mock.calls.map(call => call[0])).toEqual(['view_refresh_work', 'get_trade_revaluation_inputs', 'view_refresh_work'])
+    expect(mocks.analyze).toHaveBeenCalledOnce()
+    expect(mocks.rpc.mock.calls[2][1].p_params.revaluation.inputVersion).toBe('fingerprint')
+  })
   it('reuses checked inputs while checking the trade is still open before analysis', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: true }).mockResolvedValueOnce({ data: true })
     expect(await revalueTrade('user', 'member', 'trade', 'fingerprint', inputs)).toMatchObject({ inputVersion: 'fingerprint' })

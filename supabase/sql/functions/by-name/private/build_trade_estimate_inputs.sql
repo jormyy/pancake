@@ -50,8 +50,8 @@ BEGIN
         WHERE league_id=league.id AND season_year=season.season_year AND EXISTS(
           SELECT 1 FROM private.screen_refresh_queue WHERE league_season_id=season.id AND averages_initialized)
       UNION ALL
-      SELECT player_id,league_id,season_year,avg_fantasy_points FROM public.v_player_avg_fantasy_points
-        WHERE league_id=league.id AND season_year=season.season_year AND NOT EXISTS(
+      SELECT player_id,league.id,season.season_year,avg_fantasy_points
+        FROM private.trade_value_fantasy_averages(league.id,season.season_year) WHERE NOT EXISTS(
           SELECT 1 FROM private.screen_refresh_queue WHERE league_season_id=season.id AND averages_initialized)
     ) average
     JOIN public.players player ON player.id=average.player_id AND player.nba_team IS NOT NULL

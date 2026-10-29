@@ -65,8 +65,8 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT private.refresh_trade_values(f.league_id,f.season_id,version,jsonb_build_array(publication)),
     'an old fingerprint cannot overwrite current inputs');
   PERFORM private.refresh_queue_trade_revaluation(pending_id,public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],pending_id)->>'inputVersion','fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=queued_before+1 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
-    'only the changed trade gets new work');
+  PERFORM pg_temp.check_rules((SELECT count(*)=queued_before FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'the changed trade reuses its coalesced work item');
   inputs:=public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],pending_id);
   publication:=jsonb_build_object('tradeId',pending_id,'revaluation',jsonb_build_object('inputVersion',inputs->>'inputVersion','modelVersion','fixture'));
   UPDATE private.work_items SET status='succeeded',completed_at=now()

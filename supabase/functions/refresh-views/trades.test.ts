@@ -42,18 +42,20 @@ Deno.test('unchanged input checks do not run valuation publication', async () =>
   calls.length = 0
   saved = false
   assert.equal((await refreshTradeWork({ ...job, checkInputs: true })).rowsAffected, 0)
-  assert.deepEqual(calls.map(call => call.name), ['get_trade_revaluation_inputs', 'view_refresh_work'])
-  assert.equal((calls[1].body.p_params as Record<string, unknown>).operation, 'queue-trade')
+  assert.deepEqual(calls.map(call => call.name), ['view_refresh_work'])
+  assert.equal((calls[0].body.p_params as Record<string, unknown>).operation, 'check-trade')
   saved = true
 })
 
 Deno.test('closed trades neither queue nor publish valuations', async () => {
   calls.length = 0
   current = { closed: true, cachedRevaluation: { frozen: true } }
+  saved = false
   assert.equal((await refreshTradeWork({ ...job, checkInputs: true })).rowsAffected, 0)
+  saved = true
   assert.equal((await refreshTradeWork(job)).rowsAffected, 0)
   assert.equal(calls.length, 2)
-  assert.ok(calls.every(call => call.name === 'get_trade_revaluation_inputs'))
+  assert.deepEqual(calls.map(call => call.name), ['view_refresh_work', 'get_trade_revaluation_inputs'])
   current = inputs
 })
 
@@ -76,6 +78,18 @@ Deno.test('a superseded fingerprint and rejected publication perform no successf
   saved = false
   assert.equal((await refreshTradeWork(job)).rowsAffected, 0)
   saved = true
+})
+
+Deno.test('coalesced work waits for its window and then reads fresh inputs', async () => {
+  calls.length = 0
+  saved = false
+  assert.equal((await refreshTradeWork({ ...job, latestInputs: true })).rowsAffected, 0)
+  assert.equal(calls.length, 1)
+  assert.equal((calls[0].body.p_params as Record<string, unknown>).operation, 'begin-trade')
+  calls.length = 0
+  saved = true
+  assert.equal((await refreshTradeWork({ ...job, inputFingerprint: 'obsolete', latestInputs: true })).rowsAffected, 1)
+  assert.deepEqual(calls.map(call => call.name), ['view_refresh_work', 'get_trade_revaluation_inputs', 'view_refresh_work'])
 })
 
 Deno.test('one timed-out trade leaves screens independently runnable', async () => {

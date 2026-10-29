@@ -2,6 +2,13 @@ CREATE OR REPLACE FUNCTION public.view_refresh_work(p_league_id uuid DEFAULT NUL
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE queued private.screen_refresh_queue%ROWTYPE; result jsonb; completed boolean;
 BEGIN
+  IF p_params->>'operation'='begin-trade' THEN
+    RETURN to_jsonb(private.begin_trade_revaluation((p_params->>'tradeId')::uuid,p_params->>'modelVersion'));
+  END IF;
+  IF p_params->>'operation'='check-trade' THEN
+    RETURN to_jsonb(private.refresh_queue_trade_revaluation((p_params->>'tradeId')::uuid,
+      private.trade_revaluation_input_version((p_params->>'tradeId')::uuid),p_params->>'modelVersion'));
+  END IF;
   IF p_params->>'operation'='trade-ready' THEN
     RETURN to_jsonb(EXISTS(SELECT 1 FROM public.trades trade WHERE trade.id=(p_params->>'tradeId')::uuid
       AND trade.status IN ('pending','accepted') AND NOT EXISTS(SELECT 1 FROM private.trade_value_publications published

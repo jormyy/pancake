@@ -103,9 +103,7 @@ projections AS (
 ),
 fantasy_averages AS MATERIALIZED (
   SELECT player_id, avg_fantasy_points
-    FROM public.v_player_avg_fantasy_points
-   WHERE league_id = p_league_id
-     AND season_year = p_season_year AND player_id=ANY(p_player_ids)
+    FROM private.trade_value_fantasy_averages(p_league_id,p_season_year,p_player_ids)
 )
 SELECT
   player.id AS player_id,

@@ -15,6 +15,7 @@ type TradeWork = {
   userId?: string
   inputFingerprint?: string
   inputs?: Json
+  latestInputs?: boolean
 }
 
 export async function refreshTradeWork(body: TradeWork): Promise<{ result: Record<string, number | boolean>; rowsAffected: number }> {
@@ -29,17 +30,20 @@ export async function refreshTradeWork(body: TradeWork): Promise<{ result: Recor
   }
   if (!body.tradeId || !body.memberId || !body.userId) throw new Error('Invalid trade revaluation')
   if (body.checkInputs) {
-    const { data, error } = await supabase.rpc('get_trade_revaluation_inputs', {
-      p_user_id: body.userId, p_member_id: body.memberId, p_trade_id: body.tradeId,
+    const { data, error } = await supabase.rpc('view_refresh_work', {
+      p_params: { operation: 'check-trade', tradeId: body.tradeId, modelVersion: DYNASTY_TRADE_MODEL_VERSION },
     })
     if (error) throw error
-    const inputs = data as { closed?: boolean; inputVersion: string }
-    if (inputs.closed) return { result: { queued: false }, rowsAffected: 0 }
-    const queued = await supabase.rpc('view_refresh_work', {
-      p_params: { operation: 'queue-trade', tradeId: body.tradeId, inputFingerprint: inputs.inputVersion, modelVersion: DYNASTY_TRADE_MODEL_VERSION, inputs: data },
+    return { result: { queued: data === true }, rowsAffected: data === true ? 1 : 0 }
+  }
+  if (body.latestInputs) {
+    const ready = await supabase.rpc('view_refresh_work', {
+      p_params: { operation: 'begin-trade', tradeId: body.tradeId, modelVersion: DYNASTY_TRADE_MODEL_VERSION },
     })
-    if (queued.error) throw queued.error
-    return { result: { queued: queued.data === true }, rowsAffected: queued.data === true ? 1 : 0 }
+    if (ready.error) throw ready.error
+    if (ready.data !== true) return { result: { revalued: false }, rowsAffected: 0 }
+    const value = await revalueTrade(body.userId, body.memberId, body.tradeId)
+    return { result: { revalued: value !== null }, rowsAffected: value === null ? 0 : 1 }
   }
   if (!body.inputFingerprint) throw new Error('Missing trade fingerprint')
   const value = await revalueTrade(body.userId, body.memberId, body.tradeId, body.inputFingerprint, body.inputs)

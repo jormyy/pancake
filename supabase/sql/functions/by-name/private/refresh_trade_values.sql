@@ -11,9 +11,9 @@ BEGIN
     value:=item->'revaluation';
     IF jsonb_typeof(value) IS DISTINCT FROM 'object' OR value->>'inputVersion' IS NULL
       OR value->>'modelVersion' IS NULL THEN CONTINUE; END IF;
-    inputs:=public.get_trade_revaluation_inputs(trade.user_id,trade.proposer_member_id,trade.id);
+    inputs:=jsonb_build_object('inputVersion',private.trade_revaluation_input_version(trade.id));
     IF inputs->>'inputVersion' IS DISTINCT FROM value->>'inputVersion' THEN
-      PERFORM private.refresh_queue_trade_revaluation(trade.id,inputs->>'inputVersion',value->>'modelVersion',inputs);
+      PERFORM private.refresh_queue_trade_revaluation(trade.id,inputs->>'inputVersion',value->>'modelVersion');
       CONTINUE;
     END IF;
     IF EXISTS(SELECT 1 FROM private.trade_value_publications WHERE trade_id=trade.id

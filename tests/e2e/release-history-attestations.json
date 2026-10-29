@@ -2886,6 +2886,13 @@
       "statementCount": 3,
       "statementsSha256": "fe79e74223a58d87050bf6433495b6708aaa9a7970091466d38a10292137d980",
       "sha256": "2ae8d08254ae7455b889a0e348190e4363376001746da00fc61ca45ceeb5deac"
+    },
+    {
+      "name": "trade_revaluation_inputs_fast",
+      "version": "20261212000100",
+      "statementCount": 40,
+      "statementsSha256": "9f4b351e743f0b74f879757c1149229827254d7f36d773ddee595d5be1a0e1cb",
+      "sha256": "c1d97c142acb4a328f10052a247acba36510f3c73d5dbf88f0dad4f6f460b5d5"
     }
   ]
 }

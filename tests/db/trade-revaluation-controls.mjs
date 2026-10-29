@@ -30,10 +30,22 @@ export const revaluationControlCases = () => [
     definition: source('private/refresh_player_averages').replaceAll(/ AND \(full_refresh OR (?:average\.)?player_id=ANY\(affected\)\)/g, ''),
     recipe: 'refresh-player-averages', expected: 'the refresh visits only the changed player',
   },
+  {
+    name: 'source revisions',
+    original: source('private/trade_revaluation_input_version'),
+    definition: source('private/trade_revaluation_input_version').replace(/AS \$\$[\s\S]*?\$\$;/, () => "AS $$ SELECT 'constant'::text; $$;"),
+    recipe: 'trade-revaluation-fast', expected: 'player metadata changes the version',
+  },
+  {
+    name: 'live valuation window',
+    original: source('private/begin_trade_revaluation'),
+    definition: source('private/begin_trade_revaluation').replace('WHERE NOT live OR schedule.next_allowed_at<=now()', 'WHERE true'),
+    recipe: 'trade-revaluation-coalesce', expected: 'a second live value waits',
+  },
 ]
 function runRevaluationControls() {
   const url = new URL(process.env.SUPABASE_DB_URL ?? '')
-  if (url.hostname !== '127.0.0.1' || url.port !== '61522') throw new Error('Use the private revaluation database')
+  if (url.hostname !== '127.0.0.1' || url.port !== (process.env.PANCAKE_TEST_DB_PORT ?? '61522')) throw new Error('Use the private revaluation database')
   for (const test of revaluationControlCases()) {
   const sql = `BEGIN;\n${test.definition}\n${recipe(test.recipe)}`.replace('\\ir rules-support.sql', () => readFileSync('tests/db/rules-support.sql', 'utf8'))
   const result = spawnSync('psql', [url.href, '-Xq', '-v', 'ON_ERROR_STOP=1', '-f', '-'], { input: sql, encoding: 'utf8' })
