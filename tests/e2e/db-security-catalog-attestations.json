@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261207000100",
+  "candidateVersion": "20261209000500",
   "common": {
     "functions": [
       {
@@ -2188,6 +2188,10 @@
     {
       "filename": "20261207000100_release27_dispatcher_convergence.sql",
       "sha256": "a6b75740b29dae5a3244fd1abf9e4f44287e88a69d576fa4e931fe5cbf11aa3e"
+    },
+    {
+      "filename": "20261209000500_matchup_forecast_season_fallback.sql",
+      "sha256": "53e2588dd037b9bc3f1291c95f4da820900786874845f129f789ce6330eabbd6"
     }
   ],
   "preMigration": {

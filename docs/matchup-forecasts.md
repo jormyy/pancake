@@ -93,7 +93,7 @@ It reproduces the null projection on release 2.6.4 and checks numeric totals and
 
 ### Local database check
 
-Apply `supabase/migrations/20261209000500_matchup_forecast_season_fallback.sql` to the isolated restored backup.
+Apply `supabase/migrations/20261209000500_matchup_forecast_season_fallback.sql` to the isolated local stack.
 Then run:
 
 ```sh
@@ -102,10 +102,11 @@ npx vitest run tests/matchup-forecast-inputs.test.ts tests/components/matchup-fo
 deno test --allow-env supabase/functions/matchup-forecast/compute.test.ts supabase/functions/matchup-forecast/context.test.ts
 ```
 
-The database check compares both context readers with the league’s current-season averages.
+The database check seeds synthetic players when no matchup ID is supplied.
+It compares both context readers with the league’s current-season averages.
 It rolls back its changes.
 
-### Verification evidence
+### Incoming branch evidence
 
 The release code fails the live OG regression: the fresh row exists, but the returned projection is null.
 The fixed worker passes nine Edge tests.
@@ -115,3 +116,5 @@ Both database context readers return the same 44 league-season averages as the s
 The quality command passes lint, type checks, source checks, and interface rules.
 These checks use local data and the isolated Mac mini database.
 No production service, deployment, or push is used.
+
+The [release integration evidence](release-2.7-integration.md) records checks after the merge.

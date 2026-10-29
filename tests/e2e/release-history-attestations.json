@@ -2823,6 +2823,13 @@
       "statementCount": 3,
       "statementsSha256": "67203506096a4e2000e4c7db34d7eec792608c070aaa3ccd93efba773867dfd7",
       "sha256": "a6b75740b29dae5a3244fd1abf9e4f44287e88a69d576fa4e931fe5cbf11aa3e"
+    },
+    {
+      "name": "matchup_forecast_season_fallback",
+      "version": "20261209000500",
+      "statementCount": 2,
+      "statementsSha256": "e572d18bac90f2d90c6f95c3eda0dcb21b154d6ff2549385413a1e53992b1a82",
+      "sha256": "53e2588dd037b9bc3f1291c95f4da820900786874845f129f789ce6330eabbd6"
     }
   ]
 }

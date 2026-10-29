@@ -344,7 +344,7 @@ It requires deployment after both migrations and before the frontend.
 
 The source starts at `acafdf80`, release 2.6.4.
 The supplied production head is `20261130000100`, with 628 migrations.
-The private upgrade applies 46 missing migrations in numeric order.
+The private upgrade applies 47 missing migrations in numeric order.
 Twenty-eight versions precede the supplied head and require inclusion in the pending set.
 No timestamp collides. No migration is renumbered.
 
@@ -396,12 +396,13 @@ No timestamp collides. No migration is renumbered.
 | 44 | `20261205000100_pending_asset_locks.sql` | Locks pending assets and preserves transaction-bound executor proof. |
 | 45 | `20261206000100_trade_pick_labels.sql` | Adds pick ownership to activity readers and shared pick labels. |
 | 46 | `20261207000100_release27_dispatcher_convergence.sql` | Combines scheduler work and handles trade capacity conflicts during waiver processing. |
+| 47 | `20261209000500_matchup_forecast_season_fallback.sql` | Adds current-season averages to both forecast context readers. |
 
-The final history contains 674 migrations through `20261207000100`.
+The final history contains 675 migrations through `20261209000500`.
 The fixed audit anchor stays at 329 migrations through `20261005000003`.
-The approved range contains 345 migrations.
+The approved range contains 346 migrations.
 The recorded security baseline stays at 564 migrations through `20261029000800`.
-Its candidate suffix contains 110 migrations.
+Its candidate suffix contains 111 migrations.
 Historical aliases and the recorded pre-migration catalog stay unchanged.
 
 The private upgrade uses project `pt4bafabler27`, with ports `600xx`.
@@ -410,7 +411,7 @@ The final scheduler keeps rankings, missing-stat repair, analysis, and dispatche
 Both minute cron jobs retain overlap guards and use idempotent changes to existing job IDs.
 The event partition migration preserves column grants and version capture.
 The roster guard combines pending locks with transaction-bound executor proof.
-The changed Edge functions are `api`, `backfill`, `process-trades`, `refresh-views`, `sync-players`, and `sync-schedule`.
+The changed Edge functions are `api`, `backfill`, `matchup-forecast`, `process-trades`, `refresh-views`, `sync-players`, and `sync-schedule`.
 No production service receives a request.
 [Release contract](../supabase/RELEASE-DB.md#release-27) owns rollout and rollback.
 [Integration evidence](release-2.7-integration.md) owns exact counts and changed files.

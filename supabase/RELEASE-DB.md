@@ -3,10 +3,10 @@
 ## Release order for this release
 
 The supplied production head is `20261130000100`, with 628 migrations.
-Apply all 46 missing migrations in [Release 2.7](#release-27) order through `20261207000100`.
+Apply all 47 missing migrations in [Release 2.7](#release-27) order through `20261209000500`.
 Twenty-eight missing versions precede the supplied head. Include them in the ordered pending set.
 Database, then Edge, then merge the frontend.
-Deploy the six functions listed below after the database upgrade.
+Deploy the seven functions listed below after the database upgrade.
 This integration makes no production request.
 
 ## Release 2.6 historical contract
@@ -134,7 +134,7 @@ Live waiver order already uses `waiver_priorities`.
 Release 2.7 limits realtime publication to draft tables.
 Other screens use version polling. Keep compatible polling readers through rollback.
 
-The checked-in attestations cover all 674 migrations through `20261207000100`.
+The checked-in attestations cover all 675 migrations through `20261209000500`.
 Recheck their source fingerprints before deployment.
 The published attestations retain the recorded release 1 baseline.
 
@@ -523,7 +523,7 @@ Resume work after the relevant private checks pass.
 
 The source baseline is `origin/main` at `acafdf80`, release 2.6.4.
 The supplied database head is `20261130000100`, with 628 migrations.
-The ordered pending set adds 46 migrations and reaches 674 through `20261207000100`.
+The ordered pending set adds 47 migrations and reaches 675 through `20261209000500`.
 Twenty-eight pending versions precede the supplied head. Include all missing versions in numeric order.
 All versions are distinct. No migration is renumbered.
 
@@ -575,6 +575,7 @@ All versions are distinct. No migration is renumbered.
 | 44 | `20261205000100_pending_asset_locks.sql` | Locks pending assets and preserves transaction-bound executor proof. |
 | 45 | `20261206000100_trade_pick_labels.sql` | Adds pick ownership to activity readers and shared pick labels. |
 | 46 | `20261207000100_release27_dispatcher_convergence.sql` | Combines scheduler work and handles trade capacity conflicts during waiver processing. |
+| 47 | `20261209000500_matchup_forecast_season_fallback.sql` | Adds current-season averages to both forecast context readers. |
 
 `public.dispatch_work` owns public-read retention and its bounded hourly prune.
 Catch-up starts after minute 17. The separate `public-read-retention` cron job is unscheduled.
@@ -596,12 +597,13 @@ All three former bug recipes require fixed behavior. `tests/db/known-bugs.json` 
 ### Changed Edge functions
 
 The release runner import graph compares this source with `origin/main` at `acafdf80`.
-These six deployable functions change, including callers of changed shared files.
+These seven deployable functions change, including callers of changed shared files.
 
 | Function | Change |
 | --- | --- |
 | `api` | Adds structured trade legality and saved roster-plan responses. |
 | `backfill` | Preserves incomplete schedule calendars through the shared schedule helper. |
+| `matchup-forecast` | Uses fresh live projections without frozen values and keeps limited estimates numeric. |
 | `process-trades` | Uses scoped notification lineup checks. |
 | `refresh-views` | Uses the changed shared schedule helper. |
 | `sync-players` | Links player sources using matching identity evidence. |
@@ -611,14 +613,16 @@ These six deployable functions change, including callers of changed shared files
 
 1. Verify the applied database history and record compatible frontend and Edge rollback artifacts.
 2. Pause dispatcher work and let running work settle.
-3. Apply all 46 missing migrations in the listed order with older pending versions included.
+3. Apply all 47 missing migrations in the listed order with older pending versions included.
 4. Check migration fingerprints, column grants, function sources, catalog grants, and database types.
 5. Confirm public-read retention has no separate cron job. Check both guarded minute worker definitions.
-6. Deploy the six listed Edge functions, then release the frontend.
+6. Deploy the seven listed Edge functions, then release the frontend.
 7. Resume dispatcher work. Check saved trade execution, ordinary asset locks, retention, and daily analysis.
 
 The private rehearsal uses only `pt4bafabler27` and ports `600xx` on the mini.
 The catalog, database types, and both attestation files regenerate there.
+The forecast worker requires the final migration before deployment.
+It keeps frozen values and marks substituted estimates in the frontend.
 No production service receives a request during integration.
 
 ### Rollback

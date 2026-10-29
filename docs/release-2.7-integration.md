@@ -1,12 +1,76 @@
 # Release 2.7 integration evidence
 
-All eleven requested branches enter in order from `acafdf80`.
+The first eleven lanes start from `acafdf80`.
+The rebuilt release base is `8eefdbcb`.
+The forecast fallback enters as the twelfth lane without rewriting that base.
 All integration commits contain `[skip ci]`.
 No push, pull request, deployment, CI run, or production connection occurs.
 Verification uses the private mini database and synthetic fixtures.
-All requested scoped checks pass. The private stack is stopped.
+The requested full suite and scoped checks pass. The private stack is stopped.
 
-## Checks
+## Forecast and lock-test follow-up
+
+The router test imports the shared navigation spy instead of replacing the router mock.
+Every existing assertion stays unchanged. The application lock handler stays unchanged.
+Removing its navigation call makes the same test fail with only the close action.
+WebKit verifies visible trade and claim destinations after the sheet closes.
+It also opens a trade from the roster lock badge.
+
+The previous forecast returns a null projection for the reproduced live game.
+The merged worker returns the fresh 16.43 projection and applies the 0.53 remaining fraction once.
+The season-average SQL check fails against the old readers and passes after the new migration.
+It seeds synthetic rows and checks both readers against 40 current-season averages.
+The cache parity recipe compares the original fields; the separate recipe checks the added averages.
+
+| Check | Result |
+| --- | --- |
+| Full `npx vitest run --maxWorkers=2` | 4,542 passed, 46 skipped, 0 failed; 479 files passed, 14 skipped. One full run. |
+| Focused router and lock tests | 9 passed, 0 failed. Removing navigation makes the order assertion fail. |
+| Focused forecast tests | 34 passed, 0 failed across 4 files. The old worker fails the live-player regression. |
+| Forecast Edge Deno tests | 9 passed, 0 failed across 2 files. |
+| Forecast SQL recipes | 6 passed, 0 failed. Covers averages, cache parity, history, publication, and both write gates. |
+| Forecast read budget | 3 of 3 samples pass: 9.994–11.085 ms and 5,905 buffers with 48 roster players. |
+| Lock-link WebKit | 3 passed, 0 failed; 0 page errors. Includes both sheet links and the roster badge. |
+| Quality | `npm run check:quality` passes. |
+| Ordered private upgrade | 628 migrations at `20261130000100`, then 674 at `20261207000100`, then 675 at `20261209000500`. |
+| Generated artifacts | All 4 regenerate on the private stack. Types and function catalog remain byte-identical. Both attestations advance. |
+| Catalog and types checks | Both pass against the upgraded private database. The offline attestation check passes. |
+
+The approved history range contains 346 migrations. The function catalog contains 530 functions.
+The first browser attempt times out before the roster loads in the separate upgrade harness.
+The standard browser setup passes all three checks on the integrated application build.
+Both private runs record successful cleanup. No private container remains.
+No production request, push, deployment, or history rewrite occurs.
+The initial check table below retains its historical counts.
+Its 674-migration fresh-install comparison does not claim a separate fresh 675-migration comparison.
+
+### Follow-up changed files
+
+19 files change from the supplied rebuild.
+
+| Status | File |
+| --- | --- |
+| M | `components/MatchupForecastSummary.tsx` |
+| M | `docs/matchup-forecasts.md` |
+| M | `docs/production-migration-history.md` |
+| M | `docs/release-2.7-integration.md` |
+| M | `supabase/RELEASE-DB.md` |
+| M | `supabase/functions/matchup-forecast/compute.test.ts` |
+| M | `supabase/functions/matchup-forecast/compute.ts` |
+| A | `supabase/migrations/20261209000500_matchup_forecast_season_fallback.sql` |
+| M | `supabase/sql/functions/by-name/public/get_matchup_forecast_context.sql` |
+| M | `supabase/sql/functions/by-name/public/get_prepared_matchup_forecast_context.sql` |
+| M | `tests/components/matchup-forecast.test.ts` |
+| M | `tests/db/matchup-forecast-cache-parity.sql` |
+| A | `tests/db/matchup-forecast-season-average.sql` |
+| M | `tests/e2e/db-security-catalog-attestations.json` |
+| M | `tests/e2e/release-history-attestations.json` |
+| A | `tests/fixtures/matchup-forecast-justin.json` |
+| M | `tests/helpers/native-component-mocks.ts` |
+| M | `tests/matchup-forecast-inputs.test.ts` |
+| M | `tests/roster-player-actions.test.ts` |
+
+## Initial integration checks
 
 Overlapping scopes must not be added together.
 
@@ -38,10 +102,10 @@ Overlapping scopes must not be added together.
 | Generated artifacts | All 4 regenerate on the mini. Catalog contains 530 functions; the approved history range contains 345 migrations. |
 | `check:db-function-catalog` and `check:database-types` | Both pass against the upgraded private database. |
 | Migration collisions | 0. All 46 added versions remain unchanged. |
-| Full Vitest suite | Deferred by the latest instruction until before a push. No push occurs. |
+| Full Vitest suite | The follow-up below records the final full-suite run. |
 
 The earlier full Vitest run records 4,391 passed, 69 failed, and 46 skipped.
-Focused runs fix its reproduced failures. This checkpoint does not claim a later full-suite pass.
+Focused runs fix its reproduced failures. The follow-up below records the later full-suite result.
 
 ## Browser evidence
 
@@ -59,6 +123,8 @@ The historical ranked baseline stays unchanged.
 
 ## Merge order
 
+The initial integration receipts remain below. The supplied rebuild contains their combined tree.
+
 | Step | Requested commit | Integration commit |
 | --- | --- | --- |
 | Database probes | `0a9ef307` | `1b18825c` |
@@ -72,6 +138,7 @@ The historical ranked baseline stays unchanged.
 | Database closure | `7eadd365` | `dba9e8e7` |
 | Lineup controls | `483f11d1` | `4e64cbee` |
 | Trade block averages | `35624d09` | `6af1fca0` |
+| Forecast fallback | `68e0b253` | `9b83daca` |
 
 ## Reproduced integration defects
 
@@ -139,12 +206,12 @@ The [lab command](perf-lab.md#integration-checks) runs WebKit on the mini with s
 | --- | --- |
 | `supabase/sql/function-catalog.json` | `e475a72ecafaa692fbb9cfaaebade60a3e6c408a8f00f44231a5469ee80a244c` |
 | `types/database.ts` | `cd293085a8318a65febafa5dedad5c72b6928fcd9454666bd00aa195f2394bd8` |
-| `tests/e2e/db-security-catalog-attestations.json` | `52bca61774d69eec0bde2957990ea55c297bdcf674d1e8c90300f30f645c86d5` |
-| `tests/e2e/release-history-attestations.json` | `183f79f757603cccd80709e8987eef35c89313f7985117599ef11b98979f10de` |
+| `tests/e2e/db-security-catalog-attestations.json` | `aa5bd2fd3f3eca3b4b0ee8749662b39326b1b67739785c6cca3f57ad21a5ef3d` |
+| `tests/e2e/release-history-attestations.json` | `067ce92db7ba37403dd9f0551f8e2aff43554aca6632cb32bb8365f9a98bf315` |
 
 ## Every changed file
 
-636 file paths change against `origin/main`: 341 added, 18 deleted, 277 modified.
+648 file paths change against `origin/main`: 344 added, 18 deleted, 286 modified.
 Renames appear as an old deleted path and a new added path.
 
 | Status | File |
@@ -157,6 +224,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `app/(tabs)/roster.tsx` |
 | M | `app/(tabs)/trades.tsx` |
 | M | `components/AutoSetModal.tsx` |
+| M | `components/MatchupForecastSummary.tsx` |
 | M | `components/league/LeagueActivityFeed.tsx` |
 | A | `components/roster/LockedAssetNotice.tsx` |
 | M | `components/roster/RosterItems.tsx` |
@@ -184,6 +252,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `docs/db-health.md` |
 | M | `docs/interface-design.md` |
 | M | `docs/io-audit.md` |
+| M | `docs/matchup-forecasts.md` |
 | A | `docs/perf-lab.md` |
 | A | `docs/player-identity.md` |
 | M | `docs/production-migration-history.md` |
@@ -219,6 +288,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `lib/transactions.ts` |
 | M | `package.json` |
 | M | `public/sw.js` |
+| M | `release-predecessor.json` |
 | M | `scripts/check-edge-functions.mjs` |
 | A | `scripts/db-health/bounded-capture.mjs` |
 | A | `scripts/db-health/compact-plans.mjs` |
@@ -372,6 +442,8 @@ Renames appear as an old deleted path and a new added path.
 | M | `supabase/functions/_shared/schedule.ts` |
 | M | `supabase/functions/api/trades.ts` |
 | M | `supabase/functions/api/version/realtime.test.ts` |
+| M | `supabase/functions/matchup-forecast/compute.test.ts` |
+| M | `supabase/functions/matchup-forecast/compute.ts` |
 | M | `supabase/functions/process-trades/activation.test.ts` |
 | M | `supabase/functions/sync-players/index.test.ts` |
 | M | `supabase/functions/sync-players/index.ts` |
@@ -425,6 +497,7 @@ Renames appear as an old deleted path and a new added path.
 | A | `supabase/migrations/20261205000100_pending_asset_locks.sql` |
 | A | `supabase/migrations/20261206000100_trade_pick_labels.sql` |
 | A | `supabase/migrations/20261207000100_release27_dispatcher_convergence.sql` |
+| A | `supabase/migrations/20261209000500_matchup_forecast_season_fallback.sql` |
 | M | `supabase/sql/function-catalog.json` |
 | M | `supabase/sql/functions/by-name/private/accept_trade_participant_atomic.sql` |
 | A | `supabase/sql/functions/by-name/private/analyze_screen_table.sql` |
@@ -485,6 +558,8 @@ Renames appear as an old deleted path and a new added path.
 | M | `supabase/sql/functions/by-name/public/dispatch_work.sql` |
 | A | `supabase/sql/functions/by-name/public/enqueue_rookie_pick_notification.sql` |
 | M | `supabase/sql/functions/by-name/public/get_league_activity_feed.sql` |
+| M | `supabase/sql/functions/by-name/public/get_matchup_forecast_context.sql` |
+| M | `supabase/sql/functions/by-name/public/get_prepared_matchup_forecast_context.sql` |
 | M | `supabase/sql/functions/by-name/public/get_trade_roster_preview.sql` |
 | A | `supabase/sql/functions/by-name/public/hold_trade_for_legality_atomic.sql` |
 | M | `supabase/sql/functions/by-name/public/link_player_sources_atomic.sql` |
@@ -517,6 +592,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `tests/app/lineup-optimizer-lifetime.test.ts` |
 | M | `tests/app/propose-trade-ownership.test.ts` |
 | M | `tests/app/roster-empty-slots.test.ts` |
+| M | `tests/components/matchup-forecast.test.ts` |
 | M | `tests/components/pick-labels.test.ts` |
 | A | `tests/components/trades/offer-refresh.test.ts` |
 | A | `tests/components/trades/pick-label-parity.test.ts` |
@@ -579,6 +655,7 @@ Renames appear as an old deleted path and a new added path.
 | M | `tests/db/league-version-writes.sql` |
 | D | `tests/db/live-ingestion-work.sql` |
 | M | `tests/db/matchup-forecast-cache-parity.sql` |
+| A | `tests/db/matchup-forecast-season-average.sql` |
 | M | `tests/db/notif-announcement-history.sql` |
 | M | `tests/db/notif-draft-transitions.sql` |
 | M | `tests/db/notif-pause-window.sql` |
@@ -704,6 +781,7 @@ Renames appear as an old deleted path and a new added path.
 | A | `tests/e2e/trade-pick-backup.mjs` |
 | A | `tests/e2e/trade-pick-browser.mjs` |
 | A | `tests/e2e/trade-pick-local-setup.mjs` |
+| A | `tests/fixtures/matchup-forecast-justin.json` |
 | M | `tests/helpers/native-component-mocks.ts` |
 | M | `tests/hooks/draft-activity.test.ts` |
 | M | `tests/hooks/draft-room-launcher.test.ts` |
@@ -719,6 +797,7 @@ Renames appear as an old deleted path and a new added path.
 | D | `tests/lib/lineup.test.ts` |
 | A | `tests/lib/locked-assets.test.ts` |
 | M | `tests/lib/trades-read.test.ts` |
+| M | `tests/matchup-forecast-inputs.test.ts` |
 | A | `tests/perf-lab/action-smoke.mjs` |
 | A | `tests/perf-lab/adapters.test.ts` |
 | A | `tests/perf-lab/analyzer-adapter-smoke.mjs` |
