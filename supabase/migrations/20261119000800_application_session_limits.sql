@@ -1,0 +1,14 @@
+BEGIN;
+ALTER ROLE anon SET statement_timeout='3s';
+ALTER ROLE authenticated SET statement_timeout='8s';
+ALTER ROLE service_role SET statement_timeout='3s';
+ALTER ROLE authenticator SET statement_timeout='8s';
+ALTER ROLE anon SET lock_timeout='500ms';
+ALTER ROLE authenticated SET lock_timeout='500ms';
+ALTER ROLE service_role SET lock_timeout='250ms';
+ALTER ROLE authenticator SET lock_timeout='500ms';
+ALTER ROLE anon SET idle_in_transaction_session_timeout='60s';
+ALTER ROLE authenticated SET idle_in_transaction_session_timeout='60s';
+ALTER ROLE service_role SET idle_in_transaction_session_timeout='60s';
+ALTER ROLE authenticator SET idle_in_transaction_session_timeout='60s';
+COMMIT;

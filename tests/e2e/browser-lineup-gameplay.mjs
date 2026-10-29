@@ -10,6 +10,8 @@ import { captureBrowserScreenshot, clickButtonByName, createBrowser, fillSignInC
 import { createFixtureResourceOwner } from './trade-fixture.mjs'
 import { runBrowserScenarioLifecycle } from './browser-scenario-lifecycle.mjs'
 
+const { createMutationFetch } = await import(new URL('../../lib/api-client.ts', import.meta.url).href)
+
 const ROOT = process.cwd()
 const ARTIFACT_ROOT = browserArtifactPath('artifacts')
 const REPORT_PATH = browserArtifactPath('e2e-browser-lineup-report.md')
@@ -64,7 +66,7 @@ const createConfirmedUser = async (admin, user) => {
 }
 
 const signInClient = async (env, email, password) => {
-  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false } })
+  const client = createClient(env.supabaseUrl, env.anonKey, { auth: { persistSession: false }, global: { fetch: createMutationFetch(globalThis.fetch) } })
   const { error } = await client.auth.signInWithPassword({ email, password })
   if (error) throw new Error(`signIn ${email}: ${error.message}`)
   return client
@@ -176,7 +178,7 @@ const ensureWeekForDate = async (admin, seasonYear, date) => {
 
 const ensureCurrentWeek = (admin, seasonYear) => ensureWeekForDate(admin, seasonYear, todayDateString())
 
-const setupLineupFixture = async (env, season, { remainingSeasonDateCount = 0, includeTodayGame = false } = {}) => {
+const setupLineupFixture = async (env, season, { includeTodayGame = false } = {}) => {
   const runId = `${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${process.pid}-${season}`
   const password = `Pancake-lineup-${runId}!`
   const user = {
@@ -273,9 +275,8 @@ const setupLineupFixture = async (env, season, { remainingSeasonDateCount = 0, i
     if (error) throw new Error(error.message)
   })
 
-  const remainingSeasonDates = []
-  const remainingSeasonGameIds = []
-  const gameOffsets = [...(includeTodayGame ? [0] : []), ...Array.from({ length: remainingSeasonDateCount }, (_, index) => index + 1)]
+  const gameIds = []
+  const gameOffsets = includeTodayGame ? [0] : []
   for (const offset of gameOffsets) {
     const gameDate = offsetDateString(offset)
     const dateWeek = await ensureWeekForDate(admin, syntheticSeason.season_year, gameDate)
@@ -295,12 +296,11 @@ const setupLineupFixture = async (env, season, { remainingSeasonDateCount = 0, i
       game_time: offset === 0 ? new Date(Date.parse(endOfETDayUTC(gameDate)) - 1).toISOString() : `${gameDate}T23:30:00.000Z`,
     })
     if (gameError) throw new Error(`remaining-season game seed: ${gameError.message}`)
-    if (offset > 0) remainingSeasonDates.push(gameDate)
-    remainingSeasonGameIds.push(gameId)
+    gameIds.push(gameId)
   }
-  if (remainingSeasonGameIds.length > 0) {
+  if (gameIds.length > 0) {
     resources.registerCleanup(`lineup season games ${syntheticSeason.season_year}`, async () => {
-      const { error } = await admin.from('nba_games').delete().in('sportsdata_game_id', remainingSeasonGameIds)
+      const { error } = await admin.from('nba_games').delete().in('sportsdata_game_id', gameIds)
       if (error) throw new Error(error.message)
     })
   }
@@ -315,7 +315,6 @@ const setupLineupFixture = async (env, season, { remainingSeasonDateCount = 0, i
     week,
     player,
     rosterRow,
-    remainingSeasonDates,
     dispose: resources.dispose,
   }
 }
@@ -466,29 +465,6 @@ const waitForAccessibleButton = async (session, name, label, timeoutMs = 15_000)
   throw new Error(`${label}: button not found: ${name}. Body: ${parsed?.body ?? ''}`)
 }
 
-const waitForAlertText = async (session, expected, label, timeoutMs = 90_000) => {
-  let parsed = null
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < timeoutMs) {
-    const output = await browser(session, [
-      'eval',
-      `(() => {
-        const alerts = Array.isArray(window.__pancakeAlerts) ? window.__pancakeAlerts : [];
-        return JSON.stringify({
-          ok: alerts.some((message) => message.includes(${JSON.stringify(expected)})),
-          alerts
-        });
-      })()`,
-    ])
-    parsed = parseEvalJson(output)
-    if (parsed.ok) return { ...parsed, elapsedMs: Date.now() - startedAt }
-    const failureAlert = parsed.alerts.find((message) => message.includes('Auto-set failed'))
-    if (failureAlert) throw new Error(`${label}: ${failureAlert}`)
-    await browser(session, ['wait', '500'])
-  }
-  throw new Error(`${label}: alert not found: ${expected}. Alerts: ${JSON.stringify(parsed?.alerts ?? [])}`)
-}
-
 const dispatchDomClick = async (session, name, label) => {
   const output = await browser(session, [
     'eval',
@@ -519,7 +495,7 @@ const dispatchDomClick = async (session, name, label) => {
 }
 
 const waitForAutoSetOptions = (session) => browser(session, ['wait', '--fn', `(() => {
-  return ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season', 'Close'].every((label) => {
+  return ['Edit lineup manually', 'Close'].every((label) => {
     const node = document.querySelector('[role="dialog"] [aria-label="' + label + '"]');
     return Boolean(node?.getClientRects().length) && node.getAttribute('aria-disabled') !== 'true';
   });
@@ -549,51 +525,6 @@ export const openAutoSetOptions = async (session, label) => {
   return click
 }
 
-export const checkAutoSetRefreshReadiness = async (session, record, refresh) => {
-  await waitForAutoSetOptions(session)
-  await browser(session, ['eval', `(() => {
-    const original = window.fetch;
-    const pending = [];
-    let held = true;
-    window.__pancakeAutoSetRefreshPending = () => pending.length;
-    window.fetch = async (input, init) => {
-      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
-      if (held && url.pathname.endsWith('/league_members')) await new Promise((resolve) => pending.push(resolve));
-      return original.call(window, input, init);
-    };
-    window.__pancakeReleaseAutoSetRefresh = () => {
-      held = false;
-      window.fetch = original;
-      pending.splice(0).forEach((resolve) => resolve());
-      delete window.__pancakeAutoSetRefreshPending;
-      delete window.__pancakeReleaseAutoSetRefresh;
-    };
-    window.dispatchEvent(new Event('focus'));
-  })()`])
-  let state
-  try {
-    record({ refreshTrigger: await refresh() })
-    await browser(session, ['wait', '--fn', `window.__pancakeAutoSetRefreshPending?.() > 0 && document.querySelector('[aria-label="Open auto-set lineup options"]')?.getAttribute('aria-disabled') === 'true'`])
-    state = parseEvalJson(await browser(session, ['eval', `(() => {
-      const labels = ['Auto-set today', 'Auto-set whole week', 'Auto-set rest of season'];
-      const choices = labels.map((label) => {
-        const node = document.querySelector('[role="dialog"] [aria-label="' + label + '"]');
-        return { label, visible: Boolean(node?.getClientRects().length), disabled: node?.getAttribute('aria-disabled') === 'true' };
-      });
-      const close = document.querySelector('[role="dialog"] [aria-label="Close"]');
-      return JSON.stringify({ choices, closeAvailable: Boolean(close?.getClientRects().length) && close.getAttribute('aria-disabled') !== 'true' });
-    })()`]))
-    record({ refreshReadiness: state })
-    if (!state.choices.every((choice) => choice.visible && choice.disabled) || !state.closeAvailable) {
-      throw new Error(`Auto-set choices must wait for refresh without closing the sheet: ${JSON.stringify(state)}`)
-    }
-  } finally {
-    await browser(session, ['eval', 'window.__pancakeReleaseAutoSetRefresh?.()'])
-  }
-  await waitForAutoSetOptions(session)
-  return state
-}
-
 const verifyLineup = async (fixture, { expectedAutoSet = false } = {}) => {
   const { data: rows, error } = await fixture.admin
     .from('weekly_lineups')
@@ -619,47 +550,6 @@ const waitForLineup = async (fixture, options = {}, timeoutMs = 90_000) => {
   while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
     await new Promise((resolve) => setTimeout(resolve, 500))
     last = await verifyLineup(fixture, options)
-  }
-  return last
-}
-
-const verifyRemainingSeasonLineups = async (fixture) => {
-  const { data: rows, error } = await fixture.admin
-    .from('weekly_lineups')
-    .select('id, player_id, slot_type, week_number, game_date, is_auto_set')
-    .eq('league_id', fixture.league.id)
-    .eq('league_season_id', fixture.currentSeason.id)
-    .eq('member_id', fixture.member.id)
-    .eq('player_id', fixture.player.id)
-    .in('game_date', fixture.remainingSeasonDates)
-    .order('game_date', { ascending: true })
-  if (error) throw new Error(`remaining-season lineup verify: ${error.message}`)
-
-  const failures = []
-  const rowsByDate = new Map((rows ?? []).map((row) => [row.game_date, row]))
-  for (const date of fixture.remainingSeasonDates) {
-    const row = rowsByDate.get(date)
-    if (!row) {
-      failures.push(`missing remaining-season lineup for ${date}`)
-      continue
-    }
-    if (!['PG', 'G', 'UTIL'].includes(row.slot_type)) {
-      failures.push(`${date} slot_type=${row.slot_type}; expected a PG-eligible starter slot`)
-    }
-    if (row.is_auto_set !== true) failures.push(`${date} is_auto_set=${row.is_auto_set}; expected true`)
-  }
-  if ((rows ?? []).length !== fixture.remainingSeasonDates.length) {
-    failures.push(`remaining-season rows=${(rows ?? []).length}; expected ${fixture.remainingSeasonDates.length}`)
-  }
-  return { rows: rows ?? [], failures }
-}
-
-const waitForRemainingSeasonLineups = async (fixture, timeoutMs = 90_000) => {
-  const startedAt = Date.now()
-  let last = await verifyRemainingSeasonLineups(fixture)
-  while (last.failures.length > 0 && Date.now() - startedAt < timeoutMs) {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    last = await verifyRemainingSeasonLineups(fixture)
   }
   return last
 }
@@ -1024,7 +914,7 @@ export async function runBrowserLineupAutoSetScenario({
 } = {}) {
   const env = resolvedEnv()
   requireEnv(env, ['supabaseUrl', 'serviceRoleKey', 'anonKey'])
-  const fixture = await setupLineupFixture(env, season, { remainingSeasonDateCount: 2, includeTodayGame: true })
+  const fixture = await setupLineupFixture(env, season, { includeTodayGame: true })
   const sessionList = await listSessions().catch((error) => `session list unavailable: ${error.message}`)
   const session = sessionName ?? safeName(`pancake-lineup-auto-${fixture.runId}-${process.pid}`)
   const artifactDir = path.join(ARTIFACT_ROOT, `season-${season}`, 'browser-lineup-auto-set')
@@ -1054,53 +944,25 @@ export async function runBrowserLineupAutoSetScenario({
     run: async ({ record }) => {
     await signInBrowser(session, env, fixture.user, fixture.password)
     await browser(session, ['set', 'viewport', '390', '844'])
-    await browser(session, ['open', joinUrl(env.frontendUrl, '/lineup')])
-    await browser(session, ['wait', '3000'])
-    await resetBrowserAlertCapture(session)
-    await assertPageText(session, ['Lineup', 'STARTERS', 'BENCH', fixture.player.display_name, 'Auto-set'], 'lineup before auto-set')
-    record({ beforeScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-before.png') })
-    const openClick = await openAutoSetOptions(session, 'auto-set button')
-    await assertPageText(session, ['Auto-set lineup', 'Today', 'Whole week', 'Rest of season'], 'auto-set modal')
-    const todayClick = await clickButton(session, 'Auto-set today', 'auto-set today button')
-    const lineupCheck = await waitForLineup(fixture, { expectedAutoSet: true })
-    if (lineupCheck.failures.length > 0) throw new Error(`Auto-set today did not persist: ${lineupCheck.failures.join('; ')}`)
-    const openWeekClick = await openAutoSetOptions(session, 'auto-set button for whole week')
-    const refreshReadiness = await checkAutoSetRefreshReadiness(session, record, async () => {
-      const { data, error } = await fixture.admin.from('weekly_lineups')
-        .update({ is_auto_set: false })
-        .eq('league_id', fixture.league.id)
-        .eq('member_id', fixture.member.id)
-        .eq('player_id', fixture.player.id)
-        .eq('game_date', todayDateString())
-        .select('id, is_auto_set')
-      if (error) throw new Error(`Concurrent lineup edit failed: ${error.message}`)
-      if (data?.length !== 1 || data[0].is_auto_set !== false) throw new Error('Concurrent lineup edit did not change the saved lineup')
-      return { lineupId: data[0].id, isAutoSet: data[0].is_auto_set }
-    })
-    const weekClick = await clickButton(session, 'Auto-set whole week', 'auto-set whole week button')
-    const weekDates = [todayDateString(), ...fixture.remainingSeasonDates.filter((date) => date <= fixture.week.week_end)]
-    const weekCheck = await waitForRemainingSeasonLineups({ ...fixture, remainingSeasonDates: weekDates })
-    const openSeasonClick = await openAutoSetOptions(session, 'auto-set button for remaining season')
-    await assertPageText(session, ['Auto-set lineup', 'Rest of season'], 'remaining-season auto-set modal')
-    const seasonClick = await clickButton(session, 'Auto-set rest of season', 'auto-set remaining season button')
-    const seasonAlert = await waitForAlertText(
-      session,
-      'Lineup set for the rest of the season.',
-      'remaining-season success notice',
-    )
-    const seasonCheck = await waitForRemainingSeasonLineups(fixture)
-    record({ openClick, todayClick, lineupCheck, openWeekClick, weekClick, weekCheck, openSeasonClick, seasonClick, seasonCheck, seasonAlert })
-    await browser(session, ['wait', '1000'])
-    record({ afterScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'lineup-auto-after.png') })
-    return {
-      fields: { mode: 'auto-set', lineupCheck, refreshReadiness, weekCheck, seasonCheck, seasonAlert },
-      failures: [...lineupCheck.failures, ...weekCheck.failures, ...seasonCheck.failures],
-    }
+    await browser(session, ['open', joinUrl(env.frontendUrl, '/roster')])
+    const openClick = await openAutoSetOptions(session, 'auto-set options')
+    const choices = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
+      [...document.querySelectorAll('[role="dialog"] [role="button"], [role="dialog"] button')]
+        .map(node => node.getAttribute('aria-label') || node.textContent)
+    )`]))
+    assert.deepEqual(choices.filter(label => label !== 'Close'), ['Edit lineup manually'])
+    record({ openClick, choices, sheetScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'manual-options.png') })
+    await clickButton(session, 'Edit lineup manually', 'manual editor')
+    await assertPageText(session, ['STARTERS', 'BENCH', fixture.player.display_name, 'Keep updated automatically'], 'manual lineup editor')
+    const oldActions = parseEvalJson(await browser(session, ['eval', `JSON.stringify(
+      ['Auto-set today', 'Auto-set this week', 'Auto-set rest of season']
+        .filter(label => document.querySelector('[aria-label="' + label + '"]'))
+    )`]))
+    assert.deepEqual(oldActions, [])
+    record({ editorScreenshot: await captureBrowserScreenshot(browser, session, artifactDir, 'manual-editor.png') })
+    return { fields: { mode: 'manual-editor', choices }, failures: [] }
     },
-    verifyFailure: async () => ({
-      lineupCheck: await verifyLineup(fixture, { expectedAutoSet: true }),
-      seasonCheck: await verifyRemainingSeasonLineups(fixture),
-    }),
+    verifyFailure: async () => ({ rosterPlayerId: fixture.rosterRow.id }),
   })
 }
 

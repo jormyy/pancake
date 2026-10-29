@@ -62,6 +62,26 @@ it('returns the saved roster plan for a local trade update', async () => {
     expect(mocks.rpc).toHaveBeenCalledWith('set_trade_roster_plan_atomic', expect.objectContaining({ p_taxi_player_ids: [playerId] }))
 })
 
+it('carries retained taxi moves in an atomic acceptance', async () => {
+    mocks.rpc.mockResolvedValue({ data: { expired: false }, error: null })
+    const rosterPlan = { taxiPlayerIds: [], irPlayerIds: [], dropPlayerIds: [], rosterMoves: [{ playerId, destination: 'taxi' }] }
+    await send('accept', { memberId, rosterPlan })
+    expect(mocks.rpc).toHaveBeenCalledWith('accept_trade_with_plan_atomic', expect.objectContaining({
+        p_roster_moves: [{ playerId, destination: 'taxi' }],
+    }))
+})
+
+it('returns SQL reasons unchanged for a draft preview', async () => {
+    const teams = [{ memberId, legal: false, reasons: [{ rule: 'ir_limit', message: 'Justin must move one player from IR.' }] }]
+    mocks.rpc.mockResolvedValue({ data: teams, error: null })
+    const { handleTradeRoute } = await import(apiPath)
+    const response = await handleTradeRoute(new Request('https://example.test/trades/legality', {
+        method: 'POST', body: JSON.stringify({ leagueId: tradeId, memberIds: [memberId, recipientMemberId], items: [], plans: {} }),
+    }), '/trades/legality')
+    expect(await response!.json()).toEqual({ teams })
+    expect(mocks.rpc).toHaveBeenCalledWith('preview_trade_legality', expect.objectContaining({ p_member_ids: [memberId, recipientMemberId] }))
+})
+
 it('rejects an invalid replacement recipient before the database call', async () => {
     await expect(send('edit', { memberId, requestId, recipientMemberId: 'wrong' })).rejects.toThrow(/recipientMemberId/)
     expect(mocks.rpc).not.toHaveBeenCalled()

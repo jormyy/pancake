@@ -16,7 +16,10 @@ SET LOCAL app.edge_internal_token='io-fixture';
 CREATE TEMP TABLE io_writes(relation_name text,operation text);
 CREATE FUNCTION pg_temp.observe_io() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  INSERT INTO io_writes VALUES(TG_TABLE_SCHEMA||'.'||TG_TABLE_NAME,TG_OP);
+  INSERT INTO io_writes
+  SELECT n.nspname||'.'||c.relname,TG_OP
+  FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE c.oid=coalesce(pg_partition_root(TG_RELID),TG_RELID);
   RETURN NULL;
 END;
 $$;
@@ -81,9 +84,11 @@ BEGIN
   TRUNCATE io_writes;
   PERFORM private.refresh_trade_values(f.league_id,f.season_id,v_version,trade_values);
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes),'identical trade publication writes no content or metadata');
+  SET CONSTRAINTS ALL IMMEDIATE;
   UPDATE private.screen_refresh_queue SET dirty=false WHERE league_season_id=f.season_id;
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
   PERFORM pg_temp.check_rules(NOT (public.view_context(f.league_id,f.member_ids[1],jsonb_build_object('seasonId',f.season_id,'tradeId',trade))->>'tradeAnalysisStale')::boolean,'unchanged trade content retains fresh publication');
+  SET CONSTRAINTS ALL DEFERRED;
   UPDATE private.trade_value_publications SET valid_until=now()-interval '1 second' WHERE trade_id=trade;
   PERFORM pg_temp.check_rules((public.view_context(f.league_id,f.member_ids[1],jsonb_build_object('seasonId',f.season_id,'tradeId',trade))->>'tradeAnalysisStale')::boolean,'expired trade publication remains stale');
   UPDATE public.league_members SET team_name='Changed IO team' WHERE id=f.member_ids[1];
@@ -128,7 +133,7 @@ BEGIN
   result:=private.retain_cron_job_run_details(reference_time);
   PERFORM pg_temp.check_rules((result->>'cron.job_run_details')::int=0 AND NOT EXISTS(SELECT 1 FROM io_writes),'unchanged retained history writes no rows');
   PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='12 * * * *') FROM cron.job WHERE jobname='io-cron-history-retention'),'cron retention has one bounded hourly schedule');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='30 seconds') FROM cron.job WHERE jobname='io-hint-drain'),'hint drain keeps a half-minute wake without edge work');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(schedule='* * * * *') FROM cron.job WHERE jobname='io-hint-drain'),'hint drain keeps a minute wake without edge work');
   PERFORM private.work_enqueue('player-stats-hints','io-dedupe');
   UPDATE private.work_items SET status='succeeded',completed_at=now() WHERE kind='player-stats-hints' AND key='io-dedupe';
   SELECT last_value INTO run FROM private.work_items_id_seq;
@@ -157,7 +162,7 @@ BEGIN
   PERFORM pg_temp.check_rules((SELECT last_value=sequence_value FROM private.work_items_id_seq),'idle scheduling does not advance work sequence');
   PERFORM private.flush_player_stats_hints();
   PERFORM private.flush_league_inventory_hints(1000);
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes),'empty half-minute drain writes no application rows');
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM io_writes),'empty minute drain writes no application rows');
 END;
 $$;
 CREATE OR REPLACE FUNCTION private.enqueue_scheduled_work(p_now timestamptz DEFAULT now())

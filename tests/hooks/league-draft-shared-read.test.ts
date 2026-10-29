@@ -163,7 +163,7 @@ it('keeps the launcher fallback alive after only the controller unmounts', async
     await resolveRead(1, { status: 'drafting' })
     await resolveRead(2, row('rookie', 'snake'))
     expect(launcher.draft?.id).toBe('rookie')
-    expect(boundary.save).not.toHaveBeenCalled()
+    expect(boundary.save).toHaveBeenCalledExactlyOnceWith('pancake:draft-launcher:v1:["actor","league","member"]', { draft: launcher.draft })
     expect(boundary.push).toHaveBeenCalledExactlyOnceWith({ pathname: '/(modals)/rookie-draft-room', params: { draftId: 'rookie' } })
 })
 

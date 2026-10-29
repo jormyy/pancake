@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261130000100",
+  "candidateVersion": "20261207000100",
   "common": {
     "functions": [
       {
@@ -169,13 +169,6 @@
         "functionSchema": "private"
       },
       {
-        "name": "prevent_accepted_or_inactive_roster_move",
-        "enabled": "O",
-        "definition": "CREATE TRIGGER prevent_accepted_or_inactive_roster_move BEFORE UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
-        "functionName": "prevent_accepted_or_inactive_roster_move",
-        "functionSchema": "private"
-      },
-      {
         "name": "prevent_accepted_trade_asset_roster_delete",
         "enabled": "O",
         "definition": "CREATE TRIGGER prevent_accepted_trade_asset_roster_delete BEFORE DELETE ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_trade_asset_roster_delete()",
@@ -260,18 +253,6 @@
       }
     ],
     "indexes": [
-      {
-        "name": "idx_edge_invocations_reconciled_at",
-        "ready": true,
-        "valid": true,
-        "definition": "CREATE INDEX idx_edge_invocations_reconciled_at ON public.edge_invocations USING btree (reconciled_at)"
-      },
-      {
-        "name": "idx_edge_invocations_unreconciled",
-        "ready": true,
-        "valid": true,
-        "definition": "CREATE INDEX idx_edge_invocations_unreconciled ON public.edge_invocations USING btree (queued_at) WHERE (reconciled_at IS NULL)"
-      },
       {
         "name": "idx_projection_sync_runs_started_at",
         "ready": true,
@@ -528,7 +509,15 @@
           "authenticatedExecute": false
         }
       ],
-      "triggers": [],
+      "triggers": [
+        {
+          "name": "prevent_accepted_or_inactive_roster_move",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER prevent_accepted_or_inactive_roster_move BEFORE UPDATE OF member_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
+          "functionName": "prevent_accepted_or_inactive_roster_move",
+          "functionSchema": "private"
+        }
+      ],
       "policies": [],
       "tables": [
         {
@@ -541,7 +530,20 @@
           "authenticatedSelect": false
         }
       ],
-      "indexes": []
+      "indexes": [
+        {
+          "name": "idx_edge_invocations_reconciled_at",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_edge_invocations_reconciled_at ON public.edge_invocations USING btree (reconciled_at)"
+        },
+        {
+          "name": "idx_edge_invocations_unreconciled",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_edge_invocations_unreconciled ON public.edge_invocations USING btree (queued_at) WHERE (reconciled_at IS NULL)"
+        }
+      ]
     },
     "post-migration": {
       "functions": [
@@ -616,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "436cc6958d37164253818a3e35b08aa8ab84c7672a93aae8cd3c74dda185b7eb",
+          "bodySha256": "b85e0b4109cfc5de4e4e2b93829351f460c2496ea4de1763b70ac4049d4e9741",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -736,7 +738,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "5f5826a86b58a19c46753571a56cfe5b6d2eb5364c1db179c5cac51ae6a9205f",
+          "bodySha256": "363c20fa845a6f00eb461f37f2ecc14e730bdfe77c3ed3bf8344226cd703e6d9",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -796,7 +798,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_id bigint, p_token uuid",
-          "bodySha256": "8a195a5afe2a717e2fb1019b5872f0ac7d3485e1b1d8ce4afd4f213c4171cdc6",
+          "bodySha256": "6d562ebb173b42cba2a2dde107fcc2034b895696a5256370712573a6cac5fe8e",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -836,7 +838,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "",
-          "bodySha256": "30248b3dd832f4067a774997c0b4982498656556c1be5e7e3d32e718b7acb565",
+          "bodySha256": "8ee567a6bc024149f3ae518aa61d08ffa1d5d55e0f206b7444f57e3666c201f2",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -968,6 +970,13 @@
       ],
       "triggers": [
         {
+          "name": "a_pending_asset_roster_move",
+          "enabled": "O",
+          "definition": "CREATE TRIGGER a_pending_asset_roster_move BEFORE UPDATE OF league_id, league_season_id, member_id, player_id, is_on_ir, is_on_taxi ON public.roster_players FOR EACH ROW EXECUTE FUNCTION private.prevent_accepted_or_inactive_roster_move()",
+          "functionName": "prevent_accepted_or_inactive_roster_move",
+          "functionSchema": "private"
+        },
+        {
           "name": "attach_submitted_trade_estimate",
           "enabled": "O",
           "definition": "CREATE TRIGGER attach_submitted_trade_estimate AFTER INSERT ON public.trade_estimate_quotes FOR EACH ROW EXECUTE FUNCTION private.attach_submitted_trade_estimate()",
@@ -1068,6 +1077,24 @@
         }
       ],
       "indexes": [
+        {
+          "name": "edge_invocations_pending",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX edge_invocations_pending ON ONLY public.edge_invocations USING btree (queued_at, id) WHERE ((reconciled_at IS NULL) OR (worker_status = 'running'::text))"
+        },
+        {
+          "name": "edge_invocations_recent_scores",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX edge_invocations_recent_scores ON ONLY public.edge_invocations USING btree (queued_at DESC) WHERE (function_name = 'sync-scores'::text)"
+        },
+        {
+          "name": "idx_edge_invocations_reconciled_at",
+          "ready": true,
+          "valid": true,
+          "definition": "CREATE INDEX idx_edge_invocations_reconciled_at ON ONLY public.edge_invocations USING btree (reconciled_at)"
+        },
         {
           "name": "trades_pending_parties",
           "ready": true,
@@ -1919,6 +1946,74 @@
       "sha256": "56f2c9993ce758549d50bc687eb379c6210d8fa2deb64a38f569c18bf0443045"
     },
     {
+      "filename": "20261119000100_skip_unchanged_lineup_slots.sql",
+      "sha256": "0733b90be7d05946bc0aef4e463ce14cf4d06ea27389cb69e7a35c5f4a4abe79"
+    },
+    {
+      "filename": "20261119000200_churn_table_storage_policy.sql",
+      "sha256": "f1d4cd412afcec71669b2e797e981a1564f2222d48d87dc4ac729166916570c4"
+    },
+    {
+      "filename": "20261119000300_player_identity_lookup.sql",
+      "sha256": "ca1193a08fbc6d077011c6b8d9bdea23cabcc9973ccfe3f4ff4785dbbd644dd3"
+    },
+    {
+      "filename": "20261119000400_reviewed_player_provider_links.sql",
+      "sha256": "06ab72a6d2483df8e40369fcbdee16812d2d0616d61ca60076d96fa9b8f0e5f6"
+    },
+    {
+      "filename": "20261119000500_reconcile_missing_final_stats.sql",
+      "sha256": "0fff3ce4e3d5cf14712b7ff6dc1e5f5293d9e8e367908bc04389192aa866434e"
+    },
+    {
+      "filename": "20261119000600_provider_write_gate.sql",
+      "sha256": "e786e7fcad8d7453d70c7ab9499041bb989963b379c52361da020cbd38dff77e"
+    },
+    {
+      "filename": "20261119000700_terminal_work_retention.sql",
+      "sha256": "36f74fb326ec58248cad8293b1ce99e8751210c04ebf205aa2c162de2ce7bc9d"
+    },
+    {
+      "filename": "20261119000800_application_session_limits.sql",
+      "sha256": "dfbabc1eb9c27b23907bd3d65e9eeef7a148547fcae65b8a3597c42c73edfa60"
+    },
+    {
+      "filename": "20261119000900_schedule_write_gate.sql",
+      "sha256": "ec8c28313885ff313ec7e11007ad48b7601725f3c18b0b8071f530045e9667da"
+    },
+    {
+      "filename": "20261119001000_append_event_time_index.sql",
+      "sha256": "371382af95b064d51ef5a41243747b29670074136ca57be441fd2275a72cb58c"
+    },
+    {
+      "filename": "20261119001100_preserve_lock_free_stat_resolution.sql",
+      "sha256": "90a3f7f24fabf89b58ded914a8f46800827a89896626a4629f39d71257acc654"
+    },
+    {
+      "filename": "20261119001200_preserve_incomplete_season_calendar.sql",
+      "sha256": "da1160e2d05e60280db19c001195a9b484ce30d962662aed64db284751cede06"
+    },
+    {
+      "filename": "20261119001300_partition_beacons_and_receipts.sql",
+      "sha256": "7e81a71bf4fba1820930ce71d6734931f8b753d19939f668e3eaa608a4127b17"
+    },
+    {
+      "filename": "20261119001400_scope_notification_lineup_checks.sql",
+      "sha256": "85ac10bdc24e6beac80899794d7f1ecfc2d65c3d240e5b7f41c2d0b436c126ae"
+    },
+    {
+      "filename": "20261119001500_partition_events_and_invocations.sql",
+      "sha256": "3dcea8c19b441729c0b7e0f0a8f6290998c973b0ee2ed866b0c01470cb903b5a"
+    },
+    {
+      "filename": "20261119001600_complete_public_read_retention.sql",
+      "sha256": "a388be4c8e4627bbe3674ac04540c5ba2e7e4f1c004985318cf2092a3876edae"
+    },
+    {
+      "filename": "20261119001700_refresh_trade_value_statistics.sql",
+      "sha256": "0777d04acf20ad632b3913c8d7ca2b0af3132d0964656f58f7b8eb663f072138"
+    },
+    {
       "filename": "20261120000100_onenumber_trade_values.sql",
       "sha256": "de5b5f6a2f1fb36b9593594a53b760ed0caab91f4fcd7758cf4deeaf81845d28"
     },
@@ -1967,6 +2062,50 @@
       "sha256": "43e92332aee39e977d04106ecced28190ee6d381c309c8ed5d2ee62cb9636030"
     },
     {
+      "filename": "20261125000100_partition_player_game_stats.sql",
+      "sha256": "5ac69459a37fd23ddec819676437dcf868b8dcba490887703049021f0b5d32a4"
+    },
+    {
+      "filename": "20261125000200_partition_notification_outbox.sql",
+      "sha256": "a9ff57cce3be3302035264c6977d119d05df4fcbf8ca4f7043f247f2d93ef9a6"
+    },
+    {
+      "filename": "20261125000300_restore_missing_final_stats_schedule.sql",
+      "sha256": "ddd41ee206522c913cb5537ac87ca2ad0a88fb0cb789903485d1fe1d5f94743d"
+    },
+    {
+      "filename": "20261125000400_restore_native_outbox_uniqueness.sql",
+      "sha256": "18f5902092486c6e5ba73cb8130d029a2e6c3e157382d9d95feeabb83622f8e0"
+    },
+    {
+      "filename": "20261125000500_preserve_reconciliation_after_rankings_retirement.sql",
+      "sha256": "478ff339fb420d7f88c0342620e93cb56ec9eb743ff7de85edc855a2d65b9e0a"
+    },
+    {
+      "filename": "20261125000600_batch_lineup_notification_claims.sql",
+      "sha256": "94b8dc095b054dfe55c334b22bf2f5489669ff593e25ad4dad4dbfa5fd9aa021"
+    },
+    {
+      "filename": "20261125000700_skip_unchanged_forecast_queue_writes.sql",
+      "sha256": "f8296209f524d40054d55c43e0de04ce806f275f869164e382a6838136b6af18"
+    },
+    {
+      "filename": "20261125000800_remove_roster_member_prefix_index.sql",
+      "sha256": "2da634de532fdfae687b8e724b876f07aeb4579e70229668e2cd8257e1f4edf4"
+    },
+    {
+      "filename": "20261125000900_index_pending_edge_invocations.sql",
+      "sha256": "bc94d497a454eb6f50a877f173b01b36569003223f456461680b9935d518e23e"
+    },
+    {
+      "filename": "20261126000100_corroborate_null_team_player_identities.sql",
+      "sha256": "bdce9b73caa4863d222766a7cced082261fbacf97cc9f5e03f24eb39539588af"
+    },
+    {
+      "filename": "20261127000100_database_probe_repairs.sql",
+      "sha256": "b3edf7bad1c337b3cfcde100dd0695595a469c3f926d8849d8de9c69bb1d30fc"
+    },
+    {
       "filename": "20261128000100_live_poll_injury_contention.sql",
       "sha256": "e94d5e6b8455cc9e5105c10adc5c946017e7eb30c26a040e7744ef08dd2b9d18"
     },
@@ -1977,6 +2116,78 @@
     {
       "filename": "20261130000100_player_page_speed.sql",
       "sha256": "c0a8fda96f94e6cb357abf4a63bfc791b86a570ea6e5803a107240316ef7540e"
+    },
+    {
+      "filename": "20261201000100_daily_screen_statistics.sql",
+      "sha256": "182a426353b559350ce36427893cde78a49c3ca9e12bd6bc04254094e87ce184"
+    },
+    {
+      "filename": "20261201000200_preserve_reconciliation_with_hashtag_rankings.sql",
+      "sha256": "9a7e12d8a9b2524299b214d207af34041ce3efed476c2ae5e9515a72e789f8de"
+    },
+    {
+      "filename": "20261201000300_reuse_current_forecast_projection_inputs.sql",
+      "sha256": "c89af9c19a5fd7665f174418bbfc5aaf4c099fb77851626bef38d013db287898"
+    },
+    {
+      "filename": "20261201000400_index_recent_score_dispatches.sql",
+      "sha256": "6907f229b717d08bd992e1da329fa44710642f9f02bc82c1ed7d8ac3a1bdf3d1"
+    },
+    {
+      "filename": "20261201000500_share_player_average_refresh_source.sql",
+      "sha256": "d52edc29b302d257375c15742150b8925549fca0e96c236da9803097369374cd"
+    },
+    {
+      "filename": "20261201000600_bound_hint_drain.sql",
+      "sha256": "80ccc45a1a5d679bd1cdae0a57d4936b6e1713d707972fee893935b057022e57"
+    },
+    {
+      "filename": "20261201000800_defer_contended_balance_publications.sql",
+      "sha256": "cb5c785ba3e58edb310e7094aa7424de9512158363902e564d9295c9047222be"
+    },
+    {
+      "filename": "20261201000900_draft_only_realtime.sql",
+      "sha256": "8c1596d6919bfb4d04ffa2d9acec4045003f9e3f7fd50eb8d25948c4e9e884b9"
+    },
+    {
+      "filename": "20261201001000_cap_worker_dispatch.sql",
+      "sha256": "6d08017ffc150ae594fd7ce3a63135df522599b8373b403abbc4948cba37f0d6"
+    },
+    {
+      "filename": "20261201001100_player_game_keyset.sql",
+      "sha256": "01c1e22774a77912ad9af365cab83d97d2335966697ab086bd0c52eb7295505f"
+    },
+    {
+      "filename": "20261201001200_guard_minute_workers.sql",
+      "sha256": "28483e4328eac57e14465fcd314b12e15e2c13d294acaba6b1e253eeb4b3e7e1"
+    },
+    {
+      "filename": "20261201001300_separate_forecast_publication.sql",
+      "sha256": "f1dd87a0d227e9f6069e4786a577062e6da1ac8c40b379619d3f4fc314f60034"
+    },
+    {
+      "filename": "20261201001400_gate_idle_screen_refresh.sql",
+      "sha256": "441fe1c57f1baaae7e92a5e6ae2845dfc7e97522286057ea8753346a8e05ca83"
+    },
+    {
+      "filename": "20261202000100_authorize_trade_receipt_replays.sql",
+      "sha256": "09f1cbba869a083fdf9c291a55348c073572efca07229541c4508c5c5465aee4"
+    },
+    {
+      "filename": "20261204000100_trade_structured_legality.sql",
+      "sha256": "1e2c572413327d16b5412a724467dfc188f5b1e26aa44a4824274f2f17c5a4d5"
+    },
+    {
+      "filename": "20261205000100_pending_asset_locks.sql",
+      "sha256": "3c219c6923de7136310bcb932e2f4565eac92cfbb6f979d22d2b9d6512e76d64"
+    },
+    {
+      "filename": "20261206000100_trade_pick_labels.sql",
+      "sha256": "1164e11710793939f74683d2cf0647a2a85214e8648790d7cc4024ed07ab5dc2"
+    },
+    {
+      "filename": "20261207000100_release27_dispatcher_convergence.sql",
+      "sha256": "a6b75740b29dae5a3244fd1abf9e4f44287e88a69d576fa4e931fe5cbf11aa3e"
     }
   ],
   "preMigration": {

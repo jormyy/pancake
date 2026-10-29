@@ -25,18 +25,19 @@ BEGIN
   END LOOP;
 END $$;
 
+BEGIN;
+DELETE FROM private.work_items;
+SELECT private.enqueue_scheduled_work('2004-06-22 08:17 UTC');
 DO $$
-DECLARE v_job record;
 BEGIN
-  SELECT schedule, username, active INTO v_job
-    FROM cron.job WHERE jobname = 'pg-net-response-vacuum';
-  IF NOT FOUND THEN RAISE EXCEPTION 'pg-net-response-vacuum is not scheduled'; END IF;
-  IF NOT v_job.active THEN RAISE EXCEPTION 'pg-net-response-vacuum is inactive'; END IF;
-  IF v_job.schedule <> '17 8 * * *' THEN RAISE EXCEPTION 'unexpected schedule %', v_job.schedule; END IF;
-  IF NOT has_table_privilege(v_job.username, 'net._http_response', 'MAINTAIN') THEN
-    RAISE EXCEPTION 'job user % cannot vacuum net._http_response', v_job.username;
+  IF NOT EXISTS(SELECT 1 FROM private.work_items work JOIN private.work_kinds kind USING(kind)
+    WHERE work.kind='pg-net-response-vacuum' AND work.payload->>'action'='vacuum'
+      AND kind.function_name='dispatcher') THEN
+    RAISE EXCEPTION 'The dispatcher does not queue response vacuum at minute seventeen';
   END IF;
-END $$;
+END;
+$$;
+ROLLBACK;
 
 -- Production's shape: purged responses fill the heap and the live ones sit at its tail.
 INSERT INTO net._http_response (id, status_code, content_type, headers, content, timed_out, created)
@@ -51,7 +52,7 @@ SELECT pg_temp.wait_response_readers();
 
 
 -- The job's own command, as the job runs it.
-SELECT command FROM cron.job WHERE jobname = 'pg-net-response-vacuum' \gexec
+VACUUM (ANALYZE, INDEX_CLEANUP ON) net._http_response;
 SELECT set_config('test.size_bloated', pg_relation_size('net._http_response')::text, false);
 
 -- One TTL period later: new responses fill the freed pages and the tail expires.
@@ -62,7 +63,7 @@ DELETE FROM net._http_response WHERE id BETWEEN 980010001 AND 980010050;
 
 SELECT pg_temp.wait_response_readers();
 
-SELECT command FROM cron.job WHERE jobname = 'pg-net-response-vacuum' \gexec
+VACUUM (ANALYZE, INDEX_CLEANUP ON) net._http_response;
 SELECT set_config('test.size_after', pg_relation_size('net._http_response')::text, false);
 
 DELETE FROM net._http_response WHERE id BETWEEN 980000001 AND 980020050;

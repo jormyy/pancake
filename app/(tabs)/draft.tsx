@@ -6,12 +6,14 @@ import { ErrorBanner, LoadingState, Page, PageHeader } from '@/components/ui'
 import { useGoBack } from '@/components/ui/useGoBack'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function DraftRoomTab() {
     const router = useRouter()
     const goBack = useGoBack('/league')
     const { currentLeague, current } = useLeagueContext()
-    const { openDraftRoom, draft, draftLoading, draftError, draftChecked } = useDraftRoomLauncher(currentLeague?.id, { renderAuctionInline: true, scopeKey: current?.id })
+    const { user } = useAuth()
+    const { openDraftRoom, draft, draftLoading, draftError, draftChecked } = useDraftRoomLauncher(currentLeague?.id, { renderAuctionInline: true, scopeKey: current?.id, accountId: user?.id ?? null })
 
     useFocusEffect(
         useCallback(() => {

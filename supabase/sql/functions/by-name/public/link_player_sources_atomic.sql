@@ -32,7 +32,15 @@ BEGIN
       SELECT * INTO v_player FROM public.players WHERE id=v_id FOR NO KEY UPDATE;
       SELECT array_agg(p.id ORDER BY p.id) INTO v_ids FROM public.players p
         WHERE p.id<>v_id AND regexp_replace(lower(regexp_replace(normalize(p.display_name,NFD),U&'[\0300-\036F]','','g')),'[^a-z]','','g')=v_name_key
-          AND private.player_identity_team(p.nba_team)=v_team
+          AND (private.player_identity_team(p.nba_team)=v_team OR (
+            p_source='nba' AND p.nba_team IS NULL AND v_player.nba_team IS NULL
+            AND v_record->>'espn_id' IS NOT NULL AND v_player.nba_id=v_source_id
+            AND private.player_identity_name(v_player.display_name)=v_name_key
+            AND p.sleeper_id IS NOT NULL AND v_player.sleeper_id IS NULL
+            AND (p.years_exp IS NULL OR v_player.years_exp IS NULL OR p.years_exp=v_player.years_exp)
+            AND (SELECT count(*) FROM public.players candidate
+              WHERE private.player_identity_name(candidate.display_name)=v_name_key)=2))
+          AND (p.birthdate IS NULL OR v_player.birthdate IS NULL OR p.birthdate=v_player.birthdate)
           AND CASE p_source WHEN 'espn' THEN p.espn_id WHEN 'nba' THEN p.nba_id ELSE p.sleeper_id END IS NULL
           AND (p.espn_id IS NULL OR v_player.espn_id IS NULL OR p.espn_id=v_player.espn_id)
           AND (p.nba_id IS NULL OR v_player.nba_id IS NULL OR p.nba_id=v_player.nba_id)
@@ -48,7 +56,10 @@ BEGIN
             (v_record->>'espn_id' IS NOT NULL AND other.espn_id=v_record->>'espn_id')
             OR (v_record->>'nba_id' IS NOT NULL AND other.nba_id=v_record->>'nba_id')
             OR (v_record->>'sleeper_id' IS NOT NULL AND other.sleeper_id=v_record->>'sleeper_id')));
-      IF cardinality(v_ids)=1 THEN PERFORM public.merge_players(v_id,v_ids[1]);
+      IF cardinality(v_ids)=1 THEN
+        UPDATE public.players target SET birthdate=source.birthdate FROM public.players source
+          WHERE target.id=v_id AND source.id=v_ids[1] AND target.birthdate IS NULL AND source.birthdate IS NOT NULL;
+        PERFORM public.merge_players(v_id,v_ids[1]);
       ELSIF cardinality(v_ids)>1 OR EXISTS(SELECT FROM public.players p WHERE p.id<>v_id
         AND regexp_replace(lower(regexp_replace(normalize(p.display_name,NFD),U&'[\0300-\036F]','','g')),'[^a-z]','','g')=v_name_key
         AND private.player_identity_team(p.nba_team)=v_team

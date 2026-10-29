@@ -6,11 +6,20 @@ import type { TradesView } from '@/lib/cache/view-types'
 import type { Trade } from '@/lib/trades'
 import { sessionOwner } from '@/lib/session-cache-registry'
 
-export function useTradeViewPage(memberId: string, leagueId: string, tab: 'offers' | 'history', enabled: boolean, autoLoad = true) {
-    const accountId = sessionOwner()
+export function useTradeViewPage(memberId: string, leagueId: string, tab: 'offers' | 'history', enabled: boolean, autoLoad = true, accountId = sessionOwner()) {
     const identity = JSON.stringify([accountId, memberId, leagueId, tab])
     const scope = accountId && memberId && leagueId ? screenScope('trades', leagueId, memberId, { tab, limit: 40 }, accountId) : null
     const view = useScreenView<TradesView>(scope, enabled, { autoLoad })
+    const unavailable = !enabled || !view.loaded || view.offline || Boolean(view.error)
+    const validation = useRef({ identity, data: view.data, refreshing: view.refreshing, pending: unavailable || view.refreshing })
+    if (validation.current.identity !== identity || unavailable) {
+        validation.current = { identity, data: view.data, refreshing: view.refreshing, pending: true }
+    } else {
+        if (!view.refreshing && (validation.current.refreshing || validation.current.data !== view.data)) validation.current.pending = false
+        validation.current.data = view.data
+        validation.current.refreshing = view.refreshing
+    }
+    const isSnapshot = validation.current.pending
     const refreshView = view.refresh
     const [page, setPage] = useState<{ identity: string; base?: TradesView; trades: Trade[]; cursor: TradesView['nextCursor']; hasMore: boolean }>({ identity, trades: [], cursor: null, hasMore: false })
     const [loadingMore, setLoadingMore] = useState(false)
@@ -39,5 +48,5 @@ export function useTradeViewPage(memberId: string, leagueId: string, tab: 'offer
         } finally { if (current.current === identity) { pending.current = false; setLoadingMore(false) } }
     }, [identity, scope, enabled])
     const updateTrades = useCallback((update: (trades: Trade[]) => Trade[]) => { const previous = selectedRef.current; setPage({ ...previous, trades: update(previous.trades) }) }, [])
-    return { trades: selected.trades, hasData: view.loaded, loading: view.loading, refreshing: view.refreshing, loadingMore, hasMore: selected.hasMore, error: view.error?.message ?? null, isSnapshot: !view.loaded || view.offline || view.refreshing || Boolean(view.error), loadMoreError, refresh, loadMore, updateTrades }
+    return { trades: selected.trades, hasData: view.loaded, loading: view.loading, refreshing: view.refreshing, loadingMore, hasMore: selected.hasMore, error: view.error?.message ?? null, isSnapshot, loadMoreError, refresh, loadMore, updateTrades }
 }

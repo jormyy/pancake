@@ -100,27 +100,27 @@ END;
 $$;
 
 INSERT INTO public.sync_runs(id,function_name,started_at,finished_at,status,error) VALUES
-  (md5('history-ops-old')::uuid,'live-poll',now()-interval '8 days',now()-interval '8 days','success',NULL),
-  (md5('history-ops-boundary')::uuid,'live-poll',now()-interval '7 days',now()-interval '7 days','success',NULL),
-  (md5('history-ops-recent')::uuid,'live-poll',now()-interval '1 day',now()-interval '1 day','success',NULL),
-  (md5('history-ops-failure')::uuid,'live-poll',now()-interval '120 days',now()-interval '120 days','failed','Provider failed'),
-  (md5('history-daily-old')::uuid,'season-boundary',now()-interval '120 days',now()-interval '120 days','success',NULL),
-  (md5('history-ops-error')::uuid,'live-poll',now()-interval '120 days',now()-interval '120 days','success','Partial failure'),
-  (md5('history-ops-unfinished')::uuid,'live-poll',now()-interval '120 days',NULL,'running',NULL);
+  (md5('history-ops-old')::uuid,'test-retention-live-poll',now()-interval '8 days',now()-interval '8 days','success',NULL),
+  (md5('history-ops-boundary')::uuid,'test-retention-live-poll',now()-interval '7 days',now()-interval '7 days','success',NULL),
+  (md5('history-ops-recent')::uuid,'test-retention-live-poll',now()-interval '1 day',now()-interval '1 day','success',NULL),
+  (md5('history-ops-failure')::uuid,'test-retention-live-poll',now()-interval '120 days',now()-interval '120 days','failed','Provider failed'),
+  (md5('history-daily-old')::uuid,'test-retention-season-boundary',now()-interval '120 days',now()-interval '120 days','success',NULL),
+  (md5('history-ops-error')::uuid,'test-retention-live-poll',now()-interval '120 days',now()-interval '120 days','success','Partial failure'),
+  (md5('history-ops-unfinished')::uuid,'test-retention-live-poll',now()-interval '120 days',NULL,'running',NULL);
 
 INSERT INTO public.edge_invocations(id,function_name,request_id,queued_at,status_code,error_message,reconciled_at)
 OVERRIDING SYSTEM VALUE VALUES
-  (986080001,'live-poll',NULL,now()-interval '8 days',200,NULL,now()-interval '8 days'),
-  (986080002,'live-poll',NULL,now()-interval '7 days',200,NULL,now()-interval '7 days'),
-  (986080003,'live-poll',NULL,now()-interval '120 days',500,'Worker failed',now()-interval '120 days'),
-  (986080004,'live-poll',NULL,now()-interval '120 days',200,'Partial failure',now()-interval '120 days'),
-  (986080005,'season-boundary',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days'),
-  (986080006,'unknown-important',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days');
+  (986080001,'test-retention-live-poll',NULL,now()-interval '8 days',200,NULL,now()-interval '8 days'),
+  (986080002,'test-retention-live-poll',NULL,now()-interval '7 days',200,NULL,now()-interval '7 days'),
+  (986080003,'test-retention-live-poll',NULL,now()-interval '120 days',500,'Worker failed',now()-interval '120 days'),
+  (986080004,'test-retention-live-poll',NULL,now()-interval '120 days',200,'Partial failure',now()-interval '120 days'),
+  (986080005,'test-retention-season-boundary',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days'),
+  (986080006,'test-retention-unknown-important',NULL,now()-interval '120 days',200,NULL,now()-interval '120 days');
 
 INSERT INTO public.edge_invocations (id,function_name,queued_at,status_code,reconciled_at,worker_status,worker_started_at,worker_finished_at)
 OVERRIDING SYSTEM VALUE VALUES
-  (986080007,'live-poll',now()-interval '120 days',200,now()-interval '120 days','failed',now()-interval '120 days',now()-interval '120 days'),
-  (986080008,'live-poll',now()-interval '120 days',200,now()-interval '120 days','running',now()-interval '120 days',NULL);
+  (986080007,'test-retention-live-poll',now()-interval '120 days',200,now()-interval '120 days','failed',now()-interval '120 days',now()-interval '120 days'),
+  (986080008,'test-retention-live-poll',now()-interval '120 days',200,now()-interval '120 days','running',now()-interval '120 days',NULL);
 
 INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start_time,end_time) VALUES
   (98601,9860100001,'SELECT 1','succeeded','unknown old job',now()-interval '120 days',now()-interval '120 days'),
@@ -130,33 +130,33 @@ INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start
   (98602,9860100007,'SELECT public.invoke_edge_function(''sync-stats'',''{}''::jsonb);','succeeded','obsolete with body',now()-interval '8 days',now()-interval '8 days'),
   (98603,9860100005,'SELECT public.invoke_edge_function(''sync-players'');','succeeded','important daily',now()-interval '120 days',now()-interval '120 days');
 INSERT INTO cron.job_run_details(jobid,runid,command,status,return_message,start_time,end_time)
-SELECT jobid,9860100006,'SELECT public.invoke_live_poll_if_due();','succeeded','current high frequency',now()-interval '8 days',now()-interval '8 days'
-FROM cron.job WHERE jobname='nba-live-poll';
+SELECT jobid,9860100006,'SELECT public.dispatch_work();','succeeded','current high frequency',now()-interval '8 days',now()-interval '8 days'
+FROM cron.job WHERE jobname='work-dispatcher';
 SELECT pg_temp.check_history(EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid=9860100006),'active high frequency job fixture exists');
 
 INSERT INTO public.sync_runs(id,function_name,started_at,finished_at,status,error)
 SELECT md5('generic-retention-'||function_name||'-'||kind)::uuid,function_name,now()-age,now()-age,status,error
-FROM unnest(ARRAY['nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source']) function_name
+FROM unnest(ARRAY['test-retention-nba-lineup-optimizer','test-retention-weekly-source','test-retention-june-july-source','test-retention-unknown-new-source']) function_name
 CROSS JOIN (VALUES ('older-success',interval '121 days','success',NULL::text),
   ('latest-success',interval '120 days','success',NULL::text),
   ('older-failure',interval '61 days','failed','failed'),('latest-failure',interval '60 days','failed','failed')) cases(kind,age,status,error);
 INSERT INTO public.edge_invocations(function_name,queued_at,reconciled_at,status_code,error_message)
 SELECT function_name,now()-age,now()-age,status_code,error
-FROM unnest(ARRAY['nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source']) function_name
+FROM unnest(ARRAY['test-retention-nba-lineup-optimizer','test-retention-weekly-source','test-retention-june-july-source','test-retention-unknown-new-source']) function_name
 CROSS JOIN (VALUES (interval '121 days',200,NULL::text),(interval '120 days',200,NULL::text),
   (interval '61 days',500,'failed'),(interval '60 days',500,'failed')) cases(age,status_code,error);
 INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,reconciled_at,worker_started_at,worker_finished_at,worker_status)
 OVERRIDING SYSTEM VALUE VALUES
-  (986080009,'unknown-new-source',now()-interval '121 days',200,NULL,NULL,NULL,NULL),
-  (986080010,'unknown-new-source',now()-interval '121 days',200,now()-interval '121 days',now()-interval '121 days',NULL,'running');
+  (986080009,'test-retention-unknown-new-source',now()-interval '121 days',200,NULL,NULL,NULL,NULL),
+  (986080010,'test-retention-unknown-new-source',now()-interval '121 days',200,now()-interval '121 days',now()-interval '121 days',NULL,'running');
 INSERT INTO public.edge_invocations(id,function_name,queued_at,status_code,reconciled_at,worker_started_at,worker_status)
 OVERRIDING SYSTEM VALUE VALUES
-  (986080011,'crashed-worker',now()-interval '61 days',200,now()-interval '61 days',now()-interval '61 days','failed'),
-  (986080012,'crashed-worker',now()-interval '60 days',200,now()-interval '60 days',now()-interval '60 days','failed'),
-  (986080013,'crashed-worker-boundary',now()-interval '31 days',200,now()-interval '31 days',now()-interval '31 days','failed'),
-  (986080014,'crashed-worker-boundary',now()-interval '30 days',200,now()-interval '30 days',now()-interval '30 days','failed'),
-  (986080015,'crashed-worker-boundary',now()-interval '29 days',200,now()-interval '29 days',now()-interval '29 days','failed'),
-  (986080016,'crashed-worker',now()-interval '120 days',200,NULL,now()-interval '120 days','failed');
+  (986080011,'test-retention-crashed-worker',now()-interval '61 days',200,now()-interval '61 days',now()-interval '61 days','failed'),
+  (986080012,'test-retention-crashed-worker',now()-interval '60 days',200,now()-interval '60 days',now()-interval '60 days','failed'),
+  (986080013,'test-retention-crashed-worker-boundary',now()-interval '31 days',200,now()-interval '31 days',now()-interval '31 days','failed'),
+  (986080014,'test-retention-crashed-worker-boundary',now()-interval '30 days',200,now()-interval '30 days',now()-interval '30 days','failed'),
+  (986080015,'test-retention-crashed-worker-boundary',now()-interval '29 days',200,now()-interval '29 days',now()-interval '29 days','failed'),
+  (986080016,'test-retention-crashed-worker',now()-interval '120 days',200,NULL,now()-interval '120 days','failed');
 CREATE TEMP TABLE retention_before AS SELECT
   (SELECT count(*) FROM public.sync_runs) AS sync_runs,
   (SELECT count(*) FROM public.edge_invocations) AS edge_invocations,
@@ -200,9 +200,9 @@ SELECT pg_temp.check_history((SELECT count(*)=3 FROM public.edge_invocations WHE
 SELECT pg_temp.check_history((SELECT count(*)=2 FROM public.edge_invocations WHERE id IN(986080007,986080008)),'worker failures and unfinished outcomes survive even with HTTP 200');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM cron.job_run_details WHERE runid IN(9860100002,9860100006,9860100007)),'obsolete and current successful high frequency cron rows pruned');
 SELECT pg_temp.check_history((SELECT count(*)=1 FROM cron.job_run_details WHERE runid IN(9860100001,9860100003,9860100004,9860100005)),'only cron cutoff boundary survives across all job names');
-SELECT pg_temp.check_history((SELECT count(*)=8 FROM public.sync_runs WHERE function_name IN('nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source')),
+SELECT pg_temp.check_history((SELECT count(*)=8 FROM public.sync_runs WHERE function_name IN('test-retention-nba-lineup-optimizer','test-retention-weekly-source','test-retention-june-july-source','test-retention-unknown-new-source')),
   'every function retains its newest success and failure even when both are old');
-SELECT pg_temp.check_history((SELECT count(*)=10 FROM public.edge_invocations WHERE function_name IN('nba-lineup-optimizer','weekly-source','june-july-source','unknown-new-source')),
+SELECT pg_temp.check_history((SELECT count(*)=10 FROM public.edge_invocations WHERE function_name IN('test-retention-nba-lineup-optimizer','test-retention-weekly-source','test-retention-june-july-source','test-retention-unknown-new-source')),
   'every invocation source retains newest outcomes and pending reconciliation work');
 SELECT pg_temp.check_history(NOT EXISTS(SELECT 1 FROM public.edge_invocations WHERE id IN(986080011,986080013)),
   'reconciled crashed workers expire after thirty days without a finish time');

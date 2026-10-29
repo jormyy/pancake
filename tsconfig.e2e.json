@@ -7,12 +7,18 @@
     "moduleResolution": "NodeNext",
     "noEmit": true,
     "skipLibCheck": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ]
   },
   "include": [
     "scripts/**/*.mjs",
     "tests/e2e/**/*.mjs",
-    "tests/e2e/form-submission-update-globals.d.ts"
+    "tests/e2e/form-submission-update-globals.d.ts",
+    "tests/e2e/perf-lab-globals.d.ts"
   ],
   "exclude": [
     "node_modules"

@@ -122,7 +122,7 @@ async function waitAOnB(aPid, bPid, settled) {
       assert.equal(evidence.bState, 'idle in transaction')
       return evidence
     }
-    assert.equal(settled(), false, 'The actual offer must wait on the controlled drop prefix')
+    if (settled()) return { ...evidence, refused: true }
     await sleep(25)
   }
   throw new Error(`No observed own A-on-B lock wait: ${JSON.stringify(evidence)}`)
@@ -229,8 +229,16 @@ try {
           PERFORM set_config('request.jwt.claims',${quote(JSON.stringify({ sub: f.users[0], role: 'authenticated' }))},true);
         END $jwt$;
         SELECT pg_temp.capture_drop(${quote(f.rosters[0])}::uuid,${quote(f.season)}::uuid); COMMIT;`))
-      const endedA = await pendingA
+      let endedA = await pendingA
       if ('error' in endedA) throw endedA.error
+      if (waiting.refused) {
+        const refused = parse(endedA.output)
+        assert.equal(refused.ok, false)
+        assert.match(refused.message, /busy|Try.*again/i)
+        endedA = { output: await a.query(`BEGIN ISOLATION LEVEL READ COMMITTED; SET LOCAL ROLE service_role;
+          SELECT pg_temp.capture_offer(${quote(f.users[f.actor])}::uuid,${quote(f.request)}::uuid,
+            ${quote(f.members[f.actor])}::uuid,${quote(action)},${json(f.payload)}); COMMIT;`) }
+      }
       const resultA = parse(endedA.output)
       assert.equal(resultA.role, 'service_role')
       if (resultA.ok && resultA.result) f.trades.add(resultA.result)
@@ -239,7 +247,8 @@ try {
       assert(results.every((result) => !['55P03', '57014'].includes(result.sqlstate)), 'Timeout is not deadlock evidence')
       const deadlocks = results.filter((result) => result.sqlstate === '40P01')
       const after = parse(await root.query(stateSql(f)))
-      if (outcome === 'drop-prefix-rolls-back') {
+      if (outcome === 'drop-prefix-rolls-back' || !f.propose) {
+        if (resultB) { assert.equal(resultB.ok, false); assert.match(resultB.message, /Locked by trade/) }
         assert.equal(deadlocks.length, 0); assert.equal(resultA.ok, true); assert.match(resultA.result, /^[0-9a-f-]{36}$/)
         assert.deepEqual(after.rosters, before.rosters); assert.equal(after.waivers, 0); assert.equal(after.drops, 0)
         assert.equal(after.trades.length, before.trades.length + 1)

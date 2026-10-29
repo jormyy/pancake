@@ -18,7 +18,7 @@ const sql = source => {
   return result.stdout.trim()
 }
 const file = (name, at) => execute(['-v', `season_sim_port=${port}`, '-v', `sim_ms=${Date.parse(at)}`, '-v', `real_ms=${Date.now()}`, '-v', 'rate=0', '-v', `cap_ms=${Date.parse(at)}`, '-f', `scripts/season-sim/${name}.sql`])
-const defaults = () => sql("SELECT md5(string_agg(format('%s.%s:%s',d.adrelid::regclass,a.attname,pg_get_expr(d.adbin,d.adrelid)),E'\\n' ORDER BY d.adrelid::regclass::text,a.attname)) FROM pg_attrdef d JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum JOIN pg_class c ON c.oid=d.adrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','private')")
+const defaults = () => sql("SELECT md5(string_agg(format('%s.%s:%s',d.adrelid::regclass,a.attname,pg_get_expr(d.adbin,d.adrelid)),E'\\n' ORDER BY d.adrelid::regclass::text,a.attname)) FROM pg_attrdef d JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum JOIN pg_class c ON c.oid=d.adrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ('public','private') OR (n.nspname='net' AND c.relname='_http_response')")
 const literal = value => `'${value.replaceAll("'", "''")}'`
 const jobs = JSON.parse(sql("SELECT COALESCE(json_agg(j),'[]') FROM (SELECT jobname,schedule,command,active FROM cron.job ORDER BY jobname) j"))
 let installed = false
@@ -43,6 +43,8 @@ try {
   for (const form of ['current_timestamp', 'current_date', 'current_time', 'localtimestamp', 'localtime', 'timeofday']) assert.equal(installedAudit[form].occurrences, 0, `Uncovered installed SQL clock form: ${form}`)
   for (const [form, entry] of Object.entries(installedAudit)) if (form.startsWith('season_sim_native_')) assert.equal(entry.occurrences, 0, `Native clock binding remains: ${form}`)
   checks.push('runtime-clock-audit-after-install')
+  assert.equal(sql("BEGIN; INSERT INTO net._http_response(id,status_code) VALUES(-1,200) RETURNING created=now(); DELETE FROM net._http_response WHERE created<now()-interval '6 hours'; SELECT count(*) FROM net._http_response WHERE id=-1; ROLLBACK;"), 't\n1')
+  checks.push('http-response-uses-business-clock-and-survives-retention')
   for (const birthdate of ['1899-12-31', '2001-01-02']) {
     const rejected = execute(['-c', `INSERT INTO public.players(first_name,last_name,position,birthdate) VALUES('Clock','Bounds','PG',DATE ${literal(birthdate)})`])
     assert.notEqual(rejected.status, 0)
@@ -69,7 +71,7 @@ try {
   const restored = file('restore-clock', '2001-01-03T01:00:00Z')
   assert.equal(restored.status, 0, restored.stderr)
   installed = false
-  assert.equal(defaults(), before, 'All public/private defaults restore exactly')
+  assert.equal(defaults(), before, 'All application and HTTP response defaults restore exactly')
   assert.equal(sql("SELECT pg_get_functiondef('pg_catalog.now()'::regprocedure)"), native)
   checks.push('exact-default-and-native-clock-restoration')
   sql(`DROP TABLE public.${table}`)

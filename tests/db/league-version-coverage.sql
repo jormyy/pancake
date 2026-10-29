@@ -165,7 +165,7 @@ CREATE TEMP TABLE version_mutations AS
   FROM version_reachable reachable
   CROSS JOIN LATERAL regexp_matches(reachable.prosrc,'(?i)(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:(public|private|analytics)\.)?([a-z_][a-z_0-9]*)','g') mutation
   JOIN pg_namespace namespace ON namespace.nspname=COALESCE(mutation[1],'public')
-  JOIN pg_class relation ON relation.relnamespace=namespace.oid AND relation.relname=mutation[2] AND relation.relkind='r';
+  JOIN pg_class relation ON relation.relnamespace=namespace.oid AND relation.relname=mutation[2] AND relation.relkind IN ('r','p');
 CREATE TEMP TABLE version_internal_tables(name text PRIMARY KEY);
 INSERT INTO version_internal_tables VALUES
   ('notification_outbox'),('sync_jobs'),('sync_runs'),('backfill_game_attempts'),('web_push_subscriptions'),
@@ -209,17 +209,20 @@ END;
 $$;
 SELECT pg_temp.version_coverage_check();
 DO $$
-DECLARE caught boolean:=false;
+DECLARE caught boolean; source text;
 BEGIN
-  ALTER TABLE public.roster_players DISABLE TRIGGER league_version_insert;
-  BEGIN
-    PERFORM pg_temp.version_coverage_check();
-  EXCEPTION WHEN raise_exception THEN
-    IF SQLERRM NOT LIKE 'Uncovered screen writes:%roster_players%' THEN RAISE; END IF;
-    caught:=true;
-  END;
-  ALTER TABLE public.roster_players ENABLE TRIGGER league_version_insert;
-  IF NOT caught THEN RAISE EXCEPTION 'Coverage accepts a missing trigger'; END IF;
+  FOREACH source IN ARRAY ARRAY['roster_players','league_events'] LOOP
+    caught:=false;
+    EXECUTE format('ALTER TABLE public.%I DISABLE TRIGGER league_version_insert',source);
+    BEGIN
+      PERFORM pg_temp.version_coverage_check();
+    EXCEPTION WHEN raise_exception THEN
+      IF SQLERRM NOT LIKE 'Uncovered screen writes:%'||source||'%' THEN RAISE; END IF;
+      caught:=true;
+    END;
+    EXECUTE format('ALTER TABLE public.%I ENABLE TRIGGER league_version_insert',source);
+    IF NOT caught THEN RAISE EXCEPTION 'Coverage accepts a missing trigger: %',source; END IF;
+  END LOOP;
 END;
 $$;
 CREATE TEMP TABLE version_rollback_proofs(path text PRIMARY KEY,result text);

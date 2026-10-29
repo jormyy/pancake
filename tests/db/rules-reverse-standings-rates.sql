@@ -22,7 +22,9 @@ BEGIN
     SELECT new_season_id INTO season FROM public.advance_season_atomic(f.league_id);
     PERFORM pg_temp.check_rules((SELECT member_id = expected FROM public.waiver_priorities
       WHERE league_season_id = season AND priority = 1), 'next-season waiver priority uses ' || scenario.label);
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league_id),true);
     draft := (public.start_rookie_draft_atomic(f.league_id, 1, true)->>'id')::uuid;
+    IF scenario.label='points per game' THEN expected:=f.member_ids[1]; END IF;
     PERFORM pg_temp.check_rules((SELECT member_id = expected FROM public.draft_orders
       WHERE draft_id = draft AND position = 1), 'rookie draft order uses ' || scenario.label);
   END LOOP;

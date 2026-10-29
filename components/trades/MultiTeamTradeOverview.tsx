@@ -1,4 +1,7 @@
 import { PlayerRowContent, type PlayerRowContentProps } from '@/components/player/PlayerRowContent'
+import { TradePickLabel } from '@/components/trades/TradePickLabel'
+import { tradePickLabel, type TradePickContext } from '@/lib/trade-pick-label'
+import type { TradePickItem } from '@/lib/trades'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
@@ -18,6 +21,7 @@ export type TradeFlowItem = {
     label: string
     detail?: string | null
     player?: PlayerRowContentProps
+    pick?: TradePickItem
 }
 
 type MultiTeamTradeOverviewProps = {
@@ -26,9 +30,10 @@ type MultiTeamTradeOverviewProps = {
     compact?: boolean
     columns?: boolean
     onRemoveItem?: (key: string) => void
+    pickContext?: TradePickContext
 }
 
-export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem }: MultiTeamTradeOverviewProps) {
+export function MultiTeamTradeOverview({ participants, items, compact = false, columns = false, onRemoveItem, pickContext }: MultiTeamTradeOverviewProps) {
     const { incomingByMember, participantLabels } = useMemo(() => {
         const labels = new Map(participants.map((participant) => [participant.memberId, participant.label]))
         const incoming = new Map<string, TradeFlowItem[]>()
@@ -84,17 +89,19 @@ export function MultiTeamTradeOverview({ participants, items, compact = false, c
                                         {item.player ? <PlayerRowContent {...item.player} stats={[typeof item.player.stats === 'string' ? item.player.stats : null, `From ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'}`, item.detail].filter(Boolean).join(' · ')} /> : <>
                                         <MaterialIcons name="arrow-forward" size={16} color={colors.primary} />
                                         <View style={styles.assetCopy}>
-                                            <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>
+                                            {item.pick ? <TradePickLabel pick={item.pick} context={pickContext} /> : <Text style={styles.assetLabel} numberOfLines={2}>{item.label}</Text>}
+                                            {!item.pick ? (
                                             <Text style={styles.assetSource} numberOfLines={1}>
                                                 From {participantLabels.get(item.fromMemberId) ?? 'Unknown team'}
                                                 {item.detail ? ` · ${item.detail}` : ''}
                                             </Text>
+                                            ) : item.detail ? <Text style={styles.assetSource}>{item.detail}</Text> : null}
                                         </View>
                                         </>}
                                         {onRemoveItem ? (
                                             <Pressable style={styles.removeAsset}
                                                 onPress={() => onRemoveItem(item.key)} accessibilityRole="button"
-                                                accessibilityLabel={`Remove ${item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
+                                                accessibilityLabel={`Remove ${item.pick ? tradePickLabel(item.pick, pickContext) : item.label} sent by ${participantLabels.get(item.fromMemberId) ?? 'Unknown team'} from trade`}>
                                                 <MaterialIcons name="close" size={20} color={colors.textSecondary} />
                                             </Pressable>
                                         ) : null}

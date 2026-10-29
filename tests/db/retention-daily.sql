@@ -1,6 +1,8 @@
 BEGIN;
+DELETE FROM private.retention_status;
 SET LOCAL app.supabase_url='http://127.0.0.1:60421';
 SET LOCAL app.edge_internal_token='retention-local-recipe';
+TRUNCATE public.projection_sync_runs,public.edge_invocations,private.retention_status CASCADE;
 ALTER TABLE public.notification_outbox DISABLE TRIGGER notif_draft_immediate_wake;
 \ir rules-support.sql
 
@@ -175,7 +177,7 @@ BEGIN
     'retention summary has one row per pruned table');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','public.retention_dashboard()','EXECUTE')
     AND NOT has_function_privilege('anon','private.run_retention(timestamptz)','EXECUTE'),'retention and dashboard require backend access');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'one dispatcher cron entry owns daily retention scheduling');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher' AND schedule='* * * * *' AND command LIKE '%public.dispatch_work()%') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'one dispatcher cron entry owns daily retention scheduling');
 END;
 $$;
 SELECT count(*) AS passed FROM rules_checks;

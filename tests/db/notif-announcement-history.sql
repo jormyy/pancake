@@ -65,7 +65,12 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub','',true);
   INSERT INTO league_members(league_id,user_id,role) VALUES(f.league,f.owner,'commissioner');
   PERFORM set_config('request.jwt.claim.sub',f.owner::text,true);
-  BEGIN PERFORM notif_publish_announcement_atomic(f.league,'Keep league history',a); RAISE EXCEPTION 'New membership reused former author request'; EXCEPTION WHEN unique_violation THEN NULL; END;
+  IF notif_publish_announcement_atomic(f.league,'Keep league history',a) IS DISTINCT FROM a THEN
+    RAISE EXCEPTION 'The same user request loses its saved result after rejoining';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM league_announcements WHERE id=a AND author_member_id IS NULL) THEN
+    RAISE EXCEPTION 'Replaying a user request rewrites its former author';
+  END IF;
   IF (SELECT count(*) FROM notification_outbox WHERE event_type='commissioner_announcement' AND data->>'announcementId'=a::text)<>1 THEN RAISE EXCEPTION 'Author removal changed announcement dedupe'; END IF;
 END $$;
 ROLLBACK;

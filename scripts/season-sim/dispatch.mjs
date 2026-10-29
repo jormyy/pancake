@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { appendFile } from 'node:fs/promises'
+import { appendFile } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 import { delay, miniRoot } from './common.mjs'
 import { sql } from './local-stack.mjs'

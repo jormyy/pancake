@@ -19,7 +19,9 @@ DECLARE
   v_invalid_player text;
   v_invalid_player_slot roster_slot_type;
   v_locked_player text;
+  lock_reason text;
 BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext(p_league_id::text), hashtext(p_member_id::text));
   PERFORM pg_advisory_xact_lock(
     hashtext(p_member_id::text),
     hashtext(p_game_date::text)
@@ -311,12 +313,29 @@ BEGIN
       USING ERRCODE = 'P0001';
   END IF;
 
+  WITH assignments AS (
+    SELECT (a->>'player_id')::uuid AS player_id, (a->>'slot_type')::text AS slot_type
+    FROM jsonb_array_elements(p_assignments) a WHERE a->>'slot_type' <> 'BE'
+  ), previous AS (
+    SELECT player_id, slot_type::text FROM weekly_lineups WHERE member_id=p_member_id
+      AND league_id=p_league_id AND league_season_id=p_league_season_id AND game_date=p_game_date
+  ), changes AS (
+    (SELECT * FROM assignments EXCEPT SELECT * FROM previous)
+    UNION (SELECT * FROM previous EXCEPT SELECT * FROM assignments)
+  )
+  SELECT locked.reason INTO lock_reason FROM private.locked_assets(p_league_id,p_league_season_id,p_member_id) locked
+    JOIN changes ON changes.player_id=locked.asset_id WHERE locked.asset_kind='player'
+    ORDER BY locked.source_kind,locked.source_id LIMIT 1;
+  IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
+
   DELETE FROM weekly_lineups
    WHERE member_id = p_member_id
      AND league_id = p_league_id
      AND league_season_id = p_league_season_id
      AND game_date = p_game_date
-     AND NOT private.lineup_game_started(player_id, game_date);
+     AND NOT private.lineup_game_started(player_id, game_date)
+     AND NOT EXISTS (SELECT 1 FROM private.locked_assets(p_league_id,p_league_season_id,p_member_id) locked
+       WHERE locked.asset_kind='player' AND locked.asset_id=weekly_lineups.player_id);
 
   INSERT INTO weekly_lineups (
     member_id,

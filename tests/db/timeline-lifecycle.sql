@@ -27,8 +27,10 @@ BEGIN
   UPDATE public.trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=counter;
   PERFORM public.complete_accepted_trade_atomic(counter);
   PERFORM pg_temp.check_rules((SELECT status='completed' FROM public.trades WHERE id=counter),'real counter trade executes');
+  PERFORM pg_temp.publish_rules_trades(f.league_id);
   INSERT INTO timeline_entities VALUES(lost,counter);
-  PERFORM public.auto_set_lineup_service_atomic(f.member_ids[1],f.league_id,f.season_id,day,'[]');
+  PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
+  PERFORM public.auto_set_lineup_atomic(f.member_ids[1],f.league_id,f.season_id,day,'[]');
   INSERT INTO public.matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id)
     VALUES(matchup,f.league_id,f.season_id,1,f.member_ids[1],f.member_ids[2]);
   UPDATE public.matchups SET is_finalized=true WHERE id=matchup;

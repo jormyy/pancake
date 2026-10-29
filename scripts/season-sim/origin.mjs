@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import path from 'node:path'
-import { readFileSync, appendFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { appendFileSync } from '../perf-lab/bounded-log.mjs'
 import { readFile } from 'node:fs/promises'
 import { fixtureDirectory, config, assertTarget, delay, etDate, historicalSummary, laneDirectory, miniRoot, season, sha256, teamCode, writeJson } from './common.mjs'
 import { fakeExpoRecorder } from './push-origin.mjs'
@@ -13,9 +14,16 @@ import { rosterForDate, playerIndexAt, openingRosters, observeSide, boxTransfers
 import { scheduleObservation } from './schedule-view.mjs'
 import { gapSource, unavailableResponse, validGapRoute } from './provider-transport.mjs'
 import { upstreamRecorder } from './recorder.mjs'
+import { validateDatabaseWindow } from './database-window-contract.mjs'
+import { rankingPage } from './database-rankings.mjs'
 
 function scoreboardTeam(team) {
   return Object.fromEntries(['teamId', 'teamName', 'teamCity', 'teamTricode', 'score'].map(key => [key, team[key]]))
+}
+
+export async function readNextScheduleSource(directory,databaseWindow) {
+  return readFile(path.join(directory,'next-schedule-source.json'),'utf8').then(JSON.parse)
+    .catch(error=>{if(databaseWindow&&error.code==='ENOENT')return null;throw error})
 }
 
 export async function startOrigin({ resume = false, probeToken = '' } = {}) {
@@ -24,9 +32,14 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
   const store = await fixtureStore(directory)
   const recorder = upstreamRecorder(evidence, { resume })
   const { games } = JSON.parse(await readFile(path.join(directory, 'games.json'), 'utf8'))
+  const calendarGames = process.env.SEASON_SIM_TWO_DAY === '1' ? JSON.parse(await readFile(path.join(directory, 'two-day-calendar.json'), 'utf8')).games : games
   const { games: schedule } = JSON.parse(await readFile(path.join(directory, 'schedule.json'), 'utf8'))
   const plan = await readFile(path.join(directory, 'two-season-plan.json'), 'utf8').then(JSON.parse).catch(error => { if (error.code !== 'ENOENT') throw error; return null })
-  const nextSource = plan ? null : JSON.parse(await readFile(path.join(directory, 'next-schedule-source.json'), 'utf8'))
+  const databaseWindow = process.env.SEASON_SIM_DATABASE_WINDOW
+    ? validateDatabaseWindow(JSON.parse(await readFile(process.env.SEASON_SIM_DATABASE_WINDOW,'utf8')),config.project,season.year) : null
+  const databaseSleeper=databaseWindow?await store.json('database-sleeper-identities'):null
+  if(databaseSleeper)assert.equal(databaseSleeper.provenance,'SYNTHETIC')
+  const nextSource = plan || process.env.SEASON_SIM_TWO_DAY === '1' ? null : await readNextScheduleSource(directory,databaseWindow)
   const nextScheduleBytes = nextSource ? await readFile(path.join(directory, nextSource.file)) : null
   if (nextSource) assert.equal(sha256(nextScheduleBytes), nextSource.sha256, 'Published next-season schedule hash')
   const scheduleSources = new Map()
@@ -84,6 +97,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
     return { payload: snapshot(boxes.get(game.id), pbp, new Date(at).toISOString(), withCourt, summaries.get(game.espnId)), provenance: fault?.gameId === game.id || game.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-DERIVED', key: `playbyplay-${game.id}` }
   }
   function rosterAt(at) {
+    if(databaseSleeper)return databaseSleeper.espn
     return rosterForDate([...people.values()], etDate(new Date(at).toISOString()), openings, process.env.SEASON_SIM_PROFILE ? at : null)
   }
   const expo=await fakeExpoRecorder(evidence,now,async(token,_data,outboxId)=>{
@@ -101,6 +115,19 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         const result=await expo(url.pathname,JSON.parse(Buffer.concat(chunks).toString()))
         response.setHeader('Content-Type','application/json')
         response.end(JSON.stringify(result))
+        return
+      }
+      if(databaseSleeper&&url.pathname==='/fantasy-basketball-dynasty-rankings'){
+        assert.ok(['GET','POST'].includes(request.method))
+        assert.equal(url.search,'')
+        const chunks=[]
+        for await(const chunk of request){chunks.push(chunk);assert.ok(chunks.reduce((sum,part)=>sum+part.length,0)<=16384)}
+        const form=request.method==='POST'?new URLSearchParams(Buffer.concat(chunks).toString()):null
+        const payload=rankingPage(databaseSleeper.rankings,form),at=now()
+        response.writeHead(200,{'Content-Type':'text/html','X-Sim-Provenance':'SYNTHETIC'})
+        response.end(payload)
+        appendFileSync(path.join(miniRoot,'state/provider-responses.jsonl'),`${JSON.stringify({requestId:request.headers['x-sim-provider-request'],transport:url.href,method:request.method,at:new Date(at).toISOString(),status:200,bodySha256:sha256(payload)})}\n`)
+        recorder.record({path:url.pathname,at,provenance:'SYNTHETIC',source:'Restored parsed ranking rows; reconstructed HTML preserves stored values.',status:200})
         return
       }
       assert.equal(request.method, 'GET')
@@ -129,9 +156,10 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         const profile = plan ? [...plan.seasons].reverse().find(row => date >= `${row.startYear}-08-15`) ?? plan.seasons[0] : season
         const raw = plan ? scheduleSources.get(profile.year).leagueSchedule.gameDates.flatMap(day => day.games) : []
         const metadata = new Map(raw.map(row => [row.gameId, row]))
-        const rows = games.filter(game => game.id.startsWith(profile.prefix)).map(game => scheduleObservation(game, postponements.get(game.id), bounds.get(game.id), at, { ...metadata.get(game.id), opening: profile.start }))
+        const rows = calendarGames.filter(game => game.id.startsWith(profile.prefix)).map(game => scheduleObservation(game, postponements.get(game.id), bounds.get(game.id) ?? { start: Date.parse(game.time), end: Date.parse(game.time) + 3 * 3600000 }, at, { ...metadata.get(game.id), opening: profile.start, ...(databaseWindow?{weekNumber:game.weekNumber}:{}) }))
         if (fault?.type === 'missing-schedule') { const index = rows.findIndex(row => row.gameId === fault.gameId); assert.ok(index >= 0); rows.splice(index, 1); provenance = 'SYNTHETIC' }
         if (!plan && date >= `${season.year}-07-01`) {
+          assert.ok(nextSource,'A two-day database window cannot serve an uncollected future season')
           response.setHeader('Content-Type', 'application/json')
           response.setHeader('X-Sim-Provenance', 'REAL-RAW')
           response.end(nextScheduleBytes)
@@ -178,6 +206,14 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         const injuries = [...latest.values()].filter(player => player.notPlayingReason?.includes('INJURY')).map(player => ({ status: 'Out', athlete: { displayName: player.name }, details: player.notPlayingReason }))
         payload = { injuries: [{ injuries }], ...(!injuries.length ? { unavailable: unavailableResponse('espn-injury-observations', at) } : {}) }
       } else if (url.pathname === '/espn/news') payload = { articles: articles.filter(article => Date.parse(article.published) <= at).sort((a, b) => b.published.localeCompare(a.published)).slice(0, Number(url.searchParams.get('limit') ?? 50)) }
+      else if(databaseSleeper&&/^\/sleeper\/projections\/nba\/\d{4}\/\d+$/.test(url.pathname)) {
+        const parts=url.pathname.split('/')
+        payload=databaseSleeper.projections.filter(row=>row.season===parts[4]&&row.week===Number(parts[5]))
+        assert.ok(payload.length,'No stored projections cover this requested week')
+        provenance='SYNTHETIC'
+        source='Restored parsed Sleeper projection rows'
+        recordProvider(payload,200,at)
+      }
       else if (gapSource(url.pathname)) {
         const provider = gapSource(url.pathname)
         assert.ok(validGapRoute(provider, url), 'Unpinned historical provider route')
@@ -189,7 +225,10 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
         recorder.record({ path: url.pathname, at, provenance: 'HISTORICAL-UNAVAILABLE', source: unavailable, status })
         return
       }
-      else if (url.pathname === '/static/json/staticData/playerIndex.json') payload = playerIndexAt([...people.values()], date, openings, process.env.SEASON_SIM_PROFILE ? at : null)
+      else if (url.pathname === '/static/json/staticData/playerIndex.json') {
+        payload=databaseSleeper?databaseSleeper.nbaIndex:playerIndexAt([...people.values()], date, openings, process.env.SEASON_SIM_PROFILE ? at : null)
+        if(databaseSleeper){provenance='SYNTHETIC';source=databaseSleeper.source}
+      }
       else if (url.pathname.startsWith('/nba/player/')) throw new Error(`Unimplemented historical endpoint: ${url.pathname}`)
       else if (plan && (url.pathname.startsWith('/nba/') || url.pathname === '/stats/stats/drafthistory')) {
         if(at<Date.parse(plan.draft.availableAt)){
@@ -234,7 +273,7 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
       console.error(error)
     }
   }))
-  await writeJson(path.join(evidence,'roster-source-audit.json'),{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes, opening-night NBA boxes, NBA box listings of moved players and historical NBA first-season metadata',people:people.size,...rosterSourceAudit([...people.values()],etDate(new Date(now()).toISOString()),openings),boxTransfers:transfers})
+  await writeJson(path.join(evidence,'roster-source-audit.json'),databaseSleeper?{businessAt:new Date(now()).toISOString(),provenance:'SYNTHETIC',source:databaseSleeper.source,people:databaseSleeper.espn.length}:{businessAt:new Date(now()).toISOString(),provenance:'REAL-DERIVED from dated NBA/ESPN boxes, opening-night NBA boxes, NBA box listings of moved players and historical NBA first-season metadata',people:people.size,...rosterSourceAudit([...people.values()],etDate(new Date(now()).toISOString()),openings),boxTransfers:transfers})
   await new Promise(resolve => server.listen(config.ports.replay, '127.0.0.1', () => resolve(undefined)))
   console.log(JSON.stringify({ event: 'origin-ready', games: games.length, people: people.size, teams: teams.size }))
   server.historicalRoster = () => rosterAt(now()).map(player => ({ espnId: player.id, nbaTeam: player.team }))

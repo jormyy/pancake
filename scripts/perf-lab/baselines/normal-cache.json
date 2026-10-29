@@ -1,0 +1,6457 @@
+{
+  "source": "7eb91a23b4dceb2529522b0dd800b920888a3065",
+  "evidence": "~/Documents/pancake-season-mission/fable/program3/evidence/lab/history/",
+  "captures": [
+    "586e3f21-bc48-441b-92cd-9c122cbc3c29",
+    "d86ae44c-de22-4975-b568-808bd65659d3"
+  ],
+  "states": [
+    {
+      "id": "matchup-home/commissioner/in-progress/cold",
+      "requests": 38,
+      "bytesDown": 4504450,
+      "bytesUp": 0,
+      "breakdown": {
+        "resourceTypes": [
+          {
+            "id": "JavaScript",
+            "requests": 19,
+            "bytesDown": 4131450,
+            "bytesUp": 0,
+            "durationMs": 37.41670599994541,
+            "errors": 0
+          },
+          {
+            "id": "document",
+            "requests": 2,
+            "bytesDown": 173200,
+            "bytesUp": 0,
+            "durationMs": 3.7381250000034925,
+            "errors": 0
+          },
+          {
+            "id": "font",
+            "requests": 8,
+            "bytesDown": 128088,
+            "bytesUp": 0,
+            "durationMs": 11.6603749999922,
+            "errors": 0
+          },
+          {
+            "id": "service worker",
+            "requests": 1,
+            "bytesDown": 36876,
+            "bytesUp": 0,
+            "durationMs": 0.7586670000018785,
+            "errors": 0
+          },
+          {
+            "id": "image",
+            "requests": 3,
+            "bytesDown": 24235,
+            "bytesUp": 0,
+            "durationMs": 4.161332999981823,
+            "errors": 0
+          },
+          {
+            "id": "API",
+            "requests": 3,
+            "bytesDown": 9131,
+            "bytesUp": 0,
+            "durationMs": 86.89329100000032,
+            "errors": 0
+          },
+          {
+            "id": "manifest",
+            "requests": 2,
+            "bytesDown": 1470,
+            "bytesUp": 0,
+            "durationMs": 2.5661659999896074,
+            "errors": 0
+          }
+        ],
+        "endpoints": [
+          {
+            "id": "GET /_expo/static/js/web/__common-de6ea66459c14311b98e8afacd0b2361.js",
+            "requests": 2,
+            "bytesDown": 2093236,
+            "bytesUp": 0,
+            "durationMs": 7.3628329999919515,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/pwa/entry-e9ed1fd2aaa9b41cd501018fef6a6140.ed5453b9ad221146ffd70cf95cd08946.js",
+            "requests": 2,
+            "bytesDown": 1942438,
+            "bytesUp": 0,
+            "durationMs": 8.507125000003725,
+            "errors": 0
+          },
+          {
+            "id": "GET /",
+            "requests": 2,
+            "bytesDown": 173200,
+            "bytesUp": 0,
+            "durationMs": 3.7381250000034925,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/_layout-d022723042ec25761a08ba9895f9d60f.js",
+            "requests": 2,
+            "bytesDown": 45830,
+            "bytesUp": 0,
+            "durationMs": 2.7538739999872632,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/assets/fonts/Outfit_600SemiBold.e6a3605b8b30dddd058fe40e0db3e105.woff2",
+            "requests": 2,
+            "bytesDown": 41368,
+            "bytesUp": 0,
+            "durationMs": 3.131666999994195,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/assets/fonts/Outfit_700Bold.fe121b52b27f12f05bd1e826ac96eb4a.woff2",
+            "requests": 2,
+            "bytesDown": 41320,
+            "bytesUp": 0,
+            "durationMs": 2.8156250000029104,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/assets/fonts/Outfit_500Medium.afc04a3ac550425614c809a235e1f1ee.woff2",
+            "requests": 2,
+            "bytesDown": 39328,
+            "bytesUp": 0,
+            "durationMs": 2.9546659999905387,
+            "errors": 0
+          },
+          {
+            "id": "GET /sw.js",
+            "requests": 1,
+            "bytesDown": 36876,
+            "bytesUp": 0,
+            "durationMs": 0.7586670000018785,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/index-bc5dea02b97fb406b1c63d5e816c1484.js",
+            "requests": 3,
+            "bytesDown": 32616,
+            "bytesUp": 0,
+            "durationMs": 3.666624999983469,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/pwa/boot-logo.fea57074ef688a4d45f8d9f51baa0df2.png",
+            "requests": 2,
+            "bytesDown": 15334,
+            "bytesUp": 0,
+            "durationMs": 2.4797079999843845,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/assets/images/pancake_logo.10de9378f6017c16bab42d4ecf228e03.png",
+            "requests": 1,
+            "bytesDown": 8901,
+            "bytesUp": 0,
+            "durationMs": 1.6816249999974389,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+            "requests": 2,
+            "bytesDown": 7604,
+            "bytesUp": 0,
+            "durationMs": 2.9709169999841833,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/assets/fonts/MaterialIcons.438f06865a7470d54e448a581f510525.woff2",
+            "requests": 2,
+            "bytesDown": 6072,
+            "bytesUp": 0,
+            "durationMs": 2.758417000004556,
+            "errors": 0
+          },
+          {
+            "id": "GET /functions/v1/api/views/home",
+            "requests": 1,
+            "bytesDown": 5702,
+            "bytesUp": 0,
+            "durationMs": 56.684290999997756,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/perf-lab.8b33a41b079329e0f80dad49d4e014cf79fae98fb297fb1b45f2a73971bf4075.js",
+            "requests": 2,
+            "bytesDown": 3932,
+            "bytesUp": 0,
+            "durationMs": 4.240499999999884,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/_layout-29e309a9e7d5ab12789bdbc0950f480a.js",
+            "requests": 1,
+            "bytesDown": 2954,
+            "bytesUp": 0,
+            "durationMs": 0.7262500000069849,
+            "errors": 0
+          },
+          {
+            "id": "GET /rest/v1/league_change_hints",
+            "requests": 1,
+            "bytesDown": 2113,
+            "bytesUp": 0,
+            "durationMs": 8.96037499999511,
+            "errors": 0
+          },
+          {
+            "id": "GET /assets/pwa/manifest.b73dc05e2236e50d45d3867b6d2a4b5b.webmanifest",
+            "requests": 2,
+            "bytesDown": 1470,
+            "bytesUp": 0,
+            "durationMs": 2.5661659999896074,
+            "errors": 0
+          },
+          {
+            "id": "GET /rest/v1/league_members",
+            "requests": 1,
+            "bytesDown": 1316,
+            "bytesUp": 0,
+            "durationMs": 21.24862500000745,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/sign-in-9d602c51ff2ac8fc3bffbcc8b8377198.js",
+            "requests": 1,
+            "bytesDown": 1156,
+            "bytesUp": 0,
+            "durationMs": 1.6706660000054399,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/_layout-30dea0037230768dad8eae217cadc7d8.js",
+            "requests": 2,
+            "bytesDown": 962,
+            "bytesUp": 0,
+            "durationMs": 2.7161659999837866,
+            "errors": 0
+          },
+          {
+            "id": "GET /_expo/static/js/web/_layout-618b0159335e32d06379e63f83bd0df3.js",
+            "requests": 2,
+            "bytesDown": 722,
+            "bytesUp": 0,
+            "durationMs": 2.8017499999987194,
+            "errors": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "matchup-home/commissioner/in-progress/warm",
+      "requests": 4,
+      "bytesDown": 41210,
+      "bytesUp": 0,
+      "breakdown": {
+        "resourceTypes": [
+          {
+            "id": "service worker",
+            "requests": 1,
+            "bytesDown": 36876,
+            "bytesUp": 0,
+            "durationMs": 1.7569579999981215,
+            "errors": 0
+          },
+          {
+            "id": "API",
+            "requests": 3,
+            "bytesDown": 4334,
+            "bytesUp": 0,
+            "durationMs": 43.39925000000221,
+            "errors": 0
+          }
+        ],
+        "endpoints": [
+          {
+            "id": "GET /sw.js",
+            "requests": 1,
+            "bytesDown": 36876,
+            "bytesUp": 0,
+            "durationMs": 1.7569579999981215,
+            "errors": 0
+          },
+          {
+            "id": "GET /rest/v1/league_change_hints",
+            "requests": 1,
+            "bytesDown": 2113,
+            "bytesUp": 0,
+            "durationMs": 4.843249999990803,
+            "errors": 0
+          },
+          {
+            "id": "GET /rest/v1/league_members",
+            "requests": 1,
+            "bytesDown": 1316,
+            "bytesUp": 0,
+            "durationMs": 11.810167000003275,
+            "errors": 0
+          },
+          {
+            "id": "GET /functions/v1/api/version",
+            "requests": 1,
+            "bytesDown": 905,
+            "bytesUp": 0,
+            "durationMs": 26.745833000008133,
+            "errors": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "matchup-home/commissioner/in-progress/offline",
+      "requests": 0,
+      "bytesDown": 0,
+      "bytesUp": 0,
+      "breakdown": {
+        "resourceTypes": [],
+        "endpoints": []
+      }
+    }
+  ],
+  "networkRanking": {
+    "resourceTypes": [
+      {
+        "id": "JavaScript",
+        "requests": 1927,
+        "bytesDown": 448941855,
+        "bytesUp": 0,
+        "durationMs": 3826.0746820003988,
+        "bytesPerRequest": 232974.49662688115
+      },
+      {
+        "id": "document",
+        "requests": 214,
+        "bytesDown": 18532562,
+        "bytesUp": 0,
+        "durationMs": 167.4316330004658,
+        "bytesPerRequest": 86600.75700934579
+      },
+      {
+        "id": "API",
+        "requests": 1229,
+        "bytesDown": 14611770,
+        "bytesUp": 0,
+        "durationMs": 20195.12920999984,
+        "bytesPerRequest": 11889.153783563874
+      },
+      {
+        "id": "font",
+        "requests": 856,
+        "bytesDown": 13705416,
+        "bytesUp": 0,
+        "durationMs": 945.5850340011966,
+        "bytesPerRequest": 16011
+      },
+      {
+        "id": "service worker",
+        "requests": 111,
+        "bytesDown": 4093236,
+        "bytesUp": 0,
+        "durationMs": 103.83604699991702,
+        "bytesPerRequest": 36876
+      },
+      {
+        "id": "image",
+        "requests": 321,
+        "bytesDown": 2593145,
+        "bytesUp": 0,
+        "durationMs": 403.44603800046025,
+        "bytesPerRequest": 8078.333333333333
+      },
+      {
+        "id": "manifest",
+        "requests": 214,
+        "bytesDown": 157290,
+        "bytesUp": 0,
+        "durationMs": 203.7510340000299,
+        "bytesPerRequest": 735
+      }
+    ],
+    "endpoints": [
+      {
+        "id": "GET /_expo/static/js/web/__common-de6ea66459c14311b98e8afacd0b2361.js",
+        "requests": 214,
+        "bytesDown": 223976252,
+        "bytesUp": 0,
+        "durationMs": 1128.020993999904,
+        "bytesPerRequest": 1046618
+      },
+      {
+        "id": "GET /assets/pwa/entry-e9ed1fd2aaa9b41cd501018fef6a6140.ed5453b9ad221146ffd70cf95cd08946.js",
+        "requests": 214,
+        "bytesDown": 207840866,
+        "bytesUp": 0,
+        "durationMs": 932.6604960005643,
+        "bytesPerRequest": 971219
+      },
+      {
+        "id": "GET /",
+        "requests": 108,
+        "bytesDown": 9352800,
+        "bytesUp": 0,
+        "durationMs": 103.80063000002701,
+        "bytesPerRequest": 86600
+      },
+      {
+        "id": "GET /players",
+        "requests": 105,
+        "bytesDown": 9093210,
+        "bytesUp": 0,
+        "durationMs": 63.038794000443886,
+        "bytesPerRequest": 86602
+      },
+      {
+        "id": "GET /_expo/static/js/web/players-9180634806d55ea6604b81277ca5d311.js",
+        "requests": 105,
+        "bytesDown": 9076725,
+        "bytesUp": 0,
+        "durationMs": 209.14742199990724,
+        "bytesPerRequest": 86445
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-d022723042ec25761a08ba9895f9d60f.js",
+        "requests": 214,
+        "bytesDown": 4903810,
+        "bytesUp": 0,
+        "durationMs": 296.45679000002565,
+        "bytesPerRequest": 22915
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_600SemiBold.e6a3605b8b30dddd058fe40e0db3e105.woff2",
+        "requests": 214,
+        "bytesDown": 4426376,
+        "bytesUp": 0,
+        "durationMs": 258.9372980006301,
+        "bytesPerRequest": 20684
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_700Bold.fe121b52b27f12f05bd1e826ac96eb4a.woff2",
+        "requests": 214,
+        "bytesDown": 4421240,
+        "bytesUp": 0,
+        "durationMs": 228.76408100033586,
+        "bytesPerRequest": 20660
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_500Medium.afc04a3ac550425614c809a235e1f1ee.woff2",
+        "requests": 214,
+        "bytesDown": 4208096,
+        "bytesUp": 0,
+        "durationMs": 254.66902999972808,
+        "bytesPerRequest": 19664
+      },
+      {
+        "id": "GET /sw.js",
+        "requests": 111,
+        "bytesDown": 4093236,
+        "bytesUp": 0,
+        "durationMs": 103.83604699991702,
+        "bytesPerRequest": 36876
+      },
+      {
+        "id": "GET /functions/v1/api/views/players",
+        "requests": 226,
+        "bytesDown": 2121177,
+        "bytesUp": 0,
+        "durationMs": 15141.08261800016,
+        "bytesPerRequest": 9385.738938053097
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203932",
+        "requests": 105,
+        "bytesDown": 2031855,
+        "bytesUp": 0,
+        "durationMs": 195.28328699948906,
+        "bytesPerRequest": 19351
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630639",
+        "requests": 105,
+        "bytesDown": 1748250,
+        "bytesUp": 0,
+        "durationMs": 170.27437300002202,
+        "bytesPerRequest": 16650
+      },
+      {
+        "id": "GET /assets/pwa/boot-logo.fea57074ef688a4d45f8d9f51baa0df2.png",
+        "requests": 214,
+        "bytesDown": 1640738,
+        "bytesUp": 0,
+        "durationMs": 313.50428700016346,
+        "bytesPerRequest": 7667
+      },
+      {
+        "id": "GET /_expo/static/js/web/index-bc5dea02b97fb406b1c63d5e816c1484.js",
+        "requests": 109,
+        "bytesDown": 1185048,
+        "bytesUp": 0,
+        "durationMs": 105.68254699993122,
+        "bytesPerRequest": 10872
+      },
+      {
+        "id": "GET /assets/assets/images/pancake_logo.10de9378f6017c16bab42d4ecf228e03.png",
+        "requests": 107,
+        "bytesDown": 952407,
+        "bytesUp": 0,
+        "durationMs": 89.94175100029679,
+        "bytesPerRequest": 8901
+      },
+      {
+        "id": "GET /_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "requests": 214,
+        "bytesDown": 813628,
+        "bytesUp": 0,
+        "durationMs": 218.48271699990437,
+        "bytesPerRequest": 3802
+      },
+      {
+        "id": "GET /assets/assets/fonts/MaterialIcons.438f06865a7470d54e448a581f510525.woff2",
+        "requests": 214,
+        "bytesDown": 649704,
+        "bytesUp": 0,
+        "durationMs": 203.21462500050256,
+        "bytesPerRequest": 3036
+      },
+      {
+        "id": "GET /assets/perf-lab.8b33a41b079329e0f80dad49d4e014cf79fae98fb297fb1b45f2a73971bf4075.js",
+        "requests": 214,
+        "bytesDown": 420724,
+        "bytesUp": 0,
+        "durationMs": 213.07865700000548,
+        "bytesPerRequest": 1966
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-29e309a9e7d5ab12789bdbc0950f480a.js",
+        "requests": 107,
+        "bytesDown": 316078,
+        "bytesUp": 0,
+        "durationMs": 85.28916099980415,
+        "bytesPerRequest": 2954
+      },
+      {
+        "id": "GET /rest/v1/league_change_hints",
+        "requests": 111,
+        "bytesDown": 234543,
+        "bytesUp": 0,
+        "durationMs": 655.2885870001046,
+        "bytesPerRequest": 2113
+      },
+      {
+        "id": "GET /assets/pwa/manifest.b73dc05e2236e50d45d3867b6d2a4b5b.webmanifest",
+        "requests": 214,
+        "bytesDown": 157290,
+        "bytesUp": 0,
+        "durationMs": 203.7510340000299,
+        "bytesPerRequest": 735
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630174",
+        "requests": 8,
+        "bytesDown": 147952,
+        "bytesUp": 0,
+        "durationMs": 17.42958599998383,
+        "bytesPerRequest": 18494
+      },
+      {
+        "id": "GET /rest/v1/league_members",
+        "requests": 111,
+        "bytesDown": 146076,
+        "bytesUp": 0,
+        "durationMs": 1191.2914980001951,
+        "bytesPerRequest": 1316
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630598",
+        "requests": 8,
+        "bytesDown": 126952,
+        "bytesUp": 0,
+        "durationMs": 17.57049899996491,
+        "bytesPerRequest": 15869
+      },
+      {
+        "id": "GET /_expo/static/js/web/sign-in-9d602c51ff2ac8fc3bffbcc8b8377198.js",
+        "requests": 107,
+        "bytesDown": 123692,
+        "bytesUp": 0,
+        "durationMs": 118.63586700013548,
+        "bytesPerRequest": 1156
+      },
+      {
+        "id": "GET /_expo/static/js/web/league-0e3c5fd23d6ba87d16d2a0de6f703ddb.js",
+        "requests": 1,
+        "bytesDown": 104844,
+        "bytesUp": 0,
+        "durationMs": 1.9792500000039581,
+        "bytesPerRequest": 104844
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-30dea0037230768dad8eae217cadc7d8.js",
+        "requests": 214,
+        "bytesDown": 102934,
+        "bytesUp": 0,
+        "durationMs": 228.9784530003526,
+        "bytesPerRequest": 481
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628988",
+        "requests": 6,
+        "bytesDown": 101358,
+        "bytesUp": 0,
+        "durationMs": 11.20391700003529,
+        "bytesPerRequest": 16893
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630828",
+        "requests": 2,
+        "bytesDown": 99892,
+        "bytesUp": 0,
+        "durationMs": 3.471666000026744,
+        "bytesPerRequest": 49946
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630595",
+        "requests": 5,
+        "bytesDown": 89480,
+        "bytesUp": 0,
+        "durationMs": 38.310499000013806,
+        "bytesPerRequest": 17896
+      },
+      {
+        "id": "GET /league",
+        "requests": 1,
+        "bytesDown": 86552,
+        "bytesUp": 0,
+        "durationMs": 0.5922089999949094,
+        "bytesPerRequest": 86552
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642846",
+        "requests": 5,
+        "bytesDown": 77705,
+        "bytesUp": 0,
+        "durationMs": 13.398625000059837,
+        "bytesPerRequest": 15541
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-618b0159335e32d06379e63f83bd0df3.js",
+        "requests": 214,
+        "bytesDown": 77254,
+        "bytesUp": 0,
+        "durationMs": 287.6623279998603,
+        "bytesPerRequest": 361
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643530",
+        "requests": 5,
+        "bytesDown": 69780,
+        "bytesUp": 0,
+        "durationMs": 12.914040999981808,
+        "bytesPerRequest": 13956
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643407",
+        "requests": 5,
+        "bytesDown": 67305,
+        "bytesUp": 0,
+        "durationMs": 9.19483200009563,
+        "bytesPerRequest": 13461
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641737",
+        "requests": 4,
+        "bytesDown": 66784,
+        "bytesUp": 0,
+        "durationMs": 6.924458999972558,
+        "bytesPerRequest": 16696
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642876",
+        "requests": 4,
+        "bytesDown": 66112,
+        "bytesUp": 0,
+        "durationMs": 8.413709000044037,
+        "bytesPerRequest": 16528
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630162",
+        "requests": 4,
+        "bytesDown": 65164,
+        "bytesUp": 0,
+        "durationMs": 9.491957999882288,
+        "bytesPerRequest": 16291
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628973",
+        "requests": 4,
+        "bytesDown": 62596,
+        "bytesUp": 0,
+        "durationMs": 8.794748999993317,
+        "bytesPerRequest": 15649
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642349",
+        "requests": 4,
+        "bytesDown": 61704,
+        "bytesUp": 0,
+        "durationMs": 7.65954199997941,
+        "bytesPerRequest": 15426
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643813",
+        "requests": 4,
+        "bytesDown": 60684,
+        "bytesUp": 0,
+        "durationMs": 12.245334000006551,
+        "bytesPerRequest": 15171
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643512",
+        "requests": 3,
+        "bytesDown": 54918,
+        "bytesUp": 0,
+        "durationMs": 7.040750999934971,
+        "bytesPerRequest": 18306
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642918",
+        "requests": 3,
+        "bytesDown": 51141,
+        "bytesUp": 0,
+        "durationMs": 5.3179179999860935,
+        "bytesPerRequest": 17047
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641748",
+        "requests": 3,
+        "bytesDown": 50532,
+        "bytesUp": 0,
+        "durationMs": 10.258876000007149,
+        "bytesPerRequest": 16844
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642284",
+        "requests": 3,
+        "bytesDown": 48249,
+        "bytesUp": 0,
+        "durationMs": 8.232832999958191,
+        "bytesPerRequest": 16083
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627846",
+        "requests": 3,
+        "bytesDown": 47928,
+        "bytesUp": 0,
+        "durationMs": 8.504832999999053,
+        "bytesPerRequest": 15976
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/201143",
+        "requests": 3,
+        "bytesDown": 47505,
+        "bytesUp": 0,
+        "durationMs": 6.021374999952968,
+        "bytesPerRequest": 15835
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203076",
+        "requests": 3,
+        "bytesDown": 47202,
+        "bytesUp": 0,
+        "durationMs": 9.00566800008528,
+        "bytesPerRequest": 15734
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641767",
+        "requests": 3,
+        "bytesDown": 47091,
+        "bytesUp": 0,
+        "durationMs": 8.320458000060171,
+        "bytesPerRequest": 15697
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203999",
+        "requests": 3,
+        "bytesDown": 46542,
+        "bytesUp": 0,
+        "durationMs": 7.345499999937601,
+        "bytesPerRequest": 15514
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629029",
+        "requests": 3,
+        "bytesDown": 46482,
+        "bytesUp": 0,
+        "durationMs": 7.480417000013404,
+        "bytesPerRequest": 15494
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629614",
+        "requests": 3,
+        "bytesDown": 45396,
+        "bytesUp": 0,
+        "durationMs": 8.251626000070246,
+        "bytesPerRequest": 15132
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641705",
+        "requests": 3,
+        "bytesDown": 45069,
+        "bytesUp": 0,
+        "durationMs": 31.387624999973923,
+        "bytesPerRequest": 15023
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630574",
+        "requests": 3,
+        "bytesDown": 44349,
+        "bytesUp": 0,
+        "durationMs": 7.950041000061901,
+        "bytesPerRequest": 14783
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643758",
+        "requests": 3,
+        "bytesDown": 43893,
+        "bytesUp": 0,
+        "durationMs": 8.878374000021722,
+        "bytesPerRequest": 14631
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628983",
+        "requests": 3,
+        "bytesDown": 43197,
+        "bytesUp": 0,
+        "durationMs": 30.31133300001966,
+        "bytesPerRequest": 14399
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627936",
+        "requests": 3,
+        "bytesDown": 43158,
+        "bytesUp": 0,
+        "durationMs": 7.457125999964774,
+        "bytesPerRequest": 14386
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630191",
+        "requests": 2,
+        "bytesDown": 43098,
+        "bytesUp": 0,
+        "durationMs": 5.567500000004657,
+        "bytesPerRequest": 21549
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631260",
+        "requests": 3,
+        "bytesDown": 42699,
+        "bytesUp": 0,
+        "durationMs": 5.87762499996461,
+        "bytesPerRequest": 14233
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630578",
+        "requests": 3,
+        "bytesDown": 42417,
+        "bytesUp": 0,
+        "durationMs": 8.339083999977447,
+        "bytesPerRequest": 14139
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629630",
+        "requests": 2,
+        "bytesDown": 42138,
+        "bytesUp": 0,
+        "durationMs": 4.259584000043105,
+        "bytesPerRequest": 21069
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642267",
+        "requests": 2,
+        "bytesDown": 39626,
+        "bytesUp": 0,
+        "durationMs": 7.316082999983337,
+        "bytesPerRequest": 19813
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642843",
+        "requests": 3,
+        "bytesDown": 39438,
+        "bytesUp": 0,
+        "durationMs": 9.968748999992386,
+        "bytesPerRequest": 13146
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630170",
+        "requests": 2,
+        "bytesDown": 38614,
+        "bytesUp": 0,
+        "durationMs": 4.048251000058372,
+        "bytesPerRequest": 19307
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642268",
+        "requests": 2,
+        "bytesDown": 38246,
+        "bytesUp": 0,
+        "durationMs": 7.105916999978945,
+        "bytesPerRequest": 19123
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630245",
+        "requests": 2,
+        "bytesDown": 37912,
+        "bytesUp": 0,
+        "durationMs": 7.048500000033528,
+        "bytesPerRequest": 18956
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641726",
+        "requests": 2,
+        "bytesDown": 37246,
+        "bytesUp": 0,
+        "durationMs": 4.663083999999799,
+        "bytesPerRequest": 18623
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630625",
+        "requests": 2,
+        "bytesDown": 37224,
+        "bytesUp": 0,
+        "durationMs": 6.129791999992449,
+        "bytesPerRequest": 18612
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641713",
+        "requests": 2,
+        "bytesDown": 36902,
+        "bytesUp": 0,
+        "durationMs": 6.826292000012472,
+        "bytesPerRequest": 18451
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642867",
+        "requests": 2,
+        "bytesDown": 36850,
+        "bytesUp": 0,
+        "durationMs": 6.224915999977384,
+        "bytesPerRequest": 18425
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643590",
+        "requests": 2,
+        "bytesDown": 36696,
+        "bytesUp": 0,
+        "durationMs": 4.063000999973156,
+        "bytesPerRequest": 18348
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630679",
+        "requests": 2,
+        "bytesDown": 36256,
+        "bytesUp": 0,
+        "durationMs": 5.335126000049058,
+        "bytesPerRequest": 18128
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630549",
+        "requests": 2,
+        "bytesDown": 36220,
+        "bytesUp": 0,
+        "durationMs": 5.763542000029702,
+        "bytesPerRequest": 18110
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643415",
+        "requests": 2,
+        "bytesDown": 36050,
+        "bytesUp": 0,
+        "durationMs": 5.98479200003203,
+        "bytesPerRequest": 18025
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643570",
+        "requests": 2,
+        "bytesDown": 35684,
+        "bytesUp": 0,
+        "durationMs": 6.492250999959651,
+        "bytesPerRequest": 17842
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627741",
+        "requests": 2,
+        "bytesDown": 35624,
+        "bytesUp": 0,
+        "durationMs": 3.3407509999815375,
+        "bytesPerRequest": 17812
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641717",
+        "requests": 2,
+        "bytesDown": 35618,
+        "bytesUp": 0,
+        "durationMs": 4.443291999981739,
+        "bytesPerRequest": 17809
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643120",
+        "requests": 2,
+        "bytesDown": 35324,
+        "bytesUp": 0,
+        "durationMs": 6.442207999993116,
+        "bytesPerRequest": 17662
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642935",
+        "requests": 2,
+        "bytesDown": 35234,
+        "bytesUp": 0,
+        "durationMs": 6.940500000084285,
+        "bytesPerRequest": 17617
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/201935",
+        "requests": 2,
+        "bytesDown": 35162,
+        "bytesUp": 0,
+        "durationMs": 6.596875999995973,
+        "bytesPerRequest": 17581
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628368",
+        "requests": 2,
+        "bytesDown": 35054,
+        "bytesUp": 0,
+        "durationMs": 3.9704999999376014,
+        "bytesPerRequest": 17527
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631114",
+        "requests": 2,
+        "bytesDown": 34914,
+        "bytesUp": 0,
+        "durationMs": 2.9366250000166474,
+        "bytesPerRequest": 17457
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630538",
+        "requests": 2,
+        "bytesDown": 34828,
+        "bytesUp": 0,
+        "durationMs": 6.7074589999974705,
+        "bytesPerRequest": 17414
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642259",
+        "requests": 2,
+        "bytesDown": 34734,
+        "bytesUp": 0,
+        "durationMs": 2.745126000023447,
+        "bytesPerRequest": 17367
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642382",
+        "requests": 2,
+        "bytesDown": 34526,
+        "bytesUp": 0,
+        "durationMs": 6.560792000032961,
+        "bytesPerRequest": 17263
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627827",
+        "requests": 2,
+        "bytesDown": 34484,
+        "bytesUp": 0,
+        "durationMs": 6.5963340000016615,
+        "bytesPerRequest": 17242
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642854",
+        "requests": 2,
+        "bytesDown": 34464,
+        "bytesUp": 0,
+        "durationMs": 5.478500000026543,
+        "bytesPerRequest": 17232
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203991",
+        "requests": 2,
+        "bytesDown": 34444,
+        "bytesUp": 0,
+        "durationMs": 8.368791000044439,
+        "bytesPerRequest": 17222
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643640",
+        "requests": 2,
+        "bytesDown": 34400,
+        "bytesUp": 0,
+        "durationMs": 8.044791000022087,
+        "bytesPerRequest": 17200
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643408",
+        "requests": 2,
+        "bytesDown": 34394,
+        "bytesUp": 0,
+        "durationMs": 5.784708000021055,
+        "bytesPerRequest": 17197
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627742",
+        "requests": 2,
+        "bytesDown": 34376,
+        "bytesUp": 0,
+        "durationMs": 6.719084000040311,
+        "bytesPerRequest": 17188
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627832",
+        "requests": 2,
+        "bytesDown": 34126,
+        "bytesUp": 0,
+        "durationMs": 7.8743750000721775,
+        "bytesPerRequest": 17063
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203468",
+        "requests": 2,
+        "bytesDown": 34090,
+        "bytesUp": 0,
+        "durationMs": 5.944500000041444,
+        "bytesPerRequest": 17045
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643069",
+        "requests": 2,
+        "bytesDown": 33756,
+        "bytesUp": 0,
+        "durationMs": 6.664208000001963,
+        "bytesPerRequest": 16878
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629631",
+        "requests": 2,
+        "bytesDown": 33744,
+        "bytesUp": 0,
+        "durationMs": 5.746541999978945,
+        "bytesPerRequest": 16872
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627749",
+        "requests": 2,
+        "bytesDown": 33666,
+        "bytesUp": 0,
+        "durationMs": 5.660000000032596,
+        "bytesPerRequest": 16833
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642396",
+        "requests": 2,
+        "bytesDown": 33644,
+        "bytesUp": 0,
+        "durationMs": 4.179833000001963,
+        "bytesPerRequest": 16822
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203078",
+        "requests": 2,
+        "bytesDown": 33556,
+        "bytesUp": 0,
+        "durationMs": 6.134751000034157,
+        "bytesPerRequest": 16778
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631230",
+        "requests": 2,
+        "bytesDown": 33520,
+        "bytesUp": 0,
+        "durationMs": 4.546290999976918,
+        "bytesPerRequest": 16760
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642404",
+        "requests": 2,
+        "bytesDown": 33472,
+        "bytesUp": 0,
+        "durationMs": 7.7837929999805056,
+        "bytesPerRequest": 16736
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641715",
+        "requests": 2,
+        "bytesDown": 33458,
+        "bytesUp": 0,
+        "durationMs": 7.967749000003096,
+        "bytesPerRequest": 16729
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642912",
+        "requests": 2,
+        "bytesDown": 33442,
+        "bytesUp": 0,
+        "durationMs": 4.026458000007551,
+        "bytesPerRequest": 16721
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642358",
+        "requests": 2,
+        "bytesDown": 33426,
+        "bytesUp": 0,
+        "durationMs": 5.258834000036586,
+        "bytesPerRequest": 16713
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642269",
+        "requests": 2,
+        "bytesDown": 33402,
+        "bytesUp": 0,
+        "durationMs": 7.2896680000121705,
+        "bytesPerRequest": 16701
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643047",
+        "requests": 2,
+        "bytesDown": 33402,
+        "bytesUp": 0,
+        "durationMs": 5.362083000014536,
+        "bytesPerRequest": 16701
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629636",
+        "requests": 2,
+        "bytesDown": 33290,
+        "bytesUp": 0,
+        "durationMs": 2.7138750000158325,
+        "bytesPerRequest": 16645
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/201949",
+        "requests": 2,
+        "bytesDown": 33112,
+        "bytesUp": 0,
+        "durationMs": 3.443250000011176,
+        "bytesPerRequest": 16556
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/202687",
+        "requests": 2,
+        "bytesDown": 33072,
+        "bytesUp": 0,
+        "durationMs": 5.261333999980707,
+        "bytesPerRequest": 16536
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642868",
+        "requests": 2,
+        "bytesDown": 33068,
+        "bytesUp": 0,
+        "durationMs": 3.870625999988988,
+        "bytesPerRequest": 16534
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629018",
+        "requests": 2,
+        "bytesDown": 33022,
+        "bytesUp": 0,
+        "durationMs": 4.7207909999997355,
+        "bytesPerRequest": 16511
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641709",
+        "requests": 2,
+        "bytesDown": 32982,
+        "bytesUp": 0,
+        "durationMs": 5.368875000043772,
+        "bytesPerRequest": 16491
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631127",
+        "requests": 2,
+        "bytesDown": 32962,
+        "bytesUp": 0,
+        "durationMs": 7.760584000032395,
+        "bytesPerRequest": 16481
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/202066",
+        "requests": 2,
+        "bytesDown": 32950,
+        "bytesUp": 0,
+        "durationMs": 5.590457999962382,
+        "bytesPerRequest": 16475
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641989",
+        "requests": 2,
+        "bytesDown": 32942,
+        "bytesUp": 0,
+        "durationMs": 4.703249000012875,
+        "bytesPerRequest": 16471
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630604",
+        "requests": 2,
+        "bytesDown": 32938,
+        "bytesUp": 0,
+        "durationMs": 3.201375999953598,
+        "bytesPerRequest": 16469
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630264",
+        "requests": 2,
+        "bytesDown": 32916,
+        "bytesUp": 0,
+        "durationMs": 5.136999999987893,
+        "bytesPerRequest": 16458
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627732",
+        "requests": 2,
+        "bytesDown": 32896,
+        "bytesUp": 0,
+        "durationMs": 4.4812500000116415,
+        "bytesPerRequest": 16448
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631110",
+        "requests": 2,
+        "bytesDown": 32814,
+        "bytesUp": 0,
+        "durationMs": 4.3811250000144355,
+        "bytesPerRequest": 16407
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642844",
+        "requests": 2,
+        "bytesDown": 32804,
+        "bytesUp": 0,
+        "durationMs": 5.206041999976151,
+        "bytesPerRequest": 16402
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642962",
+        "requests": 2,
+        "bytesDown": 32774,
+        "bytesUp": 0,
+        "durationMs": 8.29262500006007,
+        "bytesPerRequest": 16387
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641731",
+        "requests": 2,
+        "bytesDown": 32772,
+        "bytesUp": 0,
+        "durationMs": 6.20150000002468,
+        "bytesPerRequest": 16386
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643593",
+        "requests": 2,
+        "bytesDown": 32726,
+        "bytesUp": 0,
+        "durationMs": 3.8837499999208376,
+        "bytesPerRequest": 16363
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631126",
+        "requests": 2,
+        "bytesDown": 32698,
+        "bytesUp": 0,
+        "durationMs": 2.7894580000429414,
+        "bytesPerRequest": 16349
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643052",
+        "requests": 2,
+        "bytesDown": 32698,
+        "bytesUp": 0,
+        "durationMs": 6.083998999965843,
+        "bytesPerRequest": 16349
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/201599",
+        "requests": 2,
+        "bytesDown": 32694,
+        "bytesUp": 0,
+        "durationMs": 7.64283299993258,
+        "bytesPerRequest": 16347
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642907",
+        "requests": 2,
+        "bytesDown": 32664,
+        "bytesUp": 0,
+        "durationMs": 6.644292000040878,
+        "bytesPerRequest": 16332
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630193",
+        "requests": 2,
+        "bytesDown": 32526,
+        "bytesUp": 0,
+        "durationMs": 4.943083999969531,
+        "bytesPerRequest": 16263
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630217",
+        "requests": 2,
+        "bytesDown": 32480,
+        "bytesUp": 0,
+        "durationMs": 5.648083999985829,
+        "bytesPerRequest": 16240
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631121",
+        "requests": 2,
+        "bytesDown": 32436,
+        "bytesUp": 0,
+        "durationMs": 6.96266600000672,
+        "bytesPerRequest": 16218
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629646",
+        "requests": 2,
+        "bytesDown": 32342,
+        "bytesUp": 0,
+        "durationMs": 5.287332999985665,
+        "bytesPerRequest": 16171
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203471",
+        "requests": 2,
+        "bytesDown": 32322,
+        "bytesUp": 0,
+        "durationMs": 6.084583999996539,
+        "bytesPerRequest": 16161
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628378",
+        "requests": 2,
+        "bytesDown": 32302,
+        "bytesUp": 0,
+        "durationMs": 5.569207999971695,
+        "bytesPerRequest": 16151
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643517",
+        "requests": 2,
+        "bytesDown": 32262,
+        "bytesUp": 0,
+        "durationMs": 4.038708999985829,
+        "bytesPerRequest": 16131
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641779",
+        "requests": 2,
+        "bytesDown": 32216,
+        "bytesUp": 0,
+        "durationMs": 4.666791000010562,
+        "bytesPerRequest": 16108
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629312",
+        "requests": 2,
+        "bytesDown": 32214,
+        "bytesUp": 0,
+        "durationMs": 6.282833000004757,
+        "bytesPerRequest": 16107
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642450",
+        "requests": 2,
+        "bytesDown": 32184,
+        "bytesUp": 0,
+        "durationMs": 7.1811260000104085,
+        "bytesPerRequest": 16092
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631342",
+        "requests": 2,
+        "bytesDown": 32166,
+        "bytesUp": 0,
+        "durationMs": 3.9511259999708273,
+        "bytesPerRequest": 16083
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643411",
+        "requests": 2,
+        "bytesDown": 32160,
+        "bytesUp": 0,
+        "durationMs": 5.966916000004858,
+        "bytesPerRequest": 16080
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629028",
+        "requests": 2,
+        "bytesDown": 32100,
+        "bytesUp": 0,
+        "durationMs": 4.395250000059605,
+        "bytesPerRequest": 16050
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642924",
+        "requests": 2,
+        "bytesDown": 31892,
+        "bytesUp": 0,
+        "durationMs": 4.855042000010144,
+        "bytesPerRequest": 15946
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641794",
+        "requests": 2,
+        "bytesDown": 31888,
+        "bytesUp": 0,
+        "durationMs": 3.989542000053916,
+        "bytesPerRequest": 15944
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630558",
+        "requests": 2,
+        "bytesDown": 31826,
+        "bytesUp": 0,
+        "durationMs": 3.731333999952767,
+        "bytesPerRequest": 15913
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628386",
+        "requests": 2,
+        "bytesDown": 31808,
+        "bytesUp": 0,
+        "durationMs": 3.0732080000452697,
+        "bytesPerRequest": 15904
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643409",
+        "requests": 2,
+        "bytesDown": 31782,
+        "bytesUp": 0,
+        "durationMs": 3.5778750000172295,
+        "bytesPerRequest": 15891
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630700",
+        "requests": 2,
+        "bytesDown": 31752,
+        "bytesUp": 0,
+        "durationMs": 3.9381659999489784,
+        "bytesPerRequest": 15876
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631105",
+        "requests": 2,
+        "bytesDown": 31692,
+        "bytesUp": 0,
+        "durationMs": 6.719792000003508,
+        "bytesPerRequest": 15846
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642873",
+        "requests": 2,
+        "bytesDown": 31636,
+        "bytesUp": 0,
+        "durationMs": 3.668208999966737,
+        "bytesPerRequest": 15818
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627826",
+        "requests": 2,
+        "bytesDown": 31622,
+        "bytesUp": 0,
+        "durationMs": 5.050583000003826,
+        "bytesPerRequest": 15811
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631097",
+        "requests": 2,
+        "bytesDown": 31540,
+        "bytesUp": 0,
+        "durationMs": 6.041417000000365,
+        "bytesPerRequest": 15770
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643410",
+        "requests": 2,
+        "bytesDown": 31516,
+        "bytesUp": 0,
+        "durationMs": 4.55579100002069,
+        "bytesPerRequest": 15758
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641863",
+        "requests": 2,
+        "bytesDown": 31504,
+        "bytesUp": 0,
+        "durationMs": 4.35837500001071,
+        "bytesPerRequest": 15752
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630527",
+        "requests": 2,
+        "bytesDown": 31502,
+        "bytesUp": 0,
+        "durationMs": 3.2659590000403114,
+        "bytesPerRequest": 15751
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628401",
+        "requests": 2,
+        "bytesDown": 31466,
+        "bytesUp": 0,
+        "durationMs": 5.452541999984533,
+        "bytesPerRequest": 15733
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642357",
+        "requests": 2,
+        "bytesDown": 31430,
+        "bytesUp": 0,
+        "durationMs": 3.372876000008546,
+        "bytesPerRequest": 15715
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642928",
+        "requests": 2,
+        "bytesDown": 31418,
+        "bytesUp": 0,
+        "durationMs": 3.7650419999845326,
+        "bytesPerRequest": 15709
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631170",
+        "requests": 2,
+        "bytesDown": 31368,
+        "bytesUp": 0,
+        "durationMs": 5.159500000008848,
+        "bytesPerRequest": 15684
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628971",
+        "requests": 2,
+        "bytesDown": 31348,
+        "bytesUp": 0,
+        "durationMs": 5.630375000007916,
+        "bytesPerRequest": 15674
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203992",
+        "requests": 2,
+        "bytesDown": 31348,
+        "bytesUp": 0,
+        "durationMs": 6.17491699999664,
+        "bytesPerRequest": 15674
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629632",
+        "requests": 2,
+        "bytesDown": 31328,
+        "bytesUp": 0,
+        "durationMs": 6.680707999970764,
+        "bytesPerRequest": 15664
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641729",
+        "requests": 2,
+        "bytesDown": 31272,
+        "bytesUp": 0,
+        "durationMs": 4.590749999973923,
+        "bytesPerRequest": 15636
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642959",
+        "requests": 2,
+        "bytesDown": 31092,
+        "bytesUp": 0,
+        "durationMs": 7.528334000031464,
+        "bytesPerRequest": 15546
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641746",
+        "requests": 2,
+        "bytesDown": 31086,
+        "bytesUp": 0,
+        "durationMs": 8.174708999984432,
+        "bytesPerRequest": 15543
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643536",
+        "requests": 2,
+        "bytesDown": 31084,
+        "bytesUp": 0,
+        "durationMs": 5.255500000028405,
+        "bytesPerRequest": 15542
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643515",
+        "requests": 2,
+        "bytesDown": 31070,
+        "bytesUp": 0,
+        "durationMs": 6.929083999944851,
+        "bytesPerRequest": 15535
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641706",
+        "requests": 2,
+        "bytesDown": 31044,
+        "bytesUp": 0,
+        "durationMs": 4.540875000006054,
+        "bytesPerRequest": 15522
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643721",
+        "requests": 2,
+        "bytesDown": 31040,
+        "bytesUp": 0,
+        "durationMs": 4.901125999982469,
+        "bytesPerRequest": 15520
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642874",
+        "requests": 2,
+        "bytesDown": 31028,
+        "bytesUp": 0,
+        "durationMs": 5.8877920000231825,
+        "bytesPerRequest": 15514
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641935",
+        "requests": 2,
+        "bytesDown": 31012,
+        "bytesUp": 0,
+        "durationMs": 3.215459000028204,
+        "bytesPerRequest": 15506
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642270",
+        "requests": 2,
+        "bytesDown": 30982,
+        "bytesUp": 0,
+        "durationMs": 4.437083000026178,
+        "bytesPerRequest": 15491
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631132",
+        "requests": 2,
+        "bytesDown": 30962,
+        "bytesUp": 0,
+        "durationMs": 6.845666999986861,
+        "bytesPerRequest": 15481
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630557",
+        "requests": 2,
+        "bytesDown": 30940,
+        "bytesUp": 0,
+        "durationMs": 9.971915999951307,
+        "bytesPerRequest": 15470
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629130",
+        "requests": 2,
+        "bytesDown": 30910,
+        "bytesUp": 0,
+        "durationMs": 6.946040999959223,
+        "bytesPerRequest": 15455
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629014",
+        "requests": 2,
+        "bytesDown": 30858,
+        "bytesUp": 0,
+        "durationMs": 2.6356249999953434,
+        "bytesPerRequest": 15429
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627734",
+        "requests": 2,
+        "bytesDown": 30848,
+        "bytesUp": 0,
+        "durationMs": 4.734665999945719,
+        "bytesPerRequest": 15424
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642938",
+        "requests": 2,
+        "bytesDown": 30830,
+        "bytesUp": 0,
+        "durationMs": 6.23558299994329,
+        "bytesPerRequest": 15415
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642504",
+        "requests": 2,
+        "bytesDown": 30816,
+        "bytesUp": 0,
+        "durationMs": 7.046125000051688,
+        "bytesPerRequest": 15408
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1627747",
+        "requests": 2,
+        "bytesDown": 30764,
+        "bytesUp": 0,
+        "durationMs": 7.222166999999899,
+        "bytesPerRequest": 15382
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641708",
+        "requests": 2,
+        "bytesDown": 30736,
+        "bytesUp": 0,
+        "durationMs": 5.053665999963414,
+        "bytesPerRequest": 15368
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630596",
+        "requests": 2,
+        "bytesDown": 30690,
+        "bytesUp": 0,
+        "durationMs": 6.997291999985464,
+        "bytesPerRequest": 15345
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628991",
+        "requests": 2,
+        "bytesDown": 30662,
+        "bytesUp": 0,
+        "durationMs": 4.384124999982305,
+        "bytesPerRequest": 15331
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629655",
+        "requests": 2,
+        "bytesDown": 30650,
+        "bytesUp": 0,
+        "durationMs": 5.2463759999373,
+        "bytesPerRequest": 15325
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643416",
+        "requests": 2,
+        "bytesDown": 30610,
+        "bytesUp": 0,
+        "durationMs": 5.943998999951873,
+        "bytesPerRequest": 15305
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203084",
+        "requests": 2,
+        "bytesDown": 30600,
+        "bytesUp": 0,
+        "durationMs": 3.5691250000381842,
+        "bytesPerRequest": 15300
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641854",
+        "requests": 2,
+        "bytesDown": 30556,
+        "bytesUp": 0,
+        "durationMs": 4.48033300001407,
+        "bytesPerRequest": 15278
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1626164",
+        "requests": 2,
+        "bytesDown": 30460,
+        "bytesUp": 0,
+        "durationMs": 10.457375000056345,
+        "bytesPerRequest": 15230
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642964",
+        "requests": 2,
+        "bytesDown": 30410,
+        "bytesUp": 0,
+        "durationMs": 4.494916999945417,
+        "bytesPerRequest": 15205
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628415",
+        "requests": 2,
+        "bytesDown": 30398,
+        "bytesUp": 0,
+        "durationMs": 9.552291000029072,
+        "bytesPerRequest": 15199
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643257",
+        "requests": 2,
+        "bytesDown": 30398,
+        "bytesUp": 0,
+        "durationMs": 3.6095839999616146,
+        "bytesPerRequest": 15199
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630622",
+        "requests": 2,
+        "bytesDown": 30380,
+        "bytesUp": 0,
+        "durationMs": 6.159000000028755,
+        "bytesPerRequest": 15190
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/201572",
+        "requests": 2,
+        "bytesDown": 30376,
+        "bytesUp": 0,
+        "durationMs": 6.077916999987792,
+        "bytesPerRequest": 15188
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631248",
+        "requests": 2,
+        "bytesDown": 30360,
+        "bytesUp": 0,
+        "durationMs": 3.1525829999591224,
+        "bytesPerRequest": 15180
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641871",
+        "requests": 2,
+        "bytesDown": 30326,
+        "bytesUp": 0,
+        "durationMs": 6.336624999996275,
+        "bytesPerRequest": 15163
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641810",
+        "requests": 2,
+        "bytesDown": 30298,
+        "bytesUp": 0,
+        "durationMs": 7.929999999934807,
+        "bytesPerRequest": 15149
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203081",
+        "requests": 2,
+        "bytesDown": 30286,
+        "bytesUp": 0,
+        "durationMs": 6.718583000008948,
+        "bytesPerRequest": 15143
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642285",
+        "requests": 2,
+        "bytesDown": 30216,
+        "bytesUp": 0,
+        "durationMs": 2.8822090000030585,
+        "bytesPerRequest": 15108
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629048",
+        "requests": 2,
+        "bytesDown": 30190,
+        "bytesUp": 0,
+        "durationMs": 5.432417000003625,
+        "bytesPerRequest": 15095
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203926",
+        "requests": 2,
+        "bytesDown": 30160,
+        "bytesUp": 0,
+        "durationMs": 2.893584000004921,
+        "bytesPerRequest": 15080
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643552",
+        "requests": 2,
+        "bytesDown": 30018,
+        "bytesUp": 0,
+        "durationMs": 4.704666999983601,
+        "bytesPerRequest": 15009
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642856",
+        "requests": 2,
+        "bytesDown": 29988,
+        "bytesUp": 0,
+        "durationMs": 3.3630409999750555,
+        "bytesPerRequest": 14994
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643551",
+        "requests": 2,
+        "bytesDown": 29986,
+        "bytesUp": 0,
+        "durationMs": 3.915873999998439,
+        "bytesPerRequest": 14993
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629599",
+        "requests": 2,
+        "bytesDown": 29938,
+        "bytesUp": 0,
+        "durationMs": 5.466499999980442,
+        "bytesPerRequest": 14969
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642262",
+        "requests": 2,
+        "bytesDown": 29938,
+        "bytesUp": 0,
+        "durationMs": 9.108541000052355,
+        "bytesPerRequest": 14969
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642394",
+        "requests": 2,
+        "bytesDown": 29934,
+        "bytesUp": 0,
+        "durationMs": 4.294666000001598,
+        "bytesPerRequest": 14967
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628960",
+        "requests": 2,
+        "bytesDown": 29932,
+        "bytesUp": 0,
+        "durationMs": 8.161459000024479,
+        "bytesPerRequest": 14966
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642355",
+        "requests": 2,
+        "bytesDown": 29882,
+        "bytesUp": 0,
+        "durationMs": 6.014208999928087,
+        "bytesPerRequest": 14941
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641710",
+        "requests": 2,
+        "bytesDown": 29880,
+        "bytesUp": 0,
+        "durationMs": 2.919084000051953,
+        "bytesPerRequest": 14940
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631216",
+        "requests": 2,
+        "bytesDown": 29876,
+        "bytesUp": 0,
+        "durationMs": 6.618084000016097,
+        "bytesPerRequest": 14938
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628997",
+        "requests": 2,
+        "bytesDown": 29760,
+        "bytesUp": 0,
+        "durationMs": 3.3081260000471957,
+        "bytesPerRequest": 14880
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641771",
+        "requests": 2,
+        "bytesDown": 29742,
+        "bytesUp": 0,
+        "durationMs": 3.097124000021722,
+        "bytesPerRequest": 14871
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643418",
+        "requests": 2,
+        "bytesDown": 29742,
+        "bytesUp": 0,
+        "durationMs": 5.192959000065457,
+        "bytesPerRequest": 14871
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630591",
+        "requests": 2,
+        "bytesDown": 29706,
+        "bytesUp": 0,
+        "durationMs": 4.8447919999598525,
+        "bytesPerRequest": 14853
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642879",
+        "requests": 2,
+        "bytesDown": 29706,
+        "bytesUp": 0,
+        "durationMs": 4.22545899997931,
+        "bytesPerRequest": 14853
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643624",
+        "requests": 2,
+        "bytesDown": 29696,
+        "bytesUp": 0,
+        "durationMs": 5.65625,
+        "bytesPerRequest": 14848
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629234",
+        "requests": 2,
+        "bytesDown": 29682,
+        "bytesUp": 0,
+        "durationMs": 5.661707999941427,
+        "bytesPerRequest": 14841
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630532",
+        "requests": 2,
+        "bytesDown": 29624,
+        "bytesUp": 0,
+        "durationMs": 5.539666999946348,
+        "bytesPerRequest": 14812
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629731",
+        "requests": 2,
+        "bytesDown": 29566,
+        "bytesUp": 0,
+        "durationMs": 5.5584159999853,
+        "bytesPerRequest": 14783
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642852",
+        "requests": 2,
+        "bytesDown": 29404,
+        "bytesUp": 0,
+        "durationMs": 3.314957999973558,
+        "bytesPerRequest": 14702
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631457",
+        "requests": 2,
+        "bytesDown": 29352,
+        "bytesUp": 0,
+        "durationMs": 4.268124999944121,
+        "bytesPerRequest": 14676
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203083",
+        "requests": 2,
+        "bytesDown": 29342,
+        "bytesUp": 0,
+        "durationMs": 4.198457999969833,
+        "bytesPerRequest": 14671
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641751",
+        "requests": 2,
+        "bytesDown": 29280,
+        "bytesUp": 0,
+        "durationMs": 3.3631250000325963,
+        "bytesPerRequest": 14640
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642353",
+        "requests": 2,
+        "bytesDown": 29238,
+        "bytesUp": 0,
+        "durationMs": 5.641208000015467,
+        "bytesPerRequest": 14619
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630314",
+        "requests": 2,
+        "bytesDown": 29232,
+        "bytesUp": 0,
+        "durationMs": 5.852417000045534,
+        "bytesPerRequest": 14616
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629661",
+        "requests": 2,
+        "bytesDown": 29166,
+        "bytesUp": 0,
+        "durationMs": 7.338417000020854,
+        "bytesPerRequest": 14583
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631104",
+        "requests": 2,
+        "bytesDown": 29134,
+        "bytesUp": 0,
+        "durationMs": 5.919291000056546,
+        "bytesPerRequest": 14567
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203507",
+        "requests": 2,
+        "bytesDown": 29132,
+        "bytesUp": 0,
+        "durationMs": 5.408749999944121,
+        "bytesPerRequest": 14566
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642261",
+        "requests": 2,
+        "bytesDown": 29094,
+        "bytesUp": 0,
+        "durationMs": 6.080707999994047,
+        "bytesPerRequest": 14547
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629637",
+        "requests": 2,
+        "bytesDown": 29050,
+        "bytesUp": 0,
+        "durationMs": 3.2872089999727905,
+        "bytesPerRequest": 14525
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643808",
+        "requests": 2,
+        "bytesDown": 28970,
+        "bytesUp": 0,
+        "durationMs": 8.056499999947846,
+        "bytesPerRequest": 14485
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642402",
+        "requests": 2,
+        "bytesDown": 28942,
+        "bytesUp": 0,
+        "durationMs": 7.6192920000175945,
+        "bytesPerRequest": 14471
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641764",
+        "requests": 2,
+        "bytesDown": 28846,
+        "bytesUp": 0,
+        "durationMs": 5.9305830000084825,
+        "bytesPerRequest": 14423
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631128",
+        "requests": 2,
+        "bytesDown": 28682,
+        "bytesUp": 0,
+        "durationMs": 7.020376000029501,
+        "bytesPerRequest": 14341
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628978",
+        "requests": 2,
+        "bytesDown": 28570,
+        "bytesUp": 0,
+        "durationMs": 5.7604580000042915,
+        "bytesPerRequest": 14285
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642881",
+        "requests": 2,
+        "bytesDown": 28510,
+        "bytesUp": 0,
+        "durationMs": 6.200791999930516,
+        "bytesPerRequest": 14255
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631166",
+        "requests": 2,
+        "bytesDown": 28392,
+        "bytesUp": 0,
+        "durationMs": 7.7933329999796115,
+        "bytesPerRequest": 14196
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642892",
+        "requests": 2,
+        "bytesDown": 28324,
+        "bytesUp": 0,
+        "durationMs": 6.8977909999666736,
+        "bytesPerRequest": 14162
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642893",
+        "requests": 2,
+        "bytesDown": 28138,
+        "bytesUp": 0,
+        "durationMs": 5.711500000004889,
+        "bytesPerRequest": 14069
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203939",
+        "requests": 2,
+        "bytesDown": 28110,
+        "bytesUp": 0,
+        "durationMs": 4.006915999983903,
+        "bytesPerRequest": 14055
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643419",
+        "requests": 2,
+        "bytesDown": 28102,
+        "bytesUp": 0,
+        "durationMs": 4.4440420000464655,
+        "bytesPerRequest": 14051
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631221",
+        "requests": 2,
+        "bytesDown": 28090,
+        "bytesUp": 0,
+        "durationMs": 4.816332999966107,
+        "bytesPerRequest": 14045
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1629684",
+        "requests": 2,
+        "bytesDown": 28046,
+        "bytesUp": 0,
+        "durationMs": 5.5327500000130385,
+        "bytesPerRequest": 14023
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630166",
+        "requests": 2,
+        "bytesDown": 27982,
+        "bytesUp": 0,
+        "durationMs": 5.182207000034396,
+        "bytesPerRequest": 13991
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630559",
+        "requests": 2,
+        "bytesDown": 27800,
+        "bytesUp": 0,
+        "durationMs": 6.262791000015568,
+        "bytesPerRequest": 13900
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1626156",
+        "requests": 2,
+        "bytesDown": 27736,
+        "bytesUp": 0,
+        "durationMs": 6.42083299998194,
+        "bytesPerRequest": 13868
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628389",
+        "requests": 2,
+        "bytesDown": 27558,
+        "bytesUp": 0,
+        "durationMs": 4.350500000000466,
+        "bytesPerRequest": 13779
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630164",
+        "requests": 2,
+        "bytesDown": 27380,
+        "bytesUp": 0,
+        "durationMs": 3.267748999991454,
+        "bytesPerRequest": 13690
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/203952",
+        "requests": 2,
+        "bytesDown": 27154,
+        "bytesUp": 0,
+        "durationMs": 3.5413329999428242,
+        "bytesPerRequest": 13577
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631207",
+        "requests": 2,
+        "bytesDown": 26698,
+        "bytesUp": 0,
+        "durationMs": 5.135167000000365,
+        "bytesPerRequest": 13349
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643016",
+        "requests": 2,
+        "bytesDown": 26676,
+        "bytesUp": 0,
+        "durationMs": 4.491123999992851,
+        "bytesPerRequest": 13338
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630658",
+        "requests": 2,
+        "bytesDown": 24224,
+        "bytesUp": 0,
+        "durationMs": 5.883957999933045,
+        "bytesPerRequest": 12112
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1626171",
+        "requests": 2,
+        "bytesDown": 24010,
+        "bytesUp": 0,
+        "durationMs": 4.383207999984734,
+        "bytesPerRequest": 12005
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630178",
+        "requests": 1,
+        "bytesDown": 17740,
+        "bytesUp": 0,
+        "durationMs": 4.144832999969367,
+        "bytesPerRequest": 17740
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/2760",
+        "requests": 1,
+        "bytesDown": 16371,
+        "bytesUp": 0,
+        "durationMs": 2.1779160000151023,
+        "bytesPerRequest": 16371
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630592",
+        "requests": 1,
+        "bytesDown": 16357,
+        "bytesUp": 0,
+        "durationMs": 1.6057920000166632,
+        "bytesPerRequest": 16357
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1628369",
+        "requests": 1,
+        "bytesDown": 16190,
+        "bytesUp": 0,
+        "durationMs": 1.9793330000247806,
+        "bytesPerRequest": 16190
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1626246",
+        "requests": 1,
+        "bytesDown": 15885,
+        "bytesUp": 0,
+        "durationMs": 3.103917000000365,
+        "bytesPerRequest": 15885
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630552",
+        "requests": 1,
+        "bytesDown": 15814,
+        "bytesUp": 0,
+        "durationMs": 25.809374999953434,
+        "bytesPerRequest": 15814
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1631100",
+        "requests": 1,
+        "bytesDown": 15731,
+        "bytesUp": 0,
+        "durationMs": 2.3192500000004657,
+        "bytesPerRequest": 15731
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1630197",
+        "requests": 1,
+        "bytesDown": 14102,
+        "bytesUp": 0,
+        "durationMs": 3.553583000000799,
+        "bytesPerRequest": 14102
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1641759",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 6.349417000019457,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642045",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 8.192167000030167,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642283",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 4.9418339999974705,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1642380",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 6.470707000000402,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643022",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 5.308374999964144,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643208",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 7.289749999996275,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643583",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 5.560209000017494,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643722",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 4.42633400001796,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643723",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 6.19016699999338,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643732",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 3.6646249999757856,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/players/headshot/1643985",
+        "requests": 2,
+        "bytesDown": 9874,
+        "bytesUp": 0,
+        "durationMs": 4.531457999954,
+        "bytesPerRequest": 4937
+      },
+      {
+        "id": "GET /functions/v1/api/views/league",
+        "requests": 2,
+        "bytesDown": 8806,
+        "bytesUp": 0,
+        "durationMs": 115.53374999998778,
+        "bytesPerRequest": 4403
+      },
+      {
+        "id": "GET /functions/v1/api/views/home",
+        "requests": 1,
+        "bytesDown": 5702,
+        "bytesUp": 0,
+        "durationMs": 56.684290999997756,
+        "bytesPerRequest": 5702
+      },
+      {
+        "id": "GET /functions/v1/api/version",
+        "requests": 31,
+        "bytesDown": 5391,
+        "bytesUp": 0,
+        "durationMs": 1143.4114970000373,
+        "bytesPerRequest": 173.90322580645162
+      },
+      {
+        "id": "GET /rest/v1/players",
+        "requests": 2,
+        "bytesDown": 1916,
+        "bytesUp": 0,
+        "durationMs": 11.822000000014668,
+        "bytesPerRequest": 958
+      }
+    ]
+  },
+  "ranking": [
+    {
+      "id": "interaction.perf-search-deliberate.1",
+      "archivedSource": null,
+      "frequency": 3,
+      "dbMs": 230.46574999999996,
+      "requests": 30.333333333333332,
+      "bytesIn": 1671658.6666666667,
+      "bytesOut": 0,
+      "dbCalls": 1145.6666666666667,
+      "dbRows": 1229.3333333333333,
+      "dbBuffers": 55542.666666666664,
+      "pushBytes": 5653,
+      "costPerOccurrence": 230.46574999999996,
+      "weightedDbMs": 691.3972499999999
+    },
+    {
+      "id": "interaction.perf-search-normal.1",
+      "archivedSource": null,
+      "frequency": 3,
+      "dbMs": 109.40314899999998,
+      "requests": 18.666666666666668,
+      "bytesIn": 1587610.3333333333,
+      "bytesOut": 0,
+      "dbCalls": 511,
+      "dbRows": 519.3333333333334,
+      "dbBuffers": 30542.333333333332,
+      "pushBytes": 5653,
+      "costPerOccurrence": 109.40314899999998,
+      "weightedDbMs": 328.20944699999995
+    },
+    {
+      "id": "interaction.perf-filter-season-2025-26.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 293.2428969999993,
+      "requests": 47,
+      "bytesIn": 4731916,
+      "bytesOut": 0,
+      "dbCalls": 471,
+      "dbRows": 539,
+      "dbBuffers": 19454,
+      "pushBytes": 8333,
+      "costPerOccurrence": 293.2428969999993,
+      "weightedDbMs": 293.2428969999993
+    },
+    {
+      "id": "interaction.perf-search-fast.1",
+      "archivedSource": null,
+      "frequency": 3,
+      "dbMs": 71.96730233333332,
+      "requests": 15.666666666666666,
+      "bytesIn": 1554984,
+      "bytesOut": 0,
+      "dbCalls": 334,
+      "dbRows": 327.6666666666667,
+      "dbBuffers": 21999.333333333332,
+      "pushBytes": 5653,
+      "costPerOccurrence": 71.96730233333332,
+      "weightedDbMs": 215.90190699999997
+    },
+    {
+      "id": "interaction.perf-filter-season-2024-25.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 206.0137879999999,
+      "requests": 48,
+      "bytesIn": 4745040,
+      "bytesOut": 0,
+      "dbCalls": 448,
+      "dbRows": 587,
+      "dbBuffers": 16249,
+      "pushBytes": 8333,
+      "costPerOccurrence": 206.0137879999999,
+      "weightedDbMs": 206.0137879999999
+    },
+    {
+      "id": "interaction.perf-player-infinite-scroll.1",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 180.528585,
+      "requests": 46,
+      "bytesIn": 4693929,
+      "bytesOut": 0,
+      "dbCalls": 525,
+      "dbRows": 616,
+      "dbBuffers": 27627,
+      "pushBytes": 8336,
+      "costPerOccurrence": 180.528585,
+      "weightedDbMs": 180.528585
+    },
+    {
+      "id": "interaction.perf-filter-sort-direction.descending",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 121.6978299999994,
+      "requests": 42,
+      "bytesIn": 4628279,
+      "bytesOut": 0,
+      "dbCalls": 553,
+      "dbRows": 645,
+      "dbBuffers": 19134,
+      "pushBytes": 8333,
+      "costPerOccurrence": 121.6978299999994,
+      "weightedDbMs": 121.6978299999994
+    },
+    {
+      "id": "interaction.perf-filter-clear.clear",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 119.92523999999975,
+      "requests": 43,
+      "bytesIn": 4645100,
+      "bytesOut": 0,
+      "dbCalls": 577,
+      "dbRows": 689,
+      "dbBuffers": 21577,
+      "pushBytes": 8333,
+      "costPerOccurrence": 119.92523999999975,
+      "weightedDbMs": 119.92523999999975
+    },
+    {
+      "id": "interaction.perf-filter-health-game-time.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 107.22008999999993,
+      "requests": 47,
+      "bytesIn": 4720011,
+      "bytesOut": 0,
+      "dbCalls": 459,
+      "dbRows": 517,
+      "dbBuffers": 17377,
+      "pushBytes": 8333,
+      "costPerOccurrence": 107.22008999999993,
+      "weightedDbMs": 107.22008999999993
+    },
+    {
+      "id": "interaction.perf-filter-team-lac.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 104.74490400000032,
+      "requests": 47,
+      "bytesIn": 4728752,
+      "bytesOut": 0,
+      "dbCalls": 503,
+      "dbRows": 587,
+      "dbBuffers": 19830,
+      "pushBytes": 8333,
+      "costPerOccurrence": 104.74490400000032,
+      "weightedDbMs": 104.74490400000032
+    },
+    {
+      "id": "interaction.perf-filter-health-healthy.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 104.09704199999997,
+      "requests": 40,
+      "bytesIn": 4617870,
+      "bytesOut": 0,
+      "dbCalls": 432,
+      "dbRows": 482,
+      "dbBuffers": 16941,
+      "pushBytes": 8333,
+      "costPerOccurrence": 104.09704199999997,
+      "weightedDbMs": 104.09704199999997
+    },
+    {
+      "id": "interaction.perf-filter-team-okc.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 104.0042749999994,
+      "requests": 48,
+      "bytesIn": 4729165,
+      "bytesOut": 0,
+      "dbCalls": 500,
+      "dbRows": 563,
+      "dbBuffers": 19481,
+      "pushBytes": 8333,
+      "costPerOccurrence": 104.0042749999994,
+      "weightedDbMs": 104.0042749999994
+    },
+    {
+      "id": "interaction.perf-filter-team-phi.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 103.66764600000084,
+      "requests": 48,
+      "bytesIn": 4734458,
+      "bytesOut": 0,
+      "dbCalls": 493,
+      "dbRows": 551,
+      "dbBuffers": 19455,
+      "pushBytes": 8333,
+      "costPerOccurrence": 103.66764600000084,
+      "weightedDbMs": 103.66764600000084
+    },
+    {
+      "id": "interaction.perf-filter-sort-turnovers.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 102.95081199999984,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 465,
+      "dbRows": 546,
+      "dbBuffers": 19980,
+      "pushBytes": 8333,
+      "costPerOccurrence": 102.95081199999984,
+      "weightedDbMs": 102.95081199999984
+    },
+    {
+      "id": "interaction.perf-filter-availability-my-team.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 102.24273099999998,
+      "requests": 40,
+      "bytesIn": 4617503,
+      "bytesOut": 0,
+      "dbCalls": 448,
+      "dbRows": 517,
+      "dbBuffers": 17289,
+      "pushBytes": 8333,
+      "costPerOccurrence": 102.24273099999998,
+      "weightedDbMs": 102.24273099999998
+    },
+    {
+      "id": "interaction.perf-filter-season-2026-27.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 101.98643400000032,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 464,
+      "dbRows": 516,
+      "dbBuffers": 19747,
+      "pushBytes": 8333,
+      "costPerOccurrence": 101.98643400000032,
+      "weightedDbMs": 101.98643400000032
+    },
+    {
+      "id": "interaction.perf-filter-game-today-playing-today.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 101.95711299999961,
+      "requests": 46,
+      "bytesIn": 4716464,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 538,
+      "dbBuffers": 18133,
+      "pushBytes": 8333,
+      "costPerOccurrence": 101.95711299999961,
+      "weightedDbMs": 101.95711299999961
+    },
+    {
+      "id": "interaction.perf-filter-team-dal.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 101.38218900000093,
+      "requests": 45,
+      "bytesIn": 4694203,
+      "bytesOut": 0,
+      "dbCalls": 469,
+      "dbRows": 547,
+      "dbBuffers": 19586,
+      "pushBytes": 8333,
+      "costPerOccurrence": 101.38218900000093,
+      "weightedDbMs": 101.38218900000093
+    },
+    {
+      "id": "interaction.perf-filter-team-mem.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 101.01318400000038,
+      "requests": 48,
+      "bytesIn": 4740503,
+      "bytesOut": 0,
+      "dbCalls": 475,
+      "dbRows": 540,
+      "dbBuffers": 17079,
+      "pushBytes": 8333,
+      "costPerOccurrence": 101.01318400000038,
+      "weightedDbMs": 101.01318400000038
+    },
+    {
+      "id": "interaction.perf-filter-team-lal.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 100.95939399999912,
+      "requests": 47,
+      "bytesIn": 4712437,
+      "bytesOut": 0,
+      "dbCalls": 491,
+      "dbRows": 542,
+      "dbBuffers": 21858,
+      "pushBytes": 8333,
+      "costPerOccurrence": 100.95939399999912,
+      "weightedDbMs": 100.95939399999912
+    },
+    {
+      "id": "interaction.perf-filter-team-det.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 100.83260500000038,
+      "requests": 48,
+      "bytesIn": 4749562,
+      "bytesOut": 0,
+      "dbCalls": 523,
+      "dbRows": 583,
+      "dbBuffers": 20547,
+      "pushBytes": 8333,
+      "costPerOccurrence": 100.83260500000038,
+      "weightedDbMs": 100.83260500000038
+    },
+    {
+      "id": "interaction.perf-filter-team-phi.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 100.01605399999897,
+      "requests": 48,
+      "bytesIn": 4734458,
+      "bytesOut": 0,
+      "dbCalls": 466,
+      "dbRows": 527,
+      "dbBuffers": 16856,
+      "pushBytes": 8333,
+      "costPerOccurrence": 100.01605399999897,
+      "weightedDbMs": 100.01605399999897
+    },
+    {
+      "id": "interaction.perf-filter-team-por.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 99.34500899999993,
+      "requests": 48,
+      "bytesIn": 4748866,
+      "bytesOut": 0,
+      "dbCalls": 501,
+      "dbRows": 557,
+      "dbBuffers": 19451,
+      "pushBytes": 8333,
+      "costPerOccurrence": 99.34500899999993,
+      "weightedDbMs": 99.34500899999993
+    },
+    {
+      "id": "interaction.perf-filter-team-nop.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 99.25255600000024,
+      "requests": 48,
+      "bytesIn": 4745522,
+      "bytesOut": 0,
+      "dbCalls": 485,
+      "dbRows": 540,
+      "dbBuffers": 19375,
+      "pushBytes": 8333,
+      "costPerOccurrence": 99.25255600000024,
+      "weightedDbMs": 99.25255600000024
+    },
+    {
+      "id": "interaction.perf-filter-experience-rookies-only.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 98.33704900000045,
+      "requests": 47,
+      "bytesIn": 4724011,
+      "bytesOut": 0,
+      "dbCalls": 451,
+      "dbRows": 529,
+      "dbBuffers": 17514,
+      "pushBytes": 8333,
+      "costPerOccurrence": 98.33704900000045,
+      "weightedDbMs": 98.33704900000045
+    },
+    {
+      "id": "interaction.perf-filter-team-nop.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 97.7568799999997,
+      "requests": 48,
+      "bytesIn": 4745522,
+      "bytesOut": 0,
+      "dbCalls": 458,
+      "dbRows": 516,
+      "dbBuffers": 16780,
+      "pushBytes": 8333,
+      "costPerOccurrence": 97.7568799999997,
+      "weightedDbMs": 97.7568799999997
+    },
+    {
+      "id": "interaction.perf-filter-sort-rebounds.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 97.67554799999971,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 465,
+      "dbRows": 546,
+      "dbBuffers": 19965,
+      "pushBytes": 8333,
+      "costPerOccurrence": 97.67554799999971,
+      "weightedDbMs": 97.67554799999971
+    },
+    {
+      "id": "interaction.perf-filter-sort-blocks.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 97.05150499999982,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 440,
+      "dbRows": 492,
+      "dbBuffers": 17155,
+      "pushBytes": 8333,
+      "costPerOccurrence": 97.05150499999982,
+      "weightedDbMs": 97.05150499999982
+    },
+    {
+      "id": "interaction.perf-filter-sort-assists.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.99425000000015,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 463,
+      "dbRows": 516,
+      "dbBuffers": 19756,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.99425000000015,
+      "weightedDbMs": 96.99425000000015
+    },
+    {
+      "id": "interaction.perf-filter-team-dal.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.86850599999913,
+      "requests": 45,
+      "bytesIn": 4694203,
+      "bytesOut": 0,
+      "dbCalls": 470,
+      "dbRows": 522,
+      "dbBuffers": 19354,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.86850599999913,
+      "weightedDbMs": 96.86850599999913
+    },
+    {
+      "id": "interaction.perf-filter-team-was.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.72346200000017,
+      "requests": 48,
+      "bytesIn": 4752551,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 540,
+      "dbBuffers": 17013,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.72346200000017,
+      "weightedDbMs": 96.72346200000017
+    },
+    {
+      "id": "interaction.perf-filter-position-g.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.58495900000035,
+      "requests": 41,
+      "bytesIn": 4634933,
+      "bytesOut": 0,
+      "dbCalls": 464,
+      "dbRows": 516,
+      "dbBuffers": 19852,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.58495900000035,
+      "weightedDbMs": 96.58495900000035
+    },
+    {
+      "id": "interaction.perf-filter-team-sas.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.5367530000002,
+      "requests": 48,
+      "bytesIn": 4751180,
+      "bytesOut": 0,
+      "dbCalls": 499,
+      "dbRows": 629,
+      "dbBuffers": 19025,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.5367530000002,
+      "weightedDbMs": 96.5367530000002
+    },
+    {
+      "id": "interaction.perf-filter-team-orl.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 96.53300100000051,
+      "requests": 48,
+      "bytesIn": 4738047,
+      "bytesOut": 0,
+      "dbCalls": 482,
+      "dbRows": 564,
+      "dbBuffers": 17002,
+      "pushBytes": 8333,
+      "costPerOccurrence": 96.53300100000051,
+      "weightedDbMs": 96.53300100000051
+    },
+    {
+      "id": "interaction.perf-filter-sort-dynasty-rank.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 95.71937499999991,
+      "requests": 48,
+      "bytesIn": 4741752,
+      "bytesOut": 0,
+      "dbCalls": 504,
+      "dbRows": 572,
+      "dbBuffers": 18505,
+      "pushBytes": 8333,
+      "costPerOccurrence": 95.71937499999991,
+      "weightedDbMs": 95.71937499999991
+    },
+    {
+      "id": "interaction.perf-filter-position-pg.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 95.60179199999982,
+      "requests": 41,
+      "bytesIn": 4634885,
+      "bytesOut": 0,
+      "dbCalls": 459,
+      "dbRows": 510,
+      "dbBuffers": 19689,
+      "pushBytes": 8333,
+      "costPerOccurrence": 95.60179199999982,
+      "weightedDbMs": 95.60179199999982
+    },
+    {
+      "id": "interaction.perf-filter-sort-steals.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 94.75349799999981,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 441,
+      "dbRows": 494,
+      "dbBuffers": 17176,
+      "pushBytes": 8333,
+      "costPerOccurrence": 94.75349799999981,
+      "weightedDbMs": 94.75349799999981
+    },
+    {
+      "id": "interaction.perf-filter-team-chi.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 94.63949599999951,
+      "requests": 44,
+      "bytesIn": 4683770,
+      "bytesOut": 0,
+      "dbCalls": 494,
+      "dbRows": 547,
+      "dbBuffers": 19321,
+      "pushBytes": 8333,
+      "costPerOccurrence": 94.63949599999951,
+      "weightedDbMs": 94.63949599999951
+    },
+    {
+      "id": "interaction.perf-filter-health-out.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 94.1376190000005,
+      "requests": 46,
+      "bytesIn": 4707481,
+      "bytesOut": 0,
+      "dbCalls": 459,
+      "dbRows": 522,
+      "dbBuffers": 18063,
+      "pushBytes": 8333,
+      "costPerOccurrence": 94.1376190000005,
+      "weightedDbMs": 94.1376190000005
+    },
+    {
+      "id": "interaction.perf-filter-team-chi.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 94.10137199999927,
+      "requests": 44,
+      "bytesIn": 4683770,
+      "bytesOut": 0,
+      "dbCalls": 446,
+      "dbRows": 530,
+      "dbBuffers": 16763,
+      "pushBytes": 8333,
+      "costPerOccurrence": 94.10137199999927,
+      "weightedDbMs": 94.10137199999927
+    },
+    {
+      "id": "interaction.perf-filter-team-mia.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 93.7225760000003,
+      "requests": 45,
+      "bytesIn": 4686865,
+      "bytesOut": 0,
+      "dbCalls": 473,
+      "dbRows": 527,
+      "dbBuffers": 19297,
+      "pushBytes": 8333,
+      "costPerOccurrence": 93.7225760000003,
+      "weightedDbMs": 93.7225760000003
+    },
+    {
+      "id": "interaction.perf-filter-team-min.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 93.52591500000005,
+      "requests": 48,
+      "bytesIn": 4747261,
+      "bytesOut": 0,
+      "dbCalls": 477,
+      "dbRows": 604,
+      "dbBuffers": 18098,
+      "pushBytes": 8333,
+      "costPerOccurrence": 93.52591500000005,
+      "weightedDbMs": 93.52591500000005
+    },
+    {
+      "id": "interaction.perf-filter-team-mem.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 93.22157600000038,
+      "requests": 48,
+      "bytesIn": 4740503,
+      "bytesOut": 0,
+      "dbCalls": 501,
+      "dbRows": 564,
+      "dbBuffers": 19674,
+      "pushBytes": 8333,
+      "costPerOccurrence": 93.22157600000038,
+      "weightedDbMs": 93.22157600000038
+    },
+    {
+      "id": "interaction.perf-filter-team-okc.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 93.17857800000024,
+      "requests": 48,
+      "bytesIn": 4729165,
+      "bytesOut": 0,
+      "dbCalls": 477,
+      "dbRows": 539,
+      "dbBuffers": 16882,
+      "pushBytes": 8333,
+      "costPerOccurrence": 93.17857800000024,
+      "weightedDbMs": 93.17857800000024
+    },
+    {
+      "id": "interaction.perf-filter-team-uta.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 93.12503700000072,
+      "requests": 48,
+      "bytesIn": 4749611,
+      "bytesOut": 0,
+      "dbCalls": 499,
+      "dbRows": 559,
+      "dbBuffers": 19602,
+      "pushBytes": 8333,
+      "costPerOccurrence": 93.12503700000072,
+      "weightedDbMs": 93.12503700000072
+    },
+    {
+      "id": "interaction.perf-filter-team-hou.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 92.98557899999933,
+      "requests": 48,
+      "bytesIn": 4750066,
+      "bytesOut": 0,
+      "dbCalls": 506,
+      "dbRows": 591,
+      "dbBuffers": 19776,
+      "pushBytes": 8333,
+      "costPerOccurrence": 92.98557899999933,
+      "weightedDbMs": 92.98557899999933
+    },
+    {
+      "id": "interaction.perf-filter-team-orl.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 92.88103299999962,
+      "requests": 48,
+      "bytesIn": 4738047,
+      "bytesOut": 0,
+      "dbCalls": 501,
+      "dbRows": 563,
+      "dbBuffers": 19551,
+      "pushBytes": 8333,
+      "costPerOccurrence": 92.88103299999962,
+      "weightedDbMs": 92.88103299999962
+    },
+    {
+      "id": "interaction.perf-filter-sort-3-pointers.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 92.6696060000002,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 439,
+      "dbRows": 492,
+      "dbBuffers": 17158,
+      "pushBytes": 8333,
+      "costPerOccurrence": 92.6696060000002,
+      "weightedDbMs": 92.6696060000002
+    },
+    {
+      "id": "interaction.perf-filter-sort-games-played.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 92.51440800000046,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 440,
+      "dbRows": 492,
+      "dbBuffers": 17187,
+      "pushBytes": 8333,
+      "costPerOccurrence": 92.51440800000046,
+      "weightedDbMs": 92.51440800000046
+    },
+    {
+      "id": "interaction.perf-filter-team-uta.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 91.87861499999914,
+      "requests": 48,
+      "bytesIn": 4749611,
+      "bytesOut": 0,
+      "dbCalls": 497,
+      "dbRows": 559,
+      "dbBuffers": 19595,
+      "pushBytes": 8333,
+      "costPerOccurrence": 91.87861499999914,
+      "weightedDbMs": 91.87861499999914
+    },
+    {
+      "id": "interaction.perf-filter-position-sg.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 91.2016440000001,
+      "requests": 41,
+      "bytesIn": 4636512,
+      "bytesOut": 0,
+      "dbCalls": 439,
+      "dbRows": 492,
+      "dbBuffers": 17148,
+      "pushBytes": 8333,
+      "costPerOccurrence": 91.2016440000001,
+      "weightedDbMs": 91.2016440000001
+    },
+    {
+      "id": "interaction.perf-filter-team-mil.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 90.53533,
+      "requests": 48,
+      "bytesIn": 4778159,
+      "bytesOut": 0,
+      "dbCalls": 487,
+      "dbRows": 544,
+      "dbBuffers": 19406,
+      "pushBytes": 8333,
+      "costPerOccurrence": 90.53533,
+      "weightedDbMs": 90.53533
+    },
+    {
+      "id": "interaction.perf-filter-team-gsw.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 90.31861100000012,
+      "requests": 45,
+      "bytesIn": 4692639,
+      "bytesOut": 0,
+      "dbCalls": 453,
+      "dbRows": 510,
+      "dbBuffers": 16734,
+      "pushBytes": 8333,
+      "costPerOccurrence": 90.31861100000012,
+      "weightedDbMs": 90.31861100000012
+    },
+    {
+      "id": "interaction.perf-filter-team-phx.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 90.30307299999929,
+      "requests": 48,
+      "bytesIn": 4740455,
+      "bytesOut": 0,
+      "dbCalls": 471,
+      "dbRows": 532,
+      "dbBuffers": 16768,
+      "pushBytes": 8333,
+      "costPerOccurrence": 90.30307299999929,
+      "weightedDbMs": 90.30307299999929
+    },
+    {
+      "id": "interaction.perf-filter-position-f.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 90.18351000000017,
+      "requests": 43,
+      "bytesIn": 4668604,
+      "bytesOut": 0,
+      "dbCalls": 445,
+      "dbRows": 500,
+      "dbBuffers": 17389,
+      "pushBytes": 8333,
+      "costPerOccurrence": 90.18351000000017,
+      "weightedDbMs": 90.18351000000017
+    },
+    {
+      "id": "interaction.perf-filter-team-den.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 90.0251099999999,
+      "requests": 47,
+      "bytesIn": 4725470,
+      "bytesOut": 0,
+      "dbCalls": 484,
+      "dbRows": 541,
+      "dbBuffers": 19285,
+      "pushBytes": 8333,
+      "costPerOccurrence": 90.0251099999999,
+      "weightedDbMs": 90.0251099999999
+    },
+    {
+      "id": "interaction.perf-filter-team-sac.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 89.25781400000096,
+      "requests": 48,
+      "bytesIn": 4746531,
+      "bytesOut": 0,
+      "dbCalls": 474,
+      "dbRows": 535,
+      "dbBuffers": 16886,
+      "pushBytes": 8333,
+      "costPerOccurrence": 89.25781400000096,
+      "weightedDbMs": 89.25781400000096
+    },
+    {
+      "id": "interaction.perf-filter-team-lal.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 89.160443,
+      "requests": 47,
+      "bytesIn": 4712437,
+      "bytesOut": 0,
+      "dbCalls": 438,
+      "dbRows": 492,
+      "dbBuffers": 16661,
+      "pushBytes": 8333,
+      "costPerOccurrence": 89.160443,
+      "weightedDbMs": 89.160443
+    },
+    {
+      "id": "interaction.perf-filter-team-cle.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 88.7308980000003,
+      "requests": 48,
+      "bytesIn": 4736604,
+      "bytesOut": 0,
+      "dbCalls": 487,
+      "dbRows": 547,
+      "dbBuffers": 19411,
+      "pushBytes": 8333,
+      "costPerOccurrence": 88.7308980000003,
+      "weightedDbMs": 88.7308980000003
+    },
+    {
+      "id": "interaction.perf-filter-sort-minutes.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 88.63595900000058,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 440,
+      "dbRows": 492,
+      "dbBuffers": 17153,
+      "pushBytes": 8333,
+      "costPerOccurrence": 88.63595900000058,
+      "weightedDbMs": 88.63595900000058
+    },
+    {
+      "id": "interaction.perf-filter-team-sas.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 88.46734499999957,
+      "requests": 48,
+      "bytesIn": 4751180,
+      "bytesOut": 0,
+      "dbCalls": 470,
+      "dbRows": 532,
+      "dbBuffers": 16764,
+      "pushBytes": 8333,
+      "costPerOccurrence": 88.46734499999957,
+      "weightedDbMs": 88.46734499999957
+    },
+    {
+      "id": "interaction.perf-filter-team-tor.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 88.17189000000076,
+      "requests": 47,
+      "bytesIn": 4739669,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 537,
+      "dbBuffers": 16934,
+      "pushBytes": 8333,
+      "costPerOccurrence": 88.17189000000076,
+      "weightedDbMs": 88.17189000000076
+    },
+    {
+      "id": "interaction.perf-filter-team-ind.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 88.1233599999999,
+      "requests": 48,
+      "bytesIn": 4748743,
+      "bytesOut": 0,
+      "dbCalls": 506,
+      "dbRows": 569,
+      "dbBuffers": 19805,
+      "pushBytes": 8333,
+      "costPerOccurrence": 88.1233599999999,
+      "weightedDbMs": 88.1233599999999
+    },
+    {
+      "id": "interaction.perf-filter-team-nyk.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.94914500000036,
+      "requests": 48,
+      "bytesIn": 4717843,
+      "bytesOut": 0,
+      "dbCalls": 494,
+      "dbRows": 583,
+      "dbBuffers": 19653,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.94914500000036,
+      "weightedDbMs": 87.94914500000036
+    },
+    {
+      "id": "interaction.perf-filter-position-pf.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.92846100000034,
+      "requests": 43,
+      "bytesIn": 4655408,
+      "bytesOut": 0,
+      "dbCalls": 438,
+      "dbRows": 490,
+      "dbBuffers": 17042,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.92846100000034,
+      "weightedDbMs": 87.92846100000034
+    },
+    {
+      "id": "interaction.perf-filter-team-cha.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.67876800000066,
+      "requests": 48,
+      "bytesIn": 4740190,
+      "bytesOut": 0,
+      "dbCalls": 502,
+      "dbRows": 564,
+      "dbBuffers": 19566,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.67876800000066,
+      "weightedDbMs": 87.67876800000066
+    },
+    {
+      "id": "interaction.perf-filter-team-cha.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.66389499999971,
+      "requests": 48,
+      "bytesIn": 4740190,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 539,
+      "dbBuffers": 16955,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.66389499999971,
+      "weightedDbMs": 87.66389499999971
+    },
+    {
+      "id": "interaction.perf-filter-team-mil.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.62272799999954,
+      "requests": 48,
+      "bytesIn": 4778159,
+      "bytesOut": 0,
+      "dbCalls": 460,
+      "dbRows": 520,
+      "dbBuffers": 16807,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.62272799999954,
+      "weightedDbMs": 87.62272799999954
+    },
+    {
+      "id": "interaction.perf-filter-team-atl.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 87.59810400000008,
+      "requests": 48,
+      "bytesIn": 4726733,
+      "bytesOut": 0,
+      "dbCalls": 498,
+      "dbRows": 550,
+      "dbBuffers": 21924,
+      "pushBytes": 8333,
+      "costPerOccurrence": 87.59810400000008,
+      "weightedDbMs": 87.59810400000008
+    },
+    {
+      "id": "interaction.perf-filter-position-c.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.74632899999966,
+      "requests": 44,
+      "bytesIn": 4678836,
+      "bytesOut": 0,
+      "dbCalls": 449,
+      "dbRows": 504,
+      "dbBuffers": 17294,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.74632899999966,
+      "weightedDbMs": 86.74632899999966
+    },
+    {
+      "id": "interaction.perf-filter-team-det.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.69188499999993,
+      "requests": 48,
+      "bytesIn": 4749562,
+      "bytesOut": 0,
+      "dbCalls": 475,
+      "dbRows": 536,
+      "dbBuffers": 16883,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.69188499999993,
+      "weightedDbMs": 86.69188499999993
+    },
+    {
+      "id": "interaction.perf-filter-team-por.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.49237900000062,
+      "requests": 48,
+      "bytesIn": 4748866,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 563,
+      "dbBuffers": 17096,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.49237900000062,
+      "weightedDbMs": 86.49237900000062
+    },
+    {
+      "id": "interaction.perf-filter-team-phx.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.21051199999968,
+      "requests": 48,
+      "bytesIn": 4740455,
+      "bytesOut": 0,
+      "dbCalls": 470,
+      "dbRows": 530,
+      "dbBuffers": 16773,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.21051199999968,
+      "weightedDbMs": 86.21051199999968
+    },
+    {
+      "id": "interaction.perf-filter-team-gsw.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.09755199999933,
+      "requests": 45,
+      "bytesIn": 4692639,
+      "bytesOut": 0,
+      "dbCalls": 481,
+      "dbRows": 536,
+      "dbBuffers": 19492,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.09755199999933,
+      "weightedDbMs": 86.09755199999933
+    },
+    {
+      "id": "interaction.perf-filter-team-hou.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 86.04213700000022,
+      "requests": 48,
+      "bytesIn": 4750066,
+      "bytesOut": 0,
+      "dbCalls": 502,
+      "dbRows": 566,
+      "dbBuffers": 19570,
+      "pushBytes": 8333,
+      "costPerOccurrence": 86.04213700000022,
+      "weightedDbMs": 86.04213700000022
+    },
+    {
+      "id": "interaction.perf-filter-team-bkn.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 85.58497200000001,
+      "requests": 48,
+      "bytesIn": 4749268,
+      "bytesOut": 0,
+      "dbCalls": 501,
+      "dbRows": 564,
+      "dbBuffers": 19563,
+      "pushBytes": 8333,
+      "costPerOccurrence": 85.58497200000001,
+      "weightedDbMs": 85.58497200000001
+    },
+    {
+      "id": "interaction.perf-filter-team-was.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 85.26733599999925,
+      "requests": 48,
+      "bytesIn": 4752551,
+      "bytesOut": 0,
+      "dbCalls": 503,
+      "dbRows": 564,
+      "dbBuffers": 19451,
+      "pushBytes": 8333,
+      "costPerOccurrence": 85.26733599999925,
+      "weightedDbMs": 85.26733599999925
+    },
+    {
+      "id": "interaction.perf-filter-availability-rostered.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 85.25264899999983,
+      "requests": 40,
+      "bytesIn": 4617022,
+      "bytesOut": 0,
+      "dbCalls": 464,
+      "dbRows": 553,
+      "dbBuffers": 16795,
+      "pushBytes": 8333,
+      "costPerOccurrence": 85.25264899999983,
+      "weightedDbMs": 85.25264899999983
+    },
+    {
+      "id": "interaction.perf-filter-team-atl.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 85.16863900000011,
+      "requests": 48,
+      "bytesIn": 4726733,
+      "bytesOut": 0,
+      "dbCalls": 446,
+      "dbRows": 500,
+      "dbBuffers": 16719,
+      "pushBytes": 8333,
+      "costPerOccurrence": 85.16863900000011,
+      "weightedDbMs": 85.16863900000011
+    },
+    {
+      "id": "interaction.perf-filter-team-bkn.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 84.67038800000002,
+      "requests": 48,
+      "bytesIn": 4749268,
+      "bytesOut": 0,
+      "dbCalls": 476,
+      "dbRows": 540,
+      "dbBuffers": 16958,
+      "pushBytes": 8333,
+      "costPerOccurrence": 84.67038800000002,
+      "weightedDbMs": 84.67038800000002
+    },
+    {
+      "id": "interaction.perf-filter-sort-points.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 84.42048199999995,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 439,
+      "dbRows": 492,
+      "dbBuffers": 17330,
+      "pushBytes": 8333,
+      "costPerOccurrence": 84.42048199999995,
+      "weightedDbMs": 84.42048199999995
+    },
+    {
+      "id": "interaction.perf-filter-health-ir.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 84.23598900000009,
+      "requests": 41,
+      "bytesIn": 4630636,
+      "bytesOut": 0,
+      "dbCalls": 449,
+      "dbRows": 463,
+      "dbBuffers": 18917,
+      "pushBytes": 8333,
+      "costPerOccurrence": 84.23598900000009,
+      "weightedDbMs": 84.23598900000009
+    },
+    {
+      "id": "interaction.perf-filter-availability-all-players.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 83.94985899999986,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 438,
+      "dbRows": 490,
+      "dbBuffers": 17158,
+      "pushBytes": 8333,
+      "costPerOccurrence": 83.94985899999986,
+      "weightedDbMs": 83.94985899999986
+    },
+    {
+      "id": "interaction.perf-filter-position-sf.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 83.68806799999984,
+      "requests": 44,
+      "bytesIn": 4684024,
+      "bytesOut": 0,
+      "dbCalls": 443,
+      "dbRows": 525,
+      "dbBuffers": 17480,
+      "pushBytes": 8333,
+      "costPerOccurrence": 83.68806799999984,
+      "weightedDbMs": 83.68806799999984
+    },
+    {
+      "id": "interaction.perf-filter-sort-direction.ascending",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 83.13325499999998,
+      "requests": 40,
+      "bytesIn": 4618064,
+      "bytesOut": 0,
+      "dbCalls": 413,
+      "dbRows": 468,
+      "dbBuffers": 14552,
+      "pushBytes": 8333,
+      "costPerOccurrence": 83.13325499999998,
+      "weightedDbMs": 83.13325499999998
+    },
+    {
+      "id": "interaction.perf-filter-team-sac.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 82.73779999999998,
+      "requests": 48,
+      "bytesIn": 4746531,
+      "bytesOut": 0,
+      "dbCalls": 471,
+      "dbRows": 535,
+      "dbBuffers": 16886,
+      "pushBytes": 8333,
+      "costPerOccurrence": 82.73779999999998,
+      "weightedDbMs": 82.73779999999998
+    },
+    {
+      "id": "interaction.perf-filter-team-nyk.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 82.6174220000004,
+      "requests": 48,
+      "bytesIn": 4717843,
+      "bytesOut": 0,
+      "dbCalls": 466,
+      "dbRows": 529,
+      "dbBuffers": 16838,
+      "pushBytes": 8333,
+      "costPerOccurrence": 82.6174220000004,
+      "weightedDbMs": 82.6174220000004
+    },
+    {
+      "id": "interaction.perf-filter-team-ind.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 82.03132700000083,
+      "requests": 48,
+      "bytesIn": 4748743,
+      "bytesOut": 0,
+      "dbCalls": 482,
+      "dbRows": 546,
+      "dbBuffers": 17045,
+      "pushBytes": 8333,
+      "costPerOccurrence": 82.03132700000083,
+      "weightedDbMs": 82.03132700000083
+    },
+    {
+      "id": "interaction.perf-filter-team-mia.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 81.6028780000005,
+      "requests": 45,
+      "bytesIn": 4686865,
+      "bytesOut": 0,
+      "dbCalls": 447,
+      "dbRows": 533,
+      "dbBuffers": 16834,
+      "pushBytes": 8333,
+      "costPerOccurrence": 81.6028780000005,
+      "weightedDbMs": 81.6028780000005
+    },
+    {
+      "id": "interaction.perf-filter-team-den.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 81.25900300000025,
+      "requests": 47,
+      "bytesIn": 4725470,
+      "bytesOut": 0,
+      "dbCalls": 457,
+      "dbRows": 517,
+      "dbBuffers": 16686,
+      "pushBytes": 8333,
+      "costPerOccurrence": 81.25900300000025,
+      "weightedDbMs": 81.25900300000025
+    },
+    {
+      "id": "interaction.perf-filter-team-tor.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 81.02883299999958,
+      "requests": 47,
+      "bytesIn": 4739669,
+      "bytesOut": 0,
+      "dbCalls": 473,
+      "dbRows": 535,
+      "dbBuffers": 16936,
+      "pushBytes": 8333,
+      "costPerOccurrence": 81.02883299999958,
+      "weightedDbMs": 81.02883299999958
+    },
+    {
+      "id": "interaction.perf-filter-team-cle.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 80.90858399999999,
+      "requests": 48,
+      "bytesIn": 4736604,
+      "bytesOut": 0,
+      "dbCalls": 486,
+      "dbRows": 545,
+      "dbBuffers": 19413,
+      "pushBytes": 8333,
+      "costPerOccurrence": 80.90858399999999,
+      "weightedDbMs": 80.90858399999999
+    },
+    {
+      "id": "interaction.perf-filter-team-min.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 80.37458300000024,
+      "requests": 48,
+      "bytesIn": 4747261,
+      "bytesOut": 0,
+      "dbCalls": 498,
+      "dbRows": 559,
+      "dbBuffers": 19509,
+      "pushBytes": 8333,
+      "costPerOccurrence": 80.37458300000024,
+      "weightedDbMs": 80.37458300000024
+    },
+    {
+      "id": "matchup-home",
+      "archivedSource": null,
+      "frequency": 3,
+      "dbMs": 26.77234866666666,
+      "requests": 14,
+      "bytesIn": 1515220,
+      "bytesOut": 0,
+      "dbCalls": 168.33333333333334,
+      "dbRows": 151,
+      "dbBuffers": 9675.666666666666,
+      "pushBytes": 5654.666666666667,
+      "costPerOccurrence": 26.77234866666666,
+      "weightedDbMs": 80.31704599999998
+    },
+    {
+      "id": "interaction.perf-filter-team-bos.close",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 79.60053299999939,
+      "requests": 47,
+      "bytesIn": 4720264,
+      "bytesOut": 0,
+      "dbCalls": 465,
+      "dbRows": 539,
+      "dbBuffers": 19483,
+      "pushBytes": 8333,
+      "costPerOccurrence": 79.60053299999939,
+      "weightedDbMs": 79.60053299999939
+    },
+    {
+      "id": "interaction.perf-filter-availability-on-waivers.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 79.46108499999985,
+      "requests": 40,
+      "bytesIn": 4617037,
+      "bytesOut": 0,
+      "dbCalls": 436,
+      "dbRows": 475,
+      "dbBuffers": 17420,
+      "pushBytes": 8333,
+      "costPerOccurrence": 79.46108499999985,
+      "weightedDbMs": 79.46108499999985
+    },
+    {
+      "id": "interaction.perf-filter-team-lac.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 79.16170299999975,
+      "requests": 47,
+      "bytesIn": 4728752,
+      "bytesOut": 0,
+      "dbCalls": 474,
+      "dbRows": 538,
+      "dbBuffers": 16863,
+      "pushBytes": 8333,
+      "costPerOccurrence": 79.16170299999975,
+      "weightedDbMs": 79.16170299999975
+    },
+    {
+      "id": "interaction.perf-filter-team-bos.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 79.02512100000064,
+      "requests": 47,
+      "bytesIn": 4720264,
+      "bytesOut": 0,
+      "dbCalls": 461,
+      "dbRows": 514,
+      "dbBuffers": 19273,
+      "pushBytes": 8333,
+      "costPerOccurrence": 79.02512100000064,
+      "weightedDbMs": 79.02512100000064
+    },
+    {
+      "id": "interaction.perf-filter-game-today-not-playing.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 78.3796700000006,
+      "requests": 40,
+      "bytesIn": 4617327,
+      "bytesOut": 0,
+      "dbCalls": 425,
+      "dbRows": 474,
+      "dbBuffers": 16469,
+      "pushBytes": 8333,
+      "costPerOccurrence": 78.3796700000006,
+      "weightedDbMs": 78.3796700000006
+    },
+    {
+      "id": "interaction.perf-filter-position-all.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 62.46284500000007,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 359,
+      "dbRows": 371,
+      "dbBuffers": 17926,
+      "pushBytes": 8333,
+      "costPerOccurrence": 62.46284500000007,
+      "weightedDbMs": 62.46284500000007
+    },
+    {
+      "id": "interaction.perf-filter-health-all.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 57.757191999999755,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 336,
+      "dbRows": 377,
+      "dbBuffers": 15596,
+      "pushBytes": 8333,
+      "costPerOccurrence": 57.757191999999755,
+      "weightedDbMs": 57.757191999999755
+    },
+    {
+      "id": "interaction.perf-filter-availability-free-agents.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 57.56489600000036,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 337,
+      "dbRows": 349,
+      "dbBuffers": 15331,
+      "pushBytes": 8333,
+      "costPerOccurrence": 57.56489600000036,
+      "weightedDbMs": 57.56489600000036
+    },
+    {
+      "id": "interaction.perf-filter-experience-all.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 57.445099999999854,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 359,
+      "dbRows": 371,
+      "dbBuffers": 17928,
+      "pushBytes": 8333,
+      "costPerOccurrence": 57.445099999999854,
+      "weightedDbMs": 57.445099999999854
+    },
+    {
+      "id": "interaction.perf-filter-season-auto.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 56.533171999999816,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 334,
+      "dbRows": 347,
+      "dbBuffers": 15327,
+      "pushBytes": 8333,
+      "costPerOccurrence": 56.533171999999816,
+      "weightedDbMs": 56.533171999999816
+    },
+    {
+      "id": "interaction.perf-filter-sort-fantasy-pts.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 55.68055099999922,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 358,
+      "dbRows": 371,
+      "dbBuffers": 17926,
+      "pushBytes": 8333,
+      "costPerOccurrence": 55.68055099999922,
+      "weightedDbMs": 55.68055099999922
+    },
+    {
+      "id": "interaction.perf-filter-game-today-all.choose",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 53.26008299999989,
+      "requests": 39,
+      "bytesIn": 4608758,
+      "bytesOut": 0,
+      "dbCalls": 337,
+      "dbRows": 421,
+      "dbBuffers": 14813,
+      "pushBytes": 8333,
+      "costPerOccurrence": 53.26008299999989,
+      "weightedDbMs": 53.26008299999989
+    },
+    {
+      "id": "interaction.perf-activity-pull-refresh.1",
+      "archivedSource": null,
+      "frequency": 1,
+      "dbMs": 51.377199999999995,
+      "requests": 41,
+      "bytesIn": 4593427,
+      "bytesOut": 0,
+      "dbCalls": 291,
+      "dbRows": 338,
+      "dbBuffers": 10979,
+      "pushBytes": 8336,
+      "costPerOccurrence": 51.377199999999995,
+      "weightedDbMs": 51.377199999999995
+    }
+  ],
+  "interactionRanking": [
+    {
+      "id": "perf-search-deliberate/0/0",
+      "frequency": 3,
+      "requests": 15.333333333333334,
+      "bytesDown": 119317.33333333333,
+      "resultsMs": 11.333333333333334,
+      "weightedBytes": 357952,
+      "overBudget": 2
+    },
+    {
+      "id": "perf-filter-team-mil/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 169401,
+      "resultsMs": 460.5,
+      "weightedBytes": 338802,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-was/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 143793,
+      "resultsMs": 446.5,
+      "weightedBytes": 287586,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-sas/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 142422,
+      "resultsMs": 411,
+      "weightedBytes": 284844,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-hou/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 141308,
+      "resultsMs": 476.5,
+      "weightedBytes": 282616,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-uta/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 140853,
+      "resultsMs": 476,
+      "weightedBytes": 281706,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-det/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 140804,
+      "resultsMs": 482,
+      "weightedBytes": 281608,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-bkn/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 140510,
+      "resultsMs": 463.5,
+      "weightedBytes": 281020,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-por/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 140108,
+      "resultsMs": 426,
+      "weightedBytes": 280216,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-ind/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 139985,
+      "resultsMs": 475.5,
+      "weightedBytes": 279970,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-min/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 138503,
+      "resultsMs": 488.5,
+      "weightedBytes": 277006,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-sac/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 137773,
+      "resultsMs": 428.5,
+      "weightedBytes": 275546,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-nop/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 136764,
+      "resultsMs": 460.5,
+      "weightedBytes": 273528,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-mem/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 131745,
+      "resultsMs": 481.5,
+      "weightedBytes": 263490,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-phx/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 131697,
+      "resultsMs": 466,
+      "weightedBytes": 263394,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-cha/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 131432,
+      "resultsMs": 483,
+      "weightedBytes": 262864,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-tor/0/0",
+      "frequency": 2,
+      "requests": 8,
+      "bytesDown": 130911,
+      "resultsMs": 429,
+      "weightedBytes": 261822,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-orl/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 129289,
+      "resultsMs": 446,
+      "weightedBytes": 258578,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-cle/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 127846,
+      "resultsMs": 523,
+      "weightedBytes": 255692,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-phi/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 125700,
+      "resultsMs": 426,
+      "weightedBytes": 251400,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-okc/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 120407,
+      "resultsMs": 460.5,
+      "weightedBytes": 240814,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-lac/0/0",
+      "frequency": 2,
+      "requests": 8,
+      "bytesDown": 119994,
+      "resultsMs": 502,
+      "weightedBytes": 239988,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-atl/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 117975,
+      "resultsMs": 488.5,
+      "weightedBytes": 235950,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-den/0/0",
+      "frequency": 2,
+      "requests": 8,
+      "bytesDown": 116712,
+      "resultsMs": 485.5,
+      "weightedBytes": 233424,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-bos/0/0",
+      "frequency": 2,
+      "requests": 8,
+      "bytesDown": 111506,
+      "resultsMs": 443,
+      "weightedBytes": 223012,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-nyk/0/0",
+      "frequency": 2,
+      "requests": 9,
+      "bytesDown": 109085,
+      "resultsMs": 443,
+      "weightedBytes": 218170,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-lal/0/0",
+      "frequency": 2,
+      "requests": 8,
+      "bytesDown": 103679,
+      "resultsMs": 496,
+      "weightedBytes": 207358,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-dal/0/0",
+      "frequency": 2,
+      "requests": 6,
+      "bytesDown": 85445,
+      "resultsMs": 461,
+      "weightedBytes": 170890,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-gsw/0/0",
+      "frequency": 2,
+      "requests": 6,
+      "bytesDown": 83881,
+      "resultsMs": 483.5,
+      "weightedBytes": 167762,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-mia/0/0",
+      "frequency": 2,
+      "requests": 6,
+      "bytesDown": 78107,
+      "resultsMs": 419.5,
+      "weightedBytes": 156214,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-chi/0/0",
+      "frequency": 2,
+      "requests": 5,
+      "bytesDown": 75012,
+      "resultsMs": 503,
+      "weightedBytes": 150024,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-season-2024-25/0/0",
+      "frequency": 1,
+      "requests": 9,
+      "bytesDown": 136282,
+      "resultsMs": 483,
+      "weightedBytes": 136282,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-dynasty-rank/0/0",
+      "frequency": 1,
+      "requests": 9,
+      "bytesDown": 132994,
+      "resultsMs": 534,
+      "weightedBytes": 132994,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-season-2025-26/0/0",
+      "frequency": 1,
+      "requests": 8,
+      "bytesDown": 123158,
+      "resultsMs": 534,
+      "weightedBytes": 123158,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-experience-rookies-only/0/0",
+      "frequency": 1,
+      "requests": 8,
+      "bytesDown": 115253,
+      "resultsMs": 552,
+      "weightedBytes": 115253,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-health-game-time/0/0",
+      "frequency": 1,
+      "requests": 8,
+      "bytesDown": 111253,
+      "resultsMs": 521,
+      "weightedBytes": 111253,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-game-today-playing-today/0/0",
+      "frequency": 1,
+      "requests": 7,
+      "bytesDown": 107706,
+      "resultsMs": 585,
+      "weightedBytes": 107706,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-search-normal/0/0",
+      "frequency": 3,
+      "requests": 3.6666666666666665,
+      "bytesDown": 35269,
+      "resultsMs": 288.3333333333333,
+      "weightedBytes": 105807,
+      "overBudget": 1
+    },
+    {
+      "id": "perf-filter-health-out/0/0",
+      "frequency": 1,
+      "requests": 7,
+      "bytesDown": 98723,
+      "resultsMs": 507,
+      "weightedBytes": 98723,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-player-infinite-scroll/0/0",
+      "frequency": 1,
+      "requests": 7,
+      "bytesDown": 85175,
+      "resultsMs": 515,
+      "weightedBytes": 85175,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-sf/0/0",
+      "frequency": 1,
+      "requests": 5,
+      "bytesDown": 75266,
+      "resultsMs": 469,
+      "weightedBytes": 75266,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-c/0/0",
+      "frequency": 1,
+      "requests": 5,
+      "bytesDown": 70078,
+      "resultsMs": 499,
+      "weightedBytes": 70078,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-f/0/0",
+      "frequency": 1,
+      "requests": 4,
+      "bytesDown": 59846,
+      "resultsMs": 531,
+      "weightedBytes": 59846,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-pf/0/0",
+      "frequency": 1,
+      "requests": 4,
+      "bytesDown": 46650,
+      "resultsMs": 535,
+      "weightedBytes": 46650,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-sg/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 27754,
+      "resultsMs": 486,
+      "weightedBytes": 27754,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-g/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 26175,
+      "resultsMs": 486,
+      "weightedBytes": 26175,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-pg/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 26127,
+      "resultsMs": 525,
+      "weightedBytes": 26127,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-health-ir/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 21878,
+      "resultsMs": 499,
+      "weightedBytes": 21878,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-direction/0/0",
+      "frequency": 2,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 398,
+      "weightedBytes": 18612,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-direction/1/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 10215,
+      "resultsMs": 482,
+      "weightedBytes": 10215,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-clear/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 10215,
+      "resultsMs": 480,
+      "weightedBytes": 10215,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-availability-all-players/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 497,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-minutes/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 505,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-points/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 556,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-rebounds/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 535,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-assists/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 499,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-steals/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 476,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-blocks/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 545,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-3-pointers/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 483,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-turnovers/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 517,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-games-played/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 547,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-season-2026-27/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9306,
+      "resultsMs": 523,
+      "weightedBytes": 9306,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-health-healthy/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 9112,
+      "resultsMs": 497,
+      "weightedBytes": 9112,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-availability-my-team/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 8745,
+      "resultsMs": 519,
+      "weightedBytes": 8745,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-game-today-not-playing/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 8569,
+      "resultsMs": 516,
+      "weightedBytes": 8569,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-availability-on-waivers/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 8279,
+      "resultsMs": 547,
+      "weightedBytes": 8279,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-availability-rostered/0/0",
+      "frequency": 1,
+      "requests": 1,
+      "bytesDown": 8264,
+      "resultsMs": 526,
+      "weightedBytes": 8264,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-search-fast/0/0",
+      "frequency": 3,
+      "requests": 0.6666666666666666,
+      "bytesDown": 2642.6666666666665,
+      "resultsMs": 285.6666666666667,
+      "weightedBytes": 7928,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-activity-pull-refresh/0/0",
+      "frequency": 1,
+      "requests": 2,
+      "bytesDown": 5308,
+      "resultsMs": 478,
+      "weightedBytes": 5308,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-availability-free-agents/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 506,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-position-all/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 502,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-health-all/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 504,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-game-today-all/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 519,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-experience-all/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 492,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-sort-fantasy-pts/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 503,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-season-auto/0/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 500,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-atl/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 480,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-bos/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 498,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-bkn/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 470,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-cha/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 459,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-chi/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 520,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-cle/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 497,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-dal/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 461,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-den/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 524,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-det/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 509,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-gsw/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 520,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-hou/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 471,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-ind/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 469,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-lac/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 480,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-lal/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 519,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-mem/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 494,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-mia/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 494,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-mil/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 466,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-min/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 466,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-nop/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 485,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-nyk/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 489,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-okc/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 504,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-orl/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 424,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-phi/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 445,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-phx/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 453,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-por/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 464,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-sac/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 472,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-sas/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 460,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-tor/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 464,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-uta/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 448,
+      "weightedBytes": 0,
+      "overBudget": 0
+    },
+    {
+      "id": "perf-filter-team-was/1/0",
+      "frequency": 1,
+      "requests": 0,
+      "bytesDown": 0,
+      "resultsMs": 472,
+      "weightedBytes": 0,
+      "overBudget": 0
+    }
+  ],
+  "search": [
+    {
+      "id": "interaction.perf-search-fast.1/commissioner/in-progress/cold",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-fast/0/0",
+          "requests": 1,
+          "bytesDown": 7895,
+          "resultsMs": 329,
+          "budgetPassed": true,
+          "dbMs": 36.917927999999996,
+          "dbCalls": 163,
+          "dbRows": 161,
+          "dbBuffers": 8901,
+          "renderMutations": 235,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 7895,
+              "resultsMs": 329
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-fast.1/commissioner/in-progress/warm",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-fast/0/0",
+          "requests": 1,
+          "bytesDown": 33,
+          "resultsMs": 265,
+          "budgetPassed": true,
+          "dbMs": 11.373514000000002,
+          "dbCalls": 73,
+          "dbRows": 72,
+          "dbBuffers": 7809,
+          "renderMutations": 239,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 265
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-fast.1/commissioner/in-progress/offline",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-fast/0/0",
+          "requests": 0,
+          "bytesDown": 0,
+          "resultsMs": 263,
+          "budgetPassed": true,
+          "dbMs": 16.169329999999977,
+          "dbCalls": 97,
+          "dbRows": 96,
+          "dbBuffers": 10412,
+          "renderMutations": 126,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 263
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-normal.1/commissioner/in-progress/cold",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-normal/0/0",
+          "requests": 8,
+          "bytesDown": 105708,
+          "resultsMs": 333,
+          "budgetPassed": false,
+          "dbMs": 98.695727,
+          "dbCalls": 464,
+          "dbRows": 506,
+          "dbBuffers": 22303,
+          "renderMutations": 463,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 5,
+              "bytesDown": 72298,
+              "resultsMs": 169
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 2,
+              "bytesDown": 25515,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 7895,
+              "resultsMs": 333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-normal.1/commissioner/in-progress/warm",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-normal/0/0",
+          "requests": 3,
+          "bytesDown": 99,
+          "resultsMs": 267,
+          "budgetPassed": true,
+          "dbMs": 24.457111999999995,
+          "dbCalls": 210,
+          "dbRows": 206,
+          "dbBuffers": 20852,
+          "renderMutations": 697,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 98
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 267
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-normal.1/commissioner/in-progress/offline",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-normal/0/0",
+          "requests": 0,
+          "bytesDown": 0,
+          "resultsMs": 265,
+          "budgetPassed": true,
+          "dbMs": 20.915934999999994,
+          "dbCalls": 171,
+          "dbRows": 169,
+          "dbBuffers": 18193,
+          "renderMutations": 352,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 85
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 265
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-deliberate.1/commissioner/in-progress/cold",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-deliberate/0/0",
+          "requests": 30,
+          "bytesDown": 357424,
+          "resultsMs": 14,
+          "budgetPassed": false,
+          "dbMs": 446.92946600000005,
+          "dbCalls": 1922,
+          "dbRows": 2144,
+          "dbBuffers": 60887,
+          "renderMutations": 1586,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 4,
+              "bytesDown": 52723,
+              "resultsMs": 368
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 6,
+              "bytesDown": 91076,
+              "resultsMs": 365
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 5,
+              "bytesDown": 72298,
+              "resultsMs": 363
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 1,
+              "bytesDown": 9505,
+              "resultsMs": 7
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 1,
+              "bytesDown": 9505,
+              "resultsMs": 8
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 6
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 3,
+              "bytesDown": 41990,
+              "resultsMs": 356
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 1,
+              "bytesDown": 8176,
+              "resultsMs": 11
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 1,
+              "bytesDown": 8176,
+              "resultsMs": 12
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 1,
+              "bytesDown": 8058,
+              "resultsMs": 346
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 1,
+              "bytesDown": 8058,
+              "resultsMs": 13
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 1,
+              "bytesDown": 8058,
+              "resultsMs": 11
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 1,
+              "bytesDown": 8058,
+              "resultsMs": 11
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 1,
+              "bytesDown": 8058,
+              "resultsMs": 10
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 1,
+              "bytesDown": 7895,
+              "resultsMs": 349
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 1,
+              "bytesDown": 7895,
+              "resultsMs": 13
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 7895,
+              "resultsMs": 14
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-deliberate.1/commissioner/in-progress/warm",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-deliberate/0/0",
+          "requests": 16,
+          "bytesDown": 528,
+          "resultsMs": 8,
+          "budgetPassed": false,
+          "dbMs": 72.74921199999999,
+          "dbCalls": 484,
+          "dbRows": 475,
+          "dbBuffers": 39379,
+          "renderMutations": 2455,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 290
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 294
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 292
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 2,
+              "bytesDown": 66,
+              "resultsMs": 10
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 16
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 9
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 281
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 10
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 10
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 278
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 10
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 9
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 14
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 22
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 276
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 9
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 1,
+              "bytesDown": 33,
+              "resultsMs": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "interaction.perf-search-deliberate.1/commissioner/in-progress/offline",
+      "passed": true,
+      "controls": [
+        {
+          "id": "perf-search-deliberate/0/0",
+          "requests": 0,
+          "bytesDown": 0,
+          "resultsMs": 12,
+          "budgetPassed": true,
+          "dbMs": 59.38782599999995,
+          "dbCalls": 366,
+          "dbRows": 415,
+          "dbBuffers": 38612,
+          "renderMutations": 796,
+          "keystrokes": [
+            {
+              "index": 0,
+              "value": "J",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 287
+            },
+            {
+              "index": 1,
+              "value": "Ja",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 295
+            },
+            {
+              "index": 2,
+              "value": "Jal",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 302
+            },
+            {
+              "index": 3,
+              "value": "Jale",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 13
+            },
+            {
+              "index": 4,
+              "value": "Jalen",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 9
+            },
+            {
+              "index": 5,
+              "value": "Jalen ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 23
+            },
+            {
+              "index": 6,
+              "value": "Jalen W",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 283
+            },
+            {
+              "index": 7,
+              "value": "Jalen Wi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 10
+            },
+            {
+              "index": 8,
+              "value": "Jalen Wil",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 11
+            },
+            {
+              "index": 9,
+              "value": "Jalen Will",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 271
+            },
+            {
+              "index": 10,
+              "value": "Jalen Willi",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 10
+            },
+            {
+              "index": 11,
+              "value": "Jalen Willia",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 8
+            },
+            {
+              "index": 12,
+              "value": "Jalen William",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 9
+            },
+            {
+              "index": 13,
+              "value": "Jalen Williams",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 16
+            },
+            {
+              "index": 14,
+              "value": "Jalen Williams ",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": null
+            },
+            {
+              "index": 15,
+              "value": "Jalen Williams 2",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 272
+            },
+            {
+              "index": 16,
+              "value": "Jalen Williams 22",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 13
+            },
+            {
+              "index": 17,
+              "value": "Jalen Williams 221",
+              "requests": 0,
+              "bytesDown": 0,
+              "resultsMs": 12
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

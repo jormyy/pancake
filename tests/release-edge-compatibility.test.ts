@@ -370,7 +370,9 @@ it.skipIf(!available)('documents database-first release order for new client dep
         .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const playerReadNotes = readFileSync('docs/db-health.md', 'utf8')
         .match(/^## Player read release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n`)
+    const tradeReceiptNotes = readFileSync('docs/trade-receipts.md', 'utf8')
+        .match(/^## Trade receipt release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
+    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n`)
     const productionHead = documentedProductionHead(notes) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
     const newest = migrations.at(-1)!.split('_')[0]

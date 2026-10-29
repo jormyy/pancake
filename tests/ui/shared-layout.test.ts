@@ -28,14 +28,9 @@ it.skipIf(!process.env.PANCAKE_LAYOUT_BROWSER)('fits shared controls at phone wi
     const directory = process.env.PANCAKE_LAYOUT_OUTPUT
     if (!directory) throw new Error('PANCAKE_LAYOUT_OUTPUT is required')
     await mkdir(directory, { recursive: true })
-    const actions = [
-        { title: 'Today', label: 'Auto-set today', onPress: () => {} },
-        { title: 'This week', label: 'Auto-set this week', onPress: () => {} },
-        { title: 'Rest of season', label: 'Auto-set rest of season', onPress: () => {} },
-    ]
     const Fixture = () => React.createElement(PlayerEligibilityContext.Provider, { value: 2 }, React.createElement(View, null,
         React.createElement(View, { testID: 'compact-header' }, React.createElement(PageHeader, { title: 'Week 23 lineup', compact: true, onBack: () => {}, backLabel: 'Close lineup' })),
-        React.createElement(View, { testID: 'lineup-controls', style: { paddingHorizontal: 12 } }, React.createElement(LineupControls, { actions, automatic: true, onAutomaticChange: () => {} })),
+        React.createElement(View, { testID: 'lineup-controls', style: { paddingHorizontal: 12 } }, React.createElement(LineupControls, { automatic: true, onAutomaticChange: () => {} })),
         React.createElement(DaySelector, { compact: true, days: Array.from({ length: 7 }, (_, index) => ({ date: `2026-10-${20 + index}`, dateNum: 20 + index, dayLabel: ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'][index], hasGames: true, isToday: false, playingTeams: [] })), selectedDate: '2026-10-22', onSelect: () => {} }),
         React.createElement(SectionBand, { label: 'Starters', variant: 'action', detail: React.createElement(Button, { title: 'Auto-set', size: 'inline', accessibilityLabel: 'Open auto-set lineup options' }) }),
         React.createElement(View, { style: { padding: 8 } }, React.createElement(PlayerRow, { compact: true, name: 'A Very Long Player Name That Must Remain Visible', team: 'LAL', positions: ['PG', 'SG'], injuryStatus: 'Out', yearsExp: 0, stats: '0.0 FP · 0.0 mins' })),

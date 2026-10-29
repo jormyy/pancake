@@ -1,9 +1,12 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
 import { useLeagueContext } from '@/contexts/league-context'
 import { PendingTradeRosterPlan } from './PendingTradeRosterPlan'
+import { tradePickContext } from '@/lib/trade-pick-label'
+import { TradeReviewCancellation } from './TradeReviewCancellation'
+import { Button } from '@/components/ui/Button'
 import { MotionPressable } from '@/components/Motion'
 import { MultiTeamTradeOverview } from '@/components/trades/MultiTeamTradeOverview'
 import {
@@ -37,9 +40,11 @@ export function TradeDetailsPanel({
     const { currentLeague } = useLeagueContext()
     const { trade, myMemberId } = context
     const model = tradeCardModel({ ...context, timezone: currentLeague?.timezone })
-    const [rosterValidity, setRosterValidity] = useState<{ trade: typeof trade; memberId: string; legal: boolean } | null>(null)
-    const onValidityChange = useCallback((legal: boolean) => setRosterValidity({ trade, memberId: myMemberId, legal }), [trade, myMemberId])
-    const acceptDisabled = Boolean(currentLeague && actions.onRosterPlan && (rosterValidity?.trade !== trade || rosterValidity.memberId !== myMemberId || !rosterValidity.legal))
+    const pickContext = tradePickContext(trade, myMemberId)
+    const [editingTradeId, setEditingTradeId] = useState<string | null>(null)
+    const [confirmedTradeId, setConfirmedTradeId] = useState<string | null>(null)
+    const confirmed = confirmedTradeId === trade.id
+    const previewActions = currentLeague && !confirmed ? { ...actions, onAccept: () => setEditingTradeId(trade.id) } : actions
     const proposed = `Proposed by ${trade.proposerMemberId === myMemberId ? 'you' : trade.proposerTeamName} · ${formatLeagueDateTime(trade.proposedAt, currentLeague?.timezone)}`
 
     return (
@@ -54,6 +59,7 @@ export function TradeDetailsPanel({
 
             {trade.isMultiTeam ? (
                 <MultiTeamTradeOverview
+                    pickContext={pickContext}
                     compact
                     participants={trade.participants.map((participant) => ({
                         memberId: participant.memberId,
@@ -65,8 +71,8 @@ export function TradeDetailsPanel({
                 />
             ) : (
                 <View style={styles.sides}>
-                    <AssetList items={model.receives} label={model.receiveLabel} />
-                    <AssetList items={model.gives} label={model.giveLabel} />
+                    <AssetList items={model.receives} label={model.receiveLabel} pickContext={pickContext} />
+                    <AssetList items={model.gives} label={model.giveLabel} pickContext={pickContext} />
                 </View>
             )}
 
@@ -79,8 +85,15 @@ export function TradeDetailsPanel({
 
             {trade.completionFailureReason ? <Text>{trade.completionFailureReason}</Text> : null}
             <SavedTradeEstimate trade={trade} myMemberId={context.myMemberId} />
-            {trade.status === 'pending' && currentLeague && actions.onRosterPlan ? <PendingTradeRosterPlan key={`${currentLeague.id}:${myMemberId}:${trade.id}`} trade={trade} memberId={myMemberId} onChange={actions.onRosterPlan} onValidityChange={onValidityChange} disabled={actions.acting} /> : null}
-            <TradeActionButtons trade={trade} model={model} actions={{ ...actions, acceptDisabled }} />
+            {trade.status === 'accepted' && trade.completionFailureReason && (trade.proposerMemberId === myMemberId || trade.recipientMemberId === myMemberId || trade.participants.some(participant => participant.memberId === myMemberId)) ? <>
+                <Text style={textStyles.sectionLabel}>Needs attention</Text>
+                <Button title="Make it legal" onPress={() => setEditingTradeId(trade.id)} />
+            </> : null}
+            {editingTradeId === trade.id ? <PendingTradeRosterPlan key={`${trade.id}:${myMemberId}`} trade={trade} memberId={myMemberId} onCancel={() => setEditingTradeId(null)}
+                onConfirmed={() => { setEditingTradeId(null); setConfirmedTradeId(trade.id) }} /> : null}
+            {confirmed ? <Text style={textStyles.body}>Roster choices saved. Waiting for review and execution.</Text>
+                : <TradeActionButtons trade={trade} model={model} actions={previewActions} />}
+            <TradeReviewCancellation key={`cancel:${trade.id}:${myMemberId}`} trade={trade} memberId={myMemberId} />
             <MotionPressable
                 style={styles.analyze}
                 onPress={onAnalyze}

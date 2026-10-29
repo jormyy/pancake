@@ -15,6 +15,9 @@ BEGIN
   IF (__request_context->>'replay')::boolean THEN RETURN; END IF;
   <<request_write>>
 BEGIN
+  PERFORM private.assert_asset_unlocked(roster.league_id,roster.league_season_id,roster.member_id,roster.player_id)
+    FROM roster_players roster JOIN league_members member ON member.id=roster.member_id
+    WHERE roster.id=p_roster_player_id AND member.user_id=p_user_id;
   PERFORM private.toggle_ir_for_activation(p_roster_player_id,p_to_ir,p_user_id,NULL);
 END request_write;
   PERFORM private.request_finish(__request_context, 'null'::jsonb);

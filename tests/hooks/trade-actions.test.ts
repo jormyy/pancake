@@ -307,7 +307,7 @@ it.each([
     const [title, message] = mocks.confirmAction.mock.calls[0]
     expect(title).toBe('Accept trade?')
     expect(message).toContain('Incoming')
-    expect(message).toContain('2026 Round 1 pick')
+    expect(message).toContain('2026 Round 1 (orig. A) — from You → to Other')
     expect(message).toContain('$5 FAAB')
     expect(message).toContain('Completes after review.')
     expect(message).toContain('You get:')

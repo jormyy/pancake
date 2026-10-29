@@ -16,23 +16,9 @@ STABLE
 SET search_path = public
 AS $$
   SELECT EXISTS (
-    SELECT 1
-      FROM trade_items AS item
-      JOIN trades AS trade
-        ON trade.id = item.trade_id
-       AND trade.status = 'accepted'::trade_status
-     WHERE trade.league_id = p_league_id
-       AND (p_league_season_id IS NULL OR trade.league_season_id = p_league_season_id)
-       AND (p_exclude_trade_id IS NULL OR trade.id <> p_exclude_trade_id)
-       AND item.from_member_id = p_member_id
-       AND (
-         (p_player_id IS NOT NULL AND item.player_id = p_player_id)
-         OR (p_pick_id IS NOT NULL AND item.pick_id = p_pick_id)
-       )
-  ) OR EXISTS (SELECT 1 FROM trade_participants participant JOIN trades trade ON trade.id=participant.trade_id
-    WHERE trade.status IN ('pending','accepted') AND trade.league_id=p_league_id
-      AND (p_league_season_id IS NULL OR trade.league_season_id=p_league_season_id)
-      AND (p_exclude_trade_id IS NULL OR trade.id<>p_exclude_trade_id)
-      AND participant.member_id=p_member_id AND (p_player_id=ANY(participant.drop_player_ids)
-        OR participant.roster_moves @> jsonb_build_array(jsonb_build_object('playerId',p_player_id::text))))
+    SELECT 1 FROM private.locked_assets(p_league_id,
+      COALESCE(p_league_season_id, (SELECT id FROM public.league_seasons WHERE league_id=p_league_id AND is_current)), p_member_id) locked
+    WHERE locked.source_kind='trade' AND (p_exclude_trade_id IS NULL OR locked.source_id<>p_exclude_trade_id)
+      AND ((locked.asset_kind='player' AND locked.asset_id=p_player_id) OR (locked.asset_kind='pick' AND locked.asset_id=p_pick_id))
+  )
 $$;

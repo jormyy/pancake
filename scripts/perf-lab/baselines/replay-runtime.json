@@ -1,0 +1,1141 @@
+{
+  "source": "a3be1da0d023d2a8d97e97b7ac6d2bd068ca5dce",
+  "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/lab/history/262b0e80-1d02-4631-90e4-63e309394059/edge-invocations.jsonl",
+  "complete": false,
+  "summary": {
+    "through": "2025-10-23T02:15:00.000Z",
+    "calls": 827,
+    "spanMs": 1639611.7258300781,
+    "durationMs": 1376030.1648029997,
+    "errors": 77,
+    "functions": [
+      {
+        "function": "live-poll",
+        "calls": 164,
+        "durationMs": 807934.6613760001,
+        "errors": 17
+      },
+      {
+        "function": "matchup-forecast",
+        "calls": 152,
+        "durationMs": 417188.28387899895,
+        "errors": 14
+      },
+      {
+        "function": "refresh-views",
+        "calls": 332,
+        "durationMs": 62252.845497000686,
+        "errors": 30
+      },
+      {
+        "function": "sync-sleeper-projections",
+        "calls": 12,
+        "durationMs": 33356.43258300003,
+        "errors": 12
+      },
+      {
+        "function": "sync-players",
+        "calls": 2,
+        "durationMs": 30975.669042,
+        "errors": 1
+      },
+      {
+        "function": "sync-player-injuries",
+        "calls": 48,
+        "durationMs": 7266.853878000125,
+        "errors": 0
+      },
+      {
+        "function": "api",
+        "calls": 60,
+        "durationMs": 5846.259254000004,
+        "errors": 2
+      },
+      {
+        "function": "lineup-optimizer",
+        "calls": 10,
+        "durationMs": 5125.9747929997975,
+        "errors": 0
+      },
+      {
+        "function": "process-trades",
+        "calls": 19,
+        "durationMs": 1803.9348780000219,
+        "errors": 0
+      },
+      {
+        "function": "sync-projections",
+        "calls": 2,
+        "durationMs": 1525.8075409999728,
+        "errors": 0
+      },
+      {
+        "function": "sync-stats",
+        "calls": 3,
+        "durationMs": 863.9667490000065,
+        "errors": 0
+      },
+      {
+        "function": "dispatcher",
+        "calls": 16,
+        "durationMs": 584.0876679998692,
+        "errors": 0
+      },
+      {
+        "function": "close-expired-nominations",
+        "calls": 3,
+        "durationMs": 484.1763329999958,
+        "errors": 1
+      },
+      {
+        "function": "sync-trade-values",
+        "calls": 1,
+        "durationMs": 482.3776660000003,
+        "errors": 0
+      },
+      {
+        "function": "sync-schedule",
+        "calls": 1,
+        "durationMs": 165.75987500000338,
+        "errors": 0
+      },
+      {
+        "function": "process-waivers",
+        "calls": 1,
+        "durationMs": 121.72579100000007,
+        "errors": 0
+      },
+      {
+        "function": "season-boundary",
+        "calls": 1,
+        "durationMs": 51.34799999999814,
+        "errors": 0
+      }
+    ]
+  },
+  "clockEvidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/lab/history/262b0e80-1d02-4631-90e4-63e309394059/job-load-replay.json",
+  "clocks": [
+    {
+      "clock": "transaction",
+      "calls": 6622538,
+      "durationMs": 537294.605784904,
+      "meanMs": 0.08113122277062117,
+      "normalized200Ms": 16.226244554124236,
+      "rows": 6622538,
+      "buffers": 6864896
+    },
+    {
+      "clock": "wall",
+      "calls": 667702,
+      "durationMs": 53806.6103810011,
+      "meanMs": 0.08058476742768644,
+      "normalized200Ms": 16.116953485537287,
+      "rows": 667702,
+      "buffers": 688486
+    },
+    {
+      "clock": "table",
+      "calls": 7290241,
+      "durationMs": 34500.2276089788,
+      "meanMs": 0.0047323850623016165,
+      "normalized200Ms": 0.9464770124603233,
+      "rows": 7290241,
+      "buffers": 7529770
+    }
+  ],
+  "progress": [
+    {
+      "source": "f27ec3658e23ce7f8f595a092c14227c7d94ae0c",
+      "runId": "3548468c-af17-4d32-a159-82bf5dea0dbf",
+      "at": "2026-10-28T13:36:31Z",
+      "complete": false,
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/captured/3548468c-af17-4d32-a159-82bf5dea0dbf/clock-runtime-partial.json",
+      "clocks": [
+        {
+          "clock": "transaction",
+          "calls": 1313429,
+          "durationMs": 25040.916,
+          "meanMs": 0.019065298542974153,
+          "normalized200Ms": 3.813,
+          "rows": null,
+          "buffers": null
+        }
+      ]
+    }
+  ],
+  "prefixes": [
+    {
+      "source": "f27ec3658e23ce7f8f595a092c14227c7d94ae0c",
+      "runId": "3548468c-af17-4d32-a159-82bf5dea0dbf",
+      "complete": false,
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/captured/3548468c-af17-4d32-a159-82bf5dea0dbf/matched-prefix.jsonl",
+      "summary": {
+        "through": "2025-10-23T02:14:00.000Z",
+        "calls": 763,
+        "spanMs": 871061.3100585938,
+        "durationMs": 545447.2472949994,
+        "errors": 15,
+        "functions": [
+          {
+            "function": "live-poll",
+            "calls": 149,
+            "durationMs": 349522.0259559995,
+            "errors": 1
+          },
+          {
+            "function": "matchup-forecast",
+            "calls": 137,
+            "durationMs": 132122.03070699997,
+            "errors": 0
+          },
+          {
+            "function": "refresh-views",
+            "calls": 301,
+            "durationMs": 35765.300084999944,
+            "errors": 0
+          },
+          {
+            "function": "sync-sleeper-projections",
+            "calls": 12,
+            "durationMs": 8511.229957000003,
+            "errors": 12
+          },
+          {
+            "function": "sync-players",
+            "calls": 1,
+            "durationMs": 7200.069416,
+            "errors": 0
+          },
+          {
+            "function": "sync-player-injuries",
+            "calls": 48,
+            "durationMs": 3870.021002000183,
+            "errors": 0
+          },
+          {
+            "function": "api",
+            "calls": 60,
+            "durationMs": 3310.7214200000126,
+            "errors": 2
+          },
+          {
+            "function": "lineup-optimizer",
+            "calls": 10,
+            "durationMs": 1631.0906249998952,
+            "errors": 0
+          },
+          {
+            "function": "process-trades",
+            "calls": 18,
+            "durationMs": 1173.6900430000042,
+            "errors": 0
+          },
+          {
+            "function": "sync-projections",
+            "calls": 2,
+            "durationMs": 708.1540000000241,
+            "errors": 0
+          },
+          {
+            "function": "dispatcher",
+            "calls": 16,
+            "durationMs": 521.1954599999499,
+            "errors": 0
+          },
+          {
+            "function": "sync-stats",
+            "calls": 3,
+            "durationMs": 491.13212399999975,
+            "errors": 0
+          },
+          {
+            "function": "sync-trade-values",
+            "calls": 1,
+            "durationMs": 274.1670000000013,
+            "errors": 0
+          },
+          {
+            "function": "process-waivers",
+            "calls": 1,
+            "durationMs": 112.33875,
+            "errors": 0
+          },
+          {
+            "function": "sync-schedule",
+            "calls": 1,
+            "durationMs": 98.45258300000023,
+            "errors": 0
+          },
+          {
+            "function": "close-expired-nominations",
+            "calls": 2,
+            "durationMs": 90.16533299999719,
+            "errors": 0
+          },
+          {
+            "function": "season-boundary",
+            "calls": 1,
+            "durationMs": 45.46283400000175,
+            "errors": 0
+          }
+        ]
+      }
+    },
+    {
+      "runId": "67533912-d62f-4579-ab15-243118c00223",
+      "source": "083f4d398701d29bccf400a3d2b38339d83eaa90",
+      "summary": {
+        "through": "2025-10-23T02:14:00.000Z",
+        "calls": 691,
+        "spanMs": 869038.0158691406,
+        "durationMs": 567799.2467759999,
+        "errors": 14,
+        "functions": [
+          {
+            "function": "live-poll",
+            "calls": 124,
+            "durationMs": 360928.469622,
+            "errors": 0
+          },
+          {
+            "function": "matchup-forecast",
+            "calls": 121,
+            "durationMs": 139599.09032700004,
+            "errors": 0
+          },
+          {
+            "function": "refresh-views",
+            "calls": 272,
+            "durationMs": 37772.06728400005,
+            "errors": 0
+          },
+          {
+            "function": "sync-sleeper-projections",
+            "calls": 12,
+            "durationMs": 8660.811124999997,
+            "errors": 12
+          },
+          {
+            "function": "sync-players",
+            "calls": 1,
+            "durationMs": 7293.795958,
+            "errors": 0
+          },
+          {
+            "function": "sync-player-injuries",
+            "calls": 48,
+            "durationMs": 5110.594916000035,
+            "errors": 0
+          },
+          {
+            "function": "api",
+            "calls": 60,
+            "durationMs": 3096.0000819999805,
+            "errors": 2
+          },
+          {
+            "function": "lineup-optimizer",
+            "calls": 10,
+            "durationMs": 2336.2098330000154,
+            "errors": 0
+          },
+          {
+            "function": "process-trades",
+            "calls": 18,
+            "durationMs": 1041.6605449999797,
+            "errors": 0
+          },
+          {
+            "function": "dispatcher",
+            "calls": 16,
+            "durationMs": 625.1310409999915,
+            "errors": 0
+          },
+          {
+            "function": "sync-projections",
+            "calls": 2,
+            "durationMs": 600.2073340000279,
+            "errors": 0
+          },
+          {
+            "function": "sync-trade-values",
+            "calls": 1,
+            "durationMs": 334.735584,
+            "errors": 0
+          },
+          {
+            "function": "process-waivers",
+            "calls": 1,
+            "durationMs": 113.01583399999993,
+            "errors": 0
+          },
+          {
+            "function": "sync-schedule",
+            "calls": 1,
+            "durationMs": 107.53316600000107,
+            "errors": 0
+          },
+          {
+            "function": "close-expired-nominations",
+            "calls": 2,
+            "durationMs": 106.89354199999798,
+            "errors": 0
+          },
+          {
+            "function": "sync-stats",
+            "calls": 1,
+            "durationMs": 49.253999999998996,
+            "errors": 0
+          },
+          {
+            "function": "season-boundary",
+            "calls": 1,
+            "durationMs": 23.776582999998936,
+            "errors": 0
+          }
+        ]
+      },
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/captured/67533912-d62f-4579-ab15-243118c00223/matched-prefix.jsonl"
+    },
+    {
+      "runId": "3bb6e4ab-c2b6-4116-b19a-35c24d8dba80",
+      "source": "9949631de10630d6fc7616abe3d19232a617d88b",
+      "profile": "full",
+      "complete": false,
+      "cutoff": "2025-10-23T02:15:00.000Z",
+      "at": "2026-10-28T17:34:21.821Z",
+      "summary": {
+        "through": "2025-10-23T02:14:00.000Z",
+        "calls": 691,
+        "spanMs": 835303.4587402344,
+        "durationMs": 529589.1174570004,
+        "errors": 14,
+        "functions": [
+          {
+            "function": "live-poll",
+            "calls": 124,
+            "durationMs": 338669.4429139998,
+            "errors": 0
+          },
+          {
+            "function": "matchup-forecast",
+            "calls": 121,
+            "durationMs": 129532.13379099974,
+            "errors": 0
+          },
+          {
+            "function": "refresh-views",
+            "calls": 272,
+            "durationMs": 32794.395382000366,
+            "errors": 0
+          },
+          {
+            "function": "sync-sleeper-projections",
+            "calls": 12,
+            "durationMs": 8950.860499999993,
+            "errors": 12
+          },
+          {
+            "function": "sync-players",
+            "calls": 1,
+            "durationMs": 7744.976,
+            "errors": 0
+          },
+          {
+            "function": "sync-player-injuries",
+            "calls": 48,
+            "durationMs": 4092.055124000188,
+            "errors": 0
+          },
+          {
+            "function": "api",
+            "calls": 60,
+            "durationMs": 3232.2426210000413,
+            "errors": 2
+          },
+          {
+            "function": "lineup-optimizer",
+            "calls": 10,
+            "durationMs": 1572.8969990001424,
+            "errors": 0
+          },
+          {
+            "function": "process-trades",
+            "calls": 18,
+            "durationMs": 1148.4209170000086,
+            "errors": 0
+          },
+          {
+            "function": "dispatcher",
+            "calls": 16,
+            "durationMs": 556.0247090001194,
+            "errors": 0
+          },
+          {
+            "function": "sync-projections",
+            "calls": 2,
+            "durationMs": 533.6142079999845,
+            "errors": 0
+          },
+          {
+            "function": "sync-trade-values",
+            "calls": 1,
+            "durationMs": 333.7650419999991,
+            "errors": 0
+          },
+          {
+            "function": "close-expired-nominations",
+            "calls": 2,
+            "durationMs": 129.20716599999287,
+            "errors": 0
+          },
+          {
+            "function": "process-waivers",
+            "calls": 1,
+            "durationMs": 119.458708,
+            "errors": 0
+          },
+          {
+            "function": "sync-schedule",
+            "calls": 1,
+            "durationMs": 113.59408399999847,
+            "errors": 0
+          },
+          {
+            "function": "sync-stats",
+            "calls": 1,
+            "durationMs": 40.31145800000013,
+            "errors": 0
+          },
+          {
+            "function": "season-boundary",
+            "calls": 1,
+            "durationMs": 25.71783399999913,
+            "errors": 0
+          }
+        ]
+      },
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/replay-monitor/3bb6e4ab-c2b6-4116-b19a-35c24d8dba80/matched-cutoff.jsonl"
+    },
+    {
+      "runId": "0cb8b5b2-faaf-42d7-87ac-dd506f00f18e",
+      "source": "3e7a89ab09f098a96d36391463831799d1c8bd4b",
+      "profile": "full",
+      "complete": false,
+      "cutoff": "2025-10-23T02:15:00Z",
+      "at": "2026-10-28T18:52:01.263Z",
+      "summary": {
+        "through": "2025-10-23T02:14:00.000Z",
+        "calls": 700,
+        "spanMs": 808816.2319335938,
+        "durationMs": 529009.444862,
+        "errors": 23,
+        "functions": [
+          {
+            "function": "live-poll",
+            "calls": 124,
+            "durationMs": 312834.5491979999,
+            "errors": 0
+          },
+          {
+            "function": "matchup-forecast",
+            "calls": 121,
+            "durationMs": 126370.66425100027,
+            "errors": 0
+          },
+          {
+            "function": "refresh-views",
+            "calls": 272,
+            "durationMs": 38361.33665699964,
+            "errors": 0
+          },
+          {
+            "function": "sync-rankings",
+            "calls": 9,
+            "durationMs": 22310.623919000005,
+            "errors": 9
+          },
+          {
+            "function": "sync-sleeper-projections",
+            "calls": 12,
+            "durationMs": 8689.062708999987,
+            "errors": 12
+          },
+          {
+            "function": "sync-players",
+            "calls": 1,
+            "durationMs": 7097.212625,
+            "errors": 0
+          },
+          {
+            "function": "sync-player-injuries",
+            "calls": 48,
+            "durationMs": 4840.37275400012,
+            "errors": 0
+          },
+          {
+            "function": "api",
+            "calls": 60,
+            "durationMs": 3097.404873999978,
+            "errors": 2
+          },
+          {
+            "function": "lineup-optimizer",
+            "calls": 10,
+            "durationMs": 1687.2354570000025,
+            "errors": 0
+          },
+          {
+            "function": "process-trades",
+            "calls": 18,
+            "durationMs": 1451.1007929999978,
+            "errors": 0
+          },
+          {
+            "function": "dispatcher",
+            "calls": 16,
+            "durationMs": 917.5962099999524,
+            "errors": 0
+          },
+          {
+            "function": "sync-projections",
+            "calls": 2,
+            "durationMs": 593.4889160000021,
+            "errors": 0
+          },
+          {
+            "function": "sync-trade-values",
+            "calls": 1,
+            "durationMs": 196.5726250000007,
+            "errors": 0
+          },
+          {
+            "function": "close-expired-nominations",
+            "calls": 2,
+            "durationMs": 155.80966600000102,
+            "errors": 0
+          },
+          {
+            "function": "sync-schedule",
+            "calls": 1,
+            "durationMs": 151.48041600000033,
+            "errors": 0
+          },
+          {
+            "function": "process-waivers",
+            "calls": 1,
+            "durationMs": 125.8812079999999,
+            "errors": 0
+          },
+          {
+            "function": "sync-stats",
+            "calls": 1,
+            "durationMs": 100.65308399999958,
+            "errors": 0
+          },
+          {
+            "function": "season-boundary",
+            "calls": 1,
+            "durationMs": 28.399499999999534,
+            "errors": 0
+          }
+        ]
+      },
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/replay-monitor/0cb8b5b2-faaf-42d7-87ac-dd506f00f18e/matched-cutoff.jsonl",
+      "sha256": "03ebae310d896f70fb5119e4babc03459b2dd3d2f37f2ad20b27335a07baafbc"
+    },
+    {
+      "runId": "6cd60674-ffb2-4dd0-a13a-032d5205a7d4",
+      "source": "d6aff88e1803d86fe69a0b90a680b4f9b6329c3e",
+      "profile": "control",
+      "complete": false,
+      "cutoff": "2025-10-23T02:15:00.000Z",
+      "evidence": "/Users/michaelchen/Documents/pancake-season-mission/fable/program3/evidence/replay-monitor/6cd60674-ffb2-4dd0-a13a-032d5205a7d4/matched-cutoff.jsonl",
+      "sha256": "4e160aa8539898af454310bee4a75e8d4e900dfd88aeb4da6c103ec5c2a15797",
+      "summary": {
+        "through": "2025-10-23T02:14:00.000Z",
+        "calls": 700,
+        "spanMs": 687342.9985351562,
+        "durationMs": 382834.668499,
+        "errors": 23,
+        "functions": [
+          {
+            "function": "live-poll",
+            "calls": 124,
+            "durationMs": 207976.216334,
+            "errors": 0
+          },
+          {
+            "function": "matchup-forecast",
+            "calls": 121,
+            "durationMs": 112893.35704400027,
+            "errors": 0
+          },
+          {
+            "function": "refresh-views",
+            "calls": 272,
+            "durationMs": 27172.724873999945,
+            "errors": 0
+          },
+          {
+            "function": "sync-rankings",
+            "calls": 9,
+            "durationMs": 14625.114542,
+            "errors": 9
+          },
+          {
+            "function": "sync-sleeper-projections",
+            "calls": 12,
+            "durationMs": 5900.902125999955,
+            "errors": 12
+          },
+          {
+            "function": "sync-players",
+            "calls": 1,
+            "durationMs": 4686.941083,
+            "errors": 0
+          },
+          {
+            "function": "sync-player-injuries",
+            "calls": 48,
+            "durationMs": 3538.695250000059,
+            "errors": 0
+          },
+          {
+            "function": "api",
+            "calls": 60,
+            "durationMs": 2461.328623999976,
+            "errors": 2
+          },
+          {
+            "function": "lineup-optimizer",
+            "calls": 10,
+            "durationMs": 1311.3159159998613,
+            "errors": 0
+          },
+          {
+            "function": "process-trades",
+            "calls": 18,
+            "durationMs": 656.1337059999742,
+            "errors": 0
+          },
+          {
+            "function": "dispatcher",
+            "calls": 16,
+            "durationMs": 613.4922090000146,
+            "errors": 0
+          },
+          {
+            "function": "sync-projections",
+            "calls": 2,
+            "durationMs": 476.19591699999,
+            "errors": 0
+          },
+          {
+            "function": "sync-trade-values",
+            "calls": 1,
+            "durationMs": 171.1124579999996,
+            "errors": 0
+          },
+          {
+            "function": "sync-schedule",
+            "calls": 1,
+            "durationMs": 106.54699999999957,
+            "errors": 0
+          },
+          {
+            "function": "process-waivers",
+            "calls": 1,
+            "durationMs": 100.45474999999999,
+            "errors": 0
+          },
+          {
+            "function": "close-expired-nominations",
+            "calls": 2,
+            "durationMs": 63.32549999999901,
+            "errors": 0
+          },
+          {
+            "function": "sync-stats",
+            "calls": 1,
+            "durationMs": 57.73454099999981,
+            "errors": 0
+          },
+          {
+            "function": "season-boundary",
+            "calls": 1,
+            "durationMs": 23.076624999997875,
+            "errors": 0
+          }
+        ]
+      },
+      "comparison": {
+        "fullCaptureMs": 808816.2319335938,
+        "controlMs": 687342.9985351562,
+        "acceptedProductGain": false
+      }
+    }
+  ],
+  "statements": [
+    {
+      "queryid": "-598079444919475378",
+      "calls": 6622538,
+      "total_exec_time": 537294.605784904,
+      "mean_exec_time": 0.0811312227706486,
+      "rows_returned_or_affected": 6622538,
+      "shared_blks_hit": 6864896,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT season_sim.time(season_sim.real_transaction())"
+    },
+    {
+      "queryid": "2550143839505691397",
+      "calls": 2815,
+      "total_exec_time": 363852.596225,
+      "mean_exec_time": 129.254918730017,
+      "rows_returned_or_affected": 2815,
+      "shared_blks_hit": 5707427,
+      "shared_blks_read": 6,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_matchup_id\", \"p_game_date\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_matchup_id\" uuid, \"p_game_date\" date) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"prepare_matchup_forecast_inputs\"(\"p_matchup_id\" := pgrst_body.\"p_matchup_id\", \"p_game_date\" := pgrst_body.\"p_game_date\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"prepare_matchup_forecast_inputs\".* FROM \"pgrst_source\" AS \"prepare_matchup_forecast_inputs\"   LIMIT $2 OFFSET $3) _postgrest_t"
+    },
+    {
+      "queryid": "-5243484164797390362",
+      "calls": 2815,
+      "total_exec_time": 325736.861709999,
+      "mean_exec_time": 115.714693325045,
+      "rows_returned_or_affected": 2815,
+      "shared_blks_hit": 4295640,
+      "shared_blks_read": 6,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT LEAST((v_today+$23)::timestamp AT TIME ZONE $24,\n    (SELECT min(g.game_time) FROM public.nba_games g WHERE g.season_year=c.season_year AND g.game_time>now()),\n    (SELECT min(g.started_at) FROM public.nba_games g WHERE g.season_year=c.season_year AND g.started_at>now()),\n    (SELECT min(r.fetched_at+interval $25) FROM public.sleeper_projection_rows r WHERE r.player_id=ANY(v_ids) AND r.fetched_at+interval $26>now()),\n    (SELECT min(r.fetched_at+CASE WHEN r.projection_type=$27 THEN interval $28 ELSE interval $29 END)\n      FROM public.fantasypros_projection_rows r WHERE r.player_id=ANY(v_ids)\n        AND r.fetched_at+CASE WHEN r.projection_type=$30 THEN interval $31 ELSE interval $32 END>now()))"
+    },
+    {
+      "queryid": "-3379432542001775589",
+      "calls": 2352,
+      "total_exec_time": 305543.687617,
+      "mean_exec_time": 129.908030449405,
+      "rows_returned_or_affected": 12848,
+      "shared_blks_hit": 3174869,
+      "shared_blks_read": 2,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "INSERT INTO private.matchup_forecast_queue AS queued(matchup_id, revision, changed_at, dirty)\n  SELECT matchup.id, $3, transaction_timestamp(), $4\n  FROM public.matchups matchup\n  JOIN public.league_seasons season ON season.id=matchup.league_season_id AND season.is_current\n  JOIN public.leagues league ON league.id=matchup.league_id AND league.deleted_at IS NULL\n  JOIN public.season_weeks first_week ON first_week.season_year=season.season_year AND first_week.week_number=matchup.week_number\n  JOIN public.season_weeks last_week ON last_week.season_year=season.season_year AND last_week.week_number=COALESCE(matchup.end_week_number,matchup.week_number)\n  WHERE NOT matchup.is_voided\n    AND (p_league_id IS NULL OR matchup.league_id=p_league_id)\n    AND (p_matchup_id IS NULL OR matchup.id=p_matchup_id)\n    AND last_week.week_end >= (now() AT TIME ZONE $5)::date - $6\n    AND first_week.week_start <= (now() AT TIME ZONE $7)::date + $8\n  ORDER BY matchup.id\n  ON CONFLICT(matchup_id) DO UPDATE SET\n    revision=CASE WHEN queued.changed_at=transaction_timestamp() THEN queued.revision ELSE queued.revision+$9 END,\n    changed_at=transaction_timestamp(), dirty=$10, available_at=now()"
+    },
+    {
+      "queryid": "-7071936318259879374",
+      "calls": 2178,
+      "total_exec_time": 285483.684334,
+      "mean_exec_time": 131.076071778696,
+      "rows_returned_or_affected": 2178,
+      "shared_blks_hit": 2703929,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.queue_matchup_forecasts(NEW.league_id)"
+    },
+    {
+      "queryid": "-6810390078056806456",
+      "calls": 1932,
+      "total_exec_time": 268422.41053,
+      "mean_exec_time": 138.934995098344,
+      "rows_returned_or_affected": 1932,
+      "shared_blks_hit": 2490996,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "INSERT INTO public.league_change_hints AS stored(league_id,topic,revision,scopes)\n      VALUES(v_change.league_id,v_topic,$22,v_change.scopes)\n    ON CONFLICT(league_id,topic) DO UPDATE SET\n      revision=stored.revision+(stored.xmin<>pg_current_xact_id()::xid)::integer,\n      scopes=CASE WHEN stored.xmin<>pg_current_xact_id()::xid THEN EXCLUDED.scopes\n        WHEN stored.scopes IS NULL OR EXCLUDED.scopes IS NULL THEN $23\n        WHEN (SELECT count(DISTINCT scope) FROM jsonb_array_elements(stored.scopes||EXCLUDED.scopes) scope)>$24 THEN $25\n        ELSE (SELECT jsonb_agg(scope ORDER BY scope::text) FROM\n          (SELECT DISTINCT scope FROM jsonb_array_elements(stored.scopes||EXCLUDED.scopes) scope) merged) END,\n      updated_at=clock_timestamp()\n    WHERE stored.xmin<>pg_current_xact_id()::xid\n      OR stored.scopes IS NOT NULL AND (EXCLUDED.scopes IS NULL OR NOT stored.scopes @> EXCLUDED.scopes)"
+    },
+    {
+      "queryid": "2945201257438995188",
+      "calls": 1854,
+      "total_exec_time": 267170.195771999,
+      "mean_exec_time": 144.104744213592,
+      "rows_returned_or_affected": 1854,
+      "shared_blks_hit": 2511282,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_game_id\", \"p_provider_game_id\", \"p_status\", \"p_home_score\", \"p_away_score\", \"p_status_text\", \"p_elapsed_seconds\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_game_id\" uuid, \"p_provider_game_id\" text, \"p_status\" text, \"p_home_score\" integer, \"p_away_score\" integer, \"p_status_text\" text, \"p_elapsed_seconds\" numeric) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"save_live_scoreboard_atomic\"(\"p_game_id\" := pgrst_body.\"p_game_id\", \"p_provider_game_id\" := pgrst_body.\"p_provider_game_id\", \"p_status\" := pgrst_body.\"p_status\", \"p_home_score\" := pgrst_body.\"p_home_score\", \"p_away_score\" := pgrst_body.\"p_away_score\", \"p_status_text\" := pgrst_body.\"p_status_text\", \"p_elapsed_seconds\" := pgrst_body.\"p_elapsed_seconds\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"save_live_scoreboard_atomic\".* FROM \"pgrst_source\" AS"
+    },
+    {
+      "queryid": "-860519852186336727",
+      "calls": 1861,
+      "total_exec_time": 266491.492336999,
+      "mean_exec_time": 143.198007703923,
+      "rows_returned_or_affected": 1856,
+      "shared_blks_hit": 2494079,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "UPDATE public.nba_games SET status=p_status,home_score=p_home_score,away_score=p_away_score,\n    game_status_text=CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)\n      AND p_status=$17 AND private.lineup_game_available(p_status,p_status_text)\n      THEN v_game.game_status_text ELSE p_status_text END,live_scoreboard_elapsed_seconds=p_elapsed_seconds,updated_at=clock_timestamp()\n    WHERE id=p_game_id AND ROW(status,home_score,away_score,game_status_text,live_scoreboard_elapsed_seconds)\n      IS DISTINCT FROM ROW(p_status,p_home_score,p_away_score,\n        CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)\n          AND p_status=$18 AND private.lineup_game_available(p_status,p_status_text)\n          THEN v_game.game_status_text ELSE p_status_text END,p_elapsed_seconds)"
+    },
+    {
+      "queryid": "3937912061696918826",
+      "calls": 3566,
+      "total_exec_time": 212239.385848,
+      "mean_exec_time": 59.5174946292764,
+      "rows_returned_or_affected": 3566,
+      "shared_blks_hit": 3446001,
+      "shared_blks_read": 546,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_game_id\", \"p_provider_game_id\", \"p_stats\", \"p_elapsed_seconds\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_game_id\" uuid, \"p_provider_game_id\" text, \"p_stats\" jsonb, \"p_elapsed_seconds\" numeric) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"save_live_game_stats_atomic\"(\"p_game_id\" := pgrst_body.\"p_game_id\", \"p_provider_game_id\" := pgrst_body.\"p_provider_game_id\", \"p_stats\" := pgrst_body.\"p_stats\", \"p_elapsed_seconds\" := pgrst_body.\"p_elapsed_seconds\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"save_live_game_stats_atomic\".* FROM \"pgrst_source\" AS \"save_live_game_stats_atomic\"   LIMIT $2 OFFSET $3) _postgrest_t"
+    },
+    {
+      "queryid": "3236710364896037399",
+      "calls": 3573,
+      "total_exec_time": 196342.222886,
+      "mean_exec_time": 54.9516436848587,
+      "rows_returned_or_affected": 18742,
+      "shared_blks_hit": 3261054,
+      "shared_blks_read": 577,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "INSERT INTO public.player_game_stats AS stored (\n    player_id, game_id, is_home, season_year, week_number, minutes_played, points, rebounds, offensive_rebounds, defensive_rebounds, assists, steals, blocks, turnovers, personal_fouls, field_goals_made, field_goals_attempted, three_pointers_made, three_pointers_attempted, free_throws_made, free_throws_attempted, plus_minus, double_double, triple_double, did_not_play, updated_at\n  )\n  SELECT incoming.player_id, v_game.id, incoming.is_home, v_game.season_year, v_game.week_number, incoming.minutes_played, incoming.points, incoming.rebounds, incoming.offensive_rebounds, incoming.defensive_rebounds, incoming.assists, incoming.steals, incoming.blocks, incoming.turnovers, incoming.personal_fouls, incoming.field_goals_made, incoming.field_goals_attempted, incoming.three_pointers_made, incoming.three_pointers_attempted, incoming.free_throws_made, incoming.free_throws_attempted, incoming.plus_minus, incoming.double_double, incoming.triple_double, incoming.did_not_play, clock_timestamp()\n  FROM jsonb_populate_recordset($15::public.player_game_stats, p_stats) AS incoming\n  ON CONFLICT (player_id, game_id) DO UPDATE SET\n    is_home = COALESCE(EXC"
+    },
+    {
+      "queryid": "6138405281038615029",
+      "calls": 7310,
+      "total_exec_time": 112778.030424,
+      "mean_exec_time": 15.4279111387141,
+      "rows_returned_or_affected": 7310,
+      "shared_blks_hit": 3674551,
+      "shared_blks_read": 30,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_source\", \"p_records\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_source\" text, \"p_records\" jsonb) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"resolve_player_imports_atomic\"(\"p_source\" := pgrst_body.\"p_source\", \"p_records\" := pgrst_body.\"p_records\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"resolve_player_imports_atomic\".* FROM \"pgrst_source\" AS \"resolve_player_imports_atomic\"   LIMIT $2 OFFSET $3) _postgrest_t"
+    },
+    {
+      "queryid": "-5714263441580547001",
+      "calls": 5105,
+      "total_exec_time": 75065.073621,
+      "mean_exec_time": 14.7042259786483,
+      "rows_returned_or_affected": 5106,
+      "shared_blks_hit": 16966689,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT wal->>$5 as type,\n       wal->>$6 as schema,\n       wal->>$7 as table,\n       COALESCE(wal->>$8, $9) as columns,\n       COALESCE(wal->>$10, $11) as record,\n       COALESCE(wal->>$12, $13) as old_record,\n       wal->>$14 as commit_timestamp,\n       subscription_ids,\n       errors,\n       slot_changes_count\nFROM realtime.list_changes($1, $2, $3, $4)"
+    },
+    {
+      "queryid": "4740154786981607197",
+      "calls": 5105,
+      "total_exec_time": 67705.7761350001,
+      "mean_exec_time": 13.262639791381,
+      "rows_returned_or_affected": 5106,
+      "shared_blks_hit": 12965474,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pub AS (\n    SELECT\n      concat_ws(\n        $5,\n        CASE WHEN bool_or(pubinsert) THEN $6 ELSE $7 END,\n        CASE WHEN bool_or(pubupdate) THEN $8 ELSE $9 END,\n        CASE WHEN bool_or(pubdelete) THEN $10 ELSE $11 END\n      ) AS w2j_actions,\n      coalesce(\n        string_agg(\n          realtime.quote_wal2json(format($12, schemaname, tablename)::regclass),\n          $13\n        ) filter (WHERE ppt.tablename IS NOT NULL),\n        $14\n      ) AS w2j_add_tables\n    FROM pg_publication pp\n    LEFT JOIN pg_publication_tables ppt ON pp.pubname = ppt.pubname\n    WHERE pp.pubname = publication\n    GROUP BY pp.pubname\n    LIMIT $15\n  ),\n  -- MATERIALIZED ensures pg_logical_slot_get_changes is called exactly once\n  w2j AS MATERIALIZED (\n    SELECT x.*, pub.w2j_add_tables\n    FROM pub,\n         pg_logical_slot_get_changes(\n           slot_name, $16, max_changes,\n           $17, $18,\n           $19, $20,\n           $21, $22,\n           $23, $24,\n           $25, $26,\n           $27, pub.w2j_actions,\n           $28, pub.w2j_add_tables\n         ) x\n  ),\n  slot_count AS (\n    SELECT count(*)::bigint AS cnt\n    FROM w2j\n    WHERE w2j.w2j_add_tables <> $29\n  ),\n  rls_filtered AS (\n    SEL"
+    },
+    {
+      "queryid": "-6346483043968453858",
+      "calls": 667702,
+      "total_exec_time": 53806.6103810011,
+      "mean_exec_time": 0.080584767427685,
+      "rows_returned_or_affected": 667702,
+      "shared_blks_hit": 688486,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT season_sim.time()"
+    },
+    {
+      "queryid": "5197460810873228868",
+      "calls": 126240,
+      "total_exec_time": 52630.2531399991,
+      "mean_exec_time": 0.416906314480359,
+      "rows_returned_or_affected": 486,
+      "shared_blks_hit": 1680899,
+      "shared_blks_read": 11,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "INSERT INTO private.player_game_memberships(player_id,game_id,nba_team)\n        VALUES(v_id,v_game_id,private.player_identity_team(v_record->>$13))\n        ON CONFLICT(player_id,game_id) DO UPDATE SET nba_team=EXCLUDED.nba_team\n        WHERE player_game_memberships.nba_team IS DISTINCT FROM EXCLUDED.nba_team"
+    },
+    {
+      "queryid": "7125173271426136483",
+      "calls": 976,
+      "total_exec_time": 48080.705977,
+      "mean_exec_time": 49.2630184190574,
+      "rows_returned_or_affected": 976,
+      "shared_blks_hit": 2147726,
+      "shared_blks_read": 331,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT public.dispatch_work()"
+    },
+    {
+      "queryid": "-559817183648077102",
+      "calls": 976,
+      "total_exec_time": 45331.695944,
+      "mean_exec_time": 46.4464097786885,
+      "rows_returned_or_affected": 976,
+      "shared_blks_hit": 2021250,
+      "shared_blks_read": 236,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.enqueue_scheduled_work(now())"
+    },
+    {
+      "queryid": "-7642953776459911417",
+      "calls": 363975,
+      "total_exec_time": 42501.0043079993,
+      "mean_exec_time": 0.116769020696476,
+      "rows_returned_or_affected": 363975,
+      "shared_blks_hit": 1488936,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT $15 FROM private.work_items WHERE invocation_key=v_invocation::uuid AND status=$16 AND lease_until>clock_timestamp()"
+    },
+    {
+      "queryid": "-2113303094648078681",
+      "calls": 976,
+      "total_exec_time": 41271.521055,
+      "mean_exec_time": 42.2863945235656,
+      "rows_returned_or_affected": 976,
+      "shared_blks_hit": 1183155,
+      "shared_blks_read": 38,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.enqueue_process_trades(p_now)"
+    },
+    {
+      "queryid": "2608571565774407377",
+      "calls": 976,
+      "total_exec_time": 41063.250379,
+      "mean_exec_time": 42.0730024375,
+      "rows_returned_or_affected": 976,
+      "shared_blks_hit": 1178279,
+      "shared_blks_read": 31,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT public.notif_scan_due_atomic()"
+    },
+    {
+      "queryid": "-8930950501454625657",
+      "calls": 7290241,
+      "total_exec_time": 34500.2276089788,
+      "mean_exec_time": 0.00473238506230464,
+      "rows_returned_or_affected": 7290241,
+      "shared_blks_hit": 7529770,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT to_timestamp(least(sim_ms + (extract($2 FROM p_real) * $3 - real_ms) * rate, cap_ms) / $4)\n  FROM season_sim.clock WHERE singleton"
+    },
+    {
+      "queryid": "-2342545562435467629",
+      "calls": 2815,
+      "total_exec_time": 31415.127006,
+      "mean_exec_time": 11.1599030216696,
+      "rows_returned_or_affected": 2815,
+      "shared_blks_hit": 1265490,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT COALESCE(jsonb_agg(jsonb_build_object($23,p_game_date,$24,p.player_id,\n    $25,p.projection_fantasy_points,$26,p.projection_source_label,\n    $27,p.projection_fetched_at,$28,p.projection_date,\n    $29,p.projection_is_fresh) ORDER BY p.player_id),$30::jsonb)               FROM public.get_league_projection_rows(c.league_id,c.season_year,p_game_date,$31,v_ids,$32,$33) p"
+    },
+    {
+      "queryid": "8424037244979178598",
+      "calls": 7165,
+      "total_exec_time": 26477.799668,
+      "mean_exec_time": 3.69543610160502,
+      "rows_returned_or_affected": 7165,
+      "shared_blks_hit": 468134,
+      "shared_blks_read": 3,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.recount_player_career_games(v_ids)"
+    },
+    {
+      "queryid": "-1075279482228084778",
+      "calls": 600,
+      "total_exec_time": 26402.361072,
+      "mean_exec_time": 44.00393512,
+      "rows_returned_or_affected": 600,
+      "shared_blks_hit": 1139368,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_user_id\", \"p_member_id\", \"p_trade_id\" FROM json_to_record(pgrst_payload.json_data) AS _(\"p_user_id\" uuid, \"p_member_id\" uuid, \"p_trade_id\" uuid) LIMIT $4) pgrst_body , LATERAL (SELECT \"public\".\"get_trade_revaluation_inputs\"(\"p_user_id\" := pgrst_body.\"p_user_id\", \"p_member_id\" := pgrst_body.\"p_member_id\", \"p_trade_id\" := pgrst_body.\"p_trade_id\") pgrst_scalar) pgrst_call) SELECT $5::bigint AS total_result_set, $6 AS page_total, coalesce(json_agg(_postgrest_t.pgrst_scalar)->$7, $8) AS body, nullif(current_setting($9, $10), $11) AS response_headers, nullif(current_setting($12, $13), $14) AS response_status, $15 AS response_inserted FROM (SELECT \"get_trade_revaluation_inputs\".* FROM \"pgrst_source\" AS \"get_trade_revaluation_inputs\"   LIMIT $2 OFFSET $3) _postgrest_t"
+    },
+    {
+      "queryid": "1052523085254952009",
+      "calls": 766,
+      "total_exec_time": 24701.422709,
+      "mean_exec_time": 32.2472881318538,
+      "rows_returned_or_affected": 766,
+      "shared_blks_hit": 543625,
+      "shared_blks_read": 9,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "UPDATE players SET\n            espn_id = CASE WHEN p_source = $57 THEN v_provider ELSE espn_id END,\n            sleeper_id = CASE WHEN p_source = $58 THEN v_provider ELSE sleeper_id END,\n            first_name = v_first, last_name = v_last,\n            nba_team = v_metadata->>$59, status = v_metadata->>$60,\n            injury_status = CASE WHEN v_metadata ? $61 THEN v_metadata->>$62 ELSE injury_status END,\n            years_exp = coalesce((v_metadata->>$63)::int,years_exp),\n            birthdate = coalesce((v_metadata->>$64)::date,birthdate),\n            position = CASE WHEN p_source=$65 THEN coalesce(v_row.position,(v_metadata->>$66)::nba_position)\n              ELSE coalesce((v_metadata->>$67)::nba_position,v_row.position) END,\n            eligible_positions = CASE WHEN (p_source=$68 AND cardinality(v_row.eligible_positions) > $69) OR jsonb_typeof(v_metadata->$70) IS DISTINCT FROM $71\n              THEN v_row.eligible_positions ELSE ARRAY(SELECT jsonb_array_elements_text(coalesce(v_metadata->$72, $73))) END,\n            updated_at = clock_timestamp()\n          WHERE id = v_id"
+    },
+    {
+      "queryid": "3610327279280216719",
+      "calls": 121,
+      "total_exec_time": 22726.638059,
+      "mean_exec_time": 187.823455033058,
+      "rows_returned_or_affected": 121,
+      "shared_blks_hit": 487355,
+      "shared_blks_read": 0,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.queue_matchup_forecasts(affected_league)"
+    },
+    {
+      "queryid": "-2216479762697570506",
+      "calls": 1276,
+      "total_exec_time": 22435.877488,
+      "mean_exec_time": 17.5829760877743,
+      "rows_returned_or_affected": 1276,
+      "shared_blks_hit": 404727,
+      "shared_blks_read": 3,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT count(*)::integer\n  FROM public.player_game_stats s JOIN public.nba_games g ON g.id=s.game_id\n  WHERE s.player_id=p_player_id AND g.season_year>p_after_season\n    AND g.game_date>=(SELECT first_game_date FROM private.provider_history_policy WHERE source=$3)\n    AND public.is_regular_season_game_id(g.nba_game_id) AND private.player_game_appeared(s)"
+    },
+    {
+      "queryid": "-5076091789092042265",
+      "calls": 976,
+      "total_exec_time": 20454.737835,
+      "mean_exec_time": 20.9577231915984,
+      "rows_returned_or_affected": 976,
+      "shared_blks_hit": 630234,
+      "shared_blks_read": 23,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT private.notif_scan_lineups(p_now)"
+    },
+    {
+      "queryid": "-4882803000638396115",
+      "calls": 976,
+      "total_exec_time": 20398.949156,
+      "mean_exec_time": 20.9005626598361,
+      "rows_returned_or_affected": 0,
+      "shared_blks_hit": 630229,
+      "shared_blks_read": 23,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "SELECT * FROM private.notif_lineup_candidates(p_now)"
+    },
+    {
+      "queryid": "-4844667422474277930",
+      "calls": 976,
+      "total_exec_time": 18807.682903,
+      "mean_exec_time": 19.2701669088115,
+      "rows_returned_or_affected": 0,
+      "shared_blks_hit": 257103,
+      "shared_blks_read": 18,
+      "temp_blks_read": 0,
+      "temp_blks_written": 0,
+      "query": "DO $season_sim_dispatch$\nDECLARE before_id bigint;\nBEGIN\n  SELECT coalesce(max(id),0) INTO before_id FROM public.edge_invocations;\n   PERFORM private.flush_player_stats_hints() WHERE NOT (SELECT paused FROM private.worker_controls WHERE id); PERFORM private.flush_league_inventory_hints(1000) WHERE NOT (SELECT paused FROM private.worker_controls WHERE id);\n  PERFORM set_config('season_sim.dispatch_ids',(SELECT coalesce(json_agg(id),'[]')::text FROM public.edge_invocations WHERE id>before_id),false);\nEND;\n$season_sim_dispatch$"
+    }
+  ]
+}

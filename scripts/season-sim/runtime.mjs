@@ -2,12 +2,13 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { open, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { config, originUrl, delay, laneDirectory, miniRoot, writeJson } from './common.mjs'
 import { localKeys, sql } from './local-stack.mjs'
 import { setClock } from './clock.mjs'
 import { startOrigin } from './origin.mjs'
+import { captureProcessOutput } from '../perf-lab/bounded-log.mjs'
 
 export async function startRuntime(at, { resume = false } = {}) {
   const keys = localKeys()
@@ -28,14 +29,21 @@ export async function startRuntime(at, { resume = false } = {}) {
   assert.equal(await sql('SELECT count(*) FROM cron.job'), '0')
   await sql(`ALTER DATABASE postgres SET app.supabase_url = 'http://host.lima.internal:${config.ports.edge}'; ALTER DATABASE postgres SET app.edge_internal_token = '${token}'; SET app.supabase_url = 'http://host.lima.internal:${config.ports.edge}'; SET app.edge_internal_token = '${token}'`)
   const origin = await startOrigin({ resume, probeToken: token })
-  const log = await open(path.join(evidence, 'edge.log'), 'a')
-  let child
-  const stopEdge = async () => { if (child && child.exitCode == null && child.signalCode == null) { const exited = once(child, 'exit'); child.kill('SIGTERM'); await exited } }
-  const close = async () => { await stopEdge(); origin.flushCoverage(); await new Promise(resolve => origin.close(resolve)); await log.close() }
+  let child, log
+  const stopEdge = async () => {
+    if (child && child.exitCode == null && child.signalCode == null) { const exited = once(child, 'close'); child.kill('SIGTERM'); await exited }
+    log?.close()
+    log = null
+  }
+  const close = async () => {
+    try { await stopEdge(); origin.flushCoverage() }
+    finally { await new Promise(resolve => origin.close(resolve)) }
+  }
   const startEdge = async () => {
     child = spawn('deno', ['run', '--allow-sys=homedir', '--allow-env', '--allow-read', '--allow-write', `--allow-net=127.0.0.1:${config.ports.db},127.0.0.1:${config.ports.api},127.0.0.1:${config.ports.replay},127.0.0.1:${config.ports.edge},localhost:${config.ports.api}`, 'scripts/season-sim/edge.mjs'], {
-    env: { ...process.env, SUPABASE_SECRET_KEY: keys.SECRET_KEY ?? keys.SERVICE_ROLE_KEY, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: token }, stdio: ['ignore', log.fd, log.fd],
+    env: { ...process.env, SUPABASE_SECRET_KEY: keys.SECRET_KEY ?? keys.SERVICE_ROLE_KEY, SUPABASE_ANON_KEY: keys.ANON_KEY, PANCAKE_EDGE_INTERNAL_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
   })
+  log = captureProcessOutput(child, path.join(evidence, 'edge.log'))
   let ready = false
   for (let attempt = 0; attempt < 120; attempt++) {
     if (child.exitCode != null) throw new Error(`Edge router exited: ${child.exitCode}. See edge.log`)

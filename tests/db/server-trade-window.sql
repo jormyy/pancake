@@ -1,7 +1,11 @@
 BEGIN;
+UPDATE public.leagues SET deleted_at=now() WHERE deleted_at IS NULL;
+UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
+DELETE FROM public.notification_outbox;
+DELETE FROM private.work_items WHERE kind='process-trades';
 \ir rules-support.sql
 DO $$
-DECLARE f record; players uuid[]; offer uuid; draft uuid; pick uuid; result jsonb; gate bigint;
+DECLARE f record; players uuid[]; offer uuid; draft uuid; pick uuid; result jsonb; gate bigint; queued private.work_items%ROWTYPE;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2, 9520, 'drafting');
   players := ARRAY[gen_random_uuid(),gen_random_uuid()];
@@ -22,10 +26,11 @@ BEGIN
   UPDATE trades SET veto_window_expires_at=now()-interval '1 second' WHERE id=offer;
   PERFORM set_config('app.supabase_url','http://127.0.0.1:1',true);
   PERFORM set_config('app.edge_internal_token','local-database-ci-token',true);
-  SELECT count(*) INTO gate FROM edge_invocations WHERE function_name='process-trades';
-  PERFORM public.invoke_process_trades_if_due();
-  PERFORM pg_temp.check_rules((SELECT count(*)>gate FROM edge_invocations WHERE function_name='process-trades'),
-    'drafting due trade dispatches the worker');
+  DELETE FROM private.work_items WHERE kind='process-trades';
+  SELECT count(*) INTO gate FROM private.work_items WHERE kind='process-trades';
+  PERFORM private.enqueue_process_trades(now());
+  PERFORM pg_temp.check_rules((SELECT count(*)>gate FROM private.work_items WHERE kind='process-trades'),
+    'drafting due trade enqueues worker work');
   PERFORM public.process_due_accepted_trades_atomic(50);
   PERFORM pg_temp.check_rules((SELECT status='completed' FROM trades WHERE id=offer), 'drafting trade settles');
   PERFORM pg_temp.check_rules((SELECT member_id=f.member_ids[2] FROM roster_players WHERE league_season_id=f.season_id AND player_id=players[1]),
@@ -57,9 +62,11 @@ BEGIN
     VALUES(draft,1,1,1,f.member_ids[1],pick);
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[2]),
     'Picks in the live draft can be traded after the draft.','live rookie pick refuses acceptance');
+  UPDATE trades SET status='withdrawn' WHERE id=pending_offer;
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L,%L,%L,%L)',
-    f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}',ARRAY[players[2]]::text,ARRAY[pick]::text,'{}'),
+    f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[1]]::text,ARRAY[players[2]]::text,ARRAY[pick]::text,'{}'),
     'Picks in the live draft can be traded after the draft.','live rookie pick refuses proposal');
+  UPDATE trades SET status='pending' WHERE id=pending_offer;
   UPDATE snake_draft_picks SET skipped_at=now() WHERE draft_id=draft AND draft_pick_id=pick;
   PERFORM pg_temp.reject_rules(format('SELECT public.accept_trade_atomic(%L,%L)',pending_offer,f.member_ids[2]),
     'Picks in the live draft can be traded after the draft.','skipped unmade picks stay locked until the live draft ends');

@@ -1,4 +1,13 @@
 BEGIN;
+\if :{?negative_control}
+\else
+  \set negative_control false
+\endif
+\if :{?sender_id}
+\else
+  \set benchmark_large true
+  \ir benchmark-fixture.sql
+\endif
 SET LOCAL statement_timeout='8s';
 SET LOCAL lock_timeout='3s';
 CREATE TEMP TABLE trade_budget_measurements(label text PRIMARY KEY, milliseconds numeric);

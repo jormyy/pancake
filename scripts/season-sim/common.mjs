@@ -1,3 +1,4 @@
+import { captureFileLimit } from '../perf-lab/bounded-log.mjs'
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises'
@@ -13,7 +14,11 @@ export function configuration(env = process.env) {
   assert.match(project, /^pt4ba[a-z0-9_-]+$/, 'Use a task-local project')
   const root = env.SEASON_SIM_ROOT ?? path.join(homedir(), 'pancake-t_4ba51e0d/lanes/sim')
   assert.ok(path.isAbsolute(root), 'SEASON_SIM_ROOT must be absolute')
-  if(prefix==='581'||project==='pt4basimx'){
+  if(project==='pt4bafabledb'||path.resolve(root)===path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/db')){
+    assert.equal(prefix,'574','The database audit uses block 574')
+    assert.equal(project,'pt4bafabledb','The database audit uses its own project')
+    assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/fable-timeline/db'),'The database audit uses its own root')
+  }else if(prefix==='581'||project==='pt4basimx'){
     assert.equal(prefix,'581','The supplemental project uses block 581')
     assert.equal(project,'pt4basimx','Block 581 belongs only to the supplemental project')
     assert.equal(path.resolve(root),path.join(homedir(),'pancake-t_4ba51e0d/lanes/sim-supp'),'The supplemental project uses its separate root')
@@ -95,7 +100,9 @@ export async function laneDirectory(directory) {
 }
 
 export async function writeJson(file, value) {
-  await writeFile(`${file}.tmp`, `${JSON.stringify(value, null, 2)}\n`)
+  const bytes = `${JSON.stringify(value, null, 2)}\n`
+  if (process.env.PERF_LAB_ON_MINI === '1') assert.ok(Buffer.byteLength(bytes) <= captureFileLimit, `Capture file limit exceeded: ${path.basename(file)}`)
+  await writeFile(`${file}.tmp`, bytes)
   await rename(`${file}.tmp`, file)
 }
 

@@ -27,7 +27,7 @@ const evidenceByScenarioId = {
   performance: 'Measures browser feedback, navigation, heartbeat lag, and mutation load against executable budgets.',
   auction: 'Places a bid through the real draft-room UI and verifies persisted nomination and bid state.',
   lineup: 'Moves a bench player through the real lineup screen, then verifies persistence and live cross-tab agreement.',
-  'lineup-auto-set': 'Sets today and the remaining season through the real Auto-Set controls, then verifies every generated row.',
+  'lineup-auto-set': 'Opens the manual lineup editor and verifies that retired period actions are absent.',
   'lineup-locked': 'Attempts a live-game lineup move and verifies locked-player protection in UI and storage.',
   playoffs: 'Advances a seeded playoff bracket and verifies the champion through the real browser surface.',
   'rookie-draft': 'Lets the visible rookie timer expire and verifies the browser-triggered auto-pick and roster insert.',

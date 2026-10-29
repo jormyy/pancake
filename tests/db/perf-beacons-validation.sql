@@ -82,7 +82,10 @@ BEGIN
 END;
 $$;
 
-SELECT pg_temp.check_beacon((SELECT command LIKE '%private.prune_perf_beacons()%' AND schedule = '0 10 * * *' FROM cron.job WHERE jobname = 'retention-prune'), 'existing retention job includes daily beacon pruning');
+DELETE FROM private.work_items WHERE kind='retention-prune';
+SELECT private.enqueue_scheduled_work(((now() AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE 'UTC'+interval '11 hours');
+SELECT pg_temp.check_beacon(EXISTS(SELECT FROM private.work_items WHERE kind='retention-prune')
+  AND EXISTS(SELECT FROM private.retention_rules WHERE relation_name='public.perf_beacons' AND worker='retain_perf_beacons'), 'daily retention work includes beacon pruning');
 SELECT private.prune_perf_beacons();
 SET LOCAL ROLE service_role;
 SELECT * FROM public.perf_summary(30);

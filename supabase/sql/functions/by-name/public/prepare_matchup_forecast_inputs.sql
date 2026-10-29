@@ -65,6 +65,11 @@ BEGIN
         OR p.scoring_hash<>c.scoring_hash OR p.roster_hash<>v_roster_hash OR p.valid_until<=now()),'[]'::jsonb);
   END IF;
   IF NOT p_game_date=ANY(v_dates) THEN RETURN '[]'::jsonb; END IF;
+  IF EXISTS(SELECT 1 FROM private.forecast_projection_inputs cached
+    WHERE cached.matchup_id=p_matchup_id AND cached.game_date=p_game_date
+      AND cached.observed_date=v_today AND cached.revision=v_projection_revision
+      AND cached.scoring_hash=c.scoring_hash AND cached.roster_hash=v_roster_hash
+      AND cached.valid_until>now()) THEN RETURN '[]'::jsonb; END IF;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('requested_date',p_game_date,'player_id',p.player_id,
     'projection_fantasy_points',p.projection_fantasy_points,'projection_source_label',p.projection_source_label,
     'projection_fetched_at',p.projection_fetched_at,'projection_date',p.projection_date,
@@ -77,10 +82,12 @@ BEGIN
     (SELECT min(r.fetched_at+CASE WHEN r.projection_type='daily' THEN interval '36 hours' ELSE interval '8 days' END)
       FROM public.fantasypros_projection_rows r WHERE r.player_id=ANY(v_ids)
         AND r.fetched_at+CASE WHEN r.projection_type='daily' THEN interval '36 hours' ELSE interval '8 days' END>now())) INTO v_expires;
-  INSERT INTO private.forecast_projection_inputs(matchup_id,game_date,observed_date,revision,scoring_hash,roster_hash,valid_until,rows)
+  INSERT INTO private.forecast_projection_inputs AS stored(matchup_id,game_date,observed_date,revision,scoring_hash,roster_hash,valid_until,rows)
     VALUES(p_matchup_id,p_game_date,v_today,v_projection_revision,c.scoring_hash,v_roster_hash,v_expires,v_rows)
   ON CONFLICT(matchup_id,game_date) DO UPDATE SET observed_date=EXCLUDED.observed_date,revision=EXCLUDED.revision,
-    scoring_hash=EXCLUDED.scoring_hash,roster_hash=EXCLUDED.roster_hash,valid_until=EXCLUDED.valid_until,rows=EXCLUDED.rows;
+    scoring_hash=EXCLUDED.scoring_hash,roster_hash=EXCLUDED.roster_hash,valid_until=EXCLUDED.valid_until,rows=EXCLUDED.rows
+    WHERE ROW(stored.observed_date,stored.revision,stored.scoring_hash,stored.roster_hash,stored.valid_until,stored.rows)
+      IS DISTINCT FROM ROW(EXCLUDED.observed_date,EXCLUDED.revision,EXCLUDED.scoring_hash,EXCLUDED.roster_hash,EXCLUDED.valid_until,EXCLUDED.rows);
   RETURN '[]'::jsonb;
 END;
 $$;

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import {randomUUID}from'node:crypto'
-import {readFile,appendFile}from'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { appendFile } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 
 export async function fakeExpoRecorder(directory,now,lookup){

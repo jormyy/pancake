@@ -14,6 +14,7 @@ BEGIN
       VALUES(player,'Stopped','Rookie','PG',ARRAY['PG'],0,1),(active,'Existing','Veteran','PG',ARRAY['PG'],3,NULL);
     INSERT INTO draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)
       SELECT f.league_id,9556,1,m,m FROM unnest(f.member_ids) m;
+    PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league_id),true);
     draft:=(public.start_rookie_draft_atomic(f.league_id,1,false)->>'id')::uuid;
     SELECT member_id INTO chosen FROM snake_draft_picks WHERE draft_id=draft ORDER BY overall_pick LIMIT 1;
     INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)

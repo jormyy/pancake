@@ -19,6 +19,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_roster_player_id uuid;
+  lock_reason text;
 BEGIN
   IF p_drop_player_id IS NULL THEN
     RETURN QUERY SELECT NULL::uuid, NULL::text;
@@ -41,8 +42,10 @@ BEGIN
     RETURN;
   END IF;
 
-  IF private.is_reserved_trade_asset(p_league_id, p_league_season_id, p_member_id, p_drop_player_id) THEN
-    RETURN QUERY SELECT v_roster_player_id, private.reserved_trade_asset_message();
+  SELECT locked.reason INTO lock_reason FROM private.locked_assets(p_league_id, p_league_season_id, p_member_id) locked
+    WHERE locked.source_kind='trade' AND locked.asset_id=p_drop_player_id ORDER BY locked.source_id LIMIT 1;
+  IF lock_reason IS NOT NULL THEN
+    RETURN QUERY SELECT v_roster_player_id, lock_reason;
     RETURN;
   END IF;
 

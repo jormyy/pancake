@@ -25,8 +25,8 @@ node tests/e2e/exact-controls.mjs
 The four case names are `home-auto-set`, `dense-row-accept`, `dense-row-reject`, and `pending-claim-taxi-edit`.
 Use selected cases when another receipt already proves a control.
 
-Home selects Today from its own auto-set sheet.
-Saved player, date, slot, and auto-set fields confirm the result.
+Home opens the manual editor from its auto-set sheet.
+Saved lineup rows remain unchanged during navigation.
 The locked lineup row must remain identical.
 
 Trade controls come from the summary list beside the detail pane.

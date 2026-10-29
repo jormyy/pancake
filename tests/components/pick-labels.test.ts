@@ -8,6 +8,9 @@ import { TradeAssetColumn } from '@/components/trades/TradeAssetColumn'
 import { AssetList } from '@/components/trades/TradeCard'
 import { TradeBlockPickRow } from '@/components/trades/TradeListRow'
 
+vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: null, currentLeague: null }) }))
+vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: null }) }))
+vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: null, loaded: false }) }))
 vi.mock('@/components/EmptyState', () => ({ EmptyState: 'EmptyState' }))
 vi.mock('@/components/ui/Button', () => ({ Button: 'Button' }))
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))

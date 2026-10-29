@@ -13,17 +13,11 @@ AS $$
 DECLARE
   v_trade trades%ROWTYPE;
   v_league leagues%ROWTYPE;
-  v_from_member uuid;
   v_member_lock uuid;
   v_lock_player_id uuid;
   v_rows int;
   v_all_accepted boolean;
   v_veto_window_hours int;
-  v_item_faab_amount int;
-  v_balance int;
-  v_taxi_count int;
-  v_taxi_incoming int;
-  v_taxi_held int;
 BEGIN
   PERFORM set_config('pancake.trade_write','true',true);
   PERFORM set_config('lock_timeout','100ms',true);
@@ -163,36 +157,6 @@ BEGIN
   END IF;
 
 
-  IF NOT v_league.allow_inactive_trades THEN
-    SELECT count(*) INTO v_taxi_incoming FROM trade_items
-      WHERE trade_id=p_trade_id AND to_member_id=p_accepting_member_id AND player_id IS NOT NULL AND to_taxi;
-    IF v_taxi_incoming>0 THEN
-      SELECT count(*) INTO v_taxi_count FROM roster_players WHERE league_id=v_trade.league_id
-        AND league_season_id=v_trade.league_season_id AND member_id=p_accepting_member_id AND is_on_taxi;
-      SELECT count(*) INTO v_taxi_held FROM trade_items item JOIN trades trade ON trade.id=item.trade_id
-        WHERE trade.id<>p_trade_id AND trade.league_id=v_trade.league_id AND trade.league_season_id=v_trade.league_season_id
-          AND trade.status='accepted' AND item.to_member_id=p_accepting_member_id AND item.player_id IS NOT NULL AND item.to_taxi;
-      IF v_taxi_count+v_taxi_incoming+v_taxi_held>COALESCE(v_league.taxi_slots,0) THEN
-        RAISE EXCEPTION 'Your taxi squad is full (% slots). Accepted trades hold % taxi slot(s).',COALESCE(v_league.taxi_slots,0),v_taxi_held USING ERRCODE='P0001';
-      END IF;
-    END IF;
-  END IF;
-
-  FOR v_from_member, v_item_faab_amount IN
-    SELECT
-      item.from_member_id,
-      sum(item.faab_amount)::int
-      FROM trade_items AS item
-     WHERE item.trade_id = p_trade_id
-       AND item.faab_amount > 0
-     GROUP BY 1
-  LOOP
-    v_balance := private.available_faab_balance(v_trade.league_id, v_trade.league_season_id, v_from_member, p_trade_id);
-    IF v_balance < v_item_faab_amount THEN
-      RAISE EXCEPTION 'Trade participant no longer has enough FAAB for this trade.';
-    END IF;
-  END LOOP;
-
   PERFORM private.assert_trade_window(v_trade.league_id,
     ARRAY(SELECT pick_id FROM trade_items WHERE trade_id=p_trade_id AND pick_id IS NOT NULL));
 
@@ -261,15 +225,6 @@ BEGIN
       RAISE EXCEPTION 'Failed to accept trade atomically';
     END IF;
 
-    IF COALESCE(v_league.trade_veto_mode, 'member_vote') = 'disabled'
-       OR v_veto_window_hours = 0 THEN
-      BEGIN
-        PERFORM public.complete_accepted_trade_atomic(p_trade_id);
-      EXCEPTION WHEN SQLSTATE 'PT002' THEN
-        -- A receiving player's game is in progress: the accepted trade settles on a later queue run.
-        NULL;
-      END;
-    END IF;
   END IF;
 
   IF v_all_accepted THEN

@@ -17,7 +17,7 @@ describe('published fantasy week ranges', () => {
         expect(fantasyCalendar(['2025-12-22', '2025-12-23', '2025-12-25', '2025-12-28', '2025-12-29']).map(week => week.week_number)).toEqual([1, 2])
     })
     it('requires a full thirty-team season before marking unseen games unavailable', () => {
-        const games = Array.from({ length: 1200 }, (_, index) => ({ gameDate: index < 600 ? '2025-10-21' : '2026-04-12', homeTeam: String(index % 30), awayTeam: String((index + 1) % 30) }))
+        const games = Array.from({ length: 1230 }, (_, index) => ({ gameDate: index < 600 ? '2025-10-21' : '2026-04-12', homeTeam: String(index % 30), awayTeam: String((index + 1) % 30) }))
         expect(completeSeasonSchedule(games)).toBe(true)
         expect(completeSeasonSchedule(games.slice(1))).toBe(false)
         expect(completeSeasonSchedule(games.filter(game => game.homeTeam !== '29'))).toBe(false)

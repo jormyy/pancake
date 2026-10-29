@@ -1,11 +1,12 @@
-# Release 2.6.3 database contract
+# Release 2.7 database contract
 
 ## Release order for this release
 
-The supplied production head is `20261128000100`, with 626 migrations.
-Apply `20261129000100_restore_hashtag_rankings.sql`, then `20261130000100_player_page_speed.sql`.
+The supplied production head is `20261130000100`, with 628 migrations.
+Apply all 46 missing migrations in [Release 2.7](#release-27) order through `20261207000100`.
+Twenty-eight missing versions precede the supplied head. Include them in the ordered pending set.
 Database, then Edge, then merge the frontend.
-See [Release 2.6.3](#release-263) for deployment, rollout, and rollback.
+Deploy the six functions listed below after the database upgrade.
 This integration makes no production request.
 
 ## Release 2.6 historical contract
@@ -118,7 +119,7 @@ Do not unschedule a retired per-job cron.
 
 ## Next release
 
-This section contains deferred cleanup, not release 2.6 migration steps.
+This section contains deferred cleanup, outside the release 2.7 migration steps.
 The SQL below is not installed by this release.
 
 Drop `leagues.taxi_rule` after the deployed client and its rollback retire.
@@ -130,19 +131,10 @@ Drop `standings.waiver_priority` after old Edge writers and their rollback windo
 Live waiver order already uses `waiver_priorities`.
 
 
-Keep `weekly_lineups`, `waiver_claims`, and `waiver_wire_log` in `supabase_realtime` through this release.
-The deployed Roster screen and its rollback still subscribe to these tables.
-Remove them only after the new client ships and its rollback window closes.
+Release 2.7 limits realtime publication to draft tables.
+Other screens use version polling. Keep compatible polling readers through rollback.
 
-```sql
-ALTER PUBLICATION supabase_realtime DROP TABLE
-  public.weekly_lineups, public.waiver_claims, public.waiver_wire_log;
-ALTER TABLE public.weekly_lineups REPLICA IDENTITY DEFAULT;
-ALTER TABLE public.waiver_claims REPLICA IDENTITY DEFAULT;
-ALTER TABLE public.waiver_wire_log REPLICA IDENTITY DEFAULT;
-```
-
-The checked-in attestations cover all 625 migrations through `20261124000400`.
+The checked-in attestations cover all 674 migrations through `20261207000100`.
 Recheck their source fingerprints before deployment.
 The published attestations retain the recorded release 1 baseline.
 
@@ -197,8 +189,24 @@ BEGIN
     ORDER BY queued.available_at,queued.created_at,queued.id
     LIMIT CASE WHEN v_limit=0 THEN 0 ELSE GREATEST(v_limit,100) END
     FOR UPDATE OF queued SKIP LOCKED
+  ), lineup_contexts AS MATERIALIZED (
+    SELECT DISTINCT pending.data->>'leagueId' AS league_key,pending.data->>'memberId' AS member_key
+    FROM pending WHERE pending.event_type IN ('lineup_inactive','lineup_empty')
+      AND coalesce(pg_input_is_valid(pending.data->>'leagueId','uuid'),false)
+      AND coalesce(pg_input_is_valid(pending.data->>'memberId','uuid'),false)
+  ), lineup_current AS MATERIALIZED (
+    SELECT context.league_key,context.member_key,candidate.event_type,candidate.league_id,
+      candidate.member_id,candidate.game_date,candidate.player_id
+    FROM lineup_contexts context CROSS JOIN LATERAL private.notif_lineup_candidates_scoped(
+      clock_timestamp(),context.league_key::uuid,context.member_key::uuid) candidate
   ), stale AS MATERIALIZED (
     SELECT pending.*, CASE WHEN pending.deleted_at IS NOT NULL THEN 'league_deleted'
+      WHEN pending.event_type IN ('lineup_inactive','lineup_empty') THEN
+        CASE WHEN NOT EXISTS(SELECT 1 FROM lineup_current candidate
+          WHERE candidate.league_key=pending.data->>'leagueId' AND candidate.member_key=pending.data->>'memberId'
+            AND candidate.event_type=pending.event_type AND candidate.league_id::text=pending.data->>'leagueId'
+            AND candidate.member_id::text=pending.data->>'memberId' AND candidate.game_date::text=pending.data->>'gameDate'
+            AND (pending.event_type='lineup_empty' OR candidate.player_id::text=pending.data->>'playerId')) THEN 'stale' END
       WHEN private.notif_is_stale(pending.event_type,pending.data) THEN 'stale' END AS reason
     FROM pending
   ), deferred AS MATERIALIZED (
@@ -510,3 +518,115 @@ Resume work after the relevant private checks pass.
 
 [Migration history](../docs/production-migration-history.md#release-263-candidate) records the combined range.
 [Integration evidence](../docs/release-2.6.3-integration.md) records checks and every changed file.
+
+## Release 2.7
+
+The source baseline is `origin/main` at `acafdf80`, release 2.6.4.
+The supplied database head is `20261130000100`, with 628 migrations.
+The ordered pending set adds 46 migrations and reaches 674 through `20261207000100`.
+Twenty-eight pending versions precede the supplied head. Include all missing versions in numeric order.
+All versions are distinct. No migration is renumbered.
+
+| Order | Migration | Change |
+| --- | --- | --- |
+| 1 | `20261119000100_skip_unchanged_lineup_slots.sql` | Skip unchanged lineup slots. |
+| 2 | `20261119000200_churn_table_storage_policy.sql` | Churn table storage policy. |
+| 3 | `20261119000300_player_identity_lookup.sql` | Player identity lookup. |
+| 4 | `20261119000400_reviewed_player_provider_links.sql` | Reviewed player provider links. |
+| 5 | `20261119000500_reconcile_missing_final_stats.sql` | Reconcile missing final stats. |
+| 6 | `20261119000600_provider_write_gate.sql` | Provider write gate. |
+| 7 | `20261119000700_terminal_work_retention.sql` | Terminal work retention. |
+| 8 | `20261119000800_application_session_limits.sql` | Application session limits. |
+| 9 | `20261119000900_schedule_write_gate.sql` | Schedule write gate. |
+| 10 | `20261119001000_append_event_time_index.sql` | Append event time index. |
+| 11 | `20261119001100_preserve_lock_free_stat_resolution.sql` | Preserve lock free stat resolution. |
+| 12 | `20261119001200_preserve_incomplete_season_calendar.sql` | Preserve incomplete season calendar. |
+| 13 | `20261119001300_partition_beacons_and_receipts.sql` | Partition beacons and receipts. |
+| 14 | `20261119001400_scope_notification_lineup_checks.sql` | Scope notification lineup checks. |
+| 15 | `20261119001500_partition_events_and_invocations.sql` | Partitions events and invocations. Preserves column grants, policies, and version triggers. |
+| 16 | `20261119001600_complete_public_read_retention.sql` | Complete public read retention. |
+| 17 | `20261119001700_refresh_trade_value_statistics.sql` | Refresh trade value statistics. |
+| 18 | `20261125000100_partition_player_game_stats.sql` | Partition player game stats. |
+| 19 | `20261125000200_partition_notification_outbox.sql` | Partition notification outbox. |
+| 20 | `20261125000300_restore_missing_final_stats_schedule.sql` | Restore missing final stats schedule. |
+| 21 | `20261125000400_restore_native_outbox_uniqueness.sql` | Restore native outbox uniqueness. |
+| 22 | `20261125000500_preserve_reconciliation_after_rankings_retirement.sql` | Preserve reconciliation after rankings retirement. |
+| 23 | `20261125000600_batch_lineup_notification_claims.sql` | Batch lineup notification claims. |
+| 24 | `20261125000700_skip_unchanged_forecast_queue_writes.sql` | Skip unchanged forecast queue writes. |
+| 25 | `20261125000800_remove_roster_member_prefix_index.sql` | Remove roster member prefix index. |
+| 26 | `20261125000900_index_pending_edge_invocations.sql` | Index pending edge invocations. |
+| 27 | `20261126000100_corroborate_null_team_player_identities.sql` | Repairs nine player identities from matching source evidence. |
+| 28 | `20261127000100_database_probe_repairs.sql` | Versions league events and moves public-read retention into dispatcher work. |
+| 29 | `20261201000100_daily_screen_statistics.sql` | Daily screen statistics. |
+| 30 | `20261201000200_preserve_reconciliation_with_hashtag_rankings.sql` | Keeps missing-stat repair and updates existing guarded minute jobs. |
+| 31 | `20261201000300_reuse_current_forecast_projection_inputs.sql` | Reuse current forecast projection inputs. |
+| 32 | `20261201000400_index_recent_score_dispatches.sql` | Index recent score dispatches. |
+| 33 | `20261201000500_share_player_average_refresh_source.sql` | Share player average refresh source. |
+| 34 | `20261201000600_bound_hint_drain.sql` | Applies the guarded five-second hint drain through cron.alter_job. |
+| 35 | `20261201000800_defer_contended_balance_publications.sql` | Defer contended balance publications. |
+| 36 | `20261201000900_draft_only_realtime.sql` | Draft only realtime. |
+| 37 | `20261201001000_cap_worker_dispatch.sql` | Cap worker dispatch. |
+| 38 | `20261201001100_player_game_keyset.sql` | Player game keyset. |
+| 39 | `20261201001200_guard_minute_workers.sql` | Keeps both minute workers bounded and prevents overlapping runs. |
+| 40 | `20261201001300_separate_forecast_publication.sql` | Separate forecast publication. |
+| 41 | `20261201001400_gate_idle_screen_refresh.sql` | Gate idle screen refresh. |
+| 42 | `20261202000100_authorize_trade_receipt_replays.sql` | Requires current membership and request ownership before trade receipt replay. |
+| 43 | `20261204000100_trade_structured_legality.sql` | Adds structured legality, incoming destinations, and atomic saved roster moves. |
+| 44 | `20261205000100_pending_asset_locks.sql` | Locks pending assets and preserves transaction-bound executor proof. |
+| 45 | `20261206000100_trade_pick_labels.sql` | Adds pick ownership to activity readers and shared pick labels. |
+| 46 | `20261207000100_release27_dispatcher_convergence.sql` | Combines scheduler work and handles trade capacity conflicts during waiver processing. |
+
+`public.dispatch_work` owns public-read retention and its bounded hourly prune.
+Catch-up starts after minute 17. The separate `public-read-retention` cron job is unscheduled.
+The scheduler keeps Hashtag rankings, missing-final-stat repair, and daily table analysis.
+The dispatcher claims at most four workers and stops after its transaction budget.
+Only draft tables remain in the realtime publication. Other screens use version polling.
+The hint drain and cron-history cleanup retain their maintenance jobs.
+
+Migrations `20261201000200`, `20261201000600`, and `20261201001200` use `cron.alter_job` on existing job IDs.
+They accept the supplied live minute schedules and advisory-lock commands.
+The final commands retain five-second statement limits, 250-millisecond lock limits, and session overlap guards.
+Repeated application preserves job IDs, counts, schedules, and commands.
+
+Ordinary roster writes enforce pending asset locks.
+Saved trade moves require the executor context, private transaction proof, and an exact saved destination.
+Waiver workers handle the HTTP-compatible trade capacity conflict code as a failed roster claim.
+All three former bug recipes require fixed behavior. `tests/db/known-bugs.json` is empty.
+
+### Changed Edge functions
+
+The release runner import graph compares this source with `origin/main` at `acafdf80`.
+These six deployable functions change, including callers of changed shared files.
+
+| Function | Change |
+| --- | --- |
+| `api` | Adds structured trade legality and saved roster-plan responses. |
+| `backfill` | Preserves incomplete schedule calendars through the shared schedule helper. |
+| `process-trades` | Uses scoped notification lineup checks. |
+| `refresh-views` | Uses the changed shared schedule helper. |
+| `sync-players` | Links player sources using matching identity evidence. |
+| `sync-schedule` | Preserves incomplete schedule calendars. |
+
+### Rollout
+
+1. Verify the applied database history and record compatible frontend and Edge rollback artifacts.
+2. Pause dispatcher work and let running work settle.
+3. Apply all 46 missing migrations in the listed order with older pending versions included.
+4. Check migration fingerprints, column grants, function sources, catalog grants, and database types.
+5. Confirm public-read retention has no separate cron job. Check both guarded minute worker definitions.
+6. Deploy the six listed Edge functions, then release the frontend.
+7. Resume dispatcher work. Check saved trade execution, ordinary asset locks, retention, and daily analysis.
+
+The private rehearsal uses only `pt4bafabler27` and ports `600xx` on the mini.
+The catalog, database types, and both attestation files regenerate there.
+No production service receives a request during integration.
+
+### Rollback
+
+Restore compatible frontend and Edge artifacts and pause affected work.
+Keep the additive schema, partitioned data, native outbox keys, and dispatcher ownership.
+Preserve receipts, saved trade plans, identity links, pending locks, and executor proof checks.
+Use a reviewed forward migration for database repairs.
+Do not restore obsolete cron jobs or remove partitions that contain retained data.
+
+[Integration evidence](../docs/release-2.7-integration.md) records exact checks, limits, and every changed file.

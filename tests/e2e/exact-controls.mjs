@@ -124,7 +124,7 @@ try {
         { sportsdata_game_id: 'exact-' + run + '-ready', nba_game_id: 'exact-' + run + '-ready', season_year: year, week_number: 1, game_date: today, home_team: 'BOS', away_team: 'LAL', status: 'Scheduled', game_time: today + 'T23:59:59Z' },
         { sportsdata_game_id: 'exact-' + run + '-locked', nba_game_id: 'exact-' + run + '-locked', season_year: year, week_number: 1, game_date: today, home_team: 'NYK', away_team: 'MIA', status: 'InProgress', game_time: new Date(Date.now() - 60000).toISOString() },
     ]))
-    const lockedRow = await db(admin.from('weekly_lineups').insert({ league_id: league.id, league_season_id: season.id, member_id: mine.id, player_id: locked.id, game_date: today, week_number: 1, slot_type: 'C', is_auto_set: false }).select('*').single())
+    await db(admin.from('weekly_lineups').insert({ league_id: league.id, league_season_id: season.id, member_id: mine.id, player_id: locked.id, game_date: today, week_number: 1, slot_type: 'C', is_auto_set: false }).select('*').single())
     const claim = await db(admin.from('waiver_claims').insert({ league_id: league.id, league_season_id: season.id, member_id: mine.id, player_id: claimPlayer.id, bid_amount: 7, priority_at_submission: 1, process_date: offset(2), to_taxi: false }).select('*').single())
     const seedTrade = async (a, b, label) => {
         const trade = await db(admin.from('trades').insert({ league_id: league.id, league_season_id: season.id, proposer_member_id: other.id, recipient_member_id: mine.id, status: 'pending', notes: label }).select('*').single())
@@ -152,23 +152,18 @@ try {
     assert.equal(new URL(page.url()).pathname, '/')
     await shot('home-before')
     await auto.click()
-    await page.getByRole('button', { name: 'Auto-set today', exact: true }).waitFor({ state: 'visible' })
+    const sheet = page.getByRole('dialog', { name: 'Auto-set lineup', exact: true })
+    await sheet.getByRole('button', { name: 'Edit lineup manually', exact: true }).waitFor({ state: 'visible' })
+    assert.deepEqual(await sheet.getByRole('button').allTextContents(), ['Close', 'Edit lineup manually'])
     await shot('home-scope')
     const beforeLineups = rows(`select * from weekly_lineups where league_id='${league.id}' order by id`)
-    await page.getByRole('button', { name: 'Auto-set today', exact: true }).click()
-    const savedLineups = await waitFor(() => {
-        const found = rows(`select * from weekly_lineups where league_id='${league.id}' order by id`)
-        return found.some(row => row.player_id === unlocked.id && row.is_auto_set) ? found : null
-    })
-    assert.deepEqual(savedLineups.find(row => row.id === lockedRow.id), beforeLineups.find(row => row.id === lockedRow.id))
-    const ready = savedLineups.find(row => row.player_id === unlocked.id)
-    assert.equal(ready.game_date, today)
-    assert.equal(ready.week_number, 1)
-    assert.equal(ready.slot_type, 'PG')
-    assert.ok(savedLineups.every(row => row.game_date === today))
-    await page.getByText('Lineup set for today.', { exact: true }).waitFor({ state: 'visible' })
+    await sheet.getByRole('button', { name: 'Edit lineup manually', exact: true }).click()
+    await page.waitForURL('**/lineup')
+    await page.getByRole('switch', { name: 'Keep lineup updated automatically', exact: true }).waitFor({ state: 'visible' })
+    const savedLineups = rows(`select * from weekly_lineups where league_id='${league.id}' order by id`)
+    assert.deepEqual(savedLineups, beforeLineups)
     await shot('home-after')
-    report.cases.push({ name: 'home-auto-set', scope: 'Today', beforeLineups, savedLineups, lockedRowPreserved: true, passed: true })
+    report.cases.push({ name: 'home-auto-set', scope: 'Manual editor navigation', beforeLineups, savedLineups, passed: true })
     await save()
     }
     const assets = () => ({ roster: rows(`select * from roster_players where league_id='${league.id}' order by id`), balances: rows(`select * from faab_balances where league_id='${league.id}' order by id`), transactions: rows(`select * from roster_transactions where league_id='${league.id}' order by id`) })

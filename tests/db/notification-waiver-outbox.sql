@@ -1,4 +1,8 @@
 BEGIN;
+UPDATE public.leagues SET deleted_at=now() WHERE deleted_at IS NULL;
+UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
+DELETE FROM public.notification_outbox;
+DELETE FROM private.work_items WHERE kind='process-trades';
 SELECT set_config('app.supabase_url', 'http://127.0.0.1:1', true);
 SELECT set_config('app.edge_internal_token', 'local-waiver-outbox-test', true);
 UPDATE public.trades SET expires_at=now()+interval '1 day',veto_window_expires_at=now()+interval '1 day';
@@ -13,6 +17,7 @@ DECLARE
   previous_lease uuid;
   invocations bigint;
   event record;
+  queued private.work_items%ROWTYPE;
 BEGIN
   INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES(actor,actor::text||'@example.test','{}');
   INSERT INTO public.leagues(id,name,slug,commissioner_id,status)
@@ -23,10 +28,11 @@ BEGIN
   ) events(kind,category) LOOP
     INSERT INTO public.notification_outbox(dedupe_key,member_id,event_type,title,body,category)
     VALUES(event.kind||':'||member,member,event.kind,'Notification','Added',event.category) RETURNING id INTO notice;
-    SELECT count(*) INTO invocations FROM public.edge_invocations WHERE function_name='process-trades';
-    PERFORM public.invoke_process_trades_if_due();
-    IF (SELECT count(*) FROM public.edge_invocations WHERE function_name='process-trades') <> invocations+1 THEN
-      RAISE EXCEPTION 'A due notification does not wake the notification worker';
+    DELETE FROM private.work_items WHERE kind='process-trades';
+    SELECT count(*) INTO invocations FROM private.work_items WHERE kind='process-trades';
+    PERFORM private.enqueue_process_trades(now());
+    IF (SELECT count(*) FROM private.work_items WHERE kind='process-trades') <> invocations+1 THEN
+      RAISE EXCEPTION 'A due notification does not enqueue notification work';
     END IF;
     SELECT claim_token INTO lease FROM public.claim_notification_outbox_atomic(200,60) WHERE id=notice;
     IF lease IS NULL THEN RAISE EXCEPTION 'A notification cannot be claimed'; END IF;

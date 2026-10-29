@@ -1,3 +1,4 @@
+import type { AssetLock } from '@/lib/locked-assets'
 import type { NBAGameRow } from '@/lib/games'
 import type { ViewContext } from '@/lib/cache/screen-cache'
 import type { RosterPlayer, OwnedEntry, PlayerRosterStatus, RosterOccupancy } from '@/lib/roster'
@@ -11,15 +12,28 @@ import type { PlayerRow, PlayerDetailRow, PlayerSeasonAverages, TransactionHisto
 import type { PlayerSeasonLine, PlayerGame } from '@/components/player/season-data'
 import type { LeagueProjectionRow } from '@/lib/projections'
 
-export type RosterView = { context: ViewContext; roster: RosterPlayer[]; picks: TradePickItem[]; claims: WaiverClaim[]; avgMap: Record<string, number>; avgStatsMap: Record<string, RosterAverage>; waiverPriority: number | null; faabBalance: number | null; slotPlan: { slots: RosterSlotPlan['slots']; assignments: Record<string, string> }; transactionState: MemberTransactionState; taxiExitPlayerIds: string[] }
-export function rosterViewData(view: RosterView) {
-    return { ...view, avgMap: new Map(Object.entries(view.avgMap)), avgStatsMap: new Map(Object.entries(view.avgStatsMap)) }
+export type RosterView = { lockedAssets?: AssetLock[]; context: ViewContext; roster: RosterPlayer[]; picks: TradePickItem[]; claims: WaiverClaim[]; avgMap: Record<string, number>; avgStatsMap: Record<string, RosterAverage>; waiverPriority: number | null; faabBalance: number | null; slotPlan: { slots: RosterSlotPlan['slots']; assignments: Record<string, string> }; transactionState: MemberTransactionState; taxiExitPlayerIds: string[] }
+export function rosterViewData(view: RosterView | TradeBlockView) {
+    const avgMap = new Map(Object.entries(view.avgMap))
+    const avgStatsMap = new Map(Object.entries(view.avgStatsMap))
+    if ('block' in view) {
+        for (const { asset } of view.items) {
+            if (asset.kind !== 'player') continue
+            if (asset.avgFantasyPoints != null) avgMap.set(asset.playerId, asset.avgFantasyPoints)
+            if (asset.avgMinutesPlayed != null) avgStatsMap.set(asset.playerId, {
+                avg_points: null, avg_rebounds: null, avg_assists: null, avg_steals: null,
+                avg_blocks: null, avg_three_pointers_made: null, avg_turnovers: null, games_played: null,
+                ...avgStatsMap.get(asset.playerId), avg_minutes_played: asset.avgMinutesPlayed,
+            })
+        }
+    }
+    return { ...view, avgMap, avgStatsMap }
 }
 export type PlayersView = { context: ViewContext; players: PlayerRow[]; ownedMap: Record<string, OwnedEntry>; waiverClearsAt: Record<string, string>; waiverIds: string[]; pendingClaimIds: string[]; transactionState: MemberTransactionState; visibleTotals: VisiblePlayerTotals[]; hasMore: boolean; claims: WaiverClaim[] }
 export function playerSupportData(view: PlayersView) {
     return { leagueId: view.context.leagueId, memberId: view.context.memberId, seasonId: view.context.seasonId, day: view.context.today, ownedMap: new Map(Object.entries(view.ownedMap)), waiverClearsAt: new Map(Object.entries(view.waiverClearsAt)), waiverIds: new Set(view.waiverIds), pendingClaimIds: new Set(view.pendingClaimIds), transactionState: view.transactionState }
 }
-export type LineupView = { context: ViewContext; date: string; starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[]; weekDays: WeekDay[]; optimizer: { enabled?: boolean } | null; games: NBAGameRow[]; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
+export type LineupView = { lockedAssets?: AssetLock[]; context: ViewContext; date: string; starters: LineupSlot[]; bench: LineupPlayer[]; benchSlots: number; ir: LineupPlayer[]; taxi: LineupPlayer[]; weekDays: WeekDay[]; optimizer: { enabled?: boolean } | null; games: NBAGameRow[]; startedTeams: string[]; teamMatchups: Record<string, { opponent: string; isHome: boolean }> }
 export type HomeView = { context: ViewContext; matchup: Matchup | null; myLineup: Pick<LineupView, 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi'> | null; oppLineup: Pick<LineupView, 'starters' | 'bench' | 'benchSlots' | 'ir' | 'taxi'> | null; weekDays: WeekDay[]; leagueMatchups: LeagueWeekMatchup[]; selectedDate: string }
 export type TradesView = { context: ViewContext; trades: Trade[]; hasMore: boolean; nextCursor: TradePageCursor | null; pendingIncomingCount: number }
 export type TradeBlockView = RosterView & { items: TradeBlockItem[]; block: TradeBlockItem[] }
@@ -28,4 +42,5 @@ export type PlayerView = { pickup?: PlayerPickup; context: ViewContext; player: 
 
 type PlayerPickup = { status: PlayerRosterStatus; transactionState: MemberTransactionState | null; claimPending: boolean; roster: RosterOccupancy[] }
 export type PlayerSection = 'games' | 'news' | 'history'
-export type PlayerSectionView = { context: ViewContext; lines?: PlayerSeasonLine[]; transactions?: TransactionHistoryEntry[]; hasMoreGames?: boolean; news?: { id: string; title: string; summary: string; source: string; url: string | null; published_at: string }[] }
+export type PlayerGameCursor = { date: string | null; id: string }
+export type PlayerSectionView = { context: ViewContext; lines?: PlayerSeasonLine[]; transactions?: TransactionHistoryEntry[]; hasMoreGames?: boolean; nextGameCursor?: PlayerGameCursor | null; news?: { id: string; title: string; summary: string; source: string; url: string | null; published_at: string }[] }

@@ -6,6 +6,14 @@ BEGIN
   RAISE NOTICE 'PASS: %',label;
 END;
 $$;
+CREATE FUNCTION pg_temp.server_pick_change(command text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE previous text;
+BEGIN
+  previous:=private.begin_trade_lifecycle_write();
+  EXECUTE command;
+  PERFORM private.end_trade_lifecycle_write(previous);
+END;
+$$;
 DO $$
 DECLARE
   users uuid[] := ARRAY[gen_random_uuid(),gen_random_uuid()];
@@ -30,12 +38,16 @@ BEGIN
     VALUES(picks[i],league,2028,1,members[i],members[i]);
   END LOOP;
   trade := public.propose_trade_atomic(league,season,members[1],members[2],'{}','{}',ARRAY[picks[1]],ARRAY[picks[2]]);
-  UPDATE draft_picks SET current_owner_id=members[2] WHERE id=picks[1];
+  BEGIN
+    UPDATE draft_picks SET current_owner_id=members[2] WHERE id=picks[1];
+    RAISE EXCEPTION 'Pending pick permits an ordinary ownership change' USING ERRCODE='P9999';
+  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+  PERFORM pg_temp.server_pick_change(format('UPDATE draft_picks SET current_owner_id=%L WHERE id=%L',members[2],picks[1]));
   SELECT completion_failure_reason INTO reason FROM trades WHERE id=trade;
   PERFORM pg_temp.assert_pick_year(reason='The 2027 round 1 pick is no longer owned by Team 1.','lost pick notice uses calendar draft year');
   UPDATE draft_picks SET current_owner_id=members[1] WHERE id=picks[1];
   trade := public.propose_trade_atomic(league,season,members[1],members[2],'{}','{}',ARRAY[picks[1]],ARRAY[picks[2]]);
-  UPDATE draft_picks SET is_used=true,used_at=now() WHERE id=picks[1];
+  PERFORM pg_temp.server_pick_change(format('UPDATE draft_picks SET is_used=true,used_at=now() WHERE id=%L',picks[1]));
   SELECT completion_failure_reason INTO reason FROM trades WHERE id=trade;
   PERFORM pg_temp.assert_pick_year(reason='The 2027 round 1 pick has been used in the draft.','consumed pick notice uses calendar draft year');
   INSERT INTO draft_picks(id,league_id,season_year,round,original_owner_id,current_owner_id)

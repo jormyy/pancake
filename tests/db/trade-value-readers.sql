@@ -1,12 +1,19 @@
 BEGIN;
 \ir rules-support.sql
+\ir trade-values-fixture.sql
 DO $$
-DECLARE fixture record; v_player_id uuid; value_row record; profile jsonb; v_pick_id uuid; v_trade_id uuid; v_draft_id uuid; inputs jsonb;
+DECLARE fixture record; v_player_id uuid:=gen_random_uuid(); value_row record; profile jsonb; v_pick_id uuid; v_trade_id uuid; v_draft_id uuid; inputs jsonb;
 BEGIN
   SELECT * INTO fixture FROM pg_temp.rules_fixture(2,2027,'active');
-  SELECT ranking.player_id INTO v_player_id FROM public.dynasty_rankings ranking
-    WHERE source='onenumberhoops.com' AND source_player_id='victorwembanyama';
-  PERFORM pg_temp.check_rules(v_player_id IS NOT NULL,'recorded source player is matched');
+  INSERT INTO public.players(id,first_name,last_name,nba_team,position,eligible_positions)
+    VALUES(v_player_id,'Reader','Fixture','SAS','C',ARRAY['C']);
+  INSERT INTO public.dynasty_rankings(source,source_rank,source_player_name,source_player_id,player_id,trade_value,fetched_at)
+    VALUES('onenumberhoops.com',9501,'Reader Fixture','trade-reader-fixture',v_player_id,999.9,now());
+  INSERT INTO public.dynasty_pick_values(draft_year,round,tier,trade_value,derived,fetched_at)
+    VALUES(2027,1,'early',750.1,false,now()),(2027,1,'mid',496.7,false,now()),(2027,1,'late',391.4,false,now())
+    ON CONFLICT(draft_year,round,tier) DO UPDATE SET trade_value=EXCLUDED.trade_value;
+  PERFORM pg_temp.check_rules(EXISTS(SELECT FROM public.dynasty_rankings WHERE player_id=v_player_id
+    AND source='onenumberhoops.com'),'fixture source player is matched');
   INSERT INTO public.dynasty_rankings(source,source_rank,source_player_name,player_id,fetched_at)
     VALUES('hashtagbasketball.com',9001,'Legacy Wembanyama',v_player_id,now()+interval '1 day');
   PERFORM set_config('request.jwt.claim.sub',fixture.user_ids[1]::text,true);

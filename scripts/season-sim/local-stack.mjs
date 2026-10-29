@@ -57,7 +57,7 @@ export async function sql(statement) {
   }
   if (process.env.SUPABASE_DB_URL) {
     const target = assertTarget(process.env.SUPABASE_DB_URL, 'db')
-    nativeSession ??= createSqlSession(path.resolve(miniRoot, '../../tools/pg/bin/psql'), databaseEnvironment(target))
+    nativeSession ??= createSqlSession(process.env.SEASON_SIM_PSQL ?? (process.env.SEASON_SIM_TWO_DAY === '1' ? 'psql' : path.resolve(miniRoot, '../../tools/pg/bin/psql')), databaseEnvironment(target))
     return nativeSession.query(statement)
   }
   const command = statement.length > 32000

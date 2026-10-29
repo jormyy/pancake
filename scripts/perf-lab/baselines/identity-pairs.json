@@ -1,0 +1,92 @@
+[
+  {
+    "name": "Lonzo Ball",
+    "nbaId": "1628366",
+    "sleeperId": "1798",
+    "candidateIds": [
+      "31400ad5-023a-4af2-9b58-1ddb91f716f3",
+      "6a309e1f-09a4-470c-ba3b-780416951025"
+    ],
+    "espnId": "4066421"
+  },
+  {
+    "name": "Luke Travers",
+    "nbaId": "1631247",
+    "sleeperId": "2487",
+    "candidateIds": [
+      "e7a4f757-8db2-46e9-b002-6c2199076332",
+      "cf47d8a7-366d-4ad8-83ed-7eaefa8f2c22"
+    ],
+    "espnId": "4997539"
+  },
+  {
+    "name": "N'Faly Dante",
+    "nbaId": "1642368",
+    "sleeperId": "2756",
+    "candidateIds": [
+      "ad6c3329-5a1c-47df-b811-96fc70818551",
+      "263355dd-792e-467e-bfe4-5e9071683ca4"
+    ],
+    "espnId": "4592401"
+  },
+  {
+    "name": "Jaden Springer",
+    "nbaId": "1630531",
+    "sleeperId": "2264",
+    "candidateIds": [
+      "9869afbe-9afd-4c3d-87ff-b48ae0f9013e",
+      "167d6179-fefb-4223-b0e1-0aa29b119579"
+    ],
+    "espnId": "4432164"
+  },
+  {
+    "name": "Colby Jones",
+    "nbaId": "1641732",
+    "sleeperId": "2616",
+    "candidateIds": [
+      "6e471c98-ef70-4d49-93ce-e6e4b5a620c0",
+      "91c2f7ec-a1ca-4905-9472-e44eaf576b84"
+    ],
+    "espnId": "4433378"
+  },
+  {
+    "name": "Chris Boucher",
+    "nbaId": "1628449",
+    "sleeperId": "1771",
+    "candidateIds": [
+      "3dd4e3b2-e69b-4d94-ab08-6b60266c85dd",
+      "cca8fa2d-5a78-467a-870d-9b10c887739e"
+    ],
+    "espnId": "3948153"
+  },
+  {
+    "name": "Nigel Hayes-Davis",
+    "nbaId": "1628502",
+    "sleeperId": "1800",
+    "candidateIds": [
+      "08235a57-b082-45bf-b8a0-9ec2418b5db2",
+      "0177dacd-4475-4223-bf9b-570844588745"
+    ],
+    "espnId": "3059409"
+  },
+  {
+    "name": "Johnny Juzang",
+    "nbaId": "1630548",
+    "sleeperId": "2413",
+    "candidateIds": [
+      "258862b0-cf65-4bf7-9cde-f7f42a54241f",
+      "90a8c553-1b78-41e6-b4bd-3c59734c9d8d"
+    ],
+    "espnId": "4432817"
+  },
+  {
+    "name": "Dario Saric",
+    "nbaId": "203967",
+    "sleeperId": "1674",
+    "candidateIds": [
+      "a21911b7-d110-4d9c-9564-8718fc016679",
+      "5cbafda5-07c1-416d-ae04-9d762a71ee5b"
+    ],
+    "espnId": "3032978"
+  }
+]

@@ -8,7 +8,9 @@ DECLARE
   deadline timestamptz;
 BEGIN
   IF p_event IN ('lineup_inactive','lineup_empty') THEN
-    RETURN NOT EXISTS(SELECT 1 FROM private.notif_lineup_candidates(clock_timestamp()) c
+    IF NOT coalesce(pg_input_is_valid(p_data->>'leagueId','uuid'),false)
+      OR NOT coalesce(pg_input_is_valid(p_data->>'memberId','uuid'),false) THEN RETURN true; END IF;
+    RETURN NOT EXISTS(SELECT 1 FROM private.notif_lineup_candidates_scoped(clock_timestamp(),(p_data->>'leagueId')::uuid,(p_data->>'memberId')::uuid) c
       WHERE c.event_type=p_event AND c.league_id::text=p_data->>'leagueId'
         AND c.member_id::text=p_data->>'memberId' AND c.game_date::text=p_data->>'gameDate'
         AND (p_event='lineup_empty' OR c.player_id::text=p_data->>'playerId'));

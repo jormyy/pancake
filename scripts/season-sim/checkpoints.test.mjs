@@ -5,7 +5,40 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import * as checkpoints from './checkpoints.mjs'
-import {miniRoot} from './common.mjs'
+import {miniRoot,sha256} from './common.mjs'
+
+test('partition schema attaches after its saved indexes are created',()=>{
+  const attach='ALTER TABLE ONLY public.events ATTACH PARTITION public.events_oct FOR VALUES FROM (1) TO (2);'
+  const source=`CREATE TABLE public.events_oct(id integer);\n${attach}\nCREATE INDEX events_oct_id ON public.events_oct(id);\nALTER INDEX public.events_id ATTACH PARTITION public.events_oct_id;\n`
+  const prepared=checkpoints.partitionSchemaForRestore(source,'public.events_oct')
+  assert.ok(prepared.indexOf('CREATE INDEX')<prepared.indexOf(attach))
+  assert.equal(prepared.includes('ALTER INDEX'),false)
+  assert.throws(()=>checkpoints.partitionSchemaForRestore(source,'public.other'),/saved table/)
+  assert.throws(()=>checkpoints.partitionSchemaForRestore(source+attach,'public.events_oct'),/one table attachment/)
+})
+
+test('checkpoint restoration recreates a dropped partition before loading rows',async()=>{
+  const directory=await mkdtemp(path.join(tmpdir(),'season-sim-partitions-'))
+  try{
+    const source='CREATE TABLE private.receipts_y2026m01 PARTITION OF private.receipts FOR VALUES FROM (1) TO (2);'
+    await writeFile(path.join(directory,'partition-0.sql'),source)
+    const partition={table:'private.receipts_y2026m01',filename:'partition-0.sql',sha256:sha256(source)}
+    let exists=false
+    const calls=[]
+    await checkpoints.restoreSnapshotPartitions([partition],directory,{},async()=>exists?'t':'f',(command,args)=>{
+      calls.push({command,args})
+      exists=true
+      return Buffer.alloc(0)
+    })
+    assert.equal(calls.length,1)
+    assert.equal(calls[0].command,'psql')
+    assert.equal(calls[0].args.at(-1),path.join(directory,'partition-0.sql'))
+    await checkpoints.restoreSnapshotPartitions([partition],directory,{},async()=>'t',()=>assert.fail('Existing partitions must remain intact'))
+    await assert.rejects(checkpoints.restoreSnapshotPartitions([{...partition,sha256:'bad'}],directory,{}),/checksum/)
+    await assert.rejects(checkpoints.restoreSnapshotPartitions([{...partition,filename:'../partition.sql'}],directory,{}),/inside its checkpoint/)
+    await assert.rejects(checkpoints.restoreSnapshotPartitions([partition],directory,{},async()=>'f',()=>Buffer.alloc(0)),/recreate the saved table/)
+  }finally{await rm(directory,{recursive:true,force:true})}
+})
 
 test('two-season snapshots cannot use the running replay folder',()=>{
   const saved={mode:process.env.SEASON_SIM_MODE,root:process.env.SEASON_SIM_SNAPSHOT_ROOT}
@@ -76,11 +109,12 @@ test('snapshot writer waits before dumping an API-created pending invocation', a
     const fakeStack = `
       let polls = 0
       export const sql = async () => '1'
-      export const sqlJson = async query => query.includes('pg_tables') ? [] : polls++ === 0 ? [{ id: 23, function_name: 'lineup-optimizer', worker_status: 'pending' }] : []
+      export const sqlJson = async query => query.includes('relation.relispartition') ? ['private.receipts_y2026m01'] : query.includes('pg_tables') ? [] : polls++ === 0 ? [{ id: 23, function_name: 'lineup-optimizer', worker_status: 'pending' }] : []
       export const databaseEnvironment = () => ({})
       export const localKeys = () => ({})
     `
-    const fakeDump = `import { writeFileSync } from 'node:fs'; export const execFileSync = (_, args) => writeFileSync(args.at(-1), 'SYNTHETIC unit dump')`
+    const fakeSchema='CREATE TABLE private.receipts_y2026m01(id integer);\nALTER TABLE ONLY private.receipts ATTACH PARTITION private.receipts_y2026m01 FOR VALUES FROM (1) TO (2);\nCREATE INDEX receipts_january ON private.receipts_y2026m01(id);\n'
+    const fakeDump = `import { writeFileSync } from 'node:fs'; export const execFileSync = (_, args) => writeFileSync(args.at(-1), args.includes('--schema-only') ? ${JSON.stringify(fakeSchema)} : 'SYNTHETIC unit dump')`
     const program = `
       import { registerHooks } from 'node:module'
       registerHooks({ resolve(specifier, context, next) {
@@ -100,6 +134,11 @@ test('snapshot writer waits before dumping an API-created pending invocation', a
     const result = JSON.parse(child.stdout)
     assert.equal(result.quiescence.polls, 2)
     assert.equal(await readFile(path.join(directory, 'snapshots/live-week/database.dump'), 'utf8'), 'SYNTHETIC unit dump')
+    const metadata=JSON.parse(await readFile(path.join(directory,'snapshots/live-week/snapshot.json'),'utf8'))
+    assert.equal(metadata.partitions.length,1)
+    const schema=await readFile(path.join(directory,'snapshots/live-week/partition-0.sql'),'utf8')
+    assert.equal(sha256(schema),metadata.partitions[0].sha256)
+    assert.ok(schema.indexOf('CREATE INDEX')<schema.indexOf('ATTACH PARTITION'))
     const offline = program.replace(encodeURIComponent(fakeStack), encodeURIComponent(fakeStack.replace("polls++ === 0 ? [{ id: 23, function_name: 'lineup-optimizer', worker_status: 'pending' }] : []", '[]')))
       .replace("globalThis.fetch = async () => Response.json({ active: 0, fetches: 0 })", "globalThis.fetch = async () => { throw Object.assign(new Error('Stopped unit runtime'), { cause: { code: 'ECONNREFUSED' } }) }")
       .replace("saveSnapshot('live-week'", "saveSnapshot('waiver-week'")

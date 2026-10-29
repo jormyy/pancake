@@ -2,8 +2,12 @@ import './helpers/native-component-mocks'
 import React from 'react'
 import { act, create, type ReactTestRenderer } from 'react-test-renderer'
 import { describe, expect, it, vi } from 'vitest'
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { RosterPlayerItem, TaxiPlayerItem } from '@/components/roster/RosterItems'
 import type { RosterPlayer } from '@/lib/roster'
+
+const navigation = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('expo-router', () => ({ useRouter: () => navigation }))
 
 vi.mock('@/lib/format', () => ({ formatPoints: String, playerHeadshotUrl: () => null }))
 vi.mock('@/lib/players', () => ({ getEligiblePositions: () => ['PG'] }))
@@ -73,4 +77,35 @@ it('hides Move to IR during offseason and preserves Activate from IR', async () 
     await act(async () => renderer.update(React.createElement(RosterPlayerItem, { ...props, item: { ...item, is_on_ir: true } })))
     expect(renderer.root.findAllByProps({ accessibilityLabel: 'Activate Test Player' }).length).toBeGreaterThan(0)
     await act(async () => renderer.unmount())
+})
+
+it('keeps player navigation and disables changes while a pending trade reserves the player', async () => {
+    const lockedItem = { ...item, assetLocks: [{ assetKind: 'player', assetId: 'player', sourceKind: 'trade', sourceId: 'trade-id', reason: 'Cancel trade trade-id first.' }] }
+    let renderer!: ReactTestRenderer
+    await act(async () => {
+        renderer = create(React.createElement(RosterPlayerItem, {
+            item: lockedItem, slotType: 'BE', togglingId: null, taxiingId: null, droppingId: null,
+            onPress: vi.fn(), onLongPress: vi.fn(), onToggleIR: vi.fn(),
+        }))
+    })
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Move Test Player to IR' }).props.disabled).toBe(true)
+    expect(renderer.root.findByProps({ accessibilityLabel: 'Open Test Player' }).props.onLongPress).toBeUndefined()
+    expect(renderer.root.findAllByProps({ accessibilityLabel: 'Cancel trade trade-id first.' }).length).toBeGreaterThan(0)
+    await act(async () => { renderer.unmount() })
+})
+
+it('closes the sheet before opening the lock source', async () => {
+    const order: string[] = []
+    navigation.push.mockImplementation(() => { order.push('navigate') })
+    let renderer!: ReactTestRenderer
+    await act(async () => {
+        renderer = create(React.createElement(LockedAssetNotice, {
+            locks: [{ assetKind: 'pick', assetId: 'pick', sourceKind: 'trade', sourceId: 'trade-id', reason: 'Cancel this trade.' }],
+            onNavigate: () => { order.push('close') },
+        }))
+    })
+    await act(async () => { renderer.root.findByProps({ accessibilityRole: 'link' }).props.onPress() })
+    expect(order).toEqual(['close', 'navigate'])
+    expect(navigation.push).toHaveBeenLastCalledWith('/trades?tradeId=trade-id')
+    await act(async () => { renderer.unmount() })
 })

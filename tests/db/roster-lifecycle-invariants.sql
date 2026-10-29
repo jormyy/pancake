@@ -265,19 +265,20 @@ SELECT '00000000-0000-0000-0000-0000000a0802', ids.league_id, ids.season_id, ids
 INSERT INTO public.trade_items (trade_id, side, player_id, from_member_id, to_member_id)
 SELECT '00000000-0000-0000-0000-0000000a0802', 'proposer', ids.offer_asset, ids.member_c, ids.member_a FROM lifecycle_ids AS ids;
 SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000a0003', true);
+DO $$ BEGIN
+  BEGIN
+    PERFORM public.drop_player_atomic('00000000-0000-0000-0000-0000000a0506');
+    RAISE EXCEPTION 'Pending offer permits an ordinary drop' USING ERRCODE='P9999';
+  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+END $$;
+SELECT public.withdraw_trade_atomic('00000000-0000-0000-0000-0000000a0802',member_c,user_c) FROM lifecycle_ids;
 SELECT public.drop_player_atomic('00000000-0000-0000-0000-0000000a0506');
 DO $$
 DECLARE v_trade public.trades%ROWTYPE;
 BEGIN
   SELECT * INTO v_trade FROM public.trades WHERE id = '00000000-0000-0000-0000-0000000a0802';
-  IF v_trade.status <> 'expired' THEN
-    RAISE EXCEPTION 'T7: pending offer with a dropped asset stayed %', v_trade.status;
-  END IF;
-  IF v_trade.completion_failure_reason NOT LIKE '%no longer on%' THEN
-    RAISE EXCEPTION 'T7: expiry reason missing: %', v_trade.completion_failure_reason;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.league_activity WHERE related_trade_id = v_trade.id AND event_type = 'trade_expired') THEN
-    RAISE EXCEPTION 'T7: expiry activity missing';
+  IF v_trade.status <> 'withdrawn' THEN
+    RAISE EXCEPTION 'Withdrawing the locked offer does not release its player';
   END IF;
 END $$;
 
@@ -286,16 +287,23 @@ SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000a0001
 INSERT INTO public.waiver_claims (id, league_id, league_season_id, member_id, player_id, drop_player_id, priority_at_submission, process_date, bid_amount, claim_order)
 SELECT '00000000-0000-0000-0000-0000000a0702', ids.league_id, ids.season_id, ids.member_a, ids.second_target, ids.injured, 1, current_date + 1, 0, 1
   FROM lifecycle_ids AS ids;
+DO $$ BEGIN
+  BEGIN
+    PERFORM public.drop_player_atomic('00000000-0000-0000-0000-0000000a0502');
+    RAISE EXCEPTION 'Pending claim permits an ordinary drop' USING ERRCODE='P9999';
+  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+END $$;
+SELECT public.cancel_waiver_claim_atomic('00000000-0000-0000-0000-0000000a0702',member_a,user_a) FROM lifecycle_ids;
 SELECT public.drop_player_atomic('00000000-0000-0000-0000-0000000a0502');
 DO $$
 DECLARE v_claim public.waiver_claims%ROWTYPE;
 BEGIN
   SELECT * INTO v_claim FROM public.waiver_claims WHERE id = '00000000-0000-0000-0000-0000000a0702';
-  IF v_claim.status <> 'pending' THEN
+  IF v_claim.status <> 'cancelled' THEN
     RAISE EXCEPTION 'T8: claim status changed to %', v_claim.status;
   END IF;
-  IF v_claim.drop_player_id IS NOT NULL THEN
-    RAISE EXCEPTION 'T8: pending claim kept a drop player who left the roster';
+  IF v_claim.drop_player_id IS NULL THEN
+    RAISE EXCEPTION 'T8: cancelled claim loses its recorded drop history';
   END IF;
 END $$;
 
@@ -308,7 +316,14 @@ SELECT '00000000-0000-0000-0000-0000000a0803', ids.league_id, ids.season_id, ids
 INSERT INTO public.trade_items (trade_id, side, pick_id, from_member_id, to_member_id)
 SELECT '00000000-0000-0000-0000-0000000a0803', 'proposer', ids.pick_b, ids.member_b, ids.member_a FROM lifecycle_ids AS ids;
 UPDATE public.draft_picks SET is_used = true, used_at = now() WHERE id = '00000000-0000-0000-0000-0000000a0601';
-UPDATE public.draft_picks SET current_owner_id = '00000000-0000-0000-0000-0000000a0203' WHERE id = '00000000-0000-0000-0000-0000000a0602';
+DO $$ BEGIN
+  BEGIN
+    UPDATE public.draft_picks SET current_owner_id='00000000-0000-0000-0000-0000000a0203' WHERE id='00000000-0000-0000-0000-0000000a0602';
+    RAISE EXCEPTION 'Pending offer permits an ordinary pick transfer' USING ERRCODE='P9999';
+  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+END $$;
+SELECT public.withdraw_trade_atomic('00000000-0000-0000-0000-0000000a0803',member_b,user_b) FROM lifecycle_ids;
+UPDATE public.draft_picks SET current_owner_id='00000000-0000-0000-0000-0000000a0203' WHERE id='00000000-0000-0000-0000-0000000a0602';
 DO $$
 DECLARE ids lifecycle_ids%ROWTYPE; v_trade public.trades%ROWTYPE;
 BEGIN
@@ -320,7 +335,7 @@ BEGIN
     RAISE EXCEPTION 'T9: listing survived pick ownership change';
   END IF;
   SELECT * INTO v_trade FROM public.trades WHERE id = '00000000-0000-0000-0000-0000000a0803';
-  IF v_trade.status <> 'expired' OR v_trade.completion_failure_reason NOT LIKE '%pick is no longer owned%' THEN
+  IF v_trade.status <> 'withdrawn' THEN
     RAISE EXCEPTION 'T9: pick offer did not expire: % / %', v_trade.status, v_trade.completion_failure_reason;
   END IF;
 END $$;

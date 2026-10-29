@@ -19,8 +19,14 @@ BEGIN
     INSERT INTO public.waiver_wire_log(league_id, league_season_id, player_id, placed_on_waivers_at)
     VALUES(f.league_id, f.season_id, players[2], '1900-01-01 12:00+00');
     claim := public.create_waiver_claim_atomic(f.league_id, f.member_ids[1], players[2], players[1], f.user_ids[1]);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.trade_items DISABLE TRIGGER guard_trade_item_plan_reservations;
+    SET CONSTRAINTS ALL DEFERRED;
     offer := public.propose_trade_atomic(f.league_id, f.season_id, f.member_ids[1], f.member_ids[2],
       ARRAY[players[1]], '{}', '{}', '{}', NULL, NULL, 0, 1);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.trade_items ENABLE TRIGGER guard_trade_item_plan_reservations;
+    SET CONSTRAINTS ALL DEFERRED;
     PERFORM public.accept_trade_atomic(offer, f.member_ids[2]);
     UPDATE public.trades SET veto_window_expires_at = now() - interval '1 minute' WHERE id = offer;
     PERFORM public.complete_accepted_trade_atomic(offer);

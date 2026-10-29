@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks } from '@/lib/locked-assets'
 import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { SectionBand } from '@/components/ui/SectionBand'
@@ -184,6 +186,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     ) : null}
                 </View>
             ) : null}
+            <LockedAssetNotice locks={readAssetLocks(claim)} />
         </MotionView>
     )
 })
@@ -196,8 +199,9 @@ export const RosterPickItem = memo(function RosterPickItem({
     myTeamName: string
 }) {
     const isOwn = pick.originalTeamName === myTeamName
+    const locks = readAssetLocks(pick)
     return (
-        <MotionView style={styles.row} preset="rise">
+        <View><MotionView style={styles.row} preset="rise">
             <View style={styles.pickCircle}>
                 <Text style={styles.pickCircleText}>
                     &apos;{String(draftYear(pick.seasonYear)).slice(2)}
@@ -211,7 +215,7 @@ export const RosterPickItem = memo(function RosterPickItem({
                     <Text style={styles.meta}>via {pick.originalTeamName}</Text>
                 ) : null}
             </View>
-        </MotionView>
+        </MotionView><LockedAssetNotice locks={locks} /></View>
     )
 })
 
@@ -244,12 +248,13 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
     const positions = getEligiblePositions(player)
     const isBusy = togglingId === item.id || taxiingId === item.id || droppingId === item.id
 
+    const locks = readAssetLocks(item)
     return (
-        <View style={styles.row}>
+        <View><View style={styles.row}>
             <MotionPressable
                 style={styles.rowMain}
                 onPress={() => onPress(item)}
-                onLongPress={() => onLongPress(item)}
+                onLongPress={locks.length ? undefined : () => onLongPress(item)}
                 delayLongPress={400}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${player.display_name}`}
@@ -266,7 +271,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                     <MotionPressable
                         style={styles.rosterActionTarget}
                         onPress={() => onToggleIR(item)}
-                        disabled={isBusy}
+                        disabled={isBusy || locks.length > 0}
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move'} ${player.display_name}${item.is_on_ir ? '' : ' to IR'}`}
                     >
@@ -278,7 +283,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                     </MotionPressable>
                 </View>
             ) : null}
-        </View>
+        </View><LockedAssetNotice locks={locks} /></View>
     )
 })
 
@@ -331,8 +336,9 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
     const player = item.players
     const positions = getEligiblePositions(player)
 
+    const locks = readAssetLocks(item)
     return (
-        <View style={styles.row}>
+        <View><View style={styles.row}>
             <MotionPressable
                 style={styles.rowMain}
                 onPress={() => onPress(item)}
@@ -349,16 +355,16 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             <MotionPressable
                 style={styles.rosterActionTarget}
                 onPress={() => onToggleTaxi(item)}
-                disabled={taxiingId === item.id}
+                disabled={taxiingId === item.id || locks.length > 0}
                 accessibilityRole="button"
                 accessibilityLabel={`Activate ${player.display_name}`}
-                accessibilityState={{ disabled: taxiingId === item.id }}
+                accessibilityState={{ disabled: taxiingId === item.id || locks.length > 0 }}
             >
                 <View style={[styles.rosterAction, styles.taxiButtonActive]}>
                     <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
                 </View>
             </MotionPressable>
-        </View>
+        </View><LockedAssetNotice locks={locks} /></View>
     )
 })
 

@@ -35,7 +35,6 @@ import { useMatchupData } from '@/hooks/use-matchup-data'
 import { getGameDisplayState, readHomeGameDisplay, resolveHomeSurface, saveHomeGameDisplay } from '@/lib/home-surface'
 
 import { useLineupActions } from '@/hooks/use-lineup-actions'
-import { todayLeague } from '@/lib/timezone'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 
 type DetailsRow = { myPlayer: LineupPlayer | null; oppPlayer: LineupPlayer | null; slotType: string }
@@ -97,11 +96,11 @@ export default function HomeScreen() {
     }, [matchup, loadMyLineup])
 
     const {
-        selected, setSelected, saving, autoSetting, autoSetDisabled,
+        selected, setSelected, saving,
         autoSetModalVisible, setAutoSetModalVisible,
         activationOverflowPending, setActivationOverflowPending, activationOverflowSaving,
         handleTap, handleOverflowDrop, handleOverflowMoveToIR,
-        doAutoSet, handleAutoSet,
+        handleAutoSet,
     } = useLineupActions({ actionContext, myLineup, league, selectedDate, startedTeams, reloadLineup: reloadLineupForActions })
 
     const pageRef = useRef<ScrollView>(null)
@@ -196,7 +195,7 @@ export default function HomeScreen() {
                             selected={selected}
                             getTargetState={getTargetState}
                             onTap={handleTap}
-                            saving={saving || autoSetting}
+                            saving={saving}
                             playingTeams={todayPlayingTeams}
                             liveStats={liveStats}
                             liveTeams={liveTeams}
@@ -214,7 +213,7 @@ export default function HomeScreen() {
                             compact={narrow}
                             dense={dense}
                             daySelector={weekDays.length > 0 ? (
-                                <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
+                                <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                             ) : null}
                             autoSetControl={
                                 <Button
@@ -222,13 +221,13 @@ export default function HomeScreen() {
                                     size="inline"
                                     variant="outline"
                                     onPress={handleAutoSet}
-                                    disabled={autoSetting || saving}
+                                    disabled={saving}
                                     accessibilityLabel="Open auto-set lineup options"
                                 />
                             }
                         />
                     ) : weekDays.length > 0 ? (
-                        <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} disabled={autoSetting} />
+                        <DaySelector timezone={league?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compact} />
                     ) : null}
                     <OtherMatchups matchups={leagueMatchups} onOpen={id => router.push({ pathname: '/(modals)/matchup', params: { matchupId: id } })} />
                     </View>
@@ -292,11 +291,7 @@ export default function HomeScreen() {
 
             <AutoSetModal
                 visible={autoSetModalVisible}
-                disabled={autoSetDisabled}
                 onClose={() => setAutoSetModalVisible(false)}
-                onToday={() => { void doAutoSet(todayLeague(league?.timezone)) }}
-                onWholeWeek={() => { void doAutoSet(null) }}
-                onRestOfSeason={() => { void doAutoSet(null, true) }}
                 onEditManually={() => { setAutoSetModalVisible(false); router.push('/lineup') }}
             />
         </Page>

@@ -31,7 +31,7 @@ END;
 $$;
 DELETE FROM private.work_items;
 SELECT private.work_enqueue(kind,'concurrency-fixture-'||kind) FROM private.work_kinds;
-SELECT pg_temp.check_rules((SELECT count(*)=8 FROM private.work_claim(64)),'dispatcher claims at most eight concurrent workers');
+SELECT pg_temp.check_rules((SELECT count(*)=4 FROM private.work_claim(64)),'dispatcher claims at most four concurrent workers');
 SELECT pg_temp.check_rules((SELECT count(*)=0 FROM private.work_claim(64)),'dispatcher keeps queued work when all slots are occupied');
 SELECT count(*) AS passed_checks FROM rules_checks;
 ROLLBACK;

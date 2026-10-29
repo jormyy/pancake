@@ -91,16 +91,16 @@ BEGIN
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:15 UTC','edge-invocation-reconcile'),'completed invocations do not enqueue reconciliation');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 13:00 UTC','player-stats-hints'),'score hints avoid leased queue work');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='league-inventory-hint-drain'),'inventory hints avoid leased queue work');
-  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain' AND schedule='30 seconds'
-    AND command LIKE '%private.flush_player_stats_hints()%' AND command LIKE '%private.flush_league_inventory_hints(1000)%'),'direct hint drains retain their half-minute cadence');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM cron.job WHERE jobname='io-hint-drain' AND schedule='* * * * *'
+    AND command LIKE '%private.flush_player_stats_hints()%' AND command LIKE '%private.flush_league_inventory_hints(1000)%'),'direct hint drains retain their minute cadence');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:00 UTC','sync-schedule'),'schedule retains its five-minute offset');
   PERFORM pg_temp.check_rules(pg_temp.scheduled('2026-06-20 10:05 UTC','sync-schedule'),'schedule starts at six-oh-five ET');
   DELETE FROM private.work_items;
-  PERFORM private.enqueue_lineup_optimizer();
+  PERFORM private.enqueue_lineup_optimizer((v_day+8)::timestamp AT TIME ZONE 'America/New_York');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'general lineup gate is idle without the next eight dates');
   INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
-    VALUES('002queuegeneral',9541,1,(now() AT TIME ZONE 'America/New_York')::date+7,'QX','QY','Scheduled');
-  PERFORM private.enqueue_lineup_optimizer();
+    VALUES('002queuegeneral',9541,1,v_day+15,'QX','QY','Scheduled');
+  PERFORM private.enqueue_lineup_optimizer((v_day+8)::timestamp AT TIME ZONE 'America/New_York');
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='lineup-optimizer'),'general lineup gate includes day seven');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:15 UTC','daily-stat-corrections'),'corrections wait until six-twenty ET');
   PERFORM pg_temp.check_rules(NOT pg_temp.scheduled('2026-06-20 10:30 UTC','daily-stat-corrections'),'corrections require a recent final regular-season game');

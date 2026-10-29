@@ -155,12 +155,21 @@ function rosterMovesField(plan: Record<string, unknown>): JsonObject[] {
   return moves.map((move) => {
     if (!move || typeof move !== 'object' || Array.isArray(move)) throw new ValidationError('Each roster move must be an object.')
     const playerId = uuidField(move, 'playerId')
-    if (move.destination !== 'active' && move.destination !== 'ir') throw new ValidationError('Roster moves require an active or IR destination.')
+    if (move.destination !== 'active' && move.destination !== 'ir' && move.destination !== 'taxi') throw new ValidationError('Roster moves require a Regular, IR, or taxi destination.')
     return { playerId, destination: move.destination }
   })
 }
 
 function rosterPlanPayload(body: Record<string, unknown>): JsonObject {
+  if (body.rosterPlans !== undefined) {
+    if (!body.rosterPlans || typeof body.rosterPlans !== 'object' || Array.isArray(body.rosterPlans)) throw new ValidationError('rosterPlans must be an object.')
+    const rosterPlans: JsonObject = {}
+    for (const [memberId, plan] of Object.entries(body.rosterPlans)) {
+      assertUuid(memberId, 'memberId')
+      rosterPlans[memberId] = rosterPlanPayload({ rosterPlan: plan }).rosterPlan
+    }
+    return { rosterPlans, ...rosterPlanPayload({ rosterPlan: body.rosterPlan }) }
+  }
   if (body.rosterPlan === undefined) return {}
   if (!body.rosterPlan || typeof body.rosterPlan !== 'object' || Array.isArray(body.rosterPlan)) {
     throw new ValidationError('rosterPlan must be an object.')
@@ -475,6 +484,20 @@ async function removeTradeBlockItem(userId: string, itemId: string, body: Record
 
 export async function handleTradeRoute(req: Request, path: string): Promise<Response | null> {
   if (req.method !== 'POST') return null
+
+  if (path === '/trades/legality') {
+    const userId = await requireUser(req)
+    const body = await readJsonObject(req)
+    const plans = rosterPlanPayload({ rosterPlans: body.plans ?? {} }).rosterPlans ?? {}
+    const { data, error } = await supabase.rpc('preview_trade_legality', {
+      p_user_id: userId, p_league_id: uuidField(body, 'leagueId'),
+      p_member_ids: optionalUuidArrayField(body, 'memberIds'),
+      p_items: Array.isArray(body.items) ? body.items as Json : [], p_plans: plans,
+      p_trade_id: optionalUuidField(body, 'tradeId') ?? undefined,
+    })
+    if (error) throwDb(error)
+    return json({ teams: data })
+  }
 
   if (path === '/trades/estimate') {
     const userId = await requireUser(req)

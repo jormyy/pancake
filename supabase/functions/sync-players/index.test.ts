@@ -22,7 +22,7 @@ const codes = ['ATL', 'BOS', 'BKN', 'CHA', 'CHI', 'CLE', 'DAL', 'DEN', 'DET', 'G
   'MIA', 'MIL', 'MIN', 'NO', 'NY', 'OKC', 'ORL', 'PHI', 'PHX', 'POR', 'SAC', 'SA', 'TOR', 'UTAH', 'WSH']
 const healthyInjuries = { injuries: [{ injuries: [{ status: 'Out', athlete: { displayName: 'Team0 Player0' } }] }] }
 
-async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200, earlierWorkMs = 0, sleeperUnavailable = false) {
+async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, injuryStatus = 200, earlierWorkMs = 0, sleeperUnavailable = false, identityBridge = false, singleOwner = false) {
   const originalFetch = globalThis.fetch
   const originalNow = performance.now.bind(performance)
   const nowDescriptor = Object.getOwnPropertyDescriptor(performance, 'now')
@@ -39,14 +39,14 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       if (url.pathname === '/teams') return Response.json({ sports: [{ leagues: [{ teams: codes.map((abbreviation, index) => ({ team: { id: String(index), abbreviation } })) }] }] })
       const team = url.pathname.match(/^\/teams\/(\d+)\/roster$/)?.[1]
       if (team) return Response.json({ athletes: Array.from({ length: 12 }, (_, index) => ({
-        id: `${team}-${index}`, firstName: `Team${team}`, lastName: `Player${index}`,
+        id: identityBridge && team === '0' && index === 0 ? '800' : `${team}-${index}`, firstName: identityBridge && team === '0' && index === 0 ? 'Bridge' : `Team${team}`, lastName: identityBridge && team === '0' && index === 0 ? 'Person' : `Player${index}`,
         experience: { years: 1 }, dateOfBirth: '1998-09-02T07:00Z', position: { abbreviation: 'PG' }, status: { type: 'active' },
       })) })
       if (url.pathname === '/injuries') return Response.json(injuries, { status: injuryStatus })
       if (url.pathname === '/news') { elapsed = earlierWorkMs; return Response.json({ articles: [] }) }
     }
     if (url.hostname === 'nba.invalid') return Response.json({ resultSets: [{
-      headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS'], rowSet: [],
+      headers: ['PERSON_ID', 'PLAYER_FIRST_NAME', 'PLAYER_LAST_NAME', 'ROSTER_STATUS', 'TEAM_ABBREVIATION'], rowSet: identityBridge ? [['900', 'Bridge', 'Person', 1, 'ATL']] : [],
     }] })
     if (url.hostname === 'career.invalid') return Response.json({ unavailable: true })
     if (url.hostname === 'sleeper.invalid') return new Response(null, { status: 503 })
@@ -55,6 +55,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
       runs.push(await request.json())
       return Response.json(request.method === 'POST' ? { id: 'run' } : {})
     }
+    if (url.pathname === '/rest/v1/rpc/link_player_sources_atomic') return Response.json({ results: [{ index: 0, player_id: 'bridge', action: 'updated' }] })
     if (url.pathname === '/rest/v1/rpc/resolve_player_imports_atomic') {
       const args = await request.json()
       if (args.p_source === 'espn_release') return Response.json({ released: [], held: { unproven: [], unclaimed: [] } })
@@ -69,6 +70,7 @@ async function sync(body: unknown = {}, injuries: unknown = healthyInjuries, inj
     assert.equal(url.pathname, '/rest/v1/players')
     if (request.method === 'PATCH') return Response.json([{ id: url.searchParams.get('id')?.slice(3) }])
     return Response.json([
+      ...(identityBridge ? [{ id: 'bridge', display_name: 'Bridge Person', nba_id: '900', espn_id: null, nba_team: singleOwner ? 'BOS' : null, career_regular_season_games: 100, career_games_base: 100 }, ...(singleOwner ? [] : [{ id: 'legacy', display_name: 'Bridge Person', nba_id: null, espn_id: null, sleeper_id: '700', nba_team: null, career_regular_season_games: 100, career_games_base: 100 }])] : []),
       { id: 'rookie', display_name: 'Unknown Rookie', espn_id: 'rookie', nba_id: null, nba_team: 'BOS', years_exp: 0, career_regular_season_games: 0, sleeper_id: sleeperUnavailable ? null : 'fixture-rookie', position: 'G', career_games_base: 0, career_games_base_attempted_at: null, injury_status: 'Out' },
       { id: 'veteran', display_name: 'Unknown Veteran', espn_id: 'veteran', nba_id: null, nba_team: 'BOS', years_exp: 10, career_regular_season_games: null, sleeper_id: 'fixture-veteran', position: 'G', career_games_base: null, career_games_base_attempted_at: null, injury_status: null },
     ])
@@ -132,4 +134,23 @@ Deno.test('a provider 503 defers identity refresh without failing the complete w
   assert.equal(result.result.identityRefreshDeferred, true)
   assert.equal(result.result.failure, null)
   assert.equal(result.runs.at(-1)?.status, 'success')
+})
+
+Deno.test('a corroborated identity bridge precedes full ESPN imports and reuses the NBA response', async () => {
+  const result = await sync({}, healthyInjuries, 200, 0, false, true)
+  assert.equal(result.response.status, 200)
+  assert.equal(result.result.identityBridges, 1)
+  const bridge = result.requests.findIndex(url => url.pathname.endsWith('/link_player_sources_atomic'))
+  const imported = result.requests.findIndex(url => url.pathname.endsWith('/resolve_player_imports_atomic'))
+  assert.ok(bridge >= 0 && bridge < imported)
+  assert.equal(result.requests.filter(url => url.hostname === 'nba.invalid').length, 1)
+})
+
+Deno.test('a known NBA owner is linked before an ESPN team change can create a duplicate', async () => {
+  const result = await sync({}, healthyInjuries, 200, 0, false, true, true)
+  assert.equal(result.response.status, 200)
+  assert.equal(result.result.identityBridges, 1)
+  const bridge = result.requests.findIndex(url => url.pathname.endsWith('/link_player_sources_atomic'))
+  const imported = result.requests.findIndex(url => url.pathname.endsWith('/resolve_player_imports_atomic'))
+  assert.ok(bridge >= 0 && bridge < imported)
 })

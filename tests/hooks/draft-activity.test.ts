@@ -93,7 +93,7 @@ describe('draft activity admission',()=>{
         expect(mocks.rookie).toHaveBeenCalledTimes(1)
         expect(mocks.pool).toHaveBeenCalledTimes(1)
         expect(mocks.pool).toHaveBeenLastCalledWith('rookie','latest')
-        expect(mocks.launch).toHaveBeenCalledTimes(1)
+        expect(mocks.launch).toHaveBeenCalledTimes(blocked === 'offline' ? 0 : 1)
     })
     it('keeps actions off and drops old responses until one current catch-up finishes',async()=>{
         await mount();await act(async()=>{mocks.auctionStatus?.('SUBSCRIBED')})

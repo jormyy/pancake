@@ -134,3 +134,18 @@ it.each(['empty', 'history'])('does not auto-page a complete %s first page', asy
     expect(h.offers.hasMore).toBe(false)
     expect(boundary.read).toHaveBeenCalledOnce()
 })
+
+it('keeps validated offers actionable through three background refreshes', async () => {
+    await h.render()
+    expect(h.offers.isSnapshot).toBe(false)
+    for (let cycle = 0; cycle < 3; cycle++) {
+        const next = held<ReturnType<typeof tradePayload>>()
+        boundary.read.mockReturnValueOnce(next.promise)
+        let request!: Promise<boolean>
+        await act(async () => { request = h.offers.refresh() })
+        expect(h.offers.refreshing).toBe(true)
+        expect(h.offers.isSnapshot).toBe(false)
+        await act(async () => { next.resolve(tradePayload()); await request })
+        expect(h.offers.isSnapshot).toBe(false)
+    }
+})

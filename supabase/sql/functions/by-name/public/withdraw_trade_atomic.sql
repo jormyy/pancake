@@ -21,6 +21,7 @@ BEGIN
   <<request_write>>
 DECLARE
   v_trade trades%ROWTYPE;
+  v_previous_flag text;
 BEGIN
   SELECT *
     INTO v_trade
@@ -33,8 +34,10 @@ BEGIN
       USING ERRCODE = 'P0002';
   END IF;
 
-  IF v_trade.status <> 'pending'::public.trade_status THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
+  IF v_trade.status <> 'pending'::public.trade_status AND NOT COALESCE((
+    v_trade.status = 'accepted'::public.trade_status AND v_trade.veto_window_expires_at > now()
+  ), false) THEN
+    RAISE EXCEPTION 'Only pending trades or trades still in their review window can be cancelled.'
       USING ERRCODE = 'P0001';
   END IF;
 
@@ -54,16 +57,18 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  v_previous_flag:=private.begin_trade_lifecycle_write();
   UPDATE public.trades
      SET status = 'withdrawn'::public.trade_status
    WHERE id = p_trade_id
-     AND status = 'pending'::public.trade_status;
+     AND status = v_trade.status;
 
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'This trade is no longer pending.'
+    RAISE EXCEPTION 'This trade can no longer be cancelled.'
       USING ERRCODE = 'P0001';
   END IF;
 
+  PERFORM private.end_trade_lifecycle_write(v_previous_flag);
   __request_result := jsonb_build_object(
     'proposerMemberId', v_trade.proposer_member_id,
     'recipientMemberId', v_trade.recipient_member_id

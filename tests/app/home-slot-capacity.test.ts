@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
     lineup: { starters: [{ slotType: 'PG', player: null as LineupPlayer | null }], bench: [] as LineupPlayer[], benchSlots: 3, ir: [], taxi: [] },
     league: { id: 'league', roster_size: 20, ir_slots: 2, taxi_slots: 2 },
     refreshHome: vi.fn(async () => {}), refreshAnnouncements: vi.fn(async () => {}),
-    setSelected: vi.fn(), doAutoSet: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
+    setSelected: vi.fn(), setSelectedDate: vi.fn(), loadLineups: vi.fn(),
     selectedDate: '2026-10-11', lineupError: false,
     freshness: 'fresh',
     announcementsLoaded: true, announcementRead: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock('@/hooks/use-matchup-data', () => ({ useMatchupData: () => ({
     setSelectedDate: mocks.setSelectedDate, loadLineups: mocks.loadLineups, matchupRef: { current: { id: 'matchup' } },
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ todaysGames: mocks.games, freshness: mocks.freshness, liveStats: new Map(), startedTeams: new Set(), liveTeams: new Set(), teamMatchups: new Map() }) }))
-vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, doAutoSet: mocks.doAutoSet }) }))
+vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({ setSelected: mocks.setSelected, setAutoSetModalVisible: vi.fn() }) }))
 vi.mock('@/hooks/use-draft-room-launcher', () => ({ useDraftRoomLauncher: () => ({ openDraftRoom: vi.fn() }) }))
 vi.mock('@/lib/lineup', () => ({ getLineupMoveTargetState: () => null }))
 vi.mock('@/lib/score-breakdown', () => ({ lineupStatColumns: () => [] }))
@@ -172,11 +172,14 @@ it('shows a recent complete game display during the initial live refresh', async
     expect(rows('PG')[0].props.liveTeams.size).toBe(0)
 })
 
-it('auto-sets today when the manager views another date', async () => {
-    mocks.selectedDate = '2026-10-12'
+it('opens the manual editor from the auto-set sheet', async () => {
     await mount()
-    screen.root.findByType('AutoSetModal' as React.ElementType).props.onToday()
-    expect(mocks.doAutoSet).toHaveBeenCalledWith('2026-10-11')
+    const sheet = screen.root.findByType('AutoSetModal' as React.ElementType)
+    expect(sheet.props.onToday).toBeUndefined()
+    expect(sheet.props.onWholeWeek).toBeUndefined()
+    expect(sheet.props.onRestOfSeason).toBeUndefined()
+    await act(async () => sheet.props.onEditManually())
+    expect(mocks.push).toHaveBeenCalledWith('/lineup')
 })
 
 it('replaces old rows with one error and leaves the day selector active', async () => {

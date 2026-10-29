@@ -64,7 +64,7 @@ BEGIN
         format('ALTER TABLE %I.%I ALTER COLUMN %I SET DEFAULT %s',n.nspname,c.relname,a.attname,pg_get_expr(d.adbin,d.adrelid))
       FROM pg_attrdef d JOIN pg_class c ON c.oid=d.adrelid JOIN pg_namespace n ON n.oid=c.relnamespace
       JOIN pg_attribute a ON a.attrelid=d.adrelid AND a.attnum=d.adnum
-      WHERE n.nspname IN ('public','private') AND a.attgenerated=''
+      WHERE (n.nspname IN ('public','private') OR (n.nspname='net' AND c.relname='_http_response')) AND a.attgenerated=''
       ON CONFLICT(kind,name) DO UPDATE SET definition=EXCLUDED.definition;
     FOR saved IN SELECT definition FROM season_sim.restore_clock LOOP EXECUTE saved.definition; END LOOP;
     FOREACH function_name IN ARRAY ARRAY['now','clock_timestamp','transaction_timestamp','statement_timestamp'] LOOP

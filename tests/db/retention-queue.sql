@@ -27,7 +27,7 @@ BEGIN
   INSERT INTO private.work_items(kind,key,status,completed_at)
     VALUES('player-stats-hints','retention-boundary-success','succeeded',v_at-interval '7 days') RETURNING id INTO v_boundary_work;
   INSERT INTO private.work_items(kind,key,status,completed_at,attempts)
-    VALUES('player-stats-hints','retention-old-dead','dead',v_at-interval '120 days',3) RETURNING id INTO v_dead_work;
+    VALUES('player-stats-hints','retention-boundary-dead','dead',v_at-interval '90 days',3) RETURNING id INTO v_dead_work;
   SELECT * INTO STRICT v_item FROM private.work_claim(1);
   PERFORM private.work_execute(v_item.id,v_item.lease_token);
   PERFORM pg_temp.check_rules((SELECT status='succeeded' FROM private.work_items WHERE id=v_item.id),'dispatcher completes the retention work item');
@@ -43,7 +43,7 @@ BEGIN
     WHERE kind='work.succeeded' AND detail->>'work_id'=v_item.id::text),'retention keeps the queue completion event');
   PERFORM private.enqueue_scheduled_work('2004-06-22 10:01 UTC');
   PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='retention-prune'),'next UTC day gets a new retention item');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention')),'retention and views share the sole dispatcher cron entry');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'retention and views share the sole dispatcher cron entry');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

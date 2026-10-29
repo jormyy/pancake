@@ -1,5 +1,9 @@
 \set ON_ERROR_STOP on
 BEGIN;
+\if :{?matchup_id}
+\else
+  \ir benchmark-fixture.sql
+\endif
 SET LOCAL statement_timeout='5s';
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='local-forecast-cache-probe';

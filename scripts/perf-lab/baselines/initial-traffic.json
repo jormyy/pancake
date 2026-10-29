@@ -1,0 +1,392 @@
+[
+  {
+    "id": "other-matchup/commissioner/in-progress/cold",
+    "source": "aaf1514b295eb82f28dfc4dd6432d31b95cc57fe",
+    "requests": 43,
+    "bytesDown": 4500930,
+    "bytesUp": 0,
+    "resourceTypes": [
+      {
+        "id": "JavaScript",
+        "requests": 22,
+        "bytesDown": 4123954,
+        "bytesUp": 0,
+        "durationMs": 59.362495999914245,
+        "errors": 0
+      },
+      {
+        "id": "document",
+        "requests": 2,
+        "bytesDown": 175776,
+        "bytesUp": 0,
+        "durationMs": 1.529208000007202,
+        "errors": 0
+      },
+      {
+        "id": "font",
+        "requests": 8,
+        "bytesDown": 128088,
+        "bytesUp": 0,
+        "durationMs": 15.277999999991152,
+        "errors": 0
+      },
+      {
+        "id": "service worker",
+        "requests": 1,
+        "bytesDown": 36876,
+        "bytesUp": 0,
+        "durationMs": 1.287084000010509,
+        "errors": 0
+      },
+      {
+        "id": "image",
+        "requests": 3,
+        "bytesDown": 24235,
+        "bytesUp": 0,
+        "durationMs": 2.659916000018711,
+        "errors": 0
+      },
+      {
+        "id": "API",
+        "requests": 5,
+        "bytesDown": 10531,
+        "bytesUp": 0,
+        "durationMs": 238.193374999988,
+        "errors": 0
+      },
+      {
+        "id": "manifest",
+        "requests": 2,
+        "bytesDown": 1470,
+        "bytesUp": 0,
+        "durationMs": 2.3914999999979045,
+        "errors": 0
+      }
+    ],
+    "endpoints": [
+      {
+        "id": "GET /_expo/static/js/web/__common-6a93c8921f5213cc24b79797b82eb45c.js",
+        "requests": 2,
+        "bytesDown": 2071968,
+        "bytesUp": 0,
+        "durationMs": 16.418373999986215,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/pwa/entry-e9ed1fd2aaa9b41cd501018fef6a6140.fbdea586f2829770c8a0418d2e3cc923.js",
+        "requests": 2,
+        "bytesDown": 1942438,
+        "bytesUp": 0,
+        "durationMs": 14.031457999983104,
+        "errors": 0
+      },
+      {
+        "id": "GET /matchup",
+        "requests": 1,
+        "bytesDown": 89176,
+        "bytesUp": 0,
+        "durationMs": 0.5738330000021961,
+        "errors": 0
+      },
+      {
+        "id": "GET /",
+        "requests": 1,
+        "bytesDown": 86600,
+        "bytesUp": 0,
+        "durationMs": 0.9553750000050059,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-a8ab08613ecc94106f625bc0ea1ba045.js",
+        "requests": 3,
+        "bytesDown": 68745,
+        "bytesUp": 0,
+        "durationMs": 4.03674999998475,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_600SemiBold.e6a3605b8b30dddd058fe40e0db3e105.woff2",
+        "requests": 2,
+        "bytesDown": 41368,
+        "bytesUp": 0,
+        "durationMs": 5.09337499999674,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_700Bold.fe121b52b27f12f05bd1e826ac96eb4a.woff2",
+        "requests": 2,
+        "bytesDown": 41320,
+        "bytesUp": 0,
+        "durationMs": 3.645749999996042,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/fonts/Outfit_500Medium.afc04a3ac550425614c809a235e1f1ee.woff2",
+        "requests": 2,
+        "bytesDown": 39328,
+        "bytesUp": 0,
+        "durationMs": 3.5603750000009313,
+        "errors": 0
+      },
+      {
+        "id": "GET /sw.js",
+        "requests": 1,
+        "bytesDown": 36876,
+        "bytesUp": 0,
+        "durationMs": 1.287084000010509,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/pwa/boot-logo.fea57074ef688a4d45f8d9f51baa0df2.png",
+        "requests": 2,
+        "bytesDown": 15334,
+        "bytesUp": 0,
+        "durationMs": 1.4510410000075353,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/index-5c3daa098e3844503f3097a74c922c2e.js",
+        "requests": 1,
+        "bytesDown": 13344,
+        "bytesUp": 0,
+        "durationMs": 3.413583000001381,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/images/pancake_logo.10de9378f6017c16bab42d4ecf228e03.png",
+        "requests": 1,
+        "bytesDown": 8901,
+        "bytesUp": 0,
+        "durationMs": 1.2088750000111759,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/__expo-metro-runtime-0c48b0beee2d3ce6030b475fcc5b1846.js",
+        "requests": 2,
+        "bytesDown": 7604,
+        "bytesUp": 0,
+        "durationMs": 3.062456999978167,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/matchup-f880e2f67463a690c50135dca2f8c4e0.js",
+        "requests": 2,
+        "bytesDown": 6814,
+        "bytesUp": 0,
+        "durationMs": 4.117707999990671,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/fonts/MaterialIcons.438f06865a7470d54e448a581f510525.woff2",
+        "requests": 2,
+        "bytesDown": 6072,
+        "bytesUp": 0,
+        "durationMs": 2.978499999997439,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-29e309a9e7d5ab12789bdbc0950f480a.js",
+        "requests": 2,
+        "bytesDown": 5908,
+        "bytesUp": 0,
+        "durationMs": 1.2486659999995027,
+        "errors": 0
+      },
+      {
+        "id": "GET /functions/v1/api/views/home",
+        "requests": 1,
+        "bytesDown": 5815,
+        "bytesUp": 0,
+        "durationMs": 208.77879099998972,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/perf-lab.8b33a41b079329e0f80dad49d4e014cf79fae98fb297fb1b45f2a73971bf4075.js",
+        "requests": 2,
+        "bytesDown": 3932,
+        "bytesUp": 0,
+        "durationMs": 2.834958999999799,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/league_change_hints",
+        "requests": 1,
+        "bytesDown": 2112,
+        "bytesUp": 0,
+        "durationMs": 7.944667000003392,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/pwa/manifest.b73dc05e2236e50d45d3867b6d2a4b5b.webmanifest",
+        "requests": 2,
+        "bytesDown": 1470,
+        "bytesUp": 0,
+        "durationMs": 2.3914999999979045,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/league_members",
+        "requests": 1,
+        "bytesDown": 1316,
+        "bytesUp": 0,
+        "durationMs": 14.545666999998502,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/nba_games",
+        "requests": 1,
+        "bytesDown": 1252,
+        "bytesUp": 0,
+        "durationMs": 3.7597090000053868,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/sign-in-9d602c51ff2ac8fc3bffbcc8b8377198.js",
+        "requests": 1,
+        "bytesDown": 1156,
+        "bytesUp": 0,
+        "durationMs": 2.7711249999993015,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-d380abc3f57e797ee6b56e431ba84d8b.js",
+        "requests": 3,
+        "bytesDown": 1083,
+        "bytesUp": 0,
+        "durationMs": 3.754873999991105,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-30dea0037230768dad8eae217cadc7d8.js",
+        "requests": 2,
+        "bytesDown": 962,
+        "bytesUp": 0,
+        "durationMs": 3.6725420000002487,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/leagues",
+        "requests": 1,
+        "bytesDown": 36,
+        "bytesUp": 0,
+        "durationMs": 3.1645409999910044,
+        "errors": 0
+      }
+    ]
+  },
+  {
+    "id": "other-matchup/commissioner/in-progress/warm",
+    "source": "aaf1514b295eb82f28dfc4dd6432d31b95cc57fe",
+    "requests": 9,
+    "bytesDown": 62669,
+    "bytesUp": 0,
+    "resourceTypes": [
+      {
+        "id": "service worker",
+        "requests": 1,
+        "bytesDown": 36876,
+        "bytesUp": 0,
+        "durationMs": 0.9102090000087628,
+        "errors": 0
+      },
+      {
+        "id": "API",
+        "requests": 5,
+        "bytesDown": 10531,
+        "bytesUp": 0,
+        "durationMs": 179.6945829999895,
+        "errors": 0
+      },
+      {
+        "id": "image",
+        "requests": 1,
+        "bytesDown": 8901,
+        "bytesUp": 0,
+        "durationMs": 1.1434169999993173,
+        "errors": 0
+      },
+      {
+        "id": "JavaScript",
+        "requests": 2,
+        "bytesDown": 6361,
+        "bytesUp": 0,
+        "durationMs": 1.10150099999737,
+        "errors": 0
+      }
+    ],
+    "endpoints": [
+      {
+        "id": "GET /sw.js",
+        "requests": 1,
+        "bytesDown": 36876,
+        "bytesUp": 0,
+        "durationMs": 0.9102090000087628,
+        "errors": 0
+      },
+      {
+        "id": "GET /assets/assets/images/pancake_logo.10de9378f6017c16bab42d4ecf228e03.png",
+        "requests": 1,
+        "bytesDown": 8901,
+        "bytesUp": 0,
+        "durationMs": 1.1434169999993173,
+        "errors": 0
+      },
+      {
+        "id": "GET /functions/v1/api/views/home",
+        "requests": 1,
+        "bytesDown": 5815,
+        "bytesUp": 0,
+        "durationMs": 147.013082999998,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/matchup-f880e2f67463a690c50135dca2f8c4e0.js",
+        "requests": 1,
+        "bytesDown": 3407,
+        "bytesUp": 0,
+        "durationMs": 0.32379199999559205,
+        "errors": 0
+      },
+      {
+        "id": "GET /_expo/static/js/web/_layout-29e309a9e7d5ab12789bdbc0950f480a.js",
+        "requests": 1,
+        "bytesDown": 2954,
+        "bytesUp": 0,
+        "durationMs": 0.7777090000017779,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/league_change_hints",
+        "requests": 1,
+        "bytesDown": 2112,
+        "bytesUp": 0,
+        "durationMs": 4.774958000009065,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/league_members",
+        "requests": 1,
+        "bytesDown": 1316,
+        "bytesUp": 0,
+        "durationMs": 15.400083999993512,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/nba_games",
+        "requests": 1,
+        "bytesDown": 1252,
+        "bytesUp": 0,
+        "durationMs": 6.6292909999901894,
+        "errors": 0
+      },
+      {
+        "id": "GET /rest/v1/leagues",
+        "requests": 1,
+        "bytesDown": 36,
+        "bytesUp": 0,
+        "durationMs": 5.877166999998735,
+        "errors": 0
+      }
+    ]
+  }
+]

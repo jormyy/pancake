@@ -6,7 +6,7 @@ import { fetchEspnNews, fetchEspnPlayerListing } from '../_shared/playerSource.t
 import { errorMessage } from '../_shared/responses.ts'
 import { syncCareerGames } from './career.ts'
 import { importPlayerChunk } from './imports.ts'
-import { syncNBAIds } from './nbaIds.ts'
+import { prepareEspnIdentities, syncNBAIds } from './nbaIds.ts'
 import { syncSleeperLinks } from './sleeperLinks.ts'
 import { completeRosterCycle, releaseUnlistedPlayers, type HeldReleases, type ListedPlayer } from './release.ts'
 
@@ -22,13 +22,13 @@ serveInternal('sync-players', async (req) => {
   const result = await recordSyncRun('sync-players', async () => {
     const started = performance.now()
     const startedAt = new Date()
-    const imported = PLAYER_SYNC_SOURCE === 'sleeper'
-      ? await syncPlayers()
-      : await importPlayersFromEspn()
+    const listing = PLAYER_SYNC_SOURCE === 'sleeper' ? null : await fetchEspnPlayerListing()
+    const prepared = listing ? await prepareEspnIdentities(listing.records) : null
+    const imported = listing ? await importPlayersFromEspn(listing) : await syncPlayers()
     // The NBA index step runs between the ESPN import and its release: it merges a person's split rows (his
     // ESPN row into the row his box created), and the release must read the merged row, which holds both
     // his ESPN listing and his boxes. An index step that throws or fails a row releases nobody.
-    const nbaIds = await syncNBAIds()
+    const nbaIds = await syncNBAIds(new Date(), prepared?.data)
     const players = await releaseEspnOmissions(imported, nbaIds.failures)
     const cycle = imported.listing ? await completeRosterCycle(imported.listing.records, imported.listing.gaps, [...imported.failures, ...nbaIds.failures], nbaIds, startedAt) : { released: 0, failure: null }
     players.released += cycle.released
@@ -51,6 +51,7 @@ serveInternal('sync-players', async (req) => {
         ambiguousSkipped: players.ambiguousSkipped,
         injuryWarnings: players.injuryWarnings,
         nbaIdsMapped: nbaIds.mapped,
+        identityBridges: prepared?.linked ?? 0,
         sleeperIdsLinked: sleeper.linked,
         identityRefreshDeferred: sleeper.deferred,
         birthdatesUpdated: sleeper.birthdatesUpdated,
@@ -61,7 +62,7 @@ serveInternal('sync-players', async (req) => {
         newsFailures: news.failures,
         failure,
       },
-      rowsAffected: players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + sleeper.birthdatesUpdated + news.upserted + career.updated,
+      rowsAffected: (prepared?.linked ?? 0) + players.updated + players.inserted + players.released + nbaIds.mapped + nbaIds.merged + sleeper.linked + sleeper.birthdatesUpdated + news.upserted + career.updated,
       failure,
     }
   }, req)
@@ -74,9 +75,9 @@ type PlayerImportTotals = {
 }
 type PlayerSyncTotals = Omit<PlayerImportTotals, 'listing'> & { released: number; releaseSkipped: string[]; releaseHeld: HeldReleases }
 
-async function importPlayersFromEspn(): Promise<PlayerImportTotals> {
+async function importPlayersFromEspn(listing: Awaited<ReturnType<typeof fetchEspnPlayerListing>>): Promise<PlayerImportTotals> {
   console.log('[sync-players] Fetching from ESPN...')
-  const { records, gaps, injuryWarnings } = await fetchEspnPlayerListing()
+  const { records, gaps, injuryWarnings } = listing
 
   let updated = 0
   let inserted = 0

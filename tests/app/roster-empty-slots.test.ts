@@ -8,7 +8,6 @@ import { setLeagueChangesConnected } from '@/lib/league-changes'
 import { activateRosterPlayerWithOverflow, toggleIR, toggleTaxi } from '@/lib/roster'
 import { getRosterStatusChangeLockMessage } from '@/lib/roster-locks'
 import { confirmAction, showAlert } from '@/lib/alert'
-import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 
 type ListProps = {
     data: unknown[]
@@ -79,7 +78,7 @@ vi.mock('@/lib/realtime', () => ({
     debounceRealtimeRefresh: () => ({ trigger: vi.fn(), cancel: vi.fn() }),
     reportRealtimeCleanup: vi.fn(), subscribeToTableChanges: vi.fn(), unsubscribeFromTableChanges: vi.fn(),
 }))
-vi.mock('@/lib/lineup', () => ({ autoSetLineup: vi.fn(), getLineupContext: vi.fn(), getRosterSlotPlan: vi.fn() }))
+vi.mock('@/lib/lineup', () => ({ getRosterSlotPlan: vi.fn() }))
 vi.mock('@/lib/shared/season', () => ({ getActiveSeasonId: vi.fn(), invalidateSeasonCache: vi.fn() }))
 vi.mock('@/lib/shared/dates', () => ({ todayET: () => '2026-10-17' }))
 vi.mock('@/lib/league', () => ({ isTradingClosed: () => false }))
@@ -174,24 +173,6 @@ describe('roster empty slots', () => {
             await act(async () => screen.root.findAllByProps({ accessibilityLabel: 'Open Active' })[0].props.onPress())
         }
         expect(screen.root.findByType('RosterPlayerSheet' as React.ElementType).props.actions.some((action: { label: string }) => action.label === 'Move to IR')).toBe(false)
-    })
-
-    it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports partial failures for %s', async action => {
-        vi.mocked(getLineupContext).mockResolvedValue({ seasonId: 'season', weekNumber: 1, seasonYear: 2026, today: '2026-10-24' })
-        vi.mocked(autoSetLineup).mockResolvedValue({ dates: 2, optimized: 1, failed: 1, skipped: 0, results: [] })
-        await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        await act(async () => { screen.root.findByType('AutoSetModal' as React.ElementType).props[action](); await Promise.resolve() })
-        expect(showAlert).toHaveBeenCalledExactlyOnceWith('Lineup partly optimized', 'Optimized 1 of 2 dates; 1 failed.')
-    })
-
-    it.each(['onToday', 'onWholeWeek', 'onRestOfSeason'] as const)('reports no remaining dates for %s', async action => {
-        vi.mocked(getLineupContext).mockResolvedValue({ seasonId: 'season', weekNumber: 1, seasonYear: 2026, today: '2026-10-24' })
-        vi.mocked(autoSetLineup).mockResolvedValue({ dates: 0, optimized: 0, failed: 0, skipped: 0, results: [] })
-        await act(async () => { screen = create(React.createElement(RosterScreen)) })
-        await act(async () => { screen.root.findByType('AutoSetModal' as React.ElementType).props[action](); await Promise.resolve() })
-        expect(showAlert).toHaveBeenCalledExactlyOnceWith(action === 'onRestOfSeason' ? 'Season is over' : 'No remaining dates',
-            action === 'onRestOfSeason' ? 'There are no remaining dates this season to optimize.'
-                : 'There are no remaining dates in this selection to optimize.', 'info')
     })
 
     it('keeps the pending claims jump target at least 44px high', async () => {

@@ -110,8 +110,15 @@ BEGIN
   PERFORM pg_temp.check_dynasty((SELECT is_on_taxi AND taxi_start_season_year=8200 FROM roster_players WHERE league_season_id=other_season AND player_id=player_ids[2]),'taxi survives second season with original tenure');
   PERFORM pg_temp.check_dynasty((SELECT array_agg(priority.member_id ORDER BY priority.priority)=expected_order FROM waiver_priorities priority WHERE league_season_id=other_season),'waiver reset order excludes voided week');
   PERFORM pg_temp.check_dynasty((SELECT count(*)=30 FROM draft_picks WHERE league_id=league AND season_year=8201),'rollover supplies every rookie round without a fixture repair');
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=league),true);
   rookie_draft:=start_rookie_draft_atomic(league,1,false);
-  PERFORM pg_temp.check_dynasty((SELECT array_agg(draft_order.member_id ORDER BY draft_order.position)=expected_order FROM draft_orders draft_order WHERE draft_id=(rookie_draft->>'id')::uuid),'real rookie draft order excludes voided week');
+  PERFORM pg_temp.check_dynasty(NOT EXISTS(
+    SELECT 1 FROM draft_orders a JOIN draft_orders b ON b.draft_id=a.draft_id AND b.position>a.position
+    JOIN standings first_team ON first_team.member_id=a.member_id AND first_team.league_season_id=season AND first_team.week_number=17
+    JOIN standings later_team ON later_team.member_id=b.member_id AND later_team.league_season_id=season AND later_team.week_number=17
+    WHERE a.draft_id=(rookie_draft->>'id')::uuid AND
+      (first_team.wins>later_team.wins OR first_team.wins=later_team.wins AND first_team.points_for<later_team.points_for)),
+    'real rookie draft order excludes voided week');
   UPDATE drafts SET status='cancelled' WHERE id=(rookie_draft->>'id')::uuid;
 
   UPDATE leagues SET status='playoffs' WHERE id=league;

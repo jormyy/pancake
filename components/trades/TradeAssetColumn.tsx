@@ -1,3 +1,10 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { type AssetLock } from '@/lib/locked-assets'
+import { useScreenView } from '@/hooks/use-screen-view'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { RosterView } from '@/lib/cache/view-types'
+import { useAuth } from '@/hooks/use-auth'
+import { useLeagueContext } from '@/contexts/league-context'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -17,6 +24,8 @@ function PlayerRow({
     avgMinutes,
     selected,
     blocked,
+    locks,
+    checking,
     destinationLabel,
     onToggle,
     testID,
@@ -26,6 +35,8 @@ function PlayerRow({
     avgMinutes?: number | null
     selected: boolean
     blocked: boolean
+    locks: AssetLock[]
+    checking: boolean
     destinationLabel?: string | null
     onToggle: () => void
     testID?: string
@@ -40,12 +51,12 @@ function PlayerRow({
     })
 
     return (
-        <Pressable
+        <View><Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-            disabled={blocked && !selected}
+            disabled={checking || locks.length > 0 || blocked && !selected}
             accessibilityRole="button"
-            accessibilityState={{ disabled: blocked && !selected }}
+            accessibilityState={{ disabled: checking || locks.length > 0 || blocked && !selected }}
             accessibilityLabel={`${action} ${p.display_name} for trade`}
             testID={testID}
             id={testID}
@@ -61,7 +72,7 @@ function PlayerRow({
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
-        </Pressable>
+        </Pressable><LockedAssetNotice locks={locks} /></View>
     )
 }
 
@@ -69,6 +80,8 @@ function PickRow({
     pick,
     selected,
     blocked,
+    locks,
+    checking,
     destinationLabel,
     onToggle,
     testID,
@@ -76,18 +89,20 @@ function PickRow({
     pick: TradePickItem
     selected: boolean
     blocked: boolean
+    locks: AssetLock[]
+    checking: boolean
     destinationLabel?: string | null
     onToggle: () => void
     testID?: string
 }) {
     const action = selected ? 'Remove' : 'Select'
     return (
-        <Pressable
+        <View><Pressable
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
-            disabled={blocked && !selected}
+            disabled={checking || locks.length > 0 || blocked && !selected}
             accessibilityRole="button"
-            accessibilityState={{ disabled: blocked && !selected }}
+            accessibilityState={{ disabled: checking || locks.length > 0 || blocked && !selected }}
             accessibilityLabel={`${action} ${pickLabel(pick.seasonYear, pick.round)} pick via ${pick.originalTeamName} for trade`}
             testID={testID}
             id={testID}
@@ -112,11 +127,12 @@ function PickRow({
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
-        </Pressable>
+        </Pressable><LockedAssetNotice locks={locks} /></View>
     )
 }
 
 export function TradeAssetColumn({
+    memberId,
     title,
     subtitle,
     side,
@@ -136,6 +152,7 @@ export function TradeAssetColumn({
     emptyText,
     testIdPrefix,
 }: {
+    memberId?: string
     title: string
     subtitle: string
     side: 'give' | 'receive'
@@ -155,6 +172,14 @@ export function TradeAssetColumn({
     emptyText: string
     testIdPrefix?: string
 }) {
+    const { user } = useAuth()
+    const { current, currentLeague } = useLeagueContext()
+    const ownAssets = memberId === current?.id
+    const locksView = useScreenView<RosterView>(ownAssets && user && current && currentLeague
+        ? screenScope('roster', currentLeague.id, current.id, {}, user.id) : null)
+    const checking = ownAssets && !locksView.data
+    const locks = locksView.data?.lockedAssets ?? []
+    const locksFor = (kind: AssetLock['assetKind'], id: string) => locks.filter(lock => lock.assetKind === kind && lock.assetId === id)
     const selectedCount =
         roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +
         picks.filter((p) => selectedPickIds.has(p.pickId)).length
@@ -180,6 +205,8 @@ export function TradeAssetColumn({
                     <PlayerRow
                         key={rp.id}
                         player={rp}
+                        checking={checking}
+                        locks={locksFor('player', rp.players.id)}
                         avgFpts={avgMap.get(rp.players.id)}
                         avgMinutes={avgStatsMap.get(rp.players.id)?.avg_minutes_played}
                         selected={selectedPlayerIds.has(rp.players.id)}
@@ -198,6 +225,8 @@ export function TradeAssetColumn({
                         <PickRow
                             key={pick.pickId}
                             pick={pick}
+                            checking={checking}
+                            locks={locksFor('pick', pick.pickId)}
                             selected={selectedPickIds.has(pick.pickId)}
                             blocked={blockedPickIds?.has(pick.pickId) ?? false}
                             destinationLabel={pickDestinationLabel?.(pick.pickId)}

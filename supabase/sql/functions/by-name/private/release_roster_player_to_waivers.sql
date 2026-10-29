@@ -21,6 +21,14 @@ AS $$
 DECLARE
   v_rows int;
 BEGIN
+  IF p_related_trade_id IS NOT NULL AND private.trade_lifecycle_write_active() AND EXISTS (
+    SELECT 1 FROM trade_participants participant JOIN trades trade ON trade.id=participant.trade_id
+    WHERE trade.id=p_related_trade_id AND trade.status='accepted' AND trade.league_id=p_league_id
+      AND trade.league_season_id=p_league_season_id AND participant.member_id=p_member_id
+      AND p_player_id=ANY(participant.drop_player_ids)
+  ) THEN
+    PERFORM private.authorize_taxi_acquisition(p_league_id,p_league_season_id,p_member_id,p_player_id,'trade',p_related_trade_id);
+  END IF;
   DELETE FROM roster_players AS rp
    WHERE rp.id = p_roster_player_id
      AND rp.league_id = p_league_id

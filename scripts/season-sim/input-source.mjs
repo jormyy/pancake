@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { appendFile, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
+import { appendFile } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 import { gunzipSync } from 'node:zlib'
 import { delay, sha256, writeGzip } from './common.mjs'

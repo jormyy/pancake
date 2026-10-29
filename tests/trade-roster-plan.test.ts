@@ -16,6 +16,20 @@ afterEach(async () => {
 })
 
 describe('trade roster plan', () => {
+    it('explains SQL rejection of incoming IR and taxi destinations', async () => {
+        const unavailableDestinations = { incoming: {
+            ir: 'IR requires an Out or IR designation.',
+            taxi: 'Taxi requires a rookie or fewer than 65 known career games.',
+        } }
+        await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
+            incoming, roster: [], value: emptyPlan, onChange: vi.fn(), unavailableDestinations,
+        })) })
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
+        expect(JSON.stringify(renderer!.toJSON())).toContain(unavailableDestinations.incoming.ir)
+        expect(JSON.stringify(renderer!.toJSON())).toContain(unavailableDestinations.incoming.taxi)
+    })
+
     it('shows drop choices directly and saves the selected drop', async () => {
         const onChange = vi.fn()
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
@@ -44,7 +58,7 @@ describe('trade roster plan', () => {
         })) })
         expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: active' })).toHaveLength(0)
         expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Incoming player: ir' })).toHaveLength(0)
-        expect(renderer!.root.findAllByProps({ children: 'Taxi' })).toHaveLength(1)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.accessibilityState.checked).toBe(true)
         expect(onChange).not.toHaveBeenCalled()
     })
 
@@ -81,11 +95,12 @@ describe('trade roster plan', () => {
     it('disables inactive slots for an ineligible player', async () => {
         await act(async () => { renderer = create(React.createElement(TradeRosterPlanEditor, {
             incoming: [{ ...incoming[0], injuryStatus: null }], roster: [], value: emptyPlan, onChange: vi.fn(),
+            unavailableDestinations: { incoming: { ir: 'IR requires Out.', taxi: 'Taxi requires eligibility.' } },
         })) })
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.disabled).toBe(false)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: ir' }).props.disabled).toBe(true)
         expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: taxi' }).props.disabled).toBe(true)
-        expect(renderer!.root.findAllByProps({ children: 'Regular' })).toHaveLength(1)
+        expect(renderer!.root.findByProps({ accessibilityLabel: 'Incoming player: active' }).props.accessibilityState.checked).toBe(true)
     })
 
 })

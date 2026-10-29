@@ -211,7 +211,7 @@ BEGIN
   c:=pg_temp.claim(f,1,p,5,1,drop_id); d:=pg_temp.claim(f,1,q,4,2,drop_id);
   PERFORM pg_temp.drain();
   PERFORM pg_temp.check_that((SELECT status='succeeded' AND drop_player_id=drop_id FROM waiver_claims WHERE id=c),'winning claim preserves drop history');
-  PERFORM pg_temp.check_that((SELECT status='failed_roster' AND drop_player_id IS NULL AND failure_reason='Roster full and no drop player specified.' FROM waiver_claims WHERE id=d),'prior win clears reused drop then fails full roster');
+  PERFORM pg_temp.check_that((SELECT status='cancelled' AND failure_reason='The selected drop player was used by another successful waiver claim.' FROM waiver_claims WHERE id=d),'prior win cancels a sibling claim that shares its drop');
   PERFORM pg_temp.check_that((SELECT add_count=2 FROM weekly_add_counts WHERE member_id=f.m[1] AND league_season_id=f.s),'failed reused drop consumes no add');
   PERFORM pg_temp.check_that((SELECT balance=95 FROM faab_balances WHERE member_id=f.m[1] AND league_season_id=f.s),'failed reused drop consumes no FAAB');
   PERFORM pg_temp.check_that((SELECT count(*)=1 AND bool_and(player_id=p) FROM roster_players WHERE member_id=f.m[1] AND league_season_id=f.s),'atomic drop/add roster');

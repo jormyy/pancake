@@ -71,13 +71,13 @@ function run() {
   if (process.argv.includes('--inventory-only')) return
 
   execFileSync('deno', ['check', ...entrypoints.map(relative)], { cwd: ROOT, stdio: 'inherit' })
-  execFileSync('deno', [
-    'test',
-    '--allow-env',
-    '--allow-net',
-    '--allow-read',
-    ...tests.map(relative),
-  ], { cwd: ROOT, stdio: 'inherit' })
+  const liveTests = tests.filter(file => readFileSync(file, 'utf8').includes("Deno.env.get('SUPABASE_DB_URL')"))
+  const unitEnvironment = { ...process.env }
+  delete unitEnvironment.SUPABASE_DB_URL
+  const argumentsFor = files => ['test', '--allow-env', '--allow-net', '--allow-read',
+    ...(process.env.SUPABASE_DB_URL ? ['--allow-run=psql'] : []), ...files.map(relative)]
+  execFileSync('deno', argumentsFor(tests.filter(file => !liveTests.includes(file))), { cwd: ROOT, env: unitEnvironment, stdio: 'inherit' })
+  for (const file of liveTests) execFileSync('deno', argumentsFor([file]), { cwd: ROOT, stdio: 'inherit' })
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

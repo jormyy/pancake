@@ -5,6 +5,10 @@ BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
   IF p_params->>'playerId' IS NULL THEN RAISE EXCEPTION 'Player not found.' USING ERRCODE = 'P0002'; END IF;
   roster := public.view_roster(p_league_id, p_member_id, p_params - 'targetMemberId');
+  SELECT jsonb_set(roster, '{roster}', COALESCE(jsonb_agg(row_data || jsonb_build_object('assetLocks',
+    COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(row_data->'assetLocks') lock
+      WHERE lock->>'sourceKind'<>'claim' OR lock->>'sourceId' IS DISTINCT FROM p_params->>'claimId'), '[]'::jsonb))), '[]'::jsonb))
+    INTO roster FROM jsonb_array_elements(roster->'roster') row_data;
   support := public.view_players(p_league_id, p_member_id, p_params || jsonb_build_object('includePlayerIds',
     jsonb_build_array(p_params->>'playerId'), 'limit', 1));
   RETURN jsonb_build_object('context', context, 'player', (public.view_player(p_league_id, p_member_id, p_params)->'player'), 'roster', roster->'roster',

@@ -2,7 +2,8 @@ import { useLeagueTimezone } from '@/hooks/use-league-timezone'
 import { formatLeagueDateTime } from '@/lib/timezone'
 import { PendingMutationBadge } from '@/components/PendingMutationBadge'
 import { Badge } from '@/components/ui/Badge'
-import { pickLabel } from '@/lib/picks'
+import { TradePickLabel } from '@/components/trades/TradePickLabel'
+import { tradePickContext, type TradePickContext } from '@/lib/trade-pick-label'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { View, Text, StyleSheet } from 'react-native'
 import { SavedTradeEstimate } from '@/components/trades/SavedTradeEstimate'
@@ -110,7 +111,7 @@ function tradeItemKey(item: TradeItem, index: number) {
     return `faab:${item.fromMemberId ?? 'from'}:${item.toMemberId ?? 'to'}:${item.amount}:${index}`
 }
 
-function TradeItemLine({ item, showContext = true }: { item: TradeItem; showContext?: boolean }) {
+function TradeItemLine({ item, showContext = true, pickContext }: { item: TradeItem; showContext?: boolean; pickContext?: TradePickContext }) {
     if (item.kind === 'player') {
         const positions = playerEligiblePositions(item)
         return (
@@ -134,14 +135,13 @@ function TradeItemLine({ item, showContext = true }: { item: TradeItem; showCont
         <View style={styles.assetRow}>
             <View style={styles.assetIcon}><Text style={styles.assetIconText}>R{item.round}</Text></View>
             <View style={styles.assetCopy}>
-                <Text style={styles.assetName}>{pickLabel(item.seasonYear, item.round)}</Text>
-                <Text style={styles.assetMeta} numberOfLines={1}>via {item.originalTeamName}</Text>
+                <TradePickLabel pick={item} context={pickContext} />
             </View>
         </View>
     )
 }
 
-export function AssetList({ items, label, showContext = true, stacked = false }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean }) {
+export function AssetList({ items, label, showContext = true, stacked = false, pickContext }: { items: TradeItem[]; label: string; showContext?: boolean; stacked?: boolean; pickContext?: TradePickContext }) {
     return (
         <View style={[styles.assetBlock, stacked && styles.stackedAssetBlock]}>
             <Text style={styles.assetLabel} numberOfLines={1}>{label}</Text>
@@ -149,7 +149,7 @@ export function AssetList({ items, label, showContext = true, stacked = false }:
                 <Text style={styles.assetEmpty}>Nothing</Text>
             ) : (
                 items.map((item, index) => (
-                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} />
+                    <TradeItemLine key={tradeItemKey(item, index)} item={item} showContext={showContext} pickContext={pickContext} />
                 ))
             )}
         </View>
@@ -174,8 +174,8 @@ export function tradeFlowItem(item: TradeItem, index: number): TradeFlowItem | n
             key: tradeItemKey(item, index),
             fromMemberId: item.fromMemberId,
             toMemberId: item.toMemberId,
-            label: pickLabel(item.seasonYear, item.round),
-            detail: `${item.originalTeamName} pick`,
+            label: '',
+            pick: item,
         }
     }
     return {
@@ -302,6 +302,7 @@ export function TradeCard({
 }) {
     const timezone = useLeagueTimezone()
     const model = tradeCardModel({ trade, myMemberId, tab, tradeVetoMode, isCommissioner, timezone })
+    const pickContext = tradePickContext(trade, myMemberId)
 
     // The summary is the press target, not the whole card, so the header and
     // action buttons never sit inside another button.
@@ -309,8 +310,8 @@ export function TradeCard({
         <>
             {model.meta.length > 0 ? <Text style={styles.meta} numberOfLines={2}>{model.meta.join(' · ')}</Text> : null}
             <View style={[styles.sides, tab === 'history' && { flexDirection: 'column' }]}>
-                <AssetList items={model.receives} label={model.receiveLabel} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
-                <AssetList items={model.gives} label={model.giveLabel} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                <AssetList items={model.receives} label={model.receiveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
+                <AssetList items={model.gives} label={model.giveLabel} pickContext={pickContext} stacked={tab === 'history'} showContext={tab !== 'history' && !brief && !trade.isMultiTeam} />
             </View>
             {trade.notes && !brief ? <Text style={styles.notes} numberOfLines={2}>“{trade.notes}”</Text> : null}
         </>

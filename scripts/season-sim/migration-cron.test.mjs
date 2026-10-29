@@ -48,3 +48,11 @@ test('unsupported cron alterations fail instead of keeping an obsolete command',
     { name: '002', source: "SELECT cron.alter_job(jobid, command := runtime_command()) FROM cron.job WHERE jobname='work-dispatcher';" },
   ]), /Unsupported cron update in 002/)
 })
+
+test('direct cron command updates retain their installed cadence', () => {
+  const jobs = installedCronJobs([
+    { name: '001', source: "SELECT cron.schedule('drain','30 seconds','SELECT drain()');" },
+    { name: '002', source: "UPDATE cron.job SET command=$job$SET lock_timeout='250ms'; SELECT drain()$job$ WHERE jobname='drain';" },
+  ])
+  assert.deepEqual(jobs, [{ jobname: 'drain', schedule: '30 seconds', command: "SET lock_timeout='250ms'; SELECT drain()" }])
+})

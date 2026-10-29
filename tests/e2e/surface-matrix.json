@@ -286,7 +286,7 @@
       "source": "app/(modals)/lineup.tsx",
       "path": "/lineup",
       "functionIds": ["manual-lineup", "automatic-lineup", "realtime-convergence"],
-      "navigation": {"entryFromHome": "League > Lineup; the same editor is inline on Home", "tapsFromHome": 2, "firstView": "Direct Today, This week and Rest of season actions; automatic switch and locked slots", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
+      "navigation": {"entryFromHome": "League > Lineup; the same editor is inline on Home", "tapsFromHome": 2, "firstView": "Manual lineup editing, automatic switch and locked slots", "verification": "WebKit iPhone 390x844; manager and commissioner screenshots; source tap audit"},
       "contracts": {
         "cache": { "mode": "required", "dataClassIds": ["app-shell", "matchup-lineup", "live-stats"], "proofIds": ["browser.surface_online", "browser.lineup"] },
         "freshness": { "mode": "required", "dataClassIds": ["matchup-lineup", "live-stats"], "proofIds": ["browser.lineup", "browser.lineup_locked"] },
@@ -583,7 +583,7 @@
     { "id": "league-lifecycle", "targetIds": ["create-league", "join-league", "profile"], "happyPathEvidenceIds": ["browser.league_lifecycle", "backend.league_lifecycle"], "failurePaths": [{ "id": "identity-or-invite-rejected", "evidenceIds": ["backend.league_lifecycle"] }], "recoveryPaths": [{ "id": "create-and-join-refresh-memberships", "evidenceIds": ["browser.league_lifecycle"] }] },
     { "id": "matchup-live", "targetIds": ["matchup-home"], "happyPathEvidenceIds": ["browser.performance", "realtime.delivery"], "failurePaths": [{ "id": "offline-keeps-stale-matchup", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "reconnect-refreshes-matchup", "evidenceIds": ["browser.surface_reconnect"] }] },
     { "id": "manual-lineup", "targetIds": ["matchup-home", "lineup-editor"], "happyPathEvidenceIds": ["browser.lineup"], "failurePaths": [{ "id": "locked-or-illegal-move-rejected", "evidenceIds": ["browser.lineup_locked"] }], "recoveryPaths": [{ "id": "valid-move-persists-and-converges", "evidenceIds": ["browser.lineup"] }] },
-    { "id": "automatic-lineup", "targetIds": ["matchup-home", "lineup-editor", "roster"], "happyPathEvidenceIds": ["browser.lineup_auto_set"], "failurePaths": [{ "id": "locked-player-remains-unchanged", "evidenceIds": ["browser.lineup_locked"] }], "recoveryPaths": [{ "id": "today-and-season-recompute", "evidenceIds": ["browser.lineup_auto_set"] }] },
+    { "id": "automatic-lineup", "targetIds": ["matchup-home", "lineup-editor", "roster"], "happyPathEvidenceIds": ["browser.lineup_auto_set"], "failurePaths": [{ "id": "locked-player-remains-unchanged", "evidenceIds": ["browser.lineup_locked"] }], "recoveryPaths": [{ "id": "manual-editor-navigation", "evidenceIds": ["browser.lineup_auto_set"] }] },
     { "id": "player-discovery", "targetIds": ["players", "player-detail", "claim-player", "team-roster", "dynasty-hub"], "happyPathEvidenceIds": ["browser.smoke", "browser.surface_online"], "failurePaths": [{ "id": "offline-or-query-failure-keeps-safe-view", "evidenceIds": ["browser.surface_offline"] }], "recoveryPaths": [{ "id": "warm-reopen-and-reconnect-refresh", "evidenceIds": ["browser.surface_reconnect"] }] },
     { "id": "waiver-roster", "targetIds": ["claim-player", "players", "player-detail", "roster"], "happyPathEvidenceIds": ["browser.waiver", "browser.waiver_drop", "backend.waiver_processing"], "failurePaths": [{ "id": "ir-or-full-roster-claim-rejected", "evidenceIds": ["browser.waiver_ir_block", "backend.waiver_processing"] }], "recoveryPaths": [{ "id": "drop-claim-process-and-refresh", "evidenceIds": ["browser.waiver_drop", "backend.waiver_processing"] }] },
     { "id": "trade-workflows", "targetIds": ["propose-trade", "team-roster", "trades"], "happyPathEvidenceIds": ["browser.trade_proposal", "browser.trade_accept", "browser.trade_multi_team", "backend.trade_accept"], "failurePaths": [{ "id": "deadline-overflow-permission-or-veto-rejected", "evidenceIds": ["browser.trade_post_deadline", "browser.trade_overflow_accept", "backend.trade_veto"] }], "recoveryPaths": [{ "id": "edit-counter-terminal-and-future-pick-settle", "evidenceIds": ["browser.trade_terminal", "browser.trade_future_pick_accept", "browser.trade_multi_team"] }] },
@@ -616,10 +616,10 @@
       "daily": true
     },
     {
-      "feature": "Auto-set today / this week / rest of season",
-      "entryFromHome": "Home > Period action",
-      "tapsFromHome": 1,
-      "firstView": "Shared lineup action and its saved result",
+      "feature": "Manual lineup editor",
+      "entryFromHome": "Home > Auto-set > Edit lineup manually",
+      "tapsFromHome": 2,
+      "firstView": "Manual lineup editor and automatic preference",
       "daily": true
     },
     {

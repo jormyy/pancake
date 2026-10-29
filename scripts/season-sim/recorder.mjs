@@ -1,4 +1,5 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync } from '../perf-lab/bounded-log.mjs'
 import path from 'node:path'
 
 export function upstreamRecorder(directory, { resume = false } = {}) {

@@ -8,8 +8,9 @@ export function installedCronJobs(migrations) {
   const calls = new RegExp(`cron\\.(schedule|unschedule|alter_job)\\(\\s*(${literal}|jobname|jobid)`, 'g')
   for (const { name, source } of [...migrations].sort((a, b) => a.name.localeCompare(b.name))) {
     const sql = source.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
-    for (const call of sql.matchAll(calls)) {
-      const tail = sql.slice(call.index + call[0].length)
+    const normalized = sql.replace(new RegExp(`UPDATE\\s+cron\\.job\\s+SET\\s+command\\s*=\\s*(${literal})\\s+WHERE\\s+jobname\\s*=\\s*(${literal})`, 'gi'), (_, command, jobname) => `SELECT cron.alter_job(jobid,command:=${command}) FROM cron.job WHERE jobname=${jobname}`)
+    for (const call of normalized.matchAll(calls)) {
+      const tail = normalized.slice(call.index + call[0].length)
       if (call[1] === 'alter_job') {
         const update = new RegExp(`^\\s*,\\s*((?:(?:schedule|command)\\s*:=\\s*(?:${literal})\\s*,?\\s*)+)\\)\\s*FROM\\s+cron\\.job\\s+WHERE\\s+jobname\\s*=\\s*(${literal})`, 'i').exec(tail)
         assert.ok(update, `Unsupported cron update in ${name}`)

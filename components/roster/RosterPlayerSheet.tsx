@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks } from '@/lib/locked-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import type { ComponentProps } from 'react'
@@ -58,6 +60,7 @@ export function RosterPlayerSheet({
     actions: RosterSheetAction[]
     onClose: () => void
 }) {
+    const locks = readAssetLocks(player)
     const info = player?.players
     const positions = info ? getEligiblePositions(info) : []
     const status = player?.is_on_ir ? 'On IR' : player?.is_on_taxi ? 'Taxi squad' : null
@@ -81,18 +84,19 @@ export function RosterPlayerSheet({
                         ))}
                     </View>
 
+                    <LockedAssetNotice locks={locks} onNavigate={onClose} />
                     <View style={styles.actions}>
                         {actions.map((action, index) => (
                             <Pressable
                                 key={action.key}
                                 onPress={action.onPress}
-                                disabled={action.disabled}
-                                accessibilityState={{ disabled: action.disabled }}
+                                disabled={action.disabled || locks.length > 0 && action.key !== 'page'}
+                                accessibilityState={{ disabled: action.disabled || locks.length > 0 && action.key !== 'page' }}
                                 accessibilityRole="button"
                                 accessibilityLabel={action.accessibilityLabel ?? action.label}
                                 style={({ hovered, pressed }: PressableState) => [
                                     styles.action,
-                                    action.disabled && { opacity: 0.5 },
+                                    (action.disabled || locks.length > 0 && action.key !== 'page') && { opacity: 0.5 },
                                     index < actions.length - 1 && styles.actionDivider,
                                     hovered && styles.actionHover,
                                     pressed && styles.actionPressed,

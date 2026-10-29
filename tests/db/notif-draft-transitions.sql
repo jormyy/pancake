@@ -56,6 +56,7 @@ BEGIN
   INSERT INTO season_weeks(season_year,week_number,week_start,week_end)
     SELECT 20026,w,date '2026-10-20'+(w-1)*7,date '2026-10-26'+(w-1)*7 FROM generate_series(1,24) w;
   UPDATE leagues SET playoff_entrants=2,playoff_round_lengths=ARRAY[1] WHERE id=f.league;
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
   PERFORM start_rookie_draft_atomic(f.league,2,false,60);
   SELECT id INTO d FROM drafts WHERE league_id = f.league AND NOT is_mock;
   SELECT timer_expires_at INTO until_at FROM snake_draft_picks WHERE draft_id = d AND overall_pick = 1;
@@ -84,10 +85,12 @@ BEGIN
   SELECT count(*) INTO auto_count FROM notification_outbox WHERE data->>'draftId'=d::text;
   PERFORM * FROM private.draft_timer_complete_opening_night(100,'2026-10-20 13:00:01+00');
   IF (SELECT count(*) FROM notification_outbox WHERE data->>'draftId'=d::text) <> auto_count THEN RAISE EXCEPTION 'backstop retry duplicated events'; END IF;
+  UPDATE notification_outbox SET available_at=now() WHERE data->>'draftId'=d::text;
   PERFORM * FROM claim_notification_outbox_atomic(200,60);
   IF EXISTS (SELECT 1 FROM notification_outbox WHERE data->>'draftId'=d::text AND event_type IN ('draft_on_clock','draft_coming_soon','draft_timer_expiring') AND suppression_reason IS DISTINCT FROM 'stale') THEN
     RAISE EXCEPTION 'already-made backstop picks can still send clock alerts';
   END IF;
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=f.league),true);
   PERFORM start_rookie_draft_atomic(f.league,1,true,60);
   SELECT id INTO d FROM drafts WHERE league_id=f.league AND is_mock;
   PERFORM pause_draft_atomic(d);

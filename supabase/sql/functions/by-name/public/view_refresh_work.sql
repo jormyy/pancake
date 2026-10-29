@@ -18,7 +18,7 @@ BEGIN
         FROM (SELECT trade.id, trade.proposer_member_id FROM public.trades trade
           LEFT JOIN private.trade_value_publications cached ON cached.trade_id = trade.id
           WHERE trade.league_season_id = c.league_season_id
-            AND (cached.trade_id IS NULL OR cached.version < c.version OR cached.valid_until <= now())
+            AND (cached.trade_id IS NULL OR cached.version < c.version)
           ORDER BY cached.version NULLS FIRST, trade.id LIMIT 20) trade
         JOIN public.league_members member ON member.id = trade.proposer_member_id), '[]'::jsonb))), '[]'::jsonb) INTO result FROM claimed c;
     RETURN result;
@@ -42,7 +42,7 @@ BEGIN
     completed := NOT EXISTS (SELECT 1 FROM public.trades trade
       LEFT JOIN private.trade_value_publications cached ON cached.trade_id = trade.id
       WHERE trade.league_season_id = queued.league_season_id
-        AND (cached.trade_id IS NULL OR cached.version < queued.version OR cached.valid_until <= now()));
+        AND (cached.trade_id IS NULL OR cached.version < queued.version));
   END IF;
   UPDATE private.screen_refresh_queue SET dirty = NOT completed, claim_token = NULL, claimed_at = NULL,
     claimed_version = NULL, last_error = NULL, available_at = CASE WHEN completed THEN available_at ELSE now() + interval '5 seconds' END WHERE league_season_id = queued.league_season_id;

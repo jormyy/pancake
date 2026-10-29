@@ -119,7 +119,7 @@ Import shared components from `components/ui` or their direct files.
 | `Sheet` | Visibility, title, accessible label, close action, children | Bottom sheet on phones; centered dialog on wider screens |
 | `SegmentedControl` | Options, value, change action, labels, variant | Pills or tabs; preserves arrow-key focus and selected state |
 | `StatCell` | Value, integer mode, highlight, table or summary variant, native text props | Shared numeric formatting, width, and highlight |
-| `LineupControls` | Actions, automatic state, disabled states, change action | One-time actions and one accessible automatic switch |
+| `LineupControls` | Automatic state, disabled state, change action | One accessible automatic switch |
 | `Button` | Label, variant, size, action, accessible props | Inline surface is 28px; its target remains at least 44px |
 | `Input` | Native input props, label, error, hint, icon | Keeps 16px input text and an accessible label |
 | `Page` | Title, width, padding, children | Screen background, content width, and accessible page heading |
@@ -267,16 +267,14 @@ This display fallback does not change the stored forecast model or its coverage.
 ## Lineup and waivers
 
 The lineup page uses the shared compact header.
-Today, This week, and Rest of season form its first control row.
-Keep updated automatically and one switch form its second row.
-One-time actions leave that saved preference unchanged.
-Both rows preserve 44px targets.
+Keep updated automatically and one switch form its control row.
+The row preserves a 44px target.
 The day strip follows the switch with 2px spacing above and below.
 Every empty starter, bench, IR, and taxi place remains visible.
 Offline and read-only states disable lineup moves.
 
 Home and Roster retain Auto-set with the label Open auto-set lineup options.
-Their sheets include Edit lineup manually.
+Their sheets offer only Edit lineup manually.
 The claims pill reads `0 Waivers`, `1 Waiver`, or the plural count.
 Zero opens Players; a positive count opens Waivers.
 Waivers shows budget, priority, next run, and pickup count above pending claims.
@@ -293,8 +291,19 @@ Otherwise it requires the needed drops.
 The direct choices use Regular, IR, and Taxi.
 A legal preview reads Roster ready.
 A failed preview cannot enable acceptance.
+Background refreshes retain the last complete roster summary.
+A validated offer keeps its button state during refresh.
+Account changes and reconnects require fresh validation.
 Named drops require confirmation.
 The server validates the same submitted plan.
+
+Every trade pick names its draft year, round, and original team.
+The label also names its owner before the trade and its recipient.
+Only the viewing member becomes You.
+Original team names stay explicit, including the viewer's original picks.
+Submitted summaries, pending offers, review, history, and activity use one pick label.
+History keeps the trade's sender and recipient when ownership changes later.
+Pick labels wrap without truncation on phones.
 
 History cards show status, veto deadline, and one row per asset.
 Values show sent then received, such as `1412 vs 605`.

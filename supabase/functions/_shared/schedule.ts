@@ -155,7 +155,7 @@ export function completeSeasonSchedule(games: readonly { gameDate: string; homeT
         for (const team of [game.homeTeam, game.awayTeam]) appearances.set(team, (appearances.get(team) ?? 0) + 1)
     }
     const dates = games.map((game) => game.gameDate).sort()
-    return games.length >= 1200 && appearances.size === 30 && [...appearances.values()].every((count) => count >= 80)
+    return games.length >= 1230 && appearances.size === 30 && [...appearances.values()].every((count) => count >= 82)
         && dates[0]?.slice(5, 7) === '10' && dates.at(-1)?.slice(5, 7) === '04'
 }
 

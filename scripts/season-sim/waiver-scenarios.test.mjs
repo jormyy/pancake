@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkWaiverHold, assertPendingWaivers, readWaiverClaims, waiverDrop, waiverRosterRefills } from './waiver-scenarios.mjs'
+import { checkWaiverHold, nextWaiverRun, assertPendingWaivers, readWaiverClaims, waiverDrop, waiverRosterRefills } from './waiver-scenarios.mjs'
 
 const members = ['a', 'b', 'c', 'd']
 const claims = [
@@ -60,15 +60,25 @@ test('next-season waiver donors retain an NBA player and refill through availabl
 })
 
 
-test('drop holds clear on the first 03:00 Eastern run at or after 48 elapsed hours', () => {
+test('drop holds clear on the first league midnight at or after 48 elapsed hours', () => {
   for (const [droppedAt, clearsAt] of [
     ['2026-01-01T14:00:00Z', '2026-01-04T08:00:00Z'],
     ['2026-01-01T08:00:00Z', '2026-01-03T08:00:00Z'],
-    ['2026-03-06T08:00:00Z', '2026-03-09T07:00:00Z'],
-    ['2026-10-30T07:00:00Z', '2026-11-01T08:00:00Z'],
+    ['2026-03-06T08:00:00Z', '2026-03-08T08:00:00Z'],
+    ['2026-10-30T07:00:00Z', '2026-11-01T07:00:00Z'],
   ]) {
     checkWaiverHold(clearsAt, Date.parse(droppedAt))
     assert.throws(() => checkWaiverHold(new Date(Date.parse(clearsAt) - 3600000).toISOString(), Date.parse(droppedAt)))
   }
   assert.throws(() => checkWaiverHold('2026-01-03T14:00:00Z', Date.parse('2026-01-01T14:00:00Z')))
+})
+
+test('waiver runs use each league zone and its midnight DST offset',()=>{
+  for(const [threshold,zone,expected] of [
+    ['2026-11-01T05:00:00Z','America/Los_Angeles','2026-11-01T07:00:00Z'],
+    ['2026-11-01T05:00:00Z','America/New_York','2026-11-02T05:00:00Z'],
+    ['2026-03-08T05:00:00Z','America/New_York','2026-03-08T05:00:00Z'],
+    ['2026-03-08T05:00:00Z','America/Los_Angeles','2026-03-08T08:00:00Z'],
+    ['2026-01-01T00:00:00Z','Asia/Kathmandu','2026-01-01T18:15:00Z'],
+  ])assert.equal(nextWaiverRun(Date.parse(threshold),zone),Date.parse(expected))
 })

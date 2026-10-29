@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks } from '@/lib/locked-assets'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { rosterViewData, type RosterView } from '@/lib/cache/view-types'
 import { screenScope } from '@/lib/cache/screen-scope'
@@ -48,7 +50,6 @@ import { RosterTrimBanner } from '@/components/roster/RosterTrimBanner'
 import { activeRosterOverflow, createRosterRecoveryRunner } from '@/lib/roster-overflow'
 import { AutoSetModal } from '@/components/AutoSetModal'
 import { ActivationOverflowModal } from '@/components/ActivationOverflowModal'
-import { autoSetLineup, getLineupContext } from '@/lib/lineup'
 
 
 import { arrangeActiveRoster, compareRosterBySlot } from '@/lib/roster-slots'
@@ -137,6 +138,8 @@ function RosterTablePlayerItem({
     allowIR: boolean
     onToggleTaxi: (item: RosterPlayer) => void
 }) {
+    const locks = readAssetLocks(item)
+    const actionDisabled = isBusy || locks.length > 0
     const positions = item.players.eligible_positions?.length
         ? item.players.eligible_positions
         : item.players.position
@@ -145,11 +148,11 @@ function RosterTablePlayerItem({
     const canIR = item.is_on_ir || allowIR && isIREligible(item.players.injury_status)
 
     return (
-        <View style={styles.rosterTableRow}>
+        <View><View style={styles.rosterTableRow}>
             <Pressable
                 style={styles.rosterTableOpen}
                 onPress={() => onPress(item)}
-                onLongPress={onLongPress ? () => onLongPress(item) : undefined}
+                onLongPress={onLongPress && !locks.length ? () => onLongPress(item) : undefined}
                 disabled={isBusy}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${item.players.display_name}`}
@@ -174,17 +177,17 @@ function RosterTablePlayerItem({
             </Pressable>
             <View style={styles.rosterTableActions}>
                 {section === 'taxi' ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={isBusy}
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleTaxi(item)} disabled={actionDisabled}
                         accessibilityRole="button" accessibilityLabel={`Activate ${item.players.display_name}`}
-                        accessibilityState={{ disabled: isBusy }}>
-                        <Text style={styles.tableActionText}>Activate</Text>
+                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={locks[0]?.reason}>
+                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>Activate</Text>
                     </Pressable>
                 ) : canIR ? (
-                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={isBusy}
+                    <Pressable style={styles.tableActionButton} onPress={() => onToggleIR(item)} disabled={actionDisabled}
                         accessibilityRole="button"
                         accessibilityLabel={`${item.is_on_ir ? 'Activate' : 'Move to IR'} ${item.players.display_name}`}
-                        accessibilityState={{ disabled: isBusy }}>
-                        <Text style={styles.tableActionText}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
+                        accessibilityState={{ disabled: actionDisabled }} accessibilityHint={locks[0]?.reason}>
+                        <Text style={[styles.tableActionText, actionDisabled && styles.tableActionTextDisabled]}>{item.is_on_ir ? 'Activate' : 'IR'}</Text>
                     </Pressable>
                 ) : null}
                 <Pressable
@@ -198,7 +201,7 @@ function RosterTablePlayerItem({
                     <MaterialIcons name="more-horiz" size={controlSize.icon.md} color={colors.textSecondary} />
                 </Pressable>
             </View>
-        </View>
+        </View><LockedAssetNotice locks={locks} /></View>
     )
 }
 
@@ -223,10 +226,8 @@ export default function RosterScreen() {
     const [droppingId, setDroppingId] = useState<string | null>(null)
     const [sheetPlayerRaw, setSheetPlayer] = useState<RosterPlayer | null>(null)
     const [autoSetVisibleRaw, setAutoSetVisible] = useState(false)
-    const [autoSettingRaw, setAutoSetting] = useState(false)
     const [activationPendingRaw, setActivationPending] = useState<{ rosterPlayerId: string; source: 'ir' | 'taxi' } | null>(null)
     const [activationSaving, setActivationSaving] = useState(false)
-    const autoSetRunningRef = useRef(false)
     const rosterRecoveryRunnerRef = useRef(createRosterRecoveryRunner())
     const ownerIdentity = current?.id && leagueId ? `${current.id}:${leagueId}` : null
     const activeOwnerRef = useRef(ownerIdentity)
@@ -246,7 +247,6 @@ export default function RosterScreen() {
     const ownsActionState = stateOwnerIdentity === ownerIdentity
     const autoSetVisible = ownsActionState && autoSetVisibleRaw
     const sheetPlayer = ownsActionState ? sheetPlayerRaw : null
-    const autoSetting = ownsActionState && autoSettingRaw
     const activationPending = ownsActionState ? activationPendingRaw : null
 
     useEffect(() => {
@@ -258,10 +258,8 @@ export default function RosterScreen() {
         setDroppingId(null)
         setSheetPlayer(null)
         setAutoSetVisible(false)
-        setAutoSetting(false)
         setActivationPending(null)
         setActivationSaving(false)
-        autoSetRunningRef.current = false
         setStateOwnerIdentity(ownerIdentity)
         return () => {
             activeOwnerRef.current = null
@@ -485,49 +483,6 @@ export default function RosterScreen() {
                 }
             })
         })
-    }
-
-    async function runAutoSet(mode: 'today' | 'week' | 'season') {
-        // Ref latch: state alone can't stop a same-frame double-tap (both taps
-        // read the pre-commit value).
-        if (!current || !leagueId || autoSetRunningRef.current) return
-        autoSetRunningRef.current = true
-        setAutoSetVisible(false)
-        setAutoSetting(true)
-        const generation = actionGenerationRef.current
-        const identity = ownerIdentity
-        try {
-            const ctx = await getLineupContext(leagueId)
-            if (!ctx) {
-                showAlert('No active season', 'Lineups open once the season starts.')
-                return
-            }
-            const result = await autoSetLineup(
-                current.id, leagueId, ctx.seasonId, ctx.weekNumber, ctx.seasonYear,
-                mode === 'today' ? ctx.today : null, mode === 'season',
-            )
-            if (!isCurrentAction(generation, identity)) return
-            void load()
-            if (result && result.failed > 0) {
-                showAlert('Lineup partly optimized', `Optimized ${result.optimized} of ${result.dates} dates; ${result.failed} failed.`)
-            } else if (result && result.dates === 0) {
-                showAlert(mode === 'season' ? 'Season is over' : 'No remaining dates', mode === 'season'
-                    ? 'There are no remaining dates this season to optimize.'
-                    : 'There are no remaining dates in this selection to optimize.', 'info')
-            } else {
-                showAlert(
-                    'Lineup set',
-                    mode === 'today' ? 'Your best lineup is set for today.'
-                        : mode === 'week' ? 'Your best lineup is set for the whole week.'
-                            : 'Your best lineup is set for the rest of the season.',
-                )
-            }
-        } catch (e) {
-            if (isCurrentAction(generation, identity)) showAlert('Auto-set failed', getErrorMessage(e))
-        } finally {
-            autoSetRunningRef.current = false
-            if (isCurrentAction(generation, identity)) setAutoSetting(false)
-        }
     }
 
     const handleDropPrompt = useCallback((item: RosterPlayer) => {
@@ -833,7 +788,7 @@ export default function RosterScreen() {
         return membershipStatus === 'empty' ? <EmptyState message="Join or create a league first." /> : <NoLeagueState />
     }
 
-    const lineupLocked = rosterOverflow > 0 || autoSetting
+    const lineupLocked = rosterOverflow > 0
     const sideCards = (
         <>
             <View style={[styles.cardSlice, styles.cardTop, picks.length === 0 && styles.cardBottom]}>
@@ -867,9 +822,9 @@ export default function RosterScreen() {
                         size="inline"
                         style={{ minHeight: controlSize.minTouch }}
                         variant={lineupLocked ? 'secondary' : 'primary'}
-                        title={rosterOverflow > 0 ? 'Trim Roster First' : autoSetting ? 'Setting…' : 'Auto-set'}
+                        title={rosterOverflow > 0 ? 'Trim Roster First' : 'Auto-set'}
                         onPress={() => setAutoSetVisible(true)}
-                        disabled={rosterOverflow > 0 || autoSetting}
+                        disabled={rosterOverflow > 0}
                         accessibilityLabel={rosterOverflow > 0 ? 'Trim roster before setting lineup' : 'Open auto-set lineup options'}
                     /> : null}
                     </View>
@@ -940,11 +895,7 @@ export default function RosterScreen() {
 
             <AutoSetModal
                 visible={autoSetVisible}
-                disabled={lineupLocked}
                 onClose={() => setAutoSetVisible(false)}
-                onToday={() => { void runAutoSet('today') }}
-                onWholeWeek={() => { void runAutoSet('week') }}
-                onRestOfSeason={() => { void runAutoSet('season') }}
                 onEditManually={() => { setAutoSetVisible(false); push('/(modals)/lineup') }}
             />
             {rosterLegality.modalProps.visible ? <IRResolutionModal {...rosterLegality.modalProps} /> : null}
@@ -1057,6 +1008,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         backgroundColor: colors.primaryLight,
     },
+    tableActionTextDisabled: { color: colors.textDisabled },
     tableActionText: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primaryDark },
     moreButton: {
         width: controlSize.minTouch,

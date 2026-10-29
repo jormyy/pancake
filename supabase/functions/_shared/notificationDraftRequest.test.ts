@@ -21,6 +21,7 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
   let release: (() => void) | undefined
   let timeout: ReturnType<typeof setTimeout> | undefined
   globalThis.fetch = async (input, init) => {
+    const options = init as RequestInit | undefined
     const url = new URL(input instanceof Request ? input.url : input)
     const table = url.pathname.split('/').at(-1)
     if (table === 'user') return Response.json({ id: user, aud: 'authenticated', role: 'authenticated' })
@@ -43,8 +44,8 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
       await new Promise<void>(resolve => { release = resolve })
       return Response.json([])
     }
-    assert.equal(table, 'notification_outbox')
-    queued.push(JSON.parse(String(init?.body)))
+    assert.equal(table, 'enqueue_rookie_pick_notification')
+    queued.push(JSON.parse(String(options?.body)))
     return new Response(null, { status: 201 })
   }
   const path = `/draft/${draft}/commissioner-pick`
@@ -62,9 +63,7 @@ Deno.test('commissioner picks queue delivery without waiting for the push provid
     assert.equal(providerReads, 0)
     assert.equal(recipientReads, 0)
     assert.equal(queued.length, 1)
-    assert.equal(queued[0].category, 'draft')
-    assert.equal(queued[0].event_type, 'rookie_draft_pick')
-    assert.equal(queued[0].member_id, member)
+    assert.deepEqual(queued[0], { p_draft_id: draft, p_member_id: member, p_player_id: player, p_pick_id: 'pick' })
     isMock = true
     assert.equal((await request())?.status, 200)
     assert.equal(queued.length, 1)

@@ -29,12 +29,9 @@ BEGIN
   PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],target,f.user_ids[1]),'PA009','Taxi Expired','taxi blocks an available-player claim');
   PERFORM pg_temp.roster_error(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,NULL,%L)',f.league_id,f.member_ids[1],claimed,f.user_ids[1]),'PA009','Taxi Expired','taxi blocks claim creation');
   PERFORM pg_temp.roster_error(format('SELECT public.edit_waiver_claim_atomic(%L,%L,%L)',claim,f.member_ids[1],f.user_ids[1]),'PA009','Taxi Expired','taxi blocks claim edits');
-  PERFORM pg_temp.roster_error(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,''{}'',''{}'',ARRAY[%L]::uuid[],ARRAY[%L]::uuid[])',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],picks[1],picks[2]),'PA009','Taxi Expired','taxi blocks sent offers');
-  PERFORM pg_temp.roster_error(format('SELECT public.propose_multi_team_trade_atomic(%L,%L,%L,%L::uuid[],%L::jsonb)',f.league_id,f.season_id,f.member_ids[1],f.member_ids::text,jsonb_build_array(
-    jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[2],'pickId',picks[1]),
-    jsonb_build_object('fromMemberId',f.member_ids[2],'toMemberId',f.member_ids[3],'pickId',picks[2]),
-    jsonb_build_object('fromMemberId',f.member_ids[3],'toMemberId',f.member_ids[1],'pickId',picks[3]))),'PA009','Taxi Expired','taxi blocks multi-team offers');
-  PERFORM pg_temp.roster_error(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[1]),'PT001','ineligible taxi player','taxi blocks acceptance');
+  PERFORM pg_temp.roster_error(format('SELECT public.submit_trade_offer_atomic(%L,%L,%L,%L,%L)',f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose',jsonb_build_object('leagueId',f.league_id,'leagueSeasonId',f.season_id,'recipientMemberId',f.member_ids[2],'offerPickIds',ARRAY[picks[1]],'requestPickIds',ARRAY[picks[2]])),'PT409','Taxi Expired','taxi blocks sent offers');
+  PERFORM pg_temp.roster_error(format('SELECT public.submit_trade_offer_atomic(%L,%L,%L,%L,%L)',f.user_ids[1],gen_random_uuid(),f.member_ids[1],'propose-multi',jsonb_build_object('leagueId',f.league_id,'leagueSeasonId',f.season_id,'participantMemberIds',f.member_ids,'items',jsonb_build_array(jsonb_build_object('fromMemberId',f.member_ids[1],'toMemberId',f.member_ids[2],'pickId',picks[1]),jsonb_build_object('fromMemberId',f.member_ids[2],'toMemberId',f.member_ids[3],'pickId',picks[2]),jsonb_build_object('fromMemberId',f.member_ids[3],'toMemberId',f.member_ids[1],'pickId',picks[3])))),'PT409','Taxi Expired','taxi blocks multi-team offers');
+  PERFORM pg_temp.roster_error(format('SELECT public.accept_trade_atomic(%L,%L)',offer,f.member_ids[1]),'PT409','Taxi Expired','taxi blocks acceptance');
   UPDATE waiver_claims SET process_date=(now() AT TIME ZONE 'America/New_York')::date-1 WHERE id=claim;
   SELECT * INTO outcome FROM public.process_next_waiver_claim_atomic((now() AT TIME ZONE 'America/New_York')::date);
   PERFORM pg_temp.check_rules(outcome.status='failed_roster' AND outcome.failure_reason ILIKE '%Taxi Expired%','pending claim fails with the taxi player name');

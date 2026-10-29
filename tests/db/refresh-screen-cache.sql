@@ -2,6 +2,7 @@ BEGIN;
 SET LOCAL app.supabase_url = 'http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token = 'screen-refresh-fixture';
 \ir rules-support.sql
+DELETE FROM private.screen_refresh_queue;
 DO $$
 DECLARE f record; original bigint; newer bigint; name text; before_rows jsonb; after_rows jsonb; claim jsonb; result jsonb; refreshed boolean;
   player uuid := gen_random_uuid(); game uuid := gen_random_uuid(); matchup uuid := gen_random_uuid(); trade uuid := gen_random_uuid();
@@ -41,6 +42,7 @@ BEGIN
   PERFORM private.refresh_standings(f.league_id, f.season_id, original);
   SELECT jsonb_agg(to_jsonb(row)) INTO after_rows FROM public.standings_current row WHERE league_season_id = f.season_id;
   PERFORM pg_temp.check_rules(before_rows = after_rows, 'same version refresh leaves values and timestamps unchanged');
+  UPDATE private.screen_refresh_queue SET dirty=false WHERE league_season_id=f.season_id;
   UPDATE public.league_members SET team_name = 'New name' WHERE id = f.member_ids[1];
   SELECT version INTO newer FROM private.screen_refresh_queue WHERE league_season_id = f.season_id;
   PERFORM pg_temp.check_rules(newer > original, 'member change advances version');
@@ -50,18 +52,26 @@ BEGIN
     PERFORM pg_temp.check_rules(NOT refreshed, name || ' refuses stale input');
   END LOOP;
   PERFORM pg_temp.check_rules((SELECT team_name = 'New name' AND version = newer FROM public.standings_current WHERE member_id = f.member_ids[1]), 'stale work cannot overwrite newer row');
+  UPDATE private.screen_refresh_queue SET dirty=false,claimed_at=NULL,claim_token=NULL,claimed_version=NULL
+    WHERE league_season_id<>f.season_id;
   SELECT item INTO claim FROM jsonb_array_elements(public.view_refresh_work(p_params := '{"operation":"claim","limit":10}')) item
     WHERE item->>'seasonId' = f.season_id::text;
   PERFORM pg_temp.check_rules(claim->>'claimToken' IS NOT NULL, 'worker claims pending season');
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM jsonb_array_elements(public.view_refresh_work()) item
     WHERE item->>'seasonId' = f.season_id::text), 'overlapping worker cannot claim active lease');
+  UPDATE private.screen_refresh_queue SET changed_at=now()-interval '1 second' WHERE league_season_id=f.season_id;
   PERFORM private.refresh_queue_screen_views(f.league_id);
   result := public.view_refresh_work(f.league_id, NULL, claim || jsonb_build_object('operation', 'complete', 'tradeValues', trade_values));
   PERFORM pg_temp.check_rules(result = 'false', 'input change during work rejects publication');
-  PERFORM pg_temp.check_rules((SELECT dirty AND claim_token IS NULL FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'rejected work releases lease and keeps pending work');
+  PERFORM pg_temp.check_rules((SELECT dirty AND claim_token IS NULL AND available_at>now() FROM private.screen_refresh_queue WHERE league_season_id = f.season_id), 'rejected work releases lease and keeps pending work');
+  UPDATE private.screen_refresh_queue SET available_at=now() WHERE league_season_id=f.season_id;
   SELECT item INTO claim FROM jsonb_array_elements(public.view_refresh_work()) item WHERE item->>'seasonId' = f.season_id::text;
-  PERFORM pg_temp.reject_rules(format('SELECT public.view_refresh_work(%L,NULL,%L)', f.league_id, claim || '{"operation":"complete","tradeValues":[]}'),
-    'A complete trade valuation set is required.', 'partial valuations cannot complete a season');
+  PERFORM pg_temp.check_rules(public.view_refresh_work(f.league_id,NULL,claim||'{"operation":"complete","tradeValues":[]}')='false',
+    'partial valuations cannot complete a season');
+  PERFORM pg_temp.check_rules((SELECT dirty AND claim_token IS NULL FROM private.screen_refresh_queue WHERE league_season_id=f.season_id),
+    'partial valuations leave retryable work');
+  UPDATE private.screen_refresh_queue SET available_at=now() WHERE league_season_id=f.season_id;
+  SELECT item INTO claim FROM jsonb_array_elements(public.view_refresh_work()) item WHERE item->>'seasonId'=f.season_id::text;
   result := public.view_refresh_work(f.league_id, NULL, claim || jsonb_build_object('operation', 'complete', 'tradeValues', trade_values));
   PERFORM pg_temp.check_rules(result = 'true', 'current worker publishes all four tables');
   PERFORM pg_temp.check_rules(public.view_refresh_work(f.league_id, NULL, claim || '{"operation":"complete"}') = 'false', 'duplicate completion cannot publish');

@@ -73,6 +73,7 @@ BEGIN
     ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],'Synthetic offer',now()+interval '1 day',1,1);
   PERFORM pg_temp.expect_event('trade_offered',ARRAY[f.other_member],'tradeId',trade_id::text);
   PERFORM accept_trade_atomic(trade_id,f.other_member);
+  PERFORM public.complete_accepted_trade_atomic(trade_id);
   PERFORM pg_temp.expect_event('trade_accepted',ARRAY[f.member],'tradeId',trade_id::text);
   trade_id := propose_trade_atomic(f.league,f.season,f.member,f.other_member,
     ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],ARRAY[]::uuid[],'Synthetic reject',now()+interval '1 day',1,1);

@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks } from '@/lib/locked-assets'
 import { cachedScreenView, readScreenView, subscribeScreenView } from '@/lib/cache/screen-cache'
 import { screenScope } from '@/lib/cache/screen-scope'
 import type { LineupView } from '@/lib/cache/view-types'
@@ -69,6 +71,7 @@ const StarterRow = memo(function StarterRow({
     targetState: LineupMoveTargetState
 }) {
     const p = slot.player
+    const locks = readAssetLocks(p)
     const isLocked = !!(p?.nbaTeam && startedTeams.has(p.nbaTeam))
     const isLive = !!(p?.nbaTeam && liveTeams.has(p.nbaTeam))
     const starterMatchup = p?.nbaTeam ? teamMatchups.get(p.nbaTeam) : undefined
@@ -77,7 +80,7 @@ const StarterRow = memo(function StarterRow({
         : null
 
     return (
-        <MotionPressable
+        <View><MotionPressable
             style={[
                 styles.slotRow,
                 index > 0 && styles.divider,
@@ -86,12 +89,12 @@ const StarterRow = memo(function StarterRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || isLocked || targetState === 'invalid'}
+            disabled={disabled || locks.length > 0 || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={p ? `${slot.slotType} ${p.displayName}` : `Empty ${slot.slotType} slot`}
             accessibilityHint={targetState === 'valid' ? `Move here to use the ${slot.slotType} slot` : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
+            accessibilityState={{ selected: isSelected, disabled: disabled || locks.length > 0 || isLocked || targetState === 'invalid' }}
         >
             <Text style={styles.slotLabel}>{slot.slotType}</Text>
             {p ? (
@@ -105,7 +108,7 @@ const StarterRow = memo(function StarterRow({
             ) : (
                 <Text style={styles.emptySlot}>Empty</Text>
             )}
-        </MotionPressable>
+        </MotionPressable><LockedAssetNotice locks={locks} /></View>
     )
 })
 
@@ -133,6 +136,7 @@ const BenchRow = memo(function BenchRow({
     readOnly: boolean
     targetState: LineupMoveTargetState
 }) {
+    const locks = readAssetLocks(player)
     const isLocked = !!(player.nbaTeam && startedTeams.has(player.nbaTeam))
     const isLive = !!(player.nbaTeam && liveTeams.has(player.nbaTeam))
     const benchMatchup = player.nbaTeam ? teamMatchups.get(player.nbaTeam) : undefined
@@ -141,7 +145,7 @@ const BenchRow = memo(function BenchRow({
         : null
 
     return (
-        <MotionPressable
+        <View><MotionPressable
             style={[
                 styles.benchRow,
                 index > 0 && styles.divider,
@@ -150,19 +154,19 @@ const BenchRow = memo(function BenchRow({
                 targetState === 'invalid' && styles.invalidTargetRow,
             ]}
             onPress={onPress}
-            disabled={disabled || isLocked || targetState === 'invalid'}
+            disabled={disabled || locks.length > 0 || isLocked || targetState === 'invalid'}
             disabledOpacity={readOnly ? 1 : undefined}
             accessibilityRole="button"
             accessibilityLabel={`Bench ${player.displayName}`}
             accessibilityHint={targetState === 'valid' ? 'Move here to place the selected player on the bench' : undefined}
-            accessibilityState={{ selected: isSelected, disabled: disabled || isLocked || targetState === 'invalid' }}
+            accessibilityState={{ selected: isSelected, disabled: disabled || locks.length > 0 || isLocked || targetState === 'invalid' }}
         >
 <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam} positions={player.eligiblePositions}
                         playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames} injuryStatus={player.injuryStatus} stats={benchMatchupLabel ?? undefined} />
                     <Text style={[styles.rowStatus, isLocked ? styles.lockedBadge : styles.moveBadge]}>
                 {isLocked ? isLive ? 'LIVE' : 'LOCK' : targetState === 'valid' ? 'MOVE' : ''}
             </Text>
-        </MotionPressable>
+        </MotionPressable><LockedAssetNotice locks={locks} /></View>
     )
 })
 
@@ -457,10 +461,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         selected,
         setSelected,
         saving,
-        autoSetting,
-        autoSetDisabled,
         handleTap,
-        doAutoSet,
     } = useLineupActions({
         actionContext,
         actionOwner,
@@ -472,18 +473,22 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
     })
     recoverLineup.current = canRecover
 
-    const preselectedKey = requestedPlayerId ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
+    const requestedLock = [...visibleStarters.flatMap(slot => slot.player ? [slot.player] : []), ...visibleBench].some(player => player.playerId === requestedPlayerId && readAssetLocks(player).length > 0)
+    const preselectedKey = requestedPlayerId && !requestedLock ? `${ownerKey}:${selectedDate}:${requestedPlayerId}` : null
     const preselectionPending = Boolean(preselectedKey && preselectedKeyRef.current !== preselectedKey && !readOnly && lineupForActions)
     const requestedStarterIndex = preselectionPending ? visibleStarters.findIndex((slot) => slot.player?.playerId === requestedPlayerId) : -1
     const requestedBenchIndex = preselectionPending ? visibleBench.findIndex((player) => player.playerId === requestedPlayerId) : -1
-    const displayedSelection = requestedStarterIndex >= 0
+    const selectedPlayer = selected?.kind === 'starter' ? visibleStarters[selected.index]?.player : selected ? visibleBench[selected.index] : null
+    const selectionLocked = readAssetLocks(selectedPlayer).length > 0
+    useEffect(() => { if (selectionLocked) setSelected(null) }, [selectionLocked, setSelected])
+    const displayedSelection = selectionLocked ? null : requestedStarterIndex >= 0
         ? { kind: 'starter' as const, index: requestedStarterIndex }
         : requestedBenchIndex >= 0
             ? { kind: 'bench' as const, index: requestedBenchIndex }
             : selected
 
     useEffect(() => {
-        if (!requestedPlayerId || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
+        if (!requestedPlayerId || [...visibleStarters.flatMap(slot => slot.player ? [slot.player] : []), ...visibleBench].some(player => player.playerId === requestedPlayerId && readAssetLocks(player).length > 0) || readOnly || lineupLoading || lineupRefreshing || !lineupForActions) return
         const preselectedKey = `${ownerKey}:${selectedDate}:${requestedPlayerId}`
         if (preselectedKeyRef.current === preselectedKey) return
         preselectedKeyRef.current = preselectedKey
@@ -594,6 +599,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
         )
     }
 
+    const pendingAssetLocks = [...visibleStarters.flatMap(slot => readAssetLocks(slot.player)), ...visibleBench.flatMap(readAssetLocks)]
     const rosterEmpty = visibleStarters.every((s) => !s.player) && visibleBench.length === 0
 
     return (
@@ -608,14 +614,8 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
 
             <View style={{ marginHorizontal: padX }} accessibilityLabel="Auto lineup">
                 <LineupControls
-                    actions={[
-                        { title: 'Today', label: 'Auto-set today', onPress: () => { void doAutoSet(todayLeague(timezone)) } },
-                        { title: 'This week', label: 'Auto-set this week', onPress: () => { void doAutoSet(null) } },
-                        { title: 'Rest of season', label: 'Auto-set rest of season', onPress: () => { void doAutoSet(null, true) } },
-                    ]}
-                    disabled={readOnly || autoSetDisabled || autoSetting || saving || rosterEmpty}
                     automatic={seasonOptimizerEnabled}
-                    automaticDisabled={readOnly || optimizerSaving}
+                    automaticDisabled={pendingAssetLocks.length > 0 || readOnly || optimizerSaving}
                     onAutomaticChange={(enabled) => { void (enabled ? handleEnableSeasonOptimizer() : handleDisableSeasonOptimizer()) }}
                 />
             </View>
@@ -626,7 +626,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
 
             {/* Day selector */}
             {weekDays.length > 0 && (
-                <DaySelector timezone={currentLeague?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} disabled={autoSetting} />
+                <DaySelector timezone={currentLeague?.timezone} days={weekDays} selectedDate={selectedDate} onSelect={handleDaySelect} compact={compactDays} />
             )}
 
             {lineupError && online ? (
@@ -667,7 +667,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'starter', index: i })}
-                            disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'starter', index: i })}
                         />
@@ -690,7 +690,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             startedTeams={startedTeams}
                             teamMatchups={displayedMatchups}
                             onPress={() => handleTap({ kind: 'bench', index: i })}
-                            disabled={readOnly || autoSetting || saving || lineupRefreshing || lineupLoading}
+                            disabled={readOnly || saving || lineupRefreshing || lineupLoading}
                             readOnly={readOnly}
                             targetState={targetState({ kind: 'bench', index: i })}
                         />
@@ -698,7 +698,7 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                     {Array.from({ length: Math.max(0, benchSlots - visibleBench.length) }, (_, i) => {
                         const index = visibleBench.length + i
                         const state = targetState({ kind: 'bench', index })
-                        const disabled = readOnly || autoSetting || saving || lineupRefreshing || lineupLoading || state === 'invalid'
+                        const disabled = readOnly || saving || lineupRefreshing || lineupLoading || state === 'invalid'
                         return (
                             <MotionPressable
                                 key={`empty-${i}`}
@@ -729,14 +729,14 @@ export function LineupEditor({ inline = false }: { inline?: boolean }) {
                             {Array.from({ length: Math.max(count, players.length) }, (_, index) => {
                                 const player = players[index]
                                 return (
-                                    <View key={player?.playerId ?? `empty-${index}`}
+                                    <View key={player?.playerId ?? `empty-${index}`}><View
                                         style={[styles.slotRow, index > 0 && styles.divider]}
                                         accessibilityLabel={player ? `${label} ${player.displayName}` : `Empty ${label.toLowerCase()} slot`}>
                                         <Text style={styles.slotLabel}>{label}</Text>
                                         {player ? <PlayerRowContent name={player.displayName} nbaId={player.nbaId} team={player.nbaTeam}
                                             positions={player.eligiblePositions} playerId={player.playerId} yearsExp={player.yearsExp} careerGames={player.careerGames}
                                             injuryStatus={player.injuryStatus} /> : <Text style={styles.emptySlot}>Empty {label.toLowerCase()} slot</Text>}
-                                    </View>
+                                    </View><LockedAssetNotice locks={readAssetLocks(player)} /></View>
                                 )
                             })}
                         </View>

@@ -114,6 +114,7 @@ $$;
 DO $$
 DECLARE v_draft uuid; v_slot uuid; v_asset uuid; v_before jsonb; v_result jsonb;
 BEGIN
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=pg_temp.taxi_id('snake-league')),true);
   v_draft:=(public.start_rookie_draft_atomic(pg_temp.taxi_id('snake-league'),2,false,3600,'auto_pick')->>'id')::uuid;
   INSERT INTO taxi_acceptance_ids VALUES('snake-draft',v_draft);
   SELECT id,draft_pick_id INTO v_slot,v_asset FROM snake_draft_picks WHERE draft_id=v_draft ORDER BY overall_pick LIMIT 1;
@@ -203,6 +204,7 @@ $$;
 DO $$
 DECLARE v_draft uuid; v_name text;
 BEGIN
+  PERFORM set_config('request.jwt.claim.sub',(SELECT commissioner_id::text FROM public.leagues WHERE id=pg_temp.taxi_id('life-league')),true);
   v_draft:=(public.start_rookie_draft_atomic(pg_temp.taxi_id('life-league'),2,false,3600,'auto_pick')->>'id')::uuid;
   FOREACH v_name IN ARRAY ARRAY['life-activate','life-ir','life-drop','life-carry'] LOOP
     PERFORM public.make_snake_pick_atomic(v_draft,pg_temp.taxi_id('life-a'),pg_temp.taxi_id(v_name),true);
@@ -294,6 +296,7 @@ BEGIN
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM trade_items WHERE trade_id=v_trade
     AND player_id=pg_temp.taxi_id('life-trade-in') AND to_taxi),'real receiver selection records destination');
   PERFORM public.accept_trade_atomic(v_trade,pg_temp.taxi_id('life-b'));
+  PERFORM public.complete_accepted_trade_atomic(v_trade);
   SELECT id INTO STRICT v_roster FROM roster_players WHERE league_id=pg_temp.taxi_id('life-league')
     AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-b');
   PERFORM pg_temp.taxi_check((SELECT status='completed' FROM trades WHERE id=v_trade)
@@ -309,6 +312,7 @@ BEGIN
   PERFORM public.set_trade_taxi_destinations_atomic(v_back,pg_temp.taxi_id('life-a'),
     ARRAY[pg_temp.taxi_id('life-trade-in')],pg_temp.taxi_id('user-a'));
   PERFORM public.accept_trade_atomic(v_back,pg_temp.taxi_id('life-a'));
+  PERFORM public.complete_accepted_trade_atomic(v_back);
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_id=pg_temp.taxi_id('life-league')
     AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-a') AND is_on_taxi),
     'a different team acquires taxi after the prior team exited');
@@ -353,6 +357,7 @@ BEGIN
     v_trade,pg_temp.taxi_id('life-b'),pg_temp.taxi_id('life-trade-in'),pg_temp.taxi_id('user-b')),
     'P0001','left your team.s taxi squad','same-team reacquisition cannot erase its exit after real rollover');
   PERFORM public.accept_trade_atomic(v_trade,pg_temp.taxi_id('life-b'));
+  PERFORM public.complete_accepted_trade_atomic(v_trade);
   PERFORM pg_temp.taxi_check(EXISTS(SELECT 1 FROM roster_players WHERE league_season_id=v_new
     AND player_id=pg_temp.taxi_id('life-trade-in') AND member_id=pg_temp.taxi_id('life-b') AND NOT is_on_taxi),
     'ordinary new-season trade remains valid after taxi refusal');
@@ -426,11 +431,9 @@ BEGIN
   UPDATE players SET years_exp=1 WHERE id=pg_temp.taxi_id('late-offer');
   SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r
     WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) INTO v_before FROM trades t WHERE id=v_trade;
-  PERFORM pg_temp.taxi_fails(format('SELECT public.complete_accepted_trade_atomic(%L)',v_trade),
-    'PT001','The career games count is not known yet','changed trade taxi eligibility yields terminal queue signal');
-  PERFORM pg_temp.taxi_check(v_before=(SELECT jsonb_build_object('rosters',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id)
-    FROM roster_players r WHERE league_id=pg_temp.taxi_id('late-league')),'trade',to_jsonb(t)) FROM trades t WHERE id=v_trade),
-    'failed late taxi trade rolls back every roster and lifecycle write');
+  PERFORM public.complete_accepted_trade_atomic(v_trade);
+  PERFORM pg_temp.taxi_check((SELECT status='accepted' AND legality_issues::text LIKE '%fewer than 65 known career games%' FROM trades WHERE id=v_trade),'changed taxi eligibility holds the trade for repair');
+  PERFORM pg_temp.taxi_check(v_before->'rosters'=(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM roster_players r WHERE league_id=pg_temp.taxi_id('late-league')),'a held trade leaves every roster unchanged');
   PERFORM pg_temp.taxi_check(NOT EXISTS(SELECT 1 FROM roster_transactions WHERE related_trade_id=v_trade),
     'failed late trade creates no partial transfer history');
   PERFORM public.expire_trade_completion_failure_atomic(v_trade,'Synthetic taxi precondition changed');
@@ -441,6 +444,7 @@ BEGIN
     pg_temp.taxi_id('late-a'),pg_temp.taxi_id('late-b'),ARRAY[pg_temp.taxi_id('late-offer')],
     ARRAY[pg_temp.taxi_id('late-return')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
   PERFORM public.accept_trade_atomic(v_healthy,pg_temp.taxi_id('late-b'));
+  PERFORM public.complete_accepted_trade_atomic(v_healthy);
   PERFORM pg_temp.taxi_check((SELECT status='completed' FROM trades WHERE id=v_healthy)
     AND EXISTS(SELECT 1 FROM roster_players WHERE league_id=pg_temp.taxi_id('late-league')
       AND player_id=pg_temp.taxi_id('late-offer') AND member_id=pg_temp.taxi_id('late-b') AND NOT is_on_taxi),
@@ -482,6 +486,7 @@ BEGIN
     ARRAY[pg_temp.taxi_id('life-trade-in')],ARRAY[]::uuid[],ARRAY[]::uuid[]);
   PERFORM public.set_trade_taxi_destinations_atomic(v_trade,pg_temp.taxi_id('life-b'),ARRAY[v_winner],pg_temp.taxi_id('user-b'));
   PERFORM public.accept_trade_atomic(v_trade,pg_temp.taxi_id('life-b'));
+  PERFORM public.complete_accepted_trade_atomic(v_trade);
   INSERT INTO league_player_taxi_exits(league_id,player_id,exited_at)
     VALUES(pg_temp.taxi_id('life-league'),v_loser,now()-interval '2 days');
   PERFORM public.merge_players(v_winner,v_loser);

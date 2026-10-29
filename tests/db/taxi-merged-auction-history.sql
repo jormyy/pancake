@@ -55,6 +55,7 @@ BEGIN
     BEGIN
     INSERT INTO trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id,status,accepted_at)
     VALUES(offer,league,season,members[1],members[2],'accepted',now());
+    INSERT INTO trade_participants(trade_id,member_id) SELECT offer,unnest(members);
     INSERT INTO trade_items(trade_id,league_id,side,player_id,from_member_id,to_member_id)
     VALUES(offer,league,'proposer',players_ids[1],members[1],members[2]);
     SELECT jsonb_agg(to_jsonb(r) ORDER BY id) INTO before_rosters FROM roster_players r WHERE league_id=league;
@@ -71,23 +72,42 @@ BEGIN
     EXCEPTION WHEN SQLSTATE 'P9998' THEN NULL; END;
     INSERT INTO trades(id,league_id,league_season_id,proposer_member_id,recipient_member_id)
     VALUES(offer,league,season,members[1],members[2]);
+    INSERT INTO trade_participants(trade_id,member_id) SELECT offer,unnest(members);
     INSERT INTO trade_items(trade_id,league_id,side,player_id,from_member_id,to_member_id)
     VALUES(offer,league,'proposer',players_ids[1],members[1],members[2]);
     INSERT INTO trade_block_items(league_id,member_id,player_id) VALUES(league,members[1],players_ids[1]);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.waiver_claims DISABLE TRIGGER guard_waiver_plan_reservations;
     INSERT INTO waiver_claims(id,league_id,league_season_id,member_id,player_id,drop_player_id,priority_at_submission,process_date)
     VALUES(claim,league,season,members[1],free_player,players_ids[1],1,current_date+2);
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.waiver_claims ENABLE TRIGGER guard_waiver_plan_reservations;
+    SET CONSTRAINTS ALL DEFERRED;
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.weekly_lineups DISABLE TRIGGER prevent_locked_lineup_change;
     INSERT INTO weekly_lineups(league_id,league_season_id,member_id,player_id,game_date,week_number,slot_type)
     VALUES(league,season,members[1],players_ids[1],(now() AT TIME ZONE 'America/New_York')::date-1,1,'PG'),
           (league,season,members[1],players_ids[1],(now() AT TIME ZONE 'America/New_York')::date+1,1,'PG');
+    SET CONSTRAINTS ALL IMMEDIATE;
+    ALTER TABLE public.weekly_lineups ENABLE TRIGGER prevent_locked_lineup_change;
+    SET CONSTRAINTS ALL DEFERRED;
+  END IF;
+  IF scenario=2 THEN
+    BEGIN
+      PERFORM merge_players(players_ids[1],players_ids[2]);
+      RAISE EXCEPTION 'Merge bypasses pending asset locks' USING ERRCODE='P9999';
+    EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
+    PERFORM public.withdraw_trade_atomic(offer,members[1],users[1]);
+    PERFORM public.cancel_waiver_claim_atomic(claim,members[1],users[1]);
   END IF;
   PERFORM merge_players(players_ids[1],players_ids[2]);
   IF retained_roster IS DISTINCT FROM (SELECT to_jsonb(r)-'player_id' FROM roster_players r WHERE league_id=league) THEN
     RAISE EXCEPTION 'Merge changed the retained taxi roster ID, owner, flags or acquisition data in scenario %',scenario;
   END IF;
   IF scenario=2 AND (
-      (SELECT status FROM trades WHERE id=offer)<>'expired'
+      (SELECT status FROM trades WHERE id=offer)<>'withdrawn'
       OR EXISTS(SELECT 1 FROM trade_block_items WHERE league_id=league)
-      OR (SELECT drop_player_id FROM waiver_claims WHERE id=claim) IS NOT NULL
+      OR (SELECT status FROM waiver_claims WHERE id=claim)<>'cancelled'
       OR (SELECT count(*) FROM weekly_lineups WHERE league_id=league)<>1
       OR NOT EXISTS(SELECT 1 FROM weekly_lineups WHERE league_id=league AND game_date=(now() AT TIME ZONE 'America/New_York')::date-1)) THEN
     RAISE EXCEPTION 'Retained taxi merge did not clean active linked state while preserving locked history';

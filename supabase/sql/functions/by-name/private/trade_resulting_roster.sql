@@ -3,7 +3,7 @@ RETURNS TABLE(player_id uuid,on_ir boolean,on_taxi boolean)
 LANGUAGE sql STABLE SET search_path=public AS $$
   SELECT roster.player_id,
     CASE WHEN move.value IS NULL THEN roster.is_on_ir ELSE move.value->>'destination'='ir' END,
-    CASE WHEN move.value IS NULL THEN roster.is_on_taxi ELSE false END
+    CASE WHEN move.value IS NULL THEN roster.is_on_taxi ELSE move.value->>'destination'='taxi' END
   FROM trades trade JOIN trade_participants participant ON participant.trade_id=trade.id AND participant.member_id=p_member_id
   JOIN roster_players roster ON roster.league_season_id=trade.league_season_id AND roster.member_id=p_member_id
   LEFT JOIN LATERAL (SELECT value FROM jsonb_array_elements(participant.roster_moves) WHERE value->>'playerId'=roster.player_id::text) move ON true

@@ -16,8 +16,8 @@ BEGIN
     RAISE EXCEPTION 'Schedule week ranges are invalid.' USING ERRCODE='22023';
   END IF;
 
-  SELECT jsonb_array_length(p_games)>=1200 AND bool_and(COALESCE((game->>'schedule_complete')::boolean,false))
-    AND (SELECT count(*)=30 AND min(appearances)>=80 FROM (
+  SELECT jsonb_array_length(p_games)>=1230 AND bool_and(COALESCE((game->>'schedule_complete')::boolean,false))
+    AND (SELECT count(*)=30 AND min(appearances)>=82 FROM (
       SELECT team,count(*) AS appearances FROM (
         SELECT game->>'home_team' AS team FROM jsonb_array_elements(p_games) game
         UNION ALL SELECT game->>'away_team' FROM jsonb_array_elements(p_games) game
@@ -101,7 +101,21 @@ BEGIN
       WHEN v_status_text ? EXCLUDED.nba_game_id THEN EXCLUDED.game_status_text
       ELSE stored.game_status_text END,
     week_number=EXCLUDED.week_number,started_at=EXCLUDED.started_at,game_time=EXCLUDED.game_time,
-    bbref_home_team=COALESCE(EXCLUDED.bbref_home_team,stored.bbref_home_team),bbref_away_team=COALESCE(EXCLUDED.bbref_away_team,stored.bbref_away_team),updated_at=EXCLUDED.updated_at;
+    bbref_home_team=COALESCE(EXCLUDED.bbref_home_team,stored.bbref_home_team),bbref_away_team=COALESCE(EXCLUDED.bbref_away_team,stored.bbref_away_team),updated_at=EXCLUDED.updated_at
+  WHERE (stored.season_year,stored.game_date,stored.home_team,stored.away_team,stored.status,stored.game_status_text,
+    stored.week_number,stored.started_at,stored.game_time,stored.bbref_home_team,stored.bbref_away_team)
+    IS DISTINCT FROM
+    (EXCLUDED.season_year,EXCLUDED.game_date,EXCLUDED.home_team,EXCLUDED.away_team,EXCLUDED.status,
+      CASE
+        WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text)
+          AND (EXCLUDED.status IN('InProgress','Final') OR (EXCLUDED.game_date IS DISTINCT FROM stored.game_date
+            AND EXCLUDED.game_time IS NOT NULL AND (EXCLUDED.game_time AT TIME ZONE 'America/New_York')::date=EXCLUDED.game_date))
+          THEN CASE WHEN NOT private.lineup_game_available(EXCLUDED.status,EXCLUDED.game_status_text) THEN NULL ELSE EXCLUDED.game_status_text END
+        WHEN NOT private.lineup_game_available(stored.status,stored.game_status_text) THEN stored.game_status_text
+        WHEN v_status_text ? EXCLUDED.nba_game_id THEN EXCLUDED.game_status_text
+        ELSE stored.game_status_text END,
+      EXCLUDED.week_number,EXCLUDED.started_at,EXCLUDED.game_time,
+      COALESCE(EXCLUDED.bbref_home_team,stored.bbref_home_team),COALESCE(EXCLUDED.bbref_away_team,stored.bbref_away_team));
 
   IF v_complete THEN
     UPDATE nba_games stored SET game_status_text='Cancelled: absent from complete schedule',updated_at=clock_timestamp()
