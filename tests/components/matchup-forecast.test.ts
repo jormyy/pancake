@@ -116,3 +116,15 @@ it('shows equal portions for a completed tie with zero outright win odds', async
     await render(value)
     expect(text().match(/50% win/g)).toHaveLength(2)
 })
+
+it('marks only the team with substituted player-games as estimated', async () => {
+    const value = forecast()
+    value.status = 'limited'
+    value.games = [{ gameId: 'live', playerId: 'player', memberId: 'mine', date: '2026-10-28',
+        projection: 30, source: 'Season average estimate', sourceAt: null, remainingFraction: 0.53 }]
+    value.missingInputs = ['Projection substituted: player:live']
+    await render(value)
+    expect(text()).toContain('~43 proj')
+    expect(text()).toContain('35 proj')
+    expect(text()).not.toContain('~35 proj')
+})
