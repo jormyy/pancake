@@ -41,6 +41,7 @@
     "scripts/season-sim/{audit-identities,plan-audit}.mjs",
     "scripts/bench/{compare,dispatch-concurrency,lineup-concurrency,pre-tipoff,prepare-schedule,profile-span-certificates,report-metrics,verify-tipoffs}.ts",
     "scripts/bench/{profile-env,profile-psql}.mjs",
+    "tests/db/{screen-view-costs,unpartition-player-stats,unpartition-migration}.mjs",
     "scripts/mutation/notif/{round3,run}.ts",
     "scripts/mutation/post/feature-browser.mjs",
     "scripts/mutation/post/{check,report,run,setup}.mjs",

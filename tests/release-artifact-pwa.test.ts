@@ -56,3 +56,24 @@ it('changes the boot entry URL when Metro changes its route map under the same f
         expect(entries[0]).not.toBe(entries[1])
     } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+it('includes shared document code in the verified boot and retained asset manifests', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pwa-document-'))
+    try {
+        await mkdir(path.join(root, 'dist/_expo/static/js/web'), { recursive: true })
+        for (const input of FRONTEND_DEPLOYMENT_INPUTS) await writeFile(path.join(root, input), '{}')
+        const css = '.shared{color:red;}\n'.repeat(80)
+        const script = `globalThis.booted = true;${'\n'.repeat(1100)}`
+        const html = `<meta name="pancake-release" content="pancake-build"><style id="react-native-stylesheet">${css}</style><script>${script}</script><script src="/_expo/static/js/web/app.js"></script>`
+        for (const file of ['index.html', 'sign-in.html']) await writeFile(path.join(root, 'dist', file), html)
+        await writeFile(path.join(root, 'dist/_expo/static/js/web/app.js'), 'globalThis.release = true')
+        await writeFile(path.join(root, 'dist/sw.js'), await readFile('public/sw.js'))
+        const first = await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })
+        const release = await readPwaRelease(path.join(root, 'dist'))
+        expect(Object.keys(release.bootHashes).filter(url => url.startsWith('/assets/document/'))).toHaveLength(1)
+        expect((await stampReleaseProvenance({ root, commitSha: 'a'.repeat(40) })).bundleDigest).toBe(first.bundleDigest)
+        const exported = await readFile(path.join(root, 'dist/index.html'), 'utf8')
+        expect(exported).toContain(`<style id="react-native-stylesheet">${css}</style>`)
+        expect(exported).not.toContain(script)
+    } finally { await rm(root, { recursive: true, force: true }) }
+})

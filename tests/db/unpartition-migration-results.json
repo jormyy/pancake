@@ -1,0 +1,1752 @@
+{
+  "cpu": 0.25,
+  "memoryBytes": 1073741824,
+  "rows": 245097,
+  "samples": 3,
+  "wall": {
+    "before": {
+      "min": 13424.343208,
+      "median": 13844.276042,
+      "max": 14938.804875
+    },
+    "after": {
+      "min": 8396.117291999999,
+      "median": 8506.544750000001,
+      "max": 10685.793292
+    }
+  },
+  "locks": {
+    "before": {
+      "min": 13210.047999999999,
+      "median": 13602.706,
+      "max": 14800.581
+    },
+    "after": {
+      "min": 8189.394,
+      "median": 8293.649,
+      "max": 10299.198
+    }
+  },
+  "phases": [
+    {
+      "name": "catalog",
+      "before": {
+        "min": 13.308,
+        "median": 87.326,
+        "max": 172.817
+      },
+      "after": {
+        "min": 8.626,
+        "median": 8.632,
+        "max": 8.643
+      }
+    },
+    {
+      "name": "prepare",
+      "before": {
+        "min": 3.343,
+        "median": 4.029,
+        "max": 4.163
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "lock_acquired",
+      "before": {
+        "min": 0.15,
+        "median": 0.157,
+        "max": 0.176
+      },
+      "after": {
+        "min": 0.122,
+        "median": 0.124,
+        "max": 0.125
+      }
+    },
+    {
+      "name": "count",
+      "before": {
+        "min": 111.623,
+        "median": 112.063,
+        "max": 120.287
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "copy",
+      "before": {
+        "min": 10986.14,
+        "median": 11082.347,
+        "max": 12596.544
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "verify",
+      "before": {
+        "min": 1500.814,
+        "median": 1504.557,
+        "max": 1704.761
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "swap",
+      "before": {
+        "min": 0.927,
+        "median": 0.94,
+        "max": 0.941
+      },
+      "after": {
+        "min": 0.312,
+        "median": 0.422,
+        "max": 0.546
+      }
+    },
+    {
+      "name": "functions",
+      "before": {
+        "min": 92.346,
+        "median": 93.868,
+        "max": 94.595
+      },
+      "after": {
+        "min": 0.778,
+        "median": 1.246,
+        "max": 79.662
+      }
+    },
+    {
+      "name": "views",
+      "before": {
+        "min": 2.316,
+        "median": 2.677,
+        "max": 4.623
+      },
+      "after": {
+        "min": 2.652,
+        "median": 4.169,
+        "max": 5.679
+      }
+    },
+    {
+      "name": "drop_old_functions",
+      "before": {
+        "min": 0.569,
+        "median": 0.62,
+        "max": 0.684
+      },
+      "after": {
+        "min": 0.468,
+        "median": 0.581,
+        "max": 0.818
+      }
+    },
+    {
+      "name": "publication",
+      "before": {
+        "min": 0.039,
+        "median": 0.047,
+        "max": 0.064
+      },
+      "after": {
+        "min": 0.056,
+        "median": 0.078,
+        "max": 0.118
+      }
+    },
+    {
+      "name": "retire_old_table",
+      "before": {
+        "min": 296.98,
+        "median": 308.577,
+        "max": 408.545
+      },
+      "after": {
+        "min": 293.646,
+        "median": 484.888,
+        "max": 799.072
+      }
+    },
+    {
+      "name": "indexes",
+      "before": {
+        "min": 0.837,
+        "median": 1.157,
+        "max": 1.166
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "outgoing_fks",
+      "before": {
+        "min": 108.525,
+        "median": 190.585,
+        "max": 197.046
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "incoming_fks",
+      "before": {
+        "min": 0.047,
+        "median": 0.054,
+        "max": 0.06
+      },
+      "after": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      }
+    },
+    {
+      "name": "policies",
+      "before": {
+        "min": 0.305,
+        "median": 0.377,
+        "max": 73.875
+      },
+      "after": {
+        "min": 0.177,
+        "median": 0.178,
+        "max": 0.449
+      }
+    },
+    {
+      "name": "triggers",
+      "before": {
+        "min": 2.111,
+        "median": 2.401,
+        "max": 2.685
+      },
+      "after": {
+        "min": 2.035,
+        "median": 2.152,
+        "max": 2.206
+      }
+    },
+    {
+      "name": "grants",
+      "before": {
+        "min": 1.149,
+        "median": 1.208,
+        "max": 1.253
+      },
+      "after": {
+        "min": 1.088,
+        "median": 1.104,
+        "max": 1.125
+      }
+    },
+    {
+      "name": "prepare_heap",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 0.478,
+        "median": 0.484,
+        "max": 0.492
+      }
+    },
+    {
+      "name": "copy_verify",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 2792.686,
+        "median": 2798.885,
+        "max": 2885.362
+      }
+    },
+    {
+      "name": "bulk_indexes",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 4900.668,
+        "median": 4994.226,
+        "max": 6418.973
+      }
+    },
+    {
+      "name": "index_names",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 0.76,
+        "median": 1.468,
+        "max": 1.742
+      }
+    },
+    {
+      "name": "outgoing_fks_not_valid",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 1.227,
+        "median": 1.408,
+        "max": 2.214
+      }
+    },
+    {
+      "name": "incoming_fks_not_valid",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 0.035,
+        "median": 0.057,
+        "max": 0.073
+      }
+    },
+    {
+      "name": "validate_outgoing_fks",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 109.896,
+        "median": 116.328,
+        "max": 285.885
+      }
+    },
+    {
+      "name": "validate_incoming_fks",
+      "before": {
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "after": {
+        "min": 0.066,
+        "median": 0.071,
+        "max": 0.146
+      }
+    }
+  ],
+  "dependencyProof": {
+    "before": 33,
+    "after": 31,
+    "unchanged": 28,
+    "changed": [
+      "private.guard_player_stats_identity()",
+      "private.player_game_appeared(player_game_stats)",
+      "view_game_day(uuid,uuid,jsonb)"
+    ]
+  },
+  "safetyFactor": 4,
+  "runnerSeconds": 11.353,
+  "expectedProductionSeconds": 50,
+  "baseline": [
+    {
+      "label": "baseline-1",
+      "code": 0,
+      "wallMs": 14938.804875,
+      "phases": [
+        {
+          "ms": 13.308,
+          "phase": "catalog",
+          "detail": {
+            "views": 2,
+            "indexes": 9,
+            "triggers": 29,
+            "functions": 31,
+            "incomingFks": 0,
+            "outgoingFks": 2,
+            "typedFunctions": 1
+          },
+          "elapsedMs": 13.316
+        },
+        {
+          "ms": 3.343,
+          "phase": "prepare",
+          "detail": {},
+          "elapsedMs": 91.789
+        },
+        {
+          "ms": 0.157,
+          "phase": "lock_acquired",
+          "detail": {},
+          "elapsedMs": 91.97
+        },
+        {
+          "ms": 120.287,
+          "phase": "count",
+          "detail": {},
+          "elapsedMs": 212.276
+        },
+        {
+          "ms": 12596.544,
+          "phase": "copy",
+          "detail": {},
+          "elapsedMs": 12808.844
+        },
+        {
+          "ms": 1500.814,
+          "phase": "verify",
+          "detail": {},
+          "elapsedMs": 14309.688
+        },
+        {
+          "ms": 0.94,
+          "phase": "swap",
+          "detail": {},
+          "elapsedMs": 14310.658
+        },
+        {
+          "ms": 94.595,
+          "phase": "functions",
+          "detail": {},
+          "elapsedMs": 14405.272
+        },
+        {
+          "ms": 2.316,
+          "phase": "views",
+          "detail": {},
+          "elapsedMs": 14407.624
+        },
+        {
+          "ms": 0.569,
+          "phase": "drop_old_functions",
+          "detail": {},
+          "elapsedMs": 14408.211
+        },
+        {
+          "ms": 0.039,
+          "phase": "publication",
+          "detail": {},
+          "elapsedMs": 14408.266
+        },
+        {
+          "ms": 296.98,
+          "phase": "retire_old_table",
+          "detail": {},
+          "elapsedMs": 14705.261
+        },
+        {
+          "ms": 1.157,
+          "phase": "indexes",
+          "detail": {},
+          "elapsedMs": 14706.444
+        },
+        {
+          "ms": 108.525,
+          "phase": "outgoing_fks",
+          "detail": {},
+          "elapsedMs": 14814.988
+        },
+        {
+          "ms": 0.047,
+          "phase": "incoming_fks",
+          "detail": {},
+          "elapsedMs": 14815.059
+        },
+        {
+          "ms": 73.875,
+          "phase": "policies",
+          "detail": {},
+          "elapsedMs": 14888.95
+        },
+        {
+          "ms": 2.685,
+          "phase": "triggers",
+          "detail": {},
+          "elapsedMs": 14891.66
+        },
+        {
+          "ms": 1.208,
+          "phase": "grants",
+          "detail": {},
+          "elapsedMs": 14892.886
+        }
+      ],
+      "items": [
+        {
+          "ms": 1.287,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.478,
+          "name": "public.compute_fantasy_points(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.422,
+          "name": "public.count_final_games_missing_stats(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.279,
+          "name": "public.merge_players(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.652,
+          "name": "private.lineup_game_started(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 72.894,
+          "name": "private.roster_status_game_started(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.524,
+          "name": "private.sync_game_calendar_correction()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.854,
+          "name": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.078,
+          "name": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.435,
+          "name": "public.rebuild_nba_calendar_atomic(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.449,
+          "name": "public.resolve_player_imports_atomic(text,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.447,
+          "name": "private.emit_league_change()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.563,
+          "name": "private.notif_player_games(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.323,
+          "name": "private.rebuild_game_player_totals()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.48,
+          "name": "public.get_visible_player_totals(uuid,uuid[],integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.407,
+          "name": "private.player_career_appearances(uuid,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.563,
+          "name": "private.player_career_fallback(uuid,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.158,
+          "name": "private.recount_changed_player_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.261,
+          "name": "private.recount_changed_game_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.31,
+          "name": "public.view_game_day(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.238,
+          "name": "public.view_player(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.144,
+          "name": "public.view_player_search(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.704,
+          "name": "public.search_players(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 3.034,
+          "name": "private.compute_matchup_forecast_context(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.176,
+          "name": "private.invalidate_forecast_inputs()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.57,
+          "name": "public.prepare_matchup_forecast_inputs(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.141,
+          "name": "private.reconcile_missing_final_stats(timestamp with time zone,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.089,
+          "name": "private.guard_player_stats_identity()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.533,
+          "name": "private.screen_statistics_targets()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.377,
+          "name": "private.track_trade_input_revision()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.256,
+          "name": "private.trade_value_fantasy_averages(uuid,integer,uuid[])",
+          "phase": "function"
+        }
+      ]
+    },
+    {
+      "label": "baseline-2",
+      "code": 0,
+      "wallMs": 13844.276042,
+      "phases": [
+        {
+          "ms": 172.817,
+          "phase": "catalog",
+          "detail": {
+            "views": 2,
+            "indexes": 9,
+            "triggers": 29,
+            "functions": 31,
+            "incomingFks": 0,
+            "outgoingFks": 2,
+            "typedFunctions": 1
+          },
+          "elapsedMs": 172.829
+        },
+        {
+          "ms": 4.163,
+          "phase": "prepare",
+          "detail": {},
+          "elapsedMs": 177.12
+        },
+        {
+          "ms": 0.176,
+          "phase": "lock_acquired",
+          "detail": {},
+          "elapsedMs": 177.32
+        },
+        {
+          "ms": 111.623,
+          "phase": "count",
+          "detail": {},
+          "elapsedMs": 288.96
+        },
+        {
+          "ms": 11082.347,
+          "phase": "copy",
+          "detail": {},
+          "elapsedMs": 11371.334
+        },
+        {
+          "ms": 1704.761,
+          "phase": "verify",
+          "detail": {},
+          "elapsedMs": 13076.122
+        },
+        {
+          "ms": 0.941,
+          "phase": "swap",
+          "detail": {},
+          "elapsedMs": 13077.097
+        },
+        {
+          "ms": 93.868,
+          "phase": "functions",
+          "detail": {},
+          "elapsedMs": 13170.994
+        },
+        {
+          "ms": 4.623,
+          "phase": "views",
+          "detail": {},
+          "elapsedMs": 13175.643
+        },
+        {
+          "ms": 0.62,
+          "phase": "drop_old_functions",
+          "detail": {},
+          "elapsedMs": 13176.28
+        },
+        {
+          "ms": 0.047,
+          "phase": "publication",
+          "detail": {},
+          "elapsedMs": 13176.347
+        },
+        {
+          "ms": 408.545,
+          "phase": "retire_old_table",
+          "detail": {},
+          "elapsedMs": 13584.91
+        },
+        {
+          "ms": 0.837,
+          "phase": "indexes",
+          "detail": {},
+          "elapsedMs": 13585.771
+        },
+        {
+          "ms": 190.585,
+          "phase": "outgoing_fks",
+          "detail": {},
+          "elapsedMs": 13776.373
+        },
+        {
+          "ms": 0.054,
+          "phase": "incoming_fks",
+          "detail": {},
+          "elapsedMs": 13776.453
+        },
+        {
+          "ms": 0.305,
+          "phase": "policies",
+          "detail": {},
+          "elapsedMs": 13776.775
+        },
+        {
+          "ms": 2.401,
+          "phase": "triggers",
+          "detail": {},
+          "elapsedMs": 13779.193
+        },
+        {
+          "ms": 1.149,
+          "phase": "grants",
+          "detail": {},
+          "elapsedMs": 13780.362
+        }
+      ],
+      "items": [
+        {
+          "ms": 2.025,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.454,
+          "name": "public.compute_fantasy_points(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.281,
+          "name": "public.count_final_games_missing_stats(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.328,
+          "name": "public.merge_players(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.574,
+          "name": "private.lineup_game_started(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.34,
+          "name": "private.roster_status_game_started(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.207,
+          "name": "private.sync_game_calendar_correction()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.499,
+          "name": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.715,
+          "name": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.242,
+          "name": "public.rebuild_nba_calendar_atomic(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.5,
+          "name": "public.resolve_player_imports_atomic(text,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.313,
+          "name": "private.emit_league_change()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.247,
+          "name": "private.notif_player_games(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.218,
+          "name": "private.rebuild_game_player_totals()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.271,
+          "name": "public.get_visible_player_totals(uuid,uuid[],integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.296,
+          "name": "private.player_career_appearances(uuid,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.31,
+          "name": "private.player_career_fallback(uuid,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.194,
+          "name": "private.recount_changed_player_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.136,
+          "name": "private.recount_changed_game_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.216,
+          "name": "public.view_game_day(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.139,
+          "name": "public.view_player(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.769,
+          "name": "public.view_player_search(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.615,
+          "name": "public.search_players(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 2.096,
+          "name": "private.compute_matchup_forecast_context(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.178,
+          "name": "private.invalidate_forecast_inputs()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.458,
+          "name": "public.prepare_matchup_forecast_inputs(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.129,
+          "name": "private.reconcile_missing_final_stats(timestamp with time zone,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.086,
+          "name": "private.guard_player_stats_identity()",
+          "phase": "function"
+        },
+        {
+          "ms": 76.346,
+          "name": "private.screen_statistics_targets()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.369,
+          "name": "private.track_trade_input_revision()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.237,
+          "name": "private.trade_value_fantasy_averages(uuid,integer,uuid[])",
+          "phase": "function"
+        }
+      ]
+    },
+    {
+      "label": "baseline-3",
+      "code": 0,
+      "wallMs": 13424.343208,
+      "phases": [
+        {
+          "ms": 87.326,
+          "phase": "catalog",
+          "detail": {
+            "views": 2,
+            "indexes": 9,
+            "triggers": 29,
+            "functions": 31,
+            "incomingFks": 0,
+            "outgoingFks": 2,
+            "typedFunctions": 1
+          },
+          "elapsedMs": 87.335
+        },
+        {
+          "ms": 4.029,
+          "phase": "prepare",
+          "detail": {},
+          "elapsedMs": 91.461
+        },
+        {
+          "ms": 0.15,
+          "phase": "lock_acquired",
+          "detail": {},
+          "elapsedMs": 91.632
+        },
+        {
+          "ms": 112.063,
+          "phase": "count",
+          "detail": {},
+          "elapsedMs": 203.713
+        },
+        {
+          "ms": 10986.14,
+          "phase": "copy",
+          "detail": {},
+          "elapsedMs": 11189.881
+        },
+        {
+          "ms": 1504.557,
+          "phase": "verify",
+          "detail": {},
+          "elapsedMs": 12694.469
+        },
+        {
+          "ms": 0.927,
+          "phase": "swap",
+          "detail": {},
+          "elapsedMs": 12695.426
+        },
+        {
+          "ms": 92.346,
+          "phase": "functions",
+          "detail": {},
+          "elapsedMs": 12787.795
+        },
+        {
+          "ms": 2.677,
+          "phase": "views",
+          "detail": {},
+          "elapsedMs": 12790.499
+        },
+        {
+          "ms": 0.684,
+          "phase": "drop_old_functions",
+          "detail": {},
+          "elapsedMs": 12791.207
+        },
+        {
+          "ms": 0.064,
+          "phase": "publication",
+          "detail": {},
+          "elapsedMs": 12791.294
+        },
+        {
+          "ms": 308.577,
+          "phase": "retire_old_table",
+          "detail": {},
+          "elapsedMs": 13099.891
+        },
+        {
+          "ms": 1.166,
+          "phase": "indexes",
+          "detail": {},
+          "elapsedMs": 13101.086
+        },
+        {
+          "ms": 197.046,
+          "phase": "outgoing_fks",
+          "detail": {},
+          "elapsedMs": 13298.153
+        },
+        {
+          "ms": 0.06,
+          "phase": "incoming_fks",
+          "detail": {},
+          "elapsedMs": 13298.242
+        },
+        {
+          "ms": 0.377,
+          "phase": "policies",
+          "detail": {},
+          "elapsedMs": 13298.646
+        },
+        {
+          "ms": 2.111,
+          "phase": "triggers",
+          "detail": {},
+          "elapsedMs": 13300.78
+        },
+        {
+          "ms": 1.253,
+          "phase": "grants",
+          "detail": {},
+          "elapsedMs": 13302.052
+        }
+      ],
+      "items": [
+        {
+          "ms": 0.91,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.388,
+          "name": "public.compute_fantasy_points(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.216,
+          "name": "public.count_final_games_missing_stats(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.445,
+          "name": "public.merge_players(uuid,uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.56,
+          "name": "private.lineup_game_started(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.287,
+          "name": "private.roster_status_game_started(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.193,
+          "name": "private.sync_game_calendar_correction()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.46,
+          "name": "public.save_game_stats_atomic(uuid,text,jsonb,boolean)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.567,
+          "name": "public.publish_nba_schedule_atomic(integer,jsonb,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.223,
+          "name": "public.rebuild_nba_calendar_atomic(integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 1.223,
+          "name": "public.resolve_player_imports_atomic(text,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.189,
+          "name": "private.emit_league_change()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.259,
+          "name": "private.notif_player_games(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.199,
+          "name": "private.rebuild_game_player_totals()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.258,
+          "name": "public.get_visible_player_totals(uuid,uuid[],integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.215,
+          "name": "private.player_career_appearances(uuid,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.259,
+          "name": "private.player_career_fallback(uuid,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.176,
+          "name": "private.recount_changed_player_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.125,
+          "name": "private.recount_changed_game_careers()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.194,
+          "name": "public.view_game_day(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 75.896,
+          "name": "public.view_player(uuid,uuid,jsonb)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.901,
+          "name": "public.view_player_search(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.795,
+          "name": "public.search_players(text,text,text[],uuid,text[],text[],uuid[],uuid[],boolean,text,text,text,integer,integer,integer)",
+          "phase": "function"
+        },
+        {
+          "ms": 2.853,
+          "name": "private.compute_matchup_forecast_context(uuid)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.215,
+          "name": "private.invalidate_forecast_inputs()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.583,
+          "name": "public.prepare_matchup_forecast_inputs(uuid,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.171,
+          "name": "private.reconcile_missing_final_stats(timestamp with time zone,date)",
+          "phase": "function"
+        },
+        {
+          "ms": 0.155,
+          "name": "private.guard_player_stats_identity()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.399,
+          "name": "private.screen_statistics_targets()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.37,
+          "name": "private.track_trade_input_revision()",
+          "phase": "function"
+        },
+        {
+          "ms": 0.289,
+          "name": "private.trade_value_fantasy_averages(uuid,integer,uuid[])",
+          "phase": "function"
+        }
+      ]
+    }
+  ],
+  "candidate": [
+    {
+      "label": "candidate-1",
+      "code": 0,
+      "wallMs": 10685.793292,
+      "phases": [
+        {
+          "ms": 8.643,
+          "phase": "catalog",
+          "elapsedMs": 8.652
+        },
+        {
+          "ms": 0.492,
+          "phase": "prepare_heap",
+          "elapsedMs": 9.165
+        },
+        {
+          "ms": 0.178,
+          "phase": "policies",
+          "elapsedMs": 9.36
+        },
+        {
+          "ms": 2.035,
+          "phase": "triggers",
+          "elapsedMs": 11.408
+        },
+        {
+          "ms": 1.104,
+          "phase": "grants",
+          "elapsedMs": 12.526
+        },
+        {
+          "ms": 0.122,
+          "phase": "lock_acquired",
+          "elapsedMs": 12.661
+        },
+        {
+          "ms": 2885.362,
+          "phase": "copy_verify",
+          "elapsedMs": 2898.037
+        },
+        {
+          "ms": 6418.973,
+          "phase": "bulk_indexes",
+          "elapsedMs": 9317.035
+        },
+        {
+          "ms": 0.422,
+          "phase": "swap",
+          "elapsedMs": 9317.504
+        },
+        {
+          "ms": 79.662,
+          "phase": "functions",
+          "elapsedMs": 9397.197
+        },
+        {
+          "ms": 5.679,
+          "phase": "views",
+          "elapsedMs": 9402.937
+        },
+        {
+          "ms": 0.818,
+          "phase": "drop_old_functions",
+          "elapsedMs": 9403.822
+        },
+        {
+          "ms": 0.118,
+          "phase": "publication",
+          "elapsedMs": 9403.991
+        },
+        {
+          "ms": 799.072,
+          "phase": "retire_old_table",
+          "elapsedMs": 10203.104
+        },
+        {
+          "ms": 1.468,
+          "phase": "index_names",
+          "elapsedMs": 10204.619
+        },
+        {
+          "ms": 1.227,
+          "phase": "outgoing_fks_not_valid",
+          "elapsedMs": 10205.88
+        },
+        {
+          "ms": 0.057,
+          "phase": "incoming_fks_not_valid",
+          "elapsedMs": 10205.965
+        },
+        {
+          "ms": 10299.198,
+          "phase": "lock_released",
+          "elapsedMs": 10311.851
+        },
+        {
+          "ms": 285.885,
+          "phase": "validate_outgoing_fks"
+        },
+        {
+          "ms": 0.146,
+          "phase": "validate_incoming_fks"
+        }
+      ],
+      "items": [
+        {
+          "ms": 733.276,
+          "name": "idx_pgs_forecast_history",
+          "phase": "index"
+        },
+        {
+          "ms": 467.643,
+          "name": "idx_pgs_game",
+          "phase": "index"
+        },
+        {
+          "ms": 805.89,
+          "name": "idx_pgs_game_date",
+          "phase": "index"
+        },
+        {
+          "ms": 390.914,
+          "name": "idx_pgs_game_date_player",
+          "phase": "index"
+        },
+        {
+          "ms": 701.55,
+          "name": "idx_pgs_player_week",
+          "phase": "index"
+        },
+        {
+          "ms": 306.382,
+          "name": "idx_pgs_season_week",
+          "phase": "index"
+        },
+        {
+          "ms": 607.169,
+          "name": "idx_pgs_trade_game_player",
+          "phase": "index"
+        },
+        {
+          "ms": 794.944,
+          "name": "player_game_stats_pkey",
+          "phase": "index"
+        },
+        {
+          "ms": 1201.186,
+          "name": "player_game_stats_player_id_game_id_key",
+          "phase": "index"
+        },
+        {
+          "ms": 78.208,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 108.44,
+          "name": "player_game_stats_game_id_fkey",
+          "phase": "validate_outgoing_fk"
+        },
+        {
+          "ms": 177.269,
+          "name": "player_game_stats_player_id_fkey",
+          "phase": "validate_outgoing_fk"
+        }
+      ]
+    },
+    {
+      "label": "candidate-2",
+      "code": 0,
+      "wallMs": 8506.544750000001,
+      "phases": [
+        {
+          "ms": 8.626,
+          "phase": "catalog",
+          "elapsedMs": 8.634
+        },
+        {
+          "ms": 0.484,
+          "phase": "prepare_heap",
+          "elapsedMs": 9.149
+        },
+        {
+          "ms": 0.177,
+          "phase": "policies",
+          "elapsedMs": 9.34
+        },
+        {
+          "ms": 2.206,
+          "phase": "triggers",
+          "elapsedMs": 11.56
+        },
+        {
+          "ms": 1.125,
+          "phase": "grants",
+          "elapsedMs": 12.699
+        },
+        {
+          "ms": 0.124,
+          "phase": "lock_acquired",
+          "elapsedMs": 12.837
+        },
+        {
+          "ms": 2792.686,
+          "phase": "copy_verify",
+          "elapsedMs": 2805.537
+        },
+        {
+          "ms": 4900.668,
+          "phase": "bulk_indexes",
+          "elapsedMs": 7706.237
+        },
+        {
+          "ms": 0.546,
+          "phase": "swap",
+          "elapsedMs": 7706.819
+        },
+        {
+          "ms": 1.246,
+          "phase": "functions",
+          "elapsedMs": 7708.096
+        },
+        {
+          "ms": 4.169,
+          "phase": "views",
+          "elapsedMs": 7712.289
+        },
+        {
+          "ms": 0.581,
+          "phase": "drop_old_functions",
+          "elapsedMs": 7712.895
+        },
+        {
+          "ms": 0.078,
+          "phase": "publication",
+          "elapsedMs": 7712.997
+        },
+        {
+          "ms": 484.888,
+          "phase": "retire_old_table",
+          "elapsedMs": 8197.91
+        },
+        {
+          "ms": 1.742,
+          "phase": "index_names",
+          "elapsedMs": 8199.697
+        },
+        {
+          "ms": 2.214,
+          "phase": "outgoing_fks_not_valid",
+          "elapsedMs": 8201.947
+        },
+        {
+          "ms": 0.073,
+          "phase": "incoming_fks_not_valid",
+          "elapsedMs": 8202.054
+        },
+        {
+          "ms": 8293.649,
+          "phase": "lock_released",
+          "elapsedMs": 8306.477
+        },
+        {
+          "ms": 116.328,
+          "phase": "validate_outgoing_fks"
+        },
+        {
+          "ms": 0.071,
+          "phase": "validate_incoming_fks"
+        }
+      ],
+      "items": [
+        {
+          "ms": 389.519,
+          "name": "idx_pgs_forecast_history",
+          "phase": "index"
+        },
+        {
+          "ms": 217.793,
+          "name": "idx_pgs_game",
+          "phase": "index"
+        },
+        {
+          "ms": 904.181,
+          "name": "idx_pgs_game_date",
+          "phase": "index"
+        },
+        {
+          "ms": 486.198,
+          "name": "idx_pgs_game_date_player",
+          "phase": "index"
+        },
+        {
+          "ms": 694.465,
+          "name": "idx_pgs_player_week",
+          "phase": "index"
+        },
+        {
+          "ms": 305.333,
+          "name": "idx_pgs_season_week",
+          "phase": "index"
+        },
+        {
+          "ms": 407.083,
+          "name": "idx_pgs_trade_game_player",
+          "phase": "index"
+        },
+        {
+          "ms": 400.183,
+          "name": "player_game_stats_pkey",
+          "phase": "index"
+        },
+        {
+          "ms": 687.616,
+          "name": "player_game_stats_player_id_game_id_key",
+          "phase": "index"
+        },
+        {
+          "ms": 0.642,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 98.971,
+          "name": "player_game_stats_game_id_fkey",
+          "phase": "validate_outgoing_fk"
+        },
+        {
+          "ms": 17.259,
+          "name": "player_game_stats_player_id_fkey",
+          "phase": "validate_outgoing_fk"
+        }
+      ]
+    },
+    {
+      "label": "candidate-3",
+      "code": 0,
+      "wallMs": 8396.117291999999,
+      "phases": [
+        {
+          "ms": 8.632,
+          "phase": "catalog",
+          "elapsedMs": 8.641
+        },
+        {
+          "ms": 0.478,
+          "phase": "prepare_heap",
+          "elapsedMs": 9.141
+        },
+        {
+          "ms": 0.449,
+          "phase": "policies",
+          "elapsedMs": 9.603
+        },
+        {
+          "ms": 2.152,
+          "phase": "triggers",
+          "elapsedMs": 11.77
+        },
+        {
+          "ms": 1.088,
+          "phase": "grants",
+          "elapsedMs": 12.87
+        },
+        {
+          "ms": 0.125,
+          "phase": "lock_acquired",
+          "elapsedMs": 13.009
+        },
+        {
+          "ms": 2798.885,
+          "phase": "copy_verify",
+          "elapsedMs": 2811.91
+        },
+        {
+          "ms": 4994.226,
+          "phase": "bulk_indexes",
+          "elapsedMs": 7806.163
+        },
+        {
+          "ms": 0.312,
+          "phase": "swap",
+          "elapsedMs": 7806.499
+        },
+        {
+          "ms": 0.778,
+          "phase": "functions",
+          "elapsedMs": 7807.297
+        },
+        {
+          "ms": 2.652,
+          "phase": "views",
+          "elapsedMs": 7810.016
+        },
+        {
+          "ms": 0.468,
+          "phase": "drop_old_functions",
+          "elapsedMs": 7810.506
+        },
+        {
+          "ms": 0.056,
+          "phase": "publication",
+          "elapsedMs": 7810.583
+        },
+        {
+          "ms": 293.646,
+          "phase": "retire_old_table",
+          "elapsedMs": 8104.252
+        },
+        {
+          "ms": 0.76,
+          "phase": "index_names",
+          "elapsedMs": 8105.045
+        },
+        {
+          "ms": 1.408,
+          "phase": "outgoing_fks_not_valid",
+          "elapsedMs": 8106.472
+        },
+        {
+          "ms": 0.035,
+          "phase": "incoming_fks_not_valid",
+          "elapsedMs": 8106.523
+        },
+        {
+          "ms": 8189.394,
+          "phase": "lock_released",
+          "elapsedMs": 8202.392
+        },
+        {
+          "ms": 109.896,
+          "phase": "validate_outgoing_fks"
+        },
+        {
+          "ms": 0.066,
+          "phase": "validate_incoming_fks"
+        }
+      ],
+      "items": [
+        {
+          "ms": 790.857,
+          "name": "idx_pgs_forecast_history",
+          "phase": "index"
+        },
+        {
+          "ms": 297.588,
+          "name": "idx_pgs_game",
+          "phase": "index"
+        },
+        {
+          "ms": 801.554,
+          "name": "idx_pgs_game_date",
+          "phase": "index"
+        },
+        {
+          "ms": 794.672,
+          "name": "idx_pgs_game_date_player",
+          "phase": "index"
+        },
+        {
+          "ms": 698.771,
+          "name": "idx_pgs_player_week",
+          "phase": "index"
+        },
+        {
+          "ms": 305.93,
+          "name": "idx_pgs_season_week",
+          "phase": "index"
+        },
+        {
+          "ms": 297.269,
+          "name": "idx_pgs_trade_game_player",
+          "phase": "index"
+        },
+        {
+          "ms": 297.11,
+          "name": "player_game_stats_pkey",
+          "phase": "index"
+        },
+        {
+          "ms": 413.498,
+          "name": "player_game_stats_player_id_game_id_key",
+          "phase": "index"
+        },
+        {
+          "ms": 0.401,
+          "name": "private.player_game_appeared(public.player_game_stats)",
+          "phase": "function"
+        },
+        {
+          "ms": 93.196,
+          "name": "player_game_stats_game_id_fkey",
+          "phase": "validate_outgoing_fk"
+        },
+        {
+          "ms": 16.605,
+          "name": "player_game_stats_player_id_fkey",
+          "phase": "validate_outgoing_fk"
+        }
+      ]
+    }
+  ],
+  "cachedPlans": {
+    "passed": true,
+    "values": [
+      "{\"count\": 245097, \"score\": -2.00}",
+      "t",
+      "245097"
+    ]
+  },
+  "resume": {
+    "passed": true,
+    "lockNegativeControl": true,
+    "writesDuringValidation": true,
+    "newForeignKeyEnforcement": true,
+    "state": {
+      "kind": "r",
+      "state": true,
+      "pending": 2
+    },
+    "completed": {
+      "rows": 245097,
+      "state": false,
+      "pending": 0
+    }
+  }
+}

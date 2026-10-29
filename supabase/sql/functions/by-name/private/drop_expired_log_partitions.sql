@@ -2,7 +2,7 @@ CREATE OR REPLACE FUNCTION private.drop_expired_log_partitions(p_parent regclass
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout='100ms' SET statement_timeout='3s' AS $$
 DECLARE part record; removed bigint:=0; counted bigint; month_offset integer;
 BEGIN
-  PERFORM 1 FROM private.partitioned_log_policies WHERE parent_table=p_parent;
+  PERFORM 1 FROM private.partitioned_log_policies policy JOIN pg_catalog.pg_class relation ON relation.oid=policy.parent_table AND relation.relkind='p' WHERE policy.parent_table=p_parent;
   IF NOT FOUND THEN RAISE EXCEPTION 'Unknown partition retention parent'; END IF;
   FOR month_offset IN 0..2 LOOP
     PERFORM private.ensure_log_partition(p_parent,((p_now AT TIME ZONE 'UTC')::date+make_interval(months=>month_offset))::date);

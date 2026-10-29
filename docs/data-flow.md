@@ -1,5 +1,23 @@
 # Screen data flow
 
+## Screen read cost
+
+Player game statistics use one regular table with player, date, season, and game indexes.
+Fresh screen connections no longer plan against 70 child tables.
+Game-day reads filter statistics by date and requested players.
+The screen JSON fields and ordering stay unchanged.
+Prepared forecasts bind the matchup league, season, and roster before reading maintained season totals.
+Projection reads scan the upcoming calendar once and share it across player teams.
+Projection validation shares regular-season game rows across candidate checks.
+Stats writes retain all 29 triggers, including trade input revision and scoring updates.
+A unique ID index protects identity across games at every transaction isolation level.
+Durable statistics have no partition maintenance or automatic retention worker.
+The rebuild copies and verifies rows before a single table swap.
+Foreign keys validate existing rows after the copy lock is released.
+A failed validation resumes from private migration state.
+
+The private benchmark and exact JSON comparisons use [the fresh-connection recipe](../tests/db/unpartition-player-stats.md).
+
 ## Screen refresh
 
 Screen publication updates standings, matchup totals, and affected player averages. It does not wait for trade values.

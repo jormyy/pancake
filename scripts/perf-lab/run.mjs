@@ -137,6 +137,15 @@ export async function run(mode = 'all', limit, options = {}) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  if (process.argv[2] === 'collect') process.exitCode = await (await import('./collect.mjs')).collectDetached(process.argv[3], remotePrefix)
+  if (process.argv[2] === 'bytes') {
+    const runners = {
+      build: () => import('../bytes-build.mjs'), browser: () => import('../bytes-browser.mjs'),
+      fixture: () => import('../bytes-fixture.mjs'), lab: () => import('../bytes-lab.mjs'), proxy: () => import('../bytes-proxy.mjs'),
+    }
+    const name = process.argv[3]
+    assert.ok(Object.hasOwn(runners, name), 'Unknown byte measurement command')
+    process.argv.splice(1, 3, fileURLToPath(new URL(`../bytes-${name}.mjs`, import.meta.url)))
+    await runners[name]()
+  } else if (process.argv[2] === 'collect') process.exitCode = await (await import('./collect.mjs')).collectDetached(process.argv[3], remotePrefix)
   else await run(process.argv[2], process.argv[3] === undefined ? undefined : Number(process.argv[3]))
 }

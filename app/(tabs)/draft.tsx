@@ -1,5 +1,4 @@
-import DraftRoomScreen from '@/app/(modals)/draft-room'
-import { useCallback } from 'react'
+import { lazy, Suspense, useCallback } from 'react'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorBanner, LoadingState, Page, PageHeader } from '@/components/ui'
@@ -7,6 +6,8 @@ import { useGoBack } from '@/components/ui/useGoBack'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useDraftRoomLauncher } from '@/hooks/use-draft-room-launcher'
 import { useAuth } from '@/hooks/use-auth'
+
+const DraftRoomScreen = lazy(() => import('@/app/(modals)/draft-room'))
 
 export default function DraftRoomTab() {
     const router = useRouter()
@@ -25,7 +26,9 @@ export default function DraftRoomTab() {
 
     if (draft && !checking) return <>
         {draftError ? <ErrorBanner message={draftError} onRetry={() => { void openDraftRoom({ fallbackOnMissing: false }) }} /> : null}
-        <DraftRoomScreen key={draft.id} resolvedDraftId={draft.id} />
+        <Suspense fallback={<LoadingState />}>
+            <DraftRoomScreen key={draft.id} resolvedDraftId={draft.id} />
+        </Suspense>
     </>
 
     return (

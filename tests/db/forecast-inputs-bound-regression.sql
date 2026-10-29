@@ -4,19 +4,9 @@ SET LOCAL statement_timeout='3s';
 SET LOCAL app.supabase_url='http://127.0.0.1:1';
 SET LOCAL app.edge_internal_token='local-forecast-bound-probe';
 DO $$
-DECLARE parent_index oid; leaf_count integer; indexed_count integer;
 BEGIN
-  SELECT oid INTO STRICT parent_index FROM pg_class WHERE oid='public.idx_pgs_forecast_history'::regclass AND relkind='I';
-  SELECT count(*) INTO leaf_count FROM pg_partition_tree('public.player_game_stats') WHERE isleaf;
-  SELECT count(*) INTO indexed_count FROM pg_inherits i JOIN pg_index x ON x.indexrelid=i.inhrelid
-    WHERE i.inhparent=parent_index AND x.indisvalid;
-  IF leaf_count<>indexed_count THEN RAISE EXCEPTION 'Every stats partition needs the history index'; END IF;
-  CREATE TABLE public.forecast_bound_partition_probe PARTITION OF public.player_game_stats
-    FOR VALUES IN('ffffffff-ffff-ffff-ffff-fffffffffff0');
-  IF NOT EXISTS(SELECT 1 FROM pg_index x JOIN pg_inherits i ON i.inhrelid=x.indexrelid
-    WHERE x.indrelid='public.forecast_bound_partition_probe'::regclass AND i.inhparent=parent_index AND x.indisvalid) THEN
-    RAISE EXCEPTION 'New partitions must inherit the history index';
-  END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_index WHERE indexrelid='public.idx_pgs_forecast_history'::regclass AND indrelid='public.player_game_stats'::regclass AND indisvalid) THEN RAISE EXCEPTION 'The regular table lacks its history index'; END IF;
+  IF (SELECT relkind FROM pg_class WHERE oid='public.idx_pgs_forecast_history'::regclass)<>'i' OR EXISTS(SELECT 1 FROM pg_inherits WHERE inhparent='public.player_game_stats'::regclass) THEN RAISE EXCEPTION 'Stats history remains partitioned'; END IF;
 END;
 $$;
 DO $$
@@ -66,5 +56,5 @@ BEGIN
 END;
 $$;
 RESET ROLE;
-SELECT 'Partition inheritance, unchanged input reuse, and source xmin isolation pass' AS result;
+SELECT 'Regular table history index, unchanged input reuse, and source xmin isolation pass' AS result;
 ROLLBACK;

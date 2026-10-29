@@ -568,6 +568,37 @@ describe('service worker', () => {
         expect(await (await worker.respond(scoped(url))).text()).toBe(body)
     })
 
+    it('reuses verified required boot bytes when the HTTP cache is empty', async () => {
+        const storage = new FakeCaches()
+        const url = '/_expo/static/js/web/app.js'
+        const body = 'verified required boot module'
+        const old = await storage.open('pancake-old-public-v1-assets')
+        await old.put(url, script(body))
+        const worker = await loadWorker({ storage, hashes: { [url]: createHash('sha256').update(body).digest('hex') }, fetchImpl: async input => {
+            if (new URL((input as Request).url).pathname !== '/') throw new Error('HTTP cache is empty')
+            return new Response('body:https://app.test/', { headers: { 'content-type': 'text/html' } })
+        } })
+        await expect(worker.install()).resolves.toBeUndefined()
+        expect(worker.fetches).toEqual(['/'])
+        const current = await storage.open('pancake-test-1-public-v1-assets')
+        expect(await (await current.match(url))?.text()).toBe(body)
+    })
+
+    it.each(['private', 'no-store', 'html', 'changed', 'legacy'])('refetches unsafe prior boot assets: %s', async kind => {
+        const storage = new FakeCaches()
+        const url = '/_expo/static/js/web/app.js'
+        const old = await storage.open(kind === 'legacy' ? 'pancake-old-assets' : 'pancake-old-public-v1-assets')
+        const body = kind === 'changed' ? 'old module' : `body:https://app.test${url}`
+        await old.put(url, new Response(body, { headers: {
+            'content-type': kind === 'html' ? 'text/html' : 'application/javascript',
+            'cache-control': kind === 'private' || kind === 'no-store' ? kind : 'public',
+        } }))
+        const worker = await loadWorker({ storage })
+        await worker.install()
+        expect(worker.fetches).toContain(url)
+        expect(await (await old.match(url))?.text()).toBe(body)
+    })
+
     it('does not commit an upgrade until the carried lazy asset write is durable', async () => {
         const body = 'verified lazy module'
         const url = '/_expo/static/js/web/chunk.js'

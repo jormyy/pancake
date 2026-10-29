@@ -10,7 +10,8 @@ FROM excellence_players;
 INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end)
 VALUES(2027,1,'2026-10-26','2026-11-01') ON CONFLICT(season_year,week_number) DO NOTHING;
 INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status)
-VALUES('002-excellence-'||gen_random_uuid(),2027,1,'2026-10-27','LAL','POR','Scheduled');
+SELECT '002-excellence-'||gen_random_uuid(),2027,1,'2026-10-27','LAL','POR','Scheduled'
+WHERE NOT EXISTS(SELECT 1 FROM public.nba_games WHERE season_year=2027 AND game_date='2026-10-27' AND home_team='LAL' AND away_team='POR');
 INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
 SELECT league_id,season_id,member_ids[ordinal],id,'draft' FROM excellence_fixture CROSS JOIN excellence_players WHERE ordinal<=2;
 INSERT INTO public.draft_picks(league_id,season_year,round,original_owner_id,current_owner_id)

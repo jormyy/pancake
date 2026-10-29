@@ -18,6 +18,7 @@ export async function buildFixture(directory, name, url = 'http://127.0.0.1:5712
   await cp('scripts/ios-sim/recorder.mjs', path.join(scripts, 'recorder.mjs'))
   await cp('scripts/retain-release-assets.mjs', path.join(checkout, 'scripts/retain-release-assets.mjs'))
   await cp('scripts/stamp-release-provenance.mjs', path.join(checkout, 'scripts/stamp-release-provenance.mjs'))
+  await cp('scripts/compact-document-assets.mjs', path.join(checkout, 'scripts/compact-document-assets.mjs'))
   await mkdir(path.join(checkout, 'tests/e2e'), { recursive: true })
   for (const file of ['release-provenance.mjs', 'release-artifact.mjs', 'pwa-update-release.mjs']) await cp(`tests/e2e/${file}`, path.join(checkout, 'tests/e2e', file))
   const common = (await readFile('scripts/ios-sim/common.mjs', 'utf8'))

@@ -2893,6 +2893,20 @@
       "statementCount": 40,
       "statementsSha256": "9f4b351e743f0b74f879757c1149229827254d7f36d773ddee595d5be1a0e1cb",
       "sha256": "c1d97c142acb4a328f10052a247acba36510f3c73d5dbf88f0dad4f6f460b5d5"
+    },
+    {
+      "name": "screen_view_costs",
+      "version": "20261213000100",
+      "statementCount": 3,
+      "statementsSha256": "9fe2c9d082111b689627797c25f8c4c63ce5365044dd181a137fcfd83fcd7f32",
+      "sha256": "532f466a2e9c94c22770d7ef33642327bdcace82daa40c0e98513f20ad81579e"
+    },
+    {
+      "name": "unpartition_player_game_stats",
+      "version": "20261213000200",
+      "statementCount": 23,
+      "statementsSha256": "4433e5da752d4a778da27af42e114e484681faaa9c33d1d5df0a0bab834b1635",
+      "sha256": "d0bbb3962466b2bfbc132477ae4ba37574022878c639c2910869ac237685e2ff"
     }
   ]
 }

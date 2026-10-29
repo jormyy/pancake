@@ -90,23 +90,29 @@ base_players AS (
   FROM public.players p
   WHERE p_player_ids IS NULL OR p.id = ANY(p_player_ids)
 ),
+regular_games AS MATERIALIZED (
+  SELECT id, game_date, home_team, away_team, game_time, status, started_at
+  FROM public.nba_games
+  WHERE season_year = p_season_year AND public.is_regular_season_game_id(nba_game_id)
+),
+upcoming_games AS MATERIALIZED (
+  SELECT ng.id, ng.game_date, ng.home_team, ng.away_team, ng.game_time
+  FROM args
+  JOIN regular_games ng
+    ON ng.game_date >= args.game_date
+   AND ng.status NOT IN ('InProgress', 'Final')
+   AND (ng.game_time IS NULL OR ng.game_time > now())
+   AND (ng.started_at IS NULL OR ng.started_at > now())
+),
 team_next_games AS MATERIALIZED (
-  SELECT teams.nba_team, g.game_date, g.home_team, g.away_team, g.game_time
+  SELECT DISTINCT ON (teams.nba_team) teams.nba_team, g.game_date, g.home_team, g.away_team, g.game_time
   FROM (SELECT DISTINCT nba_team FROM base_players WHERE nba_team IS NOT NULL) teams
-  LEFT JOIN LATERAL (
-    SELECT ng.game_date, ng.home_team, ng.away_team, ng.game_time
-    FROM args
-    JOIN public.nba_games ng
-      ON ng.season_year = p_season_year
-     AND ng.game_date >= args.game_date
-     AND ng.status NOT IN ('InProgress', 'Final')
-     AND (ng.game_time IS NULL OR ng.game_time > now())
-     AND (ng.started_at IS NULL OR ng.started_at > now())
-     AND public.is_regular_season_game_id(ng.nba_game_id)
-     AND (ng.home_team = teams.nba_team OR ng.away_team = teams.nba_team)
-    ORDER BY ng.game_date ASC, ng.game_time ASC NULLS LAST, ng.id ASC
-    LIMIT 1
-  ) g ON true
+  LEFT JOIN (
+    SELECT home_team AS nba_team, id, game_date, home_team, away_team, game_time FROM upcoming_games
+    UNION ALL
+    SELECT away_team, id, game_date, home_team, away_team, game_time FROM upcoming_games
+  ) g ON g.nba_team = teams.nba_team
+  ORDER BY teams.nba_team, g.game_date ASC, g.game_time ASC NULLS LAST, g.id ASC
 ),
 next_games AS (
   SELECT
@@ -539,9 +545,10 @@ sleeper_games AS (
   LEFT JOIN week_ctx wc ON true
   WHERE r.season_year = p_season_year
     AND (r.game_date<(now() AT TIME ZONE 'America/New_York')::date OR r.team=bp.nba_team)
-    AND EXISTS (SELECT 1 FROM public.nba_games g WHERE g.season_year=p_season_year
-      AND g.game_date=r.game_date AND public.is_regular_season_game_id(g.nba_game_id)
-      AND (g.home_team=r.team AND g.away_team=r.opponent OR g.away_team=r.team AND g.home_team=r.opponent))
+    AND EXISTS (SELECT 1 FROM (
+      SELECT game_date,home_team AS team,away_team AS opponent FROM regular_games
+      UNION ALL SELECT game_date,away_team,home_team FROM regular_games
+    ) g WHERE g.game_date=r.game_date AND g.team=r.team AND g.opponent=r.opponent)
     AND (args.view_name = 'today' AND r.game_date = COALESCE(ng.next_game_date,args.game_date)
       OR args.view_name <> 'today' AND r.week_number = wc.week_number)
 ),

@@ -94,9 +94,9 @@ async function safeMatch(cache, key, options) {
   return undefined
 }
 
-async function bootResponse(url, signal) {
+async function bootResponse(url, signal, previous = []) {
   const shell = url === SHELL_URL
-  const cached = !shell && await cachedBuildAsset(url, signal)
+  const cached = !shell && (await previousBuildAsset(url, previous) || await cachedBuildAsset(url, signal))
   if (cached) return cached
   const response = await publicFetch(url, signal)
   if (!cacheable(response, { allowDocument: shell }) ||
@@ -107,13 +107,24 @@ async function bootResponse(url, signal) {
   return response
 }
 
-async function carryPublicAssets(assets) {
+async function previousBuildAsset(url, previous) {
+  for (const cache of previous) {
+    const response = await cache.match(url)
+    if (cacheable(response) && await matchesBuild(response, PUBLIC_ASSET_HASHES[url])) return response
+  }
+  return undefined
+}
+
+async function previousPublicCaches() {
   const names = (await caches.keys()).filter((name) => name.startsWith('pancake-') &&
     name.endsWith('-public-v1-assets') && name !== ASSET_CACHE)
   // Failed installs can leave their caches until a later activation removes them.
   // Inspect only the newest prior generations, so old leftovers never block an update.
-  const previous = await Promise.all(names.reverse().slice(0, CARRY_GENERATION_LIMIT)
+  return Promise.all(names.reverse().slice(0, CARRY_GENERATION_LIMIT)
     .map((name) => caches.open(name)))
+}
+
+async function carryPublicAssets(assets, previous) {
   let remaining = CARRY_BYTES_LIMIT
   // Only current manifest entries can cross a release boundary. Revalidate
   // headers and bytes, including orphan entries from an interrupted install.
@@ -188,8 +199,9 @@ self.addEventListener('install', (event) => {
       })
       // Hold verified responses until the whole set succeeds. A failed fetch
       // cannot write a new shell over a usable release, even on a same-version retry.
+      const previous = await Promise.race([previousPublicCaches(), deadline])
       const responses = await Promise.race([
-        Promise.all(PRECACHE_URLS.map((url) => bootResponse(url, controller.signal))),
+        Promise.all(PRECACHE_URLS.map((url) => bootResponse(url, controller.signal, previous))),
         deadline,
       ])
       const shell = await caches.open(SHELL_CACHE)
@@ -202,7 +214,7 @@ self.addEventListener('install', (event) => {
             const url = PRECACHE_URLS[index]
             await (url === SHELL_URL ? shell : assets).put(url, responses[index])
           }
-          await carryPublicAssets(assets)
+          await carryPublicAssets(assets, previous)
         })(),
         deadline,
       ])
