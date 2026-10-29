@@ -9,7 +9,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       OR auth.role()='service_role')
   ), available AS MATERIALIZED (
     SELECT average.player_id,average.avg_fantasy_points FROM league
-    JOIN public.v_player_avg_fantasy_points average ON average.league_id=league.id AND average.season_year=league.season_year
+    CROSS JOIN LATERAL private.trade_value_fantasy_averages(league.id,league.season_year) average
     WHERE NOT EXISTS(SELECT 1 FROM public.roster_players roster
       WHERE roster.league_id=league.id AND roster.league_season_id=league.season_id AND roster.player_id=average.player_id)
   ), replacements AS (

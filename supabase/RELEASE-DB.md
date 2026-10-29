@@ -1,10 +1,11 @@
-# Release 2.7.1 database contract
+# Trade input database contract
 
 ## Release order for this release
 
-The supplied production head is `20261209000500`, with 675 migrations.
-Apply the four [Release 2.7.1](#release-271) prerequisites, then the four [Release 2.7.2](#release-272) migrations through `20261211000400`.
-Apply the database changes, deploy the listed Edge functions for each release, then release the frontend.
+The supplied production head is `20261211000400`, with 683 migrations.
+Pause trade dispatch, apply `20261212000100_trade_revaluation_inputs_fast.sql`, then deploy `refresh-views`.
+Resume dispatch when both versions agree.
+This change needs no frontend release.
 This integration makes no production request.
 
 ## Release 2.6 historical contract
@@ -786,3 +787,279 @@ Keep these additive database changes during a frontend or Edge rollback.
 Use a reviewed forward migration for database repairs.
 
 [Integration evidence](../docs/release-2.7.2-integration.md) records the private rehearsal and check counts.
+
+
+## Trade input performance
+
+Apply `20261212000100_trade_revaluation_inputs_fast.sql`, then deploy `refresh-views`.
+The source base is release 2.7.2 at `64ada45a`.
+The migration brings the database to 684 migrations.
+No frontend or other Edge deployment is required.
+The migration retires pending work with old fingerprint keys.
+New scans create one reusable latest-input work item per trade and model.
+Existing publications receive one new valuation after the fingerprint format changes.
+
+Checks now read source revisions, trade terms, pick metadata, balances, and freshness boundaries.
+They queue work without reading full player inputs.
+Publication checks use the same fingerprint.
+The full read checks its fingerprint again before returning, so concurrent input changes require a retry.
+Source revisions cover inserts, updates, deletes, and truncation.
+No-op updates leave them unchanged.
+Roster and cached-average revisions stay scoped to their league or season.
+
+The full read retains the existing numeric rules and JSON input fields.
+Fractional scoring aggregates bounded game rows without repeated player scans.
+The new game index belongs to the partitioned parent, including future partitions.
+The generic-plan trace visits ten current-season partitions and skips all 60 unrelated partitions.
+PostgreSQL documents this [runtime partition pruning](https://www.postgresql.org/docs/17/ddl-partitioning.html#DDL-PARTITION-PRUNING).
+
+### Changed SQL functions
+
+| Function | Change |
+| --- | --- |
+| `private.track_trade_input_revision` | Track relevant input changes without a shared writer lock. |
+| `private.compact_trade_input_revisions` | Fold retired writer counters without changing fingerprints. |
+| `private.trade_revaluation_is_live` | Detect current-season games in progress. |
+| `private.begin_trade_revaluation` | Limit live valuations to one per trade every ten minutes. |
+| `private.refresh_queue_trade_revaluation` | Coalesce changes without postponing the first due time. |
+| `private.refresh_queue_trade_revaluations` | Discover open trades and compact retired counters. |
+| `private.trade_revaluation_input_version` | Read the cheap input fingerprint. |
+| `private.trade_value_fantasy_averages` | Preserve exact scoring with bounded statistics reads. |
+| `private.trade_value_player_inputs` | Use the bounded average reader. |
+| `private.build_trade_estimate_inputs` | Bound replacement-player averages. |
+| `public.get_dynasty_pick_values` | Bound replacement values used for picks. |
+| `public.get_trade_revaluation_inputs` | Attach the fingerprint and reject a changing input snapshot. |
+| `private.refresh_trade_values` | Validate publication without rebuilding inputs. |
+| `public.view_refresh_work` | Check, queue, and claim a trade valuation. |
+
+### Reproduction
+
+The private benchmark restores the supplied backup at migration `20261029000800`, then migrates to the source base.
+It contains 245,097 player game rows, 2,618 players, and three open trades.
+The database uses one Docker CPU and 1 GB during measurements.
+The benchmark refuses to run unless scheduled jobs are disabled.
+Only the restore uses 4 GB because the dump contains large INSERT statements.
+The backup's storage tables differ from the local storage service; all application tables restore completely.
+
+Ordinary backup reads do not reproduce the reported production timeout.
+Two concurrent reads with supported three-decimal scoring both hit the three-second statement limit.
+The old fallback joins game rows by stat identity without a partition key and repeats the work per player.
+The repaired calls finish in 71.804 and 73.048 ms under the same limit and generic planning.
+These figures describe the private mini, not production latency.
+
+### Before and after
+
+Each ordinary measurement covers 30 reads of all three open trades.
+The check measurement includes queue handling.
+The old check combines its input read and queue call in one measured statement.
+Times measure PostgreSQL execution; outer planning, network, and Edge execution time are excluded.
+Buffers include shared hits and reads, not distinct pages.
+
+| Call | Version | Mean ms | p95 ms | Maximum ms | Mean buffers | DB ms per three-trade scan |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Discovery | Before | 0.558 | 0.738 | 2.414 | 148 | 0.558 |
+| Discovery | After | 0.593 | 0.723 | 3.168 | 202 | 0.593 |
+| Check | Before | 21.846 | 26.855 | 55.457 | 2,287 | 65.538 |
+| Check | After | 0.435 | 0.527 | 5.307 | 226 | 1.305 |
+| Full input | Before | 22.502 | 29.660 | 52.862 | 2,269 | 67.505 |
+| Full input | After | 14.585 | 15.078 | 41.346 | 1,893 | 43.754 |
+| Publication | Before | 21.881 | 26.444 | 55.769 | 2,279 | 65.644 |
+| Publication | After | 0.328 | 0.397 | 5.815 | 116 | 0.983 |
+
+The unchanged three-trade scan, including discovery, falls from 66.096 to 1.898 ms of database time, a 97.1% reduction.
+Its check calls use 90.1% fewer shared-buffer accesses.
+When every trade changes, discovery, checks, input reads, and publication total 46.635 ms, compared with 131.741 ms before.
+Publication measurements use a minimal valid valuation payload.
+The old worker reuses inputs from its check; the new worker reads them only for changed trades.
+
+Forced generic and custom plans also pass the timing guards and input parity checks.
+Across those runs, the largest full-read p95 is 15.639 ms and the largest check p95 is 0.579 ms.
+Their largest measured ordinary statement is 40.708 ms.
+
+### Nested statement profiles
+
+Every executed nested statement is captured with `auto_explain.log_nested_statements`, ANALYZE, and BUFFERS.
+The ordinary traces contain 497 statements before and 370 after.
+The fractional-scoring trace exposes the costly fallback.
+These cold, instrumented values include tracing overhead and stay separate from the timing table.
+
+| Fractional-scoring statement | Before ms | Before buffers | After ms | After buffers |
+| --- | ---: | ---: | ---: | ---: |
+| Full input call | 7,061.055 | 723,951 | 78.555 | 31,536 |
+| Input construction | 7,057.226 | 721,881 | 69.744 | 27,574 |
+| Replacement selection | 6,872.684 | 685,776 | 40.324 | 21,228 |
+| Player inputs | 144.526 | 16,456 | 24.201 | 5,101 |
+
+The replacement statement is first by both time and buffers among the inner input statements.
+The new grouped raw-stat read takes 18.625 ms and 2,543 buffers in that trace.
+The parent index and runtime pruning keep historical partitions out of execution.
+
+The ordinary trace ranks full input construction first by time and buffers.
+Its outer call takes 53.229 ms and 26,097 buffers after the fix, including cold planning within PL/pgSQL.
+Its replacement selection takes 21.022 ms and 18,425 buffers.
+Warm call measurements appear in the table above.
+
+### Verification commands
+
+Set `SUPABASE_DB_URL` to the private loopback database on port 61922.
+Set `PANCAKE_TEST_DB_PORT=61922` for the catalog and control runners.
+The profile scripts need the private database administrator role for `auto_explain`.
+Keep their output directory outside the repository because it contains backup input payloads.
+Run the before commands on the source base and the after commands after applying the migration.
+Disable scheduled jobs again after every database reset.
+
+```sh
+psql "$SUPABASE_DB_URL" -c "ALTER SYSTEM SET cron.launch_active_jobs=off" -c "SELECT pg_reload_conf()"
+python3 tests/db/trade-revaluation-bench.py before ../evidence
+python3 tests/db/trade-revaluation-pressure.py before ../evidence
+python3 tests/db/trade-revaluation-bench.py after ../evidence
+python3 tests/db/trade-revaluation-parity.py
+PGOPTIONS='-c plan_cache_mode=force_generic_plan' python3 tests/db/trade-revaluation-pressure.py after ../evidence
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-revaluation-fast.sql
+node tests/db/trade-revaluation-controls.mjs
+```
+
+The SQL recipe rejects an injected full-input read during checking or publication.
+It verifies scoring parity, correction and deletion invalidation, no-op writes, authorization, and timing limits.
+A delayed negative control must fail its timing guard.
+The six broken SQL variants must fail their corresponding assertions.
+Backup parity compares UTF-8 bytes for every input field except the changed fingerprint and the observation/cache envelope.
+The catalog and both attestations regenerate from the private database through their generators.
+
+
+### Initial verification
+
+The full Vitest run passes 4,628 tests and skips 48; two checks initially fail.
+The release note gains the new migration in its release-order section.
+The report test receives an isolated replay fixture instead of depending on a clean working tree.
+The affected checks and related contracts then pass all 869 focused tests.
+The full suite runs once.
+
+The original four SQL recipes pass 72 assertions, including the timing guard's delayed negative control.
+All five deliberately broken SQL variants fail as expected.
+Both ordinary and fractional input comparisons pass byte parity for all three open trades.
+The changed Edge entrypoint type-checks, and its 11 tests pass.
+Lint, application types, test types, function sources, and the live function catalog pass.
+Generated function and release attestations cover all 684 migrations.
+
+The private stack stops after verification, and transferred backup copies are deleted.
+No production service, push, pull request, deployment, or CI run is used.
+
+### Addendum baseline
+
+The review adds write overhead, writer contention, and live-game revaluation limits.
+The first comparison uses 30 interleaved pairs with the original revision triggers enabled and disabled.
+A live tick updates 177 real-player stat rows across eight game saves.
+The player import changes 50 players through the actual import function.
+The projection write uses the actual 500-row upsert shape.
+
+| Write | Without triggers ms | With triggers ms | Added ms | Added percent |
+| --- | ---: | ---: | ---: | ---: |
+| Eight live game saves | 149.802 | 155.103 | 5.302 | 3.54% |
+| Eight final game saves | 168.802 | 175.679 | 6.876 | 4.07% |
+| Player import | 37.125 | 42.606 | 5.481 | 14.76% |
+| Projection upsert | 16.919 | 17.723 | 0.804 | 4.75% |
+
+The player import fails both overhead limits.
+Two real writers on separate seasons also expose the shared revision lock.
+Its longest observed wait is 100.261 ms across 30 pairs.
+A three-hour simulation produces 120 valuations per trade per hour and 5,816.914 database ms per hour.
+The changes below resolve both failures and reduce live valuation volume.
+
+### Write cost and contention
+
+Each backend maintains its own revision counter.
+The fingerprint sums the counters, so concurrent writers update different rows and reversed commit order still changes the fingerprint.
+Scans compact retired backends without changing the sum or touching active writers.
+
+Stat triggers compare scoring columns, not whole rows.
+Player updates use a column-specific row condition and one durable revision write per transaction.
+A transaction-local count also detects later player changes within the same transaction.
+Nested aggregate refreshes rely on the parent stat revision instead of writing another revision.
+
+The final comparison repeats the same 30 interleaved pairs on one CPU and 1 GB.
+Each table entry is a paired mean for one SQL statement.
+The eight live and final statements together change 177 rows per tick.
+The projection write changes 500 rows; the player import changes 50 rows.
+
+| Statement | Without triggers ms | With triggers ms | Added ms | Added percent |
+| --- | ---: | ---: | ---: | ---: |
+| Largest relative live-save overhead | 16.933 | 17.582 | 0.650 | 3.84% |
+| Largest relative final-save overhead | 19.796 | 20.595 | 0.798 | 4.03% |
+| Player import | 36.490 | 37.431 | 0.941 | 2.58% |
+| Projection upsert | 17.120 | 17.303 | 0.183 | 1.07% |
+
+All statements meet both mean-overhead limits.
+The full live tick adds 1.741 ms; the full final tick adds 0.236 ms.
+Thirty concurrent live/final writer pairs show zero observed revision lock waits, down from 100.261 ms.
+The first transaction stays open for 160 ms while the second writes different player rows.
+The last pair commits in reverse order and verifies both fingerprint changes.
+
+### Live-game volume
+
+Pending work keeps one latest-input key per trade and model.
+Repeated changes replace the fingerprint without moving its due time later.
+A per-trade claim limits valuations to one every ten minutes, including model changes.
+The worker reads current inputs when that claim succeeds.
+The last game ending makes pending final values due immediately.
+
+The simulation advances three hours in 30-second ticks for all three open trades in one league.
+It executes the real check, queue, input, and publication functions.
+The final run publishes full analysis payloads captured by the runtime test.
+The initial comparison uses minimal valid publication payloads.
+Source writes are outside these revaluation totals.
+
+| Measurement | Before | After |
+| --- | ---: | ---: |
+| Live valuations across three hours | 1,080 | 54 |
+| Valuations per trade per hour | 120 | 6 |
+| Revaluation DB ms per hour | 5,816.914 | 460.151 |
+| Share of one CPU-hour | 0.162% | 0.013% |
+| Retained work items | 1,083 | 3 |
+| Final-value delay after last game | 0 seconds | 0 seconds |
+
+The final simulation's longest measured statement is 21.249 ms.
+The SQL guards reject excess live frequency, stale final values, and database time above 1% of one CPU.
+
+### Full runtime verification
+
+The runtime recipe executes the actual Deno analysis and saves its complete result.
+It verifies deterministic analysis and exact equality between computed and saved values.
+Thirty rounds cover every open trade, for 90 complete valuations.
+Database and analysis containers each receive half a CPU, sharing a total budget of one CPU.
+The database retains its 1 GB memory limit.
+
+| Stage | Mean ms | p95 ms | Maximum ms |
+| --- | ---: | ---: | ---: |
+| Begin claim | 0.487 | 0.514 | 2.280 |
+| Full input read | 25.892 | 54.905 | 95.536 |
+| Actual analysis | 0.073 | 0.107 | 0.744 |
+| Complete publication | 1.898 | 1.846 | 36.858 |
+| End to end, including loopback transport | 31.923 | 59.746 | 106.829 |
+
+Every stage meets p95 below 300 ms and maximum below one second.
+An injected 1,100 ms analysis delay fails the timing guard.
+
+Run SQL recipes as the local `postgres` role and tracing scripts as local `supabase_admin`.
+The runtime recipe runs only in the private mini checkout and restores the database CPU limit on exit.
+It removes its own analysis container and bundle directory.
+
+```sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -v phase=after -f tests/db/trade-revaluation-writers.sql
+python3 tests/db/trade-revaluation-contention.py after
+bash tests/db/trade-revaluation-runtime.sh
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -v phase=after \
+  -v revaluations="$(cat ../trade-revaluation-runtime-values.json)" -f tests/db/trade-revaluation-night.sql
+psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/trade-revaluation-coalesce.sql
+node tests/db/trade-revaluation-controls.mjs
+```
+
+### Final addendum checks
+
+Five SQL recipes pass 122 assertions; all six broken controls fail at their intended assertions.
+Both byte-parity comparisons pass for all three open trades.
+The affected Vitest checks pass 862 tests; the Deno worker tests pass 12.
+Lint, application types, test types, function sources, and the live catalog pass.
+The catalog and both attestations regenerate through their generators.
+The full Vitest suite is not repeated after the addendum, following the instruction to defer it until before a push.
+No push is performed.

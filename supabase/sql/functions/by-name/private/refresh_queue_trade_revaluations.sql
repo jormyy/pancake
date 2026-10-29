@@ -2,6 +2,7 @@ CREATE OR REPLACE FUNCTION private.refresh_queue_trade_revaluations(p_season_id 
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE trade record; queued integer:=0; last_id uuid; seen integer:=0;
 BEGIN
+  PERFORM private.compact_trade_input_revisions();
   FOR trade IN SELECT t.*,m.user_id FROM public.trades t JOIN public.league_members m ON m.id=t.proposer_member_id
     WHERE t.league_season_id=p_season_id AND t.status IN ('pending','accepted') AND (p_after IS NULL OR t.id>p_after)
     ORDER BY t.id LIMIT 20

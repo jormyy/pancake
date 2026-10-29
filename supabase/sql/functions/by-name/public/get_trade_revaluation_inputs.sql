@@ -1,7 +1,7 @@
 CREATE OR REPLACE FUNCTION public.get_trade_revaluation_inputs(p_user_id uuid,p_member_id uuid,p_trade_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
-  terms jsonb; inputs jsonb;
+  terms jsonb; inputs jsonb; fingerprint text;
   previous_user text:=current_setting('request.jwt.claim.sub',true);
   allowed boolean;
 BEGIN
@@ -20,6 +20,7 @@ BEGIN
     RETURN jsonb_build_object('closed',true,'revaluationTradeId',p_trade_id,'cachedRevaluation',
       (SELECT revaluation FROM public.trade_value_cache WHERE trade_id=p_trade_id));
   END IF;
+  fingerprint:=private.trade_revaluation_input_version(p_trade_id);
   SELECT jsonb_agg(jsonb_build_object('fromMemberId',i.from_member_id,'toMemberId',i.to_member_id,
     'playerId',i.player_id,'pickId',i.pick_id,'faabAmount',i.faab_amount) ORDER BY i.id)
     INTO terms FROM public.trade_items i WHERE i.trade_id=p_trade_id;
@@ -34,9 +35,12 @@ BEGIN
         BETWEEN now()-CASE WHEN player->>'projection_source'='internal' THEN interval '8 days' ELSE interval '36 hours' END AND now())
       ORDER BY player->>'player_id')
     FROM jsonb_array_elements((inputs->'players')||(inputs->'replacementPlayers')) player));
-  RETURN inputs||jsonb_build_object('inputVersion',md5(inputs::text),'observedAt',now(),'cachedRevaluation',
+  IF fingerprint IS DISTINCT FROM private.trade_revaluation_input_version(p_trade_id) THEN
+    RAISE EXCEPTION 'Trade inputs changed. Retry.' USING ERRCODE='40001';
+  END IF;
+  RETURN inputs||jsonb_build_object('inputVersion',fingerprint,'observedAt',now(),'cachedRevaluation',
     (SELECT cached.revaluation FROM private.trade_value_publications published
       JOIN public.trade_value_cache cached USING(trade_id)
-      WHERE published.trade_id=p_trade_id AND published.input_fingerprint=md5(inputs::text)));
+      WHERE published.trade_id=p_trade_id AND published.input_fingerprint=fingerprint));
 END;
 $$;

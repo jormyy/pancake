@@ -1,9 +1,17 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, copyFile } from 'node:fs/promises'
-import { execFileSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { renderReport, sameControlSurface } from '../../scripts/perf-lab/report.mjs'
+
+const fixtureCommit = vi.hoisted(() => 'a'.repeat(40))
+vi.mock('../../scripts/perf-lab/replay-evidence.mjs', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../scripts/perf-lab/replay-evidence.mjs')>()
+  return {
+    ...actual,
+    retainedReplay: (root: string) => actual.retainedReplay(root, (candidate: string) => candidate === fixtureCommit),
+  }
+})
 
 const directories: string[] = []
 
@@ -102,7 +110,7 @@ it('renders current contracts, control ownership and separate replay network lay
   expect(truncated.report).toMatchObject({ simulationPassed: true, fullCapturePassed: false, done: false })
   const archived = path.join(evidenceRoot, 'history', '00000000-0000-4000-8000-000000000001')
   await mkdir(archived, { recursive: true })
-  const source = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  const source = fixtureCommit
   await writeFile(path.join(archived, 'two-day.json'), JSON.stringify({ ...simulation, source: { application: { commit: source }, committedHarness: true } }))
   await writeFile(path.join(archived, 'database-run.json'), JSON.stringify({ runId: path.basename(archived), source, cleanup: true, startedAt: '2026-10-28T20:00:00Z' }))
   await writeFile(path.join(archived, 'replay-checkpoint.json'), '{"complete":true}')
