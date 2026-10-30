@@ -22,6 +22,7 @@ The missing notification versions precede the recorded production head; use `--i
 | `20261214001700_ingest_identity_noop.sql` | Avoids unchanged identity and stat writes. |
 | `20261214001900_l4d_background_cost.sql` | Bounds pick predictions and skips unchanged game-day writes. |
 | `20261214002100_l3e_scans.sql` | Narrows projection and work scans and indexes internal identity reads. |
+| `20261214002500_trade_locks_drop_only.sql` | Lets trade- and claim-reserved players change lineup slots; drops stay blocked. |
 
 `20261214001100_trade_preview_read_only.sql` can ship alone.
 It preserves locking checks for trade writes and waiver claims.

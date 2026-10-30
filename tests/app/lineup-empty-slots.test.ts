@@ -4,21 +4,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setLeagueChangesConnected } from '@/lib/league-changes'
 import LineupScreen, { LineupEditor } from '@/app/(modals)/lineup'
 import type { LineupPlayer } from '@/lib/lineup'
+import type { AssetLock } from '@/lib/locked-assets'
 
 const mocks = vi.hoisted(() => ({
     context: { current: { id: 'member-a' }, currentLeague: { id: 'league-a' } as { id: string; roster_size?: number; ir_slots?: number; taxi_slots?: number }, online: true, membershipValidated: false, membershipError: null as Error | null, refresh: vi.fn() },
     lineup: { starters: [] as { slotType: string; player: LineupPlayer | null }[], bench: [] as LineupPlayer[], benchSlots: 3 },
     readView: vi.fn(), hidden: false, dirty: false, listeners: new Map<() => void, string>(),
     freshness: 'fresh', games: [] as { home_team: string; away_team: string; status: string }[], startedTeams: new Set<string>(),
-    enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(),
+    enabled: false, setEnabled: vi.fn(), showAlert: vi.fn(), handleTap: vi.fn(), setSelected: vi.fn(),
+    selection: null as { kind: 'starter' | 'bench'; index: number } | null, params: {} as { playerId?: string },
 }))
 vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 390, height: 844 }), Platform: { OS: 'ios' }, View: 'View', Text: 'Text', ScrollView: 'ScrollView', Switch: 'Switch', StyleSheet: { create: (v: unknown) => v, flatten: (v: unknown) => Object.assign({}, ...[v].flat(Infinity).filter(Boolean)) } }))
-vi.mock('expo-router', () => ({ useLocalSearchParams: () => ({}), useRouter: () => ({ push: vi.fn() }) }))
+vi.mock('expo-router', () => ({ useLocalSearchParams: () => mocks.params, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => mocks.context }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
 vi.mock('@/hooks/use-lineup-actions', () => ({ useLineupActions: () => ({
-    selected: null, setSelected: vi.fn(), saving: false, autoSetModalVisible: true,
-    setAutoSetModalVisible: vi.fn(), handleTap: vi.fn(), handleAutoSet: vi.fn(),
+    selected: mocks.selection, setSelected: mocks.setSelected, saving: false, autoSetModalVisible: true,
+    setAutoSetModalVisible: vi.fn(), handleTap: mocks.handleTap, handleAutoSet: vi.fn(),
 }) }))
 vi.mock('@/hooks/use-live-stats', () => ({ useLiveStats: () => ({ startedTeams: mocks.startedTeams, liveTeams: new Set<string>(), todaysGames: mocks.games, freshness: mocks.freshness, teamMatchups: new Map() }) }))
 vi.mock('@/lib/cache/screen-cache', () => ({
@@ -72,6 +74,7 @@ beforeEach(() => {
     mocks.context.current = { id: 'member-a' }; mocks.context.currentLeague = { id: 'league-a' }; mocks.enabled = false
     mocks.context.membershipValidated = false; mocks.context.membershipError = null
     mocks.context.online = true
+    mocks.selection = null; mocks.params = {}
     mocks.lineup = { starters: [{ slotType: 'PG', player: null }], bench: [], benchSlots: 3 }
     mocks.readView.mockReset().mockImplementation(async () => mocks.lineup)
 })
@@ -91,6 +94,69 @@ it('keeps occupied bench rows and every remaining place', async () => {
     await mount()
     expect(screen.root.findAll((node) => node.props.accessibilityLabel === 'Bench Bench Player')).toHaveLength(1)
     expect(emptyRows()).toHaveLength(2)
+})
+
+it.each(['trade', 'claim'] as const)('allows starter and bench placement with a pending %s reservation', async (sourceKind) => {
+    const reserved: LineupPlayer & { assetLocks: AssetLock[] } = { playerId: 'reserved', rosterPlayerId: 'reserved-roster', displayName: 'Reserved Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'LAL', nbaId: null, injuryStatus: null,
+        assetLocks: [{ assetKind: 'player', assetId: 'reserved', sourceKind, sourceId: 'reservation', reason: `Locked by ${sourceKind}` }] }
+    mocks.lineup.starters = [{ slotType: 'PG', player: reserved }]
+    mocks.lineup.bench = [{ ...reserved, playerId: 'bench', displayName: 'Reserved Bench' }]
+    await mount()
+    for (const [label, selection] of [['PG Reserved Player', { kind: 'starter', index: 0 }], ['Bench Reserved Bench', { kind: 'bench', index: 0 }]] as const) {
+        const row = screen.root.findByProps({ accessibilityLabel: label })
+        expect(row.props.disabled).toBe(false)
+        expect(row.props.accessibilityState.disabled).toBe(false)
+        await act(async () => row.props.onPress())
+        expect(mocks.handleTap).toHaveBeenLastCalledWith(selection)
+        mocks.selection = selection
+        await act(async () => screen.update(React.createElement(Component)))
+        expect(screen.root.findByProps({ accessibilityLabel: label }).props.accessibilityState.selected).toBe(true)
+        expect(mocks.setSelected).not.toHaveBeenCalledWith(null)
+    }
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Locked by')
+    const toggle = screen.root.findByType('Switch' as React.ElementType)
+    expect(toggle.props.disabled).toBe(false)
+    await act(async () => toggle.props.onValueChange(true))
+    expect(mocks.setEnabled).toHaveBeenCalledWith('member-a', 'league-a', 'season-league-a', true)
+})
+
+it.each(['trade', 'claim'] as const)('preselects a reserved %s player opened from the roster', async (sourceKind) => {
+    const player = { playerId: 'reserved', rosterPlayerId: 'reserved-roster', displayName: 'Reserved Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null,
+        assetLocks: [{ assetKind: 'player', assetId: 'reserved', sourceKind, sourceId: 'reservation', reason: 'Locked by reservation' }] }
+    mocks.lineup.bench = [player]
+    mocks.params = { playerId: 'reserved' }
+    await mount()
+    expect(mocks.setSelected).toHaveBeenCalledWith({ kind: 'bench', index: 0 })
+})
+
+it('omits reservation notices from read-only IR and Taxi rows', async () => {
+    const player = { playerId: 'reserve', rosterPlayerId: 'reserve-roster', displayName: 'Reserve Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaTeam: null, nbaId: null, injuryStatus: null,
+        assetLocks: [{ assetKind: 'player', assetId: 'reserve', sourceKind: 'trade', sourceId: 'trade', reason: 'Locked by trade' }] }
+    mocks.readView.mockImplementationOnce(async () => ({ ...mocks.lineup, ir: [player], taxi: [player] }))
+    await mount()
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'IR Reserve Player' })).toHaveLength(1)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Taxi Reserve Player' })).toHaveLength(1)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
+    expect(JSON.stringify(screen.toJSON())).not.toContain('Locked by trade')
+})
+
+it.each(['starter', 'bench'])('keeps game-time locks on a reserved %s', async (kind) => {
+    const player: LineupPlayer & { assetLocks: AssetLock[] } = { playerId: 'reserved', rosterPlayerId: 'reserved-roster', displayName: 'Started Player',
+        position: 'PG', eligiblePositions: ['PG'], nbaTeam: 'LAL', nbaId: null, injuryStatus: null,
+        assetLocks: [{ assetKind: 'player', assetId: 'reserved', sourceKind: 'trade', sourceId: 'trade', reason: 'Locked by trade' }] }
+    if (kind === 'starter') mocks.lineup.starters = [{ slotType: 'PG', player }]
+    else mocks.lineup.bench = [player]
+    mocks.startedTeams = new Set(['LAL'])
+    await mount()
+    const row = screen.root.findByProps({ accessibilityLabel: `${kind === 'starter' ? 'PG' : 'Bench'} Started Player` })
+    expect(row.props.disabled).toBe(true)
+    expect(row.props.accessibilityState.disabled).toBe(true)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => node.props.children === 'LOCK')).toBe(true)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Asset locked' })).toHaveLength(0)
 })
 
 it('uses the new day capacity after switching dates', async () => {

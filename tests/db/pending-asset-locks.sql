@@ -30,12 +30,16 @@ BEGIN
   PERFORM pg_temp.reject_rules(format('SELECT public.toggle_ir_atomic(%L,true,%L)',offered,f.user_ids[1]),'Locked by trade %', 'pending outgoing IR move rejected');
   PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET is_on_taxi=true WHERE id=%L',offered),'Locked by trade %', 'pending outgoing taxi move rejected');
   PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET member_id=%L WHERE id=%L',f.member_ids[2],offered),'Locked by trade %', 'direct ownership change rejected');
-  PERFORM pg_temp.reject_rules(format('SELECT public.set_player_slot_atomic(%L,%L,%L,%L,current_date,''BE'',1)',f.member_ids[1],f.league_id,f.season_id,players[1]),'Locked by trade %','single lineup slot writer rejects lock');
-  PERFORM pg_temp.reject_rules(format('SELECT public.set_player_slot_moves_atomic(%L,%L,%L,current_date,1,%L::jsonb)',f.member_ids[1],f.league_id,f.season_id,jsonb_build_array(jsonb_build_object('player_id',players[1],'slot_type','BE'))),'Locked by trade %','batch lineup writer rejects lock');
-  PERFORM pg_temp.reject_rules(format('DELETE FROM public.weekly_lineups WHERE player_id=%L',players[1]),'Locked by trade %', 'direct lineup delete rejected');
-  PERFORM pg_temp.reject_rules(format('UPDATE public.weekly_lineups SET slot_type=''BE'' WHERE player_id=%L',players[1]),'Locked by trade %', 'direct lineup move rejected');
-  PERFORM pg_temp.reject_rules(format('SELECT public.auto_set_lineup_atomic(%L,%L,%L,current_date,''[]''::jsonb)',f.member_ids[1],f.league_id,f.season_id),'Locked by trade %', 'lineup replacement rejected');
-  PERFORM pg_temp.reject_rules(format('SELECT public.auto_set_lineup_service_atomic(%L,%L,%L,current_date,''[]''::jsonb)',f.member_ids[1],f.league_id,f.season_id),'Locked by trade %','service lineup optimizer rejects moving locks');
+  PERFORM public.set_player_slot_atomic(f.member_ids[1],f.league_id,f.season_id,players[1],current_date,'BE',1);
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]),'single lineup slot writer allows reserved player');
+  PERFORM public.set_player_slot_moves_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,1,jsonb_build_array(jsonb_build_object('player_id',players[1],'slot_type','PG')));
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]),'batch lineup writer allows reserved player');
+  UPDATE public.weekly_lineups SET slot_type='BE' WHERE player_id=players[1];
+  DELETE FROM public.weekly_lineups WHERE player_id=players[1];
+  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]),'direct lineup moves and deletes allow reserved player');
+  PERFORM public.auto_set_lineup_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,'[]'::jsonb);
+  PERFORM public.auto_set_lineup_service_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,jsonb_build_array(jsonb_build_object('player_id',players[1],'slot_type','PG')));
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]),'service lineup optimizer places reserved player');
   PERFORM public.auto_set_lineup_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,jsonb_build_array(jsonb_build_object('player_id',players[1],'slot_type','PG')));
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]), 'unchanged locked lineup allowed');
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L::uuid[],%L::uuid[],''{}'',''{}'')',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[1]],ARRAY[players[3]]),'Locked by trade %', 'second outgoing trade rejected');
@@ -51,7 +55,7 @@ BEGIN
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
   snapshot := public.view_roster(f.league_id,f.member_ids[1]);
   PERFORM pg_temp.check_rules(jsonb_array_length(snapshot->'lockedAssets')=2,'roster snapshot includes locks');
-  PERFORM pg_temp.check_rules(jsonb_array_length(public.view_lineup(f.league_id,f.member_ids[1])->'lockedAssets')=2,'lineup snapshot includes locks');
+  PERFORM pg_temp.check_rules(jsonb_array_length(public.view_lineup(f.league_id,f.member_ids[1])->'lockedAssets')=0,'lineup snapshot omits reservation locks');
   SELECT version INTO before_version FROM public.league_versions WHERE league_id=f.league_id;
   PERFORM set_config('request.jwt.claim.sub','',true);
   PERFORM public.withdraw_trade_atomic(trade_id,f.member_ids[1],f.user_ids[1]);
@@ -73,7 +77,8 @@ BEGIN
   PERFORM pg_temp.reject_rules(format('SELECT public.drop_player_atomic(%L)',dropped),'Locked by waiver claim '||left(claim_id::text,8)||'.%','waiver drop rejected');
   PERFORM pg_temp.reject_rules(format('SELECT public.toggle_ir_atomic(%L,true,%L)',dropped,f.user_ids[1]),'Locked by waiver claim %','waiver IR move rejected');
   PERFORM pg_temp.reject_rules(format('UPDATE public.roster_players SET is_on_taxi=true WHERE id=%L',dropped),'Locked by waiver claim %','waiver taxi move rejected');
-  PERFORM pg_temp.reject_rules(format('SELECT public.auto_set_lineup_atomic(%L,%L,%L,current_date,%L::jsonb)',f.member_ids[1],f.league_id,f.season_id,jsonb_build_array(jsonb_build_object('player_id',players[2],'slot_type','PG'))),'Locked by waiver claim %','waiver lineup addition rejected');
+  PERFORM public.auto_set_lineup_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,jsonb_build_array(jsonb_build_object('player_id',players[2],'slot_type','PG')));
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[2]),'waiver lineup addition allowed');
   PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L::uuid[],%L::uuid[],''{}'',''{}'')',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[2]],ARRAY[players[3]]),'Locked by waiver claim %','waiver asset trade rejected');
   INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
     VALUES(f.league_id,f.season_id,f.member_ids[1],players[4],'waiver');

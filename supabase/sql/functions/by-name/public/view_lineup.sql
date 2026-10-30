@@ -1,13 +1,9 @@
 CREATE OR REPLACE FUNCTION public.view_lineup(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE asset_locks jsonb; context jsonb; target uuid := COALESCE((p_params->>'targetMemberId')::uuid, p_member_id);
+DECLARE context jsonb; target uuid := COALESCE((p_params->>'targetMemberId')::uuid, p_member_id);
   selected date; today date; starters jsonb; bench jsonb; ir jsonb; taxi jsonb; days jsonb; game_day jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
-  SELECT COALESCE(jsonb_agg(jsonb_build_object('assetKind',asset_kind,'assetId',asset_id,
-    'sourceKind',source_kind,'sourceId',source_id,'reason',reason) ORDER BY source_kind,source_id), '[]'::jsonb)
-    INTO asset_locks FROM private.locked_assets(p_league_id,(context->>'seasonId')::uuid,p_member_id)
-    WHERE target=p_member_id;
   context := context || jsonb_build_object('weekNumber', COALESCE((context->>'weekNumber')::integer, 1));
   IF NOT EXISTS (SELECT 1 FROM public.league_members WHERE id = target AND league_id = p_league_id) THEN
     RAISE EXCEPTION 'This lineup is not available.' USING ERRCODE = '42501'; END IF;
@@ -20,7 +16,7 @@ BEGIN
     SELECT * FROM public.roster_players WHERE member_id = target AND league_id = p_league_id AND league_season_id = (context->>'seasonId')::uuid
   ), players AS MATERIALIZED (
     SELECT p.id, r.is_on_ir, r.is_on_taxi, r.id AS roster_id, jsonb_build_object('rosterPlayerId', COALESCE(r.id::text, ''),
-      'assetLocks', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock WHERE lock->>'assetKind'='player' AND lock->>'assetId'=p.id::text),'[]'), 'playerId', p.id, 'displayName', COALESCE(p.display_name, ''), 'position', p.position,
+      'assetLocks', '[]'::jsonb, 'playerId', p.id, 'displayName', COALESCE(p.display_name, ''), 'position', p.position,
       'eligiblePositions', CASE WHEN cardinality(p.eligible_positions) > 0 THEN to_jsonb(p.eligible_positions)
         WHEN p.position IS NULL THEN '[]'::jsonb ELSE jsonb_build_array(p.position) END,
       'nbaTeam', p.nba_team, 'yearsExp', p.years_exp, 'careerGames', p.career_regular_season_games,
@@ -69,7 +65,7 @@ BEGIN
     COALESCE((SELECT jsonb_agg(DISTINCT id) FROM (
       SELECT item->'player'->>'playerId' AS id FROM jsonb_array_elements(starters) item
       UNION SELECT item->>'playerId' FROM jsonb_array_elements(bench || ir || taxi) item) ids WHERE id IS NOT NULL), '[]')));
-  RETURN jsonb_build_object('lockedAssets', asset_locks, 'context', context, 'date', selected, 'starters', starters, 'bench', bench, 'ir', ir, 'taxi', taxi,
+  RETURN jsonb_build_object('lockedAssets', '[]'::jsonb, 'context', context, 'date', selected, 'starters', starters, 'bench', bench, 'ir', ir, 'taxi', taxi,
     'benchSlots', COALESCE((SELECT slot_count FROM public.lineup_slot_templates WHERE league_id = p_league_id AND slot_type = 'BE'), 0),
     'weekDays', days, 'games', game_day->'games', 'startedTeams', game_day->'startedTeams', 'teamMatchups', game_day->'teamMatchups', 'liveStats', game_day->'liveStats',
     'optimizer', (SELECT to_jsonb(settings) FROM public.lineup_optimizer_settings settings

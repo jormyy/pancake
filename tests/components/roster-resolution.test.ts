@@ -71,3 +71,13 @@ it('shows age before experience in the roster player sheet', async () => {
     expect(text).toContain('Yr 11')
     expect(text.indexOf('36')).toBeLessThan(text.indexOf('Yr 11'))
 })
+
+it.each(['trade', 'claim'])('keeps the drop action disabled with its pending %s message', async (sourceKind) => {
+    const player = { ...rosterPlayer(), assetLocks: [{ assetKind: 'player', assetId: 'player', sourceKind,
+        sourceId: 'reservation', reason: `Locked by ${sourceKind}. Cancel it to drop this player.` }] }
+    await act(async () => { screen = create(React.createElement(RosterPlayerSheet, {
+        player, actions: [{ key: 'drop', label: 'Drop player', icon: 'delete', onPress: vi.fn() }], onClose: vi.fn(),
+    })) })
+    expect(screen.root.findByProps({ accessibilityLabel: 'Drop player' }).props.disabled).toBe(true)
+    expect(JSON.stringify(screen.toJSON())).toContain(`Locked by ${sourceKind}. Cancel it to drop this player.`)
+})
