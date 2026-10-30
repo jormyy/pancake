@@ -15,18 +15,28 @@ BEGIN
   END LOOP;
   v_budget:=greatest(0,least(p_limit,4-(SELECT count(*)::integer FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())));
   IF v_budget=0 THEN RETURN; END IF;
-  FOR v_item IN SELECT item.* FROM private.work_items item
+  WHILE v_count<v_budget LOOP
+    SELECT item.* INTO v_item FROM private.work_items item
+      JOIN private.work_kinds kind ON kind.kind=item.kind AND kind.retired_at IS NULL
+      CROSS JOIN LATERAL (
+        SELECT CASE WHEN item.kind='matchup-forecasts' THEN
+          (EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE available_at<=now())
+            OR EXISTS(SELECT 1 FROM private.matchup_forecast_expiries WHERE available_at<=now()))
+          AND NOT EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE dirty AND available_at<=now()
+            AND NOT private.matchup_forecast_refresh_pending(matchup_id)
+            AND (claimed_at IS NULL OR claimed_at<now()-interval '3 minutes'))
+          ELSE item.kind IN('trade-revaluation','trade-revaluation-check','trade-revaluation-scan','forecast-inputs','notification-scan') END AS background
+      ) priority
     WHERE item.status IN ('pending','failed') AND item.due_at<=now()
-      AND NOT EXISTS(SELECT 1 FROM private.work_kinds kind WHERE kind.kind=item.kind AND kind.retired_at IS NOT NULL)
+      AND (item.kind NOT IN('forecast-inputs','notification-scan') OR
+        (SELECT count(*) FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())<3)
       AND (item.kind<>'trade-revaluation' OR
         (NOT EXISTS(SELECT 1 FROM private.work_items running WHERE running.kind='trade-revaluation'
           AND running.status='running' AND running.lease_until>clock_timestamp() AND running.league_id IS NOT DISTINCT FROM item.league_id)
         AND NOT EXISTS(SELECT 1 FROM private.trade_revaluation_leagues pace WHERE pace.league_id=item.league_id AND pace.next_allowed_at>now())))
-    ORDER BY (item.kind IN ('trade-revaluation','trade-revaluation-check','trade-revaluation-scan','forecast-inputs','notification-scan')),item.due_at,item.id
-    LIMIT 128 FOR UPDATE SKIP LOCKED
-  LOOP
-    IF v_item.kind IN('forecast-inputs','notification-scan') AND
-      (SELECT count(*) FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())>=3 THEN CONTINUE; END IF;
+    ORDER BY priority.background,CASE WHEN priority.background THEN kind.last_claimed_at END NULLS FIRST,item.due_at,item.id
+    LIMIT 1 FOR UPDATE OF item SKIP LOCKED;
+    EXIT WHEN NOT FOUND;
     IF v_item.kind='trade-revaluation' THEN
       IF EXISTS(SELECT 1 FROM private.work_items running WHERE running.kind='trade-revaluation' AND running.status='running'
         AND running.lease_until>clock_timestamp() AND running.league_id IS NOT DISTINCT FROM v_item.league_id) THEN CONTINUE; END IF;
@@ -42,9 +52,11 @@ BEGIN
       lease_token=gen_random_uuid(),lease_until=clock_timestamp()+interval '5 minutes',invocation_key=NULL
       WHERE item.id=v_item.id RETURNING item.* INTO v_item;
     IF FOUND THEN
+      IF v_item.kind IN('trade-revaluation','trade-revaluation-check','trade-revaluation-scan','forecast-inputs','notification-scan','matchup-forecasts') THEN
+        UPDATE private.work_kinds SET last_claimed_at=clock_timestamp() WHERE kind=v_item.kind;
+      END IF;
       RETURN NEXT v_item;
       v_count:=v_count+1;
-      EXIT WHEN v_count>=v_budget;
     END IF;
   END LOOP;
 END;

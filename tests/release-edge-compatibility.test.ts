@@ -366,6 +366,7 @@ function requiresDatabaseFirst(mainMigrations: string, clientSource: string, not
 
 it.skipIf(!available)('documents database-first release order for new client dependencies', () => {
     const baseNotes = readFileSync('supabase/RELEASE-DB.md', 'utf8')
+    const pipelineNotes = baseNotes.match(/^## Pipeline night\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const publicNotes = readFileSync('docs/public-cli.md', 'utf8')
         .match(/^## Public CLI release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const playerReadNotes = readFileSync('docs/db-health.md', 'utf8')
@@ -380,7 +381,7 @@ it.skipIf(!available)('documents database-first release order for new client dep
         .match(/^## Trade Taxi release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
     const requestNotes = readFileSync('docs/perf-l5c.md', 'utf8')
         .match(/^## L5c release order\n([\s\S]*?)(?=^## |$(?![\s\S]))/m)?.[1] ?? ''
-    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n${requestNotes}\n`)
+    const notes = baseNotes.replace(/^## Release order for this release\n/m, `## Release order for this release\n${pipelineNotes}\n${publicNotes}\n${playerReadNotes}\n${tradeReceiptNotes}\n${statsCertificationNotes}\n${refreshNotes}\n${tradeTaxiNotes}\n${requestNotes}\n`)
     const productionHead = documentedProductionHead(notes) ?? ''
     const migrations = readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort()
     const newest = migrations.at(-1)!.split('_')[0]

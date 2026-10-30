@@ -8,8 +8,8 @@ DECLARE
   v_id uuid;
   v_person text;
   v_pick int;
-  v_names text[] := ARRAY['Egor Demin','Yang Hansen','Walter Clayton Jr.','Nolan Traoré','Yanic Konan Niederhauser'];
-  v_boxes text[] := ARRAY['Egor Dëmin','Yang Hansen','Walter Clayton Jr.','Nolan Traore','Yanic Konan Niederhäuser'];
+  v_names text[] := ARRAY[v_tag||' Egor Demin',v_tag||' Yang Hansen',v_tag||' Walter Clayton Jr.',v_tag||' Nolan Traoré',v_tag||' Yanic Konan Niederhauser'];
+  v_boxes text[] := ARRAY[v_tag||' Egor Dëmin',v_tag||' Yang Hansen',v_tag||' Walter Clayton Jr.',v_tag||' Nolan Traore',v_tag||' Yanic Konan Niederhäuser'];
   v_replayed uuid;
 BEGIN
   SELECT jsonb_agg(jsonb_build_object('display_name',CASE WHEN i<=5 THEN v_names[i] ELSE v_tag||' Prospect'||i END,'nba_draft_number',i) ORDER BY i)

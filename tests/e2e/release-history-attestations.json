@@ -3156,6 +3156,69 @@
       "statementCount": 3,
       "statementsSha256": "c49cdb32c7c57180abd38786a3281ccf63a83f0b7dad81a5be80ad35d023bb42",
       "sha256": "198ebf801a748563adde7ec98837075fe2a5dfff83bb04b332a79e245a959ebc"
+    },
+    {
+      "name": "pipeline_context_bound",
+      "version": "20261214005400",
+      "statementCount": 5,
+      "statementsSha256": "cbef2e9b6d5ac46755a633c285cd96bcc94226c0b101f052c0b96accc1f0014f",
+      "sha256": "d5bd5294a17393f579eb89c24a4b0d497ded0200c2992954735bd46f4ca7a649"
+    },
+    {
+      "name": "pipeline_poll_idle",
+      "version": "20261214005401",
+      "statementCount": 5,
+      "statementsSha256": "95a2dda749a6b39b324170e1e2fa848399612d650626d12ae0fd9b3fdb9563b5",
+      "sha256": "1dec5442350fec94e0d4e096f42cbae65e75b005b8e870a2233c7c96b8326296"
+    },
+    {
+      "name": "pipeline_dispatch_inline",
+      "version": "20261214005402",
+      "statementCount": 5,
+      "statementsSha256": "4788d83d08195e5649c70d3ecda83d05e734610fe7981d53e0d3c8e23cf7b1aa",
+      "sha256": "3c90b2a7606a72651d15d8f209cbcc896d5da9e9ac99e07bfb48bc914cbd90c5"
+    },
+    {
+      "name": "pipeline_hint_idle",
+      "version": "20261214005403",
+      "statementCount": 5,
+      "statementsSha256": "99067e31141d4fa5594a8ac5c866a7bf203b06e5c1f339bd32682d9d99f494ef",
+      "sha256": "de87a07adccd8b29aea68e84766d8d932a5f5ddbaad63c97cbe7a8cfd025f6b7"
+    },
+    {
+      "name": "pipeline_hint_lease",
+      "version": "20261214005404",
+      "statementCount": 5,
+      "statementsSha256": "a8b6aa4fc0c3987f5ee1fe09532248cb9d15ce89b4c06ff9f822ee3338ec9185",
+      "sha256": "b60e65131d64da6e9e222de3313652d1bff03419d0085847095813c3280c6399"
+    },
+    {
+      "name": "forecast_claimable_wakeups",
+      "version": "20261214005405",
+      "statementCount": 7,
+      "statementsSha256": "69bcea2010aa434c577ff854160c32b0f484cdfe87e9188b7242aaa57370db37",
+      "sha256": "566b003e37541d3f46109d8db82fcf4b0d2abc6243f23e247012e1a9c4dcce26"
+    },
+    {
+      "name": "forecast_input_recovery",
+      "version": "20261214005406",
+      "statementCount": 7,
+      "statementsSha256": "da44c1a8d2fdef302d2155e847c0cd3c4c3ae9c2bc9d569f1a149a92eb7b6e9f",
+      "sha256": "79952e344520602fd9d3a0bb3be7ef4c0a9bce7fb2ca3bc228e0f662d352512c"
+    },
+    {
+      "name": "forecast_ready_priority",
+      "version": "20261214005407",
+      "statementCount": 6,
+      "statementsSha256": "c25ba68202a207c179de19f4ce6d8d6dd4becc76f4c06d0894720dc653fa7c79",
+      "sha256": "6b9a9c7cb33bc4f1f0e0fb199120a11706f5785adc570041f4fd9369743d84fe"
+    },
+    {
+      "name": "background_kind_fairness",
+      "version": "20261214005408",
+      "statementCount": 2,
+      "statementsSha256": "7eeccdc30ece535ad880cd97dfe5a3d752b01ccaa0cee6e7f9c2cf84004bb664",
+      "sha256": "65f045bbbc5b93350870f238bc32c13636edd3cbc2871d0e3036911830856994"
     }
   ]
 }

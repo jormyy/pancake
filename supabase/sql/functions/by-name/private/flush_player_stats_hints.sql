@@ -6,6 +6,8 @@ CREATE OR REPLACE FUNCTION private.flush_player_stats_hints()
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_count integer;
 BEGIN
+  IF coalesce(current_setting('request.headers',true),'')=''
+    AND NOT EXISTS(SELECT 1 FROM private.player_stats_hint_pending) THEN RETURN 0; END IF;
   WITH ready AS MATERIALIZED (
     SELECT pending.league_id FROM private.player_stats_hint_pending pending
     WHERE NOT EXISTS(SELECT 1 FROM public.league_change_hints hint

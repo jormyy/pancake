@@ -9,10 +9,86 @@ DECLARE v_min integer:=extract(minute FROM p_now AT TIME ZONE 'UTC')::int;
   v_utc timestamp:=p_now AT TIME ZONE 'UTC'; v_key text:=date_trunc('minute',p_now)::text;
 BEGIN
   PERFORM private.enqueue_close_expired_nominations(p_now);
-  PERFORM private.enqueue_stats_sync_dispatch(p_now);
-  PERFORM private.enqueue_process_trades(p_now);
+  IF EXISTS (
+    SELECT 1
+      FROM public.sync_jobs AS job
+     WHERE job.job_type LIKE 'sync_stats_range:%'
+       AND (
+         job.status = 'pending'
+         OR (
+           job.status = 'failed'
+           AND job.failed_items < 3
+           AND COALESCE(job.completed_at, job.created_at) <= (p_now + interval '1 minute') - make_interval(
+             secs => CASE WHEN job.failed_items <= 1 THEN 60 ELSE 300 END
+           )
+         )
+         OR (
+           job.status = 'running'
+           AND (
+             (
+               job.claim_token IS NULL
+               AND COALESCE(job.claimed_at, job.created_at) <= (p_now + interval '1 minute') - interval '15 minutes'
+             )
+             OR (
+               job.claim_token IS NOT NULL
+               AND (
+                 job.claimed_at IS NULL
+                 OR job.claimed_at <= (p_now + interval '1 minute') - interval '120 seconds'
+               )
+             )
+           )
+         )
+       )
+  ) THEN
+    PERFORM private.work_enqueue(
+      'stats-sync',date_trunc('minute',p_now)::text,p_now,
+      '{"dispatch":true,"jobId":"00000000-0000-4000-8000-000000000000"}'::jsonb
+    );
+  END IF;
+  PERFORM public.notif_scan_due_atomic();
+  IF EXISTS (
+    SELECT 1 FROM public.trades pending
+    WHERE pending.status = 'pending'::public.trade_status
+      AND pending.expires_at <= p_now
+  ) OR EXISTS (
+    SELECT 1 FROM public.trades accepted
+    JOIN public.league_seasons season ON season.id = accepted.league_season_id
+    JOIN public.leagues league ON league.id = accepted.league_id
+    WHERE accepted.status = 'accepted'::public.trade_status
+      AND accepted.veto_window_expires_at <= p_now
+      AND season.is_current
+      AND league.status IN ('active'::public.league_status, 'playoffs'::public.league_status, 'offseason'::public.league_status, 'drafting'::public.league_status)
+  ) OR EXISTS (
+    SELECT 1 FROM public.notification_outbox queued
+    WHERE queued.suppressed_at IS NULL
+      AND queued.category IN ('trade','waiver','draft','activity','player','lineup','matchup','playoff','league')
+      AND queued.delivered_at IS NULL
+      AND queued.dead_lettered_at IS NULL
+      AND queued.expo_ticket_id IS NULL
+      AND queued.available_at <= p_now
+      AND private.notif_draft_deferred_until(queued.event_type,queued.data) IS NULL
+      AND (queued.claimed_at IS NULL OR queued.claimed_at <= p_now - interval '60 seconds')
+  ) OR EXISTS (
+    SELECT 1 FROM public.notification_outbox queued
+    WHERE queued.suppressed_at IS NULL
+      AND queued.delivered_at IS NULL
+      AND queued.dead_lettered_at IS NULL
+      AND queued.expo_ticket_id IS NOT NULL
+      AND queued.available_at <= p_now
+      AND (queued.claimed_at IS NULL OR queued.claimed_at <= p_now - interval '60 seconds')
+  ) THEN
+    PERFORM private.work_enqueue('process-trades',date_trunc('minute',p_now)::text,p_now);
+  END IF;
   PERFORM private.enqueue_pre_tipoff_optimizer(p_now);
-  PERFORM private.enqueue_matchup_forecasts(p_now);
+  IF EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE available_at<=p_now)
+    OR EXISTS(SELECT 1 FROM private.matchup_forecast_expiries WHERE available_at<=p_now) THEN
+    PERFORM private.work_enqueue('forecast-inputs',date_trunc('minute',p_now)::text,p_now,'{"schedulerChunk":"forecasts"}');
+  END IF;
+  IF EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE dirty AND available_at<=p_now
+    AND NOT private.matchup_forecast_refresh_pending(matchup_id)
+    AND (claimed_at IS NULL OR claimed_at<p_now-interval '3 minutes')) THEN
+    PERFORM private.work_enqueue('matchup-forecasts',date_trunc('minute',p_now)::text,p_now);
+  END IF;
   PERFORM private.enqueue_screen_views(p_now);
   IF v_min%2=0 THEN PERFORM private.enqueue_live_poll(p_now); END IF;
   IF v_min%15=0 THEN

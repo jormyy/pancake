@@ -1476,3 +1476,39 @@ Changed functions: `public.view_players`, `public.view_trades`, `public.view_tra
 `public.view_player`, `public.view_home`, `public.get_trade_cards`, and `public.view_roster`.
 
 [Screen measurements](../tests/db/screens-after-211.md) record the private replay and its limits.
+
+## Pipeline night
+
+Apply `20261214005400_pipeline_context_bound.sql` after the release 2.12 head `20261214005302` at main `c84063c4`.
+Then apply `20261214005401_pipeline_poll_idle.sql`.
+This also adds a conservative idle probe to `public.get_live_poll_work`.
+Season averages use the selected roster IDs before reading the existing averages view.
+Prepared and unprepared contexts retain their complete returned JSON.
+Apply `20261214005402_pipeline_dispatch_inline.sql` next.
+It inlines three scheduler helper bodies in `private.enqueue_scheduled_work`.
+The helpers remain callable with their existing behavior.
+Then apply `20261214005403_pipeline_hint_idle.sql`.
+It returns before planning an empty score-hint drain in `private.flush_player_stats_hints`.
+Apply `20261214005404_pipeline_hint_lease.sql` next.
+Calls with request headers retain the original lease fence, including empty queues.
+Then apply `20261214005405_forecast_claimable_wakeups.sql`.
+Forecast admission uses the same pending-input gate as claims. Input chunks wake computation when their scope becomes ready.
+Ship it with `20261214005406_forecast_input_recovery.sql` and `20261214005407_forecast_ready_priority.sql`. Do not ship `05405` or `05406` alone.
+Only empty forecast workers blocked on due inputs share the input chunks' background priority. Ready forecasts retain their original priority.
+The repair makes pending or failed input jobs due and enqueues a recovery job when overdue requests exist and no live input lease exists.
+It preserves attempts, leases, requests, forecast values, and future expiry deadlines.
+The additional private helper changed is `work_claim`. Its readiness check is inline; no new function or permission is added.
+Apply `20261214005408_background_kind_fairness.sql` next.
+Background kinds rotate by their last claim time, then take their oldest due row.
+The private `work_kinds.last_claimed_at` column retains service history across dispatcher backends and restarts.
+Claims select one row at a time. Ineligible input chunks cannot hide other work behind a fixed candidate limit.
+Urgent and ready forecast priority, four slots, input chunk capacity, league pacing, leases, and retries remain in force.
+Already due pending and failed rows need no additional repair.
+Changed private helpers are `enqueue_matchup_forecasts`, `enqueue_scheduled_work`, and `complete_forecast_input_chunk`.
+Forecast expiry rules and the Edge workers are unchanged.
+No Edge or shared helper changes are required.
+
+The [pipeline measurements](../tests/db/pipeline-night.md) compare current main with the candidate.
+They include all requested pipeline items, discarded planner experiments, exact row diffs, and live publication checks.
+Run `node --experimental-strip-types tests/db/pipeline-night.mjs candidate` on the private pipeline stack.
+Run `node tests/db/pipeline-night-verify.mjs` there for SQL, Deno, and failing quality controls.

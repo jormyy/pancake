@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005302",
+  "candidateVersion": "20261214005408",
   "common": {
     "functions": [
       {
@@ -618,7 +618,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_now timestamp with time zone DEFAULT now()",
-          "bodySha256": "b85e0b4109cfc5de4e4e2b93829351f460c2496ea4de1763b70ac4049d4e9741",
+          "bodySha256": "4ef37559f447505dc7d3b30861439f9a2e30954a607922f463b6c42163698a80",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -738,7 +738,7 @@
           "strict": false,
           "language": "plpgsql",
           "arguments": "p_limit integer DEFAULT 64",
-          "bodySha256": "144af718e5597c089487e2ae164316221480ec99f960c88ab17ce1d35615f756",
+          "bodySha256": "953083a45b2ba19bcc734918ae644245888b6bcfb48ebce7537877dc0303d92e",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -1068,7 +1068,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2403,6 +2403,42 @@
     {
       "filename": "20261214005302_shared_visible_games.sql",
       "sha256": "198ebf801a748563adde7ec98837075fe2a5dfff83bb04b332a79e245a959ebc"
+    },
+    {
+      "filename": "20261214005400_pipeline_context_bound.sql",
+      "sha256": "d5bd5294a17393f579eb89c24a4b0d497ded0200c2992954735bd46f4ca7a649"
+    },
+    {
+      "filename": "20261214005401_pipeline_poll_idle.sql",
+      "sha256": "1dec5442350fec94e0d4e096f42cbae65e75b005b8e870a2233c7c96b8326296"
+    },
+    {
+      "filename": "20261214005402_pipeline_dispatch_inline.sql",
+      "sha256": "3c90b2a7606a72651d15d8f209cbcc896d5da9e9ac99e07bfb48bc914cbd90c5"
+    },
+    {
+      "filename": "20261214005403_pipeline_hint_idle.sql",
+      "sha256": "de87a07adccd8b29aea68e84766d8d932a5f5ddbaad63c97cbe7a8cfd025f6b7"
+    },
+    {
+      "filename": "20261214005404_pipeline_hint_lease.sql",
+      "sha256": "b60e65131d64da6e9e222de3313652d1bff03419d0085847095813c3280c6399"
+    },
+    {
+      "filename": "20261214005405_forecast_claimable_wakeups.sql",
+      "sha256": "566b003e37541d3f46109d8db82fcf4b0d2abc6243f23e247012e1a9c4dcce26"
+    },
+    {
+      "filename": "20261214005406_forecast_input_recovery.sql",
+      "sha256": "79952e344520602fd9d3a0bb3be7ef4c0a9bce7fb2ca3bc228e0f662d352512c"
+    },
+    {
+      "filename": "20261214005407_forecast_ready_priority.sql",
+      "sha256": "6b9a9c7cb33bc4f1f0e0fb199120a11706f5785adc570041f4fd9369743d84fe"
+    },
+    {
+      "filename": "20261214005408_background_kind_fairness.sql",
+      "sha256": "65f045bbbc5b93350870f238bc32c13636edd3cbc2871d0e3036911830856994"
     }
   ],
   "preMigration": {
