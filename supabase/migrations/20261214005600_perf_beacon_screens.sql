@@ -1,0 +1,2 @@
+ALTER TABLE public.perf_beacons DROP CONSTRAINT perf_beacons_screen_check;
+ALTER TABLE public.perf_beacons ADD CONSTRAINT perf_beacons_screen_check CHECK (screen IN ('home', 'waivers', 'draft-setup', 'matchup', 'roster', 'players', 'league', 'trades', 'profile', 'draft', 'player', 'draft-room', 'rookie-draft-room', 'lineup', 'team-roster', 'bracket', 'claim-player', 'propose-trade', 'commissioner-settings', 'notification-settings', 'change-password', 'create-league', 'join-league'));

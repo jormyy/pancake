@@ -57,11 +57,36 @@ try {
   await tick()
   await tick()
   assert(drafts === 2, 'inline auction controls count after paint')
+  const named = async (screen, title, expected, label) => {
+    fixture('<div aria-busy="false"><span>Week 2 results</span></div>', title)
+    let count = 0
+    const stop = observeUsefulContent(screen, performance.now(), () => count++, () => {})
+    await tick()
+    await tick()
+    stop()
+    assert(count === expected, label)
+  }
+  await named('home', 'Matchup', 1, 'home counts under its matchup title')
+  await named('waivers', 'Players', 1, 'waivers counts under the players title')
+  await named('waivers', 'Roster', 0, 'waivers ignores another screen title')
+  await named('draft-setup', 'League', 1, 'draft setup counts under the league title')
+  const sized = async (path) => {
+    const url = 'http://localhost:59581' + path + '?' + Math.random()
+    await (await fetch(url, { cache: 'no-store' })).text()
+    return performance.getEntriesByName(url)[0]?.transferSize ?? 0
+  }
+  assert(await sized('/data-hidden') === 0, 'cross-origin sizes stay hidden without the timing header')
+  assert(await sized('/data-timed') > 0, 'cross-origin sizes are visible with the timing header')
   window.results = { pass: checks.length, checks }
 } catch (error) { window.results = { fail: String(error), checks } }
 `
 const server = createServer((req, res) => {
-    if (req.url === '/beacon.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(module) }
+    if (req.url?.startsWith('/data-')) {
+        res.setHeader('Access-Control-Allow-Origin', '*')
+        if (req.url.startsWith('/data-timed')) res.setHeader('Timing-Allow-Origin', '*')
+        res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ ok: true, rows: Array(50).fill('row') }))
+    }
+    else if (req.url === '/beacon.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(module) }
     else if (req.url === '/check.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(source) }
     else { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><title>Beacon readiness check</title><script type="module" src="/check.js"></script></head><body></body></html>') }
 })
@@ -69,12 +94,12 @@ await new Promise(resolve => server.listen(59581, '127.0.0.1', resolve))
 try {
     await run(cli, ['session', 'list'])
     await browser('open', 'http://127.0.0.1:59581')
-    await browser('wait', '500')
+    await browser('wait', '1500')
     const snapshot = await browser('snapshot')
-    if (!snapshot.stdout.includes('23 players') && !snapshot.stdout.includes('Active roster') && !snapshot.stdout.includes('Bid')) throw Error('Browser fixture is blank')
+    if (!snapshot.stdout.includes('23 players') && !snapshot.stdout.includes('Active roster') && !snapshot.stdout.includes('Bid') && !snapshot.stdout.includes('Week 2 results')) throw Error('Browser fixture is blank')
     const { stdout } = await browser('eval', 'JSON.stringify(window.results)')
     const result = JSON.parse(JSON.parse(stdout.trim()))
-    if (result.fail || result.pass !== 10) throw Error(JSON.stringify(result))
+    if (result.fail || result.pass !== 16) throw Error(JSON.stringify(result))
     console.log(JSON.stringify(result))
 } finally {
     await browser('close').catch(() => {})

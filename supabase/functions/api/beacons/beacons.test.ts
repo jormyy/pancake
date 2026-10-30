@@ -41,6 +41,14 @@ Deno.test('beacons route validates bodies and checks membership before insert', 
       const rows = inserted as Record<string, unknown>[]
       if (rows.length !== 1 || rows[0].member_id !== memberId || rows[0].useful_ms !== 250) throw Error('Inserted values differ')
     })
+    await t.step('home, waivers and draft setup screens are accepted', async () => {
+      for (const screen of ['home', 'waivers', 'draft-setup']) await check({ ...body, beacons: [{ ...row, screen }] }, 202)
+    })
+    await t.step('API responses allow resource timing sizes', async () => {
+      const response = await request(body)
+      await response.body?.cancel()
+      if (response.headers.get('timing-allow-origin') !== '*') throw Error('Timing-Allow-Origin missing')
+    })
     await t.step('missing or malformed request ids reject before insert', async () => {
       const before = inserts
       for (const requestId of [null, 'invalid']) {

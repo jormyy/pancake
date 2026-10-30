@@ -1,5 +1,14 @@
 # Trade input database contract
 
+## Release 2.14.1
+
+The supplied production head is `20261214005500`, with 737 migrations at main `be4a0ce8` (release 2.14).
+Release 2.14.1 adds one migration. The candidate contains 738 migrations through `20261214005600`.
+
+| Migration | Change |
+| --- | --- |
+| `20261214005600_perf_beacon_screens.sql` | Accepts `home`, `waivers` and `draft-setup` timing beacons. |
+
 ## Release 2.14
 
 The supplied production head is `20261214005409`, with 729 migrations at main `c5789474` (release 2.13.1).
@@ -124,8 +133,13 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005409`, with 729 migrations.
-Apply the eight migrations in Release 2.14 above with `--include-all`, through `20261214005500_pre_tipoff_member_failures.sql`.
+The supplied production head is `20261214005500`, with 737 migrations.
+Apply `20261214005600_perf_beacon_screens.sql`, then deploy Edge, then merge the frontend.
+The beacon route and the client send the new screen names only after the database accepts them.
+
+### Historical release 2.14 order
+
+From production head `20261214005409`, the eight Release 2.14 migrations applied with `--include-all` through `20261214005500_pre_tipoff_member_failures.sql`.
 Database, then Edge, then merge the frontend.
 Migration 04300 precedes the shared startup wrapper; 04600 precedes the `refresh-views` model field; 05500 precedes `lineup-optimizer`.
 The private ordered upgrade and fresh reset produce identical catalogs.

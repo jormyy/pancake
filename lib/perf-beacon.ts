@@ -88,15 +88,17 @@ export function createPerfBeacon(options: Options) {
     }
 }
 
-export function beaconScreen(path: string): string | null {
+export function beaconScreen(path: string, view: { section?: string; tab?: string } = {}): string | null {
     const parts = path.split('?')[0].split('/').filter(Boolean)
-    if (!parts.length) return 'matchup'
+    if (!parts.length) return 'home'
     if (parts[0] === 'player' && parts.length === 2) return 'player'
-    return parts.length === 1 && /^(roster|players|league|trades|profile|draft|draft-room|rookie-draft-room|lineup|team-roster|bracket|claim-player|propose-trade|commissioner-settings|notification-settings|change-password|create-league|join-league)$/.test(parts[0]) ? parts[0] : null
+    if (parts.length === 1 && parts[0] === 'players' && view.section === 'waivers') return 'waivers'
+    if (parts.length === 1 && parts[0] === 'league' && view.tab === 'draft') return 'draft-setup'
+    return parts.length === 1 && /^(matchup|roster|players|league|trades|profile|draft|draft-room|rookie-draft-room|lineup|team-roster|bracket|claim-player|propose-trade|commissioner-settings|notification-settings|change-password|create-league|join-league)$/.test(parts[0]) ? parts[0] : null
 }
 
 function usefulContent(root: ParentNode, screen: string, visible: (element: Element) => boolean): Element | null {
-    const titles: Record<string, string[]> = { matchup: ['Matchup'], roster: ['Roster'], players: ['Players'], league: ['League'], trades: ['Trades', 'Trade details', 'Trade analysis'], profile: ['Profile'], draft: ['Draft Room', 'Auction Draft', 'Mock Auction Draft'], 'draft-room': ['Auction Draft', 'Mock Auction Draft'], 'rookie-draft-room': ['Rookie Draft', 'Mock Rookie Draft'], lineup: ['Lineup'], bracket: ['Playoffs'], 'claim-player': ['Waiver Claim'], 'commissioner-settings': ['League Settings'], 'notification-settings': ['Notifications'], 'change-password': ['Change Password'], 'create-league': ['Create League', 'League created'], 'join-league': ['Join League'] }
+    const titles: Record<string, string[]> = { home: ['Matchup'], matchup: ['Matchup'], waivers: ['Players'], 'draft-setup': ['League'], roster: ['Roster'], players: ['Players'], league: ['League'], trades: ['Trades', 'Trade details', 'Trade analysis'], profile: ['Profile'], draft: ['Draft Room', 'Auction Draft', 'Mock Auction Draft'], 'draft-room': ['Auction Draft', 'Mock Auction Draft'], 'rookie-draft-room': ['Rookie Draft', 'Mock Rookie Draft'], lineup: ['Lineup'], bracket: ['Playoffs'], 'claim-player': ['Waiver Claim'], 'commissioner-settings': ['League Settings'], 'notification-settings': ['Notifications'], 'change-password': ['Change Password'], 'create-league': ['Create League', 'League created'], 'join-league': ['Join League'] }
     const mains = Array.from(root.querySelectorAll('[role="dialog"],[role="main"]'))
     const main = mains.reverse().find((element) => visible(element))
     if (!main) return null

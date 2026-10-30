@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005500",
+  "candidateVersion": "20261214005600",
   "common": {
     "functions": [
       {
@@ -2482,6 +2482,10 @@
     {
       "filename": "20261214005500_pre_tipoff_member_failures.sql",
       "sha256": "88dd02c60544fdbd09166f736b8d774e46bdc90afc555bb7ec79d3ec7c945d2f"
+    },
+    {
+      "filename": "20261214005600_perf_beacon_screens.sql",
+      "sha256": "dfd2d1374d326a21aa28b4af80cff3d6cce545b7622d925f82d32b945606fca2"
     }
   ],
   "preMigration": {

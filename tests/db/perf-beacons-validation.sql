@@ -30,6 +30,8 @@ DECLARE
 BEGIN
   PERFORM pg_temp.insert_beacon(base);
   PERFORM pg_temp.check_beacon((SELECT count(*) = 1 FROM public.perf_beacons WHERE member_id = '00000000-0000-0000-0000-000000095201'), 'valid row accepted');
+  PERFORM pg_temp.insert_beacon(base || jsonb_build_object('screen', screen)) FROM unnest(ARRAY['home', 'waivers', 'draft-setup']) screen;
+  PERFORM pg_temp.check_beacon((SELECT count(*) = 3 FROM public.perf_beacons WHERE screen IN ('home', 'waivers', 'draft-setup')), 'home, waivers and draft setup accepted');
   FOR patch IN SELECT value FROM jsonb_array_elements('[{"screen":"/player/private-id"},{"useful_ms":-1},{"useful_ms":120001},{"request_count":-1},{"request_count":10001},{"transfer_bytes":-1},{"transfer_bytes":1000000001},{"sample_n":0},{"sample_n":10001},{"device_class":"exact-model"},{"connection_type":"wifi-name"},{"app_version":"email@example.test"},{"cold":null},{"bytes_complete":null},{"member_id":null},{"member_id":"00000000-0000-0000-0000-000000095999"},{"screen":null}]') LOOP
     denied := false;
     BEGIN
