@@ -20,7 +20,8 @@ BEGIN
       LEFT JOIN public.league_members member ON member.id = participant.member_id WHERE participant.draft_id = draft.id), '[]'),
     'isJoined', EXISTS (SELECT 1 FROM public.draft_room_members WHERE draft_id = draft.id AND member_id = p_member_id),
     'isCreator', COALESCE(draft.created_by_member_id = p_member_id, false)) ORDER BY draft.created_at DESC, draft.id), '[]')
-  INTO rooms FROM (SELECT * FROM public.drafts WHERE league_id = p_league_id AND is_mock ORDER BY created_at DESC, id LIMIT 60) draft
+  INTO rooms FROM (SELECT * FROM public.drafts WHERE league_id = p_league_id AND is_mock
+    ORDER BY status IN ('pending', 'in_progress', 'paused') DESC, created_at DESC, id LIMIT 20) draft
     LEFT JOIN public.league_members creator ON creator.id = draft.created_by_member_id;
   RETURN jsonb_build_object('context', context, 'rooms', rooms,
     'drafts', COALESCE((SELECT jsonb_agg(to_jsonb(draft) ORDER BY draft.created_at DESC, draft.id)

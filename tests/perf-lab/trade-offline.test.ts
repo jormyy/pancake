@@ -12,7 +12,7 @@ import { useTradesFeed } from '@/hooks/use-trades-feed'
 it('hydrates saved offers before the session registry is initialized on an offline reload', async () => {
   boundary.online = false
   ;(boundary as { owner: string | undefined }).owner = undefined
-  saveScreenView(screenScope('trades', 'league', 'member', { tab: 'offers', limit: 40 }, 'account'), tradePayload(['saved-offer']), '1')
+  saveScreenView(screenScope('trades', 'league', 'member', { tab: 'offers', limit: 10 }, 'account'), tradePayload(['saved-offer']), '1')
   let feed!: ReturnType<typeof useTradesFeed>
   const Probe = () => { feed = useTradesFeed('member', 'league', false, { accountId: 'account' }); return null }
   let renderer!: ReactTestRenderer

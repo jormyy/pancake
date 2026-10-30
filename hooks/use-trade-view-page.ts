@@ -8,7 +8,7 @@ import { sessionOwner } from '@/lib/session-cache-registry'
 
 export function useTradeViewPage(memberId: string, leagueId: string, tab: 'offers' | 'history', enabled: boolean, autoLoad = true, accountId = sessionOwner()) {
     const identity = JSON.stringify([accountId, memberId, leagueId, tab])
-    const scope = accountId && memberId && leagueId ? screenScope('trades', leagueId, memberId, { tab, limit: 40 }, accountId) : null
+    const scope = accountId && memberId && leagueId ? screenScope('trades', leagueId, memberId, { tab, limit: 10 }, accountId) : null
     const view = useScreenView<TradesView>(scope, enabled, { autoLoad })
     const unavailable = !enabled || !view.loaded || view.offline || Boolean(view.error)
     const validation = useRef({ identity, data: view.data, refreshing: view.refreshing, pending: unavailable || view.refreshing })
