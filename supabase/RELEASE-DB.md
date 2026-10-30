@@ -1,5 +1,14 @@
 # Trade input database contract
 
+## Release 2.14.4
+
+The supplied production head is `20261214005700`, with 739 migrations at main `d46d7e22` (release 2.14.3).
+Release 2.14.4 adds one migration. The candidate contains 740 migrations through `20261214005800`.
+
+| Migration | Change |
+| --- | --- |
+| `20261214005800_league_trade_history.sql` | Shows every member the league's accepted and completed trades in History. |
+
 ## Release 2.14.3
 
 The supplied production head is `20261214005600`, with 738 migrations at main `391f639c` (release 2.14.2).
@@ -142,8 +151,12 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005600`, with 738 migrations.
-Deploy Edge first, then apply `20261214005700_trade_curve_no_flat_roster_value.sql`, then merge the frontend.
+The supplied production head is `20261214005700`, with 739 migrations.
+Apply `20261214005800_league_trade_history.sql`, then merge the frontend. Edge source is unchanged.
+
+### Historical release 2.14.3 order
+
+From production head `20261214005600`, deploy Edge first, then apply `20261214005700_trade_curve_no_flat_roster_value.sql`, then merge the frontend.
 The old worker cannot process a v6 reanalysis job, so Edge must lead.
 
 ### Historical release 2.14.1 order

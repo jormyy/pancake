@@ -11,11 +11,13 @@ BEGIN
   IF COALESCE(p_params->>'tab', 'offers') = 'history' THEN
     SELECT COALESCE(jsonb_agg(to_jsonb(ref)), '[]') INTO refs FROM (
       SELECT trade.id AS trade_id, jsonb_build_object('proposedAt', trade.proposed_at, 'tradeId', trade.id)::text AS cursor_token
-      FROM public.trade_participants participant JOIN public.trades trade ON trade.id = participant.trade_id
-      WHERE participant.league_id = p_league_id AND participant.member_id = p_member_id AND trade.status <> 'pending'
+      FROM public.trades trade
+      WHERE trade.league_id = p_league_id AND trade.status <> 'pending'
+        AND (trade.status IN ('accepted', 'completed') OR EXISTS (SELECT 1 FROM public.trade_participants participant
+          WHERE participant.trade_id = trade.id AND participant.member_id = p_member_id))
         AND (p_params->>'cursor' IS NULL OR (trade.proposed_at, trade.id) < (
           ((p_params->>'cursor')::jsonb->>'proposedAt')::timestamptz, ((p_params->>'cursor')::jsonb->>'tradeId')::uuid))
-      ORDER BY participant.proposed_at DESC, participant.trade_id DESC LIMIT page_size + 1) ref;
+      ORDER BY trade.proposed_at DESC, trade.id DESC LIMIT page_size + 1) ref;
   ELSE
     SELECT COALESCE(jsonb_agg(to_jsonb(ref)), '[]') INTO refs FROM public.get_trade_page_refs(p_member_id, p_league_id, page_size + 1, p_params->>'cursor') ref;
   END IF;

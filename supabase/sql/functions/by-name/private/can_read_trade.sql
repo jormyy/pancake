@@ -15,7 +15,7 @@ AS $$
      WHERE trade.id = p_trade_id
        AND trade.league_id IN (SELECT private.my_league_ids())
        AND (
-         trade.status = 'accepted'::public.trade_status
+         trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)
          OR trade.proposer_member_id IN (SELECT private.my_member_ids())
          OR trade.recipient_member_id IN (SELECT private.my_member_ids())
          OR EXISTS (

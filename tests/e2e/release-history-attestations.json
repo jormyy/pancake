@@ -3296,6 +3296,13 @@
       "statementCount": 8,
       "statementsSha256": "be720728588a215a3a7d32ff95785254dd968f004d84610a9e91e40dac4c47a6",
       "sha256": "daed658b974b4c3dfff7752e5dbf4052bf4f49f788622b8282dfd395d7fdb82a"
+    },
+    {
+      "name": "league_trade_history",
+      "version": "20261214005800",
+      "statementCount": 5,
+      "statementsSha256": "70aa0276c585a08a7ae097a042143149104201d28b79d4266c1901c92f444cb2",
+      "sha256": "68144bbe4e05b69f49a6da3d50feea36cb32a8a4ba7141ebaf734ff36a67c0c9"
     }
   ]
 }

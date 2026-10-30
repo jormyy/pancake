@@ -249,7 +249,7 @@ describe('trade privacy policies', () => {
         const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
         expect(tradePolicy).toContain('private.can_read_trade(id)')
-        expect(visibilityHelper).toContain("trade.status = 'accepted'::public.trade_status")
+        expect(visibilityHelper).toContain("trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)")
         expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
         expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
         expect(visibilityHelper).toContain('FROM public.trade_participants AS participant')
@@ -261,7 +261,7 @@ describe('trade privacy policies', () => {
         const visibilityHelper = latestFunctionDefinition('can_read_trade', 'private')
 
         expect(itemPolicy).toContain('private.can_read_trade(trade_id)')
-        expect(visibilityHelper).toContain("trade.status = 'accepted'::public.trade_status")
+        expect(visibilityHelper).toContain("trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)")
         expect(visibilityHelper).toContain('OR trade.proposer_member_id IN (SELECT private.my_member_ids())')
         expect(visibilityHelper).toContain('OR trade.recipient_member_id IN (SELECT private.my_member_ids())')
     })

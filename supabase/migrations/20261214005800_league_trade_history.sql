@@ -1,0 +1,197 @@
+CREATE OR REPLACE FUNCTION private.is_trade_party(p_trade_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.trades AS trade
+     WHERE trade.id = p_trade_id
+       AND trade.league_id IN (SELECT private.my_league_ids())
+       AND (
+         trade.proposer_member_id IN (SELECT private.my_member_ids())
+         OR trade.recipient_member_id IN (SELECT private.my_member_ids())
+         OR EXISTS (
+           SELECT 1
+             FROM public.trade_participants AS participant
+            WHERE participant.trade_id = trade.id
+              AND participant.member_id IN (SELECT private.my_member_ids())
+         )
+       )
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION private.can_read_trade(p_trade_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+      FROM public.trades AS trade
+     WHERE trade.id = p_trade_id
+       AND trade.league_id IN (SELECT private.my_league_ids())
+       AND (
+         trade.status IN ('accepted'::public.trade_status, 'completed'::public.trade_status)
+         OR trade.proposer_member_id IN (SELECT private.my_member_ids())
+         OR trade.recipient_member_id IN (SELECT private.my_member_ids())
+         OR EXISTS (
+           SELECT 1
+             FROM public.trade_participants AS participant
+            WHERE participant.trade_id = trade.id
+              AND participant.member_id IN (SELECT private.my_member_ids())
+         )
+       )
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.get_trade_cards(p_league_id uuid,p_member_id uuid,p_trade_ids uuid[])
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE cards jsonb; current_year integer:=public.current_season_year_et(); teams integer;
+BEGIN
+  PERFORM public.view_context(p_league_id,p_member_id);
+  IF p_trade_ids IS NULL OR cardinality(p_trade_ids)>100 THEN
+    RAISE EXCEPTION 'Choose at most 100 trades.' USING ERRCODE='22023';
+  END IF;
+  IF cardinality(p_trade_ids)=0 THEN RETURN '[]'::jsonb; END IF;
+  SELECT count(*) INTO teams FROM public.league_members WHERE league_id=p_league_id;
+  WITH own_members AS MATERIALIZED (
+    SELECT id FROM public.league_members WHERE league_id=p_league_id AND user_id=auth.uid()
+  ), requested AS MATERIALIZED (
+    SELECT id,ordinal FROM unnest(p_trade_ids) WITH ORDINALITY row(id,ordinal)
+  ), chosen AS MATERIALIZED (
+    SELECT trade.* FROM public.trades trade WHERE trade.league_id=p_league_id AND trade.id=ANY(p_trade_ids)
+      AND (trade.status IN ('accepted','completed') OR trade.proposer_member_id IN(SELECT id FROM own_members)
+        OR trade.recipient_member_id IN(SELECT id FROM own_members)
+        OR EXISTS(SELECT 1 FROM public.trade_participants participant WHERE participant.trade_id=trade.id
+          AND participant.member_id IN(SELECT id FROM own_members)))
+  ), cached_values AS MATERIALIZED (
+    SELECT cached.trade_id, value.* FROM chosen trade
+    JOIN public.trade_value_cache cached ON cached.trade_id=trade.id
+    CROSS JOIN LATERAL jsonb_to_record(CASE WHEN jsonb_typeof(cached.revaluation)='object'
+      THEN cached.revaluation ELSE '{}'::jsonb END)
+      value("modelVersion" text,"inputVersion" text,"createdAt" text,analysis jsonb)
+    WHERE value."modelVersion"='onenumber-trade-curve-v6'
+  ), participants AS (
+    SELECT participant.trade_id,COALESCE(jsonb_agg(jsonb_build_object('memberId',participant.member_id,
+      'teamName',COALESCE(member.team_name,'Unknown'),'sortOrder',participant.sort_order,
+      'isInitiator',participant.is_initiator,'acceptedAt',participant.accepted_at,
+      'dropPlayerIds',participant.drop_player_ids,'rosterMoves',participant.roster_moves)
+      ORDER BY participant.sort_order,member.team_name,participant.member_id),'[]') AS value
+    FROM chosen trade JOIN public.trade_participants participant ON participant.trade_id=trade.id
+    LEFT JOIN public.league_members member ON member.id=participant.member_id AND member.league_id=p_league_id
+    GROUP BY participant.trade_id
+  ), pick_values AS MATERIALIZED (
+    SELECT value.* FROM public.get_dynasty_pick_values(p_league_id) value
+    WHERE EXISTS(SELECT 1 FROM chosen trade JOIN public.trade_items item ON item.trade_id=trade.id
+      JOIN public.draft_picks pick ON pick.id=item.pick_id WHERE pick.predicted_trade_value IS NULL)
+  ), player_data AS MATERIALIZED (
+    SELECT player.id,player.display_name,player.position,player.eligible_positions,player.nba_team,player.nba_id,
+      player.injury_status,player.years_exp,player.nba_draft_number,player.career_regular_season_games,
+      (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+        AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1) AS trade_value,
+      COALESCE(average.avg_fantasy_points,source_fantasy.avg_fantasy_points) AS avg_fantasy_points,
+      COALESCE(average.averages->'avg_minutes_played',to_jsonb(source_average.avg_minutes_played)) AS avg_minutes_played
+    FROM (SELECT DISTINCT item.player_id FROM chosen trade JOIN public.trade_items item ON item.trade_id=trade.id
+      WHERE item.player_id IS NOT NULL) selected
+    JOIN public.players player ON player.id=selected.player_id
+    LEFT JOIN public.player_season_averages average ON average.league_id = p_league_id AND average.player_id = player.id
+      AND average.season_year = current_year
+    LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = player.id
+      AND source_average.season_year = current_year
+    LEFT JOIN LATERAL (
+      SELECT fantasy.avg_fantasy_points FROM public.v_player_avg_fantasy_points fantasy
+      WHERE average.player_id IS NULL AND fantasy.league_id=p_league_id
+        AND fantasy.player_id=player.id AND fantasy.season_year=current_year
+      OFFSET 0
+    ) source_fantasy ON true
+  ), items AS (
+    SELECT item.trade_id, COALESCE(jsonb_agg(CASE WHEN item.player_id IS NOT NULL THEN jsonb_build_object('kind', 'player',
+      'tradeValue', player.trade_value,
+      'playerId', player.id, 'playerName', COALESCE(player.display_name, 'Unknown'), 'position', player.position,
+      'eligiblePositions', player.eligible_positions, 'nbaTeam', player.nba_team, 'nbaId', player.nba_id,
+      'injuryStatus', player.injury_status, 'yearsExp', player.years_exp, 'nbaDraftNumber', player.nba_draft_number,
+      'careerGames', player.career_regular_season_games, 'toTaxi', item.to_taxi, 'toIR', item.to_ir,
+      'fromTaxi', EXISTS (SELECT 1 FROM public.roster_players r WHERE r.player_id = player.id AND r.member_id = item.from_member_id
+        AND r.league_season_id = trade.league_season_id AND r.is_on_taxi),
+      'avgFantasyPoints', player.avg_fantasy_points,
+      'avgMinutesPlayed', player.avg_minutes_played)
+    WHEN item.pick_id IS NOT NULL THEN jsonb_build_object('kind', 'pick', 'pickId', pick.id, 'seasonYear', pick.season_year,
+      'tradeValue', COALESCE(pick.predicted_trade_value,(SELECT value.trade_value FROM pick_values value
+        WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round AND value.tier=CASE
+          WHEN slot.pick_in_round IS NULL THEN 'mid'
+          WHEN slot.pick_in_round<=ceil(GREATEST(4,teams)/3.0) THEN 'early'
+          WHEN slot.pick_in_round<=ceil(GREATEST(4,teams)*2/3.0) THEN 'mid'
+          ELSE 'late' END)),
+      'round', pick.round, 'originalTeamName', COALESCE(original.team_name, 'Unknown'))
+    ELSE jsonb_build_object('kind', 'faab', 'amount', item.faab_amount) END
+    || jsonb_build_object('fromMemberId', item.from_member_id, 'toMemberId', item.to_member_id) ORDER BY item.id), '[]')
+    AS value FROM public.trade_items item JOIN chosen trade ON trade.id=item.trade_id LEFT JOIN player_data player ON player.id = item.player_id
+    LEFT JOIN public.draft_picks pick ON pick.id = item.pick_id AND pick.league_id=p_league_id LEFT JOIN public.league_members original ON original.id = pick.original_owner_id AND original.league_id=p_league_id
+    LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
+
+    GROUP BY item.trade_id
+
+  )
+  SELECT COALESCE(jsonb_agg(CASE WHEN trade.id IS NOT NULL THEN jsonb_build_object('id', trade.id, 'status', trade.status, 'completionFailureReason', trade.completion_failure_reason,
+    'proposedAt', trade.proposed_at, 'acceptedAt', trade.accepted_at, 'vetoWindowExpiresAt', trade.veto_window_expires_at,
+    'completedAt', trade.completed_at, 'vetoedAt', trade.vetoed_at, 'expiresAt', trade.expires_at, 'notes', trade.notes,
+    'proposerMemberId', trade.proposer_member_id, 'proposerTeamName', COALESCE((SELECT team_name FROM public.league_members WHERE id = trade.proposer_member_id), 'Unknown'),
+    'recipientMemberId', trade.recipient_member_id, 'recipientTeamName', COALESCE((SELECT team_name FROM public.league_members WHERE id = trade.recipient_member_id), 'Unknown'),
+    'isMultiTeam', trade.is_multi_team, 'participants', COALESCE(participants.value,'[]'::jsonb), 'parentTradeId', trade.parent_trade_id,
+    'counteredFromTradeId', trade.countered_from_trade_id, 'editedFromTradeId', trade.edited_from_trade_id, 'replacedByTradeId', trade.replaced_by_trade_id,
+    'version', trade.version, 'proposerFaabAmount', trade.proposer_faab_amount, 'recipientFaabAmount', trade.recipient_faab_amount,
+    'myVetoed', EXISTS (SELECT 1 FROM public.trade_vetos WHERE trade_id = trade.id AND member_id = p_member_id),
+    'routedItems', COALESCE(items.value,'[]'::jsonb), 'estimate', CASE WHEN quote.id IS NOT NULL OR cached.trade_id IS NOT NULL THEN jsonb_build_object('quoteId',quote.id,'modelVersion',COALESCE(cached."modelVersion",quote.model_version),'inputVersion',COALESCE(cached."inputVersion",quote.input_version),'createdAt',COALESCE(cached."createdAt",quote.created_at::text),'teams',COALESCE(cached.analysis->'teams',quote.analysis->'teams'),'assets',COALESCE(cached.analysis->'assets',quote.analysis->'assets')) END, 'estimateUnavailable', recorded.unavailable_reason) END ORDER BY requested.ordinal),'[]')
+  INTO cards FROM requested LEFT JOIN chosen trade ON trade.id=requested.id
+    LEFT JOIN participants ON participants.trade_id=trade.id LEFT JOIN items ON items.trade_id=trade.id
+    LEFT JOIN public.trade_estimates recorded ON recorded.trade_id=trade.id
+    LEFT JOIN public.trade_estimate_quotes quote ON quote.id=recorded.quote_id
+    LEFT JOIN cached_values cached ON cached.trade_id=trade.id;
+  RETURN cards;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.view_trades(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE context jsonb; refs jsonb; rows jsonb; page_size integer := LEAST(GREATEST(COALESCE((p_params->>'limit')::integer, 40), 1), 99);
+  has_more boolean; next_cursor jsonb;
+BEGIN
+  context := public.view_context(p_league_id, p_member_id, p_params);
+  IF COALESCE(p_params->>'tab', 'offers') = 'history' THEN
+    SELECT COALESCE(jsonb_agg(to_jsonb(ref)), '[]') INTO refs FROM (
+      SELECT trade.id AS trade_id, jsonb_build_object('proposedAt', trade.proposed_at, 'tradeId', trade.id)::text AS cursor_token
+      FROM public.trades trade
+      WHERE trade.league_id = p_league_id AND trade.status <> 'pending'
+        AND (trade.status IN ('accepted', 'completed') OR EXISTS (SELECT 1 FROM public.trade_participants participant
+          WHERE participant.trade_id = trade.id AND participant.member_id = p_member_id))
+        AND (p_params->>'cursor' IS NULL OR (trade.proposed_at, trade.id) < (
+          ((p_params->>'cursor')::jsonb->>'proposedAt')::timestamptz, ((p_params->>'cursor')::jsonb->>'tradeId')::uuid))
+      ORDER BY trade.proposed_at DESC, trade.id DESC LIMIT page_size + 1) ref;
+  ELSE
+    SELECT COALESCE(jsonb_agg(to_jsonb(ref)), '[]') INTO refs FROM public.get_trade_page_refs(p_member_id, p_league_id, page_size + 1, p_params->>'cursor') ref;
+  END IF;
+  has_more := jsonb_array_length(refs) > page_size;
+  IF jsonb_array_length(refs)=0 THEN rows:='[]'::jsonb;
+  ELSE
+  rows := public.get_trade_cards(p_league_id,p_member_id,ARRAY(
+    SELECT (ref->>'trade_id')::uuid FROM jsonb_array_elements(refs) WITH ORDINALITY refs(ref,ordinal)
+    WHERE ordinal<=page_size ORDER BY ordinal));
+  END IF;
+  IF has_more THEN next_cursor := jsonb_build_object('token', refs->(page_size - 1)->>'cursor_token'); END IF;
+  RETURN jsonb_build_object('context', context, 'trades', rows, 'hasMore', has_more, 'nextCursor', next_cursor,
+    'pendingIncomingCount', public.get_pending_trade_count(p_member_id, p_league_id),
+    'block', public.view_trade_block(p_league_id, p_member_id, p_params || jsonb_build_object('blockOnly', true))->'block',
+    'members', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', id, 'team_name', team_name, 'role', role) ORDER BY id)
+      FROM public.league_members WHERE league_id = p_league_id), '[]'));
+END;
+$$;
+
+ALTER POLICY "league_activity_select_league" ON public.league_activity
+  USING (league_id IN (SELECT private.my_league_ids())
+    AND (event_type <> ALL (ARRAY['trade_offered'::text, 'trade_countered'::text, 'trade_edited'::text, 'trade_expired'::text])
+      OR private.is_trade_party(related_trade_id)));

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005700",
+  "candidateVersion": "20261214005800",
   "common": {
     "functions": [
       {
@@ -2490,6 +2490,10 @@
     {
       "filename": "20261214005700_trade_curve_no_flat_roster_value.sql",
       "sha256": "daed658b974b4c3dfff7752e5dbf4052bf4f49f788622b8282dfd395d7fdb82a"
+    },
+    {
+      "filename": "20261214005800_league_trade_history.sql",
+      "sha256": "68144bbe4e05b69f49a6da3d50feea36cb32a8a4ba7141ebaf734ff36a67c0c9"
     }
   ],
   "preMigration": {
