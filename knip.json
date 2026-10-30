@@ -27,10 +27,7 @@
     "supabase-go"
   ],
   "entry": [
-    "tests/db/trades-actions{,-stack,-report,-proof,-verify,-regressions,-deno,-reanalysis-parity}.mjs",
-    "tests/db/roster-actions{,-stack,-http,-report,-clean-http}.mjs",
-    "tests/db/roster-actions-edge/**/index.mjs",
-    "tests/db/lineup-draft-{mini,actions,http,http-edge,invocation-edge,report,verify}.mjs",
+    "tests/db/pipeline-night*.mjs",
     "tests/e2e/dynasty-points-header-browser.mjs",
     "tests/e2e/lock-icons-{stack,build,browser}.mjs",
     "tests/e2e/offers-do-not-lock-*.mjs",
@@ -164,6 +161,10 @@
     "tests/db/l3e-attest.mjs",
     "tests/db/l3e-install.mjs",
     "scripts/season-sim/sql-session-fixture.mjs",
+    "tests/db/trades-actions{,-stack,-report,-proof,-verify,-regressions,-deno,-reanalysis-parity}.mjs",
+    "tests/db/roster-actions{,-stack,-http,-report,-clean-http}.mjs",
+    "tests/db/roster-actions-edge/**/index.mjs",
+    "tests/db/lineup-draft-{mini,actions,http,http-edge,invocation-edge,report,verify}.mjs",
     "tests/db/league-actions{,-stack,-report,-metrics.test}.mjs"
   ],
   "project": [

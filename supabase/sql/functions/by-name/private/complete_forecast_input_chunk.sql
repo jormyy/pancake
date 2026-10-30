@@ -54,6 +54,11 @@ BEGIN
       END IF;
     END IF;
   END IF;
+  IF EXISTS(SELECT 1 FROM private.matchup_forecast_queue WHERE dirty AND available_at<=now()
+    AND NOT private.matchup_forecast_refresh_pending(matchup_id)
+    AND (claimed_at IS NULL OR claimed_at<now()-interval '3 minutes')) THEN
+    PERFORM private.work_enqueue('matchup-forecasts',date_trunc('minute',now())::text,now());
+  END IF;
   RETURN jsonb_build_object('processed',processed,'remaining',EXISTS(SELECT 1 FROM private.forecast_refresh_requests WHERE available_at<=now())
     OR EXISTS(SELECT 1 FROM private.matchup_forecast_expiries WHERE available_at<=now()));
 END;

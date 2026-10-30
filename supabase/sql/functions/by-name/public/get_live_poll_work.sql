@@ -9,7 +9,18 @@ RETURNS TABLE (
   home_score int, away_score int, game_status_text text, stats_synced_at timestamptz,
   needs_scoreboard boolean, needs_stats boolean
 )
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM public.nba_games game
+    WHERE game.game_date IN ((p_now AT TIME ZONE 'America/New_York')::date-1,(p_now AT TIME ZONE 'America/New_York')::date)
+      AND game.nba_game_id LIKE '002%'
+      AND (game.status='InProgress' OR game.status='Scheduled' AND (
+        COALESCE(game.game_time,game.started_at)<=p_now+interval '2 minutes'
+        OR COALESCE(game.game_time,game.started_at) IS NULL AND (
+          (p_now AT TIME ZONE 'America/New_York')::time>=time '11:00'
+          OR game.game_date<(p_now AT TIME ZONE 'America/New_York')::date))
+        OR game.status='Final' AND (game.stats_synced_at IS NULL OR game.stats_synced_at<=p_now-interval '30 minutes'))) THEN RETURN; END IF;
+  RETURN QUERY
   WITH candidates AS (
     SELECT game.*,
       game.status = 'InProgress' OR (
@@ -39,4 +50,5 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   FROM candidates game
   WHERE game.board_due OR game.stats_due
   ORDER BY game.game_date,game.id;
+END;
 $$;

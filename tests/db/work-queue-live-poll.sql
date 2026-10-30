@@ -20,7 +20,7 @@ $$;
 DO $$
 DECLARE
   game uuid:=gen_random_uuid(); player uuid:=gen_random_uuid(); ref timestamptz;
-  holder uuid; replacement uuid; age interval; before_count bigint; saved_updated timestamptz; saved_revision bigint;
+  holder uuid; replacement uuid; age interval; before_count bigint; saved_updated timestamptz; saved_revision bigint; other_work boolean;
 BEGIN
   FOREACH ref IN ARRAY ARRAY['2026-01-15 01:30 America/New_York'::timestamptz,'2026-07-15 01:30 America/New_York'::timestamptz] LOOP
     INSERT INTO nba_games(id,nba_game_id,game_date,season_year,week_number,home_team,away_team,status,game_time)
@@ -122,9 +122,11 @@ BEGIN
   PERFORM pg_temp.check_live(NOT renew_live_poll_lease(779001,replacement,90),'displaced holder cannot renew');
   PERFORM release_live_poll_lease(779001,holder);
   UPDATE nba_games SET stats_synced_at=now() WHERE id=game;
+  PERFORM pg_temp.check_live(NOT EXISTS(SELECT 1 FROM get_live_poll_work() WHERE id=game),'certified final has no polling work');
+  SELECT EXISTS(SELECT 1 FROM get_live_poll_work()) INTO other_work;
   SELECT count(*) INTO before_count FROM edge_invocations WHERE function_name='live-poll';
   PERFORM pg_temp.live_dispatch();
-  PERFORM pg_temp.check_live((SELECT count(*)=before_count FROM edge_invocations WHERE function_name='live-poll'),'certified final does not dispatch live poll');
+  PERFORM pg_temp.check_live((SELECT count(*)=before_count+other_work::int FROM edge_invocations WHERE function_name='live-poll'),'certified final preserves polling for other games');
 END;
 $$;
 DO $$
