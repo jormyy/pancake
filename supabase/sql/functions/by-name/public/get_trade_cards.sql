@@ -18,7 +18,7 @@ BEGIN
     SELECT id,ordinal FROM unnest(p_trade_ids) WITH ORDINALITY row(id,ordinal)
   ), chosen AS MATERIALIZED (
     SELECT trade.* FROM public.trades trade WHERE trade.league_id=p_league_id AND trade.id=ANY(p_trade_ids)
-      AND (trade.status='accepted' OR trade.proposer_member_id IN(SELECT id FROM own_members)
+      AND (trade.status IN ('accepted','completed') OR trade.proposer_member_id IN(SELECT id FROM own_members)
         OR trade.recipient_member_id IN(SELECT id FROM own_members)
         OR EXISTS(SELECT 1 FROM public.trade_participants participant WHERE participant.trade_id=trade.id
           AND participant.member_id IN(SELECT id FROM own_members)))

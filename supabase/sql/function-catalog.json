@@ -116,6 +116,7 @@
     "private.is_ir_designation(text)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_league_member(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_reserved_trade_asset(uuid,uuid,uuid,uuid,uuid,uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
+    "private.is_trade_party(uuid)": {"acl":["PUBLIC|EXECUTE|false|postgres","postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_valid_stats_sync_job_type(text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.is_valid_stats_sync_metadata(jsonb,text)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
     "private.league_playoff_round_plan(uuid,integer)": {"acl":["postgres|EXECUTE|false|postgres"],"owner":"postgres"},
