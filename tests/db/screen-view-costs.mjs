@@ -10,7 +10,7 @@ import { sql } from '../../scripts/perf-lab/database.mjs'
 import { withDatabase } from '../../scripts/perf-lab/setup.mjs'
 
 await requireMini()
-assert.ok(['pt4bafablel3', 'pt4bafablel3d'].includes(project))
+assert.ok(['pt4bafablel3', 'pt4bafablel3d', 'pt4bafablesr'].includes(project))
 const evidenceName = process.env.SCREEN_COST_EVIDENCE ?? 'cost-evidence'
 assert.match(evidenceName, /^[a-z0-9-]+$/)
 const evidence = path.join(labRoot, evidenceName)

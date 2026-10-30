@@ -29,8 +29,12 @@ BEGIN
       AND average.season_year = COALESCE((p_params->>'seasonYear')::integer, public.current_season_year_et())
     LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = p.id
       AND source_average.season_year = COALESCE((p_params->>'seasonYear')::integer, public.current_season_year_et())
-    LEFT JOIN public.v_player_avg_fantasy_points source_fantasy ON average.player_id IS NULL AND source_fantasy.league_id = p_league_id
-      AND source_fantasy.player_id = p.id AND source_fantasy.season_year = COALESCE((p_params->>'seasonYear')::integer, public.current_season_year_et())
+    LEFT JOIN LATERAL (
+      SELECT fantasy.avg_fantasy_points FROM public.v_player_avg_fantasy_points fantasy
+      WHERE average.player_id IS NULL AND fantasy.league_id=p_league_id
+        AND fantasy.player_id=p.id AND fantasy.season_year=COALESCE((p_params->>'seasonYear')::integer, public.current_season_year_et())
+      OFFSET 0
+    ) source_fantasy ON true
   WHERE r.member_id = target AND r.league_id = p_league_id AND r.league_season_id = (context->>'seasonId')::uuid;
   picks := COALESCE((SELECT jsonb_agg(jsonb_build_object('assetLocks', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock WHERE lock->>'assetKind'='pick' AND lock->>'assetId'=pick->>'id'),'[]'), 'kind', 'pick', 'pickId', pick->'id', 'seasonYear', pick->'seasonYear',
       'round', pick->'round', 'originalTeamName', pick->'originalTeamName')) FROM jsonb_array_elements(

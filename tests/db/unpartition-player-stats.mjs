@@ -9,7 +9,7 @@ import { labRoot, project, requireMini } from '../../scripts/perf-lab/common.mjs
 process.env.SCREEN_COST_EVIDENCE ??= 'unpartition-evidence'
 const { cases, plans, literal, load, save, evidence } = await import('./screen-view-costs.mjs')
 await requireMini()
-assert.ok(['pt4bafablel3','pt4bafablel3d'].includes(project))
+assert.ok(['pt4bafablel3','pt4bafablel3d','pt4bafablesr'].includes(project))
 await mkdir(evidence,{recursive:true})
 const option = name => process.argv.find(value=>value.startsWith(`--${name}=`))?.slice(name.length+3)
 const databaseNames = ['postgres','template1','l3_partitioned','l3_regular','l3_preservation']

@@ -22,14 +22,14 @@ BEGIN
   PERFORM pg_temp.check_rules(result->'standings'->0->>'teamName' = 'alpha' AND result->'standings'->1->>'teamName' = 'éclair', 'standings use the client locale order for tied names');
   UPDATE public.league_members SET team_name = 'Rules team ' || array_position(f.member_ids, id) WHERE league_id = f.league_id;
   INSERT INTO public.season_weeks(season_year, week_number, week_start, week_end)
-    VALUES(9562, 1, (now() AT TIME ZONE 'America/New_York')::date, (now() AT TIME ZONE 'America/New_York')::date + 6),
-      (9562, 2, (now() AT TIME ZONE 'America/New_York')::date + 7, (now() AT TIME ZONE 'America/New_York')::date + 13);
+    VALUES(9562, 1, (now() AT TIME ZONE 'America/Los_Angeles')::date, (now() AT TIME ZONE 'America/Los_Angeles')::date + 6),
+      (9562, 2, (now() AT TIME ZONE 'America/Los_Angeles')::date + 7, (now() AT TIME ZONE 'America/Los_Angeles')::date + 13);
   INSERT INTO public.players(id, first_name, last_name, position, eligible_positions, nba_team)
     VALUES(f.player_id, 'Screen', 'Starter', 'PG', ARRAY['PG'], 'VST'), (f.other_player_id, 'Screen', 'Free', 'C', ARRAY['C'], 'OTH');
   INSERT INTO public.roster_players(league_id, league_season_id, member_id, player_id, acquired_via)
     VALUES(f.league_id, f.season_id, f.member_ids[1], f.player_id, 'draft');
   INSERT INTO public.nba_games(nba_game_id, season_year, week_number, game_date, home_team, away_team, status)
-    VALUES('002screen-parity', 9562, 1, (now() AT TIME ZONE 'America/New_York')::date, 'VST', 'OTH', 'InProgress');
+    VALUES('002screen-parity', 9562, 1, (now() AT TIME ZONE 'America/Los_Angeles')::date, 'VST', 'OTH', 'InProgress');
   INSERT INTO public.player_game_stats(player_id, game_id, season_year, week_number, points, rebounds, assists, minutes_played)
     SELECT f.player_id, id, 9562, 1, 21, 9, 7, 24.5 FROM public.nba_games WHERE nba_game_id = '002screen-parity';
   INSERT INTO public.matchups(id, league_id, league_season_id, week_number, home_member_id, away_member_id, home_points, away_points,
@@ -78,7 +78,7 @@ BEGIN
   PERFORM pg_temp.check_rules(jsonb_array_length(public.view_roster(f.league_id, f.member_ids[1])->'roster') = 1, 'offseason keeps latest roster');
   PERFORM pg_temp.check_rules(public.view_claims(f.league_id, f.member_ids[1])->'claims' = '[]', 'offseason has no active claims');
   INSERT INTO public.nba_games(nba_game_id, season_year, week_number, game_date, home_team, away_team, status)
-    VALUES('002screen-offseason', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/New_York')::date, 'VST', 'OTH', 'InProgress');
+    VALUES('002screen-offseason', public.current_season_year_et(), 1, (now() AT TIME ZONE 'America/Los_Angeles')::date, 'VST', 'OTH', 'InProgress');
   INSERT INTO public.player_game_stats(player_id, game_id, season_year, week_number, points, minutes_played)
     SELECT f.player_id, id, public.current_season_year_et(), 1, 9, 12 FROM public.nba_games WHERE nba_game_id = '002screen-offseason';
   result := public.view_roster(f.league_id, f.member_ids[1]);

@@ -22,6 +22,13 @@ BEGIN
         OR trade.recipient_member_id IN(SELECT id FROM own_members)
         OR EXISTS(SELECT 1 FROM public.trade_participants participant WHERE participant.trade_id=trade.id
           AND participant.member_id IN(SELECT id FROM own_members)))
+  ), cached_values AS MATERIALIZED (
+    SELECT cached.trade_id, value.* FROM chosen trade
+    JOIN public.trade_value_cache cached ON cached.trade_id=trade.id
+    CROSS JOIN LATERAL jsonb_to_record(CASE WHEN jsonb_typeof(cached.revaluation)='object'
+      THEN cached.revaluation ELSE '{}'::jsonb END)
+      value("modelVersion" text,"inputVersion" text,"createdAt" text,analysis jsonb)
+    WHERE value."modelVersion"='onenumber-trade-curve-v5'
   ), participants AS (
     SELECT participant.trade_id,COALESCE(jsonb_agg(jsonb_build_object('memberId',participant.member_id,
       'teamName',COALESCE(member.team_name,'Unknown'),'sortOrder',participant.sort_order,
@@ -35,17 +42,37 @@ BEGIN
     SELECT value.* FROM public.get_dynasty_pick_values(p_league_id) value
     WHERE EXISTS(SELECT 1 FROM chosen trade JOIN public.trade_items item ON item.trade_id=trade.id
       JOIN public.draft_picks pick ON pick.id=item.pick_id WHERE pick.predicted_trade_value IS NULL)
+  ), player_data AS MATERIALIZED (
+    SELECT player.id,player.display_name,player.position,player.eligible_positions,player.nba_team,player.nba_id,
+      player.injury_status,player.years_exp,player.nba_draft_number,player.career_regular_season_games,
+      (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id
+        AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1) AS trade_value,
+      COALESCE(average.avg_fantasy_points,source_fantasy.avg_fantasy_points) AS avg_fantasy_points,
+      COALESCE(average.averages->'avg_minutes_played',to_jsonb(source_average.avg_minutes_played)) AS avg_minutes_played
+    FROM (SELECT DISTINCT item.player_id FROM chosen trade JOIN public.trade_items item ON item.trade_id=trade.id
+      WHERE item.player_id IS NOT NULL) selected
+    JOIN public.players player ON player.id=selected.player_id
+    LEFT JOIN public.player_season_averages average ON average.league_id = p_league_id AND average.player_id = player.id
+      AND average.season_year = current_year
+    LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = player.id
+      AND source_average.season_year = current_year
+    LEFT JOIN LATERAL (
+      SELECT fantasy.avg_fantasy_points FROM public.v_player_avg_fantasy_points fantasy
+      WHERE average.player_id IS NULL AND fantasy.league_id=p_league_id
+        AND fantasy.player_id=player.id AND fantasy.season_year=current_year
+      OFFSET 0
+    ) source_fantasy ON true
   ), items AS (
     SELECT item.trade_id, COALESCE(jsonb_agg(CASE WHEN item.player_id IS NOT NULL THEN jsonb_build_object('kind', 'player',
-      'tradeValue', (SELECT ranking.trade_value FROM public.dynasty_rankings ranking WHERE ranking.player_id=player.id AND ranking.source='onenumberhoops.com' ORDER BY ranking.fetched_at DESC,ranking.source_rank LIMIT 1),
+      'tradeValue', player.trade_value,
       'playerId', player.id, 'playerName', COALESCE(player.display_name, 'Unknown'), 'position', player.position,
       'eligiblePositions', player.eligible_positions, 'nbaTeam', player.nba_team, 'nbaId', player.nba_id,
       'injuryStatus', player.injury_status, 'yearsExp', player.years_exp, 'nbaDraftNumber', player.nba_draft_number,
       'careerGames', player.career_regular_season_games, 'toTaxi', item.to_taxi, 'toIR', item.to_ir,
       'fromTaxi', EXISTS (SELECT 1 FROM public.roster_players r WHERE r.player_id = player.id AND r.member_id = item.from_member_id
         AND r.league_season_id = trade.league_season_id AND r.is_on_taxi),
-      'avgFantasyPoints', COALESCE(average.avg_fantasy_points, source_fantasy.avg_fantasy_points),
-      'avgMinutesPlayed', COALESCE(average.averages->'avg_minutes_played', to_jsonb(source_average.avg_minutes_played)))
+      'avgFantasyPoints', player.avg_fantasy_points,
+      'avgMinutesPlayed', player.avg_minutes_played)
     WHEN item.pick_id IS NOT NULL THEN jsonb_build_object('kind', 'pick', 'pickId', pick.id, 'seasonYear', pick.season_year,
       'tradeValue', COALESCE(pick.predicted_trade_value,(SELECT value.trade_value FROM pick_values value
         WHERE value.draft_year=pick.season_year-1 AND value.round=pick.round AND value.tier=CASE
@@ -56,15 +83,10 @@ BEGIN
       'round', pick.round, 'originalTeamName', COALESCE(original.team_name, 'Unknown'))
     ELSE jsonb_build_object('kind', 'faab', 'amount', item.faab_amount) END
     || jsonb_build_object('fromMemberId', item.from_member_id, 'toMemberId', item.to_member_id) ORDER BY item.id), '[]')
-    AS value FROM public.trade_items item JOIN chosen trade ON trade.id=item.trade_id LEFT JOIN public.players player ON player.id = item.player_id
+    AS value FROM public.trade_items item JOIN chosen trade ON trade.id=item.trade_id LEFT JOIN player_data player ON player.id = item.player_id
     LEFT JOIN public.draft_picks pick ON pick.id = item.pick_id AND pick.league_id=p_league_id LEFT JOIN public.league_members original ON original.id = pick.original_owner_id AND original.league_id=p_league_id
     LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
-    LEFT JOIN public.player_season_averages average ON average.league_id = p_league_id AND average.player_id = item.player_id
-      AND average.season_year = current_year
-    LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = item.player_id
-      AND source_average.season_year = current_year
-    LEFT JOIN public.v_player_avg_fantasy_points source_fantasy ON average.player_id IS NULL AND source_fantasy.league_id = p_league_id
-      AND source_fantasy.player_id = item.player_id AND source_fantasy.season_year = current_year
+
     GROUP BY item.trade_id
 
   )
@@ -77,12 +99,12 @@ BEGIN
     'counteredFromTradeId', trade.countered_from_trade_id, 'editedFromTradeId', trade.edited_from_trade_id, 'replacedByTradeId', trade.replaced_by_trade_id,
     'version', trade.version, 'proposerFaabAmount', trade.proposer_faab_amount, 'recipientFaabAmount', trade.recipient_faab_amount,
     'myVetoed', EXISTS (SELECT 1 FROM public.trade_vetos WHERE trade_id = trade.id AND member_id = p_member_id),
-    'routedItems', COALESCE(items.value,'[]'::jsonb), 'estimate', CASE WHEN quote.id IS NOT NULL OR cached.trade_id IS NOT NULL THEN jsonb_build_object('quoteId',quote.id,'modelVersion',COALESCE(cached.revaluation->>'modelVersion',quote.model_version),'inputVersion',COALESCE(cached.revaluation->>'inputVersion',quote.input_version),'createdAt',COALESCE(cached.revaluation->>'createdAt',quote.created_at::text),'teams',COALESCE(cached.revaluation->'analysis'->'teams',quote.analysis->'teams'),'assets',COALESCE(cached.revaluation->'analysis'->'assets',quote.analysis->'assets')) END, 'estimateUnavailable', recorded.unavailable_reason) END ORDER BY requested.ordinal),'[]')
+    'routedItems', COALESCE(items.value,'[]'::jsonb), 'estimate', CASE WHEN quote.id IS NOT NULL OR cached.trade_id IS NOT NULL THEN jsonb_build_object('quoteId',quote.id,'modelVersion',COALESCE(cached."modelVersion",quote.model_version),'inputVersion',COALESCE(cached."inputVersion",quote.input_version),'createdAt',COALESCE(cached."createdAt",quote.created_at::text),'teams',COALESCE(cached.analysis->'teams',quote.analysis->'teams'),'assets',COALESCE(cached.analysis->'assets',quote.analysis->'assets')) END, 'estimateUnavailable', recorded.unavailable_reason) END ORDER BY requested.ordinal),'[]')
   INTO cards FROM requested LEFT JOIN chosen trade ON trade.id=requested.id
     LEFT JOIN participants ON participants.trade_id=trade.id LEFT JOIN items ON items.trade_id=trade.id
     LEFT JOIN public.trade_estimates recorded ON recorded.trade_id=trade.id
     LEFT JOIN public.trade_estimate_quotes quote ON quote.id=recorded.quote_id
-    LEFT JOIN public.trade_value_cache cached ON cached.trade_id=trade.id AND cached.revaluation->>'modelVersion'='onenumber-trade-curve-v5';
+    LEFT JOIN cached_values cached ON cached.trade_id=trade.id;
   RETURN cards;
 END;
 $$;

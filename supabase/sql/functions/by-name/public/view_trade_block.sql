@@ -3,7 +3,7 @@
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION public.view_trade_block(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE context jsonb; items jsonb; roster jsonb;
 BEGIN
   context := public.view_context(p_league_id, p_member_id, p_params);
@@ -27,8 +27,12 @@ BEGIN
       AND average.season_year = public.current_season_year_et()
     LEFT JOIN public.mv_player_season_averages source_average ON average.player_id IS NULL AND source_average.player_id = item.player_id
       AND source_average.season_year = public.current_season_year_et()
-    LEFT JOIN public.v_player_avg_fantasy_points source_fantasy ON average.player_id IS NULL AND source_fantasy.league_id = p_league_id
-      AND source_fantasy.player_id = item.player_id AND source_fantasy.season_year = public.current_season_year_et()
+    LEFT JOIN LATERAL (
+      SELECT fantasy.avg_fantasy_points FROM public.v_player_avg_fantasy_points fantasy
+      WHERE average.player_id IS NULL AND fantasy.league_id=p_league_id
+        AND fantasy.player_id=item.player_id AND fantasy.season_year=public.current_season_year_et()
+      OFFSET 0
+    ) source_fantasy ON true
   WHERE item.league_id = p_league_id AND (context->'season'->>'is_current')::boolean AND (player.id IS NOT NULL OR pick.id IS NOT NULL);
   IF COALESCE((p_params->>'blockOnly')::boolean, false) THEN
     RETURN jsonb_build_object('block', items);

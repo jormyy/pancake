@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214003800",
+  "candidateVersion": "20261214003900",
   "common": {
     "functions": [
       {
@@ -2367,6 +2367,10 @@
     {
       "filename": "20261214003800_skip_deleted_forecast_scopes.sql",
       "sha256": "e721152025f709c2e8fd8311dfd48bd9d9975ae536acea70b91b5e9d406e4384"
+    },
+    {
+      "filename": "20261214003900_screens_after_211.sql",
+      "sha256": "6b6e8ad675d8d35379c25848541d65a4cff5a09b351a96e33b529df4eafcdbf7"
     }
   ],
   "preMigration": {
