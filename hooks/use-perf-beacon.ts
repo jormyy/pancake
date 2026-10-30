@@ -53,13 +53,21 @@ function usePerfBeacon() {
                 try {
                     await fetch(`${API_URL.replace(/\/$/, '')}/beacons`, { method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth.token}`, 'x-request-id': createRequestId() },
-                        body: JSON.stringify({ member_id: memberId, beacons: rows }), signal: controller.signal })
+                        body: JSON.stringify({ member_id: memberId, beacons: rows }), signal: controller.signal, keepalive: true })
                 } finally { clearTimeout(timeout) }
             },
         })
         collector.current = client
+        const hidden = () => { if (document.visibilityState === 'hidden') client.flushNow() }
         window.addEventListener('offline', client.drop)
-        return () => { client.stop(); collector.current = null; lastOpen.current = ''; window.removeEventListener('offline', client.drop) }
+        window.addEventListener('pagehide', client.flushNow)
+        document.addEventListener('visibilitychange', hidden)
+        return () => {
+            client.stop(); collector.current = null; lastOpen.current = ''
+            window.removeEventListener('offline', client.drop)
+            window.removeEventListener('pagehide', client.flushNow)
+            document.removeEventListener('visibilitychange', hidden)
+        }
     }, [userId, memberId])
 
     useLayoutEffect(() => {
