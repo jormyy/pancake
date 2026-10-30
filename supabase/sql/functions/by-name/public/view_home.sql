@@ -3,7 +3,7 @@
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
 CREATE OR REPLACE FUNCTION public.view_home(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE context jsonb; matchup public.matchups%ROWTYPE; opponent uuid; selected date;
   mine jsonb; theirs jsonb; records jsonb; matchup_data jsonb; league_matchups jsonb; announcements jsonb; league_today date; league_week integer;
 BEGIN

@@ -35,6 +35,7 @@
     "tests/e2e/autoset-keep-starters-replay.mjs",
     "tests/e2e/autoset-keep-starters-browser.mjs",
     "tests/e2e/autoset-keep-starters-db.mjs",
+    "tests/db/screens-after-211*.mjs",
     "tests/db/perf-l4-measure-lock.mjs",
     "tests/db/cron-squeeze.mjs",
     "supabase/functions/refresh-views/scheduled.ts",

@@ -5,11 +5,11 @@
 The source baseline is `892b6bca`, release 2.10.2.
 Include auto-set starter preservation from `424c19da`.
 The final trade curve uses exponent 5, roster spot value 25, and a 5% fair band.
-Apply all pending migrations through `20261214003800`, including version 023 with `--include-all`.
+Apply all pending migrations through `20261214003900`, including version 023 with `--include-all`.
 
 Apply the earlier pending migrations through 033 first.
 Deploy the updated `refresh-views` Edge function before migrations 035–037.
-Then apply 035–038, deploy the remaining Edge functions, and release the frontend.
+Then apply 035–039, deploy the remaining Edge functions, and release the frontend.
 Migration 038 skips forecast requests for scopes removed by league deletion cascades.
 Migration 035 alone works with the current worker.
 Migration 036 breaks the current worker's scheduler behavior if DB runs first.
@@ -47,7 +47,7 @@ Its release order is specified below the migration table.
 The supplied production head is `20261213000200`, with 686 migrations.
 This is the contention lane's recorded baseline.
 Release 2.10 starts from release 2.9.1, `ec739102`.
-For release 2.11, apply through 033, deploy `refresh-views`, apply 035–038, deploy remaining Edge functions, then release the frontend.
+For release 2.11, apply through 033, deploy `refresh-views`, apply 035–039, deploy remaining Edge functions, then release the frontend.
 For client dependencies: Database, then Edge, then merge the frontend.
 The worker exception precedes the service-only scheduler migrations.
 Apply pending migrations in version order.
@@ -76,6 +76,7 @@ The missing notification versions precede the recorded production head; use `--i
 | `20261214003600_defer_cron_candidate_scans.sql` | Moves forecast input fingerprints and notification candidates into bounded worker chunks. |
 | `20261214003700_preserve_forecast_expiry_wakeups.sql` | Wakes early cache expiries through an indexed worker queue. |
 | `20261214003800_skip_deleted_forecast_scopes.sql` | Skips deleted forecast scopes during league cascades. |
+| `20261214003900_screens_after_211.sql` | Bounds fallback-stat reads and cached trade JSON reads after screen authorization. |
 
 Apply `20261214002700_live_fallback.sql`, then deploy `live-poll` after tonight's games.
 ESPN is the primary live source. NBA supplies each game's fallback and all official final statistics.
@@ -1431,3 +1432,18 @@ Run `psql "$SUPABASE_DB_URL" -X -v ON_ERROR_STOP=1 -f tests/db/autoset-keep-star
 The recipe rolls back its fixture and reports eleven checks.
 Run the mini Deno tests in `supabase/functions/lineup-optimizer` for Edge behavior.
 The [backup replay](../tests/evidence/autoset-keep-starters/README.md) records Thursday and Friday evidence.
+
+## Screen reads after 2.11
+
+Apply `20261214003900_screens_after_211.sql` after 038. No Edge update is required.
+The five screen entry points validate the caller with `view_context` before reading as their owner.
+This avoids repeating row policies for each returned asset.
+Foreign managers, leagues, seasons, missing identities, malformed parameters, and deleted leagues remain rejected.
+Fallback fantasy averages use bounded player lookups in `get_trade_cards`, `view_roster`, and `view_trade_block`.
+Trade cards read each distinct player and each published v5 JSON document once for the authorized page.
+The response fields and model calculations stay the same.
+
+Changed functions: `public.view_players`, `public.view_trades`, `public.view_trade_block`,
+`public.view_player`, `public.view_home`, `public.get_trade_cards`, and `public.view_roster`.
+
+[Screen measurements](../tests/db/screens-after-211.md) record the private replay and its limits.
