@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005408",
+  "candidateVersion": "20261214005409",
   "common": {
     "functions": [
       {
@@ -1068,7 +1068,7 @@
           "roles": [
             "authenticated"
           ],
-          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
+          "using": "(EXISTS ( SELECT 1\n   FROM league_members member\n  WHERE ((member.league_id = league_events.league_id) AND (member.user_id = auth.uid()) AND ((league_events.kind <> 'claim.failed'::text) OR (member.id = league_events.member_id)) AND ((league_events.kind <> ALL (ARRAY['trade.sent'::text, 'trade.countered'::text, 'trade.edited'::text, 'trade.accepted'::text, 'trade.failed'::text, 'trade.rejected'::text, 'trade.withdrawn'::text, 'trade.expired'::text])) OR ((league_events.detail -> 'member_ids'::text) ? (member.id)::text) OR ((member.id)::text = ANY (ARRAY[(league_events.detail ->> 'proposer_member_id'::text), (league_events.detail ->> 'recipient_member_id'::text)]))))))",
           "command": "SELECT",
           "permissive": "PERMISSIVE"
         }
@@ -2439,6 +2439,10 @@
     {
       "filename": "20261214005408_background_kind_fairness.sql",
       "sha256": "65f045bbbc5b93350870f238bc32c13636edd3cbc2871d0e3036911830856994"
+    },
+    {
+      "filename": "20261214005409_notification_scan_safeupdate.sql",
+      "sha256": "d87161cc2a27a866b8e1f158c2a48ffea7d80e6ba6a8fd215ba1717291deae0b"
     }
   ],
   "preMigration": {

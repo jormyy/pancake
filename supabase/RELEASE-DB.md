@@ -1512,3 +1512,8 @@ The [pipeline measurements](../tests/db/pipeline-night.md) compare current main 
 They include all requested pipeline items, discarded planner experiments, exact row diffs, and live publication checks.
 Run `node --experimental-strip-types tests/db/pipeline-night.mjs candidate` on the private pipeline stack.
 Run `node tests/db/pipeline-night-verify.mjs` there for SQL, Deno, and failing quality controls.
+
+Apply `20261214005409_notification_scan_safeupdate.sql` next.
+The API session loads `safeupdate`, which rejects a `DELETE` without a `WHERE` clause.
+The notification scan cleared its dirty marker without one, so every scan started through `refresh-views` failed.
+The marker delete now uses `WHERE true`. `tests/db/regressions/notification-scan-safeupdate.sql` runs the scan with the guard loaded.

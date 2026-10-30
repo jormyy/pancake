@@ -3219,6 +3219,13 @@
       "statementCount": 2,
       "statementsSha256": "7eeccdc30ece535ad880cd97dfe5a3d752b01ccaa0cee6e7f9c2cf84004bb664",
       "sha256": "65f045bbbc5b93350870f238bc32c13636edd3cbc2871d0e3036911830856994"
+    },
+    {
+      "name": "notification_scan_safeupdate",
+      "version": "20261214005409",
+      "statementCount": 1,
+      "statementsSha256": "3eec53df8fffba7984e4ce3b64e16c4d361888cdee44d1003eef23499678235d",
+      "sha256": "d87161cc2a27a866b8e1f158c2a48ffea7d80e6ba6a8fd215ba1717291deae0b"
     }
   ]
 }
