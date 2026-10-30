@@ -61,8 +61,8 @@ try {
   assert.ok(analysis.includes('Source'))
   assert.ok(analysis.includes('Spots'))
   if (state.tab === 'offers') {
-    assert.ok(analysis.includes('Spots +25'))
-    assert.ok(analysis.includes('Spots -25'))
+    assert.ok(analysis.includes('Cuts '))
+    assert.ok(!analysis.includes('Spots '))
   }
   evaluate(`(() => {
     const summary = document.querySelector('[aria-label="Dynasty trade analysis"]');

@@ -53,7 +53,7 @@ BEGIN
     'assets',COALESCE(cached.revaluation->'analysis'->'assets',quote.analysis->'assets')) END,
     recorded.unavailable_reason INTO estimate, unavailable FROM public.trade_estimates recorded
     LEFT JOIN public.trade_estimate_quotes quote ON quote.id = recorded.quote_id
-    LEFT JOIN public.trade_value_cache cached ON cached.trade_id=trade.id AND cached.revaluation->>'modelVersion'='onenumber-trade-curve-v5'
+    LEFT JOIN public.trade_value_cache cached ON cached.trade_id=trade.id AND cached.revaluation->>'modelVersion'='onenumber-trade-curve-v6'
     WHERE recorded.trade_id = trade.id;
   result := jsonb_build_object('id', trade.id, 'status', trade.status, 'completionFailureReason', trade.completion_failure_reason,
     'proposedAt', trade.proposed_at, 'acceptedAt', trade.accepted_at, 'vetoWindowExpiresAt', trade.veto_window_expires_at,

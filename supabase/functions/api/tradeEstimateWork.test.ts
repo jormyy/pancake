@@ -64,7 +64,7 @@ Deno.test('estimate work runs after submission and safely replays', async () => 
 Deno.test('reanalysis finishes bounded batches and repeats without new snapshots', async () => {
   const request = () => new Request('http://localhost/trades/estimate-work', { method: 'POST',
     headers: { 'x-internal-function-token': 'test', 'content-type': 'application/json' },
-    body: JSON.stringify({ reanalysisVersion: 'onenumber-trade-curve-v5' }) })
+    body: JSON.stringify({ reanalysisVersion: 'onenumber-trade-curve-v6' }) })
   assert.deepEqual(await (await handleTradeEstimateWork(request())).json(), { ok: true, updated: 25, remaining: 2 })
   assert.deepEqual(await (await handleTradeEstimateWork(request())).json(), { ok: true, updated: 2, remaining: 0 })
   assert.deepEqual(await (await handleTradeEstimateWork(request())).json(), { ok: true, updated: 0, remaining: 0 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { analyzeDynastyTrade, type DynastyEngineContext, type DynastyPlayerAsset } from '../core/src/dynasty/decisionEngine'
-import { compareTradeTotals, curveTradeValue, scoreTradeSides, tradeRosterSpotValue } from '../core/src/dynasty/tradeScoring'
+import { compareTradeTotals, curveTradeValue, scoreTradeSides } from '../core/src/dynasty/tradeScoring'
 
 const player = (id: string, tradeValue: number): DynastyPlayerAsset => ({
   id, kind: 'player', label: id, tradeValue, age: null, dynastyRank: null, rankMovement: null, healthStatus: null,
@@ -28,7 +28,7 @@ describe('curved trade totals', () => {
     expect(score).toMatchObject({ fair: false, packageEffect: 0 })
     expect(score.gapPercent).toBeCloseTo(19.005392, 5)
   })
-  it('credits the team receiving Luka 75 and charges the four-player recipient 75 before cuts', () => {
+  it('adds no roster value to a four-for-one trade when nobody must cut', () => {
     const packageValues = [698, 695, 692, 648]
     const trade = [
       { fromMemberId: 'package', toMemberId: 'luka', asset: player('luka', 942) },
@@ -39,14 +39,12 @@ describe('curved trade totals', () => {
       { memberId: 'package', limits: { ...limits, active: 4 }, players: [rosterPlayer('luka', 942)] },
     ] }, 'overall', trade)
     const [luka, pack] = result.teams
-    expect(tradeRosterSpotValue(4, 1)).toBe(75)
-    expect(tradeRosterSpotValue(1, 4)).toBe(-75)
-    expect(luka).toMatchObject({ memberId: 'luka', rosterSlotEffect: 75, rosterCutValue: 0 })
-    expect(pack).toMatchObject({ memberId: 'package', rosterSlotEffect: -75, rosterCutValue: 0 })
-    expect(luka.adjustedValue).toBeCloseTo(816.744806, 6)
-    expect(pack.adjustedValue).toBeCloseTo(525.773297, 6)
-    expect(luka.netValue).toBeCloseTo(215.971509, 6)
-    expect(pack.netValue).toBeCloseTo(-215.971509, 6)
+    expect(luka).toMatchObject({ memberId: 'luka', rosterSlotEffect: 0, rosterCutValue: 0 })
+    expect(pack).toMatchObject({ memberId: 'package', rosterSlotEffect: 0, rosterCutValue: 0 })
+    expect(luka.adjustedValue).toBeCloseTo(741.744806, 6)
+    expect(pack.adjustedValue).toBeCloseTo(600.773297, 6)
+    expect(luka.netValue).toBeCloseTo(140.971509, 6)
+    expect(pack.netValue).toBeCloseTo(-140.971509, 6)
   })
   it('values Gilgeous-Alexander far above two 500s', () => {
     const score = scoreTradeSides([950], [500, 500])
@@ -62,18 +60,18 @@ describe('curved trade totals', () => {
     expect(compareTradeTotals([-5, 5])).toEqual({ fair: false, gapPercent: 200 })
     for (const value of [-1, NaN, Infinity, 1000.1]) expect(curveTradeValue(value)).toBe(0)
   })
-  it('adds required weakest-player cuts to the flat charge for extra players', () => {
+  it('charges only required weakest-player cuts for extra players', () => {
     const analysis = analyzeDynastyTrade({ ...context, bestFreeAgentValue: 107, rosters: [
       { memberId: 'a', limits, players: [rosterPlayer('star', 950), rosterPlayer('weak', 100)] },
       { memberId: 'b', limits, players: [rosterPlayer('one', 500), rosterPlayer('two', 500)] },
     ] }, 'overall', routes)
     const [a, b] = analysis.teams
     expect(a.rosterCutValue).toBeCloseTo(curveTradeValue(100), 6)
-    expect(a.rosterSlotEffect).toBeCloseTo(-25 - curveTradeValue(100), 6)
+    expect(a.rosterSlotEffect).toBeCloseTo(-curveTradeValue(100), 6)
     expect(a.openRosterSpots).toBe(0)
     expect(b.openRosterSpots).toBe(1)
-    expect(b.rosterSlotEffect).toBe(25)
-    expect(b.netValue).toBeCloseTo(711.280937 + 25, 5)
+    expect(b.rosterSlotEffect).toBe(0)
+    expect(b.netValue).toBeCloseTo(711.280937, 5)
     expect(b.gapPercent).toBeLessThan(100)
     expect(a.fair).toBe(false)
   })
@@ -84,7 +82,7 @@ describe('curved trade totals', () => {
     ] }, 'overall', routes)
     expect(result.teams.map(team => team.openRosterSpots)).toEqual([2, 3])
     expect(result.teams.map(team => team.rosterCutValue)).toEqual([0, 0])
-    expect(result.teams.map(team => team.rosterSlotEffect)).toEqual([-25, 25])
+    expect(result.teams.map(team => team.rosterSlotEffect)).toEqual([0, 0])
   })
   it('keeps taxi and IR destinations while valuing equal player counts at zero', () => {
     const result = analyzeDynastyTrade({ ...context, bestFreeAgentValue: 500, rosters: [
@@ -98,7 +96,7 @@ describe('curved trade totals', () => {
     expect(result.teams[1].openRosterSpots).toBe(1)
     expect(result.teams[1].rosterSlotEffect).toBe(0)
   })
-  it('counts taxi players and zero-value players as roster spots, but excludes picks and FAAB', () => {
+  it('adds no roster value when a player moves for picks and FAAB', () => {
     const result = analyzeDynastyTrade({ ...context, rosters: [
       { memberId: 'a', limits, players: [rosterPlayer('taxi', 0, 'taxi')] },
       { memberId: 'b', limits, players: [] },
@@ -107,7 +105,7 @@ describe('curved trade totals', () => {
       { fromMemberId: 'b', toMemberId: 'a', asset: { kind: 'pick', id: 'pick', label: 'Pick', seasonYear: 2028, round: 1, slot: null, teams: 12, valueBands: { early: 900, mid: 500, late: 300 } } },
       { fromMemberId: 'b', toMemberId: 'a', asset: { kind: 'faab', id: 'cash', label: 'FAAB', amount: 20, budget: 100, freeAgentQuality: 0.5 } },
     ])
-    expect(result.teams.map(team => team.rosterSlotEffect)).toEqual([25, -25])
+    expect(result.teams.map(team => team.rosterSlotEffect)).toEqual([0, 0])
     expect(result.teams.map(team => team.rosterCutValue)).toEqual([0, 0])
   })
   it('curves picks once and preserves their source bands', () => {

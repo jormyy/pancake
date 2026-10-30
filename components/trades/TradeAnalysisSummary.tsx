@@ -36,7 +36,7 @@ export function TradeAnalysisSummary({
     return (
         <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
             <Text style={styles.verdict}>{winner ? `${winner} wins` : 'Fair'} · {formatTradeValue(comparison.gapPercent)}% gap</Text>
-            <Text style={styles.detail}>Curved package totals · roster spots included</Text>
+            <Text style={styles.detail}>Curved package totals · required cuts included</Text>
             <View style={styles.teamGrid}>
                 {analysis.teams.map((team) => (
                     <View key={team.memberId} style={styles.teamCard}>
@@ -45,7 +45,7 @@ export function TradeAnalysisSummary({
                             <Text style={styles.value}>{formatTradeValue(team.adjustedValue ?? team.valuesReceived + team.rosterSlotEffect)}</Text>
                             <Text style={[styles.detail, (team.netValue ?? team.impact) < 0 && styles.valueNegative]}>Net {signed(team.netValue ?? team.valuesReceived - team.valuesSent + team.rosterSlotEffect)}</Text>
                         </View>
-                        <Text style={styles.detail}>Received {formatTradeValue(team.valuesReceived)} · Sent {formatTradeValue(team.valuesSent)} · Spots {signed(team.rosterSlotEffect)}</Text>
+                        <Text style={styles.detail}>Received {formatTradeValue(team.valuesReceived)} · Sent {formatTradeValue(team.valuesSent)} · Cuts {signed(team.rosterSlotEffect)}</Text>
                     </View>
                 ))}
             </View>

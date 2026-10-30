@@ -1,16 +1,18 @@
 # Trade curve
 
-Model: `onenumber-trade-curve-v5`. Exponent, flat roster-spot value, and fairness tolerance live in `core/src/dynasty/tradeScoring.ts`.
+Model: `onenumber-trade-curve-v6`. Exponent and fairness tolerance live in `core/src/dynasty/tradeScoring.ts`.
 
 Source values stay OneNumberHoops trade_value on 0–1000. Players and picks use 1000 × (value / 1000)^5 at the package sum. FAAB keeps its existing value. No consolidation bonus remains.
 
-Each team keeps its curved received and sent totals. Net value is received − sent + S × (players sent − players received) − cuts, with S = 25 curved points. The two package totals include each recipient’s roster terms. Their absolute gap is divided by the larger absolute package total. A gap at most 5% is Fair. The winner has the higher net value. Signed opposite net values are not used as the gap denominator.
+Each team keeps its curved received and sent totals. Net value is received − sent − cuts. The two package totals include each recipient’s roster terms. Their absolute gap is divided by the larger absolute package total. A gap at most 5% is Fair. The winner has the higher net value. Signed opposite net values are not used as the gap denominator.
 
-Each net player sent frees a roster spot worth +25 curved points. Each net player received uses a spot worth −25. Existing vacancies add nothing. Picks and FAAB do not use player spots. All player locations count. Roster limits still follow regular, IR, and taxi capacity. Incoming taxi players stay on taxi; explicit saved IR and taxi destinations are honored. Excess players cost the lowest curved values in the overfull section, including incumbents. Missing imported values contribute zero.
+Open roster spots add no value. The curve already discounts low-value players. Picks and FAAB do not use player spots. All player locations count. Roster limits still follow regular, IR, and taxi capacity. Incoming taxi players stay on taxi; explicit saved IR and taxi destinations are honored. Excess players cost the lowest curved values in the overfull section, including incumbents. Missing imported values contribute zero.
 
-Exact exponent 5 arithmetic gives 950 → 773.780937; 942 → 741.744806; 900 → 590.49; 851 → 446.321492; 800 → 327.68; 700 → 168.07; 600 → 77.76; 500 → 31.25. The supplied Luka reference of 743 differs from the formula, which rounds to 742. The formula is used directly. Luka versus Duren + Sarr + Castle + George is 741.744806 versus 600.773297 before roster terms. The team receiving Luka gets +75; the four-player recipient gets −75. Adjusted received packages are 816.744806 versus 525.773297 before cuts. Luka’s recipient has net +215.971509. Gilgeous-Alexander versus two 500s is 773.780937 versus 62.5 before roster terms.
+Exact exponent 5 arithmetic gives 950 → 773.780937; 942 → 741.744806; 900 → 590.49; 851 → 446.321492; 800 → 327.68; 700 → 168.07; 600 → 77.76; 500 → 31.25. The supplied Luka reference of 743 differs from the formula, which rounds to 742. The formula is used directly. Luka versus Duren + Sarr + Castle + George is 741.744806 versus 600.773297 before roster terms. Luka’s recipient has net +140.971509 before cuts. Gilgeous-Alexander versus two 500s is 773.780937 versus 62.5 before roster terms.
 
 ## Backup replay
+
+This replay records model v5, which still had the flat 25-point roster value. Model v6 removed it.
 
 The 2026-10-28 production-shaped backup was restored only to project `pt4bafabletc`, ports 639xx, on the mini. No production service was contacted. The recorded OneNumberHoops fixture matched 445 players.
 

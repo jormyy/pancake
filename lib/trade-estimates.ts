@@ -1,6 +1,6 @@
 import type { DynastyTradeAnalysis, DynastyTradeTeamResult } from '@/core/src/dynasty/decisionEngine'
 import type { Trade } from '@/lib/trades'
-import { compareTradeTotals, curveTradeValue, scoreTradeSides, tradeRosterSpotValue, TRADE_FORMULA_VERSION } from '@/core/src/dynasty/tradeScoring'
+import { compareTradeTotals, curveTradeValue, scoreTradeSides, TRADE_FORMULA_VERSION } from '@/core/src/dynasty/tradeScoring'
 
 export type TradeEstimateQuote = {
     id: string
@@ -52,12 +52,9 @@ export function displayedTradeValues(trade: Trade, memberId: string) {
     const teams = [...new Set(trade.routedItems.flatMap(item => [item.fromMemberId, item.toMemberId]))].map(id => {
         const side = (direction: 'fromMemberId' | 'toMemberId', faab: boolean) => values.filter((_, index) =>
             trade.routedItems[index][direction] === id && (trade.routedItems[index].kind === 'faab') === faab)
-        const rosterSlotEffect = tradeRosterSpotValue(
-            trade.routedItems.filter(item => item.fromMemberId === id && item.kind === 'player').length,
-            trade.routedItems.filter(item => item.toMemberId === id && item.kind === 'player').length)
-        const score = scoreTradeSides(side('fromMemberId', false), side('toMemberId', false), rosterSlotEffect,
+        const score = scoreTradeSides(side('fromMemberId', false), side('toMemberId', false), 0,
             side('fromMemberId', true).reduce((sum, value) => sum + value, 0), side('toMemberId', true).reduce((sum, value) => sum + value, 0))
-        return { memberId: id, ...score, adjustedValue: score.adjustedReceived, rosterSlotEffect,
+        return { memberId: id, ...score, adjustedValue: score.adjustedReceived, rosterSlotEffect: 0,
             replacementEffect: 0, shortTermPoints: 0, longTermValue: score.netValue }
     })
     const team = teams.find(team => team.memberId === perspective)

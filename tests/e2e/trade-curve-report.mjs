@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { analyzeTradeEstimate } from '../../supabase/functions/_shared/tradeEstimate.ts'
-import { compareTradeTotals, curveTradeValue, tradeRosterSpotValue, TRADE_FORMULA_VERSION } from '../../supabase/functions/_shared/dynastyEngineTradeValues.ts'
+import { compareTradeTotals, curveTradeValue, TRADE_FORMULA_VERSION } from '../../supabase/functions/_shared/dynastyEngineTradeValues.ts'
 import { syncTradeValues } from '../../supabase/functions/_shared/tradeValues.ts'
 
 assert.match(process.cwd(), /\/lanes\/fable-ui25\/repo$/)
@@ -37,7 +37,7 @@ const summary = (teams, legacy = false) => {
   const totals = teams.map(team => ({ memberId: team.memberId,
     total: legacy ? team.valuesReceived + Math.max(0, team.packageEffect) : team.adjustedValue,
     net: legacy ? team.valuesReceived - team.valuesSent + team.packageEffect : team.netValue,
-    spots: team.rosterSlotEffect ?? 0, flat: team.rosterFlatValue ?? 0, delta: team.rosterSpotDelta ?? 0, cuts: team.rosterCutValue ?? 0, open: team.openRosterSpots ?? 0 }))
+    spots: team.rosterSlotEffect ?? 0, cuts: team.rosterCutValue ?? 0, open: team.openRosterSpots ?? 0 }))
   const comparison = compareTradeTotals(totals.map(team => team.total))
   const winner = [...totals].sort((a, b) => b.net - a.net)[0]
   return { ...comparison, totals, verdict: comparison.fair ? 'Fair' : `${members[winner.memberId]} wins` }
@@ -53,12 +53,7 @@ const rows = trades.map(trade => {
   const prior = previous.rows.find(row => row.id === trade.id)
   assert.ok(prior, 'The prior curve report covers this real trade')
   assert.equal(prior.bestFreeAgentValue, inputs.bestFreeAgentValue)
-  const adjustedTeams = analysis.teams.map(team => {
-    const count = direction => inputs.terms.filter(term => term[direction] === team.memberId && term.playerId).length
-    return { ...team, rosterFlatValue: tradeRosterSpotValue(count('fromMemberId'), count('toMemberId')),
-      rosterSpotDelta: count('fromMemberId') - count('toMemberId') }
-  })
-  return { ...trade, release: summary(before, true), before: prior.after, after: summary(adjustedTeams), bestFreeAgentValue: inputs.bestFreeAgentValue, bestFreeAgentCurvedValue: curveTradeValue(inputs.bestFreeAgentValue),
+  return { ...trade, release: summary(before, true), before: prior.after, after: summary(analysis.teams), bestFreeAgentValue: inputs.bestFreeAgentValue, bestFreeAgentCurvedValue: curveTradeValue(inputs.bestFreeAgentValue),
     assets: inputs.terms.map(term => ({ from: members[term.fromMemberId], to: members[term.toMemberId],
       label: analysis.assets.find(asset => asset.assetId === (term.playerId ?? term.pickId ?? `faab:${term.fromMemberId}:${term.toMemberId}`)).label })),
     missing: analysis.missingInputs,
@@ -87,24 +82,23 @@ const f = value => Number(value.toFixed(3)).toLocaleString('en-US', { maximumFra
 const clean = value => String(value).replaceAll('|', '/').replaceAll('\n', ' ')
 const totals = result => result.totals.map(team => `${clean(members[team.memberId])}: ${f(team.total)}`).join('<br>')
 const nets = result => result.totals.map(team => `${clean(members[team.memberId])}: ${team.net > 0 ? '+' : ''}${f(team.net)}`).join('<br>')
-const terms = result => result.totals.map(team => `${clean(members[team.memberId])}: ${team.spots > 0 ? '+' : ''}${f(team.spots)} (flat ${team.flat > 0 ? '+' : ''}${f(team.flat)}; Δ sent − received ${team.delta}; cuts ${f(team.cuts)})`).join('<br>')
+const terms = result => result.totals.map(team => `${clean(members[team.memberId])}: ${team.spots > 0 ? '+' : ''}${f(team.spots)} (cuts ${f(team.cuts)})`).join('<br>')
 const maxSpot = Math.max(0, ...rows.flatMap(row => row.after.totals.map(team => Math.abs(team.spots))))
 const maxRatio = Math.max(0, ...rows.flatMap(row => row.after.totals.map(team => Math.abs(team.spots) / Math.max(1, Math.abs(team.total)) * 100)))
-const rosterSpotValue = tradeRosterSpotValue(1, 0)
 const changed = rows.filter(row => row.before.verdict !== row.after.verdict).length
 const releaseChanged = rows.filter(row => row.release.verdict !== row.after.verdict).length
 const lines = [
   '# Trade curve', '',
-  `Model: \`${TRADE_FORMULA_VERSION}\`. Exponent, flat roster-spot value, and fairness tolerance live in \`core/src/dynasty/tradeScoring.ts\`.`, '',
+  `Model: \`${TRADE_FORMULA_VERSION}\`. Exponent and fairness tolerance live in \`core/src/dynasty/tradeScoring.ts\`.`, '',
   'Source values stay OneNumberHoops trade_value on 0–1000. Players and picks use 1000 × (value / 1000)^5 at the package sum. FAAB keeps its existing value. No consolidation bonus remains.', '',
-  'Each team keeps its curved received and sent totals. Net value is received − sent + S × (players sent − players received) − cuts, with S = 25 curved points. The two package totals include each recipient’s roster terms. Their absolute gap is divided by the larger absolute package total. A gap at most 5% is Fair. The winner has the higher net value. Signed opposite net values are not used as the gap denominator.', '',
-  `Each net player sent frees a roster spot worth +${rosterSpotValue} curved points. Each net player received uses a spot worth −${rosterSpotValue}. Existing vacancies add nothing. Picks and FAAB do not use player spots. All player locations count. Roster limits still follow regular, IR, and taxi capacity. Incoming taxi players stay on taxi; explicit saved IR and taxi destinations are honored. Excess players cost the lowest curved values in the overfull section, including incumbents. Missing imported values contribute zero.`, '',
+  'Each team keeps its curved received and sent totals. Net value is received − sent − cuts. The two package totals include each recipient’s roster terms. Their absolute gap is divided by the larger absolute package total. A gap at most 5% is Fair. The winner has the higher net value. Signed opposite net values are not used as the gap denominator.', '',
+  `Open roster spots add no value. The curve already discounts low-value players. Picks and FAAB do not use player spots. All player locations count. Roster limits still follow regular, IR, and taxi capacity. Incoming taxi players stay on taxi; explicit saved IR and taxi destinations are honored. Excess players cost the lowest curved values in the overfull section, including incumbents. Missing imported values contribute zero.`, '',
   'Exact exponent 5 arithmetic gives 950 → 773.780937; 942 → 741.744806; 900 → 590.49; 851 → 446.321492; 800 → 327.68; 700 → 168.07; 600 → 77.76; 500 → 31.25. The supplied Luka reference of 743 differs from the formula, which rounds to 742. The formula is used directly. Luka versus Duren + Sarr + Castle + George is 741.744806 versus 600.773297 before roster terms. The team receiving Luka gets +75; the four-player recipient gets −75. Adjusted received packages are 816.744806 versus 525.773297 before cuts. Luka’s recipient has net +215.971509. Gilgeous-Alexander versus two 500s is 773.780937 versus 62.5 before roster terms.', '',
   `## Backup replay`, '',
   `The 2026-10-28 production-shaped backup was restored only to project \`pt4bafabletc\`, ports 639xx, on the mini. No production service was contacted. The recorded OneNumberHoops fixture matched ${imported.matched} players.`, '',
   `The table includes all ${rows.length} OFFICIAL LEAGUE trades in season ${league.seasonYear}, across every saved status. ${completed} are completed. This backup has no completed trades. The completed-trade SQL recipe covers that path. Before and after use the same imported snapshot and existing pick values. Before uses exponent 5.5 with flat roster spots recorded at \`a807346b\` on the same backup and source fixture. The release 2.10.2 baseline from \`892b6bca\` is retained below. These are replay judgments, not historical proposal-time judgments.`, '',
   'Rosters use the real backup roster for the trade’s season. Completed trade assets are normalized back to their sending teams and transferred once. Assets no longer rostered are restored to their original sending team for this comparison. The backup does not contain a complete historical roster snapshot for every proposal, so this replay measures the backup roster context rather than claiming exact roster conditions on the proposal date.', '',
-  `S is **${rosterSpotValue} curved points** per net player. Both models use S = 25 per net player and the 5% fair band. The exponent changes from 5.5 to 5; required cuts use the new curve too. Largest absolute new roster term, including cuts: **${f(maxSpot)}**. Largest roster term relative to its adjusted package: **${f(maxRatio)}%**. Verdicts changed from the prior curve: **${changed}/${rows.length}**. Verdicts changed from release 2.10.2: **${releaseChanged}/${rows.length}**.`, '',
+  `Required cuts use the curve. Largest absolute new roster term, including cuts: **${f(maxSpot)}**. Largest roster term relative to its adjusted package: **${f(maxRatio)}%**. Verdicts changed from the prior curve: **${changed}/${rows.length}**. Verdicts changed from release 2.10.2: **${releaseChanged}/${rows.length}**.`, '',
   '| Trade / status | Assets sent | Before: exponent 5.5 totals | Before gap / verdict | After: exponent 5 totals | After gap / verdict | After team nets | New roster terms |',
   '| --- | --- | --- | --- | --- | --- | --- | --- |',
   ...rows.map(row => `| \`${row.id}\`<br>${row.proposed_at.slice(0,10)} · ${row.status} | ${row.assets.map(asset => `${clean(asset.from)} → ${clean(asset.to)}: ${clean(asset.label)}`).join('<br>')} | ${totals(row.before)} | ${f(row.before.gapPercent)}% · ${clean(row.before.verdict)} | ${totals(row.after)} | ${f(row.after.gapPercent)}% · ${clean(row.after.verdict)} | ${nets(row.after)} | ${terms(row.after)} |`), '',
@@ -121,7 +115,7 @@ const lines = [
   'Run the mini setup with node tests/e2e/trade-curve-mini.mjs setup. Run SQL checks with node tests/e2e/trade-curve-mini.mjs verify. Generate this report with node tests/e2e/trade-curve-report.mjs. Build with the prepare-web mode. Browser evidence uses node tests/e2e/trade-curve-browser.mjs.', '',
 ]
 mkdirSync('tests/evidence/trade-curve', { recursive: true })
-writeFileSync('tests/evidence/trade-curve/report.json', JSON.stringify({ league, model: TRADE_FORMULA_VERSION, previousModel: previous.model, rosterSpotValue, imported, updated, maxSpot, maxRatio, changed, releaseChanged, rows }, null, 2) + '\n')
+writeFileSync('tests/evidence/trade-curve/report.json', JSON.stringify({ league, model: TRADE_FORMULA_VERSION, previousModel: previous.model, imported, updated, maxSpot, maxRatio, changed, releaseChanged, rows }, null, 2) + '\n')
 const existing = readFileSync('docs/trade-curve.md', 'utf8')
 const verification = existing.includes('\nFocused Vitest:') ? existing.slice(existing.indexOf('\nFocused Vitest:')) : ''
 writeFileSync('docs/trade-curve.md', lines.join('\n') + verification)

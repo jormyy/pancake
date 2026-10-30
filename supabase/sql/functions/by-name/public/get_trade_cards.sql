@@ -28,7 +28,7 @@ BEGIN
     CROSS JOIN LATERAL jsonb_to_record(CASE WHEN jsonb_typeof(cached.revaluation)='object'
       THEN cached.revaluation ELSE '{}'::jsonb END)
       value("modelVersion" text,"inputVersion" text,"createdAt" text,analysis jsonb)
-    WHERE value."modelVersion"='onenumber-trade-curve-v5'
+    WHERE value."modelVersion"='onenumber-trade-curve-v6'
   ), participants AS (
     SELECT participant.trade_id,COALESCE(jsonb_agg(jsonb_build_object('memberId',participant.member_id,
       'teamName',COALESCE(member.team_name,'Unknown'),'sortOrder',participant.sort_order,

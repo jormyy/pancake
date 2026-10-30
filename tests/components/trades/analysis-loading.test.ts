@@ -19,7 +19,7 @@ it('shows an accessible pending value until fresh analysis arrives', async () =>
     expect(JSON.stringify(screen.toJSON())).toContain('Updating values')
     await act(async () => screen.update(React.createElement(TradeAnalysisSummary, { analysis, loading: false, participantName: () => 'My team' })))
     expect(screen.root.findAllByProps({ accessibilityLabel: 'Updating trade values' })).toHaveLength(0)
-    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => [node.props.children].flat().join('') === 'Received 25 · Sent 10 · Spots 0')).toBe(true)
+    expect(screen.root.findAllByType('Text' as React.ElementType).some(node => [node.props.children].flat().join('') === 'Received 25 · Sent 10 · Cuts 0')).toBe(true)
 })
 it('replaces obsolete totals with a loading status during revaluation', async () => {
     await act(async () => { screen = create(React.createElement(TradeAnalysisSummary, { analysis, loading: true, participantName: () => 'My team' })) })

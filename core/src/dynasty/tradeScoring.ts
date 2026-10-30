@@ -1,10 +1,9 @@
 import type { DynastyAsset, DynastyAssetResult, DynastyEngineContext, DynastyStrategy, DynastyTradeAnalysis, DynastyTradeRoute } from './decisionEngine'
 
-export const TRADE_FORMULA_VERSION = 'onenumber-trade-curve-v5'
+export const TRADE_FORMULA_VERSION = 'onenumber-trade-curve-v6'
 const TRADE_SCORING = {
   exponent: 5,
   fairnessTolerance: 0.05,
-  rosterSpotValue: 25,
   faabBase: 45,
   faabQuality: 105,
 } as const
@@ -22,10 +21,6 @@ export function compareTradeTotals(totals: number[]) {
   const gap = totals.length ? Math.max(...totals) - Math.min(...totals) : 0
   const gapPercent = largest ? gap / largest * 100 : 0
   return { gapPercent, fair: gapPercent <= TRADE_SCORING.fairnessTolerance * 100 + 1e-9 }
-}
-
-export function tradeRosterSpotValue(playersSent: number, playersReceived: number): number {
-  return (playersSent - playersReceived) * TRADE_SCORING.rosterSpotValue
 }
 
 export function scoreTradeSides(sent: number[], received: number[], rosterSlotEffect = 0, sentFaab = 0, receivedFaab = 0) {
@@ -104,8 +99,7 @@ export function analyzeDynastyTrade(context: DynastyEngineContext, strategy: Dyn
         if (location === 'active') openRosterSpots = Math.max(0, roster.limits.active - values.length)
       }
     }
-    const rosterSlotEffect = decimal(tradeRosterSpotValue(sent.filter(asset => asset.kind === 'player').length,
-      received.filter(asset => asset.kind === 'player').length) - cutValue)
+    const rosterSlotEffect = decimal(-cutValue)
     const score = scoreTradeSides(sent.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall),
       received.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall), rosterSlotEffect,
       sum(sent.filter(asset => asset.kind === 'faab').map(asset => asset.values.overall)),
@@ -127,7 +121,7 @@ export function analyzeDynastyTrade(context: DynastyEngineContext, strategy: Dyn
     missingInputs: [...new Set(assets.flatMap(asset => asset.missingInputs))],
     assumptions: [...new Set(assets.flatMap(asset => asset.assumptions)),
       `Player and pick totals use 1000 × (source value / 1000)^${TRADE_SCORING.exponent}. FAAB retains its existing value.`,
-      `Roster spots add ${TRADE_SCORING.rosterSpotValue} × (players sent − players received); excess players also cost their lowest curved values.`,
+      'Open roster spots add no value; excess players cost their lowest curved values.',
       `Fair means the adjusted package totals differ by at most ${TRADE_SCORING.fairnessTolerance * 100}% of the larger total.`],
   }
 }

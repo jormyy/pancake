@@ -2,7 +2,7 @@
 -- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
 -- npm run check:db-function-sources verifies every latest migration function has exact source parity.
 
-CREATE OR REPLACE FUNCTION public.queue_trade_estimate_reanalysis(p_run text DEFAULT 'onenumber-trade-curve-v5')
+CREATE OR REPLACE FUNCTION public.queue_trade_estimate_reanalysis(p_run text DEFAULT 'onenumber-trade-curve-v6')
 RETURNS bigint LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE remaining bigint; completed bigint;
 BEGIN
@@ -11,7 +11,7 @@ BEGIN
   IF remaining=0 THEN RETURN 0; END IF;
   SELECT count(*) INTO completed FROM public.trade_estimate_history WHERE formula_version=p_run;
   PERFORM private.work_enqueue('trade-estimate','reanalysis:'||p_run||':'||completed::text,now(),
-    jsonb_build_object('reanalysisVersion','onenumber-trade-curve-v5','completed',completed,'runVersion',p_run));
+    jsonb_build_object('reanalysisVersion','onenumber-trade-curve-v6','completed',completed,'runVersion',p_run));
   RETURN remaining;
 END;
 $$;
