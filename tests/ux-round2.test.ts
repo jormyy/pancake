@@ -21,15 +21,15 @@ const render = async (element: React.ReactElement) => {
     return screen!
 }
 const estimate = {
-    quoteId: 'quote', modelVersion: 'model', inputVersion: 'inputs', createdAt: '2026-10-27T20:37:50Z',
+    quoteId: 'quote', modelVersion: 'onenumber-trade-curve-v5', inputVersion: 'inputs', createdAt: '2026-10-27T20:37:50Z',
     teams: ['member-a', 'member-b'].map((memberId, index) => ({ memberId, valuesSent: index ? 605 : 1412,
         valuesReceived: index ? 1412 : 605, impact: index ? 677 : -677, shortTermPoints: 0,
         longTermValue: 0, rosterSlotEffect: 0, replacementEffect: 0, packageEffect: 0 })),
 }
 
-it.each([['member-a', '1412 vs 605'], ['member-b', '605 vs 1412']])('shows the viewer side first for %s', async (myMemberId, expected) => {
+it.each([['member-a', 'Team A: 605 · Net -807'], ['member-b', 'Team B: 1412 · Net +807']])('shows the viewer side first for %s', async (myMemberId, expected) => {
     const tree = await render(React.createElement(SavedTradeEstimate, { trade: trade({ estimate }), myMemberId }))
-    expect(tree.root.findByType('Text' as React.ElementType).children.join('')).toBe(expected)
+    expect(tree.root.findAllByType('Text' as React.ElementType)[0].children.join('')).toBe(expected)
     expect(tree.root.findAllByProps({ accessibilityRole: 'button' })).toHaveLength(0)
 })
 

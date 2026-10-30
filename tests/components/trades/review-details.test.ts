@@ -24,8 +24,8 @@ it.each([0, 1, 2])('keeps capacity reasons compact with %s excess players', exce
 it('keeps complete asset values and range on one line', async () => {
     const analysis = { strategy: 'balanced', confidence: 1, teams: [], assets: [{ kind: 'player', assetId: 'player', label: 'Player', values: { balanced: 348 }, components: { shortTermPoints: 9.3, longTermValue: 419 }, ranges: { balanced: { low: 306, high: 390 } }, confidence: 1 }], sources: [], missingInputs: [], assumptions: [] } as unknown as DynastyTradeAnalysis
     await act(async () => { screen = create(React.createElement(TradeAnalysisSummary, { analysis, participantName: String })) })
-    expect(texts()).toContain('Value 348 · Now 9.3 · Long 419 · 306–390')
+    expect(texts()).toContain('Trade value 5.1 · Source 348 · 2.68–9.02')
     for (const caption of ['Estimated trade value', 'Input quality', 'Asset details', 'Sources and limits']) expect(texts().join(' ')).not.toContain(caption)
     expect(texts().join(' ')).not.toContain('Missing:')
-    for (const node of screen.root.findAllByType('Text' as React.ElementType).filter(node => /Value 348|Range 306/.test(React.Children.toArray(node.props.children).join('')))) expect(node.props.numberOfLines).toBe(1)
+    for (const node of screen.root.findAllByType('Text' as React.ElementType).filter(node => /Trade value 5.1/.test(React.Children.toArray(node.props.children).join('')))) expect(node.props.numberOfLines).toBe(1)
 })

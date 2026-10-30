@@ -3,7 +3,7 @@ import { serveInternal } from '../_shared/serve.ts'
 import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { supabase } from '../_shared/supabase.ts'
 import { toETDate } from '../_shared/date.ts'
-import { chooseBestAssignments } from './assignments.ts'
+import { chooseAutoSetAssignments } from './assignments.ts'
 import { MANUAL_DATE_LIMIT, parseManualDateFilter, processManualDates, type ManualOptimizationResult } from './manual.ts'
 import { loadEnabledOptimizerSettings, type OptimizerSetting } from './settings.ts'
 import { createScheduledProjectionLoader } from './projections.ts'
@@ -476,10 +476,11 @@ async function autoSetMemberDate(
   const availablePlayers = players
     .filter((player) => !lockedPlayerIds.has(player.playerId))
     .sort((a, b) => b.projected - a.projected || a.playerId.localeCompare(b.playerId))
-  const newAssignments = chooseBestAssignments(
+  const newAssignments = chooseAutoSetAssignments(
     slotsToFill,
     availablePlayers,
     (player) => !!(player.nbaTeam && playingTeams.has(player.nbaTeam)),
+    (existingEntries ?? []).map(entry => ({ playerId: entry.player_id, slotType: entry.slot_type })),
   )
   const playerMap = new Map(players.map((player) => [player.playerId, player]))
 

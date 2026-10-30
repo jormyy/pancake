@@ -29,8 +29,14 @@ BEGIN
   ELSIF OLD.status = 'pending'::public.trade_status AND NEW.status = 'withdrawn'::public.trade_status THEN
     v_event_type := 'trade_withdrawn';
     v_title := 'Trade Withdrawn';
-    v_body := 'A trade offer sent to you has been withdrawn.';
-    v_all_participants := COALESCE(NEW.is_multi_team, false);
+    IF NEW.completion_failure_reason IN ('A player in this offer was traded','An asset in this offer was traded') THEN
+      v_title := 'Trade Cancelled';
+      v_body := NEW.completion_failure_reason;
+      v_all_participants := true;
+    ELSE
+      v_body := 'A trade offer sent to you has been withdrawn.';
+      v_all_participants := COALESCE(NEW.is_multi_team, false);
+    END IF;
     v_single_recipient := NEW.recipient_member_id;
   ELSIF OLD.status = 'pending'::public.trade_status AND NEW.status = 'expired'::public.trade_status THEN
     v_event_type := 'trade_expired';
@@ -68,7 +74,8 @@ BEGIN
       FROM public.trade_participants AS participant
      WHERE participant.trade_id = NEW.id
        AND v_all_participants
-       AND (v_event_type <> 'trade_withdrawn' OR participant.member_id <> NEW.proposer_member_id)
+       AND (v_event_type <> 'trade_withdrawn' OR participant.member_id <> NEW.proposer_member_id
+         OR NEW.completion_failure_reason IN ('A player in this offer was traded','An asset in this offer was traded'))
        AND (v_event_type <> 'trade_rejected' OR participant.member_id = NEW.proposer_member_id OR participant.accepted_at IS NOT NULL)
     UNION SELECT v_single_recipient WHERE NOT v_all_participants
   ) AS recipient

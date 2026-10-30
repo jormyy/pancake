@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.score_input_keys.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.score_input_keys(p_season_id uuid, p_week int)
 RETURNS TABLE(scope text) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   WITH season AS (

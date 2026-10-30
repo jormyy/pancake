@@ -1,0 +1,102 @@
+{
+  "node": "22.23.3",
+  "focusedVitest": {
+    "filesPassed": 11,
+    "filesSkipped": 1,
+    "passed": 79,
+    "failed": 0,
+    "skipped": 1,
+    "skippedReason": "Existing layout test requires PANCAKE_LAYOUT_BROWSER; actual screens were checked separately with agent-browser on the mini."
+  },
+  "sqlRecipes": {
+    "trade-curve": 17,
+    "trade-estimate-reanalysis": 40,
+    "trade-historical-revaluation": 14,
+    "failed": 0
+  },
+  "edgeHelperTests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "quality": {
+    "command": "npm run check:quality",
+    "passed": true,
+    "checks": 13
+  },
+  "catalog": {
+    "command": "node scripts/check-db-function-sources.mjs --check-catalog",
+    "passed": true,
+    "database": "127.0.0.1:63922"
+  },
+  "browser": {
+    "passed": true,
+    "width": 390,
+    "screens": [
+      "analyzer-390.png",
+      "trade-card-390.png"
+    ],
+    "horizontalOverflow": false,
+    "productionRequests": 0,
+    "tradeId": "259be166-b1ad-49e9-8ae7-ffba791c9011",
+    "flatRosterTermsVerified": true
+  },
+  "build": {
+    "location": "mini",
+    "command": "node tests/e2e/trade-curve-mini.mjs prepare-web",
+    "passed": true,
+    "api": "http://127.0.0.1:63921",
+    "productionUrlAbsent": true
+  },
+  "fullVitest": {
+    "command": "NODE_OPTIONS=--max-old-space-size=3072 npx vitest run --maxWorkers=1",
+    "runs": 1,
+    "filesPassed": 498,
+    "filesFailed": 7,
+    "filesSkipped": 16,
+    "passed": 3941,
+    "failed": 853,
+    "skipped": 48,
+    "durationSeconds": 89.91,
+    "failuresAddressed": true,
+    "rerunFullSuiteAfterFixes": false
+  },
+  "model": "onenumber-trade-curve-v5",
+  "rosterSpotValue": 25,
+  "implementationCommit": "ced7f75a",
+  "exponent": 5,
+  "miniMigration": {
+    "parallelMaintenanceWorkers": 0,
+    "parallelWorkersPerGather": 0,
+    "backupCopyHashesMatched": true,
+    "incompleteTransferGuardPreventedImport": true,
+    "resumedAfterCompleteTransfer": true,
+    "passed": true
+  },
+  "miniHarnessChecks": {
+    "syntax": true,
+    "typecheckE2e": true,
+    "eslint": true
+  },
+  "failureFollowup": {
+    "filesPassed": 7,
+    "passed": 929,
+    "failed": 0,
+    "skipped": 0,
+    "durationSeconds": 13.82,
+    "corrections": [
+      "Candidate migration and security catalog fixtures regenerated from private mini database",
+      "Release-order table includes migration 20261214003100",
+      "Rankings cache fixture uses league timezone rather than Eastern date"
+    ]
+  },
+  "candidateAttestations": {
+    "command": "node scripts/regenerate-release-history-attestations.mjs",
+    "check": "node scripts/regenerate-release-history-attestations.mjs --check",
+    "database": "127.0.0.1:63922",
+    "migrations": 702,
+    "head": "20261214003100",
+    "productionBaselinePreserved": true,
+    "preMigrationCatalogPreserved": true,
+    "passed": true
+  }
+}

@@ -34,7 +34,6 @@ DECLARE
   v_request_faab_amount int := COALESCE(p_request_faab_amount, 0);
   v_rows int;
   v_league leagues%ROWTYPE;
-  v_balance int;
   v_terms jsonb;
   v_champion_finalized boolean := false;
 BEGIN
@@ -265,22 +264,6 @@ BEGIN
   SELECT count(*) INTO v_rows FROM locked;
   IF v_rows <> cardinality(v_request_pick_ids) THEN
     RAISE EXCEPTION 'Your request includes a draft pick that is no longer owned by the expected team.';
-  END IF;
-
-  IF v_offer_faab_amount > 0 THEN
-    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, p_proposer_member_id);
-    IF v_balance < v_offer_faab_amount THEN
-      RAISE EXCEPTION 'Offered FAAB exceeds the proposer''s available balance.'
-        USING ERRCODE = 'P0001';
-    END IF;
-  END IF;
-
-  IF v_request_faab_amount > 0 THEN
-    v_balance := private.available_faab_balance(p_league_id, p_league_season_id, p_recipient_member_id);
-    IF v_balance < v_request_faab_amount THEN
-      RAISE EXCEPTION 'Requested FAAB exceeds the recipient''s available balance.'
-        USING ERRCODE = 'P0001';
-    END IF;
   END IF;
 
   INSERT INTO trades (

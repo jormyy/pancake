@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.apply_pre_tipoff_lineup.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.apply_pre_tipoff_lineup(
   p_tipoff_at timestamptz, p_token uuid, p_league_id uuid,
   p_league_season_id uuid, p_member_id uuid, p_assignments jsonb
@@ -47,6 +51,7 @@ BEGIN
     SELECT 1 FROM jsonb_array_elements(p_assignments) a
     JOIN public.players p ON p.id = (a->>'player_id')::uuid
     WHERE (lower(p.injury_status) = 'out' OR lower(p.injury_status) LIKE 'ir%')
+      AND COALESCE((a->>'expected_active')::boolean, true)
       AND NOT private.lineup_game_started(p.id, v_dispatch.game_date)
   ) THEN
     RAISE EXCEPTION 'Injury status changed; retry with fresh players.' USING ERRCODE = '40001';
@@ -56,6 +61,7 @@ BEGIN
     SELECT 1 FROM jsonb_array_elements(p_assignments) a
     JOIN public.players p ON p.id = (a->>'player_id')::uuid
     WHERE NOT private.lineup_game_started(p.id, v_dispatch.game_date)
+      AND COALESCE((a->>'expected_active')::boolean, true)
       AND NOT EXISTS (
         SELECT 1 FROM public.nba_games g
         WHERE g.game_date = v_dispatch.game_date

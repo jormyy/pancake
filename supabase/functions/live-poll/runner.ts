@@ -1,3 +1,6 @@
+import { liveEspnSource, matchEspnGame } from './espn.ts'
+import type { EspnEvent } from './espn.ts'
+import { prepareLiveSources, liveFailureText } from './fallback.ts'
 import { shouldKeepPolling } from './policy.ts'
 import { saveScoreboardGames } from './scoreboard.ts'
 import { supabase } from '../_shared/supabase.ts'
@@ -8,7 +11,7 @@ import { recordSyncRun } from '../_shared/syncRuns.ts'
 import { errorMessage } from '../_shared/responses.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { LIVE_POLL_LEASE_TTL_SECONDS, LIVE_POLL_LOCK_KEY } from '../_shared/livePoll.ts'
-import { withWorkContext } from '../_shared/workContext.ts'
+import { withWorkContext, withLiveScoreRetries } from '../_shared/workContext.ts'
 import { retryDatabaseContention } from '../_shared/databaseRetry.ts'
 import type { Database } from '../_shared/database.ts'
 
@@ -19,7 +22,7 @@ const LIVE_RUN_MS = 110_000
 type LiveGame = Database['public']['Functions']['get_live_poll_work']['Returns'][number]
 
 async function loadWork(): Promise<LiveGame[]> {
-  const { data, error } = await supabase.rpc('get_live_poll_work')
+  const { data, error } = await supabase.rpc('get_live_poll_work').abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
   return data ?? []
 }
@@ -28,8 +31,35 @@ async function stampAttempts(holder: string, checkedIds: string[], statIds: stri
   if (!checkedIds.length && !statIds.length) return
   const { error } = await supabase.rpc('record_live_poll_attempts', {
     p_holder: holder, p_checked_ids: checkedIds, p_stats_ids: statIds,
-  })
+  }).abortSignal(AbortSignal.timeout(5000))
   if (error) throw error
+}
+
+function hasEspnLiveGame(game: LiveGame, events: EspnEvent[]): boolean {
+  if (game.status === 'Final') return false
+  try {
+    const event = matchEspnGame(game, events)
+    return !!event && ['in', 'post'].includes(event.status.type.state)
+  } catch (error) {
+    console.error(`[live-poll] ESPN game identity failed for ${game.nba_game_id}:`, errorMessage(error))
+    return false
+  }
+}
+
+async function discoverEspnGames(work: LiveGame[], events: EspnEvent[]): Promise<LiveGame[]> {
+  const unmatched = events.filter(event => ['in', 'post'].includes(event.status.type.state) &&
+    !work.some(game => matchEspnGame(game, [event])))
+  if (!unmatched.length) return work
+  const dates = [...new Set(unmatched.map(event => new Date(event.date).toLocaleDateString('en-CA', { timeZone: 'America/New_York' })))]
+  const { data, error } = await supabase.from('nba_games')
+    .select('id,nba_game_id,game_date,season_year,week_number,status,game_time,started_at,home_team,away_team,home_score,away_score,game_status_text,stats_synced_at')
+    .eq('status', 'Scheduled').like('nba_game_id', '002%').in('game_date', dates)
+    .abortSignal(AbortSignal.timeout(5000))
+  if (error) throw error
+  const existing = new Set(work.map(game => game.id))
+  const extra = (data ?? []).filter(game => !existing.has(game.id) && matchEspnGame(game, unmatched))
+    .map(game => ({ ...game, needs_scoreboard: true, needs_stats: true })) as LiveGame[]
+  return [...work, ...extra]
 }
 
 export async function ingestTick(holder: string, onRetry?: () => void): Promise<{ lines: number; keepRunning: boolean; worked: boolean; failures: string[]; scoreRetries: number; tickRetries: number }> {
@@ -37,43 +67,60 @@ export async function ingestTick(holder: string, onRetry?: () => void): Promise<
   const retry = <T>(run: () => Promise<T>, failures?: (result: T) => unknown[]) => retryDatabaseContention(run, {
     failures, onRetry: () => { tickRetries++; onRetry?.() },
   })
-  let work = await retry(loadWork)
+  let work = (await retry(loadWork)).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
   if (!work.length) return { lines: 0, keepRunning: false, worked: false, failures: [], scoreRetries: 0, tickRetries }
   const boardGames = work.filter(game => game.needs_scoreboard)
-  if (boardGames.length) {
-    await retry(() => stampAttempts(holder, boardGames.map(game => game.id), []))
-    const games = await recordSyncRun('source:nba-cdn-scoreboard', async () => {
-      const games = await fetchTodaysGames()
-      return { result: games, rowsAffected: games.length }
-    }).catch(error => {
-      console.error('[live-poll] scoreboard unavailable:', errorMessage(error))
+  await retry(() => stampAttempts(holder, boardGames.map(game => game.id), []))
+  const dates = [...new Set(work.map(game => game.game_date).filter(Boolean))]
+  if (!dates.length) dates.push(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }))
+  const espn = work.some(game => game.status !== 'Final')
+    ? liveEspnSource.scoreboard(dates).catch(error => {
+      console.warn('[live-poll] ESPN scoreboard unavailable; using NBA:', errorMessage(error))
       return []
-    })
-    await retry(() => saveScoreboardGames(games, work))
-    work = await retry(loadWork)
+    }) : Promise.resolve([])
+  const nba = boardGames.length ? recordSyncRun('source:nba-cdn-scoreboard', async () => {
+    const games = await fetchTodaysGames(2500)
+    return { result: games, rowsAffected: games.length }
+  }).catch(error => {
+    console.warn('[live-poll] NBA scoreboard unavailable:', errorMessage(error))
+    return []
+  }) : Promise.resolve([])
+  const [events, nbaScoreboard] = await Promise.all([espn, nba])
+  const nbaFinalWork = work.filter(game => game.status !== 'Final' && nbaScoreboard.some(board => board.gameId === game.nba_game_id && board.gameStatus === 3))
+  if (boardGames.length) {
+    const fallbackBoards = nbaScoreboard.filter(game => game.gameStatus !== 2 ||
+      !work.some(stored => stored.nba_game_id === game.gameId && hasEspnLiveGame(stored, events)))
+    await retry(() => saveScoreboardGames(fallbackBoards, work))
+    work = (await retry(loadWork)).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
   }
-  const statsGames = work.filter(game => game.needs_stats)
+  for (const game of nbaFinalWork) if (!work.some(row => row.id === game.id)) work.push(game)
+  work = (await retry(() => discoverEspnGames(work, events))).filter((game): game is LiveGame & { nba_game_id: string } => !!game.nba_game_id)
+  const statsGames = work.filter(game => game.needs_stats || hasEspnLiveGame(game, events) || nbaFinalWork.some(row => row.id === game.id))
   await retry(() => stampAttempts(holder, [], statsGames.filter(game => game.status === 'Final').map(game => game.id)))
   let lines = 0
   let scoreRetries = 0
   const failures: unknown[] = []
   if (statsGames.length) {
     try {
-      const result = await retry(() => syncLiveStatsGames(statsGames), result => result.failures)
+      const sources = await prepareLiveSources(statsGames, events, nbaScoreboard)
+      failures.push(...sources.failures)
+      const result = await retry(() => syncLiveStatsGames(statsGames, sources), result => result.failures)
       lines = result.statLines
       failures.push(...result.failures)
     } catch (error) {
       failures.push(error)
     }
     try {
-      await syncScores(undefined, new Date(), { recoverStats: false, onPublicationRetry: () => { scoreRetries++ } })
+      await withLiveScoreRetries(() => syncScores(undefined, new Date(), {
+        recoverStats: false, onPublicationRetry: () => { scoreRetries++ },
+      }), () => { scoreRetries++ })
     } catch (error) {
       failures.push(error)
     }
   }
   for (const error of failures) console.error('[live-poll] input failed:', error)
   const keepRunning = shouldKeepPolling(work)
-  return { lines, keepRunning, worked: true, failures: failures.map(errorMessage), scoreRetries, tickRetries }
+  return { lines, keepRunning, worked: true, failures: failures.map(error => liveFailureText(error)), scoreRetries, tickRetries }
 }
 
 export async function runLivePoll(request: Request): Promise<Response> {

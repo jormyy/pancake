@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.set_trade_roster_plan_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.set_trade_roster_plan_atomic(
   p_trade_id uuid, p_member_id uuid, p_user_id uuid,
   p_taxi_player_ids uuid[], p_ir_player_ids uuid[], p_drop_player_ids uuid[], p_roster_moves jsonb DEFAULT '[]'::jsonb

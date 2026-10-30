@@ -200,10 +200,3 @@ LEFT JOIN fantasy_averages AS fantasy
 LEFT JOIN projections AS projection ON projection.player_id = player.id
 ORDER BY player.five_year_rank NULLS LAST, player.display_name, player.id;
 $$;
-
-REVOKE ALL ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) TO authenticated, service_role;
-
-COMMENT ON FUNCTION public.get_dynasty_forecast_inputs(uuid, uuid, int, uuid[], text, int, int) IS
-  'Returns authorized Hashtag dynasty ranks, production, and projections.';

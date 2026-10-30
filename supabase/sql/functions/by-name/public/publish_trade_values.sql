@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.publish_trade_values.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.publish_trade_values(p_rows jsonb,p_picks jsonb,p_source_body text,p_fetched_at timestamptz,p_mode text,p_request_id uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_state private.trade_value_sync_state%ROWTYPE; v_matched integer; v_duplicates integer;
@@ -74,5 +78,3 @@ BEGIN
   RETURN jsonb_build_object('players',450,'matched',v_matched,'unmatched',450-v_matched,'picks',18,'derivedPicks',9);
 END;
 $$;
-REVOKE ALL ON FUNCTION public.publish_trade_values(jsonb,jsonb,text,timestamptz,text,uuid) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.publish_trade_values(jsonb,jsonb,text,timestamptz,text,uuid) TO service_role;

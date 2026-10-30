@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.work_finish.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.work_finish(p_id bigint, p_token uuid, p_error text DEFAULT NULL)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE;

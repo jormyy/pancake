@@ -12,7 +12,7 @@ import { setSessionOwner } from '@/lib/session-cache-registry'
 
 const state = vi.hoisted(() => ({
     params: { id: 'player', playerHeader: undefined as string | undefined },
-    data: {} as Record<string, unknown>, roster: vi.fn(), add: vi.fn(), push: vi.fn(), dismissTo: vi.fn(),
+    data: {} as Record<string, unknown>, roster: vi.fn(), locks: [] as import('@/lib/locked-assets').AssetLock[], add: vi.fn(), push: vi.fn(), dismissTo: vi.fn(),
     refresh: undefined as (() => Promise<void>) | undefined,
     canRead: () => true, isCurrent: () => true,
 }))
@@ -47,6 +47,7 @@ let screen: ReactTestRenderer | undefined
 const button = () => screen!.root.findByProps({ accessibilityLabel: 'Claim Player A' })
 beforeEach(() => {
     vi.clearAllMocks()
+    state.locks = []
     state.params = { id: 'player', playerHeader: undefined }
     state.data = {
         opened: {}, toggleSection: vi.fn(), news: [],
@@ -238,4 +239,13 @@ it('shows the injury detail beside the initial profile and keeps sections closed
     }
     await act(async () => screen!.root.findByProps({ accessibilityLabel: 'News' }).props.onPress())
     expect(state.data.toggleSection).toHaveBeenCalledExactlyOnceWith('news')
+})
+
+vi.mock('@/hooks/use-screen-view', () => ({ useScreenView: () => ({ data: { roster: [{ players: { id: state.params.id }, assetLocks: state.locks }] } }) }))
+
+it('passes the current player reservation into the header without source text', async () => {
+    state.locks = [{ assetKind: 'player', assetId: state.params.id, sourceKind: 'trade', sourceId: 'hidden-id', reason: 'Locked by trade hidden-id.' }]
+    await act(async () => { screen = create(React.createElement(PlayerDetailScreen)) })
+    expect(screen!.root.findAllByProps({ accessibilityLabel: 'Locked by a pending trade' })).toHaveLength(1)
+    expect(JSON.stringify(screen!.toJSON())).not.toContain('hidden-id')
 })

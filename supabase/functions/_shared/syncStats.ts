@@ -1,3 +1,5 @@
+import { saveLiveFeedSnapshot } from './liveFeed.ts'
+import type { NBABoxScore } from './nba.ts'
 import { gameElapsedSeconds } from './gameProgress.ts'
 import { assertGameUnambiguous } from './gameIdentity.ts'
 import { supabase } from './supabase.ts'
@@ -122,10 +124,11 @@ async function syncGameBoxScore(
   game: StatsSyncGame,
   skipScheduled: boolean,
   persist: (write: () => Promise<number>) => Promise<number> = write => write(),
+  loadBoxScore: (game: StatsSyncGame) => Promise<NBABoxScore> = game => fetchBoxScore(game.nba_game_id!),
 ): Promise<number> {
   const providerGameId = game.nba_game_id
   if (!providerGameId) throw new Error(`NBA game ${game.id} is missing its provider id`)
-  const boxScore = await fetchBoxScore(providerGameId)
+  const boxScore = await loadBoxScore(game)
   if (game.status === 'Final' && boxScore.gameStatus !== 3) {
     throw new Error(`Final game box score is not final for ${providerGameId}`)
   }
@@ -134,13 +137,21 @@ async function syncGameBoxScore(
   return await persist(() => retrySourceContention(async () => {
     await assertGameUnambiguous(game.id)
     validateBoxScorePlayers(boxScore, providerGameId)
-    const playerIds = await recordBoxSides(boxScore, providerGameId)
+    const playerIds = boxScore.liveSource === 'espn' ? boxScore.livePlayerIds : await recordBoxSides(boxScore, providerGameId)
     const resolved = await resolveBoxScorePlayers(boxScore, providerGameId, playerIds)
     const stats = resolved.map(({ player, playerId }) =>
       buildStatRow(player, playerId, game.id, game.season_year, game.week_number))
     const changed = boxScore.gameStatus === 3
       ? await saveFinalGameStats(game, providerGameId, stats, boxScore)
-      : await saveGameStats(game.id, providerGameId, stats, false, gameElapsedSeconds(boxScore))
+      : (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt)
+        ? await saveLiveFeedSnapshot(game.id, providerGameId, {
+          source: boxScore.liveSource ?? 'nba', source_updated_at: (boxScore.liveSourceUpdatedAt ?? boxScore.sourceUpdatedAt)!,
+          elapsed_seconds: gameElapsedSeconds(boxScore), stats, nba_witness_player_ids: boxScore.nbaWitnessPlayerIds ?? [],
+          ...(isTeamScore(boxScore.homeTeam.score) && isTeamScore(boxScore.awayTeam.score) ? {
+            status: 'InProgress', home_score: boxScore.homeTeam.score, away_score: boxScore.awayTeam.score, status_text: boxScore.gameStatusText ?? '',
+          } : {}),
+        })
+        : await saveGameStats(game.id, providerGameId, stats, false, gameElapsedSeconds(boxScore))
     if (changed > 0) console.log(`[sync-stats] Game ${providerGameId}: ${changed}/${stats.length} stat line(s) changed.`)
     return stats.length
   }))
@@ -356,7 +367,7 @@ export function buildStatRow(
   }
 }
 
-export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ statLines: number; failures: unknown[] }> {
+export async function syncLiveStatsGames(games: StatsSyncGame[], options: { loadBoxScore?: (game: StatsSyncGame) => Promise<NBABoxScore> } = {}): Promise<{ statLines: number; failures: unknown[] }> {
   let statLines = 0
   const failures: unknown[] = []
   let writes: Promise<number> = Promise.resolve(0)
@@ -367,10 +378,12 @@ export async function syncLiveStatsGames(games: StatsSyncGame[]): Promise<{ stat
   }
   await runBounded(games.map(game => async () => {
     try {
-      const lines = await syncGameBoxScore(game, true, persist)
+      const lines = await syncGameBoxScore(game, true, persist, options.loadBoxScore)
       statLines += lines
     } catch (error) {
-      failures.push(error)
+      const failure = new Error(`NBA game ${game.nba_game_id}: ${errorMessage(error)}`, { cause: error })
+      Object.assign(failure, { code: (error as { code?: string })?.code })
+      failures.push(failure)
     }
   }), 4)
   return { statLines, failures }

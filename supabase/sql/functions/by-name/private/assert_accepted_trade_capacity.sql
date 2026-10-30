@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.assert_accepted_trade_capacity.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.assert_accepted_trade_capacity(p_league_id uuid,p_season_id uuid,p_member_id uuid,p_include_trade_id uuid DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SET search_path=public AS $$
 DECLARE v_counts record; v_league leagues%ROWTYPE;

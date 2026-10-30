@@ -43,11 +43,17 @@ exports[`imported trade scoring > keeps the complete estimate shape and source v
   "strategy": "string",
   "teams": [
     {
+      "adjustedValue": "number",
+      "fair": "boolean",
+      "gapPercent": "number",
       "impact": "number",
       "longTermValue": "number",
       "memberId": "string",
+      "netValue": "number",
+      "openRosterSpots": "number",
       "packageEffect": "number",
       "replacementEffect": "number",
+      "rosterCutValue": "number",
       "rosterSlotEffect": "number",
       "shortTermPoints": "number",
       "valuesReceived": "number",

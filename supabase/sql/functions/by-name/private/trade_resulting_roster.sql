@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.trade_resulting_roster.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.trade_resulting_roster(p_trade_id uuid,p_member_id uuid)
 RETURNS TABLE(player_id uuid,on_ir boolean,on_taxi boolean)
 LANGUAGE sql STABLE SET search_path=public AS $$

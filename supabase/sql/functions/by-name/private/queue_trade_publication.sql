@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.queue_trade_publication.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.queue_trade_publication(p_league_id uuid,p_topic text DEFAULT 'trade',p_source text DEFAULT 'trades',p_event jsonb DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE publication uuid;

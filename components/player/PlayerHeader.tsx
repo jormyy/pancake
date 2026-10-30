@@ -1,3 +1,5 @@
+import { LockedAssetNotice, LockedActionExplanation } from '@/components/roster/LockedAssetNotice'
+import type { AssetLock } from '@/lib/locked-assets'
 import { Button } from '@/components/ui/Button'
 import { PlayerEligibilityTags } from './PlayerEligibilityTags'
 import { View, Text, StyleSheet } from 'react-native'
@@ -38,6 +40,7 @@ export type PlayerHeaderAction = {
 }
 
 type Props = {
+    locks?: readonly AssetLock[]
     player: PlayerHeaderPlayer
     rosterStatus: PlayerRosterStatus | null
     ownTeamName?: string | null
@@ -50,7 +53,7 @@ type Props = {
     compact?: boolean
 }
 
-export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backControl,
+export function PlayerHeader({ locks = [], player, rosterStatus, ownTeamName, action, backControl,
     leagueActive, actionsReady = true, dropDisabled = false, onDrop, compact = false }: Props) {
     const headshotSize = compact ? controlSize.avatar.md : controlSize.avatar.lg
     const eligiblePositions = getEligiblePositions(player)
@@ -79,9 +82,10 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
                             {...blockedActionProps(action.blockedReason ?? null, action.disabled || action.busy)} />
                     ) : <View style={styles.placeholder} accessibilityLabel={busy ? 'Loading player action' : 'No player action'} />}
                     {showDrop ? (
+                        <LockedActionExplanation locks={locks} label={`Drop ${player.display_name}`} busy={Boolean(action?.busy || dropDisabled || !actionsReady)}>
                         <Button size="inline" title="Drop" variant="outline" onPress={onDrop}
-                            disabled={action?.busy || dropDisabled || !actionsReady}
-                            accessibilityLabel={`Drop ${player.display_name}`} />
+                            disabled={action?.busy || dropDisabled || !actionsReady || locks.length > 0}
+                            accessibilityLabel={`Drop ${player.display_name}`} /></LockedActionExplanation>
                     ) : null}
                 </View>
             </View>
@@ -92,10 +96,11 @@ export function PlayerHeader({ player, rosterStatus, ownTeamName, action, backCo
             </View>
             <View style={styles.summaryRow} testID="player-summary-line">
                 {player.dynasty_rank != null ? <Badge inline label={`Dynasty #${player.dynasty_rank}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {player.five_year_points != null ? <Badge inline label={`5-year points ${player.five_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
-                {player.three_year_points != null ? <Badge inline label={`3-year points ${player.three_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.five_year_points != null ? <Badge inline label={`5yr: ${player.five_year_points}`} accessibilityLabel={`5-year points ${player.five_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
+                {player.three_year_points != null ? <Badge inline label={`3yr: ${player.three_year_points}`} accessibilityLabel={`3-year points ${player.three_year_points}`} color={colors.textSecondary} textColor={colors.textSecondary} variant="soft" /> : null}
                 {age != null ? <Badge inline label={`${age}`} accessibilityLabel={`Age ${age}`} color={colors.textMuted} /> : null}
                 {player.years_exp != null ? <Badge inline label={`Yr ${player.years_exp + 1}`} color={colors.textMuted} /> : null}
+                <LockedAssetNotice locks={locks} />
                 {leagueActive ? <Text style={styles.rosterStatus} numberOfLines={1}>{statusLabel}</Text> : null}
             </View>
         </View>

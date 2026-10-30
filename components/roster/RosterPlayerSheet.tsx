@@ -1,5 +1,5 @@
+import { LockedActionExplanation } from '@/components/roster/LockedAssetNotice'
 import { rosterActionDisabledStyle } from '@/components/roster/RosterItems'
-import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { readAssetLocks } from '@/lib/locked-assets'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
@@ -71,7 +71,7 @@ export function RosterPlayerSheet({
             {info ? (
                 <View style={styles.body}>
                     <View style={styles.identity}>
-                        <PlayerRowContent name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
+                        <PlayerRowContent locks={locks} name={info.display_name} nbaId={info.nba_id} team={info.nba_team} positions={positions}
                             birthdate={info.birthdate} yearsExp={info.years_exp} careerGames={info.career_regular_season_games} injuryStatus={info.injury_status} onTaxi={player?.is_on_taxi}
                             stats={`${formatPoints(avgFpts ?? 0)} FP · ${formatPoints(stats?.avg_minutes_played ?? 0)} mins${status ? ` · ${status}` : ''}`} />
                     </View>
@@ -85,11 +85,10 @@ export function RosterPlayerSheet({
                         ))}
                     </View>
 
-                    <LockedAssetNotice locks={locks} onNavigate={onClose} />
                     <View style={styles.actions}>
                         {actions.map((action, index) => (
+                            <LockedActionExplanation key={action.key} locks={action.key === 'page' ? [] : locks} label={action.label}>
                             <Pressable
-                                key={action.key}
                                 onPress={action.onPress}
                                 disabled={action.disabled || locks.length > 0 && action.key !== 'page'}
                                 accessibilityState={{ disabled: action.disabled || locks.length > 0 && action.key !== 'page' }}
@@ -112,7 +111,7 @@ export function RosterPlayerSheet({
                                     {action.label}
                                 </Text>
                                 <MaterialIcons name="chevron-right" size={controlSize.icon.md} color={colors.textPlaceholder} />
-                            </Pressable>
+                            </Pressable></LockedActionExplanation>
                         ))}
                     </View>
                 </View>

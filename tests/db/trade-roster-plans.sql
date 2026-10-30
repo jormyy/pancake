@@ -1,6 +1,7 @@
 BEGIN;
 SET LOCAL statement_timeout='60s';
 SET LOCAL lock_timeout='5s';
+UPDATE public.waiver_claims SET process_date=current_date+365000 WHERE status='pending';
 CREATE TEMP TABLE plan_checks(label text PRIMARY KEY);
 CREATE TEMP SEQUENCE plan_transfer_attempts;
 CREATE FUNCTION pg_temp.check_plan(ok boolean,label text) RETURNS void LANGUAGE plpgsql AS $$
@@ -80,7 +81,9 @@ BEGIN
   SELECT jsonb_agg(to_jsonb(roster) ORDER BY id) INTO after_rosters FROM roster_players roster WHERE league_season_id=season;
   PERFORM pg_temp.check_plan(before_rosters=after_rosters,'proposal performs no drop placement or tenure change');
   PERFORM pg_temp.check_plan((SELECT to_taxi FROM trade_items WHERE trade_id=trade AND player_id=v_players[1]),'taxi asset automatically retains taxi destination');
-  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[])',league,season,members[1],members[2],ARRAY[v_players[4]]::text,ARRAY[v_players[2]]::text),'Locked by trade|reserved|planned drop','pending planned drop cannot enter another trade');
+  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[4]],ARRAY[v_players[2]],'{}','{}');
+  PERFORM pg_temp.check_plan((SELECT status='pending' FROM trades WHERE id=other_trade),'pending planned drop can enter another offer');
+  PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);
   INSERT INTO waiver_wire_log(id,league_id,league_season_id,player_id,dropped_by_member_id,clears_at)
   VALUES(wire,league,season,v_players[6],members[3],now()+interval '48 hours');
   PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[4],users[1]),'Locked by trade|reserved|planned drop','trade planned drop blocks waiver drop');
@@ -167,7 +170,9 @@ BEGIN
     PERFORM pg_temp.check_plan(before_rosters=after_rosters,'terminal '||v_terminal||' applies no roster plan');
   END LOOP;
   trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}');
-  PERFORM pg_temp.fail_plan(format('SELECT propose_trade_atomic(%L,%L,%L,%L,%L,%L,ARRAY[]::uuid[],ARRAY[]::uuid[],NULL,NULL,1,0)',league,season,members[1],members[2],ARRAY[v_players[3]]::text,ARRAY[v_players[5]]::text),'Locked by trade','duplicate outgoing offer rejected before acceptance');
+  other_trade:=propose_trade_atomic(league,season,members[1],members[2],ARRAY[v_players[3]],ARRAY[v_players[5]],'{}','{}',NULL,NULL,1,0);
+  PERFORM pg_temp.check_plan((SELECT status='pending' FROM trades WHERE id=other_trade),'pending player can enter another offer with FAAB');
+  PERFORM withdraw_trade_atomic(other_trade,members[1],users[1]);
   PERFORM pg_temp.fail_plan(format('SELECT create_waiver_claim_atomic(%L,%L,%L,%L,%L)',league,members[1],v_players[6],v_players[3],users[1]),'Locked by trade','pending outgoing asset cannot become a waiver drop');
   PERFORM accept_trade_atomic(trade,members[2]);
   UPDATE trades SET veto_window_expires_at=now()-interval '1 minute' WHERE id=trade;

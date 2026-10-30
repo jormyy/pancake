@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.read_matchup_forecast_context.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.read_matchup_forecast_context(p_matchup_id uuid)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
 WITH context AS MATERIALIZED (

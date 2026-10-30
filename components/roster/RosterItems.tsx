@@ -74,7 +74,7 @@ export function RosterPlayerRow({ item, avgFpts, avgMinutes, leading, metadata, 
     const player = item.players
     const content = <>
         {leading}
-        <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
+        <PlayerRowContent locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={getEligiblePositions(player)}
             birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games}
             injuryStatus={player.injury_status} onTaxi={item.is_on_taxi} metadata={metadata}
             stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
@@ -135,7 +135,7 @@ export const RosterClaimItem = memo(function RosterClaimItem({
         <MotionView style={styles.claimRow} preset="rise">
             <View style={styles.claimTop}>
                 <PendingMutationBadge rowId={claim.id} />
-                <PlayerRowContent name={claim.playerName} nbaId={claim.playerNbaId} team={claim.playerTeam} positions={claim.playerPosition ? [claim.playerPosition] : []} injuryStatus={claim.playerInjuryStatus}
+                <PlayerRowContent locks={readAssetLocks(claim)} name={claim.playerName} nbaId={claim.playerNbaId} team={claim.playerTeam} positions={claim.playerPosition ? [claim.playerPosition] : []} injuryStatus={claim.playerInjuryStatus}
                     playerId={claim.playerId} yearsExp={claim.playerYearsExp} careerGames={claim.playerCareerGames}
                     stats={<View>
                         <Text style={styles.meta} numberOfLines={2}>{[
@@ -214,7 +214,6 @@ export const RosterClaimItem = memo(function RosterClaimItem({
                     ) : null}
                 </View>
             ) : null}
-            <LockedAssetNotice locks={readAssetLocks(claim)} />
         </MotionView>
     )
 })
@@ -236,14 +235,15 @@ export const RosterPickItem = memo(function RosterPickItem({
                 </Text>
             </View>
             <View style={styles.info}>
-                <Text style={styles.name}>
-                    {pickLabel(pick.seasonYear, pick.round)}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                    <Text style={styles.name}>{pickLabel(pick.seasonYear, pick.round)}</Text>
+                    <LockedAssetNotice locks={locks} />
+                </View>
                 {!isOwn ? (
                     <Text style={styles.meta}>via {pick.originalTeamName}</Text>
                 ) : null}
             </View>
-        </MotionView><LockedAssetNotice locks={locks} /></View>
+        </MotionView></View>
     )
 })
 
@@ -297,7 +297,7 @@ export const RosterPlayerItem = memo(function RosterPlayerItem({
                     </MotionPressable>
                 </View>
             ) : null}
-        </>} /><LockedAssetNotice locks={locks} /></View>
+        </>} /></View>
     )
 })
 
@@ -324,7 +324,7 @@ export const ReadOnlyRosterPlayerItem = memo(function ReadOnlyRosterPlayerItem({
             accessibilityLabel={`Open ${player.display_name}`}
         >
             <PendingMutationBadge rowId={player.id} />
-                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                <PlayerRowContent locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             <Text style={styles.chevron} aria-hidden>›</Text>
@@ -361,7 +361,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
             >
                 <RosterSlotTag slotType="TX" />
                 <PendingMutationBadge rowId={player.id} />
-                <PlayerRowContent name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
+                <PlayerRowContent locks={readAssetLocks(item)} name={player.display_name} nbaId={player.nba_id} team={player.nba_team} positions={positions}
                     birthdate={player.birthdate} yearsExp={player.years_exp} careerGames={player.career_regular_season_games} injuryStatus={player.injury_status} onTaxi={item.is_on_taxi}
                     stats={<PlayerStats avgFpts={avgFpts} avgMinutes={avgMinutes} />} />
             </MotionPressable>
@@ -378,7 +378,7 @@ export const TaxiPlayerItem = memo(function TaxiPlayerItem({
                     <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Activate</Text>
                 </View>
             </MotionPressable>
-        </View><LockedAssetNotice locks={locks} /></View>
+        </View></View>
     )
 })
 

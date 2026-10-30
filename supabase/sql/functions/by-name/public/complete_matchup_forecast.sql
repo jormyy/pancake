@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.complete_matchup_forecast.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.complete_matchup_forecast(
   p_matchup_id uuid, p_revision bigint, p_claim_token uuid, p_forecast jsonb, p_valid_until timestamptz
 )
@@ -13,7 +17,7 @@ BEGIN
   IF NOT FOUND THEN RETURN false; END IF;
   SELECT * INTO queued FROM private.matchup_forecast_queue WHERE matchup_id=p_matchup_id FOR UPDATE;
   IF NOT FOUND OR queued.claim_token IS DISTINCT FROM p_claim_token OR queued.claimed_revision IS DISTINCT FROM p_revision THEN RETURN false; END IF;
-  IF queued.revision<>p_revision THEN
+  IF queued.revision<>p_revision OR private.matchup_forecast_refresh_pending(p_matchup_id) THEN
     UPDATE private.matchup_forecast_queue SET claim_token=NULL,claimed_at=NULL,claimed_revision=NULL WHERE matchup_id=p_matchup_id;
     RETURN false;
   END IF;

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_league_version.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_league_version(p_league_id uuid,p_user_id uuid,p_since text DEFAULT '0')
 RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$

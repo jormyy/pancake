@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.revoke_push_token_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.revoke_push_token_atomic(
   p_token text,
   p_revocation_hash text

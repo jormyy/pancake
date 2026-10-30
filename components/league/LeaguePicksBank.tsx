@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { readAssetLocks, type AssetLock } from '@/lib/locked-assets'
 import { ListHeader } from '@/components/ui/ListHeader'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
@@ -70,7 +72,9 @@ function PicksBankRow({
     compact,
     landscapeDense,
     padX,
+    locks,
 }: {
+    locks: readonly AssetLock[]
     pick: LeaguePickItem
     isMine: boolean
     highlightMine: boolean
@@ -93,11 +97,14 @@ function PicksBankRow({
             accessibilityRole="text"
             accessibilityLabel={label}
         >
+            <View style={[styles.pickLabel, compact && styles.picksBankRoundCompact]}>
             <Text
-                style={[styles.picksBankRound, compact && styles.picksBankRoundCompact, mine && tableStyles.textMe]}
+                style={[styles.picksBankRound, mine && tableStyles.textMe]}
             >
                 {compact ? `${draftYear(pick.seasonYear)} R${pick.round}` : `R${pick.round}`}
             </Text>
+            <LockedAssetNotice locks={locks} />
+            </View>
             <View style={styles.picksBankFromWrap}>
                 <Text style={[styles.picksBankFrom, mine && tableStyles.textMe]} numberOfLines={1}>
                     {pick.originalTeamName}
@@ -278,9 +285,11 @@ function pickFilterTabId(filter: PickLedgerFilter) {
 
 export function PicksBankList({
     picks,
+    locks = [],
     myMemberId,
     loading,
 }: {
+    locks?: readonly AssetLock[]
     picks: LeaguePickItem[]
     myMemberId?: string
     loading?: boolean
@@ -409,6 +418,7 @@ export function PicksBankList({
                                 ) : (
                                     <PicksBankRow
                                         pick={item.pick}
+                                        locks={[...readAssetLocks(item.pick), ...locks.filter(lock => lock.assetKind === 'pick' && lock.assetId === item.pick.id)]}
                                         isMine={item.pick.currentOwnerMemberId === myMemberId}
                                         // Every row in "Mine" is yours; tint only where it tells rows apart.
                                         highlightMine={activeFilter !== 'mine'}
@@ -454,8 +464,9 @@ const styles = StyleSheet.create({
         minHeight: 28,
         paddingVertical: spacing.xs,
     },
-    picksBankRound: { width: 56, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
-    picksBankRoundCompact: { width: 68 },
+    pickLabel: { width: 56, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs },
+    picksBankRound: { flexShrink: 1, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textSecondary },
+    picksBankRoundCompact: { width: 88 },
     picksBankFromWrap: {
         flex: 1,
         minWidth: 0,

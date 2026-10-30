@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.hold_trade_for_legality_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.hold_trade_for_legality_atomic(p_trade_id uuid,p_reason text DEFAULT NULL)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE v_trade trades%ROWTYPE; v_teams jsonb; v_reasons jsonb; v_message text;

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.refresh_matchup_totals.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.refresh_matchup_totals(p_league_id uuid, p_season_id uuid, p_version bigint)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN

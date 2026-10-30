@@ -40,7 +40,7 @@ export async function verifyHashtagBrowser() {
     call('click', ref(snapshot(), 'button', 'Sign In'))
     call('wait', '--text', 'Hashtag regression')
     call('open', `${origin}/player/${state.playerId}`)
-    call('wait', '--text', '5-year points 10')
+    call('wait', '--text', '5yr: 10')
     for (const [width, height, name] of [[1280, 900, 'desktop'], [393, 852, 'phone']]) {
       call('set', 'viewport', String(width), String(height))
       const tree = snapshot()
@@ -54,6 +54,8 @@ export async function verifyHashtagBrowser() {
             .filter(entry => new URL(entry.name).pathname === '/functions/v1/api/views/player').length };
       })()`)
       assert.ok(layout.viewRequests > 0)
+      assert.ok(layout.text.includes('5yr: 10'))
+      assert.ok(layout.text.includes('3yr: 12'))
       assert.ok(layout.left >= 0 && layout.right <= layout.width + 1 && layout.bottom <= layout.height)
       evidence.player.push({ name, ...layout })
       call('screenshot', path.resolve(`../hashtag-player-${name}.png`))

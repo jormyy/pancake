@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.generate_playoff_round.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.generate_playoff_round(p_league_id uuid,p_season_id uuid,p_round int)
 RETURNS jsonb LANGUAGE plpgsql SET search_path=public AS $$
 DECLARE v_season league_seasons%ROWTYPE; v_order bigint[]; v_seeds uuid[]; v_slots uuid[]; v_next uuid[];

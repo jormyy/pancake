@@ -1,23 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { scoreTradeSides, TRADE_FORMULA_VERSION, valueDynastyAsset } from '../core/src/dynasty/tradeScoring'
+import { TRADE_FORMULA_VERSION, valueDynastyAsset } from '../core/src/dynasty/tradeScoring'
 const estimateModule = '../supabase/functions/_shared/tradeEstimate'
 const { analyzeTradeEstimate } = await import(estimateModule)
 
 describe('imported trade scoring', () => {
-  it.each([
-    [[1000], [250, 250, 250, 250], -450, false, -450],
-    [[1000], [950, 600], 0, false, 550],
-    [[1000], [899, 600], -150, false, 349],
-    [[1000], [950], 0, true, 0],
-    [[1000], [949.999], 0, false, -50.001],
-    [[1000], [950.001], 0, true, 0],
-    [[0], [0], 0, true, 0],
-  ] as const)('scores %j against %j', (sent, received, bonus, fair, impact) => {
-    const result = scoreTradeSides([...sent], [...received])
-    expect(result).toMatchObject({ packageEffect: bonus, fair, impact })
-    expect(scoreTradeSides([...received], [...sent])).toMatchObject({ packageEffect: -bonus || 0, fair, impact: -impact || 0 })
-  })
-
   it('keeps the complete estimate shape and source values', () => {
     const input = {
       leagueId: 'league', seasonId: 'season', seasonYear: 2027, teams: 12, rosterSize: 20, scoringSettings: {}, faabBudget: 100,
@@ -28,7 +14,7 @@ describe('imported trade scoring', () => {
       replacementPlayers: [], picks: [],
     }
     const result = analyzeTradeEstimate(input, 0)
-    expect(TRADE_FORMULA_VERSION).toBe('onenumber-trade-v1')
+    expect(TRADE_FORMULA_VERSION).toBe('onenumber-trade-curve-v5')
     expect(result.assets[0].values).toEqual({ overall: 999.9, contend: 999.9, rebuild: 999.9 })
     const shape = (value: unknown): unknown => Array.isArray(value) ? value.slice(0, 1).map(shape)
       : value != null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, shape(item)])) : typeof value
@@ -47,4 +33,26 @@ it('uses derived pick bands and the existing FAAB rate without fallback scoring'
   const faab = { kind: 'faab' as const, id: 'funds', label: 'FAAB', amount: 200, budget: 100, freeAgentQuality: 0.5 }
   expect(valueDynastyAsset(context, faab).values).toEqual({ overall: 195, contend: 195, rebuild: 195 })
   expect(valueDynastyAsset(context, { ...faab, budget: 0 }).values.overall).toBe(0)
+})
+
+
+it('uses net player counts and real roster limits without a free-agent credit', () => {
+  const row = { player_id: 'player', display_name: 'Player', trade_value: 500, age: null, five_year_rank: null, three_year_rank: null,
+    ranking_fetched_at: null, projection_fetched_at: null, projection_source: null, rank_change: null,
+    injury_status: null, avg_fantasy_points: null, projection_fantasy_points: null, years_exp: null, ranking_source: null }
+  const input = {
+    leagueId: 'league', seasonId: 'season', seasonYear: 2027, teams: 12, rosterSize: 1, scoringSettings: {}, faabBudget: 100,
+    terms: [{ fromMemberId: 'a', toMemberId: 'b', playerId: 'player', pickId: null, faabAmount: 0 }],
+    players: [row], replacementPlayers: [{ ...row, player_id: 'sample', trade_value: 999.9 }], picks: [], bestFreeAgentValue: 107,
+    playerDestinations: { player: 'ir' },
+    rosters: [
+      { memberId: 'a', limits: { active: 1, ir: 1, taxi: 0 }, players: [{ playerId: 'player', tradeValue: 500, location: 'active' }] },
+      { memberId: 'b', limits: { active: 1, ir: 1, taxi: 0 }, players: [] },
+    ],
+  }
+  const analysis = analyzeTradeEstimate(input, 0)
+  expect(analysis.teams.map((team: { rosterSlotEffect: number }) => team.rosterSlotEffect)).toEqual([25, -25])
+  expect(analysis.teams[0].valuesSent).toBe(31.25)
+  expect(analysis.assets[0].values.overall).toBe(500)
+  expect(analyzeTradeEstimate({ ...input, bestFreeAgentValue: undefined }, 0)).toEqual(analysis)
 })

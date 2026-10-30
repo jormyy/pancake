@@ -2,7 +2,15 @@ BEGIN;
 \ir rules-support.sql
 DELETE FROM private.work_items;
 DELETE FROM private.screen_refresh_queue;
+INSERT INTO private.screen_refresh_queue(league_id,league_season_id,dirty)
+  SELECT season.league_id,season.id,false FROM public.league_seasons season
+  JOIN public.leagues league ON league.id=season.league_id AND league.deleted_at IS NULL;
+\getenv queue_api_url SUPABASE_URL
+\if :{?queue_api_url}
+SELECT set_config('app.supabase_url',:'queue_api_url',true);
+\else
 SELECT set_config('app.supabase_url','http://127.0.0.1:1',true);
+\endif
 SELECT set_config('app.edge_internal_token','queue-view-fixture',true);
 DO $$
 DECLARE f record; item private.work_items%ROWTYPE;
@@ -30,7 +38,7 @@ BEGIN
   UPDATE private.screen_refresh_queue SET available_at=now()+interval '1 minute' WHERE league_season_id=f.season_id;
   PERFORM private.enqueue_screen_views();
   PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE kind='refresh-views'),'future view retries remain gated');
-  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention')),'view refresh adds no second cron entry');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 AND bool_and(jobname='work-dispatcher') FROM cron.job WHERE jobname NOT IN ('io-hint-drain','io-cron-history-retention','public-read-retention','screen-statistics')),'view refresh adds no second cron entry');
 END;
 $$;
 SELECT count(*) AS passed_checks FROM rules_checks;

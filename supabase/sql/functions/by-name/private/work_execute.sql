@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.work_execute.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.work_execute(p_id bigint,p_token uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE; v_function text; v_payload jsonb; v_tipoff timestamptz;
@@ -29,6 +33,7 @@ BEGIN
     RETURN;
   END IF;
   CASE v_item.kind
+    WHEN 'refresh-live-matchups' THEN PERFORM private.refresh_live_matchup_totals();
     WHEN 'trade-publication' THEN PERFORM private.publish_trade_changes((v_payload->>'publicationId')::uuid);
     WHEN 'setup-season-rollover' THEN PERFORM private.roll_setup_league_seasons(now());
     WHEN 'daily-stat-corrections' THEN PERFORM public.queue_daily_stat_corrections();

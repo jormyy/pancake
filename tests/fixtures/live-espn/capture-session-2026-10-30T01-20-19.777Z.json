@@ -1,0 +1,180 @@
+{
+  "startedAt": "2026-10-30T01:20:19.777Z",
+  "intervalMs": 20000,
+  "rounds": 10,
+  "files": [
+    "2026-10-30T01-20-19.781Z-scoreboard.json",
+    "2026-10-30T01-20-19.927Z-summary-401909893.json",
+    "2026-10-30T01-20-19.974Z-summary-401909894.json",
+    "2026-10-30T01-20-20.058Z-nba-scoreboard.json",
+    "2026-10-30T01-20-20.240Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-20-20.279Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-20-39.783Z-scoreboard.json",
+    "2026-10-30T01-20-39.841Z-summary-401909893.json",
+    "2026-10-30T01-20-39.871Z-summary-401909894.json",
+    "2026-10-30T01-20-39.907Z-nba-scoreboard.json",
+    "2026-10-30T01-20-39.994Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-20-40.060Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-20-59.785Z-scoreboard.json",
+    "2026-10-30T01-20-59.854Z-summary-401909893.json",
+    "2026-10-30T01-20-59.904Z-summary-401909894.json",
+    "2026-10-30T01-20-59.968Z-nba-scoreboard.json",
+    "2026-10-30T01-21-00.045Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-21-00.299Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-21-19.786Z-scoreboard.json",
+    "2026-10-30T01-21-19.867Z-summary-401909893.json",
+    "2026-10-30T01-21-19.944Z-summary-401909894.json",
+    "2026-10-30T01-21-20.023Z-nba-scoreboard.json",
+    "2026-10-30T01-21-20.076Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-21-20.188Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-21-39.787Z-scoreboard.json",
+    "2026-10-30T01-21-39.870Z-summary-401909893.json",
+    "2026-10-30T01-21-39.931Z-summary-401909894.json",
+    "2026-10-30T01-21-39.970Z-nba-scoreboard.json",
+    "2026-10-30T01-21-40.042Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-21-40.078Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-21-59.788Z-scoreboard.json",
+    "2026-10-30T01-21-59.850Z-summary-401909893.json",
+    "2026-10-30T01-21-59.900Z-summary-401909894.json",
+    "2026-10-30T01-21-59.954Z-nba-scoreboard.json",
+    "2026-10-30T01-22-00.020Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-22-00.055Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-22-19.789Z-scoreboard.json",
+    "2026-10-30T01-22-19.877Z-summary-401909893.json",
+    "2026-10-30T01-22-19.938Z-summary-401909894.json",
+    "2026-10-30T01-22-19.997Z-nba-scoreboard.json",
+    "2026-10-30T01-22-20.071Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-22-20.122Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-22-39.789Z-scoreboard.json",
+    "2026-10-30T01-22-39.857Z-summary-401909893.json",
+    "2026-10-30T01-22-39.893Z-summary-401909894.json",
+    "2026-10-30T01-22-39.941Z-nba-scoreboard.json",
+    "2026-10-30T01-22-40.046Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-22-40.084Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-22-59.790Z-scoreboard.json",
+    "2026-10-30T01-22-59.865Z-summary-401909893.json",
+    "2026-10-30T01-22-59.947Z-summary-401909894.json",
+    "2026-10-30T01-22-59.983Z-nba-scoreboard.json",
+    "2026-10-30T01-23-00.057Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-23-00.091Z-nba-boxscore-0022600145.json",
+    "2026-10-30T01-23-19.790Z-scoreboard.json",
+    "2026-10-30T01-23-19.974Z-summary-401909893.json",
+    "2026-10-30T01-23-20.042Z-summary-401909894.json",
+    "2026-10-30T01-23-20.108Z-nba-scoreboard.json",
+    "2026-10-30T01-23-20.171Z-nba-boxscore-0022600144.json",
+    "2026-10-30T01-23-20.254Z-nba-boxscore-0022600145.json"
+  ],
+  "ticks": [
+    {
+      "requestedAt": "2026-10-30T01:20:19.781Z",
+      "files": [
+        "2026-10-30T01-20-19.781Z-scoreboard.json",
+        "2026-10-30T01-20-19.927Z-summary-401909893.json",
+        "2026-10-30T01-20-19.974Z-summary-401909894.json",
+        "2026-10-30T01-20-20.058Z-nba-scoreboard.json",
+        "2026-10-30T01-20-20.240Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-20-20.279Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:20:39.783Z",
+      "files": [
+        "2026-10-30T01-20-39.783Z-scoreboard.json",
+        "2026-10-30T01-20-39.841Z-summary-401909893.json",
+        "2026-10-30T01-20-39.871Z-summary-401909894.json",
+        "2026-10-30T01-20-39.907Z-nba-scoreboard.json",
+        "2026-10-30T01-20-39.994Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-20-40.060Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:20:59.785Z",
+      "files": [
+        "2026-10-30T01-20-59.785Z-scoreboard.json",
+        "2026-10-30T01-20-59.854Z-summary-401909893.json",
+        "2026-10-30T01-20-59.904Z-summary-401909894.json",
+        "2026-10-30T01-20-59.968Z-nba-scoreboard.json",
+        "2026-10-30T01-21-00.045Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-21-00.299Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:21:19.786Z",
+      "files": [
+        "2026-10-30T01-21-19.786Z-scoreboard.json",
+        "2026-10-30T01-21-19.867Z-summary-401909893.json",
+        "2026-10-30T01-21-19.944Z-summary-401909894.json",
+        "2026-10-30T01-21-20.023Z-nba-scoreboard.json",
+        "2026-10-30T01-21-20.076Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-21-20.188Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:21:39.787Z",
+      "files": [
+        "2026-10-30T01-21-39.787Z-scoreboard.json",
+        "2026-10-30T01-21-39.870Z-summary-401909893.json",
+        "2026-10-30T01-21-39.931Z-summary-401909894.json",
+        "2026-10-30T01-21-39.970Z-nba-scoreboard.json",
+        "2026-10-30T01-21-40.042Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-21-40.078Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:21:59.788Z",
+      "files": [
+        "2026-10-30T01-21-59.788Z-scoreboard.json",
+        "2026-10-30T01-21-59.850Z-summary-401909893.json",
+        "2026-10-30T01-21-59.900Z-summary-401909894.json",
+        "2026-10-30T01-21-59.954Z-nba-scoreboard.json",
+        "2026-10-30T01-22-00.020Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-22-00.055Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:22:19.789Z",
+      "files": [
+        "2026-10-30T01-22-19.789Z-scoreboard.json",
+        "2026-10-30T01-22-19.877Z-summary-401909893.json",
+        "2026-10-30T01-22-19.938Z-summary-401909894.json",
+        "2026-10-30T01-22-19.997Z-nba-scoreboard.json",
+        "2026-10-30T01-22-20.071Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-22-20.122Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:22:39.789Z",
+      "files": [
+        "2026-10-30T01-22-39.789Z-scoreboard.json",
+        "2026-10-30T01-22-39.857Z-summary-401909893.json",
+        "2026-10-30T01-22-39.893Z-summary-401909894.json",
+        "2026-10-30T01-22-39.941Z-nba-scoreboard.json",
+        "2026-10-30T01-22-40.046Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-22-40.084Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:22:59.790Z",
+      "files": [
+        "2026-10-30T01-22-59.790Z-scoreboard.json",
+        "2026-10-30T01-22-59.865Z-summary-401909893.json",
+        "2026-10-30T01-22-59.947Z-summary-401909894.json",
+        "2026-10-30T01-22-59.983Z-nba-scoreboard.json",
+        "2026-10-30T01-23-00.057Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-23-00.091Z-nba-boxscore-0022600145.json"
+      ]
+    },
+    {
+      "requestedAt": "2026-10-30T01:23:19.790Z",
+      "files": [
+        "2026-10-30T01-23-19.790Z-scoreboard.json",
+        "2026-10-30T01-23-19.974Z-summary-401909893.json",
+        "2026-10-30T01-23-20.042Z-summary-401909894.json",
+        "2026-10-30T01-23-20.108Z-nba-scoreboard.json",
+        "2026-10-30T01-23-20.171Z-nba-boxscore-0022600144.json",
+        "2026-10-30T01-23-20.254Z-nba-boxscore-0022600145.json"
+      ]
+    }
+  ],
+  "finishedAt": "2026-10-30T01:23:20.284Z"
+}

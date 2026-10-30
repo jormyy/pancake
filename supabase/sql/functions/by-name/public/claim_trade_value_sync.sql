@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.claim_trade_value_sync.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.claim_trade_value_sync(p_request_id uuid)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
@@ -8,5 +12,3 @@ BEGIN
   RETURN FOUND;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.claim_trade_value_sync(uuid) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_trade_value_sync(uuid) TO service_role;

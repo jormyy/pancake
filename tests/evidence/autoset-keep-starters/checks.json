@@ -1,0 +1,68 @@
+{
+  "nodeMajor": 22,
+  "project": "pt4bafableas",
+  "ports": "640xx",
+  "focused": {
+    "files": 9,
+    "passed": 921,
+    "failed": 0
+  },
+  "fullVitest": {
+    "runs": 1,
+    "command": "npx vitest run --maxWorkers=2",
+    "passed": 3933,
+    "failed": 852,
+    "skipped": 48,
+    "failedFiles": 6,
+    "allFailedFilesPassedInFocusedRerun": true
+  },
+  "edge": {
+    "command": "deno test --cached-only --no-lock --node-modules-dir=manual --allow-env --allow-read --allow-net=127.0.0.1:9 supabase/functions/lineup-optimizer/",
+    "passed": 40,
+    "failed": 0
+  },
+  "sql": {
+    "command": "node tests/e2e/autoset-keep-starters-db.mjs",
+    "passed": 11,
+    "failed": 0,
+    "existingRecipesPassed": 3,
+    "flexibleSlotRegressionReproducedAndFixed": true
+  },
+  "quality": {
+    "command": "npm run check:quality",
+    "passed": true
+  },
+  "types": {
+    "commands": [
+      "npm run typecheck",
+      "npm run typecheck:tests",
+      "npm run typecheck:e2e"
+    ],
+    "passed": true
+  },
+  "browser": {
+    "width": 390,
+    "height": 1600,
+    "dates": [
+      "2026-10-29",
+      "2026-10-30"
+    ],
+    "filled": [
+      10,
+      10
+    ],
+    "passed": true
+  },
+  "playingPoints": {
+    "2026-10-29": {
+      "before": 140.27,
+      "after": 140.27
+    },
+    "2026-10-30": {
+      "before": 354.99,
+      "after": 354.99
+    }
+  },
+  "productionContacted": false,
+  "dependenciesInstalled": false
+}

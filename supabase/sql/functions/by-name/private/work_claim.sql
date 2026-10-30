@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.work_claim.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.work_claim(p_limit integer DEFAULT 64)
 RETURNS SETOF private.work_items LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_item private.work_items%ROWTYPE; v_budget integer; v_count integer:=0;
@@ -18,9 +22,11 @@ BEGIN
         (NOT EXISTS(SELECT 1 FROM private.work_items running WHERE running.kind='trade-revaluation'
           AND running.status='running' AND running.lease_until>clock_timestamp() AND running.league_id IS NOT DISTINCT FROM item.league_id)
         AND NOT EXISTS(SELECT 1 FROM private.trade_revaluation_leagues pace WHERE pace.league_id=item.league_id AND pace.next_allowed_at>now())))
-    ORDER BY (item.kind IN ('trade-revaluation','trade-revaluation-check','trade-revaluation-scan')),item.due_at,item.id
+    ORDER BY (item.kind IN ('trade-revaluation','trade-revaluation-check','trade-revaluation-scan','forecast-inputs','notification-scan')),item.due_at,item.id
     LIMIT 128 FOR UPDATE SKIP LOCKED
   LOOP
+    IF v_item.kind IN('forecast-inputs','notification-scan') AND
+      (SELECT count(*) FROM private.work_items WHERE status='running' AND lease_until>clock_timestamp())>=3 THEN CONTINUE; END IF;
     IF v_item.kind='trade-revaluation' THEN
       IF EXISTS(SELECT 1 FROM private.work_items running WHERE running.kind='trade-revaluation' AND running.status='running'
         AND running.lease_until>clock_timestamp() AND running.league_id IS NOT DISTINCT FROM v_item.league_id) THEN CONTINUE; END IF;

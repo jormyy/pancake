@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.view_trade_details.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.view_trade_details(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path = '' AS $$
 DECLARE context jsonb; trade public.trades%ROWTYPE; participants jsonb; items jsonb; estimate jsonb; unavailable text; result jsonb; analysis_context jsonb;
@@ -41,10 +45,16 @@ BEGIN
     LEFT JOIN public.v_player_avg_fantasy_points source_fantasy ON average.player_id IS NULL AND source_fantasy.league_id = p_league_id
       AND source_fantasy.player_id = item.player_id AND source_fantasy.season_year = public.current_season_year_et()
     WHERE item.trade_id = trade.id;
-  SELECT CASE WHEN quote.id IS NOT NULL THEN jsonb_build_object('quoteId', quote.id, 'modelVersion', quote.model_version,
-    'inputVersion', quote.input_version, 'createdAt', quote.created_at, 'teams', quote.analysis->'teams', 'assets', quote.analysis->'assets') END,
+  SELECT CASE WHEN quote.id IS NOT NULL OR cached.trade_id IS NOT NULL THEN jsonb_build_object('quoteId', quote.id,
+    'modelVersion',COALESCE(cached.revaluation->>'modelVersion',quote.model_version),
+    'inputVersion',COALESCE(cached.revaluation->>'inputVersion',quote.input_version),
+    'createdAt',COALESCE(cached.revaluation->>'createdAt',quote.created_at::text),
+    'teams',COALESCE(cached.revaluation->'analysis'->'teams',quote.analysis->'teams'),
+    'assets',COALESCE(cached.revaluation->'analysis'->'assets',quote.analysis->'assets')) END,
     recorded.unavailable_reason INTO estimate, unavailable FROM public.trade_estimates recorded
-    LEFT JOIN public.trade_estimate_quotes quote ON quote.id = recorded.quote_id WHERE recorded.trade_id = trade.id;
+    LEFT JOIN public.trade_estimate_quotes quote ON quote.id = recorded.quote_id
+    LEFT JOIN public.trade_value_cache cached ON cached.trade_id=trade.id AND cached.revaluation->>'modelVersion'='onenumber-trade-curve-v5'
+    WHERE recorded.trade_id = trade.id;
   result := jsonb_build_object('id', trade.id, 'status', trade.status, 'completionFailureReason', trade.completion_failure_reason,
     'proposedAt', trade.proposed_at, 'acceptedAt', trade.accepted_at, 'vetoWindowExpiresAt', trade.veto_window_expires_at,
     'completedAt', trade.completed_at, 'vetoedAt', trade.vetoed_at, 'expiresAt', trade.expires_at, 'notes', trade.notes,

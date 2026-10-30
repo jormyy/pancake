@@ -1,3 +1,4 @@
+import type { AssetLock } from '@/lib/locked-assets'
 import { assertReadActive } from '@/lib/shared/read-admission'
 import { assertMutationOnline, withPwaMutation } from '@/lib/shared/pwa-mutation'
 import { supabase } from '@/lib/supabase'
@@ -10,6 +11,7 @@ import type { RosterSlotType } from '@/types/database'
 export { isIREligible, isDTD }
 
 export type RosterPlayer = {
+    assetLocks?: AssetLock[]
     id: string
     is_on_ir: boolean
     is_on_taxi: boolean

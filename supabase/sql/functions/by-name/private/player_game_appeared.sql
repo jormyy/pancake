@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.player_game_appeared.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.player_game_appeared(p_stats player_game_stats)
 RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT coalesce(p_stats.minutes_played > 0, false) OR coalesce(greatest(

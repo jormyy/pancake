@@ -48,6 +48,12 @@ BEGIN
     IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;
   END IF;
 
+  IF v_completing_trade_id IS NULL AND (
+    (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
+    OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi) THEN
+    PERFORM private.assert_asset_unlocked(OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id);
+  END IF;
+
   IF OLD.member_id IS DISTINCT FROM NEW.member_id AND v_completing_trade_id IS NULL AND (
     ((OLD.is_on_ir OR OLD.is_on_taxi OR NEW.is_on_ir) AND NOT EXISTS (SELECT 1 FROM leagues WHERE id=NEW.league_id AND allow_inactive_trades)) OR
     (NEW.is_on_taxi = true AND v_completing_trade_id IS NULL AND NOT EXISTS (SELECT 1 FROM leagues WHERE id=NEW.league_id AND allow_inactive_trades))

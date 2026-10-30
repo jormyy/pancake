@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.trade_value_player_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.trade_value_player_inputs(
   p_league_id uuid, p_member_id uuid, p_season_year integer, p_player_ids uuid[], p_limit integer
 )
@@ -159,7 +163,7 @@ ORDER BY player.five_year_rank NULLS LAST, player.display_name, player.id
     'ranking_source', market.source,
     'ranking_fetched_at', market.fetched_at,
     'trade_value', market.trade_value
-  ) END ORDER BY player.player_id), '[]'::jsonb)
+  ) END || jsonb_build_object('trade_value',market.trade_value) ORDER BY player.player_id), '[]'::jsonb)
   FROM input_rows player
   LEFT JOIN LATERAL (
     SELECT ranking.id, ranking.source_rank, ranking.rank_change, ranking.age, ranking.source, ranking.fetched_at, ranking.trade_value
@@ -170,4 +174,3 @@ ORDER BY player.five_year_rank NULLS LAST, player.display_name, player.id
   ) market ON true);
 END;
 $$;
-REVOKE ALL ON FUNCTION private.trade_value_player_inputs(uuid,uuid,integer,uuid[],integer) FROM PUBLIC,anon,authenticated,service_role;

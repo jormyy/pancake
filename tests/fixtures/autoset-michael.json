@@ -1,0 +1,775 @@
+{
+  "days": [
+    {
+      "date": "2026-10-29",
+      "games": [
+        {
+          "status": "Scheduled",
+          "awayTeam": "CLE",
+          "gameTime": "2026-10-30T00:00:00+00:00",
+          "homeTeam": "ATL"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "MEM",
+          "gameTime": "2026-10-30T02:00:00+00:00",
+          "homeTeam": "POR"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "SAC",
+          "gameTime": "2026-10-30T00:00:00+00:00",
+          "homeTeam": "NOP"
+        }
+      ],
+      "stored": [
+        {
+          "locked": false,
+          "player_id": "10028375-04ca-4322-9215-1d33565c794e",
+          "slot_type": "C",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "1127acf8-3bde-4e61-af8c-b3f432b6a395",
+          "slot_type": "G",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "34af9bd9-b29f-4403-a561-af5f4bca2709",
+          "slot_type": "F",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "434b6722-d114-4d85-9916-94f733348cdd",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "6f60aaea-b856-45ff-a9f7-a1ce689c940b",
+          "slot_type": "PF",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "91dbfc7b-409c-4867-8158-b24bac72706b",
+          "slot_type": "SF",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+          "slot_type": "PG",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "dd5d1fe5-703d-4492-8055-93b69bf9d4dc",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "e7c0bf42-d006-4fa2-8d0b-8f27053d318a",
+          "slot_type": "SG",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "f07a38c4-7099-4ddb-b8db-b7ff1dca4220",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        }
+      ],
+      "weekNumber": 2,
+      "projections": [
+        {
+          "player_id": "91dbfc7b-409c-4867-8158-b24bac72706b",
+          "projection_fantasy_points": 51.26
+        },
+        {
+          "player_id": "6f60aaea-b856-45ff-a9f7-a1ce689c940b",
+          "projection_fantasy_points": 41.7
+        },
+        {
+          "player_id": "1127acf8-3bde-4e61-af8c-b3f432b6a395",
+          "projection_fantasy_points": 41.35
+        },
+        {
+          "player_id": "dd5d1fe5-703d-4492-8055-93b69bf9d4dc",
+          "projection_fantasy_points": 41.29
+        },
+        {
+          "player_id": "f07a38c4-7099-4ddb-b8db-b7ff1dca4220",
+          "projection_fantasy_points": 38.77
+        },
+        {
+          "player_id": "4f70232b-5236-479a-a445-c3d5963fee70",
+          "projection_fantasy_points": 36.22
+        },
+        {
+          "player_id": "34af9bd9-b29f-4403-a561-af5f4bca2709",
+          "projection_fantasy_points": 35.16
+        },
+        {
+          "player_id": "e7c0bf42-d006-4fa2-8d0b-8f27053d318a",
+          "projection_fantasy_points": 33.08
+        },
+        {
+          "player_id": "31120507-5328-458c-9aff-82aac5571520",
+          "projection_fantasy_points": 32.12
+        },
+        {
+          "player_id": "10028375-04ca-4322-9215-1d33565c794e",
+          "projection_fantasy_points": 31.69
+        },
+        {
+          "player_id": "434b6722-d114-4d85-9916-94f733348cdd",
+          "projection_fantasy_points": 30.22
+        },
+        {
+          "player_id": "b3152051-c390-47e2-9e88-6994b749f0b4",
+          "projection_fantasy_points": 29.22
+        },
+        {
+          "player_id": "4638f13a-484d-46d5-b68b-932b675e05e2",
+          "projection_fantasy_points": 28.94
+        },
+        {
+          "player_id": "ced1a9bc-5f0a-4694-a91b-48fc02fe3cdf",
+          "projection_fantasy_points": 27.36
+        },
+        {
+          "player_id": "57524896-f729-4aff-b696-a7cdd7792e67",
+          "projection_fantasy_points": 26.57
+        },
+        {
+          "player_id": "05976223-af63-4926-af33-cf3edacd1dc6",
+          "projection_fantasy_points": 24.44
+        },
+        {
+          "player_id": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+          "projection_fantasy_points": 24.24
+        },
+        {
+          "player_id": "5a70bed9-d121-4f23-acd6-f314596ab409",
+          "projection_fantasy_points": 22.01
+        },
+        {
+          "player_id": "b01da2e3-7119-48db-8fb7-ab69b7847ab6",
+          "projection_fantasy_points": 17.27
+        },
+        {
+          "player_id": "427e90cd-5c66-4dca-8fa9-940add2502b8",
+          "projection_fantasy_points": 14.22
+        },
+        {
+          "player_id": "6d6d62bd-f1fe-4786-bd39-00c3a8c00b12",
+          "projection_fantasy_points": 1.5
+        },
+        {
+          "player_id": "bafafb8b-5f7b-4cb5-905f-a9a9087a7050",
+          "projection_fantasy_points": 0
+        },
+        {
+          "player_id": "dd49d52d-27a9-4765-9b4c-bdf3c8da8cec",
+          "projection_fantasy_points": 0
+        },
+        {
+          "player_id": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+          "projection_fantasy_points": 0
+        }
+      ]
+    },
+    {
+      "date": "2026-10-30",
+      "games": [
+        {
+          "status": "Scheduled",
+          "awayTeam": "LAL",
+          "gameTime": "2026-10-31T02:00:00+00:00",
+          "homeTeam": "GSW"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "LAC",
+          "gameTime": "2026-10-31T00:00:00+00:00",
+          "homeTeam": "MIN"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "HOU",
+          "gameTime": "2026-10-31T00:00:00+00:00",
+          "homeTeam": "DAL"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "IND",
+          "gameTime": "2026-10-31T00:00:00+00:00",
+          "homeTeam": "MIA"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "CHA",
+          "gameTime": "2026-10-30T23:00:00+00:00",
+          "homeTeam": "WAS"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "NYK",
+          "gameTime": "2026-10-30T23:30:00+00:00",
+          "homeTeam": "PHI"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "ORL",
+          "gameTime": "2026-10-30T23:30:00+00:00",
+          "homeTeam": "TOR"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "DEN",
+          "gameTime": "2026-10-31T02:00:00+00:00",
+          "homeTeam": "PHX"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "DET",
+          "gameTime": "2026-10-30T23:30:00+00:00",
+          "homeTeam": "BKN"
+        },
+        {
+          "status": "Scheduled",
+          "awayTeam": "CHI",
+          "gameTime": "2026-10-30T23:30:00+00:00",
+          "homeTeam": "BOS"
+        }
+      ],
+      "stored": [
+        {
+          "locked": false,
+          "player_id": "05976223-af63-4926-af33-cf3edacd1dc6",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "1127acf8-3bde-4e61-af8c-b3f432b6a395",
+          "slot_type": "SG",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "31120507-5328-458c-9aff-82aac5571520",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "34af9bd9-b29f-4403-a561-af5f4bca2709",
+          "slot_type": "SF",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "434b6722-d114-4d85-9916-94f733348cdd",
+          "slot_type": "G",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "4f70232b-5236-479a-a445-c3d5963fee70",
+          "slot_type": "F",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "57524896-f729-4aff-b696-a7cdd7792e67",
+          "slot_type": "UTIL",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "6f60aaea-b856-45ff-a9f7-a1ce689c940b",
+          "slot_type": "PF",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "dd5d1fe5-703d-4492-8055-93b69bf9d4dc",
+          "slot_type": "PG",
+          "is_auto_set": true,
+          "week_number": 2
+        },
+        {
+          "locked": false,
+          "player_id": "f07a38c4-7099-4ddb-b8db-b7ff1dca4220",
+          "slot_type": "C",
+          "is_auto_set": true,
+          "week_number": 2
+        }
+      ],
+      "weekNumber": 2,
+      "projections": [
+        {
+          "player_id": "91dbfc7b-409c-4867-8158-b24bac72706b",
+          "projection_fantasy_points": 51.26
+        },
+        {
+          "player_id": "6f60aaea-b856-45ff-a9f7-a1ce689c940b",
+          "projection_fantasy_points": 41.7
+        },
+        {
+          "player_id": "1127acf8-3bde-4e61-af8c-b3f432b6a395",
+          "projection_fantasy_points": 41.35
+        },
+        {
+          "player_id": "dd5d1fe5-703d-4492-8055-93b69bf9d4dc",
+          "projection_fantasy_points": 41.29
+        },
+        {
+          "player_id": "f07a38c4-7099-4ddb-b8db-b7ff1dca4220",
+          "projection_fantasy_points": 38.77
+        },
+        {
+          "player_id": "4f70232b-5236-479a-a445-c3d5963fee70",
+          "projection_fantasy_points": 36.22
+        },
+        {
+          "player_id": "34af9bd9-b29f-4403-a561-af5f4bca2709",
+          "projection_fantasy_points": 35.16
+        },
+        {
+          "player_id": "e7c0bf42-d006-4fa2-8d0b-8f27053d318a",
+          "projection_fantasy_points": 33.08
+        },
+        {
+          "player_id": "31120507-5328-458c-9aff-82aac5571520",
+          "projection_fantasy_points": 32.12
+        },
+        {
+          "player_id": "10028375-04ca-4322-9215-1d33565c794e",
+          "projection_fantasy_points": 31.69
+        },
+        {
+          "player_id": "434b6722-d114-4d85-9916-94f733348cdd",
+          "projection_fantasy_points": 30.22
+        },
+        {
+          "player_id": "b3152051-c390-47e2-9e88-6994b749f0b4",
+          "projection_fantasy_points": 29.22
+        },
+        {
+          "player_id": "4638f13a-484d-46d5-b68b-932b675e05e2",
+          "projection_fantasy_points": 28.94
+        },
+        {
+          "player_id": "ced1a9bc-5f0a-4694-a91b-48fc02fe3cdf",
+          "projection_fantasy_points": 27.36
+        },
+        {
+          "player_id": "57524896-f729-4aff-b696-a7cdd7792e67",
+          "projection_fantasy_points": 26.57
+        },
+        {
+          "player_id": "05976223-af63-4926-af33-cf3edacd1dc6",
+          "projection_fantasy_points": 24.44
+        },
+        {
+          "player_id": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+          "projection_fantasy_points": 24.24
+        },
+        {
+          "player_id": "5a70bed9-d121-4f23-acd6-f314596ab409",
+          "projection_fantasy_points": 22.01
+        },
+        {
+          "player_id": "b01da2e3-7119-48db-8fb7-ab69b7847ab6",
+          "projection_fantasy_points": 17.27
+        },
+        {
+          "player_id": "427e90cd-5c66-4dca-8fa9-940add2502b8",
+          "projection_fantasy_points": 14.22
+        },
+        {
+          "player_id": "6d6d62bd-f1fe-4786-bd39-00c3a8c00b12",
+          "projection_fantasy_points": 1.5
+        },
+        {
+          "player_id": "bafafb8b-5f7b-4cb5-905f-a9a9087a7050",
+          "projection_fantasy_points": 0
+        },
+        {
+          "player_id": "dd49d52d-27a9-4765-9b4c-bdf3c8da8cec",
+          "projection_fantasy_points": 0
+        },
+        {
+          "player_id": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+          "projection_fantasy_points": 0
+        }
+      ]
+    }
+  ],
+  "member": {
+    "id": "9fe20af7-b2fb-4ab6-bd42-2e2e7ccc5dd9",
+    "league_id": "faab8d8f-6a60-4bbc-8f5d-44050b652cdd",
+    "season_id": "95b790d1-ffda-436b-ac7d-875e198dc6d9",
+    "team_name": "Mike's Minions",
+    "season_year": 2027
+  },
+  "roster": [
+    {
+      "isOnIr": false,
+      "nbaTeam": "MIN",
+      "isOnTaxi": false,
+      "playerId": "05976223-af63-4926-af33-cf3edacd1dc6",
+      "displayName": "Ayo Dosunmu",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "CLE",
+      "isOnTaxi": false,
+      "playerId": "10028375-04ca-4322-9215-1d33565c794e",
+      "displayName": "Jarrett Allen",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "LAL",
+      "isOnTaxi": false,
+      "playerId": "1127acf8-3bde-4e61-af8c-b3f432b6a395",
+      "displayName": "Austin Reaves",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "CHI",
+      "isOnTaxi": false,
+      "playerId": "31120507-5328-458c-9aff-82aac5571520",
+      "displayName": "Josh Giddey",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "PHI",
+      "isOnTaxi": false,
+      "playerId": "34af9bd9-b29f-4403-a561-af5f4bca2709",
+      "displayName": "Jaylen Brown",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "DAL",
+      "isOnTaxi": true,
+      "playerId": "427e90cd-5c66-4dca-8fa9-940add2502b8",
+      "displayName": "Morez Johnson Jr.",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "TOR",
+      "isOnTaxi": false,
+      "playerId": "434b6722-d114-4d85-9916-94f733348cdd",
+      "displayName": "RJ Barrett",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "MIA",
+      "isOnTaxi": false,
+      "playerId": "4638f13a-484d-46d5-b68b-932b675e05e2",
+      "displayName": "Andrew Wiggins",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "ORL",
+      "isOnTaxi": false,
+      "playerId": "4f70232b-5236-479a-a445-c3d5963fee70",
+      "displayName": "Franz Wagner",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "CHI",
+      "isOnTaxi": false,
+      "playerId": "57524896-f729-4aff-b696-a7cdd7792e67",
+      "displayName": "Norman Powell",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "HOU",
+      "isOnTaxi": false,
+      "playerId": "5a70bed9-d121-4f23-acd6-f314596ab409",
+      "displayName": "Tari Eason",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": true,
+      "nbaTeam": "GSW",
+      "isOnTaxi": false,
+      "playerId": "6bd51fdb-fd65-4d21-a93c-8af4f18b4dca",
+      "displayName": "Moses Moody",
+      "injuryStatus": "Out",
+      "eligiblePositions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "ATL",
+      "isOnTaxi": true,
+      "playerId": "6d6d62bd-f1fe-4786-bd39-00c3a8c00b12",
+      "displayName": "Zuby Ejiofor",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "NYK",
+      "isOnTaxi": false,
+      "playerId": "6f60aaea-b856-45ff-a9f7-a1ce689c940b",
+      "displayName": "Karl-Anthony Towns",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C",
+        "PF"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "ATL",
+      "isOnTaxi": false,
+      "playerId": "91dbfc7b-409c-4867-8158-b24bac72706b",
+      "displayName": "Jalen Johnson",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "MIN",
+      "isOnTaxi": true,
+      "playerId": "b01da2e3-7119-48db-8fb7-ab69b7847ab6",
+      "displayName": "Joan Beringer",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "NYK",
+      "isOnTaxi": false,
+      "playerId": "b3152051-c390-47e2-9e88-6994b749f0b4",
+      "displayName": "Mikal Bridges",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PF",
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "CHA",
+      "isOnTaxi": false,
+      "playerId": "bafafb8b-5f7b-4cb5-905f-a9a9087a7050",
+      "displayName": "Coby White",
+      "injuryStatus": "Out",
+      "eligiblePositions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "NOP",
+      "isOnTaxi": false,
+      "playerId": "cd9b0b91-df9e-4062-a314-07a4023fb2f8",
+      "displayName": "Jeremiah Fears",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "OKC",
+      "isOnTaxi": false,
+      "playerId": "ced1a9bc-5f0a-4694-a91b-48fc02fe3cdf",
+      "displayName": "Isaiah Hartenstein",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "MIL",
+      "isOnTaxi": false,
+      "playerId": "d7fa3ebb-3c65-42ce-b44a-8a0180ed807f",
+      "displayName": "Ousmane Dieng",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "SF",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": true,
+      "nbaTeam": "UTA",
+      "isOnTaxi": false,
+      "playerId": "dd49d52d-27a9-4765-9b4c-bdf3c8da8cec",
+      "displayName": "Jusuf Nurkic",
+      "injuryStatus": "Out",
+      "eligiblePositions": [
+        "C"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "WAS",
+      "isOnTaxi": false,
+      "playerId": "dd5d1fe5-703d-4492-8055-93b69bf9d4dc",
+      "displayName": "Trae Young",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "ATL",
+      "isOnTaxi": false,
+      "playerId": "e7c0bf42-d006-4fa2-8d0b-8f27053d318a",
+      "displayName": "CJ McCollum",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "PG",
+        "SG"
+      ]
+    },
+    {
+      "isOnIr": false,
+      "nbaTeam": "LAL",
+      "isOnTaxi": false,
+      "playerId": "f07a38c4-7099-4ddb-b8db-b7ff1dca4220",
+      "displayName": "Walker Kessler",
+      "injuryStatus": null,
+      "eligiblePositions": [
+        "C"
+      ]
+    }
+  ],
+  "source": "pancake-db-backup-2026-10-28",
+  "templates": [
+    {
+      "count": 1,
+      "slotType": "PG"
+    },
+    {
+      "count": 1,
+      "slotType": "SG"
+    },
+    {
+      "count": 1,
+      "slotType": "SF"
+    },
+    {
+      "count": 1,
+      "slotType": "PF"
+    },
+    {
+      "count": 1,
+      "slotType": "C"
+    },
+    {
+      "count": 1,
+      "slotType": "G"
+    },
+    {
+      "count": 1,
+      "slotType": "F"
+    },
+    {
+      "count": 3,
+      "slotType": "UTIL"
+    }
+  ]
+}

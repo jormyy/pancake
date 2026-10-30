@@ -2,7 +2,7 @@ BEGIN;
 \ir rules-support.sql
 DO $$
 DECLARE f record; players uuid[] := ARRAY[gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid()];
-  offered uuid; dropped uuid; other uuid; pick uuid; trade_id uuid; claim_id uuid; snapshot jsonb; before_version bigint;
+  offered uuid; dropped uuid; other uuid; pick uuid; trade_id uuid; overlapping uuid; claim_id uuid; snapshot jsonb; before_version bigint;
 BEGIN
   SELECT * INTO f FROM pg_temp.rules_fixture(2, 9391);
   INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(9391,1,current_date-1,current_date+5);
@@ -42,19 +42,21 @@ BEGIN
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]),'service lineup optimizer places reserved player');
   PERFORM public.auto_set_lineup_atomic(f.member_ids[1],f.league_id,f.season_id,current_date,jsonb_build_array(jsonb_build_object('player_id',players[1],'slot_type','PG')));
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM public.weekly_lineups WHERE player_id=players[1]), 'unchanged locked lineup allowed');
-  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,%L::uuid[],%L::uuid[],''{}'',''{}'')',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[1]],ARRAY[players[3]]),'Locked by trade %', 'second outgoing trade rejected');
-  PERFORM pg_temp.reject_rules(format('DELETE FROM public.draft_picks WHERE id=%L',pick),'Locked by trade %','pending pick deletion rejected');
-  PERFORM pg_temp.reject_rules(format('SELECT public.propose_trade_atomic(%L,%L,%L,%L,''{}''::uuid[],%L::uuid[],%L::uuid[],''{}''::uuid[])',f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[3]],ARRAY[pick]),'Locked by trade %','same pick cannot enter another trade');
-  PERFORM pg_temp.reject_rules(format('UPDATE public.draft_picks SET current_owner_id=%L WHERE id=%L',f.member_ids[2],pick),'Locked by trade %','pending pick transfer rejected');
+  overlapping:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],ARRAY[players[1]],ARRAY[players[3]],'{}','{}');
+  PERFORM pg_temp.check_rules((SELECT status='pending' FROM trades WHERE id=overlapping),'second outgoing player offer stays pending');
+  PERFORM public.withdraw_trade_atomic(overlapping,f.member_ids[1],f.user_ids[1]);
+  overlapping:=public.propose_trade_atomic(f.league_id,f.season_id,f.member_ids[1],f.member_ids[2],'{}',ARRAY[players[3]],ARRAY[pick],'{}');
+  PERFORM pg_temp.check_rules((SELECT status='pending' FROM trades WHERE id=overlapping),'same pick enters another pending offer');
+  PERFORM public.withdraw_trade_atomic(overlapping,f.member_ids[1],f.user_ids[1]);
   PERFORM pg_temp.reject_rules(format('SELECT public.create_waiver_claim_atomic(%L,%L,%L,%L)',f.league_id,f.member_ids[1],players[4],players[1]),'Locked by trade %','trade asset waiver drop rejected');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.locked_assets(f.league_id,f.season_id,f.member_ids[1])), 'outgoing player and pick lock');
-  PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.locked_assets(f.league_id,f.season_id,f.member_ids[2])), 'unsent recipient assets stay usable');
+  PERFORM pg_temp.check_rules((SELECT count(*)=1 FROM private.locked_assets(f.league_id,f.season_id,f.member_ids[1])), 'only outgoing player has a pending roster lock');
+  PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.locked_assets(f.league_id,f.season_id,f.member_ids[2])), 'received pending players retain roster protection');
   PERFORM pg_temp.check_rules(jsonb_array_length(public.view_roster(f.league_id,f.member_ids[1],jsonb_build_object('targetMemberId',f.member_ids[2]))->'lockedAssets')=0,'another roster does not expose private locks');
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[2]::text,true);
   PERFORM pg_temp.reject_rules(format('SELECT public.view_roster(%L,%L)',f.league_id,f.member_ids[1]),'This screen is not available.','snapshot reader rejects another manager identity');
   PERFORM set_config('request.jwt.claim.sub',f.user_ids[1]::text,true);
   snapshot := public.view_roster(f.league_id,f.member_ids[1]);
-  PERFORM pg_temp.check_rules(jsonb_array_length(snapshot->'lockedAssets')=2,'roster snapshot includes locks');
+  PERFORM pg_temp.check_rules(jsonb_array_length(snapshot->'lockedAssets')=1,'roster snapshot includes locks');
   PERFORM pg_temp.check_rules(jsonb_array_length(public.view_lineup(f.league_id,f.member_ids[1])->'lockedAssets')=0,'lineup snapshot omits reservation locks');
   SELECT version INTO before_version FROM public.league_versions WHERE league_id=f.league_id;
   PERFORM set_config('request.jwt.claim.sub','',true);

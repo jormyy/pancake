@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.apply_scheduler_health.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.apply_scheduler_health(p_health jsonb)
 RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '100ms' AS $$
 DECLARE v_control private.worker_controls%ROWTYPE; v_level text; v_reason text;

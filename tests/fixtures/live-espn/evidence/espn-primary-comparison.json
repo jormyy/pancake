@@ -1,0 +1,401 @@
+{
+  "sourceCommit": "be01b7dccdb84b9b97acc55ba0337f5bf3ceae01",
+  "session": "capture-session-2026-10-30T01-25-29.670Z.json",
+  "comparison": {
+    "samples": 11,
+    "espnPrimaryP95Ms": 83014.1171875,
+    "nbaPrimaryP95Ms": 1232102.9736328125,
+    "gainMs": 1149088.8564453125,
+    "targetMet": true,
+    "pollIntervalMs": 20000,
+    "injectedNbaLagMs": 1200000,
+    "baseline": "Unmodified main 892b6bca live-poll; same recorded NBA and ESPN sources, clock and database scoring path",
+    "targetMs": 90000
+  },
+  "functionalAssertions": "PASS: per-tick matchup oracle, identity-read budget, ESPN request budget, source timeout recovery, and both pipelines publish the same recorded point changes",
+  "latencyGate": "PASS: ESPN primary p95 is under the accepted 90000 ms target",
+  "tests": {
+    "vitest": {
+      "scope": "full suite",
+      "passed": 4791,
+      "failed": 0,
+      "skipped": 48,
+      "filesPassed": 505,
+      "filesSkipped": 16
+    },
+    "seasonHarness": {
+      "passed": 359,
+      "failed": 0
+    },
+    "deno": {
+      "passed": 68,
+      "steps": 4,
+      "failed": 0,
+      "ignored": 1
+    },
+    "sqlAssertionGroups": {
+      "passed": 5,
+      "failed": 0
+    },
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "typecheckTests": "PASS",
+    "knip": "PASS",
+    "edgeShared": "PASS",
+    "dbFunctionSources": "PASS",
+    "quality": "PASS: npm run check:quality",
+    "securityCatalog": "PASS: local post-migration catalog at 702 migrations through 20261214002700"
+  },
+  "runs": {
+    "espn": {
+      "samples": 11,
+      "p95LagMs": 83014.1171875,
+      "timeoutRecoveryMs": 5153.285667,
+      "espnTimeoutRecoveryMs": 2603.9707500000004,
+      "boardCalls": 13,
+      "summaryCalls": 26,
+      "identityReads": 12,
+      "publications": [
+        {
+          "gameId": "401909894",
+          "espnId": "4277813",
+          "points": 6,
+          "changedAt": "2026-10-30T01:26:29Z",
+          "recordedAt": "2026-10-30T01:26:49.911Z",
+          "observedLagMs": 20911,
+          "file": "2026-10-30T01-26-49.880Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:26:50.042Z",
+          "lagMs": 21042.975830078125,
+          "elapsedMs": 131.97591699999998
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "3155942",
+          "points": 5,
+          "changedAt": "2026-10-30T01:26:38Z",
+          "recordedAt": "2026-10-30T01:27:09.811Z",
+          "observedLagMs": 31811,
+          "file": "2026-10-30T01-27-09.783Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:27:09.942Z",
+          "lagMs": 31942.449462890625,
+          "elapsedMs": 131.44945899999993
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5144091",
+          "points": 13,
+          "changedAt": "2026-10-30T01:27:00Z",
+          "recordedAt": "2026-10-30T01:27:29.802Z",
+          "observedLagMs": 29802,
+          "file": "2026-10-30T01-27-29.774Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:27:29.933Z",
+          "lagMs": 29933.75732421875,
+          "elapsedMs": 131.75741600000015
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4278039",
+          "points": 7,
+          "changedAt": "2026-10-30T01:26:27Z",
+          "recordedAt": "2026-10-30T01:27:09.781Z",
+          "observedLagMs": 42781,
+          "file": "2026-10-30T01-27-09.755Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:27:50.014Z",
+          "lagMs": 83014.1171875,
+          "elapsedMs": 146.11712499999976
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4278039",
+          "points": 8,
+          "changedAt": "2026-10-30T01:26:41Z",
+          "recordedAt": "2026-10-30T01:27:49.789Z",
+          "observedLagMs": 68789,
+          "file": "2026-10-30T01-27-49.751Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:27:50.014Z",
+          "lagMs": 69014.1171875,
+          "elapsedMs": 146.11712499999976
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5142620",
+          "points": 23,
+          "changedAt": "2026-10-30T01:27:40Z",
+          "recordedAt": "2026-10-30T01:28:29.868Z",
+          "observedLagMs": 49868,
+          "file": "2026-10-30T01-28-29.829Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:28:30.003Z",
+          "lagMs": 50003.29248046875,
+          "elapsedMs": 135.2925839999998
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5144091",
+          "points": 15,
+          "changedAt": "2026-10-30T01:28:01Z",
+          "recordedAt": "2026-10-30T01:28:29.868Z",
+          "observedLagMs": 28868,
+          "file": "2026-10-30T01-28-29.829Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:28:30.003Z",
+          "lagMs": 29003.29248046875,
+          "elapsedMs": 135.2925839999998
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4701230",
+          "points": 7,
+          "changedAt": "2026-10-30T01:27:40Z",
+          "recordedAt": "2026-10-30T01:28:29.827Z",
+          "observedLagMs": 49827,
+          "file": "2026-10-30T01-28-29.742Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:28:50.042Z",
+          "lagMs": 70042.17749023438,
+          "elapsedMs": 173.17741700000033
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "3908809",
+          "points": 8,
+          "changedAt": "2026-10-30T01:28:15Z",
+          "recordedAt": "2026-10-30T01:28:49.836Z",
+          "observedLagMs": 34836,
+          "file": "2026-10-30T01-28-49.770Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:28:50.042Z",
+          "lagMs": 35042.177490234375,
+          "elapsedMs": 173.17741700000033
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4431680",
+          "points": 17,
+          "changedAt": "2026-10-30T01:27:59Z",
+          "recordedAt": "2026-10-30T01:28:49.836Z",
+          "observedLagMs": 50836,
+          "file": "2026-10-30T01-28-49.770Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:28:50.042Z",
+          "lagMs": 51042.177490234375,
+          "elapsedMs": 173.17741700000033
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "4277813",
+          "points": 8,
+          "changedAt": "2026-10-30T01:28:22Z",
+          "recordedAt": "2026-10-30T01:28:49.869Z",
+          "observedLagMs": 27869,
+          "file": "2026-10-30T01-28-49.839Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:28:50.042Z",
+          "lagMs": 28042.177490234375,
+          "elapsedMs": 173.17741700000033
+        }
+      ]
+    },
+    "nba": {
+      "samples": 11,
+      "p95LagMs": 1232102.9736328125,
+      "timeoutRecoveryMs": null,
+      "espnTimeoutRecoveryMs": null,
+      "boardCalls": 0,
+      "summaryCalls": 0,
+      "identityReads": 0,
+      "publications": [
+        {
+          "gameId": "401909893",
+          "espnId": "4278039",
+          "points": 7,
+          "changedAt": "2026-10-30T01:26:27Z",
+          "recordedAt": "2026-10-30T01:27:09.781Z",
+          "observedLagMs": 42781,
+          "file": "2026-10-30T01-27-09.755Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:46:50.425Z",
+          "lagMs": 1223425.4731445312,
+          "elapsedMs": 133.47320900000022
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4278039",
+          "points": 8,
+          "changedAt": "2026-10-30T01:26:41Z",
+          "recordedAt": "2026-10-30T01:27:49.789Z",
+          "observedLagMs": 68789,
+          "file": "2026-10-30T01-27-49.751Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:46:50.425Z",
+          "lagMs": 1209425.4731445312,
+          "elapsedMs": 133.47320900000022
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "4277813",
+          "points": 6,
+          "changedAt": "2026-10-30T01:26:29Z",
+          "recordedAt": "2026-10-30T01:26:49.911Z",
+          "observedLagMs": 20911,
+          "file": "2026-10-30T01-26-49.880Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:46:50.425Z",
+          "lagMs": 1221425.4731445312,
+          "elapsedMs": 133.47320900000022
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "3155942",
+          "points": 5,
+          "changedAt": "2026-10-30T01:26:38Z",
+          "recordedAt": "2026-10-30T01:27:09.811Z",
+          "observedLagMs": 31811,
+          "file": "2026-10-30T01-27-09.783Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:47:10.102Z",
+          "lagMs": 1232102.9736328125,
+          "elapsedMs": 142.97358399999985
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5144091",
+          "points": 13,
+          "changedAt": "2026-10-30T01:27:00Z",
+          "recordedAt": "2026-10-30T01:27:29.802Z",
+          "observedLagMs": 29802,
+          "file": "2026-10-30T01-27-29.774Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:47:10.102Z",
+          "lagMs": 1210102.9736328125,
+          "elapsedMs": 142.97358399999985
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5142620",
+          "points": 23,
+          "changedAt": "2026-10-30T01:27:40Z",
+          "recordedAt": "2026-10-30T01:28:29.868Z",
+          "observedLagMs": 49868,
+          "file": "2026-10-30T01-28-29.829Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:47:50.114Z",
+          "lagMs": 1210114.5812988281,
+          "elapsedMs": 128.58137499999975
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4701230",
+          "points": 7,
+          "changedAt": "2026-10-30T01:27:40Z",
+          "recordedAt": "2026-10-30T01:28:29.827Z",
+          "observedLagMs": 49827,
+          "file": "2026-10-30T01-28-29.742Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:48:10.299Z",
+          "lagMs": 1230299.5305175781,
+          "elapsedMs": 141.53049999999985
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "4431680",
+          "points": 17,
+          "changedAt": "2026-10-30T01:27:59Z",
+          "recordedAt": "2026-10-30T01:28:49.836Z",
+          "observedLagMs": 50836,
+          "file": "2026-10-30T01-28-49.770Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:48:10.299Z",
+          "lagMs": 1211299.5305175781,
+          "elapsedMs": 141.53049999999985
+        },
+        {
+          "gameId": "401909893",
+          "espnId": "3908809",
+          "points": 8,
+          "changedAt": "2026-10-30T01:28:15Z",
+          "recordedAt": "2026-10-30T01:28:49.836Z",
+          "observedLagMs": 34836,
+          "file": "2026-10-30T01-28-49.770Z-summary-401909893.json",
+          "publicationAt": "2026-10-30T01:48:30.186Z",
+          "lagMs": 1215186.9309082031,
+          "elapsedMs": 147.93100000000004
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "5144091",
+          "points": 15,
+          "changedAt": "2026-10-30T01:28:01Z",
+          "recordedAt": "2026-10-30T01:28:29.868Z",
+          "observedLagMs": 28868,
+          "file": "2026-10-30T01-28-29.829Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:48:30.186Z",
+          "lagMs": 1229186.9309082031,
+          "elapsedMs": 147.93100000000004
+        },
+        {
+          "gameId": "401909894",
+          "espnId": "4277813",
+          "points": 8,
+          "changedAt": "2026-10-30T01:28:22Z",
+          "recordedAt": "2026-10-30T01:28:49.869Z",
+          "observedLagMs": 27869,
+          "file": "2026-10-30T01-28-49.839Z-summary-401909894.json",
+          "publicationAt": "2026-10-30T01:48:50.126Z",
+          "lagMs": 1228126.1840820312,
+          "elapsedMs": 122.18408299999965
+        }
+      ]
+    }
+  },
+  "inconsistentRecordedSummarySides": [
+    {
+      "file": "2026-10-30T01-25-49.725Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:25:49.749Z",
+      "team": "CLE",
+      "headerPoints": 46,
+      "playerPoints": 45
+    },
+    {
+      "file": "2026-10-30T01-26-09.739Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:26:09.775Z",
+      "team": "CLE",
+      "headerPoints": 46,
+      "playerPoints": 45
+    },
+    {
+      "file": "2026-10-30T01-26-49.834Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:26:49.878Z",
+      "team": "ATL",
+      "headerPoints": 50,
+      "playerPoints": 49
+    },
+    {
+      "file": "2026-10-30T01-27-09.755Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:27:09.781Z",
+      "team": "ATL",
+      "headerPoints": 52,
+      "playerPoints": 51
+    },
+    {
+      "file": "2026-10-30T01-27-29.735Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:27:29.771Z",
+      "team": "ATL",
+      "headerPoints": 52,
+      "playerPoints": 51
+    },
+    {
+      "file": "2026-10-30T01-28-09.742Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:28:09.792Z",
+      "team": "ATL",
+      "headerPoints": 54,
+      "playerPoints": 52
+    },
+    {
+      "file": "2026-10-30T01-28-09.794Z-summary-401909894.json",
+      "receivedAt": "2026-10-30T01:28:09.839Z",
+      "team": "SAC",
+      "headerPoints": 65,
+      "playerPoints": 63
+    },
+    {
+      "file": "2026-10-30T01-28-29.742Z-summary-401909893.json",
+      "receivedAt": "2026-10-30T01:28:29.827Z",
+      "team": "ATL",
+      "headerPoints": 57,
+      "playerPoints": 54
+    }
+  ],
+  "limits": [
+    "Eleven point changes from two live games during one recording window.",
+    "Injected NBA lag is 20 minutes; raw ESPN timing is retained.",
+    "The ESPN scoring-play wall clock is the change-time reference.",
+    "Full historical season replay and production behavior are not established by this result."
+  ]
+}

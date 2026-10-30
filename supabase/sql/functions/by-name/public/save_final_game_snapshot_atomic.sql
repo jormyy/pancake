@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.save_final_game_snapshot_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.save_final_game_snapshot_atomic(
   p_game_id uuid, p_provider_game_id text, p_stats jsonb, p_source_updated_at timestamptz,
   p_home_score integer, p_away_score integer, p_status_text text

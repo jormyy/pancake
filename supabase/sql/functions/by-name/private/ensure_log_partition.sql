@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.ensure_log_partition.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.ensure_log_partition(p_parent regclass,p_start date)
 RETURNS regclass LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout='100ms' SET statement_timeout='3s' AS $$
 DECLARE policy private.partitioned_log_policies%ROWTYPE; child regclass; child_name text; schema_name text; parent_name text; column_names text;

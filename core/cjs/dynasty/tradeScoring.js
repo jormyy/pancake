@@ -1,52 +1,43 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TRADE_FORMULA_VERSION = void 0;
+exports.curveTradeValue = curveTradeValue;
+exports.compareTradeTotals = compareTradeTotals;
+exports.tradeRosterSpotValue = tradeRosterSpotValue;
 exports.scoreTradeSides = scoreTradeSides;
 exports.valueDynastyAsset = valueDynastyAsset;
 exports.analyzeDynastyTrade = analyzeDynastyTrade;
-exports.TRADE_FORMULA_VERSION = 'onenumber-trade-v1';
+exports.TRADE_FORMULA_VERSION = 'onenumber-trade-curve-v5';
 const TRADE_SCORING = {
+    exponent: 5,
     fairnessTolerance: 0.05,
-    consolidationPerPiece: 0.15,
-    consolidationPieceLimit: 3,
-    closeTopTolerance: 0.10,
-    strongThirdMinimum: 0.50,
-    thirdPieceCredit: 0.25,
+    rosterSpotValue: 25,
     faabBase: 45,
     faabQuality: 105,
 };
 const validValue = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const decimal = (value) => Number(value.toFixed(6));
 const sum = (values) => decimal(values.reduce((total, value) => total + value, 0));
-function scoreTradeSides(sent, received) {
-    const left = sent.filter(value => validValue(value) && value > 0).sort((a, b) => b - a);
-    const right = received.filter(value => validValue(value) && value > 0).sort((a, b) => b - a);
-    const best = Math.max(left[0] ?? 0, right[0] ?? 0);
-    let sentBonus = 0;
-    let receivedBonus = 0;
-    if (left.length < right.length && (left[0] ?? 0) > (right[0] ?? 0)) {
-        sentBonus = best * TRADE_SCORING.consolidationPerPiece * Math.min(TRADE_SCORING.consolidationPieceLimit, right.length - left.length);
-    }
-    if (right.length < left.length && (right[0] ?? 0) > (left[0] ?? 0)) {
-        receivedBonus = best * TRADE_SCORING.consolidationPerPiece * Math.min(TRADE_SCORING.consolidationPieceLimit, left.length - right.length);
-    }
-    if (best > 0 && Math.abs((left[0] ?? 0) - (right[0] ?? 0)) <= best * TRADE_SCORING.closeTopTolerance) {
-        const third = Math.max(left[1] ?? 0, right[1] ?? 0);
-        if (third >= best * TRADE_SCORING.strongThirdMinimum) {
-            if ((left[1] ?? 0) > (right[1] ?? 0))
-                sentBonus += third * TRADE_SCORING.thirdPieceCredit;
-            if ((right[1] ?? 0) > (left[1] ?? 0))
-                receivedBonus += third * TRADE_SCORING.thirdPieceCredit;
-        }
-    }
-    const valuesSent = sum(left);
-    const valuesReceived = sum(right);
-    const adjustedSent = decimal(valuesSent + sentBonus);
-    const adjustedReceived = decimal(valuesReceived + receivedBonus);
-    const difference = decimal(Math.abs(adjustedSent - adjustedReceived));
-    const fair = difference <= decimal(Math.max(adjustedSent, adjustedReceived) * TRADE_SCORING.fairnessTolerance);
-    return { valuesSent, valuesReceived, packageEffect: decimal(receivedBonus - sentBonus), fair,
-        impact: fair ? 0 : decimal(adjustedReceived - adjustedSent) };
+function curveTradeValue(value) {
+    return validValue(value) && value <= 1000 ? 1000 * (value / 1000) ** TRADE_SCORING.exponent : 0;
+}
+function compareTradeTotals(totals) {
+    const largest = Math.max(0, ...totals.map(Math.abs));
+    const gap = totals.length ? Math.max(...totals) - Math.min(...totals) : 0;
+    const gapPercent = largest ? gap / largest * 100 : 0;
+    return { gapPercent, fair: gapPercent <= TRADE_SCORING.fairnessTolerance * 100 + 1e-9 };
+}
+function tradeRosterSpotValue(playersSent, playersReceived) {
+    return (playersSent - playersReceived) * TRADE_SCORING.rosterSpotValue;
+}
+function scoreTradeSides(sent, received, rosterSlotEffect = 0, sentFaab = 0, receivedFaab = 0) {
+    const valuesSent = sum([...sent.map(curveTradeValue), sentFaab]);
+    const valuesReceived = sum([...received.map(curveTradeValue), receivedFaab]);
+    const adjustedReceived = decimal(valuesReceived + rosterSlotEffect);
+    const netValue = decimal(adjustedReceived - valuesSent);
+    const comparison = compareTradeTotals([valuesSent, adjustedReceived]);
+    return { valuesSent, valuesReceived, adjustedReceived, netValue, packageEffect: 0, ...comparison,
+        impact: comparison.fair ? 0 : netValue };
 }
 function valueDynastyAsset(_context, asset) {
     let value = 0;
@@ -109,19 +100,44 @@ function analyzeDynastyTrade(context, strategy, routes) {
     const teams = [...new Set(routes.flatMap(route => [route.fromMemberId, route.toMemberId]))].sort().map(memberId => {
         const sent = assets.filter((_, index) => routes[index].fromMemberId === memberId);
         const received = assets.filter((_, index) => routes[index].toMemberId === memberId);
-        const score = scoreTradeSides(sent.map(asset => asset.values.overall), received.map(asset => asset.values.overall));
+        const roster = context.rosters?.find(team => team.memberId === memberId);
+        let openRosterSpots = 0;
+        let cutValue = 0;
+        if (roster) {
+            const after = roster.players.filter(player => !routes.some(route => route.fromMemberId === memberId && route.asset.kind === 'player' && route.asset.id === player.playerId));
+            for (const route of routes.filter(route => route.toMemberId === memberId && route.asset.kind === 'player')) {
+                const original = context.rosters?.flatMap(team => team.players).find(player => player.playerId === route.asset.id);
+                after.push({ playerId: route.asset.id, tradeValue: valueDynastyAsset(context, route.asset).values.overall,
+                    location: original?.location === 'taxi' ? 'taxi' : route.destination ?? 'active' });
+            }
+            for (const location of ['active', 'ir', 'taxi']) {
+                const values = after.filter(player => player.location === location).map(player => curveTradeValue(player.tradeValue ?? 0)).sort((a, b) => a - b);
+                cutValue += sum(values.slice(0, Math.max(0, values.length - roster.limits[location])));
+                if (location === 'active')
+                    openRosterSpots = Math.max(0, roster.limits.active - values.length);
+            }
+        }
+        const rosterSlotEffect = decimal(tradeRosterSpotValue(sent.filter(asset => asset.kind === 'player').length, received.filter(asset => asset.kind === 'player').length) - cutValue);
+        const score = scoreTradeSides(sent.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall), received.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall), rosterSlotEffect, sum(sent.filter(asset => asset.kind === 'faab').map(asset => asset.values.overall)), sum(received.filter(asset => asset.kind === 'faab').map(asset => asset.values.overall)));
         return { memberId, valuesSent: score.valuesSent, valuesReceived: score.valuesReceived,
             shortTermPoints: decimal(sum(received.map(asset => asset.components.shortTermPoints)) - sum(sent.map(asset => asset.components.shortTermPoints))),
             longTermValue: decimal(score.valuesReceived - score.valuesSent), packageEffect: score.packageEffect,
-            replacementEffect: 0, rosterSlotEffect: 0, impact: score.impact };
+            replacementEffect: 0, rosterSlotEffect, netValue: score.netValue, adjustedValue: score.adjustedReceived,
+            openRosterSpots, rosterCutValue: cutValue, gapPercent: score.gapPercent, fair: score.fair, impact: score.impact };
     });
+    if (teams.length === 2) {
+        const comparison = compareTradeTotals(teams.map(team => team.adjustedValue));
+        for (const team of teams)
+            Object.assign(team, comparison, { impact: comparison.fair ? 0 : team.netValue });
+    }
     return {
         strategy, teams, assets,
         sources: [...new Map(assets.flatMap(asset => asset.sources).map(source => [`${source.name}:${source.fetchedAt}`, source])).values()],
         confidence: assets.length ? decimal(sum(assets.map(asset => asset.confidence)) / assets.length) : 0,
         missingInputs: [...new Set(assets.flatMap(asset => asset.missingInputs))],
         assumptions: [...new Set(assets.flatMap(asset => asset.assumptions)),
-            'Totals sum imported values. Package effects include consolidation and strong-third-piece credit.',
-            'Impact is zero when adjusted totals differ by at most 5% of the larger total.'],
+            `Player and pick totals use 1000 × (source value / 1000)^${TRADE_SCORING.exponent}. FAAB retains its existing value.`,
+            `Roster spots add ${TRADE_SCORING.rosterSpotValue} × (players sent − players received); excess players also cost their lowest curved values.`,
+            `Fair means the adjusted package totals differ by at most ${TRADE_SCORING.fairnessTolerance * 100}% of the larger total.`],
     };
 }

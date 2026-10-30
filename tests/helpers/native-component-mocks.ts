@@ -6,7 +6,6 @@ import { vi } from 'vitest'
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: () => false }))
 
-export { navigation }
 
 vi.mock('expo-router', () => ({ useRouter: () => navigation }))
 

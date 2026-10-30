@@ -1,8 +1,9 @@
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import type { RosterPlayer } from '@/lib/roster'
-import type { DynastyTradeAnalysis } from '@pancake/core'
-import { formatTradeValue } from '@/lib/trade-estimates'
+import type { DynastyTradeAnalysis } from '@/core/src/dynasty/decisionEngine'
+import { curveTradeValue } from '@/core/src/dynasty/tradeScoring'
+import { curvedAssetValue, tradeComparison, formatTradeValue } from '@/lib/trade-estimates'
 import { borderWidth, colors, componentTokens, fontSize, fontWeight, spacing, textStyles, lineHeight } from '@/constants/tokens'
 
 export function TradeAnalysisSummary({
@@ -30,14 +31,21 @@ export function TradeAnalysisSummary({
     )
     if (!analysis) return null
 
+    const comparison = tradeComparison(analysis.teams)
+    const winner = comparison.winnerMemberId ? participantName(comparison.winnerMemberId) : null
     return (
         <View style={[styles.root, inset && styles.inset]} accessibilityLabel="Dynasty trade analysis" aria-busy={loading}>
+            <Text style={styles.verdict}>{winner ? `${winner} wins` : 'Fair'} · {formatTradeValue(comparison.gapPercent)}% gap</Text>
+            <Text style={styles.detail}>Curved package totals · roster spots included</Text>
             <View style={styles.teamGrid}>
                 {analysis.teams.map((team) => (
                     <View key={team.memberId} style={styles.teamCard}>
                         <Text style={styles.teamName}>{participantName(team.memberId)}</Text>
-                        <Text style={styles.detail}>{formatTradeValue(team.valuesSent)} vs {formatTradeValue(team.valuesReceived)}</Text>
-                        <Text style={[styles.value, team.impact < 0 && styles.valueNegative]}>{signed(team.impact)}</Text>
+                        <View style={styles.teamHeading}>
+                            <Text style={styles.value}>{formatTradeValue(team.adjustedValue ?? team.valuesReceived + team.rosterSlotEffect)}</Text>
+                            <Text style={[styles.detail, (team.netValue ?? team.impact) < 0 && styles.valueNegative]}>Net {signed(team.netValue ?? team.valuesReceived - team.valuesSent + team.rosterSlotEffect)}</Text>
+                        </View>
+                        <Text style={styles.detail}>Received {formatTradeValue(team.valuesReceived)} · Sent {formatTradeValue(team.valuesSent)} · Spots {signed(team.rosterSlotEffect)}</Text>
                     </View>
                 ))}
             </View>
@@ -63,12 +71,12 @@ export function TradeAnalysisSummary({
 
 function assetValueLine(asset: DynastyTradeAnalysis['assets'][number], strategy: DynastyTradeAnalysis['strategy']): string {
     const range = asset.ranges[strategy]
-    return `Value ${formatTradeValue(asset.values[strategy])} · Now ${asset.components.shortTermPoints} · Long ${formatTradeValue(asset.components.longTermValue)}${range ? ` · ${formatTradeValue(range.low)}–${formatTradeValue(range.high)}` : ''}`
+    return `Trade value ${formatTradeValue(curvedAssetValue(asset, strategy))} · Source ${formatTradeValue(asset.values[strategy])}${range ? ` · ${formatTradeValue(curveTradeValue(range.low))}–${formatTradeValue(curveTradeValue(range.high))}` : ''}`
 }
 
 function signed(value: number): string {
-    if (value > 0) return `+${value}`
-    return String(value)
+    if (value > 0) return `+${formatTradeValue(value)}`
+    return formatTradeValue(value)
 }
 
 const styles = StyleSheet.create({
@@ -76,8 +84,10 @@ const styles = StyleSheet.create({
     inset: { margin: spacing.xl },
     root: { gap: spacing.md },
     teamGrid: { gap: spacing.xs },
-    teamCard: { flexDirection: 'row', alignItems: 'center', minHeight: componentTokens.playerRow.compact.minHeight, paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal, gap: spacing.md, width: '100%' },
-    teamName: { flex: 1, fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    teamCard: { alignItems: 'stretch', minHeight: componentTokens.playerRow.compact.minHeight, paddingHorizontal: componentTokens.playerRow.compact.paddingHorizontal, gap: spacing.md, width: '100%' },
+    verdict: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
+    teamHeading: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+    teamName: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.textPrimary },
     value: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primaryDark },
     valueNegative: { color: colors.dangerDark },
     detail: { fontSize: fontSize.xs, color: colors.textSecondary, lineHeight: lineHeight.body },

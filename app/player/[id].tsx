@@ -1,3 +1,7 @@
+import { readAssetLocks } from '@/lib/locked-assets'
+import { useScreenView } from '@/hooks/use-screen-view'
+import { screenScope } from '@/lib/cache/screen-scope'
+import type { RosterView } from '@/lib/cache/view-types'
 import { listenForMemberClaimsChanges, memberClaimsRevision } from '@/lib/claim-updates'
 import { IRResolutionModal } from '@/components/IRResolutionModal'
 import { DropPlayerPickerModal } from '@/components/DropPlayerPickerModal'
@@ -48,6 +52,9 @@ export default function PlayerDetailScreen() {
     const twoColumn = usableWidth >= TWO_COLUMN_MIN
     const goBack = useGoBack('/players')
 
+    const lockView = useScreenView<RosterView>(membershipValidated && current && currentLeague && sessionOwner()
+        ? screenScope('roster', currentLeague.id, current.id, {}, sessionOwner()!) : null)
+    const locks = readAssetLocks(lockView.data?.roster.find(row => row.players.id === id))
     const memberId = current?.id
     const leagueId = currentLeague?.id ?? null
     const claimsRevision = useSyncExternalStore(
@@ -274,7 +281,7 @@ export default function PlayerDetailScreen() {
             <Page title={player.display_name}>
                 <View key={ownerIdentity} style={styles.initialSlot}>
                 <ScrollView testID="player-detail-scroll" contentContainerStyle={[styles.scroll, { paddingHorizontal: padX }]}>
-                    <PlayerHeader
+                    <PlayerHeader locks={locks}
                         player={player}
                         rosterStatus={rosterStatus}
                         ownTeamName={current?.team_name}

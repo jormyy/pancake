@@ -1,5 +1,6 @@
 BEGIN;
 \ir rules-support.sql
+UPDATE public.waiver_claims SET process_date=current_date+365000 WHERE status='pending';
 DO $$
 DECLARE f record; p uuid[]:=ARRAY[gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid()];
   trade uuid; claim uuid; move jsonb; i int;

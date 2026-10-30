@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.assert_legal_roster.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.assert_legal_roster(p_league_id uuid, p_league_season_id uuid, p_member_id uuid)
 RETURNS void LANGUAGE plpgsql SET search_path = '' AS $$
 DECLARE v_kind text; v_message text;

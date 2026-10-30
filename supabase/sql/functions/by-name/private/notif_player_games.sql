@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.notif_player_games.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.notif_player_games(p_player uuid,p_date date)
 RETURNS SETOF public.nba_games
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.request_begin.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.request_begin(p_function text, p_arguments jsonb, p_request_id uuid DEFAULT NULL, p_scope text DEFAULT NULL, p_actor uuid DEFAULT NULL)
 RETURNS jsonb
 LANGUAGE plpgsql

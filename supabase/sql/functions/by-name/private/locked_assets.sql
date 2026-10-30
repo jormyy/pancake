@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.locked_assets.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.locked_assets(p_league_id uuid, p_league_season_id uuid, p_member_id uuid)
 RETURNS TABLE(asset_kind text, asset_id uuid, source_kind text, source_id uuid, reason text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -10,9 +14,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
       COALESCE(item.player_id, item.pick_id) AS id, trade.id AS trade_id, trade.status
     FROM active_trades trade JOIN public.trade_items item ON item.trade_id = trade.id
     WHERE item.from_member_id = p_member_id AND COALESCE(item.player_id, item.pick_id) IS NOT NULL
-      AND (trade.status = 'accepted' OR trade.proposer_member_id = p_member_id OR EXISTS (
-        SELECT 1 FROM public.trade_participants participant WHERE participant.trade_id = trade.id
-          AND participant.member_id = p_member_id AND participant.accepted_at IS NOT NULL))
+      AND (item.player_id IS NOT NULL OR trade.status = 'accepted')
     UNION
     SELECT 'player', reserved.id, trade.id, trade.status
     FROM active_trades trade JOIN public.trade_participants participant ON participant.trade_id = trade.id

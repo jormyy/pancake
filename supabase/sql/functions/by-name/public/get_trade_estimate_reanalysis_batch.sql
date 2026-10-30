@@ -1,4 +1,8 @@
-CREATE OR REPLACE FUNCTION public.get_trade_estimate_reanalysis_batch(p_run text DEFAULT 'onenumber-trade-v1')
+-- Canonical SQL source for public.get_trade_estimate_reanalysis_batch.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
+CREATE OR REPLACE FUNCTION public.get_trade_estimate_reanalysis_batch(p_run text DEFAULT 'onenumber-trade-curve-v5')
 RETURNS SETOF uuid LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT t.id FROM public.trades t
   WHERE t.status IN('pending','accepted','completed')

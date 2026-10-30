@@ -31,6 +31,9 @@ export type TradeEstimateInputs = {
   seasonYear: number
   teams: number
   rosterSize: number
+  rosters?: Parameters<typeof analyzeDynastyTrade>[0]['rosters']
+  bestFreeAgentValue?: number
+  playerDestinations?: Record<string, 'active' | 'ir' | 'taxi'>
   scoringSettings: Record<string, number>
   faabBudget: number
   terms: EstimateTerm[]
@@ -61,7 +64,8 @@ function playerAsset(row: PlayerInput, observedAt: number): DynastyPlayerAsset {
 }
 
 export function analyzeTradeEstimate(input: TradeEstimateInputs, observedAt: number) {
-  const context = { leagueId: input.leagueId, seasonYear: input.seasonYear, scoringSettings: input.scoringSettings }
+  const context = { leagueId: input.leagueId, seasonYear: input.seasonYear, scoringSettings: input.scoringSettings,
+    rosters: input.rosters, bestFreeAgentValue: input.bestFreeAgentValue }
   const replacements = input.replacementPlayers.map(row => playerAsset(row, observedAt))
   const replacementValue = replacements.length
     ? Math.min(500, replacements.reduce((sum, asset) => sum + valueDynastyAsset(context, asset).values.overall, 0) / replacements.length)
@@ -74,7 +78,7 @@ export function analyzeTradeEstimate(input: TradeEstimateInputs, observedAt: num
     if (term.playerId) {
       const row = input.players.find(player => player.player_id === term.playerId)
       if (!row) throw new Error('A selected player is missing from the frozen valuation inputs.')
-      return { ...route, asset: playerAsset(row, observedAt) }
+      return { ...route, destination: input.playerDestinations?.[term.playerId], asset: playerAsset(row, observedAt) }
     }
     if (term.pickId) {
       const pick = input.picks.find(pick => pick.id === term.pickId)
@@ -89,10 +93,7 @@ export function analyzeTradeEstimate(input: TradeEstimateInputs, observedAt: num
       sources: [{ name: 'league FAAB settings', fetchedAt: null }] } }
   })
   const analysis = analyzeDynastyTrade({ ...context, replacementValue }, 'overall', routes)
-  analysis.assumptions.push(replacements.length
-    ? `Replacement value uses ${replacements.length} available players in this league.`
-    : `Replacement value uses a fallback for ${input.teams} teams and ${input.rosterSize} regular roster places.`)
-  if (!replacements.length) analysis.missingInputs.push('replacement-player sample')
+  if (!input.rosters) analysis.missingInputs.push('team rosters')
   if (!qualityRows.length && input.terms.some(term => term.faabAmount > 0)) analysis.missingInputs.push('free-agent production sample')
   return analysis
 }

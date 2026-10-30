@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.enqueue_close_expired_nominations.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.enqueue_close_expired_nominations(p_now timestamptz DEFAULT now())
 RETURNS void
 LANGUAGE plpgsql

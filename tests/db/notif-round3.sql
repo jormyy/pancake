@@ -19,6 +19,7 @@ DO $$ BEGIN
   END IF;
 END $$;
 BEGIN;
+\ir scheduler-chunk-support.sql
 CREATE TEMP TABLE notif_fixture AS SELECT gen_random_uuid() AS league,gen_random_uuid() AS other_league,
   gen_random_uuid() AS season,gen_random_uuid() AS prior_season,
   gen_random_uuid() AS owner,gen_random_uuid() AS opponent,gen_random_uuid() AS outsider,
@@ -74,7 +75,7 @@ BEGIN
   INSERT INTO weekly_lineups(league_id,league_season_id,member_id,player_id,week_number,game_date,slot_type)
     VALUES(f.league,f.season,f.member,p,1,today,'PG');
   IF current_setting('notif.case') IN ('all','lineup') THEN
-    PERFORM notif_scan_due_atomic(); PERFORM notif_scan_due_atomic();
+    PERFORM notif_scan_due_atomic(); PERFORM pg_temp.drain_notification_chunks(); PERFORM notif_scan_due_atomic(); PERFORM pg_temp.drain_notification_chunks();
     IF (SELECT count(*) FROM notification_outbox WHERE member_id=f.member AND event_type='lineup_inactive')<>1 THEN RAISE EXCEPTION 'inactive starter real scanner must enqueue once'; END IF;
     IF (SELECT count(*) FROM notification_outbox WHERE member_id=f.member AND event_type='lineup_empty')<>1 THEN RAISE EXCEPTION 'empty fillable starter real scanner must enqueue once'; END IF;
     IF EXISTS(SELECT 1 FROM notification_outbox WHERE event_type LIKE 'lineup_%' AND member_id IN(f.other_member,f.foreign_member,f.same_user_foreign_member)) THEN RAISE EXCEPTION 'lineup recipient leak'; END IF;
@@ -94,7 +95,7 @@ BEGIN
     UPDATE players SET eligible_positions=ARRAY['SG'] WHERE id=bench;
     UPDATE nba_games SET game_status_text='Postponed' WHERE id=game;
     IF EXISTS(SELECT 1 FROM private.notif_lineup_candidates() WHERE member_id=f.member) THEN RAISE EXCEPTION 'postponed slate remains fillable'; END IF;
-    UPDATE nba_games SET game_status_text=NULL,game_time=clock_timestamp()-interval '1 second' WHERE id=game;
+    UPDATE nba_games SET game_status_text=NULL,game_time=now()-interval '1 second' WHERE id=game;
     IF NOT private.notif_is_stale('lineup_empty',jsonb_build_object('leagueId',f.league,'memberId',f.member,'gameDate',today)) THEN RAISE EXCEPTION 'locked replacements must stale empty alert'; END IF;
     IF EXISTS(SELECT 1 FROM private.notif_lineup_candidates() WHERE member_id=f.member) THEN RAISE EXCEPTION 'locked lineup generates alert'; END IF;
     UPDATE nba_games SET game_time=tip WHERE id=game;
@@ -153,7 +154,7 @@ BEGIN
   IF current_setting('notif.case') IN ('all','close') THEN
     INSERT INTO matchups(id,league_id,league_season_id,week_number,home_member_id,away_member_id,home_points,away_points)
       VALUES(m,f.league,f.season,1,f.member,f.other_member,100,101);
-    PERFORM notif_scan_due_atomic(); PERFORM notif_scan_due_atomic();
+    PERFORM notif_scan_due_atomic(); PERFORM pg_temp.drain_notification_chunks(); PERFORM notif_scan_due_atomic(); PERFORM pg_temp.drain_notification_chunks();
     IF (SELECT count(*) FROM notification_outbox WHERE event_type='matchup_close' AND data->>'matchupId'=m::text)<>2 THEN RAISE EXCEPTION 'close matchup scanner recipients or dedupe failed'; END IF;
     IF private.notif_is_stale('matchup_close',jsonb_build_object('matchupId',m)) THEN RAISE EXCEPTION 'live close matchup falsely stale'; END IF;
     UPDATE matchups SET away_points=500 WHERE id=m;

@@ -3,6 +3,7 @@ import { onSessionCachesCleared, sessionGeneration, sessionOwner } from '@/lib/s
 import { compareLeagueVersions, leagueVersionSnapshot, readLeagueVersion, subscribeLeagueVersion, type LeagueVersionSnapshot } from '@/lib/league-version'
 import { API_URL } from '@/lib/shared/api-url'
 import { mergePlayerPage, playerPageOffset, type PlayerPages } from '@/lib/cache/player-pages'
+import { leagueVersionsConnected } from '@/lib/league-changes'
 
 export type ScreenName = 'home' | 'roster' | 'players' | 'player' | 'trades' | 'trade-block' | 'trade-details' | 'trade-analysis' | 'league' | 'league-schedule' | 'standings' | 'activity' | 'picks' | 'settings' | 'lineup' | 'claim-editor' | 'draft-rooms' | 'draft-room' | 'profile'
 export type ScreenScope = { accountId: string; leagueId?: string | null; memberId?: string | null; seasonId?: string | null; screen: ScreenName; params?: Record<string, unknown> }
@@ -15,6 +16,7 @@ const entries = new Map<string, ScreenEnvelope<unknown>>()
 const pending = new Map<string, Promise<unknown>>()
 const readTokens = new Map<string, { generation: number; epoch: number }>()
 const checks = new Map<string, Promise<LeagueVersionSnapshot>>()
+const verifiedAt = new Map<string, number>()
 const listeners = new Map<string, Set<() => void>>()
 const leagueStops = new Map<string, { count: number; stop: () => void }>()
 const contextListeners = new Set<() => void>()
@@ -145,15 +147,27 @@ function applyVersion(leagueId: string, snapshot: LeagueVersionSnapshot): void {
     }
 }
 
-export function invalidateScreenViews(leagueId?: string): void {
+export function invalidateScreenViews(leagueId?: string, matches?: (entry: ScreenEnvelope<unknown>) => boolean): void {
     restore()
     for (const [key, entry] of entries) {
         if (leagueId && entry.scope.leagueId !== leagueId) continue
+        if (matches && !matches(entry)) continue
         entry.dirty = true
         revisions.set(key, (revisions.get(key) ?? 0) + 1)
         try { storage()?.setItem(screenCacheKey(entry.scope), JSON.stringify(entry)) } catch {}
         publish(key)
     }
+}
+
+export function invalidateScreenView(scope: ScreenScope): void {
+    const key = screenCacheKey(scope)
+    const entry = cachedScreenView(scope)
+    revisions.set(key, (revisions.get(key) ?? 0) + 1)
+    if (entry) {
+        entry.dirty = true
+        try { storage()?.setItem(screenCacheKey(entry.scope), JSON.stringify(entry)) } catch {}
+    }
+    publish(key)
 }
 
 export function clearScreenViews(): void {
@@ -167,6 +181,7 @@ export function clearScreenViews(): void {
     pending.clear()
     readTokens.clear()
     checks.clear()
+    verifiedAt.clear()
     revisions.clear()
     for (const key of savedKeys()) { try { storage()?.removeItem(key) } catch {} }
     for (const key of listeners.keys()) publish(key)
@@ -183,7 +198,9 @@ export function subscribeScreenView(scope: ScreenScope, listener: () => void): (
     if (leagueId) {
         let stream = leagueStops.get(leagueId)
         if (!stream) {
-            stream = { count: 0, stop: subscribeLeagueVersion(leagueId, snapshot => applyVersion(leagueId, snapshot)) }
+            restore()
+            const replayVersion = ![...entries.values()].some(entry => entry.scope.leagueId === leagueId)
+            stream = { count: 0, stop: subscribeLeagueVersion(leagueId, snapshot => applyVersion(leagueId, snapshot), replayVersion) }
             leagueStops.set(leagueId, stream)
         }
         stream.count += 1
@@ -197,14 +214,25 @@ export function subscribeScreenView(scope: ScreenScope, listener: () => void): (
     }
 }
 
-function checkVersion(scope: ScreenScope): Promise<LeagueVersionSnapshot> {
+function checkVersion(scope: ScreenScope, force = false): Promise<LeagueVersionSnapshot> {
     const leagueId = scope.leagueId!
     const key = JSON.stringify([scope.accountId, leagueId])
     const existing = checks.get(key)
     if (existing) return existing
-    const task = readLeagueVersion(leagueId).then(snapshot => { applyVersion(leagueId, snapshot); return snapshot }).finally(() => { if (checks.get(key) === task) checks.delete(key) })
+    const snapshot = leagueVersionSnapshot(leagueId)
+    if (!force && snapshot.version !== '0' && leagueVersionsConnected(leagueId, snapshot.version, verifiedAt.get(key))) {
+        applyVersion(leagueId, snapshot)
+        return Promise.resolve(snapshot)
+    }
+    const checkedEpoch = epoch
+    const task = readLeagueVersion(leagueId).then(snapshot => { if (checkedEpoch === epoch) verifiedAt.set(key, Date.now()); applyVersion(leagueId, snapshot); return snapshot }).finally(() => { if (checks.get(key) === task) checks.delete(key) })
     checks.set(key, task)
     return task
+}
+
+export function revalidateScreenVersion(scope: ScreenScope): Promise<LeagueVersionSnapshot> {
+    if (!scope.leagueId) return Promise.resolve({ version: '0', changes: [] })
+    return checkVersion(scope, true)
 }
 
 export async function readScreenView<T>(scope: ScreenScope, options: { force?: boolean; checkVersion?: boolean } = {}): Promise<T> {
@@ -226,7 +254,7 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
             const { waitForLeagueChanges } = await import('@/lib/league-changes')
             await waitForLeagueChanges(scope.leagueId)
         }
-        if (scope.leagueId && options.checkVersion !== false) await checkVersion(scope)
+        if (scope.leagueId && options.checkVersion !== false) await checkVersion(scope, options.force)
         if (!current()) throw new Error('Your account or league changed. Please retry.')
         const selected = cachedScreenView<T>(scope)
         if (scope.leagueId && selected && !selected.dirty && !options.force) return selected.value
@@ -264,6 +292,11 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
                 if (typeof published !== 'string' || !/^\d+$/.test(published)) throw new Error('Could not read the schedule version.')
                 version = published
             }
+            if (scope.screen === 'home') {
+                const raw = (value as { context?: { version?: unknown } } | null)?.context?.version
+                const published = typeof raw === 'number' && Number.isSafeInteger(raw) ? String(raw) : raw
+                try { if (typeof published === 'string' && compareLeagueVersions(published, version) > 0) version = published } catch {}
+            }
         } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version)))
         saveScreenView(scope, value, version, true)
         return value
@@ -291,7 +324,7 @@ export async function refreshScreenVersions(leagueId?: string): Promise<void> {
     if (!accountId) return
     const leagues = leagueId ? [leagueId] : [...new Set([...entries.values()].filter(entry => entry.scope.accountId === accountId).flatMap(entry => entry.scope.leagueId ? [entry.scope.leagueId] : []))]
     await Promise.all(leagues.map(async id => {
-        try { await checkVersion({ accountId, leagueId: id, screen: 'home' }) }
+        try { await checkVersion({ accountId, leagueId: id, screen: 'home' }, true) }
         catch { invalidateScreenViews(id) }
     }))
 }

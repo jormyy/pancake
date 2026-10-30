@@ -154,10 +154,10 @@ BEGIN
       PERFORM public.dispatch_work();
     END LOOP;
     PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM scheduler_executed WHERE v_level<>'normal' AND kind<>ALL(
-      CASE WHEN v_level='shed' THEN ARRAY['live-poll','sync-scores','stats-sync','process-waivers','process-trades','edge-invocation-reconcile']
-      ELSE ARRAY['process-waivers','process-trades','live-poll'] END)),v_level||' runs only allowed kinds');
+      CASE WHEN v_level='shed' THEN ARRAY['live-poll','sync-scores','stats-sync','process-waivers','process-trades','edge-invocation-reconcile','refresh-live-matchups']
+      ELSE ARRAY['process-waivers','process-trades','live-poll','refresh-live-matchups'] END)),v_level||' runs only allowed kinds');
     PERFORM pg_temp.check_rules((SELECT count(DISTINCT kind) FROM scheduler_executed)=
-      CASE v_level WHEN 'normal' THEN (SELECT count(*) FROM private.work_kinds WHERE retired_at IS NULL) WHEN 'shed' THEN 6 ELSE 3 END,
+      CASE v_level WHEN 'normal' THEN (SELECT count(*) FROM private.work_kinds WHERE retired_at IS NULL) WHEN 'shed' THEN 7 ELSE 4 END,
       v_level||' eventually runs every allowed kind');
     PERFORM pg_temp.check_rules(NOT EXISTS(SELECT 1 FROM private.work_items WHERE status='pending' AND attempts<>0),
       v_level||' does not consume attempts for skipped work');

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.view_roster.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.view_roster(p_league_id uuid, p_member_id uuid, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' SET plan_cache_mode = force_generic_plan AS $$
 DECLARE asset_locks jsonb; context jsonb; roster jsonb; averages jsonb; stats jsonb; slots jsonb; assignments jsonb; picks jsonb;
@@ -40,7 +44,9 @@ BEGIN
     WHERE league_id = p_league_id AND member_id = target AND league_season_id = (context->>'seasonId')::uuid
       AND game_date = COALESCE((p_params->>'date')::date, (context->>'today')::date);
   transaction_state := public.view_transaction_state(p_league_id, p_member_id, p_params);
-  RETURN jsonb_build_object('lockedAssets', asset_locks, 'context', context, 'roster', roster,
+  RETURN jsonb_build_object('tradeLockedAssets', COALESCE((SELECT jsonb_agg(lock) FROM jsonb_array_elements(asset_locks) lock
+    WHERE lock->>'sourceKind'<>'trade' OR EXISTS(SELECT 1 FROM public.trades trade
+      WHERE trade.id=(lock->>'sourceId')::uuid AND trade.status='accepted')),'[]'::jsonb), 'lockedAssets', asset_locks, 'context', context, 'roster', roster,
     'picks', picks,
     'claims', public.view_claims(p_league_id, p_member_id, p_params)->'claims', 'avgMap', averages, 'avgStatsMap', stats,
     'waiverPriority', (SELECT priority FROM public.waiver_priorities WHERE member_id = p_member_id AND league_season_id = (context->>'seasonId')::uuid),

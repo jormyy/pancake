@@ -1,3 +1,4 @@
+import { TRADE_FORMULA_VERSION } from '@/core/src/dynasty/tradeScoring'
 import { pickLabel } from '@/lib/picks'
 import { ScreenStatusScrollView as ScrollView } from '@/components/ui/ScreenStatusOverlay'
 import { DeferredContent } from '@/components/ui/DeferredContent'
@@ -33,6 +34,7 @@ import type { TradeComposerMember } from '@/lib/trade-ui-model'
 const BUILDER_WIDTH = componentTokens.tradeAnalyzer.builderWidth
 
 type Snapshot = {
+    modelVersion: string
     analysis: DynastyTradeAnalysis
     participantNames: Record<string, string>
     savedAt: string
@@ -122,7 +124,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         : null
     const storedSnapshot = snapshotKey ? readPersistentCache<Snapshot>(snapshotKey) : null
     const matchingSnapshot = editedSnapshot?.routeSignature === routeSignature ? editedSnapshot.value : storedSnapshot
-    const cachedSnapshot = matchingSnapshot?.leagueId === leagueId && matchingSnapshot.memberId === myMemberId ? matchingSnapshot : null
+    const cachedSnapshot = matchingSnapshot?.leagueId === leagueId && matchingSnapshot.memberId === myMemberId && matchingSnapshot.modelVersion === TRADE_FORMULA_VERSION ? matchingSnapshot : null
 
     useEffect(() => {
         const cachedMembers = membersKey ? readPersistentCache<TradeComposerMember[]>(membersKey) : null
@@ -171,6 +173,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         if (!liveCacheScope || !latestScopeKey || !snapshotKey || !latestRouteKey || !routeSignature ||
             loading || error || !analysis || analysis.assets.length === 0) return
         writePersistentCache(snapshotKey, {
+            modelVersion: TRADE_FORMULA_VERSION,
             analysis,
             participantNames: Object.fromEntries(analysis.teams.map((team) => [team.memberId, participantName(team.memberId)])),
             savedAt: new Date().toISOString(),
@@ -269,6 +272,7 @@ export default function TradeAnalyzer({ prefillTrade }: { prefillTrade?: Trade |
         <View style={styles.analysisActions}>
             <Button title="Edit assets" variant="secondary" size="sm" onPress={() => {
                 setEditedSnapshot(shownAnalysis && routeSignature ? { routeSignature, value: {
+                    modelVersion: TRADE_FORMULA_VERSION,
                     analysis: shownAnalysis,
                     participantNames: Object.fromEntries(shownAnalysis.teams.map(team => [team.memberId, analysisParticipantName(team.memberId)])),
                     savedAt: new Date().toISOString(), leagueId, memberId: myMemberId,

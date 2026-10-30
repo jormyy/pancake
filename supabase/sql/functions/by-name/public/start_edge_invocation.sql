@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.start_edge_invocation.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.start_edge_invocation(
   p_invocation_key uuid,
   p_function_name text

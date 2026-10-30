@@ -1,9 +1,13 @@
+-- Canonical SQL source for public.save_live_scoreboard_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.save_live_scoreboard_atomic(
   p_game_id uuid, p_provider_game_id text, p_status text, p_home_score int, p_away_score int,
   p_status_text text, p_elapsed_seconds numeric
 )
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_game public.nba_games%ROWTYPE; v_year integer;
+DECLARE v_game public.nba_games%ROWTYPE; v_year integer; v_changed integer;
 BEGIN
   IF p_status NOT IN ('Scheduled','InProgress','Final') OR p_status IS NULL
     OR p_home_score IS NULL OR p_away_score IS NULL OR p_home_score<0 OR p_away_score<0
@@ -17,9 +21,15 @@ BEGIN
   IF v_game.season_year IS DISTINCT FROM v_year OR v_game.nba_game_id IS DISTINCT FROM p_provider_game_id THEN
     RAISE EXCEPTION 'Game inputs changed. Retry.' USING ERRCODE='PT409';
   END IF;
+  IF current_setting('app.live_feed_game',true) IS DISTINCT FROM p_game_id::text
+    AND EXISTS(SELECT 1 FROM private.live_feed_state WHERE game_id=p_game_id AND scoreboard_source='espn')
+    AND v_game.live_scoreboard_elapsed_seconds>=p_elapsed_seconds AND p_status<>'Final' THEN RETURN false; END IF;
   IF EXISTS (SELECT 1 FROM private.game_stat_revisions WHERE game_id=p_game_id)
     AND current_setting('app.verified_stats_game',true) IS DISTINCT FROM p_game_id::text THEN
     RAISE EXCEPTION 'A versioned snapshot is required for verified game data.' USING ERRCODE='PT409';
+  END IF;
+  IF p_status='Final' AND current_setting('app.verified_stats_game',true)=p_game_id::text THEN
+    PERFORM private.reconcile_espn_live_stats(p_game_id);
   END IF;
   IF p_status<>'Final' AND (v_game.status='Final' OR v_game.live_scoreboard_elapsed_seconds>p_elapsed_seconds
     OR (v_game.status='InProgress' AND p_status='Scheduled')) THEN RETURN false; END IF;
@@ -32,6 +42,11 @@ BEGIN
         CASE WHEN NOT private.lineup_game_available(v_game.status,v_game.game_status_text)
           AND p_status='Scheduled' AND private.lineup_game_available(p_status,p_status_text)
           THEN v_game.game_status_text ELSE p_status_text END,p_elapsed_seconds);
+  GET DIAGNOSTICS v_changed = ROW_COUNT;
+  IF v_changed>0 AND p_status<>'Final' AND current_setting('app.live_feed_game',true) IS DISTINCT FROM p_game_id::text THEN
+    INSERT INTO private.live_feed_audit(game_id,source,source_updated_at,elapsed_seconds,stat_rows_changed,scoreboard_changed)
+      VALUES(p_game_id,'nba',NULL,p_elapsed_seconds,0,true);
+  END IF;
   RETURN true;
 END;
 $$;

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.notif_finish_web_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.notif_finish_web_atomic(p_id uuid, p_claim_token uuid, p_sent boolean)
 RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''

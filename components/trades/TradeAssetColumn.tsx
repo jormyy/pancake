@@ -1,4 +1,4 @@
-import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import { AssetSelectionRow, LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
 import { type AssetLock } from '@/lib/locked-assets'
 import { useScreenView } from '@/hooks/use-screen-view'
 import { screenScope } from '@/lib/cache/screen-scope'
@@ -8,7 +8,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { pickLabel, draftYear } from '@/lib/picks'
 import { PlayerRowContent } from '@/components/player/PlayerRowContent'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { View, Text, Pressable, StyleSheet } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 
 
 import { colors, componentTokens, controlSize, fontSize, fontWeight, radii, spacing, textStyles, uiColors } from '@/constants/tokens'
@@ -16,7 +16,7 @@ import { yearShort } from '@/lib/format'
 import { getEligiblePositions } from '@/lib/players'
 import { playerSeasonContextText } from '@/lib/player-context'
 import type { RosterPlayer } from '@/lib/roster'
-import type { TradePickItem } from '@/lib/trades'
+import { readTradeAssetLocks, type TradePickItem } from '@/lib/trades'
 
 function PlayerRow({
     player,
@@ -51,17 +51,17 @@ function PlayerRow({
     })
 
     return (
-        <View><Pressable
+        <View><AssetSelectionRow locks={locks}
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
             disabled={checking || locks.length > 0 || blocked && !selected}
             accessibilityRole="button"
             accessibilityState={{ disabled: checking || locks.length > 0 || blocked && !selected }}
-            accessibilityLabel={`${action} ${p.display_name} for trade`}
+            label={`${action} ${p.display_name} for trade`}
             testID={testID}
             id={testID}
         >
-            <PlayerRowContent compact name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
+            <PlayerRowContent locks={locks} compact name={p.display_name} nbaId={p.nba_id} team={p.nba_team} positions={positions}
                 birthdate={p.birthdate} yearsExp={p.years_exp} careerGames={p.career_regular_season_games} injuryStatus={p.injury_status}
                 stats={<View>
                     <Text style={styles.playerContext} numberOfLines={1}>{blocked && !selected ? 'Already routed' : statText}</Text>
@@ -72,7 +72,7 @@ function PlayerRow({
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
-        </Pressable><LockedAssetNotice locks={locks} /></View>
+        </AssetSelectionRow></View>
     )
 }
 
@@ -97,13 +97,13 @@ function PickRow({
 }) {
     const action = selected ? 'Remove' : 'Select'
     return (
-        <View><Pressable
+        <View><AssetSelectionRow locks={locks}
             style={[styles.playerRow, selected && styles.playerRowSelected]}
             onPress={onToggle}
             disabled={checking || locks.length > 0 || blocked && !selected}
             accessibilityRole="button"
             accessibilityState={{ disabled: checking || locks.length > 0 || blocked && !selected }}
-            accessibilityLabel={`${action} ${pickLabel(pick.seasonYear, pick.round)} pick via ${pick.originalTeamName} for trade`}
+            label={`${action} ${pickLabel(pick.seasonYear, pick.round)} pick via ${pick.originalTeamName} for trade`}
             testID={testID}
             id={testID}
         >
@@ -111,9 +111,10 @@ function PickRow({
                 <Text style={styles.pickCircleText}>{yearShort(draftYear(pick.seasonYear))}</Text>
             </View>
             <View style={styles.playerInfo}>
-                <Text style={[styles.playerName, selected && styles.playerNameSelected]}>
-                    {pickLabel(pick.seasonYear, pick.round)}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                    <Text style={[styles.playerName, selected && styles.playerNameSelected]}>{pickLabel(pick.seasonYear, pick.round)}</Text>
+                    <LockedAssetNotice locks={locks} />
+                </View>
                 <Text style={styles.playerMeta}>via {pick.originalTeamName}</Text>
                 {blocked && !selected ? <Text style={styles.playerContext}>Already routed</Text> : null}
                 {selected && destinationLabel ? (
@@ -127,7 +128,7 @@ function PickRow({
                     <MaterialIcons name="remove" size={18} color={colors.textWhite} />
                 </View>
             )}
-        </Pressable><LockedAssetNotice locks={locks} /></View>
+        </AssetSelectionRow></View>
     )
 }
 
@@ -178,7 +179,7 @@ export function TradeAssetColumn({
     const locksView = useScreenView<RosterView>(ownAssets && user && current && currentLeague
         ? screenScope('roster', currentLeague.id, current.id, {}, user.id) : null)
     const checking = ownAssets && !locksView.data
-    const locks = locksView.data?.lockedAssets ?? []
+    const locks = readTradeAssetLocks(locksView.data)
     const locksFor = (kind: AssetLock['assetKind'], id: string) => locks.filter(lock => lock.assetKind === kind && lock.assetId === id)
     const selectedCount =
         roster.filter((rp) => selectedPlayerIds.has(rp.players.id)).length +

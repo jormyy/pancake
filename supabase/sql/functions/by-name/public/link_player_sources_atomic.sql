@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.link_player_sources_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.link_player_sources_atomic(p_source text,p_records jsonb,p_current_roster boolean DEFAULT false)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_record jsonb; v_player public.players%ROWTYPE; v_ids uuid[]; v_id uuid; v_source_id text;

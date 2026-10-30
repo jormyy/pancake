@@ -1,16 +1,20 @@
-CREATE OR REPLACE FUNCTION public.get_trade_estimate_reanalysis_inputs(p_trade_id uuid,p_run text DEFAULT 'onenumber-trade-v1')
+-- Canonical SQL source for public.get_trade_estimate_reanalysis_inputs.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
+CREATE OR REPLACE FUNCTION public.get_trade_estimate_reanalysis_inputs(p_trade_id uuid,p_run text DEFAULT 'onenumber-trade-curve-v5')
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   trade public.trades%ROWTYPE; league public.leagues%ROWTYPE; season public.league_seasons%ROWTYPE;
   terms jsonb; player_ids uuid[]; replacement_ids uuid[]; players jsonb; replacements jsonb; picks jsonb;
+  rosters jsonb; best_free_agent numeric;
   actor uuid; teams integer; floor_value numeric; inputs jsonb;
   previous_user text:=current_setting('request.jwt.claim.sub',true);
 BEGIN
   SELECT * INTO STRICT trade FROM public.trades WHERE id=p_trade_id;
   IF EXISTS(SELECT 1 FROM public.trade_estimate_history WHERE trade_id=p_trade_id AND formula_version=p_run) THEN RETURN NULL; END IF;
   SELECT * INTO STRICT league FROM public.leagues WHERE id=trade.league_id;
-  SELECT * INTO season FROM public.league_seasons WHERE league_id=league.id
-    ORDER BY is_current DESC,(id=trade.league_season_id) DESC,season_year DESC LIMIT 1;
+  SELECT * INTO STRICT season FROM public.league_seasons WHERE id=trade.league_season_id;
   SELECT user_id INTO actor FROM public.league_members WHERE id=trade.proposer_member_id;
   SELECT count(*) INTO teams FROM public.league_members WHERE league_id=league.id;
   SELECT private.canonical_trade_estimate_terms(COALESCE(jsonb_agg(jsonb_build_object(
@@ -38,10 +42,43 @@ BEGIN
     INTO picks FROM public.draft_picks pick JOIN public.league_members member ON member.id=pick.original_owner_id
     LEFT JOIN public.snake_draft_picks slot ON slot.draft_pick_id=pick.id
     WHERE pick.id IN(SELECT (item->>'pickId')::uuid FROM jsonb_array_elements(terms) item WHERE item->>'pickId' IS NOT NULL);
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('memberId',member.id,
+    'limits',jsonb_build_object('active',league.roster_size,'ir',league.ir_slots,'taxi',league.taxi_slots),
+    'players',COALESCE((SELECT jsonb_agg(jsonb_build_object('playerId',roster.player_id,'location',
+      CASE WHEN roster.is_on_taxi THEN 'taxi' WHEN roster.is_on_ir THEN 'ir' ELSE 'active' END,
+      'tradeValue',(SELECT ranking.trade_value FROM public.dynasty_rankings ranking
+        WHERE ranking.player_id=roster.player_id AND ranking.source='onenumberhoops.com'
+        ORDER BY ranking.fetched_at DESC,ranking.source_rank,ranking.id LIMIT 1)) ORDER BY roster.player_id)
+      FROM (
+        SELECT roster.player_id,roster.is_on_ir,roster.is_on_taxi,CASE WHEN trade.status='completed' AND item.player_id IS NOT NULL
+          THEN item.from_member_id ELSE roster.member_id END AS member_id
+        FROM public.roster_players roster LEFT JOIN public.trade_items item ON item.trade_id=trade.id AND item.player_id=roster.player_id
+        WHERE roster.league_season_id=season.id
+        UNION ALL SELECT item.player_id,false,false,item.from_member_id FROM public.trade_items item
+        WHERE item.trade_id=trade.id AND item.player_id IS NOT NULL AND NOT EXISTS(
+          SELECT 1 FROM public.roster_players roster WHERE roster.league_season_id=season.id AND roster.player_id=item.player_id)
+      ) roster WHERE roster.member_id=member.id),'[]'::jsonb))
+    ORDER BY member.id),'[]'::jsonb) INTO rosters FROM public.league_members member WHERE member.league_id=league.id
+    AND member.id IN(SELECT (item->>'fromMemberId')::uuid FROM jsonb_array_elements(terms) item
+      UNION SELECT (item->>'toMemberId')::uuid FROM jsonb_array_elements(terms) item);
+  SELECT COALESCE(max(candidate.trade_value),0) INTO best_free_agent FROM (
+    SELECT DISTINCT ON (ranking.player_id) ranking.player_id,ranking.trade_value
+    FROM public.dynasty_rankings ranking JOIN public.players player ON player.id=ranking.player_id
+    WHERE ranking.source='onenumberhoops.com' AND player.nba_team IS NOT NULL
+      AND NOT ranking.player_id=ANY(player_ids)
+      AND NOT EXISTS(SELECT 1 FROM public.roster_players roster WHERE roster.league_season_id=season.id
+        AND roster.player_id=ranking.player_id)
+    ORDER BY ranking.player_id,ranking.fetched_at DESC,ranking.source_rank,ranking.id
+  ) candidate WHERE candidate.trade_value BETWEEN 0 AND 1000;
   PERFORM set_config('request.jwt.claim.sub',COALESCE(previous_user,''),true);
   inputs:=jsonb_build_object('leagueId',league.id,'seasonId',season.id,'seasonYear',season.season_year,'teams',teams,
     'rosterSize',league.roster_size,'scoringSettings',league.scoring_settings,'faabBudget',league.faab_starting_budget,
-    'terms',terms,'players',players,'replacementPlayers',replacements,'picks',picks,'revaluationTradeId',trade.id);
+    'rosters',rosters,'bestFreeAgentValue',best_free_agent,'terms',terms,'players',players,'replacementPlayers',replacements,'picks',picks,'revaluationTradeId',trade.id);
+  inputs:=inputs||jsonb_build_object('playerDestinations',(
+    SELECT COALESCE(jsonb_object_agg(item.player_id::text,CASE WHEN item.to_taxi THEN 'taxi' WHEN item.to_ir THEN 'ir' ELSE
+      CASE WHEN EXISTS(SELECT 1 FROM public.roster_players roster WHERE roster.league_season_id=season.id
+        AND roster.player_id=item.player_id AND roster.is_on_taxi) THEN 'taxi' ELSE 'active' END END),'{}'::jsonb)
+    FROM public.trade_items item WHERE item.trade_id=p_trade_id AND item.player_id IS NOT NULL));
   RETURN inputs||jsonb_build_object('inputVersion',md5(inputs::text),'observedAt',now());
 END;
 $$;

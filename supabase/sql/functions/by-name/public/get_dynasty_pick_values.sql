@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_dynasty_pick_values.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_dynasty_pick_values(p_league_id uuid)
 RETURNS TABLE(draft_year integer,round integer,tier text,trade_value numeric,source text,fetched_at timestamptz)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
@@ -40,5 +44,3 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   FROM extended pick CROSS JOIN floor CROSS JOIN league
   WHERE pick.draft_year <= league.season_year+league.future_pick_years-1 ORDER BY pick.draft_year,pick.round,pick.tier;
 $$;
-REVOKE ALL ON FUNCTION public.get_dynasty_pick_values(uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.get_dynasty_pick_values(uuid) TO authenticated,service_role;

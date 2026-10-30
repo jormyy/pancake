@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.complete_sleeper_projection_sync.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.complete_sleeper_projection_sync(
   p_run_id uuid, p_rows jsonb, p_row_count integer, p_unmatched_count integer,
   p_http_status integer, p_metadata jsonb DEFAULT '{}'::jsonb

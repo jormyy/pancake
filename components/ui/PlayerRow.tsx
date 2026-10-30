@@ -1,3 +1,5 @@
+import { LockedAssetNotice } from '@/components/roster/LockedAssetNotice'
+import type { AssetLock } from '@/lib/locked-assets'
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { colors, componentTokens, textStyles } from '@/constants/tokens'
@@ -9,6 +11,7 @@ import { Avatar } from '@/components/Avatar'
 import { PosTag } from '@/components/PosTag'
 
 export type PlayerRowProps = {
+    locks?: readonly AssetLock[]
     playerId?: string | null
     name: string
     nbaId?: string | null
@@ -28,7 +31,7 @@ export type PlayerRowProps = {
     variant?: 'compact' | 'standard'
 }
 
-export function PlayerRow({ playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
+export function PlayerRow({ locks = [], playerId, name, nbaId, headshotUrl, team, positions = [], age, birthdate, yearsExp, careerGames, injuryStatus, onTaxi, stats, metadata, live = false, compact = false, variant }: PlayerRowProps) {
     compact = variant ? variant === 'compact' : compact
     const displayAge = usePlayerAge(playerId, birthdate, age, nbaId)
     const avatarSize = componentTokens.playerRow[compact ? 'compact' : 'standard'].avatarSize
@@ -41,7 +44,10 @@ export function PlayerRow({ playerId, name, nbaId, headshotUrl, team, positions 
                 {positions.map(position => <PosTag key={position} position={position} />)}
                 <PlayerEligibilityTags yearsExp={yearsExp} careerGames={careerGames} injuryStatus={injuryStatus} onTaxi={onTaxi} />
                 {displayAge != null ? <Badge inline label={`${displayAge}`} accessibilityLabel={`Age ${displayAge}`} color={colors.textMuted} /> : null}
-                {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
+                {yearsExp != null || locks.length > 0 ? <View style={styles.badgeEnd}>
+                    {yearsExp != null ? <Badge inline label={`Yr ${yearsExp + 1}`} color={colors.textMuted} /> : null}
+                    <LockedAssetNotice locks={locks} />
+                </View> : null}
                 {metadata}
             </View>
             {stats != null ? <View style={styles.stats} testID="player-stats-line">
@@ -59,6 +65,7 @@ const styles = StyleSheet.create({
     compactMetadata: { flexWrap: 'wrap' },
     name: { ...componentTokens.playerRow.name, minWidth: 0 },
     metadata: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: componentTokens.playerRow.metadataGap, minHeight: componentTokens.badge.inline.minHeight, minWidth: 0 },
+    badgeEnd: { flexDirection: 'row', alignItems: 'center', gap: componentTokens.playerRow.metadataGap },
     team: { ...componentTokens.playerRow.metadata, flexShrink: 1 },
     stats: { minHeight: textStyles.meta.lineHeight, minWidth: 0 },
     statText: { ...componentTokens.playerRow.metadata, color: colors.primaryDark, fontVariant: ['tabular-nums'] },

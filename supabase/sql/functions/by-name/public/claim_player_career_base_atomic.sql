@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.claim_player_career_base_atomic.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.claim_player_career_base_atomic(p_player_id uuid, p_now timestamptz DEFAULT now())
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN

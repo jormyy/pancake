@@ -1,32 +1,49 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { useRouter } from 'expo-router'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
-import { borderWidth, colors, controlSize, radii, spacing, textStyles } from '@/constants/tokens'
-import { lockLink, type AssetLock } from '@/lib/locked-assets'
+import type { ElementType, ReactNode } from 'react'
+import { Pressable, StyleSheet, View, type PressableProps, type StyleProp, type ViewStyle } from 'react-native'
+import { colors, componentTokens, controlSize, spacing } from '@/constants/tokens'
+import { assetLockReason, type AssetLock } from '@/lib/locked-assets'
 
-export function LockedAssetNotice({ locks, onNavigate }: { locks: readonly AssetLock[]; onNavigate?: () => void }) {
-    const router = useRouter()
-    const sources = [...new Map(locks.map(lock => [`${lock.sourceKind}:${lock.sourceId}`, lock])).values()]
-    if (!sources.length) return null
-    return <View style={styles.root}>
-        <View style={styles.badge} accessibilityLabel="Asset locked">
-            <MaterialIcons name="lock" size={controlSize.icon.sm} color={colors.textSecondary} />
-            <Text style={styles.label}>Locked</Text>
-        </View>
-        {sources.map(lock => <Pressable key={`${lock.sourceKind}:${lock.sourceId}`} style={styles.link}
-            accessibilityRole="link" accessibilityLabel={lock.reason}
-            onPress={() => { onNavigate?.(); router.push(lockLink(lock) as Parameters<typeof router.push>[0]) }}>
-            <Text style={styles.reason} numberOfLines={1}>{lock.reason}</Text>
-        </Pressable>)}
+async function explainLock(reason: string) {
+    const { showAlert } = await import('@/lib/alert')
+    showAlert('', reason, 'info')
+}
+
+export function LockedAssetNotice({ locks }: { locks: readonly AssetLock[] }) {
+    const reason = assetLockReason(locks)
+    if (!reason) return null
+    return <Pressable style={styles.icon} hitSlop={spacing.xs}
+        accessibilityRole="button" accessibilityLabel={reason} accessibilityState={{ disabled: false }}
+        onPress={event => { event.stopPropagation(); return explainLock(reason) }}
+        onLongPress={event => { event.stopPropagation(); return explainLock(reason) }}>
+        <MaterialIcons name="lock" size={controlSize.icon.sm} color={colors.textMuted} accessible={false} />
+    </Pressable>
+}
+
+export function AssetSelectionRow({ locks, children, style, component: Row = Pressable, disabledOpacity, label, ...props }: Omit<PressableProps, 'style' | 'children' | 'accessibilityLabel'> & {
+    locks: readonly AssetLock[]; label: string; children: ReactNode; style?: StyleProp<ViewStyle>; component?: ElementType; disabledOpacity?: number
+}) {
+    if (!props.disabled || !locks.length) return <Row {...props} accessibilityLabel={label} style={style}
+        {...(Row === Pressable ? {} : { disabledOpacity })}>{children}</Row>
+    return <View style={[style, Row !== Pressable && { opacity: disabledOpacity ?? 0.58 }]}>
+        <Pressable {...props} accessibilityLabel={label} style={StyleSheet.absoluteFillObject} />
+        {children}
+    </View>
+}
+
+export function LockedActionExplanation({ locks, label, children, busy = false }: {
+    locks: readonly AssetLock[]; label: string; children: ReactNode; busy?: boolean
+}) {
+    const reason = assetLockReason(locks)
+    return <View>
+        {children}
+        {reason && !busy ? <Pressable style={StyleSheet.absoluteFillObject}
+            accessibilityRole="button" accessibilityLabel={`Explain unavailable ${label}`} accessibilityHint={reason}
+            onPress={() => explainLock(reason)}
+            onLongPress={() => explainLock(reason)} /> : null}
     </View>
 }
 
 const styles = StyleSheet.create({
-    root: { paddingHorizontal: spacing.sm, paddingBottom: spacing.xs, gap: spacing.xxs },
-    badge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: spacing.xxs,
-        paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs, borderRadius: radii.xs,
-        borderWidth: borderWidth.thin, borderColor: colors.border, backgroundColor: colors.bgSubtle },
-    label: { ...textStyles.meta, color: colors.textSecondary },
-    link: { minHeight: controlSize.minTouch, justifyContent: 'center' },
-    reason: { ...textStyles.meta, color: colors.primaryDark, textDecorationLine: 'underline' },
+    icon: { minWidth: controlSize.icon.sm, minHeight: componentTokens.badge.inline.minHeight, alignItems: 'center', justifyContent: 'center' },
 })

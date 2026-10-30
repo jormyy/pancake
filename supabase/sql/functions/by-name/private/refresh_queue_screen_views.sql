@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.refresh_queue_screen_views.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.refresh_queue_screen_views(p_league_id uuid DEFAULT NULL)
 RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
   INSERT INTO private.screen_refresh_queue AS queued(league_id, league_season_id)

@@ -14,6 +14,7 @@ export function sleeperSnapshot(players) {
 export function providerSnapshot(players,seasonYear,projections=[]) {
   assert.ok(Number.isInteger(seasonYear))
   const result=sleeperSnapshot(players)
+  result.espnIdentities=players.filter(row=>/^\d+$/.test(row.espn_id??'')&&/^\d+$/.test(row.nba_id??'')).map(row=>({id:row.espn_id,nbaId:Number(row.nba_id)}))
   result.espn=players.filter(row=>row.nba_team&&/^\d+$/.test(row.espn_id??'')).map(row=>({
     id:row.espn_id,firstName:row.first_name,lastName:row.last_name,fullName:`${row.first_name} ${row.last_name}`,
     team:row.nba_team,position:{abbreviation:row.position},experience:{years:row.years_exp==null?undefined:row.years_exp+1},status:{type:'active'},dateOfBirth:row.birthdate,

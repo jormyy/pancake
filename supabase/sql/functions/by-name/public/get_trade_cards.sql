@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.get_trade_cards.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.get_trade_cards(p_league_id uuid,p_member_id uuid,p_trade_ids uuid[])
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE cards jsonb; current_year integer:=public.current_season_year_et(); teams integer;
@@ -73,13 +77,12 @@ BEGIN
     'counteredFromTradeId', trade.countered_from_trade_id, 'editedFromTradeId', trade.edited_from_trade_id, 'replacedByTradeId', trade.replaced_by_trade_id,
     'version', trade.version, 'proposerFaabAmount', trade.proposer_faab_amount, 'recipientFaabAmount', trade.recipient_faab_amount,
     'myVetoed', EXISTS (SELECT 1 FROM public.trade_vetos WHERE trade_id = trade.id AND member_id = p_member_id),
-    'routedItems', COALESCE(items.value,'[]'::jsonb), 'estimate', CASE WHEN quote.id IS NOT NULL THEN jsonb_build_object('quoteId',quote.id,'modelVersion',quote.model_version,'inputVersion',quote.input_version,'createdAt',quote.created_at,'teams',quote.analysis->'teams','assets',quote.analysis->'assets') END, 'estimateUnavailable', recorded.unavailable_reason) END ORDER BY requested.ordinal),'[]')
+    'routedItems', COALESCE(items.value,'[]'::jsonb), 'estimate', CASE WHEN quote.id IS NOT NULL OR cached.trade_id IS NOT NULL THEN jsonb_build_object('quoteId',quote.id,'modelVersion',COALESCE(cached.revaluation->>'modelVersion',quote.model_version),'inputVersion',COALESCE(cached.revaluation->>'inputVersion',quote.input_version),'createdAt',COALESCE(cached.revaluation->>'createdAt',quote.created_at::text),'teams',COALESCE(cached.revaluation->'analysis'->'teams',quote.analysis->'teams'),'assets',COALESCE(cached.revaluation->'analysis'->'assets',quote.analysis->'assets')) END, 'estimateUnavailable', recorded.unavailable_reason) END ORDER BY requested.ordinal),'[]')
   INTO cards FROM requested LEFT JOIN chosen trade ON trade.id=requested.id
     LEFT JOIN participants ON participants.trade_id=trade.id LEFT JOIN items ON items.trade_id=trade.id
     LEFT JOIN public.trade_estimates recorded ON recorded.trade_id=trade.id
-    LEFT JOIN public.trade_estimate_quotes quote ON quote.id=recorded.quote_id;
+    LEFT JOIN public.trade_estimate_quotes quote ON quote.id=recorded.quote_id
+    LEFT JOIN public.trade_value_cache cached ON cached.trade_id=trade.id AND cached.revaluation->>'modelVersion'='onenumber-trade-curve-v5';
   RETURN cards;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.get_trade_cards(uuid,uuid,uuid[]) FROM PUBLIC,anon,authenticated,service_role;
-GRANT EXECUTE ON FUNCTION public.get_trade_cards(uuid,uuid,uuid[]) TO authenticated,service_role;

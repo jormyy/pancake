@@ -1,5 +1,5 @@
 import { supabase } from '../_shared/supabase.ts'
-import { chooseBestAssignments } from './assignments.ts'
+import { chooseAutoSetAssignments } from './assignments.ts'
 import { startLeaseHeartbeat } from '../_shared/leaseHeartbeat.ts'
 import { renewCurrentWorkLease, withWorkContext } from '../_shared/workContext.ts'
 import { runBounded } from '../_shared/runBounded.ts'
@@ -42,27 +42,26 @@ export function tipoffAssignments(context: TipoffContext, projections: Projectio
   const players = tipoffPlayers(context).map((player) => ({
     ...player,
     projected: projectionMap.get(player.playerId) ?? 0,
-    avoidInLineup: false,
+    avoidInLineup: player.injuryStatus?.toLowerCase() === 'out' || !!player.injuryStatus?.toLowerCase().startsWith('ir'),
   })).sort((a, b) => b.projected - a.projected || a.playerId.localeCompare(b.playerId))
   return [
     ...locked.map((entry) => ({
       player_id: entry.player_id, slot_type: entry.slot_type,
       is_auto_set: entry.is_auto_set, week_number: entry.week_number,
     })),
-    ...chooseBestAssignments(slots, players, () => true, 'projection').map((entry) => ({
+    ...chooseAutoSetAssignments(slots, players, player => player.hasGame,
+      context.stored.map(entry => ({ playerId: entry.player_id, slotType: entry.slot_type })),
+    ).map((entry) => ({
       player_id: entry.playerId, slot_type: entry.slotType,
       is_auto_set: true, week_number: weekNumber,
+      expected_active: players.some(player => player.playerId === entry.playerId && player.hasGame && !player.avoidInLineup),
     })),
   ]
 }
 
 function tipoffPlayers(context: TipoffContext) {
   const lockedIds = new Set(context.stored.filter(entry => entry.locked).map(entry => entry.player_id))
-  return context.players.filter(player => {
-    const status = player.injuryStatus?.toLowerCase() ?? ''
-    return !player.locked && !lockedIds.has(player.playerId) && player.hasGame
-      && status !== 'out' && !status.startsWith('ir')
-  })
+  return context.players.filter(player => !player.locked && !lockedIds.has(player.playerId))
 }
 
 export async function processPreTipoff(body: Record<string, unknown>) {

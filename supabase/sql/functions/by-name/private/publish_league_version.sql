@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.publish_league_version.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.publish_league_version(p_league_id uuid,p_topics text[],p_sources text[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE stored public.league_versions%ROWTYPE; readers uuid[]; change_topic text; change_scope jsonb;

@@ -1,3 +1,7 @@
+-- Canonical SQL source for public.public_read.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION public.public_read(p_token text, p_resource text, p_params jsonb DEFAULT '{}')
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' SET lock_timeout = '1s' SET statement_timeout='3s' AS $$
 DECLARE

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.flush_league_inventory_hints.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.flush_league_inventory_hints(p_limit integer DEFAULT 1000)
 RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$

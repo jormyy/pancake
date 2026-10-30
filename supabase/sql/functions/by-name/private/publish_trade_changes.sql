@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.publish_trade_changes.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.publish_trade_changes(p_publication_id uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE publication private.trade_publications%ROWTYPE; event jsonb; topic text; source text;

@@ -1,3 +1,4 @@
+import { espnLiveEvent, espnLiveSummary } from './espn-live-view.mjs'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import path from 'node:path'
@@ -71,6 +72,15 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
     const observedGame = process.env.SEASON_SIM_PROFILE && bounds.has(game.id) ? { ...game, time: new Date(bounds.get(game.id).end).toISOString() } : game
     transfers.push(...boxTransfers(people, observedGame, box))
   }
+  const liveIdentities = new Map()
+  const ambiguousLiveIdentities = new Set()
+  for (const person of databaseSleeper?.espnIdentities ?? people.values()) {
+    const key = Number(person.nbaId), value = String(person.id)
+    if (!key || !/^\d+$/.test(value)) continue
+    if (liveIdentities.has(key) && liveIdentities.get(key) !== value) ambiguousLiveIdentities.add(key)
+    else liveIdentities.set(key, value)
+  }
+  for (const key of ambiguousLiveIdentities) liveIdentities.delete(key)
   const openingGames = process.env.SEASON_SIM_PROFILE ? games.map(game => bounds.has(game.id) ? { ...game, time: new Date(bounds.get(game.id).end).toISOString() } : game) : games
   const openings = openingRosters(openingGames, game => boxes.get(game.id))
   const postponements = new Map()
@@ -194,6 +204,22 @@ export async function startOrigin({ resume = false, probeToken = '' } = {}) {
           return
         }
         payload = result.payload
+      } else if (url.pathname === '/espn/live/scoreboard') {
+        const selected = await Promise.all(games.filter(game => game.date === date && game.espnId).map(async game => {
+          const result = await view(game, at, false)
+          return { event: espnLiveEvent(game, result.payload.game), provenance: result.provenance }
+        }))
+        payload = { events: selected.map(row => row.event) }
+        provenance = selected.some(row => row.provenance === 'SYNTHETIC') ? 'SYNTHETIC' : 'REAL-DERIVED'
+        source = 'Retained NBA snapshots projected into the ESPN scoreboard shape with retained game identities'
+      } else if (url.pathname === '/espn/live/summary') {
+        const candidates = games.filter(game => String(game.espnId) === url.searchParams.get('event') && game.date === date)
+        assert.equal(candidates.length, 1, 'ESPN replay game identity must be unique on this date')
+        const game = candidates[0]
+        const result = await view(game, at)
+        payload = espnLiveSummary(game, result.payload.game, liveIdentities, at)
+        provenance = result.provenance === 'SYNTHETIC' ? 'SYNTHETIC' : 'REAL-DERIVED'
+        source = 'Retained NBA snapshots projected into the ESPN box shape with retained athlete identities'
       } else if (url.pathname === '/espn/teams') payload = { sports: [{ leagues: [{ teams: [...teams.values()].map(team => ({ team })) }] }] }
       else if (/^\/espn\/teams\/\d+\/roster$/.test(url.pathname)) {
         const team = teams.get(url.pathname.split('/')[3])

@@ -1,3 +1,7 @@
+-- Canonical SQL source for private.playoff_round_is_consumed.
+-- Edit this file first, then copy the changed function statement into a timestamped Supabase migration.
+-- npm run check:db-function-sources verifies every latest migration function has exact source parity.
+
 CREATE OR REPLACE FUNCTION private.playoff_round_is_consumed(p_season_id uuid, p_type matchup_type)
 RETURNS boolean
 LANGUAGE sql STABLE
