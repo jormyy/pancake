@@ -80,3 +80,18 @@ it.each(['trade', 'claim'] as const)('shows one %s lock icon in the claim drop p
     expect(screen.root.findAllByProps({ accessibilityLabel: `Locked by a pending ${sourceKind === 'trade' ? 'trade' : 'waiver claim'}` })).toHaveLength(1)
     expect(JSON.stringify(screen.toJSON())).not.toContain('reservation-id')
 })
+
+it('offers full IR after selecting its own IR drop and keeps the selection visible', async () => {
+    const injured = rosterPlayer({ id: 'ir-row', is_on_ir: true })
+    injured.players = { ...injured.players, id: 'ir-player', display_name: 'IR Drop', injury_status: 'Out' }
+    mocks.read.mockResolvedValue([rosterPlayer(), injured]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Place on IR' })).toHaveLength(0)
+    const drop = screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select IR Drop to drop')!
+    expect(drop).toBeDefined()
+    await act(async () => drop.props.onPress())
+    expect(toggle().props.value).toBe(true)
+    expect(JSON.stringify(screen.toJSON())).toContain('IR')
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledWith('member', 'league', 'target', 'ir-player', { bidAmount: 0, toIr: true })
+})

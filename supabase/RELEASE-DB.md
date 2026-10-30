@@ -1,5 +1,26 @@
 # Trade input database contract
 
+## Release 2.14.6
+
+The production head is `20261214005900`, with 741 migrations at main `7fdaf684` (release 2.14.5).
+Release 2.14.6 adds one migration. The candidate contains 742 migrations through `20261214006000`.
+
+| Migration | Change |
+| --- | --- |
+| `20261214006000_inactive_pickup_drops.sql` | Allows Taxi and IR drops in pickup claims and checks the selected slot at processing. |
+
+Managers can select Active, Taxi, or IR drops. Eligible pickups can use the inactive slot that the drop frees.
+Quick-add carries its drop and destination into the scheduled claim form.
+A Taxi or IR drop does not free Active capacity.
+A drop lost in a completed trade stays on its pending claim and fails with the existing invalid-drop result and notification.
+Rejected processing rolls back roster, slot, add-count, and budget writes before recording the normal failed-claim outcome.
+PA004 lock errors still propagate for Active-drop and no-drop claims, as on main.
+
+The frontend and SQL ship in one commit. Existing RPC arguments and the free-agent RPC surface remain unchanged.
+The new frontend submits inactive drops through the existing claim RPC, which older SQL rejects before writing a claim.
+Old frontends retain Active-drop placement and fallback behavior against the new SQL.
+All pickups still require scheduled claims. Immediate adds remain blocked in every league state.
+
 ## Release 2.14.5
 
 The supplied production head is `20261214005800`, with 740 migrations at main `9837c091` (release 2.14.4).

@@ -52,6 +52,7 @@ BEGIN
            AND league_season_id = OLD.league_season_id
            AND member_id = OLD.member_id
            AND drop_player_id = OLD.player_id
+           AND COALESCE(drop_roster_slot,'active')='active'
          RETURNING id, member_id, failure_reason
       )
       INSERT INTO notification_outbox(dedupe_key,member_id,event_type,title,body,data,category)
@@ -66,7 +67,8 @@ BEGIN
          AND league_id = OLD.league_id
          AND league_season_id = OLD.league_season_id
          AND member_id = OLD.member_id
-         AND drop_player_id = OLD.player_id;
+         AND drop_player_id = OLD.player_id
+         AND COALESCE(drop_roster_slot,'active')='active';
     END IF;
 
     PERFORM private.expire_pending_trades_for_lost_asset(

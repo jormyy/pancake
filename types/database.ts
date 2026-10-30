@@ -5179,6 +5179,7 @@ export type Database = {
           bid_amount: number
           claim_order: number
           drop_player_id: string | null
+          drop_roster_slot: string | null
           failure_reason: string | null
           id: string
           league_id: string
@@ -5197,6 +5198,7 @@ export type Database = {
           bid_amount?: number
           claim_order?: number
           drop_player_id?: string | null
+          drop_roster_slot?: string | null
           failure_reason?: string | null
           id?: string
           league_id: string
@@ -5215,6 +5217,7 @@ export type Database = {
           bid_amount?: number
           claim_order?: number
           drop_player_id?: string | null
+          drop_roster_slot?: string | null
           failure_reason?: string | null
           id?: string
           league_id?: string

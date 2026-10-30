@@ -10,10 +10,10 @@ vi.mock('@/lib/cache/screen-cache', () => ({ cachedScreenView: () => undefined, 
 }))
 vi.mock('@/lib/shared/season', () => ({ getCurrentSeasonId: async () => 'season' }))
 
-const mocks = vi.hoisted(() => ({ claim: vi.fn(), read: vi.fn(), injury: null as string | null, size: 1, years: 2, games: 64 as number | null, exits: new Set<string>(), epoch: 0, alert: vi.fn() }))
+const mocks = vi.hoisted(() => ({ claim: vi.fn(), read: vi.fn(), injury: null as string | null, size: 1, years: 2, games: 64 as number | null, exits: new Set<string>(), epoch: 0, alert: vi.fn(), params: {} as { dropPlayerId?: string; destination?: string } }))
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput', Switch: 'Switch', ScrollView: 'ScrollView', Platform: { OS: 'web' }, StyleSheet: { create: (styles: unknown) => styles }, useWindowDimensions: () => ({ width: 402, height: 874 }) }))
 vi.mock('@expo/vector-icons/MaterialIcons', () => ({ default: 'Icon' }))
-vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => ({ playerId: 'target' }), useRouter: () => ({ replace: vi.fn() }) }))
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null }, useLocalSearchParams: () => ({ playerId: 'target', ...mocks.params }), useRouter: () => ({ replace: vi.fn() }) }))
 vi.mock('@/hooks/use-auth', () => ({ useAuth: () => ({ user: { id: 'user' } }) }))
 vi.mock('@/contexts/league-context', () => ({ useLeagueContext: () => ({ current: { id: 'member' }, currentLeague: { id: 'league', roster_size: mocks.size, ir_slots: 1, taxi_slots: 1, status: 'active' } }) }))
 vi.mock('@/hooks/use-online-status', () => ({ useOnlineStatus: () => true }))
@@ -38,7 +38,7 @@ const type = (value: string) => value as React.ElementType
 const toggle = () => screen.root.findByProps({ accessibilityLabel: 'Place on taxi' })
 const submit = () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Submit waiver claim')!
 beforeEach(async () => {
-    vi.clearAllMocks(); mocks.injury = null; mocks.epoch = 0; mocks.size = 1; mocks.games = 64; mocks.years = 2; mocks.exits = new Set()
+    vi.clearAllMocks(); mocks.injury = null; mocks.epoch = 0; mocks.size = 1; mocks.games = 64; mocks.years = 2; mocks.exits = new Set(); mocks.params = {}
     mocks.claim.mockResolvedValue(undefined)
     mocks.read.mockResolvedValue([rosterPlayer()])
     await act(async () => { screen = create(React.createElement(ClaimPlayerScreen)) })
@@ -99,4 +99,82 @@ it('opens roster resolution when a stale claim receives PA009', async () => {
     await act(async () => submit().props.onPress())
     await act(async () => { await vi.dynamicImportSettled() })
     expect(screen.root.findByType('IRResolutionModal' as React.ElementType).props.serverMessage).toBe('Server taxi problem')
+})
+
+it('offers a full Taxi slot after selecting its own Taxi drop', async () => {
+    const taxi = rosterPlayer({ id: 'taxi-row', is_on_taxi: true })
+    taxi.players = { ...taxi.players, id: 'taxi-player', display_name: 'Taxi Drop', years_exp: 0, career_regular_season_games: 0 }
+    mocks.read.mockResolvedValue([rosterPlayer(), taxi]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Place on taxi' })).toHaveLength(0)
+    const drop = screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!
+    expect(drop).toBeDefined()
+    expect(JSON.stringify(screen.toJSON())).toContain('Taxi')
+    await act(async () => drop.props.onPress())
+    expect(toggle().props.value).toBe(true)
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Select Taxi Drop to drop' }).length).toBeGreaterThan(0)
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledWith('member', 'league', 'target', 'taxi-player', { bidAmount: 0, toTaxi: true })
+})
+
+it('blocks an ineligible Taxi replacement without creating a claim', async () => {
+    const taxi = rosterPlayer({ id: 'taxi-row', is_on_taxi: true })
+    taxi.players = { ...taxi.players, id: 'taxi-player', display_name: 'Taxi Drop', years_exp: 0, career_regular_season_games: 0 }
+    mocks.games = 65; mocks.read.mockResolvedValue([rosterPlayer(), taxi]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    const drop = screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!
+    await act(async () => drop.props.onPress())
+    expect(screen.root.findAllByProps({ accessibilityLabel: 'Place on taxi' })).toHaveLength(0)
+    expect(submit().props.disabled).toBe(true)
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).not.toHaveBeenCalled()
+    expect(mocks.alert).toHaveBeenCalledWith('Select destination', expect.any(String))
+})
+
+it.each(['taxi', 'ir'] as const)('prefills a quick-add claim with its %s drop and destination', async destination => {
+    const drop = rosterPlayer({ id: 'prefilled-row', is_on_taxi: destination === 'taxi', is_on_ir: destination === 'ir' })
+    drop.players = { ...drop.players, id: 'prefilled-player', years_exp: 0, injury_status: 'Out' }
+    mocks.injury = 'Out'; mocks.params = { dropPlayerId: 'prefilled-player', destination }
+    mocks.read.mockResolvedValue([rosterPlayer(), drop]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    expect(screen.root.findByProps({ accessibilityLabel: destination === 'ir' ? 'Place on IR' : 'Place on taxi' }).props.value).toBe(true)
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith('member', 'league', 'target', 'prefilled-player', {
+        bidAmount: 0, toIr: destination === 'ir', toTaxi: destination === 'taxi',
+    })
+})
+
+it('keeps the selected Taxi replacement after older SQL rejects the inactive drop', async () => {
+    const taxi = rosterPlayer({ id: 'taxi-row', is_on_taxi: true })
+    taxi.players = { ...taxi.players, id: 'taxi-player', display_name: 'Taxi Drop', years_exp: 0 }
+    mocks.read.mockResolvedValue([rosterPlayer(), taxi]); mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    const drop = () => screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Taxi Drop to drop')!
+    await act(async () => drop().props.onPress())
+    mocks.claim.mockRejectedValueOnce({ code: 'P0001', message: 'Drop player must be on your active roster.' })
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledTimes(1)
+    expect(mocks.alert).toHaveBeenCalledWith('Error', 'Drop player must be on your active roster.')
+    expect(drop().props.accessibilityState.selected).toBe(true)
+    expect(toggle().props.value).toBe(true)
+})
+
+it('uses an Active drop for Active placement and clears it when choosing Taxi instead', async () => {
+    expect(toggle().props.value).toBe(true)
+    const drop = screen.root.findAllByType(type('Pressable')).find(node => node.props.accessibilityLabel === 'Select Player A to drop')!
+    await act(async () => drop.props.onPress())
+    expect(toggle().props.value).toBe(false)
+    await act(async () => toggle().props.onValueChange(true))
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).toHaveBeenCalledExactlyOnceWith('member', 'league', 'target', undefined, { bidAmount: 0, toTaxi: true })
+})
+
+it('keeps a missing prefilled drop blocked across retries', async () => {
+    mocks.params = { dropPlayerId: 'departed-player', destination: 'taxi' }; mocks.epoch += 1
+    await act(async () => screen.update(React.createElement(ClaimPlayerScreen)))
+    expect(submit().props.disabled).toBe(true)
+    await act(async () => screen.root.findByProps({ accessibilityLabel: 'Retry waiver claim load' }).props.onPress())
+    expect(submit().props.disabled).toBe(true)
+    await act(async () => submit().props.onPress())
+    expect(mocks.claim).not.toHaveBeenCalled()
 })

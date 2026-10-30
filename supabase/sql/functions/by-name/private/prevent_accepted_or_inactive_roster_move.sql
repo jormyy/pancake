@@ -41,8 +41,8 @@ BEGIN
     PERFORM private.assert_not_reserved_trade_asset(OLD.league_id, OLD.league_season_id, OLD.member_id, OLD.player_id, NULL, v_completing_trade_id);
   END IF;
 
-  IF (OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
-    OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi THEN
+  IF (v_completing_trade_id IS NULL OR OLD.member_id=NEW.member_id) AND ((OLD.league_id,OLD.league_season_id,OLD.member_id,OLD.player_id) IS DISTINCT FROM (NEW.league_id,NEW.league_season_id,NEW.member_id,NEW.player_id)
+    OR OLD.is_on_ir IS DISTINCT FROM NEW.is_on_ir OR OLD.is_on_taxi IS DISTINCT FROM NEW.is_on_taxi) THEN
     SELECT locked.reason INTO lock_reason FROM private.locked_assets(OLD.league_id, OLD.league_season_id, OLD.member_id) locked
       WHERE locked.source_kind='claim' AND locked.asset_id=OLD.player_id ORDER BY locked.source_id LIMIT 1;
     IF lock_reason IS NOT NULL THEN RAISE EXCEPTION '%', lock_reason USING ERRCODE='PA004'; END IF;

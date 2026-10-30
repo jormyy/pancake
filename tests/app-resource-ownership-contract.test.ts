@@ -51,7 +51,7 @@ vi.mock('@/lib/waivers', () => ({
 }))
 vi.mock('@/lib/roster-add-flow', () => ({ loadAddLimitState: async () => ({ weeklyAddCount: 0, weeklyAddLimit: 7, waiverMode: 'faab', faabBalance: 100 }) }))
 vi.mock('@/lib/format', () => ({ isIneligibleIR: () => false, playerHeadshotUrl: () => null, formatPoints: String }))
-vi.mock('@/lib/pickup', () => ({ addLimitSummary: () => '', reportPickupError: vi.fn() }))
+vi.mock('@/lib/pickup', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/pickup')>(), addLimitSummary: () => '', reportPickupError: vi.fn() }))
 vi.mock('@/hooks/use-add-limit-gate', () => ({ useAddLimitGate: () => ({ addBlockedReason: null, explainBlock: () => false }) }))
 vi.mock('@/lib/alert', () => ({ showAlert: vi.fn(), showSuccess: vi.fn() }))
 

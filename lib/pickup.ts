@@ -1,6 +1,6 @@
 import { formatLeagueDateTime } from '@/lib/timezone'
-import { isIREligible } from '@pancake/core'
-import type { RosterOccupancy } from '@/lib/roster'
+import { isIREligible, isTaxiEligible } from '@pancake/core'
+import type { RosterOccupancy, RosterPlayer } from '@/lib/roster'
 import type { MemberTransactionState } from '@/lib/league'
 import { confirmAction, showAlert } from '@/lib/alert'
 import { RULE_CODES, errorCode, getErrorMessage } from '@/lib/shared/errors'
@@ -97,4 +97,22 @@ export function hasOpenIRSlot(roster: RosterOccupancy[], irSlots = 2): boolean {
 
 export function canAddToIR(injuryStatus: string | null | undefined, roster: RosterOccupancy[], irSlots = 2): boolean {
     return isIREligible(injuryStatus ?? null) && hasOpenIRSlot(roster, irSlots)
+}
+
+export type PickupDestination = 'active' | 'taxi' | 'ir'
+
+export function pickupDestinations(
+    player: { id: string; injury_status?: string | null; years_exp?: number | null; career_regular_season_games?: number | null },
+    roster: RosterPlayer[],
+    limits: { rosterSize: number; taxiSlots: number; irSlots: number; allowIR: boolean },
+    taxiExits: ReadonlySet<string>,
+    drop?: RosterPlayer | null,
+): Record<PickupDestination, boolean> {
+    const remaining = roster.filter(row => row.id !== drop?.id)
+    return {
+        active: remaining.filter(row => !row.is_on_ir && !row.is_on_taxi).length < limits.rosterSize,
+        taxi: remaining.filter(row => row.is_on_taxi).length < limits.taxiSlots
+            && isTaxiEligible(player.years_exp ?? null, player.career_regular_season_games ?? null) && !taxiExits.has(player.id),
+        ir: limits.allowIR && canAddToIR(player.injury_status, remaining, limits.irSlots),
+    }
 }

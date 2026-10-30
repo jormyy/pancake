@@ -54,7 +54,7 @@ export async function addFreeAgentOrRequestDrop(
     roster: RosterPlayer[],
     toIr = false,
     toTaxi = false,
-): Promise<{ status: 'added' } | { status: 'roster_full'; activeRoster: RosterPlayer[] }> {
+): Promise<{ status: 'added' } | { status: 'roster_full'; roster: RosterPlayer[] }> {
     try {
         if (toTaxi) await addFreeAgent(memberId, leagueId, playerId, toIr, toTaxi)
         else await addFreeAgent(memberId, leagueId, playerId, toIr)
@@ -63,7 +63,7 @@ export async function addFreeAgentOrRequestDrop(
         if (errorCode(error) !== RULE_CODES.rosterFull) throw error
         return {
             status: 'roster_full',
-            activeRoster: roster.filter((player) => !player.is_on_ir && !player.is_on_taxi),
+            roster,
         }
     }
 }

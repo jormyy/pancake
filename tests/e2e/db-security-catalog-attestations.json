@@ -1,29 +1,9 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005900",
+  "candidateVersion": "20261214006000",
   "common": {
     "functions": [
-      {
-        "name": "sync_roster_linked_state",
-        "owner": "postgres",
-        "config": [
-          "search_path=public"
-        ],
-        "result": "trigger",
-        "schema": "private",
-        "strict": false,
-        "language": "plpgsql",
-        "arguments": "",
-        "bodySha256": "6d8c892143c6100e8232a321dd42a51387277e6494aa9238a06aa56960251f86",
-        "volatility": "v",
-        "anonExecute": false,
-        "publicExecute": false,
-        "securityDefiner": true,
-        "identityArguments": "",
-        "serviceRoleExecute": false,
-        "authenticatedExecute": false
-      },
       {
         "name": "activate_rookie_draft_league_atomic",
         "owner": "postgres",
@@ -288,6 +268,26 @@
   "phases": {
     "pre-migration": {
       "functions": [
+        {
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "6d8c892143c6100e8232a321dd42a51387277e6494aa9238a06aa56960251f86",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
         {
           "name": "clear_future_unlocked_lineups",
           "owner": "postgres",
@@ -699,6 +699,26 @@
           "language": "plpgsql",
           "arguments": "",
           "bodySha256": "0f8f5bfb1520526649073800b946c60847f7734d3c92c397108a5886bcfb54cc",
+          "volatility": "v",
+          "anonExecute": false,
+          "publicExecute": false,
+          "securityDefiner": true,
+          "identityArguments": "",
+          "serviceRoleExecute": false,
+          "authenticatedExecute": false
+        },
+        {
+          "name": "sync_roster_linked_state",
+          "owner": "postgres",
+          "config": [
+            "search_path=public"
+          ],
+          "result": "trigger",
+          "schema": "private",
+          "strict": false,
+          "language": "plpgsql",
+          "arguments": "",
+          "bodySha256": "3050d3b4b8ae4776c8dc673e4e3a1c66cbb75cc899cca5777581c9d122fa4942",
           "volatility": "v",
           "anonExecute": false,
           "publicExecute": false,
@@ -2498,6 +2518,10 @@
     {
       "filename": "20261214005900_bounded_first_screens.sql",
       "sha256": "c4ea8ba1151f69e19f4cfc62304151201285a10bd4f409167c2ecafaaa261ee4"
+    },
+    {
+      "filename": "20261214006000_inactive_pickup_drops.sql",
+      "sha256": "48d8ec30fa688622e1b7e9e1a190a36a3b9d6ced4bd430a527a4941671dc7ac8"
     }
   ],
   "preMigration": {

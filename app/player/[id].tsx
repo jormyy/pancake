@@ -18,7 +18,7 @@ import { BackButton, Page, usePageMetrics } from '@/components/ui'
 import { useLeagueContext } from '@/contexts/league-context'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 import { usePlayerScreenData } from '@/hooks/use-player-screen-data'
-import { useQuickAdd } from '@/hooks/use-quick-add'
+import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
 import { sessionGeneration, sessionOwner } from '@/lib/session-cache-registry'
 import { dropPlayer, type RosterPlayer, type PlayerRosterStatus } from '@/lib/roster'
 import { loadPickupState } from '@/lib/roster-add-flow'
@@ -150,7 +150,10 @@ export default function PlayerDetailScreen() {
         void loadRosterStatus()
     }, [loadRosterStatus, rosterRevision, claimsRevision, canRead, ownerIdentity, rosterStatus])
     const actionsReady = membershipValidated && online && rosterStatus !== null && canRead()
-    const openClaim = useCallback(() => push(`/(modals)/claim-player?playerId=${id}`), [push, id])
+    const openClaim = useCallback((_player: unknown, selection?: PickupClaimSelection) => {
+        if (selection) push({ pathname: '/(modals)/claim-player', params: { playerId: id, ...selection } })
+        else push(`/(modals)/claim-player?playerId=${id}`)
+    }, [push, id])
     const quickAdd = useQuickAdd({
         memberId: current?.id,
         leagueId,
@@ -323,6 +326,7 @@ export default function PlayerDetailScreen() {
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
+                destinations={quickAdd.dropDestinations}
                 onAdd={quickAdd.taxiAvailable && quickAdd.canAddActive ? quickAdd.handleAddActive : undefined}
                 onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}

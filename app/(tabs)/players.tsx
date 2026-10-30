@@ -36,7 +36,7 @@ import { STAT_COLUMN_SORT, type PlayerSearchSortMode } from '@/lib/player-search
 import { playerSeasonFilterOptions, playerAverageLabel } from '@/lib/player-search-state'
 
 import { currentSeasonYear } from '@/lib/shared/season'
-import { useQuickAdd } from '@/hooks/use-quick-add'
+import { useQuickAdd, type PickupClaimSelection } from '@/hooks/use-quick-add'
 import { addLimitSummary } from '@/lib/pickup'
 import { PlayerRow } from '@/lib/players'
 import { useCallback, useEffect, useState } from 'react'
@@ -194,8 +194,9 @@ function PlayerSearchSection() {
             search.sort.setDir('desc')
         }
     }
-    const openClaim = useCallback((player: Pick<PlayerRow, 'id'>) => {
-        push(`/(modals)/claim-player?playerId=${player.id}`)
+    const openClaim = useCallback((player: Pick<PlayerRow, 'id'>, selection?: PickupClaimSelection) => {
+        if (selection) push({ pathname: '/(modals)/claim-player', params: { playerId: player.id, ...selection } })
+        else push(`/(modals)/claim-player?playerId=${player.id}`)
     }, [push])
     const quickAdd = useQuickAdd({
         memberId: current?.id,
@@ -479,6 +480,7 @@ function PlayerSearchSection() {
                 roster={quickAdd.myRoster}
                 dropping={quickAdd.dropping ?? quickAdd.adding}
                 onDrop={quickAdd.handleDropAndAdd}
+                destinations={quickAdd.dropDestinations}
                 onAdd={quickAdd.taxiAvailable && quickAdd.canAddActive ? quickAdd.handleAddActive : undefined}
                 onAddToTaxi={quickAdd.taxiAvailable ? quickAdd.handleAddToTaxi : undefined}
                 irMoveCandidates={quickAdd.irMoveCandidates}
