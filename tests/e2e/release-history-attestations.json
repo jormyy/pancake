@@ -3282,6 +3282,13 @@
       "statementCount": 9,
       "statementsSha256": "f5097770a3c20aac75091b59627ddb6a352826926a7350d07742af43a157f85d",
       "sha256": "88dd02c60544fdbd09166f736b8d774e46bdc90afc555bb7ec79d3ec7c945d2f"
+    },
+    {
+      "name": "perf_beacon_screens",
+      "version": "20261214005600",
+      "statementCount": 2,
+      "statementsSha256": "678b5069ed913b2209b06481b3379c5261527a947017312cd47ce2c2f2938958",
+      "sha256": "dfd2d1374d326a21aa28b4af80cff3d6cce545b7622d925f82d32b945606fca2"
     }
   ]
 }

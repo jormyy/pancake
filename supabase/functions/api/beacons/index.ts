@@ -1,7 +1,7 @@
 import { json, readJsonObject, requireOwnMember, requireUser, throwDb, uuidField, ValidationError } from '../../_shared/apiRuntime.ts'
 import { supabase } from '../../_shared/supabase.ts'
 
-const screens = new Set('matchup roster players league trades profile draft player draft-room rookie-draft-room lineup team-roster bracket claim-player propose-trade commissioner-settings notification-settings change-password create-league join-league'.split(' '))
+const screens = new Set('home waivers draft-setup matchup roster players league trades profile draft player draft-room rookie-draft-room lineup team-roster bracket claim-player propose-trade commissioner-settings notification-settings change-password create-league join-league'.split(' '))
 const keys = 'screen useful_ms request_count transfer_bytes bytes_complete cold device_class connection_type app_version sample_n'.split(' ')
 
 export function validateBeacon(value: unknown) {

@@ -7,6 +7,7 @@ import { useLeagueContext } from '@/contexts/league-context'
 import { API_URL } from '@/lib/shared/api'
 import { createRequestId } from '@/lib/api-client'
 import { beaconScreen, createPerfBeacon, observeUsefulContent } from '@/lib/perf-beacon'
+import { readScreenSection } from '@/lib/screen-section'
 
 export function PerfBeacon() {
     usePerfBeacon()
@@ -70,7 +71,8 @@ function usePerfBeacon() {
 
     useEffect(() => {
         if (Platform.OS !== 'web' || !collector.current || typeof document === 'undefined') return
-        const screen = beaconScreen(path)
+        const param = (value: string | string[] | undefined) => Array.isArray(value) ? value[0] : value
+        const screen = beaconScreen(path, { section: param(params.section) ?? readScreenSection(userId, memberId, 'players'), tab: param(params.tab) })
         const identity = `${memberId}:${routeKey}`
         if (!screen) { lastOpen.current = ''; return }
         if (lastOpen.current === identity) return
@@ -89,5 +91,5 @@ function usePerfBeacon() {
         return observeUsefulContent(screen, start, () => {
             observation.painted(performance.getEntriesByType('resource') as PerformanceResourceTiming[])
         }, observation.cancel)
-    }, [path, routeKey, userId, memberId])
+    }, [path, routeKey, userId, memberId, params.section, params.tab])
 }

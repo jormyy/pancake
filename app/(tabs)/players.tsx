@@ -519,6 +519,7 @@ function initialSection(value: string | string[] | undefined): PlayersSection {
 function PlayersScreen() {
     const focused = useIsFocused()
     const params = useLocalSearchParams<{ section?: string }>()
+    const { setParams } = useRouter()
     const { user, loading: authLoading } = useAuth()
     const { memberships, current, loading: leagueLoading } = useLeagueContext()
     const [section, setSection] = useState<PlayersSection>(() => initialSection(params.section ?? readScreenSection(user?.id, current?.id, 'players')))
@@ -539,7 +540,8 @@ function PlayersScreen() {
         saveScreenSection(user?.id, current?.id, 'players', next)
         setSection(next)
         setOpened((prev) => (prev.has(next) ? prev : new Set(prev).add(next)))
-    }, [user?.id, current?.id])
+        setParams({ section: next })
+    }, [user?.id, current?.id, setParams])
 
     if (authLoading || (leagueLoading && memberships.length === 0)) return <View style={styles.container} />
     if (!user || memberships.length === 0) return <NoLeagueState />
