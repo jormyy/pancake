@@ -50,6 +50,31 @@ describe('production timing beacons', () => {
         expect(send).toHaveBeenCalledTimes(1)
     })
 
+    it('sends queued rows at once when the app hides, then keeps the minute pace', async () => {
+        const { client, paint, send } = setup()
+        client.flushNow()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(send).not.toHaveBeenCalled()
+        vi.setSystemTime(100)
+        paint(); paint('players')
+        client.flushNow()
+        await vi.advanceTimersByTimeAsync(0)
+        expect(send).toHaveBeenCalledTimes(1)
+        expect(send.mock.calls[0][0].map(row => row.screen)).toEqual(['roster', 'players'])
+        paint()
+        await vi.advanceTimersByTimeAsync(59_999)
+        expect(send).toHaveBeenCalledTimes(1)
+        await vi.advanceTimersByTimeAsync(1)
+        expect(send).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not send hidden-app rows offline', async () => {
+        const { client, paint, send, offline } = setup()
+        paint(); offline(); client.flushNow()
+        await vi.advanceTimersByTimeAsync(180_000)
+        expect(send).not.toHaveBeenCalled()
+    })
+
     it('drops queued and new rows offline without retries', async () => {
         const { paint, send, offline, client } = setup()
         paint(); offline(); client.drop(); paint()

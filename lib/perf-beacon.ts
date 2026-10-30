@@ -33,12 +33,13 @@ export function createPerfBeacon(options: Options) {
     let inFlight = false
     const safely = (action: () => void) => { try { action() } catch {} }
     const drop = () => { rows = [] }
-    const flush = () => safely(() => {
+    const flush = (force = false) => safely(() => {
+        if (force && timer !== undefined) options.cancel(timer)
         timer = undefined
         if (stopped || !options.online()) { drop(); return }
         if (!rows.length) return
         const delay = 60_000 - (options.now() - lastSend)
-        if (delay > 0 || inFlight) { arm(Math.max(delay, 60_000)); return }
+        if ((delay > 0 && !force) || inFlight) { arm(Math.max(delay, 60_000)); return }
         const batch = rows
         rows = []
         lastSend = options.now()
@@ -48,7 +49,7 @@ export function createPerfBeacon(options: Options) {
         }).catch(() => {}).finally(() => { inFlight = false })
     })
     const arm = (delay: number) => {
-        if (timer === undefined) timer = options.schedule(flush, delay)
+        if (timer === undefined) timer = options.schedule(() => flush(), delay)
     }
     return {
         open(screen: string, startedAt: number, metadata: Omit<PerfBeacon, 'screen' | 'useful_ms' | 'request_count' | 'transfer_bytes' | 'bytes_complete' | 'sample_n'>) {
@@ -84,6 +85,7 @@ export function createPerfBeacon(options: Options) {
             }
         },
         drop,
+        flushNow: () => flush(true),
         stop() { stopped = true; drop(); safely(() => { if (timer !== undefined) options.cancel(timer) }); timer = undefined },
     }
 }
