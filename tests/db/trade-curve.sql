@@ -35,7 +35,7 @@ BEGIN
     jsonb_build_object('memberId',f.member_ids[1],'valuesSent',773.780937,'valuesReceived',31.25,'rosterSlotEffect',0,'netValue',-742.530937),
     jsonb_build_object('memberId',f.member_ids[2],'valuesSent',31.25,'valuesReceived',773.780937,'rosterSlotEffect',0,'netValue',742.530937)),
     'assets','[]'::jsonb);
-  cached:=jsonb_build_object('modelVersion','onenumber-trade-curve-v5','inputVersion',fingerprint,'analysis',analysis,'createdAt',now());
+  cached:=jsonb_build_object('modelVersion','onenumber-trade-curve-v6','inputVersion',fingerprint,'analysis',analysis,'createdAt',now());
   published:=private.refresh_trade_values(f.league_id,f.season_id,1,jsonb_build_array(jsonb_build_object('tradeId',offer,'revaluation',cached)));
   PERFORM pg_temp.check_rules(published,'refresh publishes the already curved estimate');
   PERFORM pg_temp.check_rules(private.refresh_trade_values(f.league_id,f.season_id,1,jsonb_build_array(jsonb_build_object('tradeId',offer,'revaluation',cached))),'refresh replay succeeds');
@@ -50,7 +50,7 @@ BEGIN
   q:=public.save_trade_estimate_reanalysis(offer,historical,analysis);
   retry:=public.save_trade_estimate_reanalysis(offer,historical,analysis);
   PERFORM pg_temp.check_rules(q=retry,'model recomputation runs once per trade');
-  PERFORM pg_temp.check_rules((SELECT model_version='onenumber-trade-curve-v5' FROM public.trade_estimate_quotes WHERE id=q),'stored model version is bumped');
+  PERFORM pg_temp.check_rules((SELECT model_version='onenumber-trade-curve-v6' FROM public.trade_estimate_quotes WHERE id=q),'stored model version is bumped');
   PERFORM pg_temp.check_rules(public.get_trade_estimate_reanalysis_inputs(offer) IS NULL,'repeat model input request skips completed work');
   PERFORM pg_temp.check_rules((SELECT count(*)=3 FROM public.trade_estimate_history WHERE trade_id=offer),'original, prior model, and current model histories are retained');
   PERFORM pg_temp.check_rules(NOT has_function_privilege('authenticated','private.build_trade_estimate_inputs(uuid,uuid,jsonb,boolean)','EXECUTE'),'raw roster inputs remain service only');

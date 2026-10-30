@@ -3289,6 +3289,13 @@
       "statementCount": 2,
       "statementsSha256": "678b5069ed913b2209b06481b3379c5261527a947017312cd47ce2c2f2938958",
       "sha256": "dfd2d1374d326a21aa28b4af80cff3d6cce545b7622d925f82d32b945606fca2"
+    },
+    {
+      "name": "trade_curve_no_flat_roster_value",
+      "version": "20261214005700",
+      "statementCount": 8,
+      "statementsSha256": "be720728588a215a3a7d32ff95785254dd968f004d84610a9e91e40dac4c47a6",
+      "sha256": "daed658b974b4c3dfff7752e5dbf4052bf4f49f788622b8282dfd395d7fdb82a"
     }
   ]
 }

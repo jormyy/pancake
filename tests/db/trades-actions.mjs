@@ -132,9 +132,9 @@ async function scenario(session, name, manager) {
   if (name === 'estimate-work') { handler = 'estimate'; body.tradeId = trade }
   if (name === 'estimate-replay' || name === 'estimate-reanalysis') {
     const inputs = await session.value(`SELECT public.get_trade_revaluation_inputs(${quote(user)},${quote(a)},${quote(trade)})-ARRAY['revaluationTradeId','inputVersion','observedAt','cachedRevaluation'];`)
-    await session.sql(`SELECT public.save_trade_estimate_quote(${quote(user)},${quote(a)},${quote(JSON.stringify({ ...inputs, submittedTradeId: trade }))}::jsonb,'{"teams":[],"assets":[]}','onenumber-trade-curve-v5');`)
+    await session.sql(`SELECT public.save_trade_estimate_quote(${quote(user)},${quote(a)},${quote(JSON.stringify({ ...inputs, submittedTradeId: trade }))}::jsonb,'{"teams":[],"assets":[]}','onenumber-trade-curve-v6');`)
     handler = 'estimate'; body.tradeId = trade
-    if (name === 'estimate-reanalysis') { body.reanalysisVersion = 'onenumber-trade-curve-v5'; body.runVersion = 'trade-actions-reanalysis' }
+    if (name === 'estimate-reanalysis') { body.reanalysisVersion = 'onenumber-trade-curve-v6'; body.runVersion = 'trade-actions-reanalysis' }
   }
   if (name === 'pick-values-work') {
     handler = 'picks'

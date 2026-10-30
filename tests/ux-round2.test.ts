@@ -21,7 +21,7 @@ const render = async (element: React.ReactElement) => {
     return screen!
 }
 const estimate = {
-    quoteId: 'quote', modelVersion: 'onenumber-trade-curve-v5', inputVersion: 'inputs', createdAt: '2026-10-27T20:37:50Z',
+    quoteId: 'quote', modelVersion: 'onenumber-trade-curve-v6', inputVersion: 'inputs', createdAt: '2026-10-27T20:37:50Z',
     teams: ['member-a', 'member-b'].map((memberId, index) => ({ memberId, valuesSent: index ? 605 : 1412,
         valuesReceived: index ? 1412 : 605, impact: index ? 677 : -677, shortTermPoints: 0,
         longTermValue: 0, rosterSlotEffect: 0, replacementEffect: 0, packageEffect: 0 })),

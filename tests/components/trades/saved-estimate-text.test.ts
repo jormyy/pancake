@@ -11,7 +11,7 @@ vi.mock('@/lib/cache/screen-cache', () => ({ readScreenView: vi.fn() }))
 vi.mock('@/components/trades/TradeAnalysisSummary', () => ({ TradeAnalysisSummary: 'Summary' }))
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 it('keeps estimate numbers without saved date or source captions', async () => {
-    const value = trade({ estimate: { quoteId: 'quote', modelVersion: 'onenumber-trade-curve-v5', inputVersion: '1', createdAt: '2026-10-27T12:00:00Z', teams: [{ memberId: 'member-a', valuesSent: 100, valuesReceived: 120, impact: 20, shortTermPoints: 0, longTermValue: 0, packageEffect: 0, replacementEffect: 0, rosterSlotEffect: 0 }] } })
+    const value = trade({ estimate: { quoteId: 'quote', modelVersion: 'onenumber-trade-curve-v6', inputVersion: '1', createdAt: '2026-10-27T12:00:00Z', teams: [{ memberId: 'member-a', valuesSent: 100, valuesReceived: 120, impact: 20, shortTermPoints: 0, longTermValue: 0, packageEffect: 0, replacementEffect: 0, rosterSlotEffect: 0 }] } })
     let screen!: ReturnType<typeof create>
     await act(async () => { screen = create(React.createElement(SavedTradeEstimate, { trade: value, myMemberId: 'member-a' })) })
     const text = screen.root.findAllByType('Text' as React.ElementType).map(node => React.Children.toArray(node.props.children).join('')).join('\n')

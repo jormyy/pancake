@@ -3,15 +3,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TRADE_FORMULA_VERSION = void 0;
 exports.curveTradeValue = curveTradeValue;
 exports.compareTradeTotals = compareTradeTotals;
-exports.tradeRosterSpotValue = tradeRosterSpotValue;
 exports.scoreTradeSides = scoreTradeSides;
 exports.valueDynastyAsset = valueDynastyAsset;
 exports.analyzeDynastyTrade = analyzeDynastyTrade;
-exports.TRADE_FORMULA_VERSION = 'onenumber-trade-curve-v5';
+exports.TRADE_FORMULA_VERSION = 'onenumber-trade-curve-v6';
 const TRADE_SCORING = {
     exponent: 5,
     fairnessTolerance: 0.05,
-    rosterSpotValue: 25,
     faabBase: 45,
     faabQuality: 105,
 };
@@ -26,9 +24,6 @@ function compareTradeTotals(totals) {
     const gap = totals.length ? Math.max(...totals) - Math.min(...totals) : 0;
     const gapPercent = largest ? gap / largest * 100 : 0;
     return { gapPercent, fair: gapPercent <= TRADE_SCORING.fairnessTolerance * 100 + 1e-9 };
-}
-function tradeRosterSpotValue(playersSent, playersReceived) {
-    return (playersSent - playersReceived) * TRADE_SCORING.rosterSpotValue;
 }
 function scoreTradeSides(sent, received, rosterSlotEffect = 0, sentFaab = 0, receivedFaab = 0) {
     const valuesSent = sum([...sent.map(curveTradeValue), sentFaab]);
@@ -117,7 +112,7 @@ function analyzeDynastyTrade(context, strategy, routes) {
                     openRosterSpots = Math.max(0, roster.limits.active - values.length);
             }
         }
-        const rosterSlotEffect = decimal(tradeRosterSpotValue(sent.filter(asset => asset.kind === 'player').length, received.filter(asset => asset.kind === 'player').length) - cutValue);
+        const rosterSlotEffect = decimal(-cutValue);
         const score = scoreTradeSides(sent.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall), received.filter(asset => asset.kind !== 'faab').map(asset => asset.values.overall), rosterSlotEffect, sum(sent.filter(asset => asset.kind === 'faab').map(asset => asset.values.overall)), sum(received.filter(asset => asset.kind === 'faab').map(asset => asset.values.overall)));
         return { memberId, valuesSent: score.valuesSent, valuesReceived: score.valuesReceived,
             shortTermPoints: decimal(sum(received.map(asset => asset.components.shortTermPoints)) - sum(sent.map(asset => asset.components.shortTermPoints))),
@@ -137,7 +132,7 @@ function analyzeDynastyTrade(context, strategy, routes) {
         missingInputs: [...new Set(assets.flatMap(asset => asset.missingInputs))],
         assumptions: [...new Set(assets.flatMap(asset => asset.assumptions)),
             `Player and pick totals use 1000 × (source value / 1000)^${TRADE_SCORING.exponent}. FAAB retains its existing value.`,
-            `Roster spots add ${TRADE_SCORING.rosterSpotValue} × (players sent − players received); excess players also cost their lowest curved values.`,
+            'Open roster spots add no value; excess players cost their lowest curved values.',
             `Fair means the adjusted package totals differ by at most ${TRADE_SCORING.fairnessTolerance * 100}% of the larger total.`],
     };
 }

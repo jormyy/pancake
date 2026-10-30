@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import TradeAnalyzer from '@/components/trades/TradeAnalyzer'
 
 const saved = vi.hoisted(() => ({ assets: [{ kind: 'player', assetId: 'player', label: 'Saved player' }], teams: [{ memberId: 'me' }] }))
-const state = vi.hoisted(() => ({ online: false, modelVersion: 'onenumber-trade-curve-v5', loading: false, analysis: null as unknown, retry: vi.fn() }))
+const state = vi.hoisted(() => ({ online: false, modelVersion: 'onenumber-trade-curve-v6', loading: false, analysis: null as unknown, retry: vi.fn() }))
 const composer = vi.hoisted(() => ({
     participantIds: ['me'], participantRosters: {}, participantViews: [] as { memberId: string }[], assetsReady: false, selectedAssetsAvailable: false,
     selectedParticipantIds: new Set(), buildMultiTeamItems: () => [], reset: () => {},
@@ -94,7 +94,7 @@ it('does not show an offline analysis computed by the previous model', async () 
         expect(renderer.root.findAllByProps({ accessibilityLabel: 'View trade analysis' })).toHaveLength(0)
         expect(renderer.root.findAllByType('TradeAnalysisSummary' as React.ElementType)).toHaveLength(0)
     } finally {
-        state.modelVersion = 'onenumber-trade-curve-v5'
+        state.modelVersion = 'onenumber-trade-curve-v6'
         await act(async () => renderer.unmount())
     }
 })

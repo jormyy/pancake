@@ -23,12 +23,12 @@ BEGIN
   IF NOT EXISTS(SELECT 1 FROM public.trades WHERE id=p_trade_id AND status IN ('pending','accepted')) THEN
     RETURN jsonb_build_object('closed',true,'revaluationTradeId',p_trade_id,'cachedRevaluation',
       COALESCE((SELECT revaluation||jsonb_build_object('expiresAt',now()+interval '10 minutes')
-        FROM public.trade_value_cache WHERE trade_id=p_trade_id AND revaluation->>'modelVersion'='onenumber-trade-curve-v5'),
+        FROM public.trade_value_cache WHERE trade_id=p_trade_id AND revaluation->>'modelVersion'='onenumber-trade-curve-v6'),
         (SELECT jsonb_build_object('tradeId',p_trade_id,'analysis',quote.analysis,'modelVersion',quote.model_version,
           'inputVersion',quote.input_version,'createdAt',quote.created_at,'expiresAt',now()+interval '10 minutes',
           'seasonYear',quote.inputs->'seasonYear') FROM public.trade_estimates recorded
           JOIN public.trade_estimate_quotes quote ON quote.id=recorded.quote_id WHERE recorded.trade_id=p_trade_id
-            AND quote.model_version='onenumber-trade-curve-v5')));
+            AND quote.model_version='onenumber-trade-curve-v6')));
   END IF;
   fingerprint:=private.trade_revaluation_input_version(p_trade_id);
   SELECT jsonb_agg(jsonb_build_object('fromMemberId',i.from_member_id,'toMemberId',i.to_member_id,

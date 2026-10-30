@@ -52,7 +52,7 @@ async function recompute() {
   const trades = await json("SELECT jsonb_agg(row) FROM (SELECT t.id,t.league_id,t.league_season_id,m.id AS member,m.user_id AS actor FROM public.trades t JOIN public.league_members m ON m.id=t.proposer_member_id WHERE t.status IN('pending','accepted')) row;")
   for (const trade of trades) {
     const inputs = await json(`SELECT public.get_trade_revaluation_inputs(${literal(trade.actor)}::uuid,${literal(trade.member)}::uuid,${literal(trade.id)}::uuid);`)
-    const revaluation = { tradeId: trade.id, modelVersion: 'onenumber-trade-curve-v5', inputVersion: inputs.inputVersion, createdAt: inputs.observedAt, expiresAt: new Date(Date.parse(inputs.observedAt) + 600000).toISOString(), seasonYear: inputs.seasonYear, terms: inputs.terms, analysis: analyzeTradeEstimate(inputs, Date.parse(inputs.observedAt)) }
+    const revaluation = { tradeId: trade.id, modelVersion: 'onenumber-trade-curve-v6', inputVersion: inputs.inputVersion, createdAt: inputs.observedAt, expiresAt: new Date(Date.parse(inputs.observedAt) + 600000).toISOString(), seasonYear: inputs.seasonYear, terms: inputs.terms, analysis: analyzeTradeEstimate(inputs, Date.parse(inputs.observedAt)) }
     assert.equal(await json(`SELECT private.refresh_trade_values(${literal(trade.league_id)}::uuid,${literal(trade.league_season_id)}::uuid,(SELECT version FROM private.screen_refresh_queue WHERE league_season_id=${literal(trade.league_season_id)}::uuid),${literal(JSON.stringify([{ tradeId: trade.id, revaluation }]))}::jsonb);`), true)
   }
   await run('ANALYZE;')

@@ -14,7 +14,7 @@ describe('imported trade scoring', () => {
       replacementPlayers: [], picks: [],
     }
     const result = analyzeTradeEstimate(input, 0)
-    expect(TRADE_FORMULA_VERSION).toBe('onenumber-trade-curve-v5')
+    expect(TRADE_FORMULA_VERSION).toBe('onenumber-trade-curve-v6')
     expect(result.assets[0].values).toEqual({ overall: 999.9, contend: 999.9, rebuild: 999.9 })
     const shape = (value: unknown): unknown => Array.isArray(value) ? value.slice(0, 1).map(shape)
       : value != null && typeof value === 'object' ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key, shape(item)])) : typeof value
@@ -51,7 +51,7 @@ it('uses net player counts and real roster limits without a free-agent credit', 
     ],
   }
   const analysis = analyzeTradeEstimate(input, 0)
-  expect(analysis.teams.map((team: { rosterSlotEffect: number }) => team.rosterSlotEffect)).toEqual([25, -25])
+  expect(analysis.teams.map((team: { rosterSlotEffect: number }) => team.rosterSlotEffect)).toEqual([0, 0])
   expect(analysis.teams[0].valuesSent).toBe(31.25)
   expect(analysis.assets[0].values.overall).toBe(500)
   expect(analyzeTradeEstimate({ ...input, bestFreeAgentValue: undefined }, 0)).toEqual(analysis)

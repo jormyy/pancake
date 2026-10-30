@@ -64,14 +64,14 @@ describe('stored dynasty value readers', () => {
     expect(result.comparison.gapPercent).toBeCloseTo(35.625830, 3)
   })
 
-  it('applies flat roster values to a card before a current estimate is available', () => {
+  it('adds no roster value to a card before a current estimate is available', () => {
     const trade = { proposerMemberId: 'a', participants: [{ memberId: 'a' }, { memberId: 'b' }], routedItems: [
       { kind: 'player', playerId: 'luka', fromMemberId: 'a', toMemberId: 'b', tradeValue: 942 },
       ...[698, 695, 692, 648].map((tradeValue, index) => ({ kind: 'player', playerId: `piece-${index}`, fromMemberId: 'b', toMemberId: 'a', tradeValue })),
       { kind: 'pick', pickId: 'pick', fromMemberId: 'b', toMemberId: 'a', tradeValue: 0 },
     ] } as unknown as Trade
-    expect(displayedTradeValues(trade, 'a')).toMatchObject({ rosterSlotEffect: -75 })
-    expect(displayedTradeValues(trade, 'b')).toMatchObject({ rosterSlotEffect: 75 })
+    expect(displayedTradeValues(trade, 'a')).toMatchObject({ rosterSlotEffect: 0 })
+    expect(displayedTradeValues(trade, 'b')).toMatchObject({ rosterSlotEffect: 0 })
   })
 
 })

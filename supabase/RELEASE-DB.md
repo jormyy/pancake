@@ -1,5 +1,14 @@
 # Trade input database contract
 
+## Release 2.14.3
+
+The supplied production head is `20261214005600`, with 738 migrations at main `391f639c` (release 2.14.2).
+Release 2.14.3 adds one migration. The candidate contains 739 migrations through `20261214005700`.
+
+| Migration | Change |
+| --- | --- |
+| `20261214005700_trade_curve_no_flat_roster_value.sql` | Removes the flat roster spot value and queues model v6 once. |
+
 ## Release 2.14.1
 
 The supplied production head is `20261214005500`, with 737 migrations at main `be4a0ce8` (release 2.14).
@@ -96,7 +105,7 @@ The orchestrator ships this release. This branch does not push or deploy.
 
 The source baseline is `892b6bca`, release 2.10.2.
 Include auto-set starter preservation from `424c19da`.
-The final trade curve uses exponent 5, roster spot value 25, and a 5% fair band.
+The final trade curve uses exponent 5 and a 5% fair band. Migration `20261214005700` removes the flat roster spot value.
 Apply all pending migrations through `20261214003900`, including version 023 with `--include-all`.
 
 Apply the earlier pending migrations through 033 first.
@@ -115,11 +124,11 @@ Override that order before a production rollout. This integration performs no de
 ## Trade curve
 
 Apply `20261214003100_trade_value_curve.sql`, then release Edge and frontend together.
-The model version becomes `onenumber-trade-curve-v5`.
+The model version becomes `onenumber-trade-curve-v6`.
 The migration queues one reanalysis run for pending, accepted, and completed trades.
 Saved source values and pick values stay on the 0–1000 scale.
 The shared engine applies exponent 5 when summing player and pick values.
-Roster spots add 25 curved points per net player sent and subtract 25 per net player received.
+Open roster spots add no value, and migration `20261214005700` queues model v6 once.
 Teams over a roster limit also lose the curved value of their required cuts.
 The model bump replaces exponent 5.5 and recomputes stored values once.
 Current card reads prefer the published curved analysis and preserve its roster terms.
@@ -133,8 +142,13 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005500`, with 737 migrations.
-Apply `20261214005600_perf_beacon_screens.sql`, then deploy Edge, then merge the frontend.
+The supplied production head is `20261214005600`, with 738 migrations.
+Deploy Edge first, then apply `20261214005700_trade_curve_no_flat_roster_value.sql`, then merge the frontend.
+The old worker cannot process a v6 reanalysis job, so Edge must lead.
+
+### Historical release 2.14.1 order
+
+From production head `20261214005500`, apply `20261214005600_perf_beacon_screens.sql`, then deploy Edge, then merge the frontend.
 The beacon route and the client send the new screen names only after the database accepts them.
 
 ### Historical release 2.14 order

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005600",
+  "candidateVersion": "20261214005700",
   "common": {
     "functions": [
       {
@@ -2486,6 +2486,10 @@
     {
       "filename": "20261214005600_perf_beacon_screens.sql",
       "sha256": "dfd2d1374d326a21aa28b4af80cff3d6cce545b7622d925f82d32b945606fca2"
+    },
+    {
+      "filename": "20261214005700_trade_curve_no_flat_roster_value.sql",
+      "sha256": "daed658b974b4c3dfff7752e5dbf4052bf4f49f788622b8282dfd395d7fdb82a"
     }
   ],
   "preMigration": {
