@@ -11,7 +11,7 @@ BEGIN
   IF state.scan_at IS NULL THEN
     UPDATE private.notification_scan_state SET scan_at=p_now,after_member_id=NULL,cycle=cycle+1
       WHERE id RETURNING * INTO state;
-    DELETE FROM private.notification_scan_dirty;
+    DELETE FROM private.notification_scan_dirty WHERE true;
     RETURN jsonb_build_object('processed',0,'remaining',true);
   END IF;
   SELECT m.id INTO member FROM public.league_members m JOIN public.leagues league ON league.id=m.league_id AND league.deleted_at IS NULL
