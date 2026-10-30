@@ -10,9 +10,9 @@ let screen: ReactTestRenderer | undefined, latest: ReturnType<typeof useLeagueTa
 const frames: string[][] = []
 const Probe = ({ member = 'member', tab = 'history', authorized = true }: { member?: string; tab?: LeagueTab; authorized?: boolean }) => { latest = useLeagueTabResources('league', member || undefined, tab, authorized); frames.push(latest.transactions.map(row => row.id)); return null }
 const render = async (props = {}) => { await act(async () => { if (screen) screen.update(React.createElement(Probe, props)); else screen = create(React.createElement(Probe, props)) }); await act(async () => { await new Promise<void>(resolve => setImmediate(resolve)) }) }
-const page = (offset = 0, count = 50) => Array.from({ length: count }, (_, index) => ({ id: `row-${offset + index}`, occurredAt: new Date(Date.UTC(2026, 9, 27, 12, -offset - index)).toISOString() }))
+const page = (offset = 0, count = 20) => Array.from({ length: count }, (_, index) => ({ id: `row-${offset + index}`, occurredAt: new Date(Date.UTC(2026, 9, 27, 12, -offset - index)).toISOString() }))
 let total = 200
-beforeEach(() => { frames.length = 0; total = 200; boundary.read.mockImplementation(async scope => { const offset = Number(scope.params.offset ?? 0), limit = Number(scope.params.limit ?? 50), rows = page().concat(page(50), page(100), page(150)).slice(offset, Math.min(total, offset + limit)); return { rows, offset: offset + rows.length, hasMore: rows.length === limit } }) })
+beforeEach(() => { frames.length = 0; total = 200; boundary.read.mockImplementation(async scope => { const offset = Number(scope.params.offset ?? 0), limit = Number(scope.params.limit ?? 20), rows = page(0, 200).slice(offset, Math.min(total, offset + limit)); return { rows, offset: offset + rows.length, hasMore: rows.length === limit } }) })
 afterEach(async () => { await act(async () => screen?.unmount()); screen = undefined })
 it('rejects mock rooms loaded for the previous member', async () => {
     const old = held<unknown>()
@@ -25,10 +25,10 @@ it('keeps operations stable and preserves loaded history pages on refresh', asyn
     await render(); const invalidate = latest.invalidateTab
     await act(async () => { await latest.loadMoreActivity() })
     await act(async () => { await latest.refreshTab('history') })
-    expect(latest.transactions).toHaveLength(100)
+    expect(latest.transactions).toHaveLength(40)
     expect(latest.invalidateTab).toBe(invalidate)
     await act(async () => { await latest.loadMoreActivity() })
-    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(100)
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(40)
 })
 it('fences an older pagination reply when refresh starts', async () => {
     await render(); const old = held<unknown>()
@@ -40,9 +40,9 @@ it('fences an older pagination reply when refresh starts', async () => {
     expect(latest.transactions.map(row => row.id)).not.toContain('obsolete')
 })
 it('stops at an empty final page', async () => {
-    total = 50; await render(); await act(async () => { await latest.loadMoreActivity() })
+    total = 20; await render(); await act(async () => { await latest.loadMoreActivity() })
     expect(latest.activityHasMore).toBe(false)
-    expect(latest.transactions).toHaveLength(50)
+    expect(latest.transactions).toHaveLength(20)
 })
 it('keeps a failed offset across suspension and fences a removed member', async () => {
     await render(); boundary.read.mockRejectedValueOnce(new Error('page unavailable'))
@@ -55,7 +55,7 @@ it('keeps a failed offset across suspension and fences a removed member', async 
     boundary.hidden = false
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
     await act(async () => { await latest.loadMoreActivity() })
-    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(50)
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(20)
     await render({ member: '', authorized: false })
     const reads = boundary.read.mock.calls.length
     await act(async () => { await latest.refreshTab('history'); await latest.loadMoreActivity() })
@@ -63,11 +63,11 @@ it('keeps a failed offset across suspension and fences a removed member', async 
     expect(latest.transactions).toEqual([])
 })
 it('deduplicates shifted pages and uses the server offset', async () => {
-    await render(); boundary.read.mockResolvedValueOnce({ rows: page(49), offset: 100, hasMore: true })
+    await render(); boundary.read.mockResolvedValueOnce({ rows: page(19), offset: 40, hasMore: true })
     await act(async () => { await latest.loadMoreActivity() })
-    expect(latest.transactions).toHaveLength(99)
+    expect(latest.transactions).toHaveLength(39)
     await act(async () => { await latest.loadMoreActivity() })
-    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(100)
+    expect(boundary.read.mock.calls.at(-1)?.[0].params.offset).toBe(40)
 })
 it.each(['roster', 'inventory', 'resources', 'announcement'])('refreshes visible history after a %s version', async topic => {
     await render(); boundary.read.mockResolvedValue({ rows: [{ id: 'fresh' }], offset: 1, hasMore: false })
@@ -86,20 +86,20 @@ it('defers another tab until selection and ignores former league versions', asyn
 it('restores the same owner cache after a generation change', async () => {
     await render(); await act(async () => screen?.unmount()); screen = undefined; boundary.generation += 1; frames.length = 0
     await render()
-    expect(frames[0]).toHaveLength(50)
+    expect(frames[0]).toHaveLength(20)
     expect(boundary.read).toHaveBeenCalledOnce()
 })
 it.each([125, 200])('caps a refresh and keeps history pageable with %s rows', async remaining => {
-    await render(); await act(async () => { await latest.loadMoreActivity() }); await act(async () => { await latest.loadMoreActivity() })
+    await render(); for (let loaded = 20; loaded < 120; loaded += 20) await act(async () => { await latest.loadMoreActivity() })
     total = remaining
     await act(async () => { await latest.refreshTab('history') })
     expect(latest.transactions).toHaveLength(100)
     expect(latest.activityHasMore).toBe(true)
     await act(async () => { await latest.loadMoreActivity() })
-    expect(latest.transactions).toHaveLength(Math.min(remaining, 150))
+    expect(latest.transactions).toHaveLength(Math.min(remaining, 120))
     expect(boundary.read.mock.calls.every(([scope]) => Number(scope.params.limit) <= 100)).toBe(true)
 })
-it.each([51, 75, 99])('keeps complete %s-row history complete after refresh', async count => {
+it.each([21, 30, 39])('keeps complete %s-row history complete after refresh', async count => {
     total = count; await render(); await act(async () => { await latest.loadMoreActivity() }); await act(async () => { await latest.refreshTab('history') })
     expect(latest.transactions).toHaveLength(count)
     expect(latest.activityHasMore).toBe(false)
@@ -111,7 +111,7 @@ it('merges commissioner announcements by publish time', async () => {
     expect(latest.transactions[0]).toMatchObject({ title: 'Commissioner', body: 'Draft tonight.' })
 })
 it('waits for older pages before merging their announcements', async () => {
-    boundary.read.mockImplementation(async scope => { const offset = Number(scope.params.offset ?? 0); return { rows: page(offset), offset: offset + 50, hasMore: offset === 0, announcements: [{ id: 'recent', published_at: page()[0].occurredAt }, { id: 'oldest', published_at: '2026-09-01T00:00:00Z' }] } })
+    boundary.read.mockImplementation(async scope => { const offset = Number(scope.params.offset ?? 0); return { rows: page(offset), offset: offset + 20, hasMore: offset === 0, announcements: [{ id: 'recent', published_at: page()[0].occurredAt }, { id: 'oldest', published_at: '2026-09-01T00:00:00Z' }] } })
     await render()
     expect(latest.transactions.filter(row => row.transactionType === 'commissioner_announcement').map(row => row.id)).toEqual(['announcement:recent'])
     await act(async () => { await latest.loadMoreActivity() })

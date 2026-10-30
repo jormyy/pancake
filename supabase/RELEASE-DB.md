@@ -1,5 +1,14 @@
 # Trade input database contract
 
+## Release 2.14.5
+
+The supplied production head is `20261214005800`, with 740 migrations at main `9837c091` (release 2.14.4).
+Release 2.14.5 adds one migration. The candidate contains 741 migrations through `20261214005900`.
+
+| Migration | Change |
+| --- | --- |
+| `20261214005900_bounded_first_screens.sql` | Loads 20 mock rooms, with live rooms first, and 5 recent Home announcements. |
+
 ## Release 2.14.4
 
 The supplied production head is `20261214005700`, with 739 migrations at main `d46d7e22` (release 2.14.3).
@@ -151,8 +160,12 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214005700`, with 739 migrations.
-Apply `20261214005800_league_trade_history.sql`, then merge the frontend. Edge source is unchanged.
+The supplied production head is `20261214005800`, with 740 migrations.
+Apply `20261214005900_bounded_first_screens.sql`, then merge the frontend. Edge source is unchanged.
+
+### Historical release 2.14.4 order
+
+From production head `20261214005700`, apply `20261214005800_league_trade_history.sql`, then merge the frontend.
 
 ### Historical release 2.14.3 order
 

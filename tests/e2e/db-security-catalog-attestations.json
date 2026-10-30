@@ -1,7 +1,7 @@
 {
   "version": 2,
   "baselineVersion": "20261005000003",
-  "candidateVersion": "20261214005800",
+  "candidateVersion": "20261214005900",
   "common": {
     "functions": [
       {
@@ -2494,6 +2494,10 @@
     {
       "filename": "20261214005800_league_trade_history.sql",
       "sha256": "68144bbe4e05b69f49a6da3d50feea36cb32a8a4ba7141ebaf734ff36a67c0c9"
+    },
+    {
+      "filename": "20261214005900_bounded_first_screens.sql",
+      "sha256": "c4ea8ba1151f69e19f4cfc62304151201285a10bd4f409167c2ecafaaa261ee4"
     }
   ],
   "preMigration": {

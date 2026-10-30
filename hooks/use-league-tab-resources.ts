@@ -15,13 +15,15 @@ import type { LeaguePickItem } from '@/lib/rookieDraft'
 import type { MockDraftRoom } from '@/lib/mockDraftRooms'
 import type { LeagueTab } from '@/lib/league/tabs'
 
+const ACTIVITY_PAGE = 20
+
 type LeagueView = Partial<LeagueScheduleView> & { activeDraft?: Draft | null; standings?: StandingRow[]; rows?: TransactionRow[]; announcements?: LeagueAnnouncement[]; waiverOrder?: WaiverPriorityRow[]; picks?: LeaguePickItem[]; rooms?: MockDraftRoom[]; hasMore?: boolean; offset?: number }
 
 export function useLeagueTabResources(leagueId: string | undefined, memberId: string | undefined, activeTab: LeagueTab, authorized = true) {
     const owner = sessionOwner()
     const focused = useIsFocused()
     const tab = activeTab === 'picks' ? 'draftBoard' : activeTab === 'draft' ? 'mockRooms' : activeTab
-    const scope = owner && leagueId && memberId ? screenScope(tab === 'schedule' ? 'league-schedule' : 'league', leagueId, memberId, tab === 'schedule' ? {} : { tab, limit: 50 }, owner) : null
+    const scope = owner && leagueId && memberId ? screenScope(tab === 'schedule' ? 'league-schedule' : 'league', leagueId, memberId, tab === 'schedule' ? {} : { tab, limit: ACTIVITY_PAGE }, owner) : null
     const view = useScreenView<LeagueView>(scope, authorized && focused)
     const refreshView = view.refresh
     const [pages, setPages] = useState<{ base?: LeagueView; rows: TransactionRow[]; offset: number; hasMore: boolean }>({ rows: [], offset: 0, hasMore: false })
@@ -35,7 +37,7 @@ export function useLeagueTabResources(leagueId: string | undefined, memberId: st
     useEffect(() => { request.current += 1; pending.current = false; setActivityLoadingMore(false); setActivityLoadMoreError(null) }, [view.data, leagueId, memberId])
     const scopeRef = useRef(scope)
     scopeRef.current = scope
-    const refreshTab = useCallback(async (_tab: LeagueTab) => { request.current += 1; pending.current = false; const selectedScope = scopeRef.current; await refreshView(true, true, selectedScope?.params?.tab === 'history' ? { ...selectedScope.params, limit: Math.min(100, Math.max(50, Math.ceil(snapshot.current.offset / 50) * 50)) } : undefined) }, [refreshView])
+    const refreshTab = useCallback(async (_tab: LeagueTab) => { request.current += 1; pending.current = false; const selectedScope = scopeRef.current; await refreshView(true, true, selectedScope?.params?.tab === 'history' ? { ...selectedScope.params, limit: Math.min(100, Math.max(ACTIVITY_PAGE, Math.ceil(snapshot.current.offset / ACTIVITY_PAGE) * ACTIVITY_PAGE)) } : undefined) }, [refreshView])
     const ensureTab = useCallback((_tab: LeagueTab) => { void refreshView() }, [refreshView])
     const invalidateTab = useCallback((_tab: LeagueTab) => { if (leagueId) invalidateScreenViews(leagueId) }, [leagueId])
     const refreshMockRooms = useCallback(() => refreshTab('mockRooms'), [refreshTab])

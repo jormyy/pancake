@@ -31,6 +31,7 @@ import {
 
 import { useTradesFeed } from '@/hooks/use-trades-feed'
 import { useTradeHistoryFeed } from '@/hooks/use-trade-history-feed'
+import { usePendingTradeCount } from '@/hooks/use-pending-trade-count'
 import { useTradeBlock } from '@/hooks/use-trade-block'
 import { useTradeActions } from '@/hooks/use-trade-actions'
 
@@ -177,7 +178,8 @@ function TradesScreen() {
         blockRoster,
         leagueBlockItems: blockItems,
     }), [offersHaveData, historyHasData, blockHasData, blockError, blockItems, blockLoading, blockRoster, historyError, historyLoading, historyTrades, loading, myMemberId, picksList, tab, trades, tradesError])
-    const { listData, pendingInboxCount } = screenModel
+    const { listData } = screenModel
+    const pendingInboxCount = usePendingTradeCount()
     const tradeTab = tab === 'offers' || tab === 'history'
     // Wide screens keep the offer list and the open trade side by side.
     const split = tradeTab && usableWidth >= SPLIT_MIN_WIDTH

@@ -14,7 +14,8 @@ BEGIN
       CASE WHEN week_start >= league_today THEN week_start END, week_end DESC LIMIT 1;
   context := context || jsonb_build_object('today', league_today, 'weekNumber', COALESCE((p_params->>'weekNumber')::integer, league_week));
   p_params := p_params || jsonb_build_object('weekNumber', context->'weekNumber');
-  SELECT COALESCE(jsonb_agg(to_jsonb(row)), '[]') INTO announcements FROM public.notif_list_announcements(p_league_id) row;
+  SELECT COALESCE(jsonb_agg(to_jsonb(row)), '[]') INTO announcements FROM (SELECT * FROM public.notif_list_announcements(p_league_id) item
+    WHERE item.author_member_id IS DISTINCT FROM p_member_id AND item.published_at >= now() - interval '14 days' LIMIT 5) row;
   SELECT * INTO matchup FROM public.matchups WHERE league_id = p_league_id AND league_season_id = (context->>'seasonId')::uuid
     AND NOT is_voided AND p_member_id IN (home_member_id, away_member_id) AND week_number <= (context->>'weekNumber')::integer
     AND COALESCE(end_week_number, week_number) >= (context->>'weekNumber')::integer

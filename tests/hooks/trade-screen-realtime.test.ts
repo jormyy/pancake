@@ -386,7 +386,7 @@ it('reuses an unchanged history view and reloads after its version changes', asy
         await act(async () => { screen = create(React.createElement(Probe, { tab: 'offers' })) })
         await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
-        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 40 }) }))
+        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 10 }) }))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'offers' })))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
         expect(mocks.historyRead).toHaveBeenCalledTimes(1)
@@ -411,6 +411,6 @@ it('loads newly opened history as soon as an active offers read finishes', async
         await act(async () => mocks.subscribe.mock.calls[0][1].onStatus?.('SUBSCRIBED'))
         await act(async () => screen.update(React.createElement(Probe, { tab: 'history' })))
         await act(async () => finishOffers(true))
-        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 40 }) }))
+        expect(boundary.read).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ screen: 'trades', memberId: 'member', leagueId: 'league', params: expect.objectContaining({ tab: 'history', limit: 10 }) }))
     } finally { await act(async () => screen?.unmount()) }
 })
