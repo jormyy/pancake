@@ -3102,11 +3102,60 @@
       "sha256": "6b6e8ad675d8d35379c25848541d65a4cff5a09b351a96e33b529df4eafcdbf7"
     },
     {
+      "name": "live_broadcast",
+      "version": "20261214004000",
+      "statementCount": 27,
+      "statementsSha256": "a74c313bbe257093a123db7188b9e03a0d4fe50e0cc2a1ec0dffa7f6bd9421cb",
+      "sha256": "791b6a574e7682b3b867ae63a3717cf98a01f8b89a15d27a1b12546a6413da6a"
+    },
+    {
+      "name": "coalesce_live_hints",
+      "version": "20261214004010",
+      "statementCount": 10,
+      "statementsSha256": "1b3ed50632378140e2545eff8a36111650930fae6f8fbf002973f19883431b6d",
+      "sha256": "ee10ee1820fb6501cb5a7e094ebbc82f384ba9ce207ab2d99bbeb529130746cc"
+    },
+    {
       "name": "skip_fresh_screen_statistics",
       "version": "20261214004100",
       "statementCount": 1,
       "statementsSha256": "4976b30478b424bc4d1262353beefdbcacbb46ccc94c5f63df01cd88fb84a606",
       "sha256": "b48de4d7f54ac024986c460fb75dfc590518d0b4ff685be96ffc9fd009888462"
+    },
+    {
+      "name": "bound_cron_history_batches",
+      "version": "20261214004200",
+      "statementCount": 2,
+      "statementsSha256": "8e55b5d4305f2b77c534ba680a41da3c0727ea49bab8fff083f5cc752bd34b5d",
+      "sha256": "3584a45646187951ddaee0105b5a1d5f249d3a42df5fd31dd5513aac0d32c7d5"
+    },
+    {
+      "name": "start_work_invocation",
+      "version": "20261214004300",
+      "statementCount": 4,
+      "statementsSha256": "e6edfbcc76a0178e753837364321a152caaa56469ae5010e69c1509f1ed1369c",
+      "sha256": "ef8146d44999a5da3fdfff98f8bf721da7f56bc355cbf7975982c333708370c3"
+    },
+    {
+      "name": "coalesce_invocation_reconciliation",
+      "version": "20261214004400",
+      "statementCount": 1,
+      "statementsSha256": "ff17851b104eb0985700ed2ff8d8ec776232a15db81b8259f5d9d0d5dad86863",
+      "sha256": "6b51f68213d09edebe7d55fc13ea2272cc45563b275d0282f6e69129ad5a8b97"
+    },
+    {
+      "name": "batch_trade_refresh_checks",
+      "version": "20261214004500",
+      "statementCount": 10,
+      "statementsSha256": "28b8383a1d0759d1b20adb625a2bfc13a9625110aaa2f2d0c0be0cc15610452a",
+      "sha256": "2c1ceeb34184d788a301a3ade895f7cd822cd72386024e9e942b6b45d42977b1"
+    },
+    {
+      "name": "gate_unchanged_trade_scans",
+      "version": "20261214004600",
+      "statementCount": 17,
+      "statementsSha256": "a99d7736c70a183801e402e9229740172075a69160079b50d070a3c53757d567",
+      "sha256": "86d1bc4210f4ca2db754159567afb25e88689e64885a3a9bd825263811f4c2f5"
     },
     {
       "name": "trade_action_reservations",
@@ -3226,6 +3275,13 @@
       "statementCount": 1,
       "statementsSha256": "3eec53df8fffba7984e4ce3b64e16c4d361888cdee44d1003eef23499678235d",
       "sha256": "d87161cc2a27a866b8e1f158c2a48ffea7d80e6ba6a8fd215ba1717291deae0b"
+    },
+    {
+      "name": "pre_tipoff_member_failures",
+      "version": "20261214005500",
+      "statementCount": 9,
+      "statementsSha256": "f5097770a3c20aac75091b59627ddb6a352826926a7350d07742af43a157f85d",
+      "sha256": "88dd02c60544fdbd09166f736b8d774e46bdc90afc555bb7ec79d3ec7c945d2f"
     }
   ]
 }

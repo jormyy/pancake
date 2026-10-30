@@ -166,6 +166,7 @@ for (const code of ['55P03', '40P01', '40001', '57014', 'fetch_timeout', '23514'
         assert(!body.p_assignments.some((row: { player_id: string }) => row.player_id === 'a'), 'Retry reuses the injured starter from stale context.')
         return Response.json(true)
       }
+      if (name === 'record_pre_tipoff_lineup_failure') return Response.json(null)
       if (name === 'finish_lineup_tipoff_dispatch') return Response.json(true)
       throw new Error(`Unexpected RPC ${name}`)
     }
@@ -174,6 +175,7 @@ for (const code of ['55P03', '40P01', '40001', '57014', 'fetch_timeout', '23514'
       assert(applies === (transient ? 2 : code === 'persistent' ? 5 : 1), 'Retry count does not match the transient error budget.')
       assert(reads === applies, 'A retry does not load current lineup context.')
       assert(result.optimized === (transient ? 1 : 0) && result.failed === (transient ? 0 : 1), 'A transient conflict fails or a permanent failure is hidden.')
+      assert(!result.batchFailed, 'A member failure fails the batch.')
     } finally { globalThis.fetch = original }
   })
 }
@@ -199,5 +201,73 @@ Deno.test('tipoff retries stop before another write when the work lease is lost'
     const result = await withWorkContext({ signal: new AbortController().signal, renewLease: () => Promise.reject(new Error('Work lease lost')) }, () => processPreTipoff({ tipoffAt: new Date(Date.now() + 60000).toISOString(), token: 'fixture' }))
     assert(applies === 1 && result.optimized === 0 && result.failed === 1, 'The optimizer writes again after losing its work lease.')
     assert(result.errors.includes('Work lease lost'), 'The work lease failure is not reported.')
+    assert(result.batchFailed, 'Lease loss must remain retryable.')
   } finally { globalThis.fetch = original }
 })
+
+for (const recordFails of [false, true]) {
+  Deno.test(`member failure is isolated and durable; failure receipt unavailable=${recordFails}`, async () => {
+    const original = globalThis.fetch
+    let batches = 0
+    const applied: string[] = []
+    const recorded: Record<string, unknown>[] = []
+    let finish: Record<string, unknown> = {}
+    globalThis.fetch = async (input, init) => {
+      const req = new Request(input, init)
+      const name = new URL(req.url).pathname.split('/').at(-1)
+      const body = await req.json()
+      if (name === 'claim_lineup_tipoff_dispatch') return Response.json(context().date)
+      if (name === 'get_pending_tipoff_members') {
+        if (batches++ > 0) assert(JSON.stringify(body.p_excluded_members) === '["bad"]', 'The failed member repeats in the same invocation.')
+        return Response.json(batches === 1 ? ['first', 'bad', 'last'].map(member_id => ({ league_id: 'league', league_season_id: 'season', member_id })) : [])
+      }
+      if (name === 'get_pre_tipoff_lineup_context') return Response.json(context())
+      if (name === 'get_league_projection_rows') return Response.json(projections)
+      if (name === 'apply_pre_tipoff_lineup') {
+        applied.push(body.p_member_id)
+        return body.p_member_id === 'bad'
+          ? Response.json({ code: 'PA004', message: 'Locked by trade 50917d7c. Cancel the trade to change this asset.' }, { status: 400 })
+          : Response.json(true)
+      }
+      if (name === 'record_pre_tipoff_lineup_failure') {
+        recorded.push(body)
+        return recordFails ? Response.json({ code: '40001', message: 'Tipoff claim is no longer current.' }, { status: 409 }) : Response.json(null)
+      }
+      if (name === 'finish_lineup_tipoff_dispatch') { finish = body; return Response.json(null) }
+      throw new Error(`Unexpected RPC ${name}`)
+    }
+    try {
+      const tipoffAt = new Date(Date.now() + 60000).toISOString()
+      const result = await processPreTipoff({ mode: 'pre_tipoff', tipoffAt, token: 'fixture' })
+      assert(JSON.stringify(applied) === '["first","bad","last"]', 'A failed member blocks another member or repeats its permanent failure.')
+      assert(recorded.length === 1 && recorded[0].p_member_id === 'bad' && recorded[0].p_tipoff_at === tipoffAt && recorded[0].p_token === 'fixture', 'The member failure is not recorded under the current claim.')
+      assert(String(recorded[0].p_error).startsWith('Locked by trade 50917d7c.'), 'The durable failure loses the database error.')
+      assert(result.optimized === 2 && result.failed === (recordFails ? 2 : 1), 'The member outcome is lost.')
+      assert(result.batchFailed === recordFails, 'Only an unrecorded failure should make the batch retryable.')
+      assert(('p_error' in finish) === recordFails, 'A recorded member error fails the dispatch.')
+    } finally { globalThis.fetch = original }
+  })
+}
+
+for (const failingRpc of ['get_pending_tipoff_members', 'finish_lineup_tipoff_dispatch']) {
+  Deno.test(`dispatch failure remains retryable: ${failingRpc}`, async () => {
+    const original = globalThis.fetch
+    globalThis.fetch = async (input, init) => {
+      const req = new Request(input, init)
+      const name = new URL(req.url).pathname.split('/').at(-1)
+      if (name === failingRpc) return Response.json({ message: 'Dispatch service unavailable' }, { status: 503 })
+      if (name === 'claim_lineup_tipoff_dispatch') return Response.json(context().date)
+      if (name === 'get_pending_tipoff_members') return Response.json([])
+      if (name === 'finish_lineup_tipoff_dispatch') {
+        const body = await req.json()
+        assert(body.p_error === 'Dispatch service unavailable', 'A dispatch read failure is hidden from its receipt.')
+        return Response.json(null)
+      }
+      throw new Error(`Unexpected RPC ${name}`)
+    }
+    try {
+      const result = await processPreTipoff({ mode: 'pre_tipoff', tipoffAt: new Date(Date.now() + 60000).toISOString(), token: 'fixture' })
+      assert(result.batchFailed && result.failed === 1 && result.errors[0] === 'Dispatch service unavailable', 'A dispatch failure is treated as a completed member failure.')
+    } finally { globalThis.fetch = original }
+  })
+}

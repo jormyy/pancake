@@ -33,11 +33,11 @@ BEGIN
   PERFORM pg_temp.check_rules(EXISTS(SELECT 1 FROM private.work_items WHERE kind='trade-revaluation-scan'
     AND payload->>'seasonId'=f.season_id::text),'screens schedule a separate scan');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,version,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
-    'only pending and accepted trades get individual work');
+  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'only pending and accepted trades get valuation work');
   PERFORM private.refresh_queue_trade_revaluations(f.season_id,version,'fixture');
-  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation-check' AND league_id=f.league_id),
-    'duplicate screen scans do not add input checks');
+  PERFORM pg_temp.check_rules((SELECT count(*)=2 FROM private.work_items WHERE kind='trade-revaluation' AND league_id=f.league_id),
+    'duplicate screen scans reuse valuation work');
   FOREACH current_trade IN ARRAY ARRAY[pending_id,accepted_id] LOOP
     inputs:=public.get_trade_revaluation_inputs(f.user_ids[1],f.member_ids[1],current_trade);
     PERFORM private.refresh_queue_trade_revaluation(current_trade,inputs->>'inputVersion','fixture');

@@ -244,7 +244,8 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
     const token = { generation, epoch: requestEpoch }
     readTokens.set(key, token)
     const current = () => requestEpoch === epoch && generation === sessionGeneration() && readTokens.get(key) === token
-    const task = (async () => {
+    const task = Promise.resolve().then(async () => {
+        if (!current()) throw new Error('Your account or league changed. Please retry.')
         const cached = cachedScreenView<T>(scope)
         if (typeof navigator !== 'undefined' && navigator.onLine === false) {
             if (cached) return cached.value
@@ -300,7 +301,7 @@ export async function readScreenView<T>(scope: ScreenScope, options: { force?: b
         } while (revision !== (revisions.get(key) ?? 0) || Boolean(scope.leagueId && screenAffected(scope, leagueVersionSnapshot(scope.leagueId), version)))
         saveScreenView(scope, value, version, true)
         return value
-    })()
+    })
     pending.set(key, task)
     try { return await task } finally { if (pending.get(key) === task) { pending.delete(key); if (readTokens.get(key) === token) readTokens.delete(key) } }
 }

@@ -1,0 +1,72 @@
+CREATE OR REPLACE FUNCTION private.reconcile_edge_invocations()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_reconciled integer:=0;
+  v_row record;
+  v_error text;
+  v_run uuid;
+  v_status text;
+  v_settled boolean;
+BEGIN
+  FOR v_row IN
+    WITH batch AS MATERIALIZED (
+      SELECT inv.* FROM public.edge_invocations inv
+      WHERE inv.reconciled_at IS NULL AND inv.queued_at<now()-interval '1 minute'
+      ORDER BY inv.queued_at LIMIT 500 FOR UPDATE OF inv SKIP LOCKED
+    )
+    SELECT batch.*,resp.status_code AS response_status,resp.error_msg,resp.timed_out,left(resp.content,500) AS content
+    FROM batch LEFT JOIN net._http_response resp ON resp.id=batch.request_id
+      AND resp.created>=(SELECT min(queued_at) FROM batch)-interval '1 minute'
+    ORDER BY batch.queued_at
+  LOOP
+    v_error:=CASE
+      WHEN v_row.error_msg IS NOT NULL THEN v_row.error_msg
+      WHEN v_row.timed_out IS TRUE THEN 'timed out'
+      WHEN v_row.response_status NOT BETWEEN 200 AND 299
+        THEN 'HTTP '||v_row.response_status||': '||COALESCE(v_row.content,'')
+      ELSE NULL END;
+    v_run:=v_row.sync_run_id;
+    v_status:=v_row.worker_status;
+    v_settled:=true;
+    IF v_row.worker_started_at IS NOT NULL THEN
+      IF v_row.worker_finished_at IS NULL THEN
+        IF v_row.worker_started_at>=now()-interval '10 minutes' THEN
+          v_settled:=false;
+        ELSE
+          UPDATE public.sync_runs SET status='failed',finished_at=now(),
+            error='worker did not finish within 10 minutes' WHERE id=v_row.sync_run_id;
+          v_status:='failed';
+        END IF;
+      END IF;
+    ELSIF v_row.function_name='sync-player-injuries' AND v_row.response_status=404 THEN
+      NULL;
+    ELSIF v_row.response_status BETWEEN 200 AND 299 AND v_error IS NULL THEN
+      NULL;
+    ELSE
+      IF v_row.invocation_key IS NOT NULL AND v_row.queued_at>=now()-interval '10 minutes' THEN
+        v_settled:=false;
+      ELSIF v_error IS NULL AND v_row.invocation_key IS NULL AND v_row.queued_at>=now()-interval '2 hours' THEN
+        v_settled:=false;
+      ELSE
+        IF v_error IS NULL THEN
+          v_error:=CASE WHEN v_row.invocation_key IS NULL THEN
+            'no response recorded within 2 hours (request never sent or pg_net purged it)'
+            ELSE 'no worker or response recorded within 10 minutes' END;
+        END IF;
+        INSERT INTO public.sync_runs(function_name,started_at,finished_at,status,error)
+        VALUES('cron:'||v_row.function_name,v_row.queued_at,now(),'failed',v_error) RETURNING id INTO v_run;
+      END IF;
+    END IF;
+    UPDATE public.edge_invocations SET status_code=v_row.response_status,error_message=v_error,
+      sync_run_id=v_run,worker_status=v_status,reconciled_at=CASE WHEN v_settled THEN now() ELSE NULL END
+      WHERE id=v_row.id AND (v_settled OR
+        (status_code,error_message,sync_run_id,worker_status) IS DISTINCT FROM (v_row.response_status,v_error,v_run,v_status));
+    IF v_settled THEN v_reconciled:=v_reconciled+1; END IF;
+  END LOOP;
+  RETURN v_reconciled;
+END;
+$$;

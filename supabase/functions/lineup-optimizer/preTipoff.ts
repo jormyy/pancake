@@ -74,7 +74,7 @@ export async function processPreTipoff(body: Record<string, unknown>) {
     p_tipoff_at: tipoffAt, p_token: token,
   }).abortSignal(AbortSignal.timeout(5000))
   if (claimError) throw claimError
-  if (!date) return { optimized: 0, failed: 0, claimed: false, errors: [] as string[] }
+  if (!date) return { optimized: 0, failed: 0, claimed: false, errors: [] as string[], batchFailed: false }
   const controller = new AbortController()
   const budget = Math.max(0, Math.min(110_000, Date.parse(tipoffAt) + 55_000 - Date.now()))
   const deadline = setTimeout(() => controller.abort(new Error('Tipoff optimization reached its work deadline')), budget)
@@ -87,6 +87,7 @@ export async function processPreTipoff(body: Record<string, unknown>) {
   }, 15_000, error => controller.abort(error ?? new Error('Tipoff lease expired or changed')))
   let optimized = 0
   const failures: string[] = []
+  const batchFailures: string[] = []
   const excluded: string[] = []
   try {
     await withWorkContext({ signal: controller.signal }, async () => {
@@ -138,8 +139,20 @@ export async function processPreTipoff(body: Record<string, unknown>) {
                 }
                 continue
               }
+              if (controller.signal.aborted) return
               excluded.push(setting.member_id)
-              failures.push(`${setting.member_id}: ${errorMessage(error)}`)
+              const message = errorMessage(error)
+              failures.push(`${setting.member_id}: ${message}`)
+              logInternalError(`lineup-optimizer: member ${setting.member_id}`, error)
+              try {
+                const { error: recordError } = await supabase.rpc('record_pre_tipoff_lineup_failure', {
+                  p_tipoff_at: tipoffAt, p_token: token, p_league_id: setting.league_id,
+                  p_league_season_id: setting.league_season_id, p_member_id: setting.member_id, p_error: message,
+                })
+                if (recordError) throw recordError
+              } catch (recordError) {
+                batchFailures.push(`${setting.member_id}: ${errorMessage(recordError)}`)
+              }
               return
             }
           }
@@ -147,15 +160,16 @@ export async function processPreTipoff(body: Record<string, unknown>) {
       }
     })
   } catch (error) {
-    failures.push(...(error instanceof AggregateError ? error.errors.map(errorMessage) : [errorMessage(error)]))
+    batchFailures.push(...(error instanceof AggregateError ? error.errors.map(errorMessage) : [errorMessage(error)]))
   } finally {
     clearTimeout(deadline)
     heartbeat.stop()
   }
-  if (controller.signal.aborted) failures.push(errorMessage(controller.signal.reason))
+  if (controller.signal.aborted) batchFailures.push(errorMessage(controller.signal.reason))
   const { error: finishError } = await supabase.rpc('finish_lineup_tipoff_dispatch', {
-    p_tipoff_at: tipoffAt, p_token: token, ...(failures.length ? { p_error: failures.join('\n') } : {}),
+    p_tipoff_at: tipoffAt, p_token: token, ...(batchFailures.length ? { p_error: batchFailures.join('\n') } : {}),
   }).abortSignal(AbortSignal.timeout(5000))
-  if (finishError) failures.push(errorMessage(finishError))
-  return { optimized, failed: failures.length, claimed: true, errors: failures }
+  if (finishError) batchFailures.push(errorMessage(finishError))
+  const errors = [...failures, ...batchFailures]
+  return { optimized, failed: errors.length, claimed: true, errors, batchFailed: batchFailures.length > 0 }
 }

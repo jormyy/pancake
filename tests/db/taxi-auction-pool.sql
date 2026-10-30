@@ -1,4 +1,4 @@
--- Prepared from source. Not executed by the reviewer. Run as postgres in the isolated test database.
+-- Run as postgres in an isolated test database loaded with production-shaped players.
 BEGIN;
 DO $$
 DECLARE
@@ -16,9 +16,9 @@ BEGIN
   VALUES(veteran,'Taxi','Veteran','PG',ARRAY['PG'],2,NULL),(rookie,'Taxi','Unsold','PG',ARRAY['PG'],0,1);
   INSERT INTO roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
   VALUES(l,s,m,veteran,'draft');
-  -- All other rookies have team-local historical exits. Only the unsold rookie can fill taxi.
+  -- Every other Taxi-eligible player has a team-local historical exit. Only the unsold rookie can fill taxi.
   INSERT INTO league_member_taxi_exits(league_id,member_id,player_id)
-  SELECT l,m,id FROM players WHERE years_exp=0 AND nba_draft_number IS NOT NULL AND id<>rookie;
+  SELECT l,m,id FROM players WHERE private.taxi_player_eligible(l,id) AND id<>rookie;
   INSERT INTO drafts(id,league_id,league_season_id,draft_type,status,is_mock,rounds)
   VALUES(d,l,s,'auction','in_progress',false,1);
   INSERT INTO draft_orders(draft_id,member_id,position) VALUES(d,m,1);

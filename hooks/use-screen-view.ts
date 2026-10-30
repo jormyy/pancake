@@ -28,7 +28,9 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
     const [state, setState] = useState({ key, generation, data: initial?.value, loading: Boolean(scope && !initial), error: null as Error | null })
     const owns = state.key === key && state.generation === generation
     const data = owns ? state.data : initial?.value
-    useLiveViewRecovery(scope, data, enabled && focused && panelActive && online && autoLoad, generation)
+    const recoveryEnabled = enabled && focused && panelActive && online && autoLoad
+    const recoveryFailed = useLiveViewRecovery(scope, data, recoveryEnabled, generation)
+    const previousActivity = useRef({ key, generation, active: activity.active, recoveryEnabled })
     const request = useRef(0)
     const refresh = useCallback(async (force = false, checkVersion = true, params?: Record<string, unknown>) => {
         const selected = scopeRef.current
@@ -55,6 +57,10 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
         const selected = scopeRef.current
         if (!selected) return
         const cached = cachedScreenView<T>(selected)
+        const previous = previousActivity.current
+        const resumingHome = selected.screen === 'home' && Boolean(cached) && previous.key === key && previous.generation === generation
+            && previous.recoveryEnabled && recoveryEnabled && !previous.active && activity.active
+        previousActivity.current = { key, generation, active: activity.active, recoveryEnabled }
         setState({ key, generation, data: cached?.value, loading: Boolean(admitted && online && autoLoad), error: null })
         const changed = selected.screen === 'home' && admitted && online ? deferLeagueRefresh(() => cachedScreenView(selected)?.dirty ? refresh(false, false) : true, 200) : null
         const stop = admitted && online ? subscribeScreenView(selected, () => {
@@ -79,12 +85,12 @@ export function useScreenView<T>(scope: ScreenScope | null, enabled = true, opti
         let background: ReturnType<typeof setTimeout> | undefined
         if (admitted && online && autoLoad) {
             if (cached && typeof requestAnimationFrame === 'function') {
-                firstFrame = requestAnimationFrame(() => { secondFrame = requestAnimationFrame(() => { background = setTimeout(() => { void refresh() }, 100) }) })
-            } else void refresh(false, Boolean(cached))
+                firstFrame = requestAnimationFrame(() => { secondFrame = requestAnimationFrame(() => { background = setTimeout(() => { void refresh(false, !resumingHome || recoveryFailed.current) }, 100) }) })
+            } else void refresh(false, Boolean(cached) && (!resumingHome || recoveryFailed.current))
         }
         const resume = () => { if (admitted && (typeof document === 'undefined' || document.visibilityState !== 'hidden')) void refresh() }
         if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume)
         return () => { clearTimeout(background); if (firstFrame !== undefined) cancelAnimationFrame(firstFrame); if (secondFrame !== undefined) cancelAnimationFrame(secondFrame); request.current += 1; changed?.cancel(); stopHints(); stop(); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', resume) }
-    }, [key, admitted, online, generation, refresh, autoLoad])
+    }, [key, admitted, online, generation, refresh, autoLoad, activity.active, recoveryEnabled, recoveryFailed])
     return { data, loading: enabled && online && (owns ? state.loading && data === undefined : !initial), refreshing: owns && state.loading && data !== undefined, error: owns && state.error ? state.error : !online && data === undefined && scope ? new Error('Offline. Open this screen online first.') : null, offline: !online, loaded: data !== undefined, refresh }
 }

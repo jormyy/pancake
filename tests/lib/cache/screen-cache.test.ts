@@ -18,6 +18,40 @@ beforeEach(() => {
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ ok: true, view: { claims: [{ status: 'awarded' }] } }), { status: 200 }))
 })
 describe('versioned screen cache', () => {
+    it('shares a dirty view read before connected version checks notify its subscriber again', async () => {
+        const selected: ScreenScope = { ...scope, screen: 'lineup' }
+        saveScreenView(selected, { rows: ['saved'] }, '1')
+        mocks.fetch.mockImplementation(async () => Response.json({ ok: true, view: { rows: ['fresh'] } }))
+        const reads: Promise<unknown>[] = []
+        let refreshes = 0
+        const stop = subscribeScreenView(selected, () => {
+            if (cachedScreenView(selected)?.dirty && refreshes < 2) {
+                refreshes += 1
+                reads.push(readScreenView(selected))
+            }
+        })
+        try {
+            setLeagueChangesConnected('league', true)
+            notifyLeagueChange('league', { topic: 'version', version: '2', scopes: null, changes: [
+                { version: '2', topic: 'lineup', scope: { topics: ['lineup'] }, created_at: '2026-10-30T00:00:00Z' },
+            ] })
+            bump('lineup')
+            await Promise.all(reads)
+            expect(mocks.fetch).toHaveBeenCalledOnce()
+            expect(cachedScreenView(selected)?.dirty).toBe(false)
+        } finally { stop() }
+    })
+    it('rejects a queued offline read after its account is cleared', async () => {
+        saveScreenView(scope, { rows: ['saved'] }, '1')
+        vi.stubGlobal('navigator', { onLine: false })
+        const task = readScreenView(scope)
+        clearScreenViews()
+        mocks.generation += 1
+        mocks.owner = 'other'
+        await expect(task).rejects.toThrow('changed')
+        expect(cachedScreenView(scope)).toBeUndefined()
+        expect(mocks.fetch).not.toHaveBeenCalled()
+    })
     it('expires stale connected authority and shares the resulting HTTP proof', async () => {
         const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
         try {

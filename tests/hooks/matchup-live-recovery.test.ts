@@ -90,6 +90,37 @@ it('stops live checks while hidden and catches up immediately on return', async 
     expect(h.latest.matchup?.myPoints).toBe(12)
 })
 
+it('checks the version once when a cached Home returns from a hidden tab', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 16))
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    await h.render(); connected()
+    boundary.hidden = true
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    await advance(20 * 60_000)
+    changedServer()
+    boundary.hidden = false
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    await advance(250)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+    expect(boundary.checks).toHaveBeenCalledOnce()
+})
+
+it('retries a failed foreground version check without waiting for the live timer', async () => {
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(Date.now()), 16))
+    vi.stubGlobal('cancelAnimationFrame', clearTimeout)
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await h.render(); connected()
+    boundary.hidden = true
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    changedServer()
+    boundary.checks.mockImplementationOnce(() => { throw new Error('temporary foreground outage') })
+    boundary.hidden = false
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    await advance(250)
+    expect(h.latest.matchup?.myPoints).toBe(12)
+    log.mockRestore()
+})
+
 it('does no recurring version checks with a final or empty slate', async () => {
     boundary.read.mockResolvedValue(payload(200, games('Final')))
     await h.render(); connected()

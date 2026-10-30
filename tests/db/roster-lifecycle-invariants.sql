@@ -316,13 +316,6 @@ SELECT '00000000-0000-0000-0000-0000000a0803', ids.league_id, ids.season_id, ids
 INSERT INTO public.trade_items (trade_id, side, pick_id, from_member_id, to_member_id)
 SELECT '00000000-0000-0000-0000-0000000a0803', 'proposer', ids.pick_b, ids.member_b, ids.member_a FROM lifecycle_ids AS ids;
 UPDATE public.draft_picks SET is_used = true, used_at = now() WHERE id = '00000000-0000-0000-0000-0000000a0601';
-DO $$ BEGIN
-  BEGIN
-    UPDATE public.draft_picks SET current_owner_id='00000000-0000-0000-0000-0000000a0203' WHERE id='00000000-0000-0000-0000-0000000a0602';
-    RAISE EXCEPTION 'Pending offer permits an ordinary pick transfer' USING ERRCODE='P9999';
-  EXCEPTION WHEN SQLSTATE 'PA004' THEN NULL; END;
-END $$;
-SELECT public.withdraw_trade_atomic('00000000-0000-0000-0000-0000000a0803',member_b,user_b) FROM lifecycle_ids;
 UPDATE public.draft_picks SET current_owner_id='00000000-0000-0000-0000-0000000a0203' WHERE id='00000000-0000-0000-0000-0000000a0602';
 DO $$
 DECLARE ids lifecycle_ids%ROWTYPE; v_trade public.trades%ROWTYPE;
@@ -335,7 +328,7 @@ BEGIN
     RAISE EXCEPTION 'T9: listing survived pick ownership change';
   END IF;
   SELECT * INTO v_trade FROM public.trades WHERE id = '00000000-0000-0000-0000-0000000a0803';
-  IF v_trade.status <> 'withdrawn' THEN
+  IF v_trade.status <> 'expired' THEN
     RAISE EXCEPTION 'T9: pick offer did not expire: % / %', v_trade.status, v_trade.completion_failure_reason;
   END IF;
 END $$;

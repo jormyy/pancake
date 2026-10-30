@@ -36,6 +36,7 @@ DECLARE
   v_pg uuid := gen_random_uuid();
   v_c uuid := gen_random_uuid();
   v_bench uuid := gen_random_uuid();
+  v_fallback uuid := gen_random_uuid();
   v_game uuid := gen_random_uuid();
   v_other uuid := gen_random_uuid();
   v_date date := (now() AT TIME ZONE 'America/New_York')::date;
@@ -56,15 +57,18 @@ BEGIN
   INSERT INTO public.season_weeks(season_year,week_number,week_start,week_end) VALUES(2199,1,v_date,v_date+6);
   INSERT INTO public.players(id,first_name,last_name,nba_team,position,eligible_positions)
   VALUES(v_pg,'Tipoff','Guard','TP1','PG',ARRAY['PG']), (v_c,'Tipoff','Center','TP3','C',ARRAY['C']),
-        (v_bench,'Tipoff','Bench','TP1','PG',ARRAY['PG']);
+        (v_bench,'Tipoff','Bench','TP1','PG',ARRAY['PG']),
+        (v_fallback,'Tipoff','Fallback','TP5','C',ARRAY['C']);
   INSERT INTO public.roster_players(league_id,league_season_id,member_id,player_id,acquired_via)
   VALUES(v_league,v_season,v_member,v_pg,'draft'),(v_league,v_season,v_member,v_c,'draft'),
-        (v_league,v_season,v_member,v_bench,'draft');
+        (v_league,v_season,v_member,v_bench,'draft'),(v_league,v_season,v_member,v_fallback,'draft');
   DELETE FROM public.lineup_slot_templates WHERE league_id=v_league;
   INSERT INTO public.lineup_slot_templates(league_id,slot_type,slot_count) VALUES(v_league,'PG',1),(v_league,'UTIL',1);
   INSERT INTO public.nba_games(id,nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time,started_at)
   VALUES(v_game,'0029912301',2199,1,v_date,'TP1','TP2','Scheduled',v_tipoff,v_tipoff),
         (v_other,'0029912302',2199,1,v_date,'TP3','TP4','Scheduled',v_tipoff,v_tipoff);
+  INSERT INTO public.nba_games(nba_game_id,season_year,week_number,game_date,home_team,away_team,status,game_time)
+  VALUES('0029912303',2199,1,v_date,'TP5','TP6','Scheduled',now()+interval '10 minutes');
   IF NOT EXISTS(SELECT 1 FROM public.lineup_optimizer_settings WHERE member_id=v_member AND enabled)
      THEN RAISE EXCEPTION 'New team is not enabled by default'; END IF;
   DELETE FROM public.lineup_optimizer_settings WHERE member_id=v_member;
@@ -100,10 +104,11 @@ BEGIN
   IF NOT public.renew_lineup_tipoff_dispatch(v_tipoff,v_token) THEN RAISE EXCEPTION 'Active holder cannot renew during reads'; END IF;
   UPDATE public.lineup_tipoff_dispatches SET lease_until=now()+interval '5 seconds' WHERE tipoff_at=v_tipoff;
   v_assignments:=jsonb_build_array(jsonb_build_object('player_id',v_pg,'slot_type','PG','week_number',1,'is_auto_set',true));
-  IF NOT public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,v_assignments) THEN RAISE EXCEPTION 'First apply fails'; END IF;
+  IF NOT public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,
+    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_c,'slot_type','UTIL','week_number',1,'is_auto_set',true))) THEN RAISE EXCEPTION 'First apply fails'; END IF;
   IF NOT EXISTS(SELECT 1 FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff AND lease_until>now()+interval '30 seconds') THEN RAISE EXCEPTION 'Active worker lease is not renewed'; END IF;
   IF EXISTS(SELECT 1 FROM public.get_pending_tipoff_members(v_tipoff,v_token)) THEN RAISE EXCEPTION 'Completed team repeats expensive reads'; END IF;
-  SELECT id,set_at INTO v_id,v_set_at FROM public.weekly_lineups WHERE member_id=v_member;
+  SELECT id,set_at INTO v_id,v_set_at FROM public.weekly_lineups WHERE member_id=v_member AND player_id=v_pg;
   IF public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]')
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Retry flaps lineup'; END IF;
   UPDATE public.lineup_tipoff_dispatches SET status='running',lease_until=now()-interval '1 second' WHERE tipoff_at=v_tipoff;
@@ -200,7 +205,8 @@ BEGIN
   IF (SELECT input_revision FROM public.lineup_tipoff_dispatches WHERE tipoff_at=v_tipoff)<>2
      OR public.claim_lineup_tipoff_dispatch(v_tipoff,v_token) IS DISTINCT FROM v_date THEN RAISE EXCEPTION 'Late news at tipoff never refreshes unlocked slots'; END IF;
   v_assignments:=jsonb_build_array(jsonb_build_object('player_id',v_pg,'slot_type','PG','week_number',1,'is_auto_set',true));
-  PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,v_assignments);
+  PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,
+    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)));
   IF EXISTS(SELECT 1 FROM public.weekly_lineups WHERE member_id=v_member AND player_id=v_c)
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Late news keeps unlocked Out or moves locked Out'; END IF;
   IF public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,'[]') THEN RAISE EXCEPTION 'News revision retry repeats its write'; END IF;
@@ -217,7 +223,8 @@ BEGIN
     PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_old_token,v_league,v_season,v_member,v_assignments);
     RAISE EXCEPTION 'An older input revision still applies';
   EXCEPTION WHEN serialization_failure THEN NULL; END;
-  PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,v_assignments);
+  PERFORM public.apply_pre_tipoff_lineup(v_tipoff,v_token,v_league,v_season,v_member,
+    v_assignments||jsonb_build_array(jsonb_build_object('player_id',v_fallback,'slot_type','UTIL','week_number',1,'is_auto_set',true)));
   IF EXISTS(SELECT 1 FROM public.weekly_lineups WHERE member_id=v_member AND player_id=v_c)
      OR NOT EXISTS(SELECT 1 FROM public.weekly_lineups WHERE id=v_id AND set_at=v_set_at) THEN RAISE EXCEPTION 'Post-dispatch postponement leaves an unlocked starter or moves a lock'; END IF;
   DELETE FROM public.season_weeks WHERE season_year=2199;

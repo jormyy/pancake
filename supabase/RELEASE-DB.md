@@ -1,5 +1,59 @@
 # Trade input database contract
 
+## Release 2.14
+
+The supplied production head is `20261214005409`, with 729 migrations at main `c5789474` (release 2.13.1).
+Release 2.14 adds eight migrations, including seven earlier-numbered versions. The candidate contains 737 migrations through `20261214005500`.
+Apply missing migrations with the normal runner and `--include-all`, in this order:
+
+| Migration | Change |
+| --- | --- |
+| `20261214004000_live_broadcast.sql` | Private Broadcast writers and receive authorization for all 16 watched tables. |
+| `20261214004010_coalesce_live_hints.sql` | Compact transaction hint batches with a private unlogged queue. |
+| `20261214004200_bound_cron_history_batches.sql` | Limit each hourly cron-history cleanup to 512 rows. |
+| `20261214004300_start_work_invocation.sql` | Combine leased invocation startup with initial renewal. |
+| `20261214004400_coalesce_invocation_reconciliation.sql` | Write each final invocation outcome once. |
+| `20261214004500_batch_trade_refresh_checks.sql` | Fingerprint trades in a league batch and coalesce pending legacy work. |
+| `20261214004600_gate_unchanged_trade_scans.sql` | Skip unchanged-source scans and coalesce work committed between applies. |
+| `20261214005500_pre_tipoff_member_failures.sql` | Record terminal member failures and let healthy pre-tipoff members finish. |
+
+Apply all eight migrations before the updated workers and Broadcast frontend.
+Migration 04300 precedes workers using the shared invocation wrapper.
+Migration 04600 precedes the `refresh-views` completion call's model field.
+Migration 05500 precedes the updated `lineup-optimizer` failure-receipt call.
+Older workers remain compatible while SQL is applied.
+Keep main's 05406–05408 `private.work_claim` definition exactly. This package does not change claim order.
+
+Both 04500 and 04600 replace pending checks and duplicate scans with one full scan per season.
+The oldest scan keeps the earliest due time and loses its continuation cursor.
+Superseded rows finish as succeeded with a `supersededBy` marker and retain prior attempts, errors and invocation links.
+Closed or missing scopes finish without replacement work.
+Running work, locked pending rows, existing revaluations and failed retries retain their worker path.
+Repeated cleanup changes no rows. The upgrade proof is `tests/db/trade-revaluation-upgrade.sql`.
+
+Migration 05500 adds nullable `lineup_tipoff_members.error` and service-only `record_pre_tipoff_lineup_failure`.
+It reapplies the existing lineup slot guard from migration 025. Roster reservation guards stay unchanged.
+Member errors receive durable receipts while healthy members finish and the work succeeds.
+Dispatch reads, finish errors, lease loss and failed receipt writes remain retryable.
+The older worker remains compatible with the additive schema.
+[Pre-tipoff proof and reruns](../docs/pre-tipoff-trade-offer-fix.md) distinguish the historical guard from main's reproduced batch failure.
+
+Committed Broadcast messages remain durable in `realtime.messages`. The private queue drains before commit.
+Keep the 16-table `supabase_realtime` publication until all legacy clients reload and their subscriptions drain.
+Publication retirement needs a separate migration and delivery check.
+Restore the publication before rolling back to a legacy frontend.
+The independent 20-second live-game fallback and reconnect reads stay active.
+Home foreground recovery shares its version request and keeps the scheduled read and failed-validation retry.
+
+Release `api`, `refresh-views`, `lineup-optimizer`, and the internal workers that consume `_shared/serve.ts` after SQL.
+The shared invocation wrapper changes in `_shared/syncRuns.ts`.
+Database, then Edge, then merge the frontend.
+The orchestrator ships. This branch does not push or deploy.
+
+Methods and reruns: [Realtime](../docs/perf-l1.md), [workers](../docs/perf-l4.md), and [Home recovery](../tests/e2e/pwa-live-game.md).
+[Cleanup](../docs/release-2.14-cleanup.md) lists removed paths and retained coverage.
+[Integration](../docs/release-2.14-integration.md) records the private upgrade/reset comparison and checks.
+
 ## Release 2.12
 
 The supplied production head is `20261214003900`, with 711 migrations at main `952580ce`.
@@ -70,11 +124,11 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The supplied production head is `20261214003900`, with 711 migrations.
-Apply the eight Release 2.12 migrations above through `20261214005302`.
+The supplied production head is `20261214005409`, with 729 migrations.
+Apply the eight migrations in Release 2.14 above with `--include-all`, through `20261214005500_pre_tipoff_member_failures.sql`.
 Database, then Edge, then merge the frontend.
-Deploy `process-waivers`, `lineup-optimizer`, and `sync-draft-order` after SQL.
-Use the normal migration runner and complete the private reset/upgrade checks before shipping.
+Migration 04300 precedes the shared startup wrapper; 04600 precedes the `refresh-views` model field; 05500 precedes `lineup-optimizer`.
+The private ordered upgrade and fresh reset produce identical catalogs.
 
 ### Historical release 2.11 rollout
 
@@ -213,6 +267,9 @@ Apply `20261214000700_future_pick_years.sql` before clients read the future pick
 The existing Edge settings endpoint accepts the new JSON field without an Edge code change.
 
 The supplied production head is `20261211000400`, with 683 migrations.
+
+### Trade input migration
+
 Pause trade dispatch, apply `20261212000100_trade_revaluation_inputs_fast.sql`, then deploy `refresh-views`.
 Resume dispatch when both versions agree.
 This change needs no frontend release.
