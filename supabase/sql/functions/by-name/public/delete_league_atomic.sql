@@ -63,12 +63,19 @@ BEGIN
      AND nomination.status = 'open';
   GET DIAGNOSTICS v_closed_nominations = ROW_COUNT;
 
+  WITH unfilled AS MATERIALIZED (
+    SELECT pick.id, pick.timer_expires_at, draft.draft_type
+    FROM snake_draft_picks AS pick
+    JOIN drafts AS draft ON draft.id = pick.draft_id
+    WHERE draft.league_id = p_league_id
+      AND pick.player_id IS NULL
+    FOR NO KEY UPDATE OF pick
+  )
   UPDATE snake_draft_picks AS pick
      SET timer_expires_at = NULL
-    FROM drafts AS draft
-   WHERE pick.draft_id = draft.id
-     AND draft.league_id = p_league_id
-     AND pick.player_id IS NULL;
+    FROM unfilled
+   WHERE pick.id = unfilled.id
+     AND (unfilled.timer_expires_at IS NOT NULL OR unfilled.draft_type <> 'snake');
 
   UPDATE drafts
      SET status = 'cancelled',

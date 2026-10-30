@@ -1,5 +1,34 @@
 # Trade input database contract
 
+## Release 2.12
+
+The supplied production head is `20261214003900`, with 711 migrations at main `952580ce`.
+Release 2.12 adds eight migrations and ends at `20261214005302`, with 719 migrations.
+Apply these migrations in version order:
+
+| Migration | Change |
+| --- | --- |
+| `20261214004100_skip_fresh_screen_statistics.sql` | Skip fresh targets in the separate daily statistics job. |
+| `20261214005000_trade_action_reservations.sql` | Share reservation reads within each trade legality check. |
+| `20261214005001_trade_reanalysis_averages.sql` | Scope reanalysis averages to the existing league and season helper. |
+| `20261214005100_roster_action_game_locks.sql` | Bound roster participation reads to the recent slate. |
+| `20261214005200_lineup_fallback_stored_rows.sql` | Read stored lineup slots once per fallback candidate query. |
+| `20261214005300_batched_dynasty_rankings.sql` | Batch dynasty ranking reads. |
+| `20261214005301_delete_unarmed_timer_writes.sql` | Skip unarmed timer writes during deletion while retaining pick locks. |
+| `20261214005302_shared_visible_games.sql` | Share the visible-player game selection. |
+
+After SQL, deploy `process-waivers`, `lineup-optimizer`, and `sync-draft-order`.
+These workers select fewer unused database fields. Final responses and ordering stay unchanged.
+The API changes in this release are tests only and require no API deployment.
+Trade rules, roster legality, permissions, game locks, scoring, timers, publications and queued work keep their existing behavior.
+The statistics job retains its schedule and thresholds. Its diagnostic status and elapsed time reflect skipped sampling.
+
+Methods and reruns: [trades](../tests/db/trades-actions.md), [roster](../tests/db/roster-actions.md),
+[lineup and draft](../tests/db/lineup-draft-actions.md), [league](../tests/db/league-actions.md), and [background](../docs/perf-l4.md).
+[Integration checks and repeat cleanup](../docs/release-2.12-integration.md) record the private database comparison.
+[Removed paths and retained coverage](../docs/release-2.12-cleanup.md) document cleanup.
+The orchestrator ships this release. This branch does not push or deploy.
+
 ## Release 2.11 integration
 
 The source baseline is `892b6bca`, release 2.10.2.
@@ -41,17 +70,17 @@ The [trade curve report](../docs/trade-curve.md) records the real trades, roster
 
 ## Release order for this release
 
-The game-night package 035–037 requires the updated `refresh-views` Edge worker before SQL.
-Its release order is specified below the migration table.
+The supplied production head is `20261214003900`, with 711 migrations.
+Apply the eight Release 2.12 migrations above through `20261214005302`.
+Database, then Edge, then merge the frontend.
+Deploy `process-waivers`, `lineup-optimizer`, and `sync-draft-order` after SQL.
+Use the normal migration runner and complete the private reset/upgrade checks before shipping.
 
-The supplied production head is `20261213000200`, with 686 migrations.
-This is the contention lane's recorded baseline.
-Release 2.10 starts from release 2.9.1, `ec739102`.
-For release 2.11, apply through 033, deploy `refresh-views`, apply 035–039, deploy remaining Edge functions, then release the frontend.
-For client dependencies: Database, then Edge, then merge the frontend.
-The worker exception precedes the service-only scheduler migrations.
-Apply pending migrations in version order.
-The missing notification versions precede the recorded production head; use `--include-all` and complete the database upgrade before strict release preflight.
+### Historical release 2.11 rollout
+
+The table below records earlier migrations already included in the supplied production head.
+For an older baseline, deploy the release 2.11 `refresh-views` worker before migrations 035–037.
+The earlier notification versions require `--include-all` when absent from that older history.
 
 | Migration | Change |
 | --- | --- |

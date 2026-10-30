@@ -833,66 +833,6 @@ export type Database = {
         }
         Relationships: []
       }
-      edge_invocations_y2026m09: {
-        Row: {
-          dispatch_claimed_at: string | null
-          dispatch_job_key: string | null
-          dispatch_period_key: string | null
-          error_message: string | null
-          function_name: string
-          id: number
-          invocation_key: string | null
-          queued_at: string
-          reconciled_at: string | null
-          request_id: number | null
-          status_code: number | null
-          sync_run_id: string | null
-          work_item_id: number | null
-          work_lease_token: string | null
-          worker_finished_at: string | null
-          worker_started_at: string | null
-          worker_status: string | null
-        }
-        Insert: {
-          dispatch_claimed_at?: string | null
-          dispatch_job_key?: string | null
-          dispatch_period_key?: string | null
-          error_message?: string | null
-          function_name: string
-          id?: never
-          invocation_key?: string | null
-          queued_at?: string
-          reconciled_at?: string | null
-          request_id?: number | null
-          status_code?: number | null
-          sync_run_id?: string | null
-          work_item_id?: number | null
-          work_lease_token?: string | null
-          worker_finished_at?: string | null
-          worker_started_at?: string | null
-          worker_status?: string | null
-        }
-        Update: {
-          dispatch_claimed_at?: string | null
-          dispatch_job_key?: string | null
-          dispatch_period_key?: string | null
-          error_message?: string | null
-          function_name?: string
-          id?: never
-          invocation_key?: string | null
-          queued_at?: string
-          reconciled_at?: string | null
-          request_id?: number | null
-          status_code?: number | null
-          sync_run_id?: string | null
-          work_item_id?: number | null
-          work_lease_token?: string | null
-          worker_finished_at?: string | null
-          worker_started_at?: string | null
-          worker_status?: string | null
-        }
-        Relationships: []
-      }
       edge_invocations_y2026m10: {
         Row: {
           dispatch_claimed_at: string | null

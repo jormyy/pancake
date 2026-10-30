@@ -3,7 +3,7 @@ import type { Database } from '../_shared/database.ts'
 import { serveInternal } from '../_shared/serve.ts'
 import { drainDueClaims, PROCESS_BATCH_LIMIT } from './drain.ts'
 
-type WaiverProcessRow = Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number]
+type WaiverProcessRow = Pick<Database['public']['Functions']['process_due_waiver_claims_atomic']['Returns'][number], 'processed'>
 
 serveInternal('process-waivers', async () => {
   const processed = await processWaiverClaims()
@@ -17,7 +17,7 @@ async function processWaiverClaims(): Promise<number> {
     const { data, error } = await supabase.rpc('process_due_waiver_claims_atomic', {
       p_process_date: throughDate,
       p_limit: PROCESS_BATCH_LIMIT,
-    })
+    }).select('processed')
     if (error) throw error
     return data ?? []
   }, async () => {

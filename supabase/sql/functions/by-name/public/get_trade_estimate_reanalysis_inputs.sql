@@ -23,10 +23,9 @@ BEGIN
   SELECT COALESCE(array_agg((item->>'playerId')::uuid),'{}') INTO player_ids
     FROM jsonb_array_elements(terms) item WHERE item->>'playerId' IS NOT NULL;
   SELECT COALESCE(array_agg(candidate.player_id),'{}') INTO replacement_ids FROM (
-    SELECT average.player_id FROM public.v_player_avg_fantasy_points average
+    SELECT average.player_id FROM private.trade_value_fantasy_averages(league.id,season.season_year) average
     JOIN public.players player ON player.id=average.player_id AND player.nba_team IS NOT NULL
-    WHERE average.league_id=league.id AND average.season_year=season.season_year
-      AND NOT EXISTS(SELECT 1 FROM public.roster_players r WHERE r.league_id=league.id AND r.league_season_id=season.id AND r.player_id=average.player_id)
+    WHERE NOT EXISTS(SELECT 1 FROM public.roster_players r WHERE r.league_id=league.id AND r.league_season_id=season.id AND r.player_id=average.player_id)
     ORDER BY average.avg_fantasy_points DESC,average.player_id LIMIT 5
   ) candidate;
   PERFORM set_config('request.jwt.claim.sub',actor::text,true);
